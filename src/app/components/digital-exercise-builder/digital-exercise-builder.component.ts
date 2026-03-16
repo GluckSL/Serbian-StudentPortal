@@ -9,7 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -30,6 +30,11 @@ interface BuilderQuestion {
   translation?: string;
   audioUrl?: string;
   acceptedVariants?: string[];
+  // Question / Answer
+  prompt?: string;
+  sampleAnswers?: string[];
+  similarityThreshold?: number;   // 0-100, default 70
+  scoringMode?: 'full' | 'proportional';
   // Common
   points: number;
 }
@@ -71,10 +76,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   nativeLanguages = ['English', 'Tamil', 'Sinhala'];
 
   questionTypes: Array<{ value: string; label: string; icon: string; description: string }> = [
-    { value: 'mcq', label: 'Multiple Choice', icon: 'quiz', description: 'Options with one correct answer. Supports images.' },
-    { value: 'matching', label: 'Matching Exercise', icon: 'compare_arrows', description: 'Match left items with right items.' },
-    { value: 'fill-blank', label: 'Fill in the Blanks', icon: 'text_fields', description: 'Sentences with ___ blanks to fill in.' },
-    { value: 'pronunciation', label: 'Pronunciation Check', icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' }
+    { value: 'mcq',             label: 'Multiple Choice',   icon: 'quiz',              description: 'Options with one correct answer. Supports images.' },
+    { value: 'matching',        label: 'Matching Exercise',  icon: 'compare_arrows',    description: 'Match left items with right items.' },
+    { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with ___ blanks to fill in.' },
+    { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
+    { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' }
   ];
 
   constructor(
@@ -146,6 +152,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         audioUrl: q.audioUrl || '',
         acceptedVariants: [...(q.acceptedVariants || [])]
       });
+    } else if (q.type === 'question-answer') {
+      Object.assign(base, {
+        prompt: q.prompt || '',
+        sampleAnswers: [...(q.sampleAnswers || [''])],
+        similarityThreshold: q.similarityThreshold ?? 70,
+        scoringMode: q.scoringMode || 'full'
+      });
     }
     return base;
   }
@@ -185,6 +198,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.phonetic = '';
       q.translation = '';
       q.acceptedVariants = [];
+    } else if (type === 'question-answer') {
+      q.prompt = '';
+      q.sampleAnswers = [''];
+      q.similarityThreshold = 70;
+      q.scoringMode = 'full';
     }
     this.questions.push(q);
     this.expandedQuestion = this.questions.length - 1;
@@ -248,6 +266,19 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   addVariant(q: BuilderQuestion): void { q.acceptedVariants!.push(''); }
   removeVariant(q: BuilderQuestion, i: number): void { q.acceptedVariants!.splice(i, 1); }
 
+  addSampleAnswer(q: BuilderQuestion): void { q.sampleAnswers!.push(''); }
+  removeSampleAnswer(q: BuilderQuestion, i: number): void {
+    if (q.sampleAnswers!.length > 1) q.sampleAnswers!.splice(i, 1);
+  }
+
+  setThreshold(q: BuilderQuestion, raw: any): void {
+    let v = parseInt(String(raw), 10);
+    if (isNaN(v)) return;
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    q.similarityThreshold = v;
+  }
+
   getBlankCount(q: BuilderQuestion): number {
     return (q.sentence?.match(/___/g) || []).length;
   }
@@ -279,6 +310,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'matching') return (q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0) >= 2;
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
+    if (q.type === 'question-answer') return !!(q.prompt?.trim());
     return false;
   }
 

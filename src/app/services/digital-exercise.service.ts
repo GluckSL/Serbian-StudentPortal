@@ -95,6 +95,7 @@ export interface QuestionResponse {
   fillBlankResponses?: string[];
   spokenText?: string;
   pronunciationScore?: number;
+  qaResponse?: string;
 }
 
 export interface SubmitResult {
@@ -235,6 +236,7 @@ export class DigitalExerciseService {
   generateFromPdf(options: {
     uploadId: string;
     types: string[];
+    typeCounts?: Record<string, number>;
     targetLanguage: string;
     nativeLanguage: string;
     level: string;

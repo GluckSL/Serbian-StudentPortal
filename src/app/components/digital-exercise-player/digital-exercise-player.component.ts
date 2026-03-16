@@ -28,6 +28,8 @@ interface PlayerQuestion {
   pronunciationScore?: number;
   isRecording?: boolean;
   hasRecorded?: boolean;
+  // Question/Answer state
+  qaResponse?: string;
   // Result state
   isAnswered?: boolean;
   isCorrect?: boolean | null;
@@ -124,6 +126,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.pronunciationScore = 0;
         pq.isRecording = false;
         pq.hasRecorded = false;
+      } else if (q.type === 'question-answer') {
+        pq.qaResponse = '';
       }
       return pq;
     });
@@ -172,6 +176,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'matching') return (pq.matchingLeft || []).every(l => l.matchedRightIndex !== null);
     if (q.type === 'fill-blank') return (pq.fillAnswers || []).every(a => a.trim() !== '');
     if (q.type === 'pronunciation') return pq.hasRecorded === true;
+    if (q.type === 'question-answer') return (pq.qaResponse || '').trim().length > 0;
     return false;
   }
 
@@ -375,6 +380,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       } else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
+      } else if (pq.data.type === 'question-answer') {
+        resp.qaResponse = pq.qaResponse || '';
       }
       return resp;
     });
@@ -484,6 +491,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return parts.length ? parts.join(', ') : '—';
     }
     if (pq.data.type === 'pronunciation') return (pq.spokenText || '—').trim();
+    if (pq.data.type === 'question-answer') return (pq.qaResponse || '—').trim();
     return '—';
   }
 
@@ -501,6 +509,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'fill-blank') {
       const ans = (pq.data._correctAnswers || []).join(', ');
       return ans || '—';
+    }
+    if (pq.data.type === 'question-answer') {
+      const samples = pq.data.sampleAnswers || [];
+      return samples.length ? samples.join('; ') : '(AI graded)';
     }
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
     return '—';

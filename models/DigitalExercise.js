@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer'], required: true },
     // MCQ fields
     question: String,
     imageUrl: String,
@@ -104,6 +104,11 @@ const DigitalExerciseSchema = new mongoose.Schema({
     translation: String,
     audioUrl: String,
     acceptedVariants: [String],
+    // Question / Answer fields
+    prompt: String,
+    sampleAnswers: [String],
+    similarityThreshold: { type: Number, default: 70 },   // 0-100 — min AI score to pass
+    scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
     // Common
     points: { type: Number, default: 1 }
   }],

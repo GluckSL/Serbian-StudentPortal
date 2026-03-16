@@ -96,6 +96,7 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'">{{ pq.data.prompt }}</div>
           <div class="review-answer-row">
             <span class="review-label">Your answer:</span>
             <span class="review-value" [class.wrong]="!pq.isCorrect">{{ getReviewAnswerText(pq) }}</span>
@@ -366,6 +367,25 @@
             <span class="material-icons">warning</span>
             Speech recognition is not supported in this browser.
             Please use Chrome or Edge for pronunciation exercises.
+          </div>
+        </div>
+
+        <!-- Question / Answer body -->
+        <div class="q-body qa-body" *ngIf="currentQuestion.data.type === 'question-answer'">
+          <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+          <label class="qa-input-label">Your Answer</label>
+          <textarea
+            class="qa-textarea"
+            rows="4"
+            placeholder="Write your answer here..."
+            [(ngModel)]="currentQuestion.qaResponse"
+            [disabled]="isSubmittedState"
+          ></textarea>
+          <div class="qa-hint" *ngIf="isSubmittedState && currentQuestion.data.sampleAnswers?.length">
+            <strong>Sample answers:</strong>
+            <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
+              {{ sa }}<span *ngIf="si < currentQuestion.data.sampleAnswers.length - 1">; </span>
+            </span>
           </div>
         </div>
 
