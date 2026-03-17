@@ -1,6 +1,7 @@
 // src/app/components/pdf-exercise-generator/pdf-exercise-generator.component.ts
 
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
+import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,7 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 type WizardStep = 1 | 2 | 3 | 4;
 
 interface ReviewQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -36,6 +37,11 @@ interface ReviewQuestion {
   sampleAnswers?: string[];
   similarityThreshold?: number;
   scoringMode?: 'full' | 'proportional';
+  // Listening
+  mediaUrl?: string;
+  expectedTranscript?: string;
+  attemptMode?: 'typing' | 'typing-or-speech';
+  transcribing?: boolean;
   // Common
   points: number;
   // Editor state
@@ -62,6 +68,7 @@ const PROGRESS_MESSAGES = [
 })
 export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
 
   currentStep: WizardStep = 1;
 
@@ -252,7 +259,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     this.exerciseService.generateFromPdf({
       uploadId: this.uploadResult.uploadId,
-      types: this.selectedTypes,
+      types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
       typeCounts: { ...this.typeCounts },
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
@@ -330,6 +337,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     else if (type === 'fill-blank') Object.assign(q, { sentence: '', answers: [''], hint: '', caseSensitive: false });
     else if (type === 'pronunciation') Object.assign(q, { word: '', phonetic: '', translation: '', acceptedVariants: [] });
     else if (type === 'question-answer') Object.assign(q, { prompt: '', sampleAnswers: [''], similarityThreshold: 70, scoringMode: 'full' });
+    else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
     this.reviewQuestions.push(q);
     this.addingType = '';
   }
@@ -397,6 +405,55 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     q.similarityThreshold = v;
   }
 
+  triggerListeningFile(q: ReviewQuestion): void {
+    (this as any).currentListeningQ = q;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onListeningFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = (this as any).currentListeningQ as ReviewQuestion | null;
+    (this as any).currentListeningQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio uploaded'); },
+      error: (err) => this.showError(err.error?.error || 'Upload failed')
+    });
+  }
+
+  fetchListeningFromUrl(q: ReviewQuestion, url: string): void {
+    if (!url?.trim()) { this.showError('Enter a valid URL'); return; }
+    this.exerciseService.fetchListeningFromUrl(url.trim()).subscribe({
+      next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio fetched'); },
+      error: (err) => this.showError(err.error?.error || 'Fetch failed')
+    });
+  }
+
+  generateListeningTranscript(q: ReviewQuestion): void {
+    if (!q.mediaUrl) { this.showError('Upload or add audio URL first'); return; }
+    q.transcribing = true;
+    this.exerciseService.transcribeListening(q.mediaUrl).subscribe({
+      next: (res) => {
+        q.expectedTranscript = res.transcript;
+        q.transcribing = false;
+        this.showSuccess('Transcript generated. Verify and edit if needed.');
+      },
+      error: (err) => {
+        q.transcribing = false;
+        this.showError(err.error?.error || 'Transcription failed');
+      }
+    });
+  }
+
+  getMediaFullUrl(relative: string): string {
+    if (!relative) return '';
+    if (relative.startsWith('http')) return relative;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return base ? base + relative : relative;
+  }
+
   // Validation
   isQuestionValid(q: ReviewQuestion): boolean {
     if (q.type === 'mcq') return !!(q.question?.trim()) && (q.options?.filter(o => o.trim()).length ?? 0) >= 2;
@@ -404,6 +461,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
+    if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     return false;
   }
 

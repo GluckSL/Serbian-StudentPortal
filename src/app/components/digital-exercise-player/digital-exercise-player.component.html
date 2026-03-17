@@ -97,6 +97,7 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'">{{ pq.data.prompt }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'listening'">{{ pq.data.prompt }}</div>
           <div class="review-answer-row">
             <span class="review-label">Your answer:</span>
             <span class="review-value" [class.wrong]="!pq.isCorrect">{{ getReviewAnswerText(pq) }}</span>
@@ -367,6 +368,36 @@
             <span class="material-icons">warning</span>
             Speech recognition is not supported in this browser.
             Please use Chrome or Edge for pronunciation exercises.
+          </div>
+        </div>
+
+        <!-- Listening body -->
+        <div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
+          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and type what you hear.' }}</div>
+          <div class="listening-audio-wrap" *ngIf="currentQuestion.data.mediaUrl">
+            <audio [src]="getMediaFullUrl(currentQuestion.data.mediaUrl)" controls></audio>
+          </div>
+          <label class="qa-input-label">Your Answer</label>
+          <div class="listening-input-row">
+            <textarea
+              class="qa-textarea"
+              rows="4"
+              placeholder="Type what you hear..."
+              [(ngModel)]="currentQuestion.listeningText"
+              [disabled]="isSubmittedState"
+            ></textarea>
+            <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
+              <button
+                type="button"
+                class="btn-record"
+                [class.recording]="currentQuestion.isRecording"
+                [disabled]="isSubmittedState"
+                (click)="currentQuestion.isRecording ? stopListeningSpeech(currentQuestion) : startListeningSpeech(currentQuestion)"
+              >
+                <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
+                {{ currentQuestion.isRecording ? 'Stop' : 'Speak' }}
+              </button>
+            </div>
           </div>
         </div>
 

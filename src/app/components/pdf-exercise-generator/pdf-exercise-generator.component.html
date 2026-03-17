@@ -1,4 +1,5 @@
 <!-- pdf-exercise-generator.component.html -->
+<input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
 <div class="generator-page">
 
   <!-- ── Top Bar ── -->
@@ -404,6 +405,7 @@
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || '—' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || '—' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen' }} ({{ q.mediaUrl ? 'audio' : '—' }})</span>
               </ng-container>
             </span>
           </div>
@@ -535,6 +537,45 @@
           </ng-container>
 
           <!-- Question / Answer Editor -->
+          <!-- Listening Editor -->
+          <ng-container *ngIf="q.type === 'listening'">
+            <div class="ed-field">
+              <label>Instruction</label>
+              <input type="text" [(ngModel)]="q.prompt" class="ed-input" placeholder="Listen and type what you hear." />
+            </div>
+            <div class="ed-field">
+              <label>Audio</label>
+              <div class="listening-upload-row">
+                <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
+                  <span class="material-icons">upload_file</span> Upload
+                </button>
+                <span class="upload-or">or</span>
+                <input type="text" #listeningUrl placeholder="Paste URL..." class="ed-input" style="width:200px" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
+                <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
+              </div>
+              <div *ngIf="q.mediaUrl" class="audio-preview">
+                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+              </div>
+            </div>
+            <div class="ed-field">
+              <div class="sentence-label-row">
+                <label>Expected transcript</label>
+                <button type="button" class="btn-insert-blank" (click)="generateListeningTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
+                  <span class="material-icons">auto_awesome</span>
+                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
+                </button>
+              </div>
+              <textarea [(ngModel)]="q.expectedTranscript" class="ed-input" rows="3"></textarea>
+            </div>
+            <div class="ed-field">
+              <label>Student mode</label>
+              <select [(ngModel)]="q.attemptMode" class="ed-input" style="width:auto">
+                <option value="typing">Typing only</option>
+                <option value="typing-or-speech">Typing or speaking</option>
+              </select>
+            </div>
+          </ng-container>
+
           <ng-container *ngIf="q.type === 'question-answer'">
             <div class="ed-field">
               <label>Question <span class="required">*</span></label>
@@ -635,6 +676,10 @@
           <button *ngFor="let qt of questionTypes" class="add-q-btn" (click)="addBlankQuestion(qt.value)"
             [style.background]="qt.bg" [style.color]="qt.color">
             <span class="material-icons">{{ qt.icon }}</span> {{ qt.label }}
+          </button>
+          <button class="add-q-btn" (click)="addBlankQuestion('listening')"
+            style="background:#fef3c7;color:#b45309">
+            <span class="material-icons">headphones</span> Listening
           </button>
         </div>
       </div>

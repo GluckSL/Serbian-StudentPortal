@@ -1,5 +1,6 @@
 <!-- digital-exercise-builder.component.html -->
 <div class="builder-container">
+  <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
 
   <!-- AI Generator Banner (create mode only) -->
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
@@ -175,6 +176,7 @@
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen and type' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
               </ng-container>
             </span>
           </div>
@@ -297,6 +299,69 @@
                 <label class="checkbox-label">
                   <input type="checkbox" [(ngModel)]="q.caseSensitive" />
                   Case-sensitive grading
+                </label>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- Listening Editor -->
+          <ng-container *ngIf="q.type === 'listening'">
+            <div class="info-banner">
+              <span class="material-icons">headphones</span>
+              Upload audio (or paste a link). AI will extract the text for you to verify before publishing. Students listen and type (or speak) what they hear.
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Instruction</label>
+              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. Listen and type what you hear." />
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Audio</label>
+              <div class="listening-upload-row">
+                <div class="upload-option">
+                  <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
+                    <span class="material-icons">upload_file</span> Upload from computer
+                  </button>
+                </div>
+                <span class="upload-or">or</span>
+                <div class="upload-option upload-url">
+                  <input type="text" #listeningUrl placeholder="Paste audio URL..." class="field-input" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
+                  <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
+                </div>
+              </div>
+              <div *ngIf="q.mediaUrl" class="audio-preview">
+                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+                <span class="media-url">{{ q.mediaUrl }}</span>
+              </div>
+            </div>
+            <div class="field-group full">
+              <div class="sentence-label-row">
+                <label class="field-label required">Expected transcript</label>
+                <button type="button" class="btn-insert-blank" (click)="generateTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
+                  <span class="material-icons">auto_awesome</span>
+                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
+                </button>
+              </div>
+              <p class="hint-text">AI extracts text from the audio. Verify it's correct before publishing.</p>
+              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="4" placeholder="Transcript will appear here after AI extraction..."></textarea>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">Student attempt mode</label>
+              <div class="scoring-mode-opts" style="margin-top:6px">
+                <label class="scoring-opt" [class.active]="(q.attemptMode || 'typing') === 'typing'" (click)="q.attemptMode = 'typing'">
+                  <input type="radio" [name]="'am-'+i" value="typing" [(ngModel)]="q.attemptMode" />
+                  <div class="scoring-opt-icon"><span class="material-icons">keyboard</span></div>
+                  <div class="scoring-opt-text">
+                    <span class="scoring-opt-name">Typing only</span>
+                    <span class="scoring-opt-desc">Student must type what they hear</span>
+                  </div>
+                </label>
+                <label class="scoring-opt" [class.active]="q.attemptMode === 'typing-or-speech'" (click)="q.attemptMode = 'typing-or-speech'">
+                  <input type="radio" [name]="'am-'+i" value="typing-or-speech" [(ngModel)]="q.attemptMode" />
+                  <div class="scoring-opt-icon"><span class="material-icons">mic</span></div>
+                  <div class="scoring-opt-text">
+                    <span class="scoring-opt-name">Typing or speaking</span>
+                    <span class="scoring-opt-desc">Student can type or speak (speech → text)</span>
+                  </div>
                 </label>
               </div>
             </div>
@@ -526,6 +591,15 @@
             <div class="pq-word">{{ q.word }}</div>
             <div *ngIf="q.phonetic" class="pq-phonetic">{{ q.phonetic }}</div>
             <div *ngIf="q.translation" class="pq-translation">= {{ q.translation }}</div>
+          </div>
+
+          <!-- Listening Preview -->
+          <div *ngIf="q.type === 'listening'" class="pq-body">
+            <p class="pq-text">{{ q.prompt }}</p>
+            <div *ngIf="q.mediaUrl" class="pq-audio">
+              <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+            </div>
+            <div class="pq-qa-answer-box">Student types or speaks what they hear...</div>
           </div>
 
           <!-- Question / Answer Preview -->
