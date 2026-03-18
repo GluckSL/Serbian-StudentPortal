@@ -229,6 +229,29 @@
 }
 .timer .material-icons { font-size: 18px; color: #6366f1; }
 
+/* Shared audio for manual listening worksheets */
+.shared-audio-wrap {
+  max-width: 880px;
+  margin: 0 auto 8px;
+  padding: 0 24px;
+}
+
+.shared-audio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: #4f46e5;
+  margin: 0 0 8px;
+}
+
+.shared-audio-label .material-icons { font-size: 18px; }
+
+.shared-audio {
+  width: 100%;
+  border-radius: 12px;
+}
+
 /* Question Nav dots */
 .question-nav {
   display: flex;

@@ -147,6 +147,9 @@ app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
 const listeningMediaRoutes = require('./routes/listeningMedia');
 app.use('/api/listening-media', listeningMediaRoutes);
 
+const listeningWorksheetRoutes = require('./routes/listeningWorksheetGenerator');
+app.use('/api/listening-worksheets', listeningWorksheetRoutes);
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
   try {

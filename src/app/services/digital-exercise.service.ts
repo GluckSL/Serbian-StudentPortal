@@ -81,6 +81,7 @@ export interface DigitalExercise {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   estimatedDuration?: number;
   questions: ExerciseQuestion[];
+  sharedAudioUrl?: string;
   tags?: string[];
   isActive?: boolean;
   visibleToStudents?: boolean;
@@ -270,6 +271,23 @@ export class DigitalExerciseService {
 
   cleanupPdf(uploadId: string): Observable<any> {
     return this.http.delete<any>(`${environment.apiUrl}/pdf-exercises/cleanup/${uploadId}`, { withCredentials: true });
+  }
+
+  // ─── Manual Listening Worksheet Extraction ──────────────────────────────
+  generateListeningFromWorksheet(options: {
+    uploadId: string;
+    audioUrl?: string;
+    targetLanguage: string;
+    nativeLanguage: string;
+    level: string;
+    difficulty: string;
+    maxQuestions?: number;
+  }): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/listening-worksheets/generate`,
+      options,
+      { withCredentials: true }
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────

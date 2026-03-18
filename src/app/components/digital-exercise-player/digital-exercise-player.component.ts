@@ -571,7 +571,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return this.exerciseService.getQuestionTypeLabel(type as any);
   }
 
-  getMediaFullUrl(relative: string): string {
+  getMediaFullUrl(relative?: string | null): string {
     if (!relative) return '';
     if (relative.startsWith('http')) return relative;
     const base = environment.apiUrl.replace(/\/api\/?$/, '');

@@ -189,6 +189,15 @@
       </div>
     </div>
 
+    <!-- Shared audio for manual listening worksheets -->
+    <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
+      <div class="shared-audio-label">
+        <span class="material-icons">headphones</span>
+        Audio
+      </div>
+      <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
+    </div>
+
     <!-- Question Navigator (dots) -->
     <div class="question-nav">
       <button

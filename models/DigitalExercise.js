@@ -117,6 +117,10 @@ const DigitalExerciseSchema = new mongoose.Schema({
     points: { type: Number, default: 1 }
   }],
 
+  // Optional shared audio for manual listening worksheets.
+  // When present, the student can play this audio for all questions in the exercise.
+  sharedAudioUrl: { type: String, default: null },
+
   tags: [String],
 
   // Visibility and state

@@ -238,6 +238,13 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+  // Admin/Teacher: Audio + PDF listening worksheet import
+  {
+    path: 'admin/digital-exercises/generate-listening-manual',
+    loadComponent: () => import('./components/listening-worksheet-generator/listening-worksheet-generator.component').then(m => m.ListeningWorksheetGeneratorComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
 
   // Wildcard route to handle invalid paths
   { path: '**', redirectTo: 'home' }
