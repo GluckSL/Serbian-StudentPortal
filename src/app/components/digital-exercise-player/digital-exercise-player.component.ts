@@ -62,8 +62,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   result: SubmitResult | null = null;
 
-  /** Synced with state so template can use it inside *ngIf="state === 'playing'" without type overlap error. */
-  isSubmittedState = false;
+  /** True when current question has been submitted (for per-question feedback). */
+  get hasCurrentSubmitted(): boolean {
+    const pq = this.currentQuestion;
+    return pq ? (pq.isCorrect === true || pq.isCorrect === false) : false;
+  }
 
   // Speech recognition
   private recognition: any = null;
@@ -100,7 +103,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       next: (exercise) => {
         this.exercise = exercise;
         this.initPlayerQuestions();
-        this.isSubmittedState = false;
         this.state = 'intro';
       },
       error: () => { this.state = 'error'; }
@@ -146,7 +148,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.currentIndex = 0;
         this.startTime = Date.now();
         this.startTimer();
-        this.isSubmittedState = false;
         this.state = 'playing';
       },
       error: (err) => {
@@ -165,6 +166,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   get isLastQuestion(): boolean { return this.currentIndex === this.playerQuestions.length - 1; }
   get answeredCount(): number { return this.playerQuestions.filter(q => this.isQuestionAnswered(q)).length; }
   get totalPoints(): number { return this.playerQuestions.reduce((s, q) => s + (q.data.points || 1), 0); }
+
+  get correctCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true).length; }
+  get wrongCount(): number { return this.playerQuestions.filter(q => q.isCorrect === false).length; }
+  get unansweredCount(): number { return this.playerQuestions.filter(q => q.isCorrect !== true && q.isCorrect !== false).length; }
+  get submittedCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true || q.isCorrect === false).length; }
+  get pendingCount(): number { return this.playerQuestions.length - this.submittedCount; }
 
   prevQuestion(): void { if (this.currentIndex > 0) this.currentIndex--; }
 
@@ -359,53 +366,127 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return dp[a.length][b.length];
   }
 
-  // ─── Submit ───────────────────────────────────────────────────────────────────
+  // ─── Submit (per-question) ──────────────────────────────────────────────────────
 
-  submitExercise(): void {
+  submitCurrentQuestion(): void {
     if (this.submitting) return;
 
-    const unanswered = this.playerQuestions.filter(q => !this.isQuestionAnswered(q));
-    if (unanswered.length > 0) {
-      const confirmed = confirm(`You have ${unanswered.length} unanswered question(s). Submit anyway?`);
-      if (!confirmed) return;
+    const pq = this.currentQuestion;
+    if (!this.isQuestionAnswered(pq)) {
+      this.snackBar.open('Please answer the question before submitting.', 'Close', { duration: 3000 });
+      return;
     }
 
     this.submitting = true;
-    this.stopTimer();
+    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
 
+    const resp: QuestionResponse = { questionIndex: this.currentIndex };
+    if (pq.data.type === 'mcq') {
+      resp.selectedOptionIndex = pq.selectedOption;
+    } else if (pq.data.type === 'matching') {
+      resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
+        leftIndex: li,
+        rightIndex: l.matchedRightIndex ?? -1
+      }));
+    } else if (pq.data.type === 'fill-blank') {
+      resp.fillBlankResponses = pq.fillAnswers || [];
+    } else if (pq.data.type === 'pronunciation') {
+      resp.spokenText = pq.spokenText || '';
+      resp.pronunciationScore = pq.pronunciationScore || 0;
+    } else if (pq.data.type === 'question-answer') {
+      resp.qaResponse = pq.qaResponse || '';
+    } else if (pq.data.type === 'listening') {
+      resp.listeningText = pq.listeningText || '';
+    }
+
+    this.exerciseService.submitQuestion(
+      this.exerciseId,
+      this.attemptId,
+      this.currentIndex,
+      resp,
+      this.elapsedSeconds
+    ).subscribe({
+      next: (res) => {
+        pq.isCorrect = res.isCorrect;
+        pq.feedback = this.buildFeedbackFromCorrectAnswer(pq.data, res.correctAnswer, pq);
+        if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
+          pq.data._correctAnswers = res.correctAnswer.answers;
+        }
+        if (pq.data.type === 'mcq' && res.correctAnswer?.correctAnswerIndex !== undefined) {
+          pq.data.correctAnswerIndex = res.correctAnswer.correctAnswerIndex;
+        }
+        if (pq.data.type === 'matching' && res.correctAnswer?.pairs) {
+          pq.data._correctPairs = res.correctAnswer.pairs;
+        }
+        this.submitting = false;
+
+        if (res.allSubmitted) {
+          this.result = {
+            scorePercentage: res.scorePercentage,
+            earnedPoints: res.earnedPoints,
+            totalPoints: res.totalPoints,
+            passed: res.passed,
+            answerDetails: this.playerQuestions.map((p, i) => ({
+              questionIndex: i,
+              type: p.data.type,
+              isCorrect: p.isCorrect ?? false,
+              pointsEarned: p.isCorrect ? (p.data.points || 1) : 0,
+              correctAnswer: null
+            }))
+          };
+          this.stopTimer();
+          this.state = 'submitted';
+        }
+      },
+      error: (err) => {
+        this.submitting = false;
+        const msg = err?.error?.error || err?.message || 'Failed to submit. Please try again.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        if (err?.status === 404 || err?.status === 500) {
+          this.fallbackToFullSubmit();
+        }
+      }
+    });
+  }
+
+  private buildFeedbackFromCorrectAnswer(q: any, correctAnswer: any, pq: PlayerQuestion): string {
+    if (!correctAnswer) return '';
+    if (q.type === 'mcq' && correctAnswer.explanation) return correctAnswer.explanation;
+    if (q.type === 'fill-blank' && correctAnswer.answers) {
+      return 'Correct answers: ' + correctAnswer.answers.join(', ');
+    }
+    return '';
+  }
+
+  private fallbackToFullSubmit(): void {
     const responses: QuestionResponse[] = this.playerQuestions.map((pq, i) => {
       const resp: QuestionResponse = { questionIndex: i };
-      if (pq.data.type === 'mcq') {
-        resp.selectedOptionIndex = pq.selectedOption;
-      } else if (pq.data.type === 'matching') {
+      if (pq.data.type === 'mcq') resp.selectedOptionIndex = pq.selectedOption;
+      else if (pq.data.type === 'matching') {
         resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
           leftIndex: li,
           rightIndex: l.matchedRightIndex ?? -1
         }));
-      } else if (pq.data.type === 'fill-blank') {
-        resp.fillBlankResponses = pq.fillAnswers || [];
-      } else if (pq.data.type === 'pronunciation') {
+      } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
+      else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
-      } else if (pq.data.type === 'question-answer') {
-        resp.qaResponse = pq.qaResponse || '';
-      } else if (pq.data.type === 'listening') {
-        resp.listeningText = pq.listeningText || '';
-      }
+      } else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
+      else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
       return resp;
     });
-
+    this.submitting = true;
+    this.stopTimer();
     this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
       next: (result) => {
         this.result = result;
         this.submitting = false;
-        this.isSubmittedState = true;
-        this.state = 'submitted';
         this.applyResultFeedback(result);
+        this.state = 'submitted';
       },
-      error: (err) => {
+      error: (e) => {
         this.submitting = false;
-        this.snackBar.open(err.error?.error || 'Failed to submit. Please try again.', 'Close', { duration: 5000 });
+        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
       }
     });
   }
@@ -467,7 +548,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   tryAgain(): void {
     this.result = null;
-    this.isSubmittedState = false;
     this.initPlayerQuestions();
     this.currentIndex = 0;
     this.startExercise();
@@ -478,7 +558,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   backToResult(): void {
-    this.isSubmittedState = true;
     this.state = 'submitted';
   }
 
@@ -611,11 +690,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   isMatchCorrect(pq: PlayerQuestion, leftIndex: number): boolean {
     const matchedRightIndex = pq.matchingLeft![leftIndex].matchedRightIndex;
     if (matchedRightIndex === null || matchedRightIndex === undefined) return false;
-    const leftValue = pq.matchingLeft![leftIndex].value;
     const matchedRightValue = pq.matchingRight![matchedRightIndex].value;
-    const originalPairs = pq.data.pairs || [];
-    const originalPair = originalPairs.find((p: any) => p.left === leftValue);
-    return originalPair ? originalPair.right === matchedRightValue : false;
+    const correctPairs = pq.data._correctPairs || [];
+    const correctForLeft = correctPairs.find((p: any) => p.leftIndex === leftIndex);
+    return correctForLeft ? correctForLeft.rightValue === matchedRightValue : false;
   }
 
   isFillCorrect(pq: PlayerQuestion, blankIndex: number): boolean {

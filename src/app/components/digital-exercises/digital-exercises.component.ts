@@ -7,6 +7,8 @@ import { Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
 
+type TabType = 'completed' | 'pending' | 'new';
+
 @Component({
   selector: 'app-digital-exercises',
   standalone: true,
@@ -16,9 +18,12 @@ import { AuthService } from '../../services/auth.service';
 })
 export class DigitalExercisesComponent implements OnInit {
   exercises: DigitalExercise[] = [];
+  filteredExercises: DigitalExercise[] = [];
   loading = false;
   userRole: string = '';
   isTeacherOrAdmin = false;
+
+  activeTab: TabType = 'new';
 
   // Filters
   searchQuery = '';
@@ -57,8 +62,8 @@ export class DigitalExercisesComponent implements OnInit {
   loadExercises(): void {
     this.loading = true;
     const filters: any = {
-      page: this.currentPage,
-      limit: this.pageSize
+      page: 1,
+      limit: 100
     };
     if (this.searchQuery.trim()) filters.search = this.searchQuery.trim();
     if (this.selectedLevel) filters.level = this.selectedLevel;
@@ -68,12 +73,46 @@ export class DigitalExercisesComponent implements OnInit {
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
-        this.totalExercises = res.total || 0;
-        this.totalPages = res.pages || 1;
+        this.applyTabFilter();
         this.loading = false;
       },
       error: () => { this.loading = false; }
     });
+  }
+
+  setTab(tab: TabType): void {
+    this.activeTab = tab;
+    this.applyTabFilter();
+  }
+
+  private applyTabFilter(): void {
+    const now = Date.now();
+    const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+
+    let list = this.exercises;
+    if (this.activeTab === 'completed') {
+      list = list.filter(ex => ex.studentAttempt != null);
+    } else if (this.activeTab === 'pending') {
+      list = list.filter(ex => !ex.studentAttempt);
+      list = list.filter(ex => {
+        const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
+        return now - created > fourteenDaysMs;
+      });
+    } else {
+      list = list.filter(ex => !ex.studentAttempt);
+      list = list.filter(ex => {
+        const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
+        return now - created <= fourteenDaysMs;
+      });
+    }
+    this.filteredExercises = list;
+    this.totalExercises = list.length;
+    this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
+  }
+
+  get paginatedExercises(): DigitalExercise[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredExercises.slice(start, start + this.pageSize);
   }
 
   onSearchChange(): void {
@@ -87,6 +126,10 @@ export class DigitalExercisesComponent implements OnInit {
   onFilterChange(): void {
     this.currentPage = 1;
     this.loadExercises();
+  }
+
+  onTabChange(): void {
+    this.currentPage = 1;
   }
 
   clearFilters(): void {
@@ -112,7 +155,6 @@ export class DigitalExercisesComponent implements OnInit {
 
   changePage(page: number): void {
     this.currentPage = page;
-    this.loadExercises();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

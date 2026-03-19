@@ -135,6 +135,18 @@ export interface SubmitResult {
   }>;
 }
 
+export interface SubmitQuestionResult {
+  questionIndex: number;
+  isCorrect: boolean;
+  pointsEarned: number;
+  correctAnswer: any;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+  allSubmitted: boolean;
+  passed: boolean;
+}
+
 export interface ExerciseFilters {
   level?: string;
   category?: string;
@@ -215,6 +227,20 @@ export class DigitalExerciseService {
     return this.http.post<SubmitResult>(
       `${this.apiUrl}/${exerciseId}/submit`,
       { attemptId, responses, timeSpentSeconds },
+      { withCredentials: true }
+    );
+  }
+
+  submitQuestion(
+    exerciseId: string,
+    attemptId: string,
+    questionIndex: number,
+    response: QuestionResponse,
+    timeSpentSeconds: number
+  ): Observable<SubmitQuestionResult> {
+    return this.http.post<SubmitQuestionResult>(
+      `${this.apiUrl}/${exerciseId}/submit-question`,
+      { attemptId, questionIndex, response, timeSpentSeconds },
       { withCredentials: true }
     );
   }
