@@ -104,7 +104,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       next: (exercise) => {
         this.exercise = exercise;
         this.initPlayerQuestions();
-        this.state = 'intro';
+        // Start immediately when user clicks "Start" from the list page.
+        this.startExercise();
       },
       error: () => { this.state = 'error'; }
     });
@@ -153,6 +154,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
+        this.state = 'error';
       }
     });
   }
@@ -245,6 +247,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   getMatchedRightValue(pq: PlayerQuestion, leftIndex: number): string {
     const ri = pq.matchingLeft![leftIndex].matchedRightIndex;
     return ri !== null && ri !== undefined ? pq.matchingRight![ri].value : '';
+  }
+
+  getLeftMatchClass(pq: PlayerQuestion, leftIndex: number): string {
+    const rightIndex = pq.matchingLeft?.[leftIndex]?.matchedRightIndex;
+    if (rightIndex === null || rightIndex === undefined || rightIndex < 0) return '';
+    return this.getMatchColorClass(leftIndex);
+  }
+
+  getRightMatchClass(pq: PlayerQuestion, rightIndex: number): string {
+    const leftIndex = pq.matchingRight?.[rightIndex]?.matchedLeftIndex;
+    if (leftIndex === null || leftIndex === undefined || leftIndex < 0) return '';
+    return this.getMatchColorClass(leftIndex);
+  }
+
+  private getMatchColorClass(leftIndex: number): string {
+    const palette = ['pair-1', 'pair-2', 'pair-3', 'pair-4', 'pair-5', 'pair-6', 'pair-7', 'pair-8'];
+    return palette[leftIndex % palette.length];
   }
 
   // ─── Pronunciation Interaction ────────────────────────────────────────────────

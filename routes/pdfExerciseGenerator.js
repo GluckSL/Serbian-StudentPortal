@@ -94,7 +94,8 @@ function buildGenerationPrompt(pdfText, options) {
     nativeLanguage = 'English',
     level = 'A1',
     maxQuestions = 10,
-    difficulty = 'Beginner'
+    difficulty = 'Beginner',
+    worksheetMode = false
   } = options;
 
   const typeDescriptions = {
@@ -118,9 +119,11 @@ function buildGenerationPrompt(pdfText, options) {
 }`;
     if (t === 'matching') return `{
   "type": "matching",
-  "instruction": "Match the ${targetLanguage} words/phrases with their ${nativeLanguage} translations",
+  "instruction": "${worksheetMode
+    ? 'Match the left and right values exactly as shown in the worksheet.' 
+    : `Match the ${targetLanguage} words/phrases with their ${nativeLanguage} translations`}",
   "pairs": [
-    {"left": "word/phrase in ${targetLanguage}", "right": "translation in ${nativeLanguage}"}
+    {"left": "${worksheetMode ? 'left value as shown in the worksheet' : `word/phrase in ${targetLanguage}`}", "right": "${worksheetMode ? 'right value as shown in the worksheet' : `translation in ${nativeLanguage}`}"}
   ],
   "points": 1
 }`;
@@ -141,7 +144,9 @@ function buildGenerationPrompt(pdfText, options) {
 }`;
     if (t === 'question-answer') return `{
   "type": "question-answer",
-  "prompt": "question text in ${nativeLanguage} (student types a short answer)",
+  "prompt": "${worksheetMode
+    ? 'question/instruction text in the worksheet language (student types a short answer)'
+    : `question text in ${nativeLanguage} (student types a short answer)`}",
   "sampleAnswers": ["acceptable answer 1", "acceptable answer 2"],
   "aiGradingEnabled": true,
   "points": 1
@@ -151,7 +156,7 @@ function buildGenerationPrompt(pdfText, options) {
 
   return `You are an expert ${targetLanguage} language teacher and exercise creator.
 
-TASK: Analyze the following PDF content and generate interactive language exercises.
+TASK: Analyze the following ${worksheetMode ? 'worksheet/document' : 'PDF'} content and generate interactive language exercises.
 
 TARGET LANGUAGE: ${targetLanguage}
 NATIVE LANGUAGE: ${nativeLanguage}  
@@ -163,15 +168,17 @@ EXERCISE TYPES TO GENERATE:
 ${requestedTypes}
 
 ANALYSIS INSTRUCTIONS:
-1. DETECT if the PDF already contains questions/exercises (look for numbered questions, multiple-choice options, fill-in-blank gaps, etc.)
-   - If YES: Extract and convert them directly to the requested format
-   - If NO: Generate new questions from the content/vocabulary/grammar in the text
+1. DETECT if the PDF already contains questions/exercises (look for numbered questions, multiple-choice options, fill-in-blank gaps, tables, etc.)
+   ${worksheetMode
+     ? `   - Because worksheetMode is enabled, assume the document contains exercises plus an answer key section (e.g. "LÖSUNGSSCHLÜSSEL" / "Answer Key"). Use the answer key to set correct answers exactly.\n   - If there are multiple numbered items inside one Übung block, create multiple exercise questions (question-answer) so each item can be answered separately.`
+     : `   - If YES: Extract and convert them directly to the requested format\n   - If NO: Generate new questions from the content/vocabulary/grammar in the text`
+   }
 
 2. For MCQ: Create clear questions with 4 options, exactly one correct answer. Use ${nativeLanguage} for the question.
-3. For Matching: Create 4-6 pairs. Use ${targetLanguage} vocabulary on the left, ${nativeLanguage} translations on the right.
+3. For Matching: Create 4-6 pairs. ${worksheetMode ? 'Use the worksheet left/right values as-is.' : `Use ${targetLanguage} vocabulary on the left, ${nativeLanguage} translations on the right.`}
 4. For Fill-in-blank: Use real sentences from the content, replace key ${targetLanguage} words with ___ (three underscores).
 5. For Pronunciation: Pick important ${targetLanguage} words/phrases from the content.
-6. For Question/Answer: Write an open-ended question in ${nativeLanguage} based on the content. Provide 1-3 sample correct answers in sampleAnswers. Keep the question concise so a student can answer in 1-2 sentences.
+6. For Question/Answer: Write an open-ended question based on the content.${worksheetMode ? ` Use the worksheet prompt language (typically ${targetLanguage}) and sampleAnswers in ${targetLanguage}.` : ` Use ${nativeLanguage}.`} Provide 1-3 sample correct answers in sampleAnswers. Keep the question concise so a student can answer in 1-2 sentences.
 
 PDF CONTENT:
 ---
@@ -350,6 +357,107 @@ router.post('/generate',
 
     } catch (err) {
       console.error('Exercise generation error:', err);
+      if (err.code === 'insufficient_quota') {
+        return res.status(503).json({ error: 'AI quota exceeded. Please try again later.' });
+      }
+      res.status(500).json({ error: err.message || 'Failed to generate exercises' });
+    }
+  }
+);
+
+// ─── ROUTE: POST /api/pdf-exercises/text-generate ────────────────────────────
+// Generate exercises from pasted text (worksheet/doc style or plain content)
+router.post('/text-generate',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    const {
+      text,
+      types,
+      targetLanguage,
+      nativeLanguage,
+      level,
+      difficulty,
+      maxQuestions
+    } = req.body || {};
+
+    if (!text || typeof text !== 'string' || text.trim().length < 20) {
+      return res.status(400).json({ error: 'text is required and must be at least 20 characters' });
+    }
+
+    if (!openai) {
+      return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY.' });
+    }
+
+    const cleanedText = text.trim();
+    const worksheetMode = /Übung|LÖSUNGSSCHLÜSSEL|Lösungsschlüssel|STUFE|LEKTION|Answer Key|Solution Key/i.test(cleanedText);
+
+    try {
+      const prompt = buildGenerationPrompt(cleanedText, {
+        types: types || ['mcq'],
+        targetLanguage: targetLanguage || 'German',
+        nativeLanguage: nativeLanguage || 'English',
+        level: level || 'A1',
+        difficulty: difficulty || 'Beginner',
+        maxQuestions: Math.min(parseInt(maxQuestions) || 10, 100),
+        worksheetMode
+      });
+
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert language exercise creator. Always respond with valid JSON only, no markdown code blocks, no extra text.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 4000,
+        temperature: 0.4
+      });
+
+      const rawContent = completion.choices[0].message.content.trim();
+
+      let generated;
+      try {
+        const cleaned = rawContent
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+        generated = JSON.parse(cleaned);
+      } catch (parseErr) {
+        console.error('JSON parse error from AI response:', rawContent.substring(0, 500));
+        return res.status(500).json({
+          error: 'AI returned an unexpected format. Please try again.',
+          details: process.env.NODE_ENV === 'development' ? rawContent.substring(0, 300) : undefined
+        });
+      }
+
+      const questions = (generated.questions || [])
+        .filter(q => q && q.type && ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer'].includes(q.type))
+        .map(q => sanitizeQuestion(q));
+
+      if (questions.length === 0) {
+        return res.status(422).json({
+          error: 'AI could not generate valid exercises from this text. Please try with different exercise types or more content-rich text.'
+        });
+      }
+
+      res.json({
+        success: true,
+        suggestedTitle: generated.suggestedTitle || 'Generated Exercise',
+        suggestedDescription: generated.suggestedDescription || '',
+        detectedLevel: generated.detectedLevel || level || 'A1',
+        contentType: generated.contentType || 'content_only',
+        questions,
+        textInfo: {
+          charCount: cleanedText.length,
+          worksheetMode
+        }
+      });
+    } catch (err) {
+      console.error('Text generation error:', err);
       if (err.code === 'insufficient_quota') {
         return res.status(503).json({ error: 'AI quota exceeded. Please try again later.' });
       }

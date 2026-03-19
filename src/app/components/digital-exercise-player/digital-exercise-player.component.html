@@ -290,6 +290,7 @@
               <button
                 *ngFor="let item of currentQuestion.matchingLeft; let li = index"
                 class="match-item left-item"
+                [ngClass]="getLeftMatchClass(currentQuestion, li)"
                 [class.selected]="currentQuestion.selectedLeftIndex === li"
                 [class.matched]="item.matchedRightIndex !== null"
                 [class.correct]="hasCurrentSubmitted && isMatchCorrect(currentQuestion, li)"
@@ -310,6 +311,7 @@
               <button
                 *ngFor="let item of currentQuestion.matchingRight; let ri = index"
                 class="match-item right-item"
+                [ngClass]="getRightMatchClass(currentQuestion, ri)"
                 [class.available]="item.matchedLeftIndex === null && currentQuestion.selectedLeftIndex !== null"
                 [class.matched]="item.matchedLeftIndex !== null"
                 [class.disabled]="item.matchedLeftIndex !== null"
@@ -471,17 +473,26 @@
         </button>
         <button
           class="btn-submit"
-          *ngIf="!hasCurrentSubmitted"
+          *ngIf="!hasCurrentSubmitted && !isLastQuestion"
           (click)="submitCurrentQuestion()"
           [disabled]="submitting"
         >
           <span class="material-icons">{{ submitting ? 'hourglass_empty' : 'send' }}</span>
           {{ submitting ? 'Submitting...' : 'Submit Response' }}
         </button>
+        <button
+          class="btn-submit btn-finish"
+          *ngIf="!hasCurrentSubmitted && isLastQuestion"
+          (click)="submitCurrentQuestion()"
+          [disabled]="submitting"
+        >
+          <span class="material-icons">{{ submitting ? 'hourglass_empty' : 'flag' }}</span>
+          {{ submitting ? 'Finishing...' : 'Finish & Submit' }}
+        </button>
         <span class="btn-submitted-label" *ngIf="hasCurrentSubmitted">
           <span class="material-icons">check_circle</span> Submitted
         </span>
-        <button class="btn-nav btn-next" (click)="nextQuestion()" [disabled]="isLastQuestion">
+        <button class="btn-nav btn-next" *ngIf="!isLastQuestion" (click)="nextQuestion()" [disabled]="isLastQuestion">
           Next <span class="material-icons">arrow_forward</span>
         </button>
         </div>

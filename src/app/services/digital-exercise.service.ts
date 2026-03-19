@@ -295,6 +295,18 @@ export class DigitalExerciseService {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
   }
 
+  generateFromText(options: {
+    text: string;
+    types: string[];
+    targetLanguage: string;
+    nativeLanguage: string;
+    level: string;
+    difficulty: string;
+    maxQuestions: number;
+  }): Observable<any> {
+    return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/text-generate`, options, { withCredentials: true });
+  }
+
   cleanupPdf(uploadId: string): Observable<any> {
     return this.http.delete<any>(`${environment.apiUrl}/pdf-exercises/cleanup/${uploadId}`, { withCredentials: true });
   }
