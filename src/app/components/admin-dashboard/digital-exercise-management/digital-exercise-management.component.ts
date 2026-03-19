@@ -25,6 +25,9 @@ import { MaterialModule } from '../../../shared/material.module';
       <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
         <span class="material-icons">auto_awesome</span> Generate with AI
       </button>
+      <button class="btn-generate-ai" (click)="navigateToListeningWorksheetGenerator()">
+        <span class="material-icons">headphones</span> Import Listening Worksheet
+      </button>
       <button class="btn-create" (click)="navigateToCreate()">
         <span class="material-icons">add</span> Create Exercise
       </button>
@@ -149,6 +152,9 @@ import { MaterialModule } from '../../../shared/material.module';
       <div class="empty-actions">
         <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
           <span class="material-icons">auto_awesome</span> Generate from PDF with AI
+        </button>
+        <button class="btn-generate-ai" (click)="navigateToListeningWorksheetGenerator()">
+          <span class="material-icons">headphones</span> Import Listening Worksheet
         </button>
         <button class="btn-create" (click)="navigateToCreate()">
           <span class="material-icons">add</span> Create Manually
@@ -591,6 +597,10 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   navigateToAiGenerator(): void {
     this.router.navigate(['/admin/digital-exercises/generate-ai']);
+  }
+
+  navigateToListeningWorksheetGenerator(): void {
+    this.router.navigate(['/admin/digital-exercises/generate-listening-manual']);
   }
 
   navigateToEdit(id: string): void {

@@ -101,7 +101,8 @@ function buildGenerationPrompt(pdfText, options) {
     mcq: 'Multiple Choice Questions (4 options, one correct answer)',
     matching: 'Matching exercises (pairs of left/right items to match)',
     'fill-blank': 'Fill in the Blank sentences (use ___ for blanks)',
-    pronunciation: 'Pronunciation checks (single words or short phrases to speak aloud)'
+    pronunciation: 'Pronunciation checks (single words or short phrases to speak aloud)',
+    'question-answer': 'Short Answer Questions — student reads the question and types a free-text answer'
   };
 
   const requestedTypes = types.map(t => `- ${typeDescriptions[t] || t}`).join('\n');
@@ -138,6 +139,13 @@ function buildGenerationPrompt(pdfText, options) {
   "acceptedVariants": [],
   "points": 1
 }`;
+    if (t === 'question-answer') return `{
+  "type": "question-answer",
+  "prompt": "question text in ${nativeLanguage} (student types a short answer)",
+  "sampleAnswers": ["acceptable answer 1", "acceptable answer 2"],
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
     return '';
   }).filter(Boolean).join(',\n');
 
@@ -163,6 +171,7 @@ ANALYSIS INSTRUCTIONS:
 3. For Matching: Create 4-6 pairs. Use ${targetLanguage} vocabulary on the left, ${nativeLanguage} translations on the right.
 4. For Fill-in-blank: Use real sentences from the content, replace key ${targetLanguage} words with ___ (three underscores).
 5. For Pronunciation: Pick important ${targetLanguage} words/phrases from the content.
+6. For Question/Answer: Write an open-ended question in ${nativeLanguage} based on the content. Provide 1-3 sample correct answers in sampleAnswers. Keep the question concise so a student can answer in 1-2 sentences.
 
 PDF CONTENT:
 ---
@@ -317,7 +326,7 @@ router.post('/generate',
 
       // Validate and sanitize questions
       const questions = (generated.questions || [])
-        .filter(q => q && q.type && ['mcq', 'matching', 'fill-blank', 'pronunciation'].includes(q.type))
+        .filter(q => q && q.type && ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer'].includes(q.type))
         .map(q => sanitizeQuestion(q));
 
       if (questions.length === 0) {
@@ -420,6 +429,15 @@ function sanitizeQuestion(q) {
       translation: String(q.translation || ''),
       audioUrl: q.audioUrl || null,
       acceptedVariants: Array.isArray(q.acceptedVariants) ? q.acceptedVariants.map(String) : []
+    };
+  }
+
+  if (q.type === 'question-answer') {
+    return {
+      ...base,
+      prompt: String(q.prompt || ''),
+      sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers.map(String).filter(Boolean) : [],
+      aiGradingEnabled: q.aiGradingEnabled !== false
     };
   }
 

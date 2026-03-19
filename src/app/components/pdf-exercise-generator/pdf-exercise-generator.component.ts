@@ -1,6 +1,7 @@
 // src/app/components/pdf-exercise-generator/pdf-exercise-generator.component.ts
 
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
+import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,7 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 type WizardStep = 1 | 2 | 3 | 4;
 
 interface ReviewQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -31,6 +32,16 @@ interface ReviewQuestion {
   phonetic?: string;
   translation?: string;
   acceptedVariants?: string[];
+  // Question / Answer
+  prompt?: string;
+  sampleAnswers?: string[];
+  similarityThreshold?: number;
+  scoringMode?: 'full' | 'proportional';
+  // Listening
+  mediaUrl?: string;
+  expectedTranscript?: string;
+  attemptMode?: 'typing' | 'typing-or-speech';
+  transcribing?: boolean;
   // Common
   points: number;
   // Editor state
@@ -57,6 +68,7 @@ const PROGRESS_MESSAGES = [
 })
 export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
 
   currentStep: WizardStep = 1;
 
@@ -67,12 +79,19 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   uploadResult: any = null;
 
   // ── Step 2: Configure ───────────────────────────────────────────────────────
-  selectedTypes: Set<string> = new Set(['mcq', 'fill-blank']);
+  // typeCounts drives everything: selected = count > 0
+  typeCounts: Record<string, number> = {
+    mcq: 5,
+    matching: 0,
+    'fill-blank': 0,
+    pronunciation: 0,
+    'question-answer': 0
+  };
+
   targetLanguage = 'German';
   nativeLanguage = 'English';
   level = 'A1';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
-  maxQuestions = 10;
 
   // ── Step 3: Processing ──────────────────────────────────────────────────────
   generating = false;
@@ -96,10 +115,11 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   addingType = '';
 
   readonly questionTypes = [
-    { value: 'mcq', label: 'Multiple Choice', icon: 'quiz', color: '#1976d2', bg: '#e8f4fd' },
-    { value: 'matching', label: 'Matching', icon: 'compare_arrows', color: '#7b1fa2', bg: '#f3e5f5' },
-    { value: 'fill-blank', label: 'Fill in the Blanks', icon: 'text_fields', color: '#388e3c', bg: '#e8f5e9' },
-    { value: 'pronunciation', label: 'Pronunciation', icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' }
+    { value: 'mcq',             label: 'Multiple Choice',  desc: '4 options, 1 correct answer',      icon: 'quiz',              color: '#1976d2', bg: '#e8f4fd' },
+    { value: 'matching',        label: 'Matching',          desc: 'Match word / phrase pairs',         icon: 'compare_arrows',    color: '#7b1fa2', bg: '#f3e5f5' },
+    { value: 'fill-blank',      label: 'Fill in the Blanks',desc: 'Sentence with ___ gaps',            icon: 'text_fields',       color: '#388e3c', bg: '#e8f5e9' },
+    { value: 'pronunciation',   label: 'Pronunciation',     desc: 'Speak a word aloud',               icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' },
+    { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' }
   ];
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -186,16 +206,45 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   // ── Step 2: Configure ───────────────────────────────────────────────────────
 
-  toggleType(type: string): void {
-    if (this.selectedTypes.has(type)) {
-      if (this.selectedTypes.size > 1) this.selectedTypes.delete(type);
-    } else {
-      this.selectedTypes.add(type);
-    }
+  get selectedTypes(): string[] {
+    return Object.keys(this.typeCounts).filter(t => (this.typeCounts[t] ?? 0) > 0);
+  }
+
+  get maxQuestions(): number {
+    return Object.values(this.typeCounts).reduce((s, v) => s + (v > 0 ? v : 0), 0);
   }
 
   isTypeSelected(type: string): boolean {
-    return this.selectedTypes.has(type);
+    return (this.typeCounts[type] ?? 0) > 0;
+  }
+
+  toggleType(type: string): void {
+    if (this.isTypeSelected(type)) {
+      // Only deselect if at least one other type remains selected
+      if (this.selectedTypes.length > 1) {
+        this.typeCounts[type] = 0;
+      }
+    } else {
+      this.typeCounts[type] = 5;
+    }
+  }
+
+  setCount(type: string, raw: any): void {
+    const str = String(raw ?? '').trim();
+    if (str === '') return; // user is mid-typing (cleared field), don't change
+    const v = parseInt(str, 10);
+    if (isNaN(v) || v < 0) return; // invalid input, ignore
+    this.typeCounts[type] = v;
+    // Type deselects only when explicitly set to 0
+  }
+
+  incrementCount(type: string): void {
+    this.typeCounts[type] = (this.typeCounts[type] ?? 0) + 1;
+  }
+
+  decrementCount(type: string): void {
+    const cur = this.typeCounts[type] ?? 0;
+    if (cur > 0) this.typeCounts[type] = cur - 1;
   }
 
   // ── Step 3: Generate ────────────────────────────────────────────────────────
@@ -210,7 +259,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     this.exerciseService.generateFromPdf({
       uploadId: this.uploadResult.uploadId,
-      types: Array.from(this.selectedTypes),
+      types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
+      typeCounts: { ...this.typeCounts },
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
       level: this.level,
@@ -286,6 +336,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     else if (type === 'matching') Object.assign(q, { instruction: 'Match the items.', pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
     else if (type === 'fill-blank') Object.assign(q, { sentence: '', answers: [''], hint: '', caseSensitive: false });
     else if (type === 'pronunciation') Object.assign(q, { word: '', phonetic: '', translation: '', acceptedVariants: [] });
+    else if (type === 'question-answer') Object.assign(q, { prompt: '', sampleAnswers: [''], similarityThreshold: 70, scoringMode: 'full' });
+    else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
     this.reviewQuestions.push(q);
     this.addingType = '';
   }
@@ -339,12 +391,77 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   addVariant(q: ReviewQuestion): void { q.acceptedVariants!.push(''); }
   removeVariant(q: ReviewQuestion, i: number): void { q.acceptedVariants!.splice(i, 1); }
 
+  // Question-Answer helpers
+  addSampleAnswer(q: ReviewQuestion): void { q.sampleAnswers!.push(''); }
+  removeSampleAnswer(q: ReviewQuestion, i: number): void {
+    if (q.sampleAnswers!.length > 1) q.sampleAnswers!.splice(i, 1);
+  }
+
+  setThreshold(q: ReviewQuestion, raw: any): void {
+    let v = parseInt(String(raw), 10);
+    if (isNaN(v)) return;
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    q.similarityThreshold = v;
+  }
+
+  triggerListeningFile(q: ReviewQuestion): void {
+    (this as any).currentListeningQ = q;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onListeningFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = (this as any).currentListeningQ as ReviewQuestion | null;
+    (this as any).currentListeningQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio uploaded'); },
+      error: (err) => this.showError(err.error?.error || 'Upload failed')
+    });
+  }
+
+  fetchListeningFromUrl(q: ReviewQuestion, url: string): void {
+    if (!url?.trim()) { this.showError('Enter a valid URL'); return; }
+    this.exerciseService.fetchListeningFromUrl(url.trim()).subscribe({
+      next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio fetched'); },
+      error: (err) => this.showError(err.error?.error || 'Fetch failed')
+    });
+  }
+
+  generateListeningTranscript(q: ReviewQuestion): void {
+    if (!q.mediaUrl) { this.showError('Upload or add audio URL first'); return; }
+    q.transcribing = true;
+    this.exerciseService.transcribeListening(q.mediaUrl).subscribe({
+      next: (res) => {
+        q.expectedTranscript = res.transcript;
+        q.transcribing = false;
+        this.showSuccess('Transcript generated. Verify and edit if needed.');
+      },
+      error: (err) => {
+        q.transcribing = false;
+        this.showError(err.error?.error || 'Transcription failed');
+      }
+    });
+  }
+
+  getMediaFullUrl(relative: string): string {
+    if (!relative) return '';
+    if (relative.startsWith('http')) return relative;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return base ? base + relative : relative;
+  }
+
   // Validation
   isQuestionValid(q: ReviewQuestion): boolean {
     if (q.type === 'mcq') return !!(q.question?.trim()) && (q.options?.filter(o => o.trim()).length ?? 0) >= 2;
     if (q.type === 'matching') return (q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0) >= 2;
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
+    if (q.type === 'question-answer') return !!(q.prompt?.trim());
+    if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     return false;
   }
 
@@ -400,7 +517,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   canProceedFrom(step: WizardStep): boolean {
     if (step === 1) return !!this.uploadResult?.success;
-    if (step === 2) return this.selectedTypes.size > 0;
+    if (step === 2) return this.selectedTypes.length > 0 && this.maxQuestions > 0;
     return true;
   }
 

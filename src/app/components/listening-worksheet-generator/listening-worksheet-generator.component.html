@@ -1,0 +1,430 @@
+<!-- listening-worksheet-generator.component.html -->
+
+<div class="lwg-page">
+  <!-- Top Bar -->
+  <div class="lwg-topbar">
+    <button class="btn-back" type="button" (click)="cancel()">
+      <span class="material-icons">arrow_back</span>
+      Back
+    </button>
+    <div class="lwg-title">
+      <h1><span class="material-icons">headphones</span> Audio + PDF Listening Import</h1>
+      <p>Upload the shared audio and a worksheet PDF, then review extracted questions.</p>
+    </div>
+  </div>
+
+  <!-- Stepper -->
+  <div class="lwg-stepper">
+    <div class="lwg-step" *ngFor="let s of steps" [class.active]="currentStep===s" [class.done]="currentStep>s" (click)="goToStep(s)">
+      <div class="step-circle">
+        <span class="material-icons done-icon" *ngIf="currentStep > s">check</span>
+        <span *ngIf="currentStep <= s">{{ s }}</span>
+      </div>
+      <div class="step-label">
+        <span *ngIf="s===1">Upload</span>
+        <span *ngIf="s===2">Configure</span>
+        <span *ngIf="s===3">Extract</span>
+        <span *ngIf="s===4">Review</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="lwg-panel" *ngIf="currentStep===1">
+    <div class="lwg-two-col">
+      <!-- Audio Upload -->
+      <div class="lwg-box">
+        <input type="file" #audioFileInput accept="audio/*" class="file-input-hidden" (change)="onAudioSelected($event)" />
+        <h2>1) Upload Audio</h2>
+
+        <div class="lwg-file-row" *ngIf="!sharedAudioUrl">
+          <div class="lwg-file-meta">
+            <div class="lwg-file-name">{{ selectedAudioFile?.name || 'No audio selected' }}</div>
+            <div class="lwg-muted" *ngIf="audioUploading">Uploading...</div>
+            <div class="lwg-muted" *ngIf="selectedAudioFile && !audioUploading">Uploading automatically after selection.</div>
+          </div>
+          <div class="lwg-actions">
+            <button class="btn-primary" type="button" (click)="triggerAudioUpload()" [disabled]="audioUploading">
+              <span class="material-icons">upload_file</span> Choose
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="sharedAudioUrl" class="lwg-audio-preview">
+          <div class="lwg-success">
+            <span class="material-icons">check_circle</span> Audio uploaded
+          </div>
+          <audio class="lwg-audio" [src]="getMediaFullUrl(sharedAudioUrl)" controls></audio>
+          <div class="lwg-muted">This audio will play for all questions in the exercise.</div>
+        </div>
+      </div>
+
+      <!-- PDF Upload -->
+      <div class="lwg-box">
+        <input type="file" #pdfFileInput accept=".pdf" class="file-input-hidden" (change)="onPdfSelected($event)" />
+
+        <h2>2) Upload Worksheet PDF</h2>
+        <div
+          class="lwg-dropzone"
+          [class.dragging]="isDragging"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+          (click)="!selectedPdfFile && pdfFileInput.click()"
+        >
+          <div *ngIf="!selectedPdfFile" class="lwg-drop-content">
+            <span class="material-icons">picture_as_pdf</span>
+            <div class="lwg-drop-title">Drag & drop your PDF</div>
+            <div class="lwg-drop-subtitle">or click to browse</div>
+            <div class="lwg-muted">PDF only · Max 15 MB</div>
+          </div>
+
+          <div *ngIf="selectedPdfFile" class="lwg-selected">
+            <div class="lwg-file-name">{{ selectedPdfFile.name }}</div>
+            <div class="lwg-muted" *ngIf="pdfUploading">Uploading automatically...</div>
+            <div class="lwg-muted" *ngIf="!pdfUploading">{{ formatFileSize(selectedPdfFile.size) }}</div>
+            <div class="lwg-actions">
+              <button class="btn-upload" type="button" (click)="pdfFileInput.click()">
+                <span class="material-icons">swap_horiz</span> Change
+              </button>
+              <button class="btn-secondary" type="button" *ngIf="uploadResult" (click)="removePdf()">
+                <span class="material-icons">close</span> Remove
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="uploadResult" class="lwg-uploaded-meta">
+          <div class="lwg-success">
+            <span class="material-icons">check_circle</span> PDF read successfully
+          </div>
+          <div class="lwg-meta-grid">
+            <div><span class="material-icons">article</span> {{ uploadResult.pages }} pages</div>
+            <div><span class="material-icons">format_align_left</span> ~{{ uploadResult.totalChars.toLocaleString() }} chars</div>
+          </div>
+          <div class="lwg-preview">
+            <div class="preview-label">Content preview</div>
+            <pre class="preview-text">{{ uploadResult.previewText }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lwg-footer">
+      <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
+      <button class="btn-primary" type="button" (click)="next()" [disabled]="!canProceedFrom(1)">
+        Next: Configure <span class="material-icons">arrow_forward</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure -->
+  <div class="lwg-panel" *ngIf="currentStep===2">
+    <div class="lwg-box">
+      <h2>Configure Exercise</h2>
+      <div class="lwg-grid">
+        <div class="lwg-field">
+          <label>Target Language</label>
+          <select [(ngModel)]="targetLanguage" class="lwg-input">
+            <option value="German">German</option>
+            <option value="English">English</option>
+          </select>
+        </div>
+        <div class="lwg-field">
+          <label>Native Language</label>
+          <select [(ngModel)]="nativeLanguage" class="lwg-input">
+            <option value="English">English</option>
+            <option value="Tamil">Tamil</option>
+            <option value="Sinhala">Sinhala</option>
+          </select>
+        </div>
+        <div class="lwg-field">
+          <label>CEFR Level</label>
+          <select [(ngModel)]="level" class="lwg-input">
+            <option value="A1">A1</option>
+            <option value="A2">A2</option>
+            <option value="B1">B1</option>
+            <option value="B2">B2</option>
+            <option value="C1">C1</option>
+            <option value="C2">C2</option>
+          </select>
+        </div>
+        <div class="lwg-field">
+          <label>Difficulty</label>
+          <select [(ngModel)]="difficulty" class="lwg-input">
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate">Intermediate</option>
+            <option value="Advanced">Advanced</option>
+          </select>
+        </div>
+        <div class="lwg-field full">
+          <label>Max Questions</label>
+          <input type="number" class="lwg-input" [(ngModel)]="maxQuestions" min="1" max="50" />
+          <div class="lwg-muted">Extraction will cap to this number.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lwg-footer">
+      <button class="btn-secondary" type="button" (click)="back()"><span class="material-icons">arrow_back</span> Back</button>
+      <button class="btn-primary" type="button" (click)="next()" [disabled]="!canProceedFrom(2)">
+        <span class="material-icons">auto_awesome</span> Extract Questions
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 3: Processing -->
+  <div class="lwg-panel" *ngIf="currentStep===3">
+    <div class="lwg-box" *ngIf="generating">
+      <h2>Extracting from PDF...</h2>
+      <div class="lwg-progress">
+        <div class="lwg-progress-track">
+          <div class="lwg-progress-fill" [style.width]="progressPercent + '%'"></div>
+        </div>
+        <div class="lwg-progress-row">
+          <span class="lwg-progress-text">{{ currentProgressMsg }}</span>
+          <span class="lwg-progress-pct">{{ progressPercent | number: '1.0-0' }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="lwg-box" *ngIf="!generating && generationError">
+      <div class="lwg-error">
+        <span class="material-icons">error_outline</span>
+        <h2>Extraction Failed</h2>
+        <p>{{ generationError }}</p>
+      </div>
+      <div class="lwg-footer">
+        <button class="btn-secondary" type="button" (click)="currentStep=2">
+          <span class="material-icons">tune</span> Change settings
+        </button>
+        <button class="btn-primary" type="button" (click)="startExtraction()">
+          <span class="material-icons">refresh</span> Try Again
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Review -->
+  <div class="lwg-panel" *ngIf="currentStep===4">
+    <div class="lwg-box">
+      <h2>Review & Save</h2>
+
+      <div class="lwg-grid meta">
+        <div class="lwg-field full">
+          <label>Exercise Title</label>
+          <input type="text" class="lwg-input" [(ngModel)]="exerciseTitle" />
+        </div>
+        <div class="lwg-field full">
+          <label>Description</label>
+          <textarea class="lwg-input" rows="2" [(ngModel)]="exerciseDescription"></textarea>
+        </div>
+        <div class="lwg-field full">
+          <label class="publish-row">
+            <input type="checkbox" [(ngModel)]="visibleToStudents" />
+            <span>Publish immediately</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="lwg-stats">
+        <span class="lwg-muted">Valid questions: {{ validCount }} / {{ reviewQuestions.length }}</span>
+        <span class="lwg-muted">Total points: {{ totalPoints }}</span>
+      </div>
+
+      <div class="lwg-questions">
+        <div class="lwg-q-card" *ngFor="let q of reviewQuestions; let i = index" [class.expanded]="q.expanded">
+          <div class="lwg-q-head" (click)="toggleQuestion(i)">
+            <div class="lwg-q-head-left">
+              <span class="lwg-q-num">Q{{ i + 1 }}</span>
+              <span class="lwg-q-pill">
+                <span class="material-icons">{{ getQuestionTypeIcon(q.type) }}</span>
+                {{ getQuestionTypeLabel(q.type) }}
+              </span>
+              <span class="lwg-q-summary">
+                <ng-container [ngSwitch]="q.type">
+                  <span *ngSwitchCase="'mcq'">{{ q.question || '—' }}</span>
+                  <span *ngSwitchCase="'fill-blank'">{{ q.sentence || '—' }}</span>
+                  <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
+                  <span *ngSwitchCase="'pronunciation'">Say: {{ q.word || '—' }}</span>
+                </ng-container>
+              </span>
+            </div>
+            <div class="lwg-q-head-right">
+              <span class="lwg-q-valid">
+                <span class="material-icons">{{ isQuestionValid(q) ? 'check_circle' : 'warning' }}</span>
+              </span>
+              <button type="button" class="btn-icon" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i===0">
+                <span class="material-icons">keyboard_arrow_up</span>
+              </button>
+              <button type="button" class="btn-icon" (click)="$event.stopPropagation(); moveQuestion(i, 1)" [disabled]="i===reviewQuestions.length-1">
+                <span class="material-icons">keyboard_arrow_down</span>
+              </button>
+              <button type="button" class="btn-icon btn-danger" (click)="$event.stopPropagation(); removeQuestion(i)">
+                <span class="material-icons">delete_outline</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="lwg-q-body" *ngIf="q.expanded">
+            <div class="lwg-row">
+              <label>Points</label>
+              <input type="number" class="lwg-input sm" [(ngModel)]="q.points" min="1" max="10" />
+            </div>
+
+            <!-- MCQ -->
+            <div *ngIf="q.type==='mcq'">
+              <div class="lwg-field full">
+                <label>Question</label>
+                <textarea class="lwg-input" rows="2" [(ngModel)]="q.question"></textarea>
+              </div>
+              <div class="lwg-field full">
+                <label>Options (radio selects correct answer)</label>
+                <div class="lwg-opt-row" *ngFor="let opt of q.options; let oi=index; trackBy: trackByIndex">
+                  <input type="radio" [name]="'correct-'+i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
+                  <input type="text" class="lwg-input opt" [(ngModel)]="q.options![oi]" />
+                  <button type="button" class="btn-icon" (click)="removeOption(q, oi)" *ngIf="q.options!.length>2">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+                <button type="button" class="btn-secondary" (click)="addOption(q)" [disabled]="(q.options?.length || 0) >= 6">
+                  <span class="material-icons">add</span> Add option
+                </button>
+              </div>
+              <div class="lwg-field full">
+                <label>Explanation (optional)</label>
+                <input type="text" class="lwg-input" [(ngModel)]="q.explanation" />
+              </div>
+            </div>
+
+            <!-- Fill in blank -->
+            <div *ngIf="q.type==='fill-blank'">
+              <div class="lwg-field full">
+                <label>Sentence <span class="lwg-muted">(use ___ for blanks)</span></label>
+                <div class="lwg-row">
+                  <button type="button" class="btn-secondary" (click)="insertBlank(q)">
+                    <span class="material-icons">add_box</span> Insert blank
+                  </button>
+                  <span class="lwg-muted">Blanks: {{ getBlankCount(q) }}</span>
+                </div>
+                <textarea class="lwg-input" rows="2" [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)"></textarea>
+              </div>
+
+              <div class="lwg-field full" *ngIf="(q.answers?.length || 0) > 0">
+                <label>Answers</label>
+                <div class="lwg-opt-row" *ngFor="let ans of q.answers; let ai=index; trackBy: trackByIndex">
+                  <span class="lwg-muted">Blank {{ ai + 1 }}</span>
+                  <input type="text" class="lwg-input opt" [(ngModel)]="q.answers![ai]" />
+                </div>
+              </div>
+              <div class="lwg-field full">
+                <label>Hint (optional)</label>
+                <input type="text" class="lwg-input" [(ngModel)]="q.hint" />
+              </div>
+            </div>
+
+            <!-- Question / Answer -->
+            <div *ngIf="q.type==='question-answer'">
+              <div class="lwg-field full">
+                <label>Question</label>
+                <textarea class="lwg-input" rows="2" [(ngModel)]="q.prompt"></textarea>
+              </div>
+              <div class="lwg-field full">
+                <label>Sample Answers (acceptable answers)</label>
+                <div class="lwg-opt-row" *ngFor="let sa of q.sampleAnswers; let si=index; trackBy: trackByIndex">
+                  <input type="text" class="lwg-input opt" [(ngModel)]="q.sampleAnswers![si]" />
+                  <button type="button" class="btn-icon" (click)="removeSampleAnswer(q, si)" *ngIf="q.sampleAnswers!.length>1">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+                <button type="button" class="btn-secondary" (click)="addSampleAnswer(q)">
+                  <span class="material-icons">add</span> Add sample answer
+                </button>
+              </div>
+              <div class="lwg-field full">
+                <label>Minimum % to pass</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  [ngModel]="q.similarityThreshold ?? 70"
+                  (ngModelChange)="setThreshold(q, $event)"
+                />
+                <div class="lwg-muted">Current: {{ q.similarityThreshold ?? 70 }}%</div>
+              </div>
+              <div class="lwg-field full">
+                <label>Scoring</label>
+                <div class="lwg-row">
+                  <label class="radio-inline">
+                    <input type="radio" name="sm-mode-{{i}}" value="full" [(ngModel)]="q.scoringMode" />
+                    Full (all or nothing)
+                  </label>
+                  <label class="radio-inline">
+                    <input type="radio" name="sm-mode-{{i}}" value="proportional" [(ngModel)]="q.scoringMode" />
+                    Proportional
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pronunciation -->
+            <div *ngIf="q.type==='pronunciation'">
+              <div class="lwg-field full">
+                <label>Word / Phrase</label>
+                <input type="text" class="lwg-input" [(ngModel)]="q.word" />
+              </div>
+              <div class="lwg-field full">
+                <label>Phonetic</label>
+                <input type="text" class="lwg-input" [(ngModel)]="q.phonetic" />
+              </div>
+              <div class="lwg-field full">
+                <label>Translation</label>
+                <input type="text" class="lwg-input" [(ngModel)]="q.translation" />
+              </div>
+              <div class="lwg-field full">
+                <label>Accepted Variants</label>
+                <div class="lwg-opt-row" *ngFor="let v of q.acceptedVariants; let vi=index; trackBy: trackByIndex">
+                  <input type="text" class="lwg-input opt" [(ngModel)]="q.acceptedVariants![vi]" />
+                  <button type="button" class="btn-icon" (click)="removeVariant(q, vi)" *ngIf="q.acceptedVariants!.length>0">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+                <button type="button" class="btn-secondary" (click)="addVariant(q)">
+                  <span class="material-icons">add</span> Add variant
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Question Manually -->
+      <div class="lwg-addbar">
+        <div class="lwg-addbar-title">Add another question (optional)</div>
+        <div class="lwg-addbar-btns">
+          <button class="btn-secondary" type="button" *ngFor="let qt of questionTypes" (click)="addBlankQuestion(qt.value)">
+            <span class="material-icons">{{ qt.icon }}</span> {{ qt.label }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Save Bar -->
+      <div class="lwg-footer">
+        <button class="btn-secondary" type="button" (click)="back()">
+          <span class="material-icons">arrow_back</span> Back
+        </button>
+        <div class="lwg-save-actions">
+          <button class="btn-secondary" type="button" (click)="saveExercise(false)" [disabled]="saving || !canSave">
+            <span class="material-icons">save</span> Save as Draft
+          </button>
+          <button class="btn-primary" type="button" (click)="saveExercise(true)" [disabled]="saving || !canSave">
+            <span class="material-icons">{{ saving ? 'hourglass_empty' : 'publish' }}</span>
+            {{ saving ? 'Saving...' : 'Publish to Students' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

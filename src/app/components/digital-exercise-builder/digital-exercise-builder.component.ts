@@ -1,15 +1,16 @@
 // src/app/components/digital-exercise-builder/digital-exercise-builder.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../services/digital-exercise.service';
+import { environment } from '../../../environments/environment';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -30,6 +31,16 @@ interface BuilderQuestion {
   translation?: string;
   audioUrl?: string;
   acceptedVariants?: string[];
+  // Question / Answer
+  prompt?: string;
+  sampleAnswers?: string[];
+  similarityThreshold?: number;   // 0-100, default 70
+  scoringMode?: 'full' | 'proportional';
+  // Listening
+  mediaUrl?: string;
+  expectedTranscript?: string;
+  attemptMode?: 'typing' | 'typing-or-speech';
+  transcribing?: boolean;
   // Common
   points: number;
 }
@@ -64,6 +75,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   activeTab: 'info' | 'questions' | 'preview' = 'info';
   expandedQuestion = -1;
 
+  @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
+  currentListeningQ: BuilderQuestion | null = null;
+
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties: Array<'Beginner' | 'Intermediate' | 'Advanced'> = ['Beginner', 'Intermediate', 'Advanced'];
@@ -71,10 +85,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   nativeLanguages = ['English', 'Tamil', 'Sinhala'];
 
   questionTypes: Array<{ value: string; label: string; icon: string; description: string }> = [
-    { value: 'mcq', label: 'Multiple Choice', icon: 'quiz', description: 'Options with one correct answer. Supports images.' },
-    { value: 'matching', label: 'Matching Exercise', icon: 'compare_arrows', description: 'Match left items with right items.' },
-    { value: 'fill-blank', label: 'Fill in the Blanks', icon: 'text_fields', description: 'Sentences with ___ blanks to fill in.' },
-    { value: 'pronunciation', label: 'Pronunciation Check', icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' }
+    { value: 'mcq',             label: 'Multiple Choice',   icon: 'quiz',              description: 'Options with one correct answer. Supports images.' },
+    { value: 'matching',        label: 'Matching Exercise',  icon: 'compare_arrows',    description: 'Match left items with right items.' },
+    { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with ___ blanks to fill in.' },
+    { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
+    { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
+    { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types or speaks what they hear.' }
   ];
 
   constructor(
@@ -146,6 +162,20 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         audioUrl: q.audioUrl || '',
         acceptedVariants: [...(q.acceptedVariants || [])]
       });
+    } else if (q.type === 'question-answer') {
+      Object.assign(base, {
+        prompt: q.prompt || '',
+        sampleAnswers: [...(q.sampleAnswers || [''])],
+        similarityThreshold: q.similarityThreshold ?? 70,
+        scoringMode: q.scoringMode || 'full'
+      });
+    } else if (q.type === 'listening') {
+      Object.assign(base, {
+        prompt: q.prompt || 'Listen and type what you hear.',
+        mediaUrl: q.mediaUrl || '',
+        expectedTranscript: q.expectedTranscript || '',
+        attemptMode: q.attemptMode || 'typing'
+      });
     }
     return base;
   }
@@ -185,6 +215,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.phonetic = '';
       q.translation = '';
       q.acceptedVariants = [];
+    } else if (type === 'question-answer') {
+      q.prompt = '';
+      q.sampleAnswers = [''];
+      q.similarityThreshold = 70;
+      q.scoringMode = 'full';
+    } else if (type === 'listening') {
+      q.prompt = 'Listen and type what you hear.';
+      q.mediaUrl = '';
+      q.expectedTranscript = '';
+      q.attemptMode = 'typing-or-speech';
     }
     this.questions.push(q);
     this.expandedQuestion = this.questions.length - 1;
@@ -248,6 +288,75 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   addVariant(q: BuilderQuestion): void { q.acceptedVariants!.push(''); }
   removeVariant(q: BuilderQuestion, i: number): void { q.acceptedVariants!.splice(i, 1); }
 
+  addSampleAnswer(q: BuilderQuestion): void { q.sampleAnswers!.push(''); }
+  removeSampleAnswer(q: BuilderQuestion, i: number): void {
+    if (q.sampleAnswers!.length > 1) q.sampleAnswers!.splice(i, 1);
+  }
+
+  setThreshold(q: BuilderQuestion, raw: any): void {
+    let v = parseInt(String(raw), 10);
+    if (isNaN(v)) return;
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    q.similarityThreshold = v;
+  }
+
+  // Listening helpers
+  triggerListeningFile(q: BuilderQuestion): void {
+    this.currentListeningQ = q;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onListeningFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = this.currentListeningQ;
+    this.currentListeningQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => {
+        q.mediaUrl = res.url;
+        this.showSuccess('Audio uploaded');
+      },
+      error: (err) => this.showError(err.error?.error || 'Upload failed')
+    });
+  }
+
+  fetchListeningFromUrl(q: BuilderQuestion, url: string): void {
+    if (!url?.trim()) { this.showError('Enter a valid URL'); return; }
+    this.exerciseService.fetchListeningFromUrl(url.trim()).subscribe({
+      next: (res) => {
+        q.mediaUrl = res.url;
+        this.showSuccess('Audio fetched');
+      },
+      error: (err) => this.showError(err.error?.error || 'Fetch failed')
+    });
+  }
+
+  generateTranscript(q: BuilderQuestion): void {
+    if (!q.mediaUrl) { this.showError('Upload or add audio URL first'); return; }
+    q.transcribing = true;
+    this.exerciseService.transcribeListening(q.mediaUrl).subscribe({
+      next: (res) => {
+        q.expectedTranscript = res.transcript;
+        q.transcribing = false;
+        this.showSuccess('Transcript generated. Verify and edit if needed.');
+      },
+      error: (err) => {
+        q.transcribing = false;
+        this.showError(err.error?.error || 'Transcription failed');
+      }
+    });
+  }
+
+  getMediaFullUrl(relative: string): string {
+    if (!relative) return '';
+    if (relative.startsWith('http')) return relative;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return base ? base + relative : relative;
+  }
+
   getBlankCount(q: BuilderQuestion): number {
     return (q.sentence?.match(/___/g) || []).length;
   }
@@ -279,6 +388,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'matching') return (q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0) >= 2;
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
+    if (q.type === 'question-answer') return !!(q.prompt?.trim());
+    if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     return false;
   }
 

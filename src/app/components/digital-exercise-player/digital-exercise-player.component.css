@@ -138,6 +138,8 @@
 .pill-matching { background: #f3e5f5; color: #7b1fa2; }
 .pill-fill-blank { background: #e8f5e9; color: #388e3c; }
 .pill-pronunciation { background: #fff3e0; color: #e65100; }
+.pill-question-answer { background: #e0f2f1; color: #0f766e; }
+.pill-listening { background: #fef3c7; color: #b45309; }
 
 .intro-actions { display: flex; gap: 12px; justify-content: flex-end; }
 
@@ -227,6 +229,29 @@
 }
 .timer .material-icons { font-size: 18px; color: #6366f1; }
 
+/* Shared audio for manual listening worksheets */
+.shared-audio-wrap {
+  max-width: 880px;
+  margin: 0 auto 8px;
+  padding: 0 24px;
+}
+
+.shared-audio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: #4f46e5;
+  margin: 0 0 8px;
+}
+
+.shared-audio-label .material-icons { font-size: 18px; }
+
+.shared-audio {
+  width: 100%;
+  border-radius: 12px;
+}
+
 /* Question Nav dots */
 .question-nav {
   display: flex;
@@ -301,6 +326,8 @@
 .label-matching { background: #f3e5f5; color: #7b1fa2; }
 .label-fill-blank { background: #e8f5e9; color: #2e7d32; }
 .label-pronunciation { background: #fff3e0; color: #e65100; }
+.label-question-answer { background: #e0f2f1; color: #0f766e; }
+.label-listening { background: #fef3c7; color: #b45309; }
 
 .q-points { font-size: 0.8rem; font-weight: 700; color: #4f46e5; flex-shrink: 0; }
 
@@ -661,6 +688,35 @@
   color: #856404;
 }
 
+/* Question / Answer body */
+.qa-body { display: flex; flex-direction: column; gap: 16px; }
+.qa-prompt { font-size: 1.05rem; font-weight: 500; color: #111827; line-height: 1.6; }
+.qa-input-label { font-size: 0.82rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.04em; }
+.qa-textarea {
+  width: 100%;
+  border: 1.5px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.qa-textarea:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.08); }
+.qa-textarea:disabled { background: #f9fafb; color: #374151; }
+.qa-hint { font-size: 0.82rem; color: #4b5563; background: #f0f9ff; border-radius: 8px; padding: 10px 12px; }
+.qa-hint strong { color: #0369a1; }
+
+/* Listening body */
+.listening-body { display: flex; flex-direction: column; gap: 16px; }
+.listening-audio-wrap { margin: 4px 0; }
+.listening-audio-wrap audio { max-width: 100%; }
+.listening-input-row { display: flex; flex-direction: column; gap: 10px; }
+.listening-mic-wrap { display: flex; align-items: center; }
+.listening-mic-wrap .btn-record { padding: 10px 18px; }
+
 /* Result Banner */
 .result-banner { padding: 12px 20px; border-top: 1.5px solid #f0f0f0; }
 .result-correct { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; font-weight: 700; color: #15803d; }
@@ -985,6 +1041,8 @@
 .review-q-type-pill.pill-matching { background: #f3e5f5; color: #7b1fa2; }
 .review-q-type-pill.pill-fill-blank { background: #e8f5e9; color: #388e3c; }
 .review-q-type-pill.pill-pronunciation { background: #fff3e0; color: #e65100; }
+.review-q-type-pill.pill-question-answer { background: #e0f2f1; color: #0f766e; }
+.review-q-type-pill.pill-listening { background: #fef3c7; color: #b45309; }
 
 .review-q-pts { font-size: 0.8rem; color: #888; margin-left: auto; }
 

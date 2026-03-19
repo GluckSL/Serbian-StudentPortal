@@ -68,7 +68,7 @@ app.use(express.json());
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,           // ✅ important for sending cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -143,6 +143,12 @@ app.use('/api/digital-exercises', digitalExercisesRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
+
+const listeningMediaRoutes = require('./routes/listeningMedia');
+app.use('/api/listening-media', listeningMediaRoutes);
+
+const listeningWorksheetRoutes = require('./routes/listeningWorksheetGenerator');
+app.use('/api/listening-worksheets', listeningWorksheetRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {

@@ -1,4 +1,5 @@
 <!-- pdf-exercise-generator.component.html -->
+<input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
 <div class="generator-page">
 
   <!-- ── Top Bar ── -->
@@ -133,31 +134,84 @@
       </div>
     </div>
 
-    <!-- Exercise Types -->
+    <!-- Exercise Types — table layout -->
     <div class="config-section">
       <h3 class="config-label">Exercise Types <span class="required">*</span></h3>
-      <p class="config-hint">Select one or more types — AI will generate each type from your PDF content.</p>
-      <div class="type-grid">
+      <p class="config-hint">Toggle each type and set how many questions AI should generate for it.</p>
+
+      <div class="type-table">
+        <!-- Header -->
+        <div class="type-table-head">
+          <span class="tt-col-type">Type</span>
+          <span class="tt-col-toggle">Include</span>
+          <span class="tt-col-count">Questions</span>
+        </div>
+
+        <!-- Rows -->
         <div
           *ngFor="let qt of questionTypes"
-          class="type-card"
-          [class.selected]="isTypeSelected(qt.value)"
-          (click)="toggleType(qt.value)"
+          class="type-table-row"
+          [class.tt-row-active]="isTypeSelected(qt.value)"
         >
-          <div class="type-card-icon" [style.background]="qt.bg" [style.color]="qt.color">
-            <span class="material-icons">{{ qt.icon }}</span>
+          <!-- Icon + name + desc -->
+          <div class="tt-col-type">
+            <div class="tt-icon" [style.background]="qt.bg" [style.color]="qt.color">
+              <span class="material-icons">{{ qt.icon }}</span>
+            </div>
+            <div class="tt-info">
+              <span class="tt-name">{{ qt.label }}</span>
+              <span class="tt-desc">{{ qt.desc }}</span>
+            </div>
           </div>
-          <div class="type-card-body">
-            <div class="type-card-name">{{ qt.label }}</div>
-            <div class="type-card-desc" *ngIf="qt.value === 'mcq'">4 options, 1 correct answer</div>
-            <div class="type-card-desc" *ngIf="qt.value === 'matching'">Match word/phrase pairs</div>
-            <div class="type-card-desc" *ngIf="qt.value === 'fill-blank'">Sentences with ___ gaps</div>
-            <div class="type-card-desc" *ngIf="qt.value === 'pronunciation'">Speak a word aloud</div>
+
+          <!-- Toggle switch -->
+          <div class="tt-col-toggle">
+            <label class="tt-switch">
+              <input
+                type="checkbox"
+                [checked]="isTypeSelected(qt.value)"
+                (change)="toggleType(qt.value)"
+              />
+              <span class="tt-slider"></span>
+            </label>
           </div>
-          <div class="type-card-check" [class.visible]="isTypeSelected(qt.value)">
-            <span class="material-icons">check_circle</span>
+
+          <!-- Count stepper — only shown when type is active -->
+          <div class="tt-col-count">
+            <div class="tt-stepper" *ngIf="isTypeSelected(qt.value); else emptyCount">
+              <button class="tt-step-btn" (click)="decrementCount(qt.value)" [disabled]="typeCounts[qt.value] <= 1">
+                <span class="material-icons">remove</span>
+              </button>
+              <input
+                type="number"
+                class="tt-count-input"
+                min="1"
+                max="50"
+                [ngModel]="typeCounts[qt.value]"
+                (ngModelChange)="setCount(qt.value, $event)"
+                (click)="$event.stopPropagation()"
+                (keydown)="$event.stopPropagation()"
+              />
+              <button class="tt-step-btn" (click)="incrementCount(qt.value)">
+                <span class="material-icons">add</span>
+              </button>
+            </div>
+            <ng-template #emptyCount>
+              <span class="tt-count-off">—</span>
+            </ng-template>
           </div>
         </div>
+      </div>
+
+      <!-- Summary bar -->
+      <div class="type-summary" *ngIf="maxQuestions > 0">
+        <span class="material-icons">auto_awesome</span>
+        AI will generate <strong>{{ maxQuestions }}</strong> question{{ maxQuestions !== 1 ? 's' : '' }} total
+        across <strong>{{ selectedTypes.length }}</strong> type{{ selectedTypes.length !== 1 ? 's' : '' }}.
+      </div>
+      <div class="type-summary type-summary-warn" *ngIf="maxQuestions === 0">
+        <span class="material-icons">warning</span>
+        Select at least one type and set a question count to continue.
       </div>
     </div>
 
@@ -199,17 +253,7 @@
       </div>
     </div>
 
-    <!-- Number of questions -->
-    <div class="config-section">
-      <h3 class="config-label">Number of Questions</h3>
-      <div class="qty-slider-wrap">
-        <input type="range" min="3" max="100" [(ngModel)]="maxQuestions" class="qty-slider" />
-        <div class="qty-display">
-          <strong>{{ maxQuestions }}</strong> questions
-        </div>
-      </div>
-      <p class="config-hint">AI will generate up to {{ maxQuestions }} questions, distributed across selected types.</p>
-    </div>
+    <!-- Number of questions is now driven by per-type counts above — no extra section needed -->
 
     <div class="step-footer">
       <button class="btn-secondary" (click)="back()">
@@ -258,9 +302,9 @@
       <div class="config-summary">
         <span class="material-icons">description</span> {{ uploadResult?.filename }}
         &nbsp;·&nbsp;
-        <span *ngFor="let t of selectedTypes; let i = index">{{ getTypeInfo(t).label }}{{ i < selectedTypes.size - 1 ? ', ' : '' }}</span>
+        <span *ngFor="let t of selectedTypes; let i = index">{{ getTypeInfo(t).label }}{{ i < selectedTypes.length - 1 ? ', ' : '' }}</span>
         &nbsp;·&nbsp;
-        {{ level }} · {{ targetLanguage }} · Max {{ maxQuestions }} questions
+        {{ level }} · {{ targetLanguage }} · {{ maxQuestions }} questions
       </div>
     </div>
 
@@ -360,6 +404,8 @@
                 <span *ngSwitchCase="'matching'">{{ q.pairs?.length }} pairs</span>
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || '—' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || '—' }}</span>
+                <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen' }} ({{ q.mediaUrl ? 'audio' : '—' }})</span>
               </ng-container>
             </span>
           </div>
@@ -489,6 +535,137 @@
               <button class="btn-add-sm" (click)="addVariant(q)"><span class="material-icons">add</span> Add variant</button>
             </div>
           </ng-container>
+
+          <!-- Question / Answer Editor -->
+          <!-- Listening Editor -->
+          <ng-container *ngIf="q.type === 'listening'">
+            <div class="ed-field">
+              <label>Instruction</label>
+              <input type="text" [(ngModel)]="q.prompt" class="ed-input" placeholder="Listen and type what you hear." />
+            </div>
+            <div class="ed-field">
+              <label>Audio</label>
+              <div class="listening-upload-row">
+                <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
+                  <span class="material-icons">upload_file</span> Upload
+                </button>
+                <span class="upload-or">or</span>
+                <input type="text" #listeningUrl placeholder="Paste URL..." class="ed-input" style="width:200px" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
+                <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
+              </div>
+              <div *ngIf="q.mediaUrl" class="audio-preview">
+                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+              </div>
+            </div>
+            <div class="ed-field">
+              <div class="sentence-label-row">
+                <label>Expected transcript</label>
+                <button type="button" class="btn-insert-blank" (click)="generateListeningTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
+                  <span class="material-icons">auto_awesome</span>
+                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
+                </button>
+              </div>
+              <textarea [(ngModel)]="q.expectedTranscript" class="ed-input" rows="3"></textarea>
+            </div>
+            <div class="ed-field">
+              <label>Student mode</label>
+              <select [(ngModel)]="q.attemptMode" class="ed-input" style="width:auto">
+                <option value="typing">Typing only</option>
+                <option value="typing-or-speech">Typing or speaking</option>
+              </select>
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="q.type === 'question-answer'">
+            <div class="ed-field">
+              <label>Question <span class="required">*</span></label>
+              <textarea [(ngModel)]="q.prompt" class="ed-input" rows="2" placeholder="Type the question here..."></textarea>
+            </div>
+            <div class="ed-field">
+              <label>
+                Sample Answers
+                <span class="opt-label">(optional — if none, AI grades automatically)</span>
+              </label>
+              <div class="var-row" *ngFor="let sa of q.sampleAnswers; let si = index; trackBy: trackByIndex">
+                <input
+                  type="text"
+                  [(ngModel)]="q.sampleAnswers![si]"
+                  class="ed-input"
+                  [placeholder]="'Accepted answer ' + (si + 1)"
+                  (keydown)="$event.stopPropagation()"
+                />
+                <button class="btn-rm-sm" (click)="removeSampleAnswer(q, si)" *ngIf="q.sampleAnswers!.length > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-sm" (click)="addSampleAnswer(q)">
+                <span class="material-icons">add</span> Add sample answer
+              </button>
+            </div>
+            <!-- AI Grading Config -->
+            <div class="qa-grading-config">
+              <div class="qa-grading-title">
+                <span class="material-icons">auto_awesome</span>
+                AI Grading Settings
+              </div>
+              <div class="qa-grading-row">
+
+                <!-- Threshold -->
+                <div class="qa-grading-field">
+                  <label>Minimum % to pass</label>
+                  <div class="threshold-control">
+                    <div class="threshold-display">
+                      <div>
+                        <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
+                        <span class="threshold-val-unit">%</span>
+                      </div>
+                      <span class="threshold-label">match required to pass</span>
+                    </div>
+                    <input
+                      type="range" min="50" max="100" step="5"
+                      [ngModel]="q.similarityThreshold ?? 70"
+                      (ngModelChange)="setThreshold(q, $event)"
+                      class="threshold-slider"
+                      [style.--val]="((q.similarityThreshold ?? 70) - 50) / 50 * 100 + '%'"
+                    />
+                    <div class="threshold-presets">
+                      <button *ngFor="let p of [50,60,70,80,90,100]"
+                        type="button"
+                        class="preset-btn"
+                        [class.active]="(q.similarityThreshold ?? 70) === p"
+                        (click)="q.similarityThreshold = p">
+                        {{ p }}%
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Scoring mode -->
+                <div class="qa-grading-field">
+                  <label>Marks awarded</label>
+                  <div class="scoring-mode-opts">
+                    <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
+                      <input type="radio" [name]="'sm-pdf-'+reviewQuestions.indexOf(q)" value="full" [(ngModel)]="q.scoringMode" />
+                      <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                      <div class="scoring-opt-text">
+                        <span class="scoring-opt-name">Full marks if passed</span>
+                        <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                      </div>
+                    </label>
+                    <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
+                      <input type="radio" [name]="'sm-pdf-'+reviewQuestions.indexOf(q)" value="proportional" [(ngModel)]="q.scoringMode" />
+                      <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                      <div class="scoring-opt-text">
+                        <span class="scoring-opt-name">Proportional marks</span>
+                        <span class="scoring-opt-desc">Scaled by AI score (85% → 0.85 × pts)</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </ng-container>
         </div>
       </div>
 
@@ -499,6 +676,10 @@
           <button *ngFor="let qt of questionTypes" class="add-q-btn" (click)="addBlankQuestion(qt.value)"
             [style.background]="qt.bg" [style.color]="qt.color">
             <span class="material-icons">{{ qt.icon }}</span> {{ qt.label }}
+          </button>
+          <button class="add-q-btn" (click)="addBlankQuestion('listening')"
+            style="background:#fef3c7;color:#b45309">
+            <span class="material-icons">headphones</span> Listening
           </button>
         </div>
       </div>

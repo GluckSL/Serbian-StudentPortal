@@ -1,5 +1,6 @@
 <!-- digital-exercise-builder.component.html -->
 <div class="builder-container">
+  <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
 
   <!-- AI Generator Banner (create mode only) -->
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
@@ -174,6 +175,8 @@
                 <span *ngSwitchCase="'matching'">{{ q.pairs?.length || 0 }} pairs</span>
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
+                <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen and type' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
               </ng-container>
             </span>
           </div>
@@ -297,6 +300,165 @@
                   <input type="checkbox" [(ngModel)]="q.caseSensitive" />
                   Case-sensitive grading
                 </label>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- Listening Editor -->
+          <ng-container *ngIf="q.type === 'listening'">
+            <div class="info-banner">
+              <span class="material-icons">headphones</span>
+              Upload audio (or paste a link). AI will extract the text for you to verify before publishing. Students listen and type (or speak) what they hear.
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Instruction</label>
+              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. Listen and type what you hear." />
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Audio</label>
+              <div class="listening-upload-row">
+                <div class="upload-option">
+                  <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
+                    <span class="material-icons">upload_file</span> Upload from computer
+                  </button>
+                </div>
+                <span class="upload-or">or</span>
+                <div class="upload-option upload-url">
+                  <input type="text" #listeningUrl placeholder="Paste audio URL..." class="field-input" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
+                  <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
+                </div>
+              </div>
+              <div *ngIf="q.mediaUrl" class="audio-preview">
+                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+                <span class="media-url">{{ q.mediaUrl }}</span>
+              </div>
+            </div>
+            <div class="field-group full">
+              <div class="sentence-label-row">
+                <label class="field-label required">Expected transcript</label>
+                <button type="button" class="btn-insert-blank" (click)="generateTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
+                  <span class="material-icons">auto_awesome</span>
+                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
+                </button>
+              </div>
+              <p class="hint-text">AI extracts text from the audio. Verify it's correct before publishing.</p>
+              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="4" placeholder="Transcript will appear here after AI extraction..."></textarea>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">Student attempt mode</label>
+              <div class="scoring-mode-opts" style="margin-top:6px">
+                <label class="scoring-opt" [class.active]="(q.attemptMode || 'typing') === 'typing'" (click)="q.attemptMode = 'typing'">
+                  <input type="radio" [name]="'am-'+i" value="typing" [(ngModel)]="q.attemptMode" />
+                  <div class="scoring-opt-icon"><span class="material-icons">keyboard</span></div>
+                  <div class="scoring-opt-text">
+                    <span class="scoring-opt-name">Typing only</span>
+                    <span class="scoring-opt-desc">Student must type what they hear</span>
+                  </div>
+                </label>
+                <label class="scoring-opt" [class.active]="q.attemptMode === 'typing-or-speech'" (click)="q.attemptMode = 'typing-or-speech'">
+                  <input type="radio" [name]="'am-'+i" value="typing-or-speech" [(ngModel)]="q.attemptMode" />
+                  <div class="scoring-opt-icon"><span class="material-icons">mic</span></div>
+                  <div class="scoring-opt-text">
+                    <span class="scoring-opt-name">Typing or speaking</span>
+                    <span class="scoring-opt-desc">Student can type or speak (speech → text)</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- Question / Answer Editor -->
+          <ng-container *ngIf="q.type === 'question-answer'">
+            <div class="info-banner">
+              <span class="material-icons">short_text</span>
+              Students will read the question and type a free-text answer. You can add sample answers for exact matching, or enable AI grading.
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Question</label>
+              <textarea [(ngModel)]="q.prompt" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">
+                Sample Answers
+                <span class="hint"> (optional — if none, AI grades automatically)</span>
+              </label>
+              <div class="variant-row" *ngFor="let sa of q.sampleAnswers; let si = index; trackBy: trackByIndex">
+                <input
+                  type="text"
+                  [(ngModel)]="q.sampleAnswers![si]"
+                  class="field-input"
+                  [placeholder]="'Accepted answer ' + (si + 1)"
+                  (keydown)="$event.stopPropagation()"
+                />
+                <button class="btn-remove-opt" (click)="removeSampleAnswer(q, si)" *ngIf="q.sampleAnswers!.length > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" (click)="addSampleAnswer(q)">
+                <span class="material-icons">add</span> Add Sample Answer
+              </button>
+            </div>
+            <!-- AI Grading Config -->
+            <div class="qa-grading-config">
+              <div class="qa-grading-title">
+                <span class="material-icons">auto_awesome</span>
+                AI Grading Settings
+              </div>
+              <div class="qa-grading-row">
+
+                <!-- Threshold -->
+                <div class="qa-grading-field">
+                  <label>Minimum % to pass</label>
+                  <div class="threshold-control">
+                    <div class="threshold-display">
+                      <div>
+                        <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
+                        <span class="threshold-val-unit">%</span>
+                      </div>
+                      <span class="threshold-label">match required to pass</span>
+                    </div>
+                    <input
+                      type="range" min="50" max="100" step="5"
+                      [ngModel]="q.similarityThreshold ?? 70"
+                      (ngModelChange)="setThreshold(q, $event)"
+                      class="threshold-slider"
+                      [style.--val]="((q.similarityThreshold ?? 70) - 50) / 50 * 100 + '%'"
+                    />
+                    <div class="threshold-presets">
+                      <button *ngFor="let p of [50,60,70,80,90,100]"
+                        type="button"
+                        class="preset-btn"
+                        [class.active]="(q.similarityThreshold ?? 70) === p"
+                        (click)="q.similarityThreshold = p">
+                        {{ p }}%
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Scoring mode -->
+                <div class="qa-grading-field">
+                  <label>Marks awarded</label>
+                  <div class="scoring-mode-opts">
+                    <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
+                      <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
+                      <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                      <div class="scoring-opt-text">
+                        <span class="scoring-opt-name">Full marks if passed</span>
+                        <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                      </div>
+                    </label>
+                    <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
+                      <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
+                      <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                      <div class="scoring-opt-text">
+                        <span class="scoring-opt-name">Proportional marks</span>
+                        <span class="scoring-opt-desc">Scaled by AI score (85% → 0.85 × pts)</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
               </div>
             </div>
           </ng-container>
@@ -429,6 +591,26 @@
             <div class="pq-word">{{ q.word }}</div>
             <div *ngIf="q.phonetic" class="pq-phonetic">{{ q.phonetic }}</div>
             <div *ngIf="q.translation" class="pq-translation">= {{ q.translation }}</div>
+          </div>
+
+          <!-- Listening Preview -->
+          <div *ngIf="q.type === 'listening'" class="pq-body">
+            <p class="pq-text">{{ q.prompt }}</p>
+            <div *ngIf="q.mediaUrl" class="pq-audio">
+              <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+            </div>
+            <div class="pq-qa-answer-box">Student types or speaks what they hear...</div>
+          </div>
+
+          <!-- Question / Answer Preview -->
+          <div *ngIf="q.type === 'question-answer'" class="pq-body">
+            <p class="pq-text">{{ q.prompt }}</p>
+            <div class="pq-qa-answer-box">Student types their answer here...</div>
+            <div *ngIf="q.sampleAnswers && q.sampleAnswers[0]" class="pq-answers">
+              <span *ngFor="let sa of q.sampleAnswers; let si = index" class="pq-answer">
+                Answer {{ si + 1 }}: <strong>{{ sa }}</strong>
+              </span>
+            </div>
           </div>
         </div>
       </div>

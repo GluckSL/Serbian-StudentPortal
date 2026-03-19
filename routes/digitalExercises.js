@@ -7,8 +7,76 @@ const DigitalExercise = require('../models/DigitalExercise');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const OpenAI = require('openai');
+
+// ─── AI answer grader ─────────────────────────────────────────────────────────
+// Returns { score: 0-100 } representing how correct the student's answer is.
+async function aiGradeAnswer(question, sampleAnswers, studentAnswer) {
+  if (!studentAnswer || !studentAnswer.trim()) return { score: 0 };
+
+  if (!process.env.OPENAI_API_KEY) {
+    // Fallback: rough word-overlap heuristic
+    const words = studentAnswer.trim().toLowerCase().split(/\s+/).filter(w => w.length > 1);
+    return { score: words.length >= 4 ? 75 : words.length >= 2 ? 50 : 20 };
+  }
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const context = sampleAnswers && sampleAnswers.length > 0
+    ? `Question: "${question}"\nCorrect answer(s): ${sampleAnswers.map(s => `"${s}"`).join(' | ')}\n\nJudge whether the student's answer matches the correct meaning, even if it is shorter or uses different wording.`
+    : `Question: "${question}"\n\nJudge whether the student's answer correctly answers the question, even if it is a short or informal response.`;
+
+  const systemPrompt = `You are a teacher grading a student's short answer.
+Focus ONLY on whether the student's answer conveys the correct meaning or key fact — NOT on sentence completeness, grammar, or word count.
+A short answer like "jupiter" is fully correct if the question asks which planet is biggest and the accepted answer mentions jupiter.
+Score 0–100:
+  100 = correct meaning/fact, even if brief
+  70  = mostly correct, minor misunderstanding
+  50  = partially correct
+  0   = wrong or blank
+Reply with ONLY this JSON: {"score": <number 0-100>}`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `${context}\n\nStudent's answer: "${studentAnswer}"` }
+      ],
+      max_tokens: 30,
+      temperature: 0
+    });
+
+    const raw = (completion.choices[0].message.content || '').trim();
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+    const result = JSON.parse(cleaned);
+    const score = Math.max(0, Math.min(100, parseInt(result.score) || 0));
+    return { score };
+  } catch (err) {
+    console.error('AI grading error:', err.message);
+    const words = studentAnswer.trim().split(/\s+/).filter(w => w.length > 1);
+    return { score: words.length >= 4 ? 75 : words.length >= 2 ? 50 : 20 };
+  }
+}
 
 // ─── HELPER ──────────────────────────────────────────────────────────────────
+
+function levenshteinSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const m = a.length, n = b.length;
+  if (m === 0 || n === 0) return 0;
+  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  const maxLen = Math.max(m, n);
+  return 1 - dp[m][n] / maxLen;
+}
 
 function getAccessibleLevels(studentLevel) {
   const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -347,7 +415,21 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
     if (attempt.status === 'completed') return res.status(400).json({ error: 'Attempt already submitted' });
 
-    // Grade each response
+    // ── Fire all AI grading calls in parallel first ──────────────────────────
+    // Pre-compute AI scores for every Q/A question simultaneously so we don't
+    // block the loop waiting for each one sequentially.
+    const qaScoreMap = {}; // questionIndex → { score }
+    const qaPromises = exercise.questions.map((q, i) => {
+      if (q.type !== 'question-answer') return Promise.resolve();
+      const resp = (responses || []).find(r => r.questionIndex === i) || {};
+      const studentAns = (resp.qaResponse || '').trim();
+      if (!studentAns) return Promise.resolve();
+      return aiGradeAnswer(q.prompt || '', Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [], studentAns)
+        .then(result => { qaScoreMap[i] = result; });
+    });
+    await Promise.all(qaPromises);
+
+    // ── Grade each response (now synchronous — AI results already in map) ───
     let earnedPoints = 0;
     const gradedResponses = [];
     const answerDetails = [];
@@ -367,7 +449,6 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
           let allCorrect = true;
           for (const match of resp.matchingResponse) {
             if (q.pairs[match.leftIndex] && q.pairs[match.leftIndex].right !== q.pairs[match.rightIndex]?.right) {
-              // Check by right value comparison
               const expectedRight = q.pairs[match.leftIndex].right;
               const givenRight = q.pairs[match.rightIndex]?.right;
               if (expectedRight !== givenRight) { allCorrect = false; break; }
@@ -387,14 +468,37 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         }
         correctAnswer = { answers: q.answers };
       } else if (q.type === 'pronunciation') {
-        // Score based on similarity; client sends pronunciationScore
         const score = resp.pronunciationScore || 0;
         isCorrect = score >= 70;
         pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
         correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+      } else if (q.type === 'question-answer') {
+        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
+        const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
+        const scoringMode = q.scoringMode || 'full';
+        const aiResult = qaScoreMap[i];
+
+        if (aiResult) {
+          const { score } = aiResult;
+          isCorrect = score >= threshold;
+          pointsEarned = scoringMode === 'proportional'
+            ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
+            : (isCorrect ? (q.points || 1) : 0);
+        }
+        correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
+      } else if (q.type === 'listening') {
+        const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
+        const expected = (q.expectedTranscript || '').trim().toLowerCase();
+        if (expected && studentText) {
+          isCorrect = studentText === expected ||
+            expected.includes(studentText) ||
+            studentText.includes(expected) ||
+            levenshteinSimilarity(studentText, expected) >= 0.85;
+        }
+        correctAnswer = { expectedTranscript: q.expectedTranscript };
       }
 
-      if (q.type !== 'pronunciation') {
+      if (q.type !== 'pronunciation' && q.type !== 'question-answer') {
         pointsEarned = isCorrect ? (q.points || 1) : 0;
       }
       earnedPoints += pointsEarned;
@@ -407,6 +511,8 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         fillBlankResponses: resp.fillBlankResponses,
         spokenText: resp.spokenText,
         pronunciationScore: resp.pronunciationScore,
+        qaResponse: resp.qaResponse,
+        listeningText: resp.listeningText,
         isCorrect,
         pointsEarned
       });

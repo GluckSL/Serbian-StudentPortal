@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening'], required: true },
     // MCQ fields
     question: String,
     imageUrl: String,
@@ -104,9 +104,22 @@ const DigitalExerciseSchema = new mongoose.Schema({
     translation: String,
     audioUrl: String,
     acceptedVariants: [String],
+    // Question / Answer fields
+    prompt: String,
+    sampleAnswers: [String],
+    similarityThreshold: { type: Number, default: 70 },   // 0-100 — min AI score to pass
+    scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
+    // Listening fields (prompt reused for instruction)
+    mediaUrl: String,  // URL to audio file (uploaded or external link)
+    expectedTranscript: String,  // AI-extracted text, teacher-verified before publish
+    attemptMode: { type: String, enum: ['typing', 'typing-or-speech'], default: 'typing' },
     // Common
     points: { type: Number, default: 1 }
   }],
+
+  // Optional shared audio for manual listening worksheets.
+  // When present, the student can play this audio for all questions in the exercise.
+  sharedAudioUrl: { type: String, default: null },
 
   tags: [String],
 

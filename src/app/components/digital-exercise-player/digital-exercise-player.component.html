@@ -96,6 +96,8 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'">{{ pq.data.prompt }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'listening'">{{ pq.data.prompt }}</div>
           <div class="review-answer-row">
             <span class="review-label">Your answer:</span>
             <span class="review-value" [class.wrong]="!pq.isCorrect">{{ getReviewAnswerText(pq) }}</span>
@@ -185,6 +187,15 @@
         <span class="material-icons">timer</span>
         {{ formatTime(elapsedSeconds) }}
       </div>
+    </div>
+
+    <!-- Shared audio for manual listening worksheets -->
+    <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
+      <div class="shared-audio-label">
+        <span class="material-icons">headphones</span>
+        Audio
+      </div>
+      <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
     </div>
 
     <!-- Question Navigator (dots) -->
@@ -366,6 +377,55 @@
             <span class="material-icons">warning</span>
             Speech recognition is not supported in this browser.
             Please use Chrome or Edge for pronunciation exercises.
+          </div>
+        </div>
+
+        <!-- Listening body -->
+        <div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
+          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and type what you hear.' }}</div>
+          <div class="listening-audio-wrap" *ngIf="currentQuestion.data.mediaUrl">
+            <audio [src]="getMediaFullUrl(currentQuestion.data.mediaUrl)" controls></audio>
+          </div>
+          <label class="qa-input-label">Your Answer</label>
+          <div class="listening-input-row">
+            <textarea
+              class="qa-textarea"
+              rows="4"
+              placeholder="Type what you hear..."
+              [(ngModel)]="currentQuestion.listeningText"
+              [disabled]="isSubmittedState"
+            ></textarea>
+            <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
+              <button
+                type="button"
+                class="btn-record"
+                [class.recording]="currentQuestion.isRecording"
+                [disabled]="isSubmittedState"
+                (click)="currentQuestion.isRecording ? stopListeningSpeech(currentQuestion) : startListeningSpeech(currentQuestion)"
+              >
+                <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
+                {{ currentQuestion.isRecording ? 'Stop' : 'Speak' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Question / Answer body -->
+        <div class="q-body qa-body" *ngIf="currentQuestion.data.type === 'question-answer'">
+          <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+          <label class="qa-input-label">Your Answer</label>
+          <textarea
+            class="qa-textarea"
+            rows="4"
+            placeholder="Write your answer here..."
+            [(ngModel)]="currentQuestion.qaResponse"
+            [disabled]="isSubmittedState"
+          ></textarea>
+          <div class="qa-hint" *ngIf="isSubmittedState && currentQuestion.data.sampleAnswers?.length">
+            <strong>Sample answers:</strong>
+            <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
+              {{ sa }}<span *ngIf="si < currentQuestion.data.sampleAnswers.length - 1">; </span>
+            </span>
           </div>
         </div>
 
