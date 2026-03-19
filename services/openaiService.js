@@ -24,6 +24,17 @@ class OpenAIService {
       const systemPrompt = this.buildSystemPrompt(module, sessionType, studentLevel);
       const conversationHistory = this.buildConversationHistory(previousMessages);
       
+      // Adjust max_tokens based on CEFR level to enforce shorter responses for beginners
+      const levelMaxTokens = {
+        'A1': 150,
+        'A2': 200,
+        'B1': 300,
+        'B2': 400,
+        'C1': 800,
+        'C2': 800
+      };
+      const maxTokens = levelMaxTokens[module.level] || this.maxTokens;
+
       const completion = await Promise.race([
         this.openai.chat.completions.create({
           model: this.model,
@@ -32,7 +43,7 @@ class OpenAIService {
             ...conversationHistory,
             { role: 'user', content: message }
           ],
-          max_tokens: this.maxTokens,
+          max_tokens: maxTokens,
           temperature: this.temperature
           // Removed response_format to fix the error
         }),
@@ -310,6 +321,8 @@ class OpenAIService {
     // Regular module prompt (existing code)
     const basePrompt = `You are an expert ${targetLang} language tutor with years of experience teaching ${targetLang} to international students. You are patient, encouraging, and adapt your teaching style to each student's needs.
 
+${this.getCefrLevelGuidelines(module.level)}
+
 Current Context:
 - Target Language: ${targetLang} (language being learned)
 - Native Language: ${nativeLang} (language for explanations)
@@ -408,6 +421,8 @@ Always respond with valid JSON in this format:
 
     const rolePlayPrompt = `🎭 ROLE-PLAY LANGUAGE TUTOR - SESSION MANAGER
 
+${this.getCefrLevelGuidelines(module.level)}
+
 ROLE-PLAY SCENARIO:
 - Situation: ${scenario.situation}
 - Setting: ${scenario.setting || 'Not specified'}
@@ -504,6 +519,7 @@ CRITICAL RULES:
 7. RESPOND to stop words ("stop", "end", "finish", "quit") immediately
 8. STAY in character during active role-play state
 9. TRACK progress toward the objective throughout the session
+10. STRICTLY FOLLOW the CEFR level response rules above — response length and complexity MUST match the student's level. For A1/A2: keep it SHORT and SIMPLE. Never write long responses for beginners.
 
 Remember: You are managing a structured role-play session with clear personality, opening lines, and guidance for both roles!`;
 
@@ -578,6 +594,73 @@ Remember: You are managing a structured role-play session with clear personality
       explanation: 'This is a practice exercise.',
       points: 1
     };
+  }
+
+  /**
+   * Get CEFR level-based response guidelines to control AI verbosity and complexity
+   */
+  getCefrLevelGuidelines(level) {
+    const guidelines = {
+      'A1': `
+CEFR A1 (BEGINNER) - RESPONSE RULES:
+- Keep responses VERY SHORT: 1-2 simple sentences maximum during role-play
+- Use ONLY basic, everyday words (no compound words, no idioms, no abstract vocabulary)
+- Use ONLY present tense and simple sentence structures (Subject + Verb + Object)
+- Speak slowly and clearly — short phrases, not paragraphs
+- ONE idea per message — never combine multiple thoughts
+- If correcting mistakes, use 1 short sentence max
+- Avoid subordinate clauses, relative clauses, or complex connectors
+- Use simple greetings, numbers, colors, basic nouns and verbs only
+- Maximum response length: 15-20 words during role-play
+- For introductions/explanations in native language: keep under 3-4 short sentences`,
+
+      'A2': `
+CEFR A2 (ELEMENTARY) - RESPONSE RULES:
+- Keep responses SHORT: 2-3 simple sentences maximum during role-play
+- Use basic everyday vocabulary with some common expressions
+- Use present tense primarily, simple past when needed
+- Simple sentence structures with basic connectors (and, but, because)
+- TWO ideas maximum per message
+- Short corrections with one brief example
+- Maximum response length: 25-30 words during role-play
+- For introductions/explanations in native language: keep under 4-5 sentences`,
+
+      'B1': `
+CEFR B1 (INTERMEDIATE) - RESPONSE RULES:
+- Moderate response length: 3-4 sentences during role-play
+- Use common vocabulary with some less frequent words
+- Can use past, present, future tenses and basic conditionals
+- Use connectors and some subordinate clauses
+- Provide brief explanations when correcting
+- Maximum response length: 40-50 words during role-play`,
+
+      'B2': `
+CEFR B2 (UPPER INTERMEDIATE) - RESPONSE RULES:
+- Normal conversational length: 4-5 sentences during role-play
+- Use varied vocabulary including some idiomatic expressions
+- All tenses, conditionals, passive voice allowed
+- Complex sentence structures are fine
+- Can include nuanced corrections with examples
+- Maximum response length: 60-70 words during role-play`,
+
+      'C1': `
+CEFR C1 (ADVANCED) - RESPONSE RULES:
+- Natural conversational length with rich vocabulary
+- Use idiomatic expressions, nuanced language, and varied structures
+- All grammar structures including subjunctive and complex clauses
+- Detailed corrections with explanations of subtle differences
+- Maximum response length: 80-100 words during role-play`,
+
+      'C2': `
+CEFR C2 (MASTERY) - RESPONSE RULES:
+- Full natural conversation with no restrictions on complexity
+- Use sophisticated vocabulary, idioms, humor, and cultural references
+- All grammar structures including rare or literary forms
+- Nuanced feedback on style, register, and tone
+- No strict word limit — respond naturally as a native speaker would`
+    };
+
+    return guidelines[level] || guidelines['B1'];
   }
 
   /**

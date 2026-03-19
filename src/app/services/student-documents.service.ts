@@ -326,4 +326,15 @@ export class StudentDocumentsService {
       document: StudentDocument;
     }>(`${this.apiUrl}/admin/mark-verified`, data, { withCredentials: true });
   }
+
+  // Send custom email to a student (Admin only)
+  sendEmailToStudent(data: { to: string; subject: string; message: string }): Observable<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      message: string;
+    }>(`${this.apiUrl}/admin/send-email`, data, { withCredentials: true });
+  }
 }

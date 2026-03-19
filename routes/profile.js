@@ -36,7 +36,6 @@ router.get('/', verifyToken, async (req, res) => {
     if (user.role === 'STUDENT') {
       profileData.courseAssigned = user.courseAssigned;
       profileData.vapiAccess = user.vapiAccess;
-      profileData.elevenLabsWidgetLink = user.elevenLabsWidgetLink;
     }
 
     if (user.role === 'ADMIN') {

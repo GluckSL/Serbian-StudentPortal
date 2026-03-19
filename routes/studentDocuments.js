@@ -328,12 +328,13 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (re
     if (documentType) filter.documentType = documentType;
     
     const documents = await StudentDocument.find(filter)
-      .populate('studentId', 'name email batch level')
+      .populate('studentId', 'name email batch level servicesOpted')
       .sort({ uploadedAt: -1 })
       .lean();
     
     const documentsWithFormatting = documents.map(doc => ({
       ...doc,
+      servicesOpted: doc.studentId?.servicesOpted || '',
       formattedFileSize: formatFileSize(doc.fileSize),
       documentTypeDisplay: getDocumentTypeDisplayName(doc.documentType)
     }));
@@ -645,5 +646,40 @@ function getDocumentTypeDisplayName(type) {
   };
   return displayNames[type] || type;
 }
+
+// POST /api/student-documents/admin/send-email - Send custom email to a student (Admin only)
+router.post('/admin/send-email', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { to, subject, message } = req.body;
+    if (!to || !subject || !message) {
+      return res.status(400).json({ success: false, message: 'to, subject, and message are required' });
+    }
+
+    const transporter = require('../config/emailConfig');
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #1a237e; color: white; padding: 20px; text-align: center;">
+            <h2>Glück Global</h2>
+          </div>
+          <div style="padding: 20px; background: #f5f5f5;">
+            <div style="white-space: pre-wrap;">${message}</div>
+          </div>
+          <div style="padding: 10px; text-align: center; color: #666; font-size: 12px;">
+            <p>Glück Global Language School</p>
+          </div>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: 'Email sent successfully' });
+  } catch (error) {
+    console.error('❌ Error sending email:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to send email' });
+  }
+});
 
 module.exports = router;

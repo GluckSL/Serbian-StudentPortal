@@ -6,8 +6,6 @@ import { StudentDashboardComponent } from './student-dashboard.component';
 import { FormsModule } from '@angular/forms';
 import { SafeUrlPipe } from '../../pipes/safe-url.pipe';
 import { RouterModule, Routes } from '@angular/router';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatCardModule } from '@angular/material/card';
 import { MaterialModule } from '../../shared/material.module';
 import { NgChartsModule } from 'ng2-charts';
 import { StudentRoutingModule } from './student-routing.module';
@@ -24,8 +22,6 @@ const routes: Routes = [
     SafeUrlPipe,
   ],
   imports: [CommonModule,
-            MatProgressBarModule,
-            MatCardModule,
             RouterModule.forChild(routes),
             MaterialModule,
             NgChartsModule,
@@ -34,7 +30,7 @@ const routes: Routes = [
             StudentRoutingModule,
         ],
   exports: [StudentDashboardComponent],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA]   // 👈 allow custom elements like <elevenlabs-convai>
+  schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class StudentDashboardModule {}
 

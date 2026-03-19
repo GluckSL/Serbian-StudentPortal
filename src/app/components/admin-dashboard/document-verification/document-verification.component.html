@@ -113,6 +113,16 @@
           </mat-select>
         </mat-form-field>
 
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Service Opted</mat-label>
+          <mat-select [(ngModel)]="selectedServiceOpted" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All Services</mat-option>
+            <mat-option *ngFor="let service of serviceOptedOptions" [value]="service">
+              {{ service }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
         <mat-form-field appearance="outline" class="filter-field search-field">
           <mat-label>Search</mat-label>
           <input matInput [(ngModel)]="searchQuery" (input)="applyFilters()" 
@@ -154,6 +164,11 @@
               <strong>{{ group.studentName }}</strong>
               <small>{{ group.studentEmail }}</small>
             </div>
+            <button mat-icon-button matTooltip="Send Email" 
+                    (click)="openEmailDialog(group.studentName, group.studentEmail); $event.stopPropagation()"
+                    style="color: #1976d2; margin-left: 8px;">
+              <mat-icon>email</mat-icon>
+            </button>
           </div>
           <div class="student-group-stats">
             <span class="doc-count total" matTooltip="Total Documents">
@@ -296,6 +311,11 @@
                 <strong>{{ doc.studentName }}</strong>
                 <small>{{ doc.studentEmail }}</small>
               </div>
+              <button mat-icon-button matTooltip="Send Email" 
+                      (click)="openEmailDialog(doc.studentName, doc.studentEmail); $event.stopPropagation()"
+                      style="color: #1976d2;">
+                <mat-icon style="font-size: 18px;">email</mat-icon>
+              </button>
             </td>
           </ng-container>
 
@@ -771,6 +791,46 @@
         <p>File not found on server</p>
         <small>The physical file may have been moved or deleted.</small>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Send Email Dialog -->
+<div class="verification-dialog-overlay" *ngIf="showEmailDialog" (click)="closeEmailDialog()">
+  <div class="verification-dialog" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <h3>
+        <mat-icon style="color: #1976d2;">email</mat-icon>
+        Send Email to {{ emailForm.studentName }}
+      </h3>
+      <button mat-icon-button (click)="closeEmailDialog()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="dialog-content">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>To</mat-label>
+        <input matInput [value]="emailForm.to" disabled>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Subject</mat-label>
+        <input matInput [(ngModel)]="emailForm.subject" placeholder="Enter email subject">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Message</mat-label>
+        <textarea matInput [(ngModel)]="emailForm.message" rows="6" placeholder="Type your message here..."></textarea>
+      </mat-form-field>
+    </div>
+
+    <div class="dialog-actions">
+      <button mat-button (click)="closeEmailDialog()">Cancel</button>
+      <button mat-raised-button color="primary" (click)="sendEmail()" [disabled]="sendingEmail">
+        <mat-icon>{{ sendingEmail ? 'hourglass_empty' : 'send' }}</mat-icon>
+        {{ sendingEmail ? 'Sending...' : 'Send Email' }}
+      </button>
     </div>
   </div>
 </div>

@@ -5,7 +5,7 @@ const { syncMetaLeadsToMonday } = require('./jobs/metaToMondaySync');
 console.log('🚀 Starting manual Meta to Monday.com sync...\n');
 console.log('📋 Configuration:');
 console.log(`   Meta Page ID: ${process.env.META_PAGE_ID}`);
-console.log(`   Monday Board ID: ${process.env.MONDAY_BOARD_ID}`);
+console.log(`   Monday Leads Board ID: ${process.env.MONDAY_LEADS_BOARD_ID}`);
 console.log(`   Meta Token: ${process.env.META_ACCESS_TOKEN ? 'Configured ✅' : 'Missing ❌'}`);
 console.log(`   Monday Token: ${process.env.MONDAY_API_TOKEN ? 'Configured ✅' : 'Missing ❌'}`);
 console.log(`   Form ID: ${process.env.META_FORM_ID || 'All forms (syncing from all 25 forms)'}\n`);

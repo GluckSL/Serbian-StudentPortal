@@ -6,9 +6,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
+import { MaterialModule } from '../../../shared/material.module';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { 
@@ -29,9 +27,7 @@ import { TeacherService } from '../../../services/teacher.service';
     FormsModule, 
     ReactiveFormsModule,
     NgChartsModule,
-    MatAutocompleteModule,
-    MatInputModule,
-    MatFormFieldModule
+    MaterialModule
   ],
   templateUrl: './admin-analytics.component.html',
   styleUrls: ['./admin-analytics.component.css']

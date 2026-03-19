@@ -6,8 +6,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../shared/material.module';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -62,7 +62,7 @@ const PROGRESS_MESSAGES = [
 @Component({
   selector: 'app-pdf-exercise-generator',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './pdf-exercise-generator.component.html',
   styleUrls: ['./pdf-exercise-generator.component.css']
 })

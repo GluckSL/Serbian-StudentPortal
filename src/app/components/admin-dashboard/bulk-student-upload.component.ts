@@ -2,13 +2,8 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatTableModule } from '@angular/material/table';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../shared/material.module';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { environment } from '../../../environments/environment';
 
 interface BulkUploadResult {
@@ -33,13 +28,7 @@ interface BulkUploadResult {
   imports: [
     CommonModule,
     FormsModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
-    MatCheckboxModule,
-    MatTableModule,
-    MatSnackBarModule
+    MaterialModule
   ],
   template: `
     <div class="bulk-upload-container">
@@ -90,7 +79,7 @@ interface BulkUploadResult {
                 <li><strong>phoneNumber</strong> - Contact number</li>
                 <li><strong>address</strong> - Physical address</li>
                 <li><strong>age</strong> - Student age</li>
-                <li><strong>programEnrolled</strong> - Program name</li>
+                <li><strong>servicesOpted</strong> - Service/program name</li>
                 <li><strong>leadSource</strong> - Marketing source</li>
               </ul>
             </div>
@@ -488,7 +477,7 @@ export class BulkStudentUploadComponent {
   ) {}
 
   downloadTemplate() {
-    const csvContent = `name,email,subscription,level,studentStatus,medium,batch,phoneNumber,address,age,programEnrolled,leadSource
+    const csvContent = `name,email,subscription,level,studentStatus,medium,batch,phoneNumber,address,age,servicesOpted,leadSource
 John Doe,john@example.com,PLATINUM,A1,ONGOING,Online,Batch A,+94771234567,"Colombo, Sri Lanka",25,German Language Course,Facebook
 Jane Smith,jane@example.com,SILVER,A2,ONGOING,Offline,Batch B,+94771234568,"Kandy, Sri Lanka",30,Business German,Referral`;
 

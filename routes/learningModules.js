@@ -51,12 +51,19 @@ router.get('/', verifyToken, async (req, res) => {
       const accessibleLevels = getAccessibleLevels(userLevel);
       
       if (accessibleLevels.length > 0) {
-        filter.level = { $in: accessibleLevels };
+        if (level && accessibleLevels.includes(level)) {
+          // Student picked a specific level that's within their access — use it
+          filter.level = level;
+        } else {
+          // No level selected or selected level not accessible — show all accessible
+          filter.level = { $in: accessibleLevels };
+        }
       }
       
       console.log(`🔒 Level access control applied for ${req.user.email}:`, {
         userLevel,
         accessibleLevels,
+        selectedLevel: level || 'none',
         filterApplied: filter.level
       });
     }

@@ -3,7 +3,6 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { StudentDashboardComponent } from './student-dashboard.component';
 import { StudentAiDashboardComponent } from '../student-ai-dashboard/student-ai-dashboard.component';
-import { StudentExamsComponent } from '../student-exams/student-exams.component';
 import { StudentAssignmentsComponent } from '../student-assignments/student-assignments.component';
 import { StudentNotificationsComponent } from '../student-notifications/student-notifications.component';
 import { AuthGuard } from '../../guards/auth.guard';
@@ -17,14 +16,6 @@ const routes: Routes = [
         .then(m => m.StudentAiDashboardComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: 'STUDENT' }
-  },
-  {
-    path: 'student-exams',
-    loadComponent: () =>
-      import('../student-exams/student-exams.component')
-          .then(m => m.StudentExamsComponent),
-      canActivate: [AuthGuard, RoleGuard],
-      data: { role: 'STUDENT'},
   },
 
 ];

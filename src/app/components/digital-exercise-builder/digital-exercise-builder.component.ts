@@ -6,8 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../services/digital-exercise.service';
 import { environment } from '../../../environments/environment';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../shared/material.module';
 
 interface BuilderQuestion {
   type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
@@ -48,7 +48,7 @@ interface BuilderQuestion {
 @Component({
   selector: 'app-digital-exercise-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './digital-exercise-builder.component.html',
   styleUrls: ['./digital-exercise-builder.component.css']
 })

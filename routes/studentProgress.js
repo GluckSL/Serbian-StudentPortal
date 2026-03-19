@@ -167,14 +167,133 @@ router.get('/level-progression', verifyToken, checkRole(['STUDENT', 'TEACHER']),
   }
 });
 
-function getNextLevel(currentLevel) {
-  const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-  const currentIndex = levels.indexOf(currentLevel);
-  if (currentIndex >= 0 && currentIndex < levels.length - 1) {
-    return levels[currentIndex + 1];
+// GET /api/student-progress/journey - Full student journey data for progress page
+router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const SessionRecord = require('../models/SessionRecord');
+    const StudentDocument = require('../models/StudentDocument');
+    const studentId = req.user.id;
+
+    const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    // Level progression
+    const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const currentLevelIndex = allLevels.indexOf(student.level);
+    const opted = (student.languageLevelOpted || '').trim();
+    let displayLevels;
+    if (!opted) {
+      displayLevels = ['A1', 'A2', 'B1', 'B2'];
+    } else if (opted.includes('-')) {
+      const [s, e] = opted.split('-');
+      const si = allLevels.indexOf(s), ei = allLevels.indexOf(e);
+      displayLevels = (si >= 0 && ei >= 0 && ei >= si) ? allLevels.slice(si, ei + 1) : ['A1', 'A2', 'B1', 'B2'];
+    } else {
+      const oi = allLevels.indexOf(opted);
+      displayLevels = oi >= 0 ? allLevels.slice(0, Math.max(oi, currentLevelIndex) + 1) : ['A1', 'A2', 'B1', 'B2'];
+    }
+    if (!displayLevels.includes(student.level)) {
+      displayLevels = allLevels.slice(allLevels.indexOf(displayLevels[0]), currentLevelIndex + 1);
+    }
+
+    const levelProgression = displayLevels.map(level => {
+      const startDate = student.courseStartDates?.[level + 'StartDate'];
+      const completedDate = student.courseCompletionDates?.[level + 'CompletionDate'];
+      const li = allLevels.indexOf(level);
+      let status = 'not-started';
+      if (completedDate) status = 'completed';
+      else if (startDate || li < currentLevelIndex) status = li === currentLevelIndex ? 'in-progress' : 'completed';
+      else if (li === currentLevelIndex) status = 'in-progress';
+      return { level, status, startDate, completedDate };
+    });
+
+    // Module progress per level
+    const moduleProgress = await StudentProgress.aggregate([
+      { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
+      { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'module' } },
+      { $unwind: '$module' },
+      { $group: { _id: '$module.level', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$timeSpent' } } }
+    ]);
+    const lessonsByLevel = {};
+    let totalStudyMinutes = 0;
+    moduleProgress.forEach(mp => { lessonsByLevel[mp._id] = { total: mp.total, completed: mp.completed }; totalStudyMinutes += mp.totalTime || 0; });
+
+    // AI Bot usage this week
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0);
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const botSessions = await AiTutorSession.find({ studentId: new mongoose.Types.ObjectId(studentId), startTime: { $gte: weekStart } }).select('totalDuration startTime').lean();
+    let botWeekMinutes = 0, botTodayMinutes = 0;
+    botSessions.forEach(s => { const dur = s.totalDuration || 0; botWeekMinutes += dur; if (s.startTime >= todayStart) botTodayMinutes += dur; });
+
+    // Attendance
+    const sessionRecords = await SessionRecord.find({ studentId: new mongoose.Types.ObjectId(studentId) }).select('sessionState startTime').sort({ startTime: -1 }).lean();
+    const totalSessionCount = sessionRecords.length;
+    const completedSessions = sessionRecords.filter(s => s.sessionState === 'completed' || s.sessionState === 'manually_ended').length;
+    const lastSession = sessionRecords[0];
+
+    // Documents
+    const documents = await StudentDocument.find({ studentId }).lean();
+
+    // Teacher feedback latest per level
+    const feedbackByLevel = {};
+    const allProg = await StudentProgress.find({ studentId: new mongoose.Types.ObjectId(studentId) }).populate('moduleId', 'level').lean();
+    allProg.forEach(p => {
+      if (p.teacherFeedback?.length > 0 && p.moduleId?.level) {
+        const latest = p.teacherFeedback.sort((a, b) => new Date(b.providedAt) - new Date(a.providedAt))[0];
+        if (!feedbackByLevel[p.moduleId.level] || new Date(latest.providedAt) > new Date(feedbackByLevel[p.moduleId.level].providedAt)) {
+          feedbackByLevel[p.moduleId.level] = latest;
+        }
+      }
+    });
+
+    // History timeline
+    const history = [];
+    displayLevels.forEach(level => {
+      const sd = student.courseStartDates?.[level + 'StartDate'];
+      const cd = student.courseCompletionDates?.[level + 'CompletionDate'];
+      if (sd) history.push({ date: sd, title: level + ' course started', desc: 'Student began ' + level + ' level.' });
+      if (cd) history.push({ date: cd, title: level + ' completed', desc: 'All ' + level + ' lessons completed.' });
+    });
+    documents.forEach(doc => { if (doc.uploadedAt) history.push({ date: doc.uploadedAt, title: doc.documentType + ' submitted', desc: (doc.documentName || doc.documentType) + ' provided.' }); });
+    if (student.createdAt) history.push({ date: student.createdAt, title: 'Student profile created', desc: 'Profile created for student ' + student.regNo + '.' });
+    if (student.enrollmentDate) history.push({ date: student.enrollmentDate, title: 'Enrollment confirmed', desc: 'Student enrolled in ' + (student.servicesOpted || 'program') + '.' });
+    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({
+      profile: {
+        regNo: student.regNo, name: student.name, batch: student.batch,
+        teacher: student.assignedTeacher?.name || student.teacherIncharge || 'Not assigned',
+        servicesOpted: student.servicesOpted || '', languageLevelOpted: student.languageLevelOpted || '',
+        currentLevel: student.level, studentStatus: student.studentStatus,
+        enrollmentDate: student.enrollmentDate || student.createdAt,
+        examScores: student.examScores || {}, languageExamStatus: student.languageExamStatus || ''
+      },
+      levelProgression, lessonsByLevel,
+      totalStudyHours: Math.round(totalStudyMinutes / 60),
+      botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
+      attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
+      documents: documents.map(d => ({ name: d.documentType, status: d.status === 'VERIFIED' ? 'verified' : 'pending', verified: d.status === 'VERIFIED', approvalStatus: d.status.toLowerCase() })),
+      feedbackByLevel, history: history.slice(0, 20),
+      payments: {
+        instalments: [
+          { installment: 1, amount: 1000, paid: true, dueDate: '2026-02-02' },
+          { installment: 2, amount: 1000, paid: false, dueDate: '2026-03-01' },
+          { installment: 3, amount: 1000, paid: false, dueDate: '2026-04-01' },
+          { installment: 4, amount: 1000, paid: false, dueDate: '2026-05-01' },
+          { installment: 5, amount: 1000, paid: false, dueDate: '2026-06-01' },
+          { installment: 6, amount: 0, paid: false, dueDate: '2026-07-01' }
+        ],
+        totalAmount: 5000, paidAmount: 1000
+      },
+      visa: { route: 'D-VISA-LANGUAGE-WORK', currentStep: 0, steps: ['Not started', 'Submitted', 'Biometrics', 'Decision', 'Visa issued'] }
+    });
+  } catch (error) {
+    console.error('Error fetching student journey:', error);
+    res.status(500).json({ message: 'Error fetching journey data' });
   }
-  return currentLevel; // Already at highest level
-}
+});
 
 // GET /api/student-progress/:moduleId - Get progress for specific module
 // ✅ Allow both STUDENT and TEACHER (for testing modules)

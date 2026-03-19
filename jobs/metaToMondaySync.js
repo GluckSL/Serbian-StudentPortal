@@ -16,7 +16,7 @@ async function syncMetaLeadsToMonday() {
       ? process.env.META_FORM_ID 
       : null; // null means fetch from all forms
     const mondayApiToken = process.env.MONDAY_API_TOKEN;
-    const mondayBoardId = process.env.MONDAY_BOARD_ID;
+    const mondayBoardId = process.env.MONDAY_LEADS_BOARD_ID;
 
     // Validate environment variables
     if (!metaAccessToken || !metaPageId || !mondayApiToken || !mondayBoardId) {

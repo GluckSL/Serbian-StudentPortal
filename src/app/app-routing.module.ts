@@ -2,7 +2,6 @@
 
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { ChatComponent } from './components/chat/chat.component';
 import { LoginComponent } from './components/login/login.component';
 import { SignupComponent } from './components/signup/signup.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
@@ -45,17 +44,6 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: 'STUDENT' }
   },
-
-  // student exams and assignments routes handled in student-dashboard routing module
-  {
-    path: 'student-exams',
-    loadComponent: () =>
-      import('./components/student-exams/student-exams.component')
-        .then(m => m.StudentExamsComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: 'STUDENT' }
-  },
-
 
   // Admin dashboard route with RoleGuard
   {

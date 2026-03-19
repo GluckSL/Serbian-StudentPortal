@@ -17,17 +17,25 @@ const OpenAI = require('openai');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // pdf-parse v2 uses PDFParse class; CJS may wrap as { default: { PDFParse } } or { PDFParse }
-const _pdfParseLib = require('pdf-parse');
-const PDFParseClass =
-  _pdfParseLib.PDFParse ||
-  (_pdfParseLib.default && _pdfParseLib.default.PDFParse) ||
-  (_pdfParseLib.default && typeof _pdfParseLib.default === 'function' ? _pdfParseLib.default : null);
-
-if (!PDFParseClass || typeof PDFParseClass !== 'function') {
-  throw new Error('pdf-parse: PDFParse not found. Ensure pdf-parse is installed and compatible.');
+let PDFParseClass = null;
+try {
+  const _pdfParseLib = require('pdf-parse');
+  PDFParseClass =
+    _pdfParseLib.PDFParse ||
+    (_pdfParseLib.default && _pdfParseLib.default.PDFParse) ||
+    (_pdfParseLib.default && typeof _pdfParseLib.default === 'function' ? _pdfParseLib.default : null);
+  if (!PDFParseClass || typeof PDFParseClass !== 'function') {
+    console.warn('⚠️ pdf-parse: PDFParse class not found. Listening worksheet generator will be disabled.');
+    PDFParseClass = null;
+  }
+} catch (err) {
+  console.warn('⚠️ pdf-parse failed to load:', err.message, '— Listening worksheet generator will be disabled.');
 }
 
 async function extractPdfText(filePath) {
+  if (!PDFParseClass) {
+    throw new Error('pdf-parse is not available on this server. Listening worksheet generator is disabled.');
+  }
   let parser;
   try {
     const buffer = fs.readFileSync(filePath);

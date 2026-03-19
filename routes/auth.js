@@ -18,167 +18,267 @@ const { verifyToken, isAdmin } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Read CRM data from Monday.com and create users
+// Read CRM data from Monday.com — Full sync: update existing + create new (PLATINUM + Ongoing only)
 cron.schedule(
   "50 23 * * *", // ✅ Every day at 11:50 PM
   async () => {
+    console.log("🔄 Starting Monday CRM full sync...");
 
     try {
       const BOARD_ID = process.env.MONDAY_BOARD_ID;
 
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "Asia/Colombo"
-      }); // YYYY-MM-DD
+      // Fetch ALL items from the board (paginated)
+      let allItems = [];
+      let cursor = null;
+      let hasMore = true;
 
-      const query = `
-        query ($boardId: [ID!]) {
-          boards(ids: $boardId) {
-            items_page(limit: 500) {
-              items {
-                id
-                name
-                column_values(
-                  ids: [
-                    "date_mkzs9xr7",
-                    "text_mkw3spks",
-                    "dropdown_mkw09h9j",
-                    "color_mky3jxt1",
-                    "dropdown_mkxx6cfp",
-                    "dropdown_mkxwsaxq",
-                    "dropdown_mkzshj5a",
-                    "text_mkw2wpvr",
-                    "text_mkv080k2",
-                    "text_mkw38wse",
-                    "text_mkwz1j6q",
-                    "text_mkvdkw8g"
-                  ]
-                ) {
-                  id
-                  text
+      while (hasMore) {
+        const query = cursor
+          ? `query ($boardId: [ID!], $cursor: String!) {
+              boards(ids: $boardId) {
+                items_page(limit: 500, cursor: $cursor) {
+                  cursor
+                  items {
+                    id
+                    name
+                    column_values {
+                      id
+                      text
+                    }
+                  }
                 }
               }
+            }`
+          : `query ($boardId: [ID!]) {
+              boards(ids: $boardId) {
+                items_page(limit: 500) {
+                  cursor
+                  items {
+                    id
+                    name
+                    column_values {
+                      id
+                      text
+                    }
+                  }
+                }
+              }
+            }`;
+
+        const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
+
+        const response = await axios.post(
+          "https://api.monday.com/v2",
+          { query, variables },
+          {
+            headers: {
+              Authorization: process.env.MONDAY_API_TOKEN,
+              "Content-Type": "application/json"
             }
           }
-        }
-      `;
+        );
 
-      const response = await axios.post(
-        "https://api.monday.com/v2",
-        { query, variables: { boardId: [BOARD_ID] } },
-        {
-          headers: {
-            Authorization: process.env.MONDAY_API_KEY,
-            "Content-Type": "application/json"
-          }
-        }
-      );
-
-      const items = response.data.data.boards[0].items_page.items;
-
-      const todayItems = items.filter(item => {
-        const dateText = item.column_values.find(
-          c => c.id === "date_mkzs9xr7"
-        )?.text;
-        return dateText === today;
-      });
-
-      let created = [];
-      let skipped = [];
-
-      for (const item of todayItems) {
-        const get = id =>
-          item.column_values.find(c => c.id === id)?.text || "";
-
-        const name          = item.name;
-        const email         = get("text_mkw3spks");
-        const medium        = get("dropdown_mkw09h9j");
-        const subscription  = get("color_mky3jxt1");
-        const batch         = get("dropdown_mkxx6cfp");
-        const studentStatus = get("dropdown_mkxwsaxq");
-        const level         = get("dropdown_mkzshj5a");
-        const phoneNumber   = get("text_mkw2wpvr");
-        const address       = get("text_mkv080k2");
-        const age           = get("text_mkw38wse");
-        const programEnrolled = get("text_mkwz1j6q");
-        const leadSource    = get("text_mkvdkw8g");
-
-        if (!email) {
-          skipped.push({ name, reason: "No email" });
-          continue;
-        }
-
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-          skipped.push({ name, email, reason: "Already exists" });
-          continue;
-        }
-
-        const regNo = await generateRegNo("STUDENT");
-        const passwordPlain = await generatePassword("STUDENT", regNo);
-        const hashedPassword = await bcrypt.hash(passwordPlain, 10);
-
-        const newUser = new User({
-          name,
-          email,
-          regNo,
-          password: hashedPassword,
-          role: "STUDENT",
-          subscription,
-          level,
-          medium,
-          batch,
-          studentStatus,
-          phoneNumber,
-          address,
-          age: age ? parseInt(age) : null,
-          programEnrolled,
-          leadSource
-        });
-
-        // ✅ Auto-set start date for current level
-        if (!newUser.courseStartDates) {
-          newUser.courseStartDates = {};
-        }
-        const levelStartField = `${level}StartDate`;
-        newUser.courseStartDates[levelStartField] = new Date();
-
-        await newUser.save();
-
-        await transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: email,
-          subject: "Welcome to Glück Global Student Portal 🎉",
-          html: `
-            <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-              <p>Hello ${name},</p>
-
-              <p>You have successfully registered to the <strong>Glück Global Student Portal</strong>. Here are your login credentials:</p>
-
-              <ul>
-                <li><strong>Web App ID:</strong> ${regNo}</li>
-                <li><strong>Password:</strong> ${passwordPlain}</li>
-              </ul>
-
-              <p>Please keep this information safe and do not share it with anyone.</p>
-
-              <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
-
-              <p>Best regards,<br>
-              <strong>Glück Global Pvt Ltd</strong></p>
-            </div>
-          `
-        });
-
-        // Update lastCredentialsEmailSent timestamp
-        newUser.lastCredentialsEmailSent = new Date();
-        await newUser.save();
-
-        console.log("✅ Monday CRM sync completed");
+        const page = response.data.data.boards[0].items_page;
+        allItems = allItems.concat(page.items);
+        cursor = page.cursor;
+        hasMore = !!cursor;
       }
 
+      console.log(`📋 Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
+
+      // Filter: Only PLATINUM subscription + Ongoing status
+      const eligibleItems = allItems.filter(item => {
+        const get = id => item.column_values.find(c => c.id === id)?.text || "";
+        const packageOpted = get("color_mm02jfyb").toUpperCase().trim();
+        const currentStatus = get("color_mm019dcv").toUpperCase().trim();
+        return packageOpted === "PLATINUM" && currentStatus === "ONGOING";
+      });
+
+      console.log(`✅ ${eligibleItems.length} items match PLATINUM + Ongoing filter`);
+
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const item of eligibleItems) {
+        try {
+          const get = id => item.column_values.find(c => c.id === id)?.text || "";
+
+          const name              = item.name;
+          const email             = get("text_mkw3spks").trim().toLowerCase();
+          const phoneNumber       = get("text_mkw2wpvr");
+          const whatsappNumber    = get("phone_mkv0a5mm");
+          const address           = get("text_mkv080k2");
+          const ageStr            = get("text_mkw38wse");
+          const qualifications    = get("text_mkw32n6r");
+          const enrollmentDateStr = get("date_mkw7wejn");
+          const servicesOpted     = get("dropdown_mkw0txee") || get("color_mm023vmt") || get("text_mkwz1j6q");
+          const subscription      = get("color_mm02jfyb").toUpperCase().trim();
+          const languageLevelOpted = get("color_mm02c95");
+          const batch             = get("dropdown_mkxx6cfp");
+          const studentStatus     = get("color_mm019dcv").toUpperCase().trim();
+          const level             = get("dropdown_mkzshj5a").toUpperCase().trim();
+          const otherLanguageKnown = get("dropdown_mkzsadkp");
+          const medium            = get("dropdown_mkw09h9j");
+          const leadSource        = get("dropdown_mm0d9jrv");
+          const stream            = get("text_mkwtq4fq");
+          const batchStartedOnStr = get("date_mkxkba8t");
+          const teacherIncharge   = get("dropdown_mkw72gz4");
+
+          // Withdrawal fields
+          const dateWithdrewStr       = get("date_mkzzgvxv");
+          const reasonForWithdrawing  = get("text_mkzz24qx");
+
+          // Course dates
+          const a1StartStr      = get("date_mm1dceqs");
+          const a1CompletedStr  = get("date_mkzt1xj");
+          const a2StartStr      = get("date_mm1dwzc8");
+          const a2CompletedStr  = get("date_mkztk1pn");
+          const b1StartStr      = get("date_mm1d7az3");
+          const b1CompletedStr  = get("date_mkztxce7");
+          const b2StartStr      = get("date_mm1dbv8e");
+          const b2CompletedStr  = get("date_mkztwdfn");
+
+          // Exam fields
+          const examPassedDateStr   = get("date_mkw7zwjh");
+          const languageExamStatus  = get("color_mkw7syb");
+          const candidateStatus     = get("text_mkzzjdv1");
+          const examRemark          = get("text_mkzzbgz1");
+          const readingScore        = get("numeric_mkzz97be");
+          const listeningScore      = get("numeric_mkzz8sr4");
+          const writingScore        = get("numeric_mkzz2bzg");
+          const speakingScore       = get("numeric_mkzz8q32");
+
+          if (!email) {
+            skipped++;
+            continue;
+          }
+
+          // Helper to parse date strings safely
+          const parseDate = (str) => str ? new Date(str) : null;
+
+          // Build the update data object
+          const updateData = {
+            name,
+            phoneNumber,
+            whatsappNumber,
+            address,
+            age: ageStr ? parseInt(ageStr) : null,
+            qualifications,
+            servicesOpted,
+            subscription,
+            languageLevelOpted,
+            batch,
+            studentStatus,
+            level,
+            otherLanguageKnown,
+            medium: medium ? [medium] : [],
+            leadSource,
+            servicesOpted,
+            stream,
+            teacherIncharge,
+            reasonForWithdrawing,
+            languageExamStatus,
+            candidateStatus,
+            examRemark,
+            enrollmentDate: parseDate(enrollmentDateStr),
+            batchStartedOn: parseDate(batchStartedOnStr),
+            dateWithdrew: parseDate(dateWithdrewStr),
+            examPassedDate: parseDate(examPassedDateStr),
+            examScores: {
+              reading: readingScore ? parseFloat(readingScore) : null,
+              listening: listeningScore ? parseFloat(listeningScore) : null,
+              writing: writingScore ? parseFloat(writingScore) : null,
+              speaking: speakingScore ? parseFloat(speakingScore) : null
+            },
+            courseStartDates: {
+              A1StartDate: parseDate(a1StartStr),
+              A2StartDate: parseDate(a2StartStr),
+              B1StartDate: parseDate(b1StartStr),
+              B2StartDate: parseDate(b2StartStr)
+            },
+            courseCompletionDates: {
+              A1CompletionDate: parseDate(a1CompletedStr),
+              A2CompletionDate: parseDate(a2CompletedStr),
+              B1CompletionDate: parseDate(b1CompletedStr),
+              B2CompletionDate: parseDate(b2CompletedStr)
+            },
+            updatedAt: new Date()
+          };
+
+          // Check if user already exists
+          const existingUser = await User.findOne({ email });
+
+          if (existingUser) {
+            // ✅ UPDATE existing user with latest CRM data
+            await User.updateOne({ email }, { $set: updateData });
+            updated++;
+          } else {
+            // ✅ CREATE new user
+            const regNo = await generateRegNo("STUDENT");
+            const passwordPlain = await generatePassword("STUDENT", regNo);
+            const hashedPassword = await bcrypt.hash(passwordPlain, 10);
+
+            const newUser = new User({
+              ...updateData,
+              email,
+              regNo,
+              password: hashedPassword,
+              role: "STUDENT",
+              registeredAt: parseDate(enrollmentDateStr) || new Date(),
+              createdAt: new Date()
+            });
+
+            await newUser.save();
+
+            // Send welcome email with credentials
+            try {
+              await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: "Welcome to Glück Global Student Portal 🎉",
+                html: `
+                  <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
+                    <p>Hello ${name},</p>
+
+                    <p>You have successfully registered to the <strong>Glück Global Student Portal</strong>. Here are your login credentials:</p>
+
+                    <ul>
+                      <li><strong>Web App ID:</strong> ${regNo}</li>
+                      <li><strong>Password:</strong> ${passwordPlain}</li>
+                    </ul>
+
+                    <p>Please keep this information safe and do not share it with anyone.</p>
+
+                    <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
+
+                    <p>Best regards,<br>
+                    <strong>Glück Global Pvt Ltd</strong></p>
+                  </div>
+                `
+              });
+
+              newUser.lastCredentialsEmailSent = new Date();
+              await newUser.save();
+              console.log(`  📧 Credentials email sent to ${email}`);
+            } catch (emailErr) {
+              console.error(`  ⚠️ Failed to send email to ${email}:`, emailErr.message);
+            }
+
+            created++;
+          }
+        } catch (itemErr) {
+          console.error(`  ❌ Error processing item "${item.name}":`, itemErr.message);
+          errors++;
+        }
+      }
+
+      console.log(`\n✅ Monday CRM sync completed:`);
+      console.log(`   Created: ${created} | Updated: ${updated} | Skipped: ${skipped} | Errors: ${errors}`);
+
     } catch (err) {
-      console.error("CRM sync error:", err);
-      res.status(500).json({ success: false, error: err.message });
+      console.error("❌ CRM sync error:", err.message);
     }
   },
   {
@@ -318,7 +418,7 @@ router.post("/signup", async (req, res) => {
       phoneNumber,
       address,
       age,
-      programEnrolled,
+      programEnrolled: servicesOpted,
       leadSource,
       languageLevelOpted,
       dateWithdrew,
@@ -353,7 +453,7 @@ router.post("/signup", async (req, res) => {
       user.phoneNumber = phoneNumber;
       user.address = address;
       user.age = age;
-      user.programEnrolled = programEnrolled;
+      user.servicesOpted = servicesOpted;
       user.leadSource = leadSource;
       user.languageLevelOpted = languageLevelOpted;
       user.dateWithdrew = dateWithdrew;
@@ -692,7 +792,7 @@ router.put("/:id", async (req, res) => {
       phoneNumber,
       address,
       age,
-      programEnrolled,
+      programEnrolled: servicesOpted,
       leadSource,
       languageLevelOpted,
       dateWithdrew,
@@ -718,7 +818,7 @@ router.put("/:id", async (req, res) => {
       phoneNumber,
       address,
       age,
-      programEnrolled,
+      servicesOpted,
       leadSource,
       languageLevelOpted,
       dateWithdrew,
@@ -1062,7 +1162,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           phoneNumber: student.phoneNumber ? student.phoneNumber.trim() : undefined,
           address: student.address ? student.address.trim() : undefined,
           age: student.age ? parseInt(student.age) : undefined,
-          programEnrolled: student.programEnrolled ? student.programEnrolled.trim() : undefined,
+          servicesOpted: student.programEnrolled ? student.programEnrolled.trim() : (student.servicesOpted ? student.servicesOpted.trim() : undefined),
           leadSource: student.leadSource ? student.leadSource.trim() : undefined
         });
 

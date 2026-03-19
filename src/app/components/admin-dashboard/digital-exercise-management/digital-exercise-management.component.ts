@@ -6,13 +6,13 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
 import { AuthService } from '../../../services/auth.service';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../../shared/material.module';
 
 @Component({
   selector: 'app-digital-exercise-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   template: `
 <div class="dem-container">
   <!-- Header -->

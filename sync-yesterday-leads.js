@@ -14,7 +14,7 @@ async function syncYesterdayLeads() {
     const META_PAGE_ID = process.env.META_PAGE_ID;
     const META_FORM_ID = process.env.META_FORM_ID || ''; // Empty = all forms
     const MONDAY_API_TOKEN = process.env.MONDAY_API_TOKEN;
-    const MONDAY_BOARD_ID = process.env.MONDAY_BOARD_ID;
+    const MONDAY_BOARD_ID = process.env.MONDAY_LEADS_BOARD_ID;
 
     // Validate configuration
     if (!META_ACCESS_TOKEN || !META_PAGE_ID || !MONDAY_API_TOKEN || !MONDAY_BOARD_ID) {

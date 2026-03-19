@@ -10,6 +10,74 @@ class ZoomService {
   }
 
   /**
+   * Get all licensed Zoom users on the account
+   */
+  async getZoomUsers() {
+    const token = await this.getAccessToken();
+    const response = await axios.get(`${zoomConfig.apiBaseUrl}/users`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      params: { page_size: 100, status: 'active' }
+    });
+    // Only return licensed users (type 2) who can host meetings
+    return (response.data.users || []).filter(u => u.type === 2);
+  }
+
+  /**
+   * Find an available Zoom host for a given time slot.
+   * Checks each licensed user's scheduled meetings and picks one with no conflict.
+   */
+  async findAvailableHost(startTime, duration) {
+    const token = await this.getAccessToken();
+    const users = await this.getZoomUsers();
+
+    const BUFFER_BEFORE_MS = 15 * 60 * 1000; // 15 min before
+    const BUFFER_AFTER_MS = 30 * 60 * 1000; // 30 min after
+    const meetingStart = new Date(startTime).getTime();
+    const meetingEnd = meetingStart + (duration || 60) * 60 * 1000;
+
+    for (const user of users) {
+      try {
+        // Check for currently LIVE meetings on this host
+        const liveRes = await axios.get(`${zoomConfig.apiBaseUrl}/users/${user.id}/meetings`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: { type: 'live', page_size: 100 }
+        });
+        const liveMeetings = liveRes.data.meetings || [];
+        if (liveMeetings.length > 0) {
+          console.log(`⏳ ${user.email} has ${liveMeetings.length} live meeting(s), skipping...`);
+          continue;
+        }
+
+        // Check for upcoming scheduled meeting conflicts
+        const res = await axios.get(`${zoomConfig.apiBaseUrl}/users/${user.id}/meetings`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: { type: 'upcoming', page_size: 100 }
+        });
+
+        const meetings = res.data.meetings || [];
+        const hasConflict = meetings.some(m => {
+          const mStart = new Date(m.start_time).getTime() - BUFFER_BEFORE_MS;
+          const mEnd = new Date(m.start_time).getTime() + (m.duration || 60) * 60 * 1000 + BUFFER_AFTER_MS;
+          return meetingStart < mEnd && meetingEnd > mStart;
+        });
+
+        if (!hasConflict) {
+          console.log(`✅ Available Zoom host found: ${user.email}`);
+          return user;
+        } else {
+          console.log(`⏳ ${user.email} has a conflict at this time, checking next...`);
+        }
+      } catch (err) {
+        console.error(`⚠️ Error checking meetings for ${user.email}:`, err.response?.data?.message || err.message);
+      }
+    }
+
+    // Fallback: if all users are busy, return null with conflict details
+    console.warn('⚠️ All Zoom hosts are busy at this time.');
+    return null;
+  }
+
+  /**
    * Get Zoom Access Token using Server-to-Server OAuth
    */
   async getAccessToken() {
@@ -105,10 +173,50 @@ class ZoomService {
 
       console.log('📅 Creating Zoom meeting:', payload.topic);
 
+      // Find an available Zoom host for this time slot
+      const host = await this.findAvailableHost(startTime, duration);
+      if (!host) {
+        // Gather conflict details for the error message
+        const token2 = await this.getAccessToken();
+        const users = await this.getZoomUsers();
+        const meetingStartMs = new Date(startTime).getTime();
+        const meetingEndMs = meetingStartMs + (duration || 60) * 60 * 1000;
+        const conflicts = [];
+        const BUFFER_BEFORE_MS = 15 * 60 * 1000;
+        const BUFFER_AFTER_MS = 30 * 60 * 1000;
+
+        for (const user of users) {
+          try {
+            const res = await axios.get(`${zoomConfig.apiBaseUrl}/users/${user.id}/meetings`, {
+              headers: { 'Authorization': `Bearer ${token2}` },
+              params: { type: 'upcoming', page_size: 100 }
+            });
+            const conflicting = (res.data.meetings || []).filter(m => {
+              const mStart = new Date(m.start_time).getTime() - BUFFER_BEFORE_MS;
+              const mEnd = new Date(m.start_time).getTime() + (m.duration || 60) * 60 * 1000 + BUFFER_AFTER_MS;
+              return meetingStartMs < mEnd && meetingEndMs > mStart;
+            });
+            if (conflicting.length > 0) {
+              conflicts.push({
+                hostEmail: user.email,
+                meetings: conflicting.map(m => ({ topic: m.topic, startTime: m.start_time, duration: m.duration }))
+              });
+            }
+          } catch (e) { /* skip */ }
+        }
+
+        const err = new Error('All Zoom host accounts are busy at this time. Please choose a different time slot.');
+        err.conflicts = conflicts;
+        err.statusCode = 409;
+        throw err;
+      }
+      const hostUserId = host.id;
+      console.log(`🎯 Assigning meeting to Zoom host: ${host.email}`);
+
       let response;
       try {
         response = await axios.post(
-          `${zoomConfig.apiBaseUrl}/users/me/meetings`,
+          `${zoomConfig.apiBaseUrl}/users/${hostUserId}/meetings`,
           payload,
           {
             headers: {
@@ -125,7 +233,7 @@ class ZoomService {
           delete payload.settings.alternative_hosts_email_notification;
           
           response = await axios.post(
-            `${zoomConfig.apiBaseUrl}/users/me/meetings`,
+            `${zoomConfig.apiBaseUrl}/users/${hostUserId}/meetings`,
             payload,
             {
               headers: {
@@ -630,17 +738,29 @@ class ZoomService {
   async listMeetings() {
     try {
       const token = await this.getAccessToken();
+      const users = await this.getZoomUsers();
+      let allMeetings = [];
 
-      const response = await axios.get(
-        `${zoomConfig.apiBaseUrl}/users/me/meetings`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+      for (const user of users) {
+        try {
+          const response = await axios.get(
+            `${zoomConfig.apiBaseUrl}/users/${user.id}/meetings`,
+            {
+              headers: { 'Authorization': `Bearer ${token}` },
+              params: { type: 'upcoming', page_size: 100 }
+            }
+          );
+          const meetings = (response.data.meetings || []).map(m => ({
+            ...m,
+            hostEmail: user.email
+          }));
+          allMeetings = allMeetings.concat(meetings);
+        } catch (err) {
+          console.error(`⚠️ Error listing meetings for ${user.email}:`, err.response?.data?.message || err.message);
         }
-      );
+      }
 
-      return response.data.meetings || [];
+      return allMeetings;
     } catch (error) {
       console.error('❌ Error listing meetings:', error.response?.data || error.message);
       throw new Error('Failed to list meetings');

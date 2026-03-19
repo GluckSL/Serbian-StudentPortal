@@ -28,7 +28,7 @@ export class SignupComponent {
   phoneNumber: string = '';
   address: string = '';
   age: number | null = null;
-  programEnrolled: string = '';
+  servicesOpted: string = '';
   leadSource: string = '';
   languageLevelOpted: string = '';
   dateWithdrew: Date | null = null;
@@ -117,7 +117,7 @@ export class SignupComponent {
           this.phoneNumber = data.phoneNumber || '';
           this.address = data.address || '';
           this.age = data.age || null;
-          this.programEnrolled = data.programEnrolled || '';
+          this.servicesOpted = data.servicesOpted || data['programEnrolled'] || '';
           this.leadSource = data.leadSource || '';
           this.languageLevelOpted = data.languageLevelOpted || '';
           this.dateWithdrew = data.dateWithdrew || null;
@@ -206,7 +206,7 @@ export class SignupComponent {
       user.phoneNumber = this.phoneNumber;
       user.address = this.address;
       user.age = this.age;
-      user.programEnrolled = this.programEnrolled;
+      user.servicesOpted = this.servicesOpted;
       user.leadSource = this.leadSource;
       user.languageLevelOpted = this.languageLevelOpted;
       user.dateWithdrew = this.dateWithdrew;

@@ -212,7 +212,7 @@ router.get('/status', verifyToken, isAdmin, async (req, res) => {
       configured: hasCredentials,
       pageId: pageId || 'Not configured',
       formId: formId || 'All forms (syncing from all 25 forms)',
-      mondayConfigured: !!(process.env.MONDAY_API_TOKEN && process.env.MONDAY_BOARD_ID)
+      mondayConfigured: !!(process.env.MONDAY_API_TOKEN && process.env.MONDAY_LEADS_BOARD_ID)
     });
 
   } catch (error) {

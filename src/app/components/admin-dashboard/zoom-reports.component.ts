@@ -3,16 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatInputModule } from '@angular/material/input';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatChipsModule } from '@angular/material/chips';
+import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { Router } from '@angular/router';
 
@@ -41,16 +32,7 @@ interface MeetingReport {
   imports: [
     CommonModule,
     FormsModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTableModule,
-    MatProgressSpinnerModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatTabsModule,
-    MatChipsModule
+    MaterialModule
   ],
   templateUrl: './zoom-reports.component.html',
   styleUrls: ['./zoom-reports.component.css']

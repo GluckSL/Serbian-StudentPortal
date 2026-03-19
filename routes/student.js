@@ -90,7 +90,6 @@ router.get('/profile', verifyToken, checkRole('STUDENT'), async (req, res) => {
       registeredAt: user.registeredAt,
       subscriptionPlan: user.subscriptionPlan || null,
       assignedCourses: user.assignedCourses || [],
-      elevenLabsAccess: user.elevenLabsAccess || null,
       vapiAccess: user.vapiAccess || null,
       preferredVoiceAgent: user.preferredVoiceAgent || null
     });

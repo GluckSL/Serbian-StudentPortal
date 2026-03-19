@@ -2,12 +2,7 @@
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTabsModule } from '@angular/material/tabs';
+import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 
 interface StudentMeeting {
@@ -36,12 +31,7 @@ interface StudentMeeting {
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    MatProgressSpinnerModule,
-    MatTabsModule
+    MaterialModule
   ],
   templateUrl: './student-meetings.component.html',
   styleUrls: ['./student-meetings.component.css']

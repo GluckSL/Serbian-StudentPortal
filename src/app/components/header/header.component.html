@@ -32,14 +32,11 @@
       </li>
 
       <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
+      <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
         <a (click)="navigateTo('/digital-exercises'); closeMenu()"
            [class.active]="isCurrentRoute('/digital-exercises')">
           <i class="fas fa-tasks"></i> Digital Exercises
         </a>
-      </li>
-
-      <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
-        <a (click)="navigateTo('/student-progress'); closeMenu()">My Progress</a>
       </li>
 
       <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
@@ -162,12 +159,6 @@
         <a (click)="navigateTo('/admin/zoom-reports'); closeMenu()" 
            [class.active]="isCurrentRoute('/admin/zoom-reports')">
           <i class="fas fa-chart-pie"></i> Zoom Reports
-        </a>
-      </li>
-      <li *ngIf="isLoggedIn() && (userRole === 'ADMIN' || userRole === 'TEACHER_ADMIN')">
-        <a (click)="navigateTo('/student-logs'); closeMenu()" 
-           [class.active]="isCurrentRoute('/student-logs')">
-          <i class="fas fa-user-graduate"></i> Student Logs
         </a>
       </li>
       <li *ngIf="isLoggedIn() && (userRole === 'ADMIN' || userRole === 'TEACHER_ADMIN')">

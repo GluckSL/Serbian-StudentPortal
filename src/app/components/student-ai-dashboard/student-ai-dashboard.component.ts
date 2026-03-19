@@ -9,7 +9,6 @@ import { AiTutorService } from '../../services/ai-tutor.service';
 import { StudentAssignmentsComponent } from '../student-assignments/student-assignments.component';
 import { StudentAssignedAssignmentsComponent } from '../student-assigned-assignments/student-assigned-assignments.component';
 import { StudentNotificationsComponent } from '../student-notifications/student-notifications.component';
-import { StudentExamsComponent } from '../student-exams/student-exams.component';
 @Component({
   selector: 'app-student-ai-dashboard',
   standalone: true,
@@ -90,10 +89,6 @@ constructor(
 
   testAudio(): void {
     this.router.navigate(['/audio-test']);
-  }
-
-  navigateToExams(): void {
-    this.router.navigate(['/student-exams']);
   }
 
   getProgressPercentage(completed: number, total: number): number {

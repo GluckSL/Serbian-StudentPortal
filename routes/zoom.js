@@ -675,11 +675,16 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error creating Zoom meeting:', error);
-    res.status(500).json({
+    const status = error.statusCode || 500;
+    const response = {
       success: false,
       message: error.message || 'Failed to create Zoom meeting',
       error: error.toString()
-    });
+    };
+    if (error.conflicts) {
+      response.conflicts = error.conflicts;
+    }
+    res.status(status).json(response);
   }
 });
 

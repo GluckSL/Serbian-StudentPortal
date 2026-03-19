@@ -22,9 +22,4 @@ export class StudentService {
   getVapiAccess(): Observable<any> {
     return this.http.get<any>(`${this.apiUrl}/vapi-access`, { withCredentials: true });
   }
-
-  // Get ElevenLabs access
-  getElevenLabsAccess(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/elevenlabs-access`, { withCredentials: true });
-  }
 }

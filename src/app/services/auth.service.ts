@@ -30,7 +30,7 @@ interface User {
   phoneNumber?: string;
   address?: string;
   age?: number;
-  programEnrolled?: string;
+  servicesOpted?: string;
   leadSource?: string;
   languageLevelOpted?: string;
   dateWithdrew?: Date;
@@ -90,15 +90,13 @@ export class AuthService {
     subscription?: string,
     level?: string,
     conversationId?: string,
-    elevenLabsWidgetLink?: string,
-    elevenLabsApiKey?: string
     assignedCourses?: string[],   // for TEACHER
     assignedTeacher?: string      // for STUDENT (teacher _id)
     studentStatus?: string      // for STUDENT (UNCERTAIN, ONGOING, COMPLETED, DROPPED)
     phoneNumber?: string;     // for STUDENT
     address?: string;   // for STUDENT
     age?: number;   // for STUDENT
-    programEnrolled?: string; // for STUDENT
+    servicesOpted?: string; // for STUDENT
     leadSource?: string; // for STUDENT
     languageLevelOpted?: string;
     dateWithdrew?: Date;

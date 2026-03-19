@@ -1,94 +1,185 @@
-<!-- src/app/components/student-progress/student-progress.component.html -->
+<div class="app-container" *ngIf="!isLoading && data; else loadingTpl">
+  <h1>Student Portal – Language &amp; Visa Progress</h1>
 
-<div class="progress-container">
-  <!-- Header -->
-  <div class="page-header">
-    <div class="header-content">
-      <div class="title-section">
-        <h1>My Learning Progress</h1>
-        <p class="subtitle">Track your German learning journey and achievements</p>
-      </div>
+  <!-- Alerts -->
+  <div class="card alert-card" *ngIf="alerts.length">
+    <div class="alert-title">Alerts</div>
+    <div class="alert-item" *ngFor="let a of alerts">• {{ a }}</div>
+  </div>
+
+  <!-- Profile -->
+  <div class="card">
+    <div class="card-title">
+      <span>Student Profile</span>
+      <span class="pill">{{ profile.studentStatus === 'ONGOING' ? 'Enrollment active' : profile.studentStatus }}</span>
+    </div>
+    <div class="profile-grid">
+      <div><div class="field-label">Student ID</div><div class="field-value">{{ profile.regNo }}</div></div>
+      <div><div class="field-label">Student Name</div><div class="field-value">{{ profile.name }}</div></div>
+      <div><div class="field-label">Batch</div><div class="field-value">{{ profile.batch || 'N/A' }}</div></div>
+      <div><div class="field-label">Teacher</div><div class="field-value">{{ profile.teacher }}</div></div>
+      <div><div class="field-label">Opted Service</div><div class="field-value">{{ profile.servicesOpted || 'N/A' }}</div></div>
+      <div><div class="field-label">Visa Route</div><div class="field-value">{{ visaRouteLabel }}</div></div>
+      <div><div class="field-label">Language Level Path</div><div class="field-value">{{ levelPath }}</div></div>
+      <div><div class="field-label">Enrollment Date</div><div class="field-value">{{ formatDate(profile.enrollmentDate) }}</div></div>
     </div>
   </div>
 
-  <!-- Loading State -->
-  <div class="loading-container" *ngIf="isLoading">
-    <div class="text-center">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <p class="mt-3">Loading your progress...</p>
+  <!-- Progress overview -->
+  <div class="card">
+    <div class="card-title">
+      <span>Progress overview</span>
+      <span class="card-subtitle">Learning, payments, documents, visa, engagement</span>
     </div>
-  </div>
-
-  <!-- Level Progression Section -->
-  <div class="level-progression-section" *ngIf="!isLoading && levelProgression.length > 0">
-    <div class="section-header">
-      <i class="fas fa-chart-line"></i>
-      <h2>Level Progression</h2>
-      <p class="subtitle">Your journey through German language levels</p>
-    </div>
-    
-    <div class="level-badges">
-      <span class="current-level-badge" *ngIf="studentLevel">
-        <i class="fas fa-star"></i> Current Level: {{ studentLevel }}
-      </span>
-    </div>
-    
-    <div class="level-timeline">
-      <div class="level-item" *ngFor="let level of levelProgression; let i = index" 
-           [class.completed]="level.status === 'completed'"
-           [class.in-progress]="level.status === 'in-progress'"
-           [class.not-started]="level.status === 'not-started'">
-        
-        <div class="level-icon">
-          <i class="fas fa-check-circle" *ngIf="level.status === 'completed'"></i>
-          <i class="fas fa-play-circle" *ngIf="level.status === 'in-progress'"></i>
-          <i class="fas fa-circle" *ngIf="level.status === 'not-started'"></i>
+    <div class="progress-grid">
+      <!-- Learning -->
+      <div>
+        <div class="progress-header">
+          <span>Language ({{ levelPath }})</span>
+          <span class="progress-sub">Current: {{ currentLevelLabel }}</span>
         </div>
-        
-        <div class="level-content">
-          <div class="level-header">
-            <h3>{{ level.level }}</h3>
-            <span class="level-status-badge" 
-                  [ngClass]="{
-                    'badge-completed': level.status === 'completed',
-                    'badge-in-progress': level.status === 'in-progress',
-                    'badge-not-started': level.status === 'not-started'
-                  }">
-              {{ level.status === 'completed' ? 'Completed' : level.status === 'in-progress' ? 'In Progress' : 'Not Started' }}
-            </span>
-          </div>
-          
-          <div class="level-details" *ngIf="level.status !== 'not-started'">
-            <div class="detail-item" *ngIf="level.startDate">
-              <i class="fas fa-play-circle"></i>
-              <span>Started: {{ level.startDate | date:'MMM d, yyyy' }}</span>
-            </div>
-            
-            <div class="detail-item" *ngIf="level.completedDate">
-              <i class="fas fa-check-circle"></i>
-              <span>Completed: {{ level.completedDate | date:'MMM d, yyyy' }}</span>
-            </div>
-            
-            <div class="detail-item" *ngIf="level.duration">
-              <i class="fas fa-clock"></i>
-              <span>Duration: {{ level.duration }} {{ level.duration === 1 ? 'month' : 'months' }}</span>
-            </div>
+        <div class="level-steps">
+          <div *ngFor="let lv of levelProgression"
+               class="level-step"
+               [class.completed]="lv.status === 'completed'"
+               [class.in-progress]="lv.status === 'in-progress'">
+            {{ lv.level }}
           </div>
         </div>
-        
-        <div class="level-connector" *ngIf="i < levelProgression.length - 1"></div>
+        <div class="two-col-sub">
+          <ng-container *ngFor="let lv of levelProgression">
+            <div *ngIf="lessonsByLevel[lv.level]">
+              Completed lessons ({{ lv.level }}): {{ lessonsByLevel[lv.level].completed }} / {{ lessonsByLevel[lv.level].total }}
+            </div>
+          </ng-container>
+          <ng-container *ngFor="let lv of levelProgression">
+            <div *ngIf="feedbackByLevel[lv.level]">
+              Teacher feedback ({{ lv.level }}): {{ feedbackByLevel[lv.level].feedback }}
+            </div>
+          </ng-container>
+          <div>Study hours logged: {{ data.totalStudyHours || 0 }} h total</div>
+        </div>
+      </div>
+
+      <!-- Payments -->
+      <div>
+        <div class="progress-header">
+          <span>Payments ({{ payments.instalments.length }} instalments)</span>
+          <span class="progress-sub">{{ payments.paidAmount | number }} / {{ payments.totalAmount | number }} EUR</span>
+        </div>
+        <div class="payment-blocks">
+          <div *ngFor="let p of payments.instalments"
+               class="payment-block"
+               [class.paid]="p.paid"
+               [style.background]="!p.paid && isOverdue(p.dueDate) ? '#fca5a5' : null">
+          </div>
+        </div>
+        <div class="payment-info">
+          Total: {{ payments.totalAmount | number }} EUR<br>
+          Paid: {{ payments.paidAmount | number }} EUR &nbsp; Balance: {{ payments.totalAmount - payments.paidAmount | number }} EUR
+        </div>
+      </div>
+
+      <!-- Documents -->
+      <div>
+        <div class="progress-header">
+          <span>Documents ({{ documents.length }})</span>
+          <span class="progress-sub">{{ docsSubmitted }} verified / {{ documents.length }} total</span>
+        </div>
+        <div class="doc-bar-bg"><div class="doc-bar-fill" [style.width.%]="docsPercent"></div></div>
+        <div class="doc-list">
+          <ng-container *ngFor="let doc of documents">
+            <div class="doc-item">
+              <span>{{ doc.name }}</span>
+              <span class="doc-status"
+                    [class.submitted]="doc.status === 'verified'"
+                    [class.pending]="doc.status === 'pending'">
+                {{ doc.status === 'verified' ? 'Verified' : 'Pending' }}
+              </span>
+            </div>
+          </ng-container>
+          <div *ngIf="!documents.length" class="doc-extra">No documents uploaded yet.</div>
+        </div>
+      </div>
+
+      <!-- Visa -->
+      <div>
+        <div class="progress-header">
+          <span>Visa stage ({{ visa.steps.length }} steps)</span>
+          <span class="progress-sub">{{ visa.steps[visa.currentStep] || 'Not started' }}</span>
+        </div>
+        <div class="visa-steps">
+          <ng-container *ngFor="let step of visa.steps; let i = index; let last = last">
+            <div class="visa-step">
+              <div class="visa-circle" [class.active]="i === visa.currentStep"></div>
+              <span>{{ step }}</span>
+            </div>
+            <div class="visa-line" *ngIf="!last"></div>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Attendance -->
+      <div>
+        <div class="progress-header">
+          <span>Attendance &amp; Engagement</span>
+          <span class="progress-sub">{{ attendance.attended }} / {{ attendance.total }} sessions</span>
+        </div>
+        <div class="doc-bar-bg"><div class="doc-bar-fill" [style.width.%]="attendanceRate"></div></div>
+        <div class="payment-info">
+          Attendance rate: {{ attendanceRate }}%<br>
+          Last session: {{ attendance.lastSessionDate ? formatDate(attendance.lastSessionDate) : 'N/A' }}
+        </div>
+      </div>
+
+      <!-- AI Bot usage -->
+      <div>
+        <div class="progress-header">
+          <span>AI Bot usage</span>
+          <span class="progress-sub">{{ botUsage.weekMinutes }} min this week</span>
+        </div>
+        <div class="doc-bar-bg"><div class="doc-bar-fill" [style.width.%]="botWeekPercent"></div></div>
+        <div class="payment-info">
+          Today: {{ botUsage.todayMinutes }} min<br>
+          This week: {{ botUsage.weekMinutes }} / {{ botUsage.targetMinutesPerWeek }} min target
+        </div>
+      </div>
+
+      <!-- Overall journey -->
+      <div>
+        <div class="progress-header">
+          <span>Overall journey</span>
+          <span class="progress-sub">{{ overallPercent }}% of journey completed</span>
+        </div>
+        <div class="timeline-bar-bg"><div class="timeline-bar-fill" [style.width.%]="overallPercent"></div></div>
+        <div class="payment-info">Phases: Learning, Documents, Payments, Visa, Final arrival</div>
       </div>
     </div>
   </div>
 
-  <!-- Empty State -->
-  <div class="empty-state" *ngIf="!isLoading && levelProgression.length === 0">
-    <div class="text-center">
-      <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-      <h4>No Level Progression Data</h4>
-      <p class="text-muted">Your level progression will appear here once your course begins.</p>
+  <!-- History -->
+  <div class="card">
+    <div class="card-title">
+      <span>History</span>
+      <span class="card-subtitle">Recent actions</span>
+    </div>
+    <div class="timeline">
+      <div class="timeline-item" *ngFor="let h of history">
+        <div class="timeline-dot"></div>
+        <div class="timeline-date">{{ formatDate(h.date) }}</div>
+        <div class="timeline-title">{{ h.title }}</div>
+        <div class="timeline-desc">{{ h.desc }}</div>
+      </div>
+      <div *ngIf="!history.length" class="payment-info">No history yet.</div>
     </div>
   </div>
 </div>
+
+<ng-template #loadingTpl>
+  <div class="app-container">
+    <div style="text-align:center; padding:60px 0;">
+      <div class="spinner"></div>
+      <p style="margin-top:16px; color:#6b7280;">Loading your progress...</p>
+    </div>
+  </div>
+</ng-template>
