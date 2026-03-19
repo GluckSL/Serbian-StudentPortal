@@ -45,6 +45,24 @@
               {{ result.passed ? 'Passed' : 'Not passed' }}
             </span>
           </div>
+          <div class="result-mini-stats">
+            <div class="mini-stat">
+              <span class="mini-stat-label">Attempted</span>
+              <span class="mini-stat-value">{{ answeredCount }}</span>
+            </div>
+            <div class="mini-stat">
+              <span class="mini-stat-label">Unanswered</span>
+              <span class="mini-stat-value">{{ unattemptedCount }}</span>
+            </div>
+            <div class="mini-stat good">
+              <span class="mini-stat-label">Correct</span>
+              <span class="mini-stat-value">{{ correctCount }}</span>
+            </div>
+            <div class="mini-stat bad">
+              <span class="mini-stat-label">Wrong</span>
+              <span class="mini-stat-value">{{ wrongCount }}</span>
+            </div>
+          </div>
           <p class="result-message-sm">{{ getScoreMessage(result.scorePercentage) }}</p>
           <div class="result-actions-new">
             <button class="btn-review" (click)="showReviewAnswers()">
@@ -181,7 +199,7 @@
         <div class="progress-bar-wrap">
           <div class="progress-bar" [style.width]="getProgressPercentage() + '%'"></div>
         </div>
-        <div class="progress-text">{{ submittedCount }} / {{ playerQuestions.length }} submitted</div>
+        <div class="progress-text">{{ answeredCount }} / {{ playerQuestions.length }} attempted</div>
       </div>
       <div class="timer">
         <span class="material-icons">timer</span>
@@ -346,6 +364,7 @@
                   type="text"
                   class="blank-input"
                   [(ngModel)]="currentQuestion.fillAnswers![pi]"
+                  (ngModelChange)="markAttempted(currentQuestion)"
                   [placeholder]="'blank ' + (pi + 1)"
                   [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
                   [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
@@ -420,6 +439,7 @@
               rows="4"
               placeholder="Type what you hear..."
               [(ngModel)]="currentQuestion.listeningText"
+              (ngModelChange)="markAttempted(currentQuestion)"
               [disabled]="hasCurrentSubmitted"
             ></textarea>
             <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
@@ -446,6 +466,7 @@
             rows="4"
             placeholder="Write your answer here..."
             [(ngModel)]="currentQuestion.qaResponse"
+            (ngModelChange)="markAttempted(currentQuestion)"
             [disabled]="hasCurrentSubmitted"
           ></textarea>
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
@@ -468,33 +489,16 @@
 
         <!-- Navigation Buttons (inside card) -->
         <div class="question-nav-btns">
-        <button class="btn-nav btn-prev" (click)="prevQuestion()" [disabled]="isFirstQuestion">
-          <span class="material-icons">arrow_back</span> Previous
-        </button>
-        <button
-          class="btn-submit"
-          *ngIf="!hasCurrentSubmitted && !isLastQuestion"
-          (click)="submitCurrentQuestion()"
-          [disabled]="submitting"
-        >
-          <span class="material-icons">{{ submitting ? 'hourglass_empty' : 'send' }}</span>
-          {{ submitting ? 'Submitting...' : 'Submit Response' }}
-        </button>
-        <button
-          class="btn-submit btn-finish"
-          *ngIf="!hasCurrentSubmitted && isLastQuestion"
-          (click)="submitCurrentQuestion()"
-          [disabled]="submitting"
-        >
-          <span class="material-icons">{{ submitting ? 'hourglass_empty' : 'flag' }}</span>
-          {{ submitting ? 'Finishing...' : 'Finish & Submit' }}
-        </button>
-        <span class="btn-submitted-label" *ngIf="hasCurrentSubmitted">
-          <span class="material-icons">check_circle</span> Submitted
-        </span>
-        <button class="btn-nav btn-next" *ngIf="!isLastQuestion" (click)="nextQuestion()" [disabled]="isLastQuestion">
-          Next <span class="material-icons">arrow_forward</span>
-        </button>
+          <button class="btn-nav btn-prev" (click)="prevQuestion()" [disabled]="isFirstQuestion || finishingAll">
+            <span class="material-icons">arrow_back</span> Previous
+          </button>
+          <button class="btn-nav btn-next" *ngIf="!isLastQuestion" (click)="nextQuestion()" [disabled]="finishingAll">
+            Next <span class="material-icons">arrow_forward</span>
+          </button>
+          <button class="btn-submit btn-finish" *ngIf="isLastQuestion" (click)="openFinishSummary()" [disabled]="finishingAll">
+            <span class="material-icons">{{ finishingAll ? 'hourglass_empty' : 'flag' }}</span>
+            {{ finishingAll ? 'Finishing...' : 'Finish & Submit' }}
+          </button>
         </div>
       </div>
     </div>
@@ -508,7 +512,7 @@
             class="q-dot"
             [ngClass]="getQuestionTypeClass(pq)"
             [class.current]="i === currentIndex"
-            [class.answered]="isQuestionAnswered(pq)"
+            [class.answered]="pq.isAnswered"
             [class.correct]="pq.isCorrect === true"
             [class.wrong]="pq.isCorrect === false"
             (click)="goToQuestion(i)"
@@ -526,10 +530,45 @@
           </span>
           <span class="status-item unanswered">
             <span class="status-icon unanswered"></span>
-            {{ pendingCount }} Unanswered
+            {{ unattemptedCount }} Unanswered
           </span>
         </div>
       </aside>
+    </div>
+
+    <!-- Finish Summary Modal -->
+    <div class="finish-summary-backdrop" *ngIf="showFinishSummary">
+      <div class="finish-summary-modal">
+        <h3>Finish Exercise?</h3>
+        <p>Review your attempt summary before final submit.</p>
+        <div class="finish-stats">
+          <div class="finish-stat">
+            <span class="finish-num">{{ playerQuestions.length }}</span>
+            <span class="finish-label">Total Questions</span>
+          </div>
+          <div class="finish-stat">
+            <span class="finish-num">{{ answeredCount }}</span>
+            <span class="finish-label">Attempted</span>
+          </div>
+          <div class="finish-stat warn">
+            <span class="finish-num">{{ unattemptedCount }}</span>
+            <span class="finish-label">Unanswered</span>
+          </div>
+        </div>
+        <div class="finish-actions">
+          <button class="btn-nav" (click)="cancelFinishSummary()">Continue Editing</button>
+          <button class="btn-submit btn-finish" (click)="confirmFinishSubmit()">Submit Final</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blocking loader while final submit is in progress -->
+    <div class="submitting-overlay" *ngIf="finishingAll">
+      <div class="submitting-card">
+        <div class="submit-spinner"></div>
+        <h4>Submitting your answers...</h4>
+        <p>Please wait, do not close this page.</p>
+      </div>
     </div>
 
   </div>

@@ -56,6 +56,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   playerQuestions: PlayerQuestion[] = [];
   currentIndex = 0;
   submitting = false;
+  showFinishSummary = false;
+  finishingAll = false;
 
   startTime = 0;
   elapsedSeconds = 0;
@@ -167,8 +169,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   get isFirstQuestion(): boolean { return this.currentIndex === 0; }
   get isLastQuestion(): boolean { return this.currentIndex === this.playerQuestions.length - 1; }
-  get answeredCount(): number { return this.playerQuestions.filter(q => this.isQuestionAnswered(q)).length; }
+  get answeredCount(): number { return this.playerQuestions.filter(q => q.isAnswered === true).length; }
   get totalPoints(): number { return this.playerQuestions.reduce((s, q) => s + (q.data.points || 1), 0); }
+  get unattemptedCount(): number { return this.playerQuestions.length - this.answeredCount; }
 
   get correctCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true).length; }
   get wrongCount(): number { return this.playerQuestions.filter(q => q.isCorrect === false).length; }
@@ -202,6 +205,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   selectOption(pq: PlayerQuestion, index: number): void {
     if (this.state === 'submitted') return;
     pq.selectedOption = index;
+    this.markAttempted(pq);
   }
 
   // ─── Matching Interaction ─────────────────────────────────────────────────────
@@ -213,6 +217,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     pq.selectedLeftIndex = index;
+    this.markAttempted(pq);
   }
 
   selectRight(pq: PlayerQuestion, rightIndex: number): void {
@@ -226,6 +231,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.matchingLeft![leftIndex].matchedRightIndex = rightIndex;
     pq.matchingRight![rightIndex].matchedLeftIndex = leftIndex;
     pq.selectedLeftIndex = null;
+    this.markAttempted(pq);
   }
 
   unmatchLeft(pq: PlayerQuestion, leftIndex: number): void {
@@ -314,6 +320,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.pronunciationScore = score;
       pq.hasRecorded = true;
       pq.isRecording = false;
+      this.markAttempted(pq);
     };
 
     this.recognition.onerror = (event: any) => {
@@ -466,6 +473,55 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           this.fallbackToFullSubmit();
         }
       }
+    });
+  }
+
+  openFinishSummary(): void {
+    this.showFinishSummary = true;
+  }
+
+  cancelFinishSummary(): void {
+    this.showFinishSummary = false;
+  }
+
+  confirmFinishSubmit(): void {
+    if (this.finishingAll) return;
+    this.finishingAll = true;
+    this.showFinishSummary = false;
+    this.stopTimer();
+    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+
+    const responses = this.buildAllResponses();
+    this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
+      next: (result) => {
+        this.result = result;
+        this.finishingAll = false;
+        this.applyResultFeedback(result);
+        this.state = 'submitted';
+      },
+      error: (e) => {
+        this.finishingAll = false;
+        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
+      }
+    });
+  }
+
+  private buildAllResponses(): QuestionResponse[] {
+    return this.playerQuestions.map((pq, i) => {
+      const resp: QuestionResponse = { questionIndex: i };
+      if (pq.data.type === 'mcq') resp.selectedOptionIndex = pq.selectedOption;
+      else if (pq.data.type === 'matching') {
+        resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
+          leftIndex: li,
+          rightIndex: l.matchedRightIndex ?? -1
+        }));
+      } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
+      else if (pq.data.type === 'pronunciation') {
+        resp.spokenText = pq.spokenText || '';
+        resp.pronunciationScore = pq.pronunciationScore || 0;
+      } else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
+      else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
+      return resp;
     });
   }
 
@@ -708,6 +764,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       let full = '';
       for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
       pq.listeningText = full;
+      this.markAttempted(pq);
     };
     rec.onend = () => { pq.isRecording = false; this.listeningRecognition = null; };
     rec.start();
@@ -719,6 +776,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.listeningRecognition) try { this.listeningRecognition.stop(); } catch {}
     this.listeningRecognition = null;
     pq.isRecording = false;
+  }
+
+  markAttempted(pq: PlayerQuestion): void {
+    pq.isAnswered = true;
   }
 
   isMatchCorrect(pq: PlayerQuestion, leftIndex: number): boolean {

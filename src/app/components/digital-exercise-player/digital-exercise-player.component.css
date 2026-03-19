@@ -1010,6 +1010,82 @@
 }
 .btn-submitted-label .material-icons { font-size: 22px; color: #22c55e; }
 
+.finish-summary-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.finish-summary-modal {
+  width: min(560px, 100%);
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 26px 56px rgba(15, 23, 42, 0.22);
+  padding: 24px;
+}
+
+.finish-summary-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.finish-summary-modal p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.finish-stats {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finish-stat {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.finish-stat.warn {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+.finish-num {
+  display: block;
+  font-size: 1.34rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.finish-label {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.finish-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 /* ── Result Screen (full-page, production-grade + responsive) ── */
 .result-screen {
   position: fixed;
@@ -1025,16 +1101,16 @@
 
 .result-page {
   width: 100%;
-  max-width: 440px;
+  max-width: 520px;
   margin: auto;
 }
 
 .result-card-new {
-  background: white;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfcff 100%);
   border-radius: 24px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.1), 0 12px 32px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.16), 0 12px 34px rgba(99, 102, 241, 0.12);
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.9);
+  border: 1px solid #e2e8f0;
 }
 
 .result-card-inner {
@@ -1132,6 +1208,48 @@
 .result-meta-item.passed { color: #047857; font-weight: 600; }
 .result-meta-item.failed { color: #b91c1c; font-weight: 600; }
 
+.result-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.mini-stat {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.mini-stat.good {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.mini-stat.bad {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.mini-stat-label {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mini-stat-value {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
 .result-message-sm {
   font-size: 1rem;
   color: #475569;
@@ -1195,6 +1313,55 @@
 }
 .result-back-link:hover { color: #0f172a; }
 .result-back-link .material-icons { font-size: 18px; }
+
+.submitting-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.submitting-card {
+  width: min(380px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 20px 52px rgba(15, 23, 42, 0.24);
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.submit-spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  margin: 0 auto 12px;
+  border: 4px solid #dbeafe;
+  border-top-color: #4f46e5;
+  animation: submit-spin 0.9s linear infinite;
+}
+
+.submitting-card h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.submitting-card p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+@keyframes submit-spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ── Review screen (all answers on one page) ── */
 .review-screen {
@@ -1364,8 +1531,10 @@
   .points-sep, .points-total { font-size: 2rem; }
   .points-label { font-size: 0.9rem; }
   .result-meta { gap: 16px; margin-bottom: 18px; }
+  .result-mini-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .result-actions-new { margin-bottom: 20px; }
   .btn-review, .btn-reattempt { padding: 13px 20px; font-size: 0.95rem; }
+  .submitting-card { padding: 20px 16px; }
   .big-word { font-size: 1.9rem; }
   .player-header { flex-wrap: wrap; padding: 12px 16px; }
   .player-layout { padding: 0 16px 80px; }
@@ -1417,6 +1586,7 @@
   .result-card-inner { padding: 28px 20px 28px; }
   .result-heading { font-size: 1.35rem; }
   .points-earned { font-size: 2.5rem; }
+  .result-mini-stats { grid-template-columns: 1fr; }
   .intro-card { padding: 24px 16px; }
   .intro-title { font-size: 1.4rem; }
   .q-dot { width: 28px; height: 28px; font-size: 0.7rem; }
