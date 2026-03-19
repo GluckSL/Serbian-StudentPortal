@@ -4,16 +4,21 @@
   <!-- Page Header -->
   <div class="page-header">
     <div class="header-text">
-      <h1><span class="material-icons">edit_note</span> Digital Exercises</h1>
-      <p>Practice your {{ isTeacherOrAdmin ? 'students\'' : '' }} language skills with interactive exercises</p>
+      <h1>Digital Exercises</h1>
+      <p class="header-subtitle">Refine your linguistic precision through our curated set of grammar, vocabulary, and contextual comprehension modules.</p>
     </div>
-    <div class="header-actions" *ngIf="isTeacherOrAdmin">
-      <button class="btn-manage" (click)="navigateToAdmin()">
-        <span class="material-icons">settings</span> Manage
-      </button>
-      <button class="btn-create" (click)="navigateToCreate()">
-        <span class="material-icons">add</span> Create Exercise
-      </button>
+    <div class="header-right">
+      <div class="proficiency-badge" *ngIf="!isTeacherOrAdmin && exercises.length > 0">
+        {{ currentProficiency }}% CURRENT PROFICIENCY
+      </div>
+      <div class="header-actions" *ngIf="isTeacherOrAdmin">
+        <button class="btn-manage" (click)="navigateToAdmin()">
+          <span class="material-icons">settings</span> Manage
+        </button>
+        <button class="btn-create" (click)="navigateToCreate()">
+          <span class="material-icons">add</span> Create Exercise
+        </button>
+      </div>
     </div>
   </div>
 
@@ -24,7 +29,7 @@
       <input
         type="text"
         class="search-input"
-        placeholder="Search exercises..."
+        placeholder="Search exercises by title or topic..."
         [(ngModel)]="searchQuery"
         (input)="onSearchChange()"
       />
@@ -53,76 +58,64 @@
 
   <!-- Tabs -->
   <div class="tabs-bar" *ngIf="!loading && exercises.length > 0">
-    <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">
-      <span class="material-icons">check_circle</span> Completed
-    </button>
-    <button class="tab-btn" [class.active]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">
-      <span class="material-icons">schedule</span> Pending
-    </button>
-    <button class="tab-btn" [class.active]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">
-      <span class="material-icons">fiber_new</span> New
-    </button>
-  </div>
-
-  <!-- Results Count -->
-  <div class="results-info" *ngIf="!loading && totalExercises > 0">
-    <span>{{ totalExercises }} exercise{{ totalExercises !== 1 ? 's' : '' }}</span>
+    <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
+    <button class="tab-btn" [class.active]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
+    <button class="tab-btn" [class.active]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
   </div>
 
   <!-- Loading -->
   <div class="loading-state" *ngIf="loading">
-    <div class="loading-table-skeleton">
-      <div class="skeleton-row" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></div>
+    <div class="loading-cards">
+      <div class="skeleton-card" *ngFor="let _ of [1,2,3,4,5]"></div>
     </div>
   </div>
 
-  <!-- Exercises Table -->
-  <div class="table-wrap" *ngIf="!loading && filteredExercises.length > 0">
-    <table class="exercises-table">
-      <thead>
-        <tr>
-          <th>Exercise</th>
-          <th>Level</th>
-          <th>Category</th>
-          <th>Questions</th>
-          <th>Duration</th>
-          <th>Difficulty</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let ex of paginatedExercises">
-
-          <td class="col-title">
-            <div class="title-cell">
-              <span class="ex-title">{{ ex.title }}</span>
-              <span class="ex-desc">{{ ex.description }}</span>
-            </div>
-          </td>
-          <td class="col-level">
-            <span class="level-badge" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
-          </td>
-          <td class="col-category">{{ ex.category }}</td>
-          <td class="col-questions">{{ ex.questions?.length || 0 }}</td>
-          <td class="col-duration">~{{ ex.estimatedDuration || 15 }} min</td>
-          <td class="col-difficulty">{{ ex.difficulty || '—' }}</td>
-          <td class="col-status">
-            <span class="status-badge completed" *ngIf="ex.studentAttempt">
-              <span class="material-icons">check_circle</span> {{ ex.studentAttempt.scorePercentage }}%
-            </span>
-            <span class="status-badge pending" *ngIf="!ex.studentAttempt && activeTab === 'pending'">Pending</span>
-            <span class="status-badge new" *ngIf="!ex.studentAttempt && activeTab === 'new'">New</span>
-          </td>
-          <td class="col-actions">
-            <button class="btn-table-action" (click)="startExercise(ex)">
-              <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>
-              {{ ex.studentAttempt ? 'Retry' : 'Start' }}
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <!-- Exercise List (Card-based rows) -->
+  <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0">
+    <div class="list-headers">
+      <span class="col-details">EXERCISE DETAILS</span>
+      <span class="col-level">LEVEL</span>
+      <span class="col-cat">CATEGORY</span>
+      <span class="col-vol">VOLUME</span>
+      <span class="col-dur">DURATION</span>
+      <span class="col-priority">STATUS</span>
+      <span class="col-action">ACTION</span>
+    </div>
+    <div class="exercise-row" *ngFor="let ex of paginatedExercises">
+      <div class="row-icon">
+        <span class="material-icons">{{ getCategoryIcon(ex.category) }}</span>
+      </div>
+      <div class="row-details">
+        <span class="ex-title">{{ ex.title }}</span>
+        <span class="ex-desc">{{ ex.description }}</span>
+      </div>
+      <div class="row-level">
+        <span class="level-badge" [style.background]="getLevelColor(ex.level)">LEVEL {{ ex.level }}</span>
+      </div>
+      <div class="row-category">{{ ex.category }}</div>
+      <div class="row-volume">
+        <span class="vol-num">{{ ex.questions?.length || 0 }}</span>
+        <span class="vol-label">ITEMS</span>
+      </div>
+      <div class="row-duration">
+        <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
+        <span class="dur-label">EST.</span>
+      </div>
+      <div class="row-priority">
+        <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+          <svg class="ring-svg" viewBox="0 0 36 36">
+            <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+          </svg>
+          <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+        </div>
+      </div>
+      <div class="row-action">
+        <button class="btn-start" (click)="startExercise(ex)">
+          {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Empty State -->

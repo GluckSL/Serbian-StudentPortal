@@ -190,4 +190,36 @@ export class DigitalExercisesComponent implements OnInit {
     for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   }
+
+  get currentProficiency(): number {
+    const completed = this.exercises.filter(ex => ex.studentAttempt);
+    if (completed.length === 0) return 0;
+    const sum = completed.reduce((s, ex) => s + (ex.studentAttempt?.scorePercentage || 0), 0);
+    return Math.round(sum / completed.length);
+  }
+
+  getCategoryIcon(category: string): string {
+    const icons: Record<string, string> = {
+      Grammar: 'menu_book',
+      Vocabulary: 'translate',
+      Conversation: 'forum',
+      Reading: 'auto_stories',
+      Writing: 'edit_note',
+      Listening: 'headphones',
+      Pronunciation: 'record_voice_over'
+    };
+    return icons[category] || 'quiz';
+  }
+
+  getPriorityLabel(ex: DigitalExercise): string {
+    if (ex.studentAttempt) return 'NORMAL Review';
+    if (this.activeTab === 'new') return 'PRIORITY New Addition';
+    return 'NORMAL Pending';
+  }
+
+  getPriorityClass(ex: DigitalExercise): string {
+    if (ex.studentAttempt) return 'priority-normal';
+    if (this.activeTab === 'new') return 'priority-new';
+    return 'priority-pending';
+  }
 }

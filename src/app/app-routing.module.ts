@@ -238,6 +238,13 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+  // Admin/Teacher: Exercise completion analytics (details page)
+  {
+    path: 'admin/digital-exercises/:id/completions',
+    loadComponent: () => import('./components/admin-dashboard/exercise-completion-details/exercise-completion-details.component').then(m => m.ExerciseCompletionDetailsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
   // Admin/Teacher: Audio + PDF listening worksheet import
   {
     path: 'admin/digital-exercises/generate-listening-manual',

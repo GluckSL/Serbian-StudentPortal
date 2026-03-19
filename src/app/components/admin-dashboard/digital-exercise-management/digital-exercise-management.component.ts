@@ -174,69 +174,18 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     </div>
   </div>
 
-  <!-- Completions Panel -->
-  <div class="completions-panel" *ngIf="selectedExercise">
-    <div class="panel-header">
-      <h2><span class="material-icons">bar_chart</span> Completions: {{ selectedExercise.title }}</h2>
-      <div class="panel-controls">
-        <input type="date" [(ngModel)]="selectedDate" (change)="loadCompletions()" class="date-input" />
-        <button class="btn-close" (click)="selectedExercise = null">
-          <span class="material-icons">close</span>
-        </button>
-      </div>
-    </div>
-    <div class="completions-loading" *ngIf="completionsLoading">
-      <div class="spinner small"></div> Loading completions...
-    </div>
-    <div class="completions-table-wrap" *ngIf="!completionsLoading">
-      <table class="completions-table" *ngIf="completions.length > 0">
-        <thead>
-          <tr>
-            <th>Student</th>
-            <th>Batch</th>
-            <th>Level</th>
-            <th>Score</th>
-            <th>Time</th>
-            <th>Attempt #</th>
-            <th>Completed At</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let c of completions">
-            <td>{{ c.studentId?.name || c.studentName || '—' }}</td>
-            <td>{{ c.studentId?.batch || c.studentBatch || '—' }}</td>
-            <td>
-              <span class="level-badge sm" [style.background]="getLevelColor(c.studentId?.level || '')">
-                {{ c.studentId?.level || '—' }}
-              </span>
-            </td>
-            <td>
-              <span class="score-badge sm" [class.good]="c.scorePercentage >= 70">
-                {{ c.scorePercentage }}%
-              </span>
-            </td>
-            <td>{{ formatTime(c.timeSpentSeconds) }}</td>
-            <td class="center">#{{ c.attemptNumber }}</td>
-            <td>{{ c.completedAt | date:'MMM d, y h:mm a' }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="no-completions" *ngIf="completions.length === 0">
-        <span class="material-icons">inbox</span>
-        <p>No completions {{ selectedDate ? 'on ' + selectedDate : 'yet' }}</p>
-      </div>
-    </div>
-  </div>
 </div>
   `,
   styles: [`
     .dem-container {
-      padding: 32px 24px 48px;
-      max-width: 1320px;
-      margin: 0 auto;
+      padding: 24px 24px 48px;
+      width: 100%;
+      max-width: none;
+      margin: 0;
       font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-      background: #fafbfc;
+      background: #f8f7ff;
       min-height: 100vh;
+      box-sizing: border-box;
     }
     .dem-header {
       display: flex;
@@ -456,64 +405,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .page-btn:hover:not(:disabled) { border-color: #6366f1; color: #6366f1; background: #fafbfc; }
     .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .page-info { font-size: 0.9rem; color: #6b7280; font-weight: 500; }
-    .completions-panel {
-      margin-top: 28px;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-      border: 1px solid #e5e7eb;
-      overflow: hidden;
-    }
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 18px 22px;
-      background: #f9fafb;
-      border-bottom: 1px solid #e5e7eb;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .panel-header h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 1.1rem; font-weight: 700; color: #111827; }
-    .panel-controls { display: flex; align-items: center; gap: 12px; }
-    .date-input {
-      padding: 10px 14px;
-      border: 1.5px solid #e5e7eb;
-      border-radius: 10px;
-      font-size: 0.9rem;
-      background: white;
-    }
-    .date-input:focus { border-color: #6366f1; outline: none; }
-    .btn-close {
-      background: white;
-      border: 1.5px solid #e5e7eb;
-      border-radius: 10px;
-      padding: 8px 14px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      transition: all 0.2s;
-    }
-    .btn-close:hover { border-color: #dc2626; color: #dc2626; }
-    .completions-loading { padding: 32px; text-align: center; color: #6b7280; }
-    .completions-table-wrap { padding: 0; }
-    .completions-table { width: 100%; border-collapse: collapse; }
-    .completions-table th {
-      background: #f9fafb;
-      padding: 12px 18px;
-      text-align: left;
-      font-size: 0.78rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #6b7280;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .completions-table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
-    .completions-table tr:hover td { background: #fafbfc; }
-    .no-completions { padding: 48px; text-align: center; color: #9ca3af; }
-    .no-completions .material-icons { font-size: 48px; color: #d1d5db; }
-    .no-completions p { margin: 10px 0 0; font-size: 0.95rem; }
     @media (max-width: 768px) {
       .exercise-table { display: block; overflow-x: auto; }
       .stats-bar { grid-template-columns: 1fr; }
@@ -538,12 +429,6 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
-
-  // Completions panel
-  selectedExercise: DigitalExercise | null = null;
-  completions: any[] = [];
-  completionsLoading = false;
-  selectedDate = '';
 
   private searchTimer: any;
 
@@ -640,26 +525,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
   }
 
   viewCompletions(exercise: DigitalExercise): void {
-    this.selectedExercise = exercise;
-    this.selectedDate = new Date().toISOString().split('T')[0];
-    this.loadCompletions();
-  }
-
-  loadCompletions(): void {
-    if (!this.selectedExercise) return;
-    this.completionsLoading = true;
-    const filters: any = {};
-    if (this.selectedDate) filters.date = this.selectedDate;
-    this.exerciseService.getExerciseCompletions(this.selectedExercise._id!, filters).subscribe({
-      next: (res) => {
-        this.completions = res.attempts || [];
-        this.completionsLoading = false;
-      },
-      error: () => {
-        this.completionsLoading = false;
-        this.showError('Failed to load completions');
-      }
-    });
+    const id = exercise._id ?? (exercise as any).id;
+    if (id) this.router.navigate(['/admin/digital-exercises', id, 'completions']);
   }
 
   changePage(page: number): void {

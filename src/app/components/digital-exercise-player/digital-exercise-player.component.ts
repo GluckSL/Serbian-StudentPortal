@@ -634,12 +634,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return sentence.split('___');
   }
 
-  getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string }> {
-    const counts: Record<string, number> = {};
+  getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {
+    const byType: Record<string, number[]> = {};
     const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening' };
     const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones' };
-    this.playerQuestions.forEach(pq => { counts[pq.data.type] = (counts[pq.data.type] || 0) + 1; });
-    return Object.entries(counts).map(([type, count]) => ({ type, count, label: labels[type] || type, icon: icons[type] || 'help' }));
+    this.playerQuestions.forEach((pq, i) => {
+      const t = pq.data.type;
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(i + 1);
+    });
+    return Object.entries(byType).map(([type, indices]) => ({
+      type,
+      count: indices.length,
+      label: labels[type] || type,
+      icon: icons[type] || 'help',
+      indices
+    }));
+  }
+
+  getQuestionTypeClass(pq: PlayerQuestion): string {
+    return 'type-' + (pq.data.type || 'mcq');
   }
 
   getTypeIcon(type: string): string {

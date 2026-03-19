@@ -171,7 +171,7 @@
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
   <div class="player-layout" *ngIf="state === 'playing'">
 
-    <!-- Player Header -->
+    <!-- Player Header (compact) -->
     <div class="player-header">
       <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
         <span class="material-icons">close</span>
@@ -198,10 +198,44 @@
       <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
     </div>
 
-    <!-- Main content + Right sidebar layout -->
-    <div class="player-main-wrap">
-      <!-- Left: Question Area -->
-      <div class="question-area" *ngIf="playerQuestions.length > 0">
+    <!-- Three-column layout: Left info | Middle answer | Right nav -->
+    <div class="player-three-col" *ngIf="playerQuestions.length > 0">
+      <!-- LEFT: Exercise info -->
+      <aside class="info-sidebar">
+        <div class="info-badges">
+          <span class="level-badge" [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')">{{ exercise?.level }}</span>
+          <span class="cat-badge">{{ exercise?.category }}</span>
+          <span class="diff-badge">{{ exercise?.difficulty }}</span>
+        </div>
+        <h2 class="info-title">{{ exercise?.title }}</h2>
+        <p class="info-desc">{{ exercise?.description }}</p>
+        <div class="info-summary">
+          <div class="info-stat">
+            <span class="material-icons">quiz</span>
+            <div><strong>{{ playerQuestions.length }}</strong> Questions</div>
+          </div>
+          <div class="info-stat">
+            <span class="material-icons">schedule</span>
+            <div><strong>~{{ exercise?.estimatedDuration || 15 }} min</strong> Estimated</div>
+          </div>
+          <div class="info-stat">
+            <span class="material-icons">stars</span>
+            <div><strong>{{ totalPoints }}</strong> Total Points</div>
+          </div>
+        </div>
+        <div class="info-specs">
+          <div class="spec-label">Question types</div>
+          <div class="spec-pills">
+            <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
+              <span class="material-icons">{{ qt.icon }}</span>
+              {{ qt.indices.join(', ') }}: {{ qt.label }}
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MIDDLE: Question + Answer area -->
+      <div class="question-area">
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
         <!-- Question Header -->
@@ -430,11 +464,9 @@
           </div>
         </div>
 
-      </div>
-
-      <!-- Navigation Buttons -->
-      <div class="question-nav-btns">
-        <button class="btn-nav prev" (click)="prevQuestion()" [disabled]="isFirstQuestion">
+        <!-- Navigation Buttons (inside card) -->
+        <div class="question-nav-btns">
+        <button class="btn-nav btn-prev" (click)="prevQuestion()" [disabled]="isFirstQuestion">
           <span class="material-icons">arrow_back</span> Previous
         </button>
         <button
@@ -449,25 +481,27 @@
         <span class="btn-submitted-label" *ngIf="hasCurrentSubmitted">
           <span class="material-icons">check_circle</span> Submitted
         </span>
-        <button class="btn-nav next" (click)="nextQuestion()" [disabled]="isLastQuestion">
+        <button class="btn-nav btn-next" (click)="nextQuestion()" [disabled]="isLastQuestion">
           Next <span class="material-icons">arrow_forward</span>
         </button>
+        </div>
       </div>
     </div>
 
-      <!-- Right: Question Navigator -->
+      <!-- RIGHT: Question Navigator + Status -->
       <aside class="question-sidebar">
         <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
         <div class="question-nav-grid">
           <button
             *ngFor="let pq of playerQuestions; let i = index"
             class="q-dot"
+            [ngClass]="getQuestionTypeClass(pq)"
             [class.current]="i === currentIndex"
             [class.answered]="isQuestionAnswered(pq)"
             [class.correct]="pq.isCorrect === true"
             [class.wrong]="pq.isCorrect === false"
             (click)="goToQuestion(i)"
-            [title]="'Question ' + (i + 1)"
+            [title]="'Question ' + (i + 1) + ' - ' + getTypeLabel(pq.data.type)"
           >{{ i + 1 }}</button>
         </div>
         <div class="status-legend">
