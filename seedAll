@@ -1,0 +1,128 @@
+// seedAll.js
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+// Import models
+const User = require('./models/User');
+const Course = require('./models/Course');
+const Rubric = require('./models/Rubric');
+const AssignmentTemplate = require('./models/AssignmentTemplates');
+const AssignmentSubmission = require('./models/AssignmentSubmission');
+
+const CourseMaterial = require('./models/CourseMaterial');
+const CourseProgress = require('./models/CourseProgress');
+const Feedback = require('./models/Feedback');
+const GradingResult = require('./models/GradingResult');
+const Notification = require('./models/Notifications');
+const StudentProgress = require('./models/StudentProgress');
+const Subscription = require('./models/subscriptions');
+
+async function seed() {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('✅ MongoDB connected');
+
+    // 1️⃣ Clear existing collections (optional)
+    await Promise.all([
+      User.deleteMany({}),
+      Course.deleteMany({}),
+      Rubric.deleteMany({}),
+      AssignmentTemplate.deleteMany({}),
+      AssignmentSubmission.deleteMany({}),
+      
+      CourseMaterial.deleteMany({}),
+      CourseProgress.deleteMany({}),
+      Feedback.deleteMany({}),
+      GradingResult.deleteMany({}),
+      Notification.deleteMany({}),
+      StudentProgress.deleteMany({}),
+      Subscription.deleteMany({}),
+    ]);
+    console.log('🧹 Cleared existing collections');
+
+    // 2️⃣ Seed users
+    await User.insertMany([
+      { name: "Alice Student", regNo: "S001", email: "alice@student.com", password: "password123", role: "STUDENT", batch: "Batch A", medium: ["English"], level: "A1", subscription: "SILVER" },
+      { name: "Bob Student", regNo: "S002", email: "bob@student.com", password: "password123", role: "STUDENT", batch: "Batch A", medium: ["English"], level: "A1", subscription: "SILVER" },
+      { name: "Cathy Teacher", regNo: "T001", email: "cathy@teacher.com", password: "password123", role: "TEACHER", medium: ["English"], assignedCourses: [] },
+      { name: "Admin User", regNo: "A001", email: "admin@admin.com", password: "adminpass", role: "ADMIN", medium: ["English"] },
+    ]);
+
+    // ✅ Refetch full documents from DB
+    const users = await User.find({});
+    console.log('👩‍🎓 Seeded Users');
+
+    // 3️⃣ Seed courses
+    const courses = await Course.insertMany([
+      { title: "English A1", description: "Beginner English course" },
+      { title: "English A2", description: "Elementary English course" },
+    ]);
+    console.log('📚 Seeded Courses');
+
+    // Assign courses to teacher
+    users[2].assignedCourses = courses.map(c => c._id);
+    await users[2].save();
+
+    // 4️⃣ Seed Rubrics
+    const rubrics = await Rubric.insertMany([
+      { level: "A1", taskType: "writing_email", criteria: [{ name: "Grammar", maxScore: 5 }, { name: "Vocabulary", maxScore: 5 }] },
+      { level: "A2", taskType: "essay", criteria: [{ name: "Content", maxScore: 10 }, { name: "Organization", maxScore: 5 }] },
+    ]);
+    console.log('📏 Seeded Rubrics');
+
+    // 5️⃣ Seed Assignment Templates
+    const assignmentTemplates = await AssignmentTemplate.insertMany([
+      { teacherId: users[2]._id, courseId: courses[0]._id, title: "Email Writing Assignment", description: "Write a formal email" },
+      { teacherId: users[2]._id, courseId: courses[1]._id, title: "Essay Assignment", description: "Write a short essay" },
+    ]);
+    console.log('📝 Seeded Assignment Templates');
+
+    // 6️⃣ Seed Assignment Submissions
+    const submissions = await AssignmentSubmission.insertMany([
+      {
+        studentId: users[0]._id,
+        teacherId: users[2]._id,
+        courseId: courses[0]._id,
+        title: "Email Assignment 1",
+        uploadedBy: "STUDENT",
+        files: [{ path: "/uploads/email1.docx", originalName: "email1.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 1024 }],
+      },
+    ]);
+    console.log('📤 Seeded Assignment Submissions');
+
+    
+
+    // 8️⃣ Seed Course Materials
+    await CourseMaterial.insertMany([
+      { course: courses[0]._id, materials: [{ fileName: "lesson1.pdf", fileUrl: "/materials/lesson1.pdf" }] },
+    ]);
+    console.log('📄 Seeded Course Materials');
+
+    // 9️⃣ Seed Course Progress
+    await CourseProgress.insertMany([
+      { studentId: users[0]._id, courseId: courses[0]._id, progressPercentage: 20 },
+      { studentId: users[1]._id, courseId: courses[1]._id, progressPercentage: 10 },
+    ]);
+    console.log('📈 Seeded Course Progress');
+
+    // 1️⃣0️⃣ Seed Feedback
+    await Feedback.insertMany([
+      { studentId: users[0]._id, feedback: "Great course!", rating: 5 },
+    ]);
+    console.log('💬 Seeded Feedback');
+
+    // 1️⃣1️⃣ Seed Subscriptions
+    await Subscription.insertMany([
+      { userId: users[0]._id, type: "silver", startDate: new Date(), expiryDate: new Date(Date.now() + 30*24*60*60*1000), courses: [{ name: "A1" }] },
+    ]);
+    console.log('💳 Seeded Subscriptions');
+
+    console.log('✅ All seeding completed!');
+    process.exit(0);
+  } catch (err) {
+    console.error('❌ Seeding error:', err);
+    process.exit(1);
+  }
+}
+
+seed();
