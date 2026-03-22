@@ -1,6 +1,6 @@
 // src/app/app-routing.module.ts
 
-import { NgModule } from '@angular/core';
+import { NgMdule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { LoginComponent } from './components/login/login.component';
 import { SignupComponent } from './components/signup/signup.component';
@@ -36,13 +36,11 @@ export const routes: Routes = [
     data: { role: ['TEACHER', 'TEACHER_ADMIN'] }
   },
 
-  // Student dashboard route with RoleGuard
+  // Student dashboard — redirect to student-progress
   {
     path: 'student-dashboard',
-    loadComponent: () => import('./components/student-ai-dashboard/student-ai-dashboard.component')
-      .then(m => m.StudentAiDashboardComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: 'STUDENT' }
+    redirectTo: 'student-progress',
+    pathMatch: 'full'
   },
 
   // Admin dashboard route with RoleGuard
@@ -78,7 +76,7 @@ export const routes: Routes = [
     loadComponent: () => import('./components/admin-dashboard/admin-analytics/admin-analytics.component')
       .then(m => m.AdminAnalyticsComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
   },
 
   // ✅ NEW: AI Usage Analytics route
@@ -153,7 +151,7 @@ export const routes: Routes = [
   { path: 'student/meetings', loadComponent: () => import('./components/meeting-link/student-meetings.component').then(m => m.StudentMeetingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
   // Admin Zoom Reports
-  { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   { path: 'course-materials', loadComponent: () => import('./components/course-material/course-material-upload.component').then(m => m.UploadCourseMaterialComponent), canActivate: [AuthGuard, RoleGuard], data: {role: ['ADMIN', 'TEACHER_ADMIN']} },
 
@@ -171,6 +169,8 @@ export const routes: Routes = [
 
   { path: 'student-progress', loadComponent: () => import('./components/student-progress/student-progress.component').then(m => m.StudentProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
+  { path: 'student-payments', loadComponent: () => import('./components/student-payments/student-payments.component').then(m => m.StudentPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+
   { path: 'performance-history', loadComponent: () => import('./components/student-dashboard/performance-history.component').then(m => m.PerformanceHistoryComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
   // Student Documents route
@@ -178,6 +178,21 @@ export const routes: Routes = [
 
   // Admin Document Verification route
   { path: 'admin/document-verification', loadComponent: () => import('./components/admin-dashboard/document-verification/document-verification.component').then(m => m.DocumentVerificationComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
+
+  // Admin Visa Tracking route
+  { path: 'admin/visa-tracking', loadComponent: () => import('./components/admin-dashboard/visa-tracking/visa-tracking.component').then(m => m.VisaTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Student Visa Status page
+  { path: 'visa-status', loadComponent: () => import('./components/visa-status/visa-status.component').then(m => m.VisaStatusComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Admin Payments
+  { path: 'admin/payments', loadComponent: () => import('./components/admin-dashboard/admin-payments/admin-payments.component').then(m => m.AdminPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Admin Student Progress Overview
+  { path: 'admin/student-progress', loadComponent: () => import('./components/admin-dashboard/admin-progress/admin-progress.component').then(m => m.AdminProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Monday.com Sync Preview
+  { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
@@ -233,6 +248,12 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+
+  // Class Recordings — Teacher/Admin manage
+  { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+
+  // Class Recordings — Student view
+  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
   // Wildcard route to handle invalid paths
   { path: '**', redirectTo: 'home' }

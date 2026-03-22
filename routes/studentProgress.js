@@ -7,6 +7,37 @@ const LearningModule = require('../models/LearningModule');
 const AiTutorSession = require('../models/AiTutorSession');
 const mongoose = require('mongoose');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const DocumentRequirement = require('../models/DocumentRequirement');
+const StudentDocument = require('../models/StudentDocument');
+
+// Helper: build documents list cross-referencing requirements with uploads
+async function buildDocumentsList(studentId, servicesOpted) {
+  const uploadedDocs = await StudentDocument.find({ studentId }).lean();
+  const studentService = servicesOpted || '';
+  let docRequirements = [];
+  if (studentService && studentService !== 'German Language Only') {
+    // Normalize service name for flexible matching (e.g. "Au Pair" vs "Au-pair")
+    const normalized = studentService.trim().replace(/[\s\-]+/g, '[\\s\\-]*');
+    const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+    docRequirements = await DocumentRequirement.find({
+      active: true,
+      $or: [{ applicableServices: { $size: 0 } }, { applicableServices: serviceRegex }]
+    }).sort({ order: 1 }).lean();
+  }
+  const documents = docRequirements.map(r => {
+    const uploaded = uploadedDocs.find(d => d.documentType === r.type);
+    let status = 'not_uploaded';
+    if (uploaded) status = uploaded.status === 'VERIFIED' ? 'verified' : uploaded.status === 'REJECTED' ? 'rejected' : 'pending';
+    return { name: r.label || r.type, type: r.type, category: r.category, required: r.required, status, verified: status === 'verified', uploadedAt: uploaded?.uploadedAt || null };
+  });
+  uploadedDocs.forEach(d => {
+    if (!docRequirements.find(r => r.type === d.documentType)) {
+      documents.push({ name: d.documentName || d.documentType, type: d.documentType, category: 'OTHER', required: false, status: d.status === 'VERIFIED' ? 'verified' : d.status === 'REJECTED' ? 'rejected' : 'pending', verified: d.status === 'VERIFIED', uploadedAt: d.uploadedAt });
+    }
+  });
+  const summary = { total: documents.length, verified: documents.filter(d => d.status === 'verified').length, pending: documents.filter(d => d.status === 'pending').length, rejected: documents.filter(d => d.status === 'rejected').length, notUploaded: documents.filter(d => d.status === 'not_uploaded').length };
+  return { documents, docsSummary: summary, uploadedDocs };
+}
 
 // GET /api/student-progress - Get student's progress across all modules
 // ✅ Allow both STUDENT and TEACHER (for testing modules)
@@ -173,6 +204,10 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     const User = require('../models/User');
     const SessionRecord = require('../models/SessionRecord');
     const StudentDocument = require('../models/StudentDocument');
+    const DocumentRequirement = require('../models/DocumentRequirement');
+    const Invoice = require('../models/Invoice');
+    const StudentPayment = require('../models/StudentPayment');
+    const VisaTracking = require('../models/VisaTracking');
     const studentId = req.user.id;
 
     const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
@@ -234,7 +269,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     const lastSession = sessionRecords[0];
 
     // Documents
-    const documents = await StudentDocument.find({ studentId }).lean();
+    const { documents, docsSummary, uploadedDocs } = await buildDocumentsList(studentId, student.servicesOpted);
 
     // Teacher feedback latest per level
     const feedbackByLevel = {};
@@ -256,7 +291,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       if (sd) history.push({ date: sd, title: level + ' course started', desc: 'Student began ' + level + ' level.' });
       if (cd) history.push({ date: cd, title: level + ' completed', desc: 'All ' + level + ' lessons completed.' });
     });
-    documents.forEach(doc => { if (doc.uploadedAt) history.push({ date: doc.uploadedAt, title: doc.documentType + ' submitted', desc: (doc.documentName || doc.documentType) + ' provided.' }); });
+    uploadedDocs.forEach(doc => { if (doc.uploadedAt) history.push({ date: doc.uploadedAt, title: doc.documentType + ' submitted', desc: (doc.documentName || doc.documentType) + ' provided.' }); });
     if (student.createdAt) history.push({ date: student.createdAt, title: 'Student profile created', desc: 'Profile created for student ' + student.regNo + '.' });
     if (student.enrollmentDate) history.push({ date: student.enrollmentDate, title: 'Enrollment confirmed', desc: 'Student enrolled in ' + (student.servicesOpted || 'program') + '.' });
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -274,20 +309,127 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
-      documents: documents.map(d => ({ name: d.documentType, status: d.status === 'VERIFIED' ? 'verified' : 'pending', verified: d.status === 'VERIFIED', approvalStatus: d.status.toLowerCase() })),
+      documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),
-      payments: {
-        instalments: [
-          { installment: 1, amount: 1000, paid: true, dueDate: '2026-02-02' },
-          { installment: 2, amount: 1000, paid: false, dueDate: '2026-03-01' },
-          { installment: 3, amount: 1000, paid: false, dueDate: '2026-04-01' },
-          { installment: 4, amount: 1000, paid: false, dueDate: '2026-05-01' },
-          { installment: 5, amount: 1000, paid: false, dueDate: '2026-06-01' },
-          { installment: 6, amount: 0, paid: false, dueDate: '2026-07-01' }
-        ],
-        totalAmount: 5000, paidAmount: 1000
-      },
-      visa: { route: 'D-VISA-LANGUAGE-WORK', currentStep: 0, steps: ['Not started', 'Submitted', 'Biometrics', 'Decision', 'Visa issued'] }
+      payments: await (async () => {
+        // Try StudentPayment (CSV-imported ledger) first — match by studentId OR email
+        const sp = await StudentPayment.findOne({
+          $or: [
+            { studentId: studentId },
+            { email: student.email.toLowerCase() }
+          ]
+        }).populate('payments.recordedBy', 'name').lean();
+        if (sp) {
+          // Also check for paid invoices to add to the total
+          const paidInvoices = await Invoice.find({
+            customer_email: { $regex: new RegExp('^' + student.email.toLowerCase().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$' + '&') + '$', 'i') },
+            payment_status: 'paid'
+          }).lean();
+          const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+          const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
+          const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
+          return {
+            source: 'ledger',
+            currency: sp.currency || 'LKR',
+            totalPackageAmount: sp.totalPackageAmount || 0,
+            totalInvoiced: sp.totalInvoiced || 0,
+            totalAmount: sp.totalPackageAmount || 0,
+            paidAmount: livePaid,
+            pendingAmount: liveBalance > 0 ? liveBalance : 0,
+            payments: (sp.payments || []).map(p => ({
+              amount: p.amount,
+              date: p.date,
+              method: p.method || '',
+              note: p.note || '',
+              recordedBy: p.recordedBy?.name || ''
+            })),
+            invoices: []
+          };
+        }
+        // Fallback to Invoice collection
+        const invoices = await Invoice.find({ customer_email: student.email }).sort({ created_at: 1 }).lean();
+        const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+        const paidAmount = invoices.filter(i => i.payment_status === 'paid').reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+        return {
+          source: 'invoices',
+          currency: 'LKR',
+          totalPackageAmount: totalAmount,
+          totalInvoiced: totalAmount,
+          totalAmount,
+          paidAmount,
+          pendingAmount: totalAmount - paidAmount,
+          payments: [],
+          invoices: invoices.map((inv, idx) => ({
+            invoiceNumber: inv.invoice_number,
+            description: inv.items?.map(i => i.description).join(', ') || '',
+            invoiceDate: inv.invoice_date,
+            dueDate: inv.due_date,
+            subtotal: inv.subtotal || 0,
+            tax: inv.total_tax || 0,
+            totalPayable: inv.total_payable || 0,
+            paymentStatus: inv.payment_status || 'unpaid',
+            paymentDate: inv.payment_date || ''
+          }))
+        };
+      })(),
+      visa: await (async () => {
+        const PORTAL_STEP_NAMES = [
+          'Application Filed', 'Preliminary Review', 'Embassy Review',
+          'Embassy Feedback', 'Changes / Appointment', 'Final Submission & Decision'
+        ];
+        const AU_PAIR_STEP_NAMES = [
+          'Appointment Booking', 'Document Preparation', 'Interview Preparation',
+          'Embassy Visit', 'Result & Next Steps'
+        ];
+        const vt = await VisaTracking.findOne({ studentId }).populate('history.updatedBy', 'name').lean();
+        if (!vt) {
+          return { route: 'Not set', currentStep: 0, totalSteps: 0, steps: [], stages: [], finalOutcome: '', finalOutcomeNote: '', history: [], dates: {} };
+        }
+        const steps = vt.visaType === 'AU_PAIR' ? AU_PAIR_STEP_NAMES : PORTAL_STEP_NAMES;
+        // Compute current step from stages
+        let currentStep = 0;
+        if (vt.stages && vt.stages.length) {
+          for (let i = 0; i < vt.stages.length; i++) {
+            if (vt.stages[i].outcome !== 'completed') { currentStep = i; break; }
+            if (i === vt.stages.length - 1) currentStep = i;
+          }
+        }
+        // Build dates from stage-level stageDate fields
+        const dates = {};
+        (vt.stages || []).forEach(s => {
+          if (s.stageDate && s.stageDateLabel) {
+            const key = s.stageDateLabel.replace(/\s+/g, '').replace('Date', '');
+            dates[key] = s.stageDate;
+          }
+        });
+        return {
+          route: vt.visaType === 'AU_PAIR' ? 'Au Pair' : 'Portal Visa',
+          currentStep,
+          totalSteps: steps.length,
+          steps,
+          stages: (vt.stages || []).map(s => ({
+            stage: s.stage,
+            status: s.status || '',
+            message: s.message || '',
+            actionRequired: s.actionRequired || false,
+            actionNote: s.actionNote || '',
+            handledBy: s.handledBy || '',
+            outcome: s.outcome || '',
+            outcomeDate: s.outcomeDate || null,
+            stageDate: s.stageDate || null,
+            stageDateLabel: s.stageDateLabel || ''
+          })),
+          finalOutcome: vt.finalOutcome || '',
+          finalOutcomeNote: vt.finalOutcomeNote || '',
+          history: (vt.history || []).map(h => ({
+            date: h.date,
+            stage: h.stage,
+            note: h.note,
+            updatedBy: h.updatedBy?.name || 'Unknown user'
+          })).reverse(),
+          dates
+        };
+      })()
     });
   } catch (error) {
     console.error('Error fetching student journey:', error);
@@ -592,6 +734,331 @@ router.post('/:moduleId/feedback', verifyToken, checkRole(['TEACHER', 'ADMIN']),
   } catch (error) {
     console.error('Error adding teacher feedback:', error);
     res.status(500).json({ message: 'Error adding feedback' });
+  }
+});
+
+// GET /api/student-progress/admin/journey/:studentId - Full journey for a specific student (admin view)
+router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const SessionRecord = require('../models/SessionRecord');
+    const StudentDocument = require('../models/StudentDocument');
+    const Invoice = require('../models/Invoice');
+    const StudentPayment = require('../models/StudentPayment');
+    const VisaTracking = require('../models/VisaTracking');
+    const studentId = req.params.studentId;
+
+    const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    // Level progression
+    const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const currentLevelIndex = allLevels.indexOf(student.level);
+    const opted = (student.languageLevelOpted || '').trim();
+    let displayLevels;
+    if (!opted) {
+      displayLevels = ['A1', 'A2', 'B1', 'B2'];
+    } else if (opted.includes('-')) {
+      const [s, e] = opted.split('-');
+      const si = allLevels.indexOf(s), ei = allLevels.indexOf(e);
+      displayLevels = (si >= 0 && ei >= 0 && ei >= si) ? allLevels.slice(si, ei + 1) : ['A1', 'A2', 'B1', 'B2'];
+    } else {
+      const oi = allLevels.indexOf(opted);
+      displayLevels = oi >= 0 ? allLevels.slice(0, Math.max(oi, currentLevelIndex) + 1) : ['A1', 'A2', 'B1', 'B2'];
+    }
+    if (!displayLevels.includes(student.level)) {
+      displayLevels = allLevels.slice(allLevels.indexOf(displayLevels[0]), currentLevelIndex + 1);
+    }
+
+    const levelProgression = displayLevels.map(level => {
+      const startDate = student.courseStartDates?.[level + 'StartDate'];
+      const completedDate = student.courseCompletionDates?.[level + 'CompletionDate'];
+      const li = allLevels.indexOf(level);
+      let status = 'not-started';
+      if (completedDate) status = 'completed';
+      else if (startDate || li < currentLevelIndex) status = li === currentLevelIndex ? 'in-progress' : 'completed';
+      else if (li === currentLevelIndex) status = 'in-progress';
+      return { level, status, startDate, completedDate };
+    });
+
+    // Module progress per level
+    const moduleProgress = await StudentProgress.aggregate([
+      { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
+      { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'module' } },
+      { $unwind: '$module' },
+      { $group: { _id: '$module.level', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$timeSpent' } } }
+    ]);
+    const lessonsByLevel = {};
+    let totalStudyMinutes = 0;
+    moduleProgress.forEach(mp => { lessonsByLevel[mp._id] = { total: mp.total, completed: mp.completed }; totalStudyMinutes += mp.totalTime || 0; });
+
+    // AI Bot usage this week
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0);
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const botSessions = await AiTutorSession.find({ studentId: new mongoose.Types.ObjectId(studentId), startTime: { $gte: weekStart } }).select('totalDuration startTime').lean();
+    let botWeekMinutes = 0, botTodayMinutes = 0;
+    botSessions.forEach(s => { const dur = s.totalDuration || 0; botWeekMinutes += dur; if (s.startTime >= todayStart) botTodayMinutes += dur; });
+
+    // Attendance
+    const sessionRecords = await SessionRecord.find({ studentId: new mongoose.Types.ObjectId(studentId) }).select('sessionState startTime').sort({ startTime: -1 }).lean();
+    const totalSessionCount = sessionRecords.length;
+    const completedSessions = sessionRecords.filter(s => s.sessionState === 'completed' || s.sessionState === 'manually_ended').length;
+    const lastSession = sessionRecords[0];
+
+    // Documents
+    const { documents, docsSummary, uploadedDocs } = await buildDocumentsList(studentId, student.servicesOpted);
+
+    // Teacher feedback latest per level
+    const feedbackByLevel = {};
+    const allProg = await StudentProgress.find({ studentId: new mongoose.Types.ObjectId(studentId) }).populate('moduleId', 'level').lean();
+    allProg.forEach(p => {
+      if (p.teacherFeedback?.length > 0 && p.moduleId?.level) {
+        const latest = p.teacherFeedback.sort((a, b) => new Date(b.providedAt) - new Date(a.providedAt))[0];
+        if (!feedbackByLevel[p.moduleId.level] || new Date(latest.providedAt) > new Date(feedbackByLevel[p.moduleId.level].providedAt)) {
+          feedbackByLevel[p.moduleId.level] = latest;
+        }
+      }
+    });
+
+    // History timeline
+    const history = [];
+    displayLevels.forEach(level => {
+      const sd = student.courseStartDates?.[level + 'StartDate'];
+      const cd = student.courseCompletionDates?.[level + 'CompletionDate'];
+      if (sd) history.push({ date: sd, title: level + ' course started', desc: 'Student began ' + level + ' level.' });
+      if (cd) history.push({ date: cd, title: level + ' completed', desc: 'All ' + level + ' lessons completed.' });
+    });
+    uploadedDocs.forEach(doc => { if (doc.uploadedAt) history.push({ date: doc.uploadedAt, title: doc.documentType + ' submitted', desc: (doc.documentName || doc.documentType) + ' provided.' }); });
+    if (student.createdAt) history.push({ date: student.createdAt, title: 'Student profile created', desc: 'Profile created for student ' + student.regNo + '.' });
+    if (student.enrollmentDate) history.push({ date: student.enrollmentDate, title: 'Enrollment confirmed', desc: 'Student enrolled in ' + (student.servicesOpted || 'program') + '.' });
+    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Payments
+    const escapeRegex = (str) => str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\' + '$' + '&');
+    const payments = await (async () => {
+      const sp = await StudentPayment.findOne({
+        $or: [{ studentId: studentId }, { email: student.email.toLowerCase() }]
+      }).populate('payments.recordedBy', 'name').lean();
+      if (sp) {
+        const paidInvoices = await Invoice.find({
+          customer_email: { $regex: new RegExp('^' + escapeRegex(student.email.toLowerCase()) + '$', 'i') },
+          payment_status: 'paid'
+        }).lean();
+        const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+        const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
+        const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
+        return {
+          source: 'ledger', currency: sp.currency || 'LKR',
+          totalPackageAmount: sp.totalPackageAmount || 0, totalAmount: sp.totalPackageAmount || 0,
+          paidAmount: livePaid, pendingAmount: liveBalance > 0 ? liveBalance : 0,
+          payments: (sp.payments || []).map(p => ({ amount: p.amount, date: p.date, method: p.method || '', note: p.note || '', recordedBy: p.recordedBy?.name || '' })),
+          invoices: []
+        };
+      }
+      const invoices = await Invoice.find({ customer_email: student.email }).sort({ created_at: 1 }).lean();
+      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+      const paidAmount = invoices.filter(i => i.payment_status === 'paid').reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+      return {
+        source: 'invoices', currency: 'LKR', totalPackageAmount: totalAmount, totalAmount, paidAmount, pendingAmount: totalAmount - paidAmount, payments: [],
+        invoices: invoices.map(inv => ({ invoiceNumber: inv.invoice_number, description: inv.items?.map(i => i.description).join(', ') || '', invoiceDate: inv.invoice_date, dueDate: inv.due_date, subtotal: inv.subtotal || 0, tax: inv.total_tax || 0, totalPayable: inv.total_payable || 0, paymentStatus: inv.payment_status || 'unpaid', paymentDate: inv.payment_date || '' }))
+      };
+    })();
+
+    // Visa
+    const PORTAL_STEP_NAMES = ['Application Filed', 'Preliminary Review', 'Embassy Review', 'Embassy Feedback', 'Changes / Appointment', 'Final Submission & Decision'];
+    const AU_PAIR_STEP_NAMES = ['Appointment Booking', 'Document Preparation', 'Interview Preparation', 'Embassy Visit', 'Result & Next Steps'];
+    const vt = await VisaTracking.findOne({ studentId }).populate('history.updatedBy', 'name').lean();
+    let visa;
+    if (!vt) {
+      visa = { route: 'Not set', currentStep: 0, totalSteps: 0, steps: [], stages: [], finalOutcome: '', finalOutcomeNote: '', history: [], dates: {} };
+    } else {
+      const steps = vt.visaType === 'AU_PAIR' ? AU_PAIR_STEP_NAMES : PORTAL_STEP_NAMES;
+      let currentStep = 0;
+      if (vt.stages && vt.stages.length) {
+        for (let i = 0; i < vt.stages.length; i++) {
+          if (vt.stages[i].outcome !== 'completed') { currentStep = i; break; }
+          if (i === vt.stages.length - 1) currentStep = i;
+        }
+      }
+      const dates = {};
+      (vt.stages || []).forEach(s => { if (s.stageDate && s.stageDateLabel) { dates[s.stageDateLabel.replace(/\s+/g, '').replace('Date', '')] = s.stageDate; } });
+      visa = {
+        route: vt.visaType === 'AU_PAIR' ? 'Au Pair' : 'Portal Visa', currentStep, totalSteps: steps.length, steps,
+        stages: (vt.stages || []).map(s => ({ stage: s.stage, status: s.status || '', message: s.message || '', actionRequired: s.actionRequired || false, actionNote: s.actionNote || '', handledBy: s.handledBy || '', outcome: s.outcome || '', outcomeDate: s.outcomeDate || null, stageDate: s.stageDate || null, stageDateLabel: s.stageDateLabel || '' })),
+        finalOutcome: vt.finalOutcome || '', finalOutcomeNote: vt.finalOutcomeNote || '',
+        history: (vt.history || []).map(h => ({ date: h.date, stage: h.stage, note: h.note, updatedBy: h.updatedBy?.name || 'Unknown user' })).reverse(), dates
+      };
+    }
+
+    res.json({
+      profile: {
+        regNo: student.regNo, name: student.name, batch: student.batch,
+        teacher: student.assignedTeacher?.name || student.teacherIncharge || 'Not assigned',
+        servicesOpted: student.servicesOpted || '', languageLevelOpted: student.languageLevelOpted || '',
+        currentLevel: student.level, studentStatus: student.studentStatus,
+        enrollmentDate: student.enrollmentDate || student.createdAt
+      },
+      levelProgression, lessonsByLevel, totalStudyHours: Math.round(totalStudyMinutes / 60),
+      botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
+      attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
+      documents, docsSummary,
+      feedbackByLevel, history: history.slice(0, 20), payments, visa
+    });
+  } catch (err) {
+    console.error('Admin journey error:', err);
+    res.status(500).json({ message: 'Error fetching student journey' });
+  }
+});
+
+// GET /api/student-progress/admin/overview - All students progress overview (admin)
+router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const SessionRecord = require('../models/SessionRecord');
+    const StudentDocument = require('../models/StudentDocument');
+    const StudentPayment = require('../models/StudentPayment');
+    const VisaTracking = require('../models/VisaTracking');
+
+    const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+    // Get all students
+    const students = await User.find({ role: 'STUDENT' })
+      .select('name email regNo batch level servicesOpted languageLevelOpted studentStatus assignedTeacher enrollmentDate courseStartDates courseCompletionDates')
+      .populate('assignedTeacher', 'name')
+      .lean();
+
+    // Batch fetch related data
+    const studentIds = students.map(s => s._id);
+    const studentIdStrs = studentIds.map(id => id.toString());
+
+    // Attendance counts per student
+    const attendanceAgg = await SessionRecord.aggregate([
+      { $match: { studentId: { $in: studentIds } } },
+      { $group: {
+        _id: '$studentId',
+        total: { $sum: 1 },
+        attended: { $sum: { $cond: [{ $in: ['$sessionState', ['completed', 'manually_ended']] }, 1, 0] } }
+      }}
+    ]);
+    const attendanceMap = {};
+    attendanceAgg.forEach(a => { attendanceMap[a._id.toString()] = a; });
+
+    // Module progress per student
+    const moduleAgg = await StudentProgress.aggregate([
+      { $match: { studentId: { $in: studentIds } } },
+      { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'mod' } },
+      { $unwind: '$mod' },
+      { $group: {
+        _id: { studentId: '$studentId', level: '$mod.level' },
+        total: { $sum: 1 },
+        completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }
+      }}
+    ]);
+    const moduleMap = {};
+    moduleAgg.forEach(m => {
+      const sid = m._id.studentId.toString();
+      if (!moduleMap[sid]) moduleMap[sid] = {};
+      moduleMap[sid][m._id.level] = { total: m.total, completed: m.completed };
+    });
+
+    // Documents per student
+    const docAgg = await StudentDocument.aggregate([
+      { $match: { studentId: { $in: studentIds } } },
+      { $group: {
+        _id: '$studentId',
+        total: { $sum: 1 },
+        verified: { $sum: { $cond: [{ $eq: ['$status', 'VERIFIED'] }, 1, 0] } }
+      }}
+    ]);
+    const docMap = {};
+    docAgg.forEach(d => { docMap[d._id.toString()] = d; });
+
+    // Payments
+    const payments = await StudentPayment.find({ studentId: { $in: studentIds } }).select('studentId totalPackageAmount totalPaid pendingPayment currency').lean();
+    const payMap = {};
+    payments.forEach(p => { payMap[p.studentId.toString()] = p; });
+
+    // Visa
+    const visas = await VisaTracking.find({ studentId: { $in: studentIds } }).select('studentId visaType currentStage stages').lean();
+    const visaMap = {};
+    visas.forEach(v => { visaMap[v.studentId.toString()] = v; });
+
+    // Build response
+    const result = students.map(s => {
+      const sid = s._id.toString();
+      const att = attendanceMap[sid] || { total: 0, attended: 0 };
+      const doc = docMap[sid] || { total: 0, verified: 0 };
+      const pay = payMap[sid] || null;
+      const visa = visaMap[sid] || null;
+      const mods = moduleMap[sid] || {};
+
+      // Level progression
+      const currentLevelIndex = allLevels.indexOf(s.level);
+      const opted = (s.languageLevelOpted || '').trim();
+      let displayLevels;
+      if (!opted) { displayLevels = ['A1', 'A2', 'B1', 'B2']; }
+      else if (opted.includes('-')) {
+        const [st, en] = opted.split('-');
+        const si = allLevels.indexOf(st), ei = allLevels.indexOf(en);
+        displayLevels = (si >= 0 && ei >= 0 && ei >= si) ? allLevels.slice(si, ei + 1) : ['A1', 'A2', 'B1', 'B2'];
+      } else {
+        const oi = allLevels.indexOf(opted);
+        displayLevels = oi >= 0 ? allLevels.slice(0, Math.max(oi, currentLevelIndex) + 1) : ['A1', 'A2', 'B1', 'B2'];
+      }
+
+      const levelsCompleted = displayLevels.filter(lv => {
+        const li = allLevels.indexOf(lv);
+        return s.courseCompletionDates?.[lv + 'CompletionDate'] || li < currentLevelIndex;
+      }).length;
+      const learningPct = displayLevels.length ? Math.round((levelsCompleted / displayLevels.length) * 100) : 0;
+
+      const docsPct = doc.total ? Math.round((doc.verified / doc.total) * 100) : 0;
+      const payPct = pay && pay.totalPackageAmount ? Math.round((pay.totalPaid / pay.totalPackageAmount) * 100) : 0;
+
+      let visaSteps = 0, visaCurrent = 0;
+      if (visa) {
+        visaSteps = visa.visaType === 'au_pair' ? 5 : 6;
+        // Compute current stage from stages array outcomes
+        if (visa.stages && visa.stages.length) {
+          for (let i = 0; i < visa.stages.length; i++) {
+            if (visa.stages[i].outcome !== 'completed') { visaCurrent = i; break; }
+            if (i === visa.stages.length - 1) visaCurrent = i;
+          }
+        }
+      }
+      const visaPct = visaSteps > 1 ? Math.round((visaCurrent / (visaSteps - 1)) * 100) : 0;
+
+      const overallPct = Math.round((learningPct * 0.4 + docsPct * 0.2 + payPct * 0.2 + visaPct * 0.2));
+      const attRate = att.total ? Math.round((att.attended / att.total) * 100) : 0;
+
+      return {
+        _id: sid,
+        name: s.name,
+        email: s.email,
+        regNo: s.regNo,
+        batch: s.batch || '',
+        level: s.level,
+        service: s.servicesOpted || '',
+        teacher: s.assignedTeacher?.name || '',
+        status: s.studentStatus || '',
+        enrollmentDate: s.enrollmentDate,
+        overallPct,
+        learningPct,
+        currentLevel: s.level,
+        levelsCompleted,
+        totalLevels: displayLevels.length,
+        attendance: { attended: att.attended, total: att.total, rate: attRate },
+        docs: { verified: doc.verified, total: doc.total, pct: docsPct },
+        payment: pay ? { currency: pay.currency, total: pay.totalPackageAmount, paid: pay.totalPaid, pending: pay.pendingPayment, pct: payPct } : null,
+        visa: visa ? { type: visa.visaType, current: visaCurrent, total: visaSteps, pct: visaPct } : null
+      };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching admin progress overview:', error);
+    res.status(500).json({ message: 'Error fetching progress overview' });
   }
 });
 

@@ -30,7 +30,7 @@ export class RoleGuard implements CanActivate {
 
         // ❌ wrong role → redirect them to their correct dashboard
         if (user?.role === 'STUDENT') {
-          this.router.navigate(['/student-dashboard']);
+          this.router.navigate(['/student-progress']);
         } else if (user?.role === 'TEACHER') {
           this.router.navigate(['/teacher-dashboard']);
         } else if (user?.role === 'TEACHER_ADMIN') {

@@ -11,13 +11,9 @@ import { RoleGuard } from '../../guards/role.guard';
 const routes: Routes = [
   {
     path: 'student-dashboard',
-    loadComponent: () =>
-      import('../student-ai-dashboard/student-ai-dashboard.component')
-        .then(m => m.StudentAiDashboardComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: 'STUDENT' }
+    redirectTo: '/student-progress',
+    pathMatch: 'full'
   },
-
 ];
 
 @NgModule({

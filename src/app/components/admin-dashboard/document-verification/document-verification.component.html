@@ -24,6 +24,10 @@
             <mat-icon>check_circle</mat-icon>
             Verify Selected ({{ selectedDocuments.length }})
           </button>
+          <button mat-raised-button style="background-color: #1565c0; color: white;" (click)="exportToCSV()">
+            <mat-icon>download</mat-icon>
+            Export CSV
+          </button>
         </div>
 
         <!-- Statistics Cards -->
@@ -448,6 +452,10 @@
                   </div>
                   <p class="requirement-description">{{ req.description }}</p>
                   <small class="requirement-meta">Type: {{ req.type }} | Order: {{ req.order }}</small>
+                  <div *ngIf="req.applicableServices?.length" class="requirement-services">
+                    <small>Applies to: </small>
+                    <span class="badge badge-service" *ngFor="let svc of req.applicableServices">{{ svc }}</span>
+                  </div>
                 </div>
                 <div class="requirement-actions">
                   <button mat-icon-button color="primary" (click)="openRequirementForm(req)" matTooltip="Edit">

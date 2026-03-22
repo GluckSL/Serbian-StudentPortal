@@ -8,12 +8,153 @@ body {
 body {
   margin: 0;
   font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
-  zoom: 0.8; /* Scale entire application to 80% */
-  -moz-transform: scale(0.8); /* Firefox fallback */
-  -moz-transform-origin: 0 0; /* Firefox fallback */
 }
 
-/* Alternative approach using transform for better browser support */
-html {
-  font-size: 80%; /* Scale base font size to 80% */
+/* ====================================================================
+   Sidebar layout: scale down ALL page content inside .shell-content
+   Uses !important to override Angular component-scoped styles
+   ==================================================================== */
+
+/* Headings */
+.shell-content h1,
+.shell-content .page-title,
+.shell-content .admin-title {
+  font-size: 1.35rem !important;
+}
+.shell-content h2 {
+  font-size: 1.15rem !important;
+}
+.shell-content h3,
+.shell-content h4 {
+  font-size: 1.0rem !important;
+}
+.shell-content h5,
+.shell-content h6 {
+  font-size: 0.9rem !important;
+}
+
+/* Body text */
+.shell-content p,
+.shell-content .page-subtitle,
+.shell-content .admin-subtitle,
+.shell-content .subtitle,
+.shell-content span,
+.shell-content label,
+.shell-content li,
+.shell-content div {
+  font-size: 0.85rem;
+}
+
+/* Stat numbers (counters) */
+.shell-content .stat-number {
+  font-size: 1.35rem !important;
+}
+.shell-content .stat-label {
+  font-size: 0.72rem !important;
+}
+.shell-content .results-count {
+  font-size: 1.1rem !important;
+}
+
+/* Buttons */
+.shell-content .btn {
+  font-size: 0.8rem !important;
+  padding: 0.35rem 0.75rem !important;
+}
+.shell-content .btn-sm {
+  font-size: 0.75rem !important;
+  padding: 0.25rem 0.55rem !important;
+}
+
+/* Form elements */
+.shell-content .form-label {
+  font-size: 0.8rem !important;
+}
+.shell-content .form-control,
+.shell-content .form-select {
+  font-size: 0.8rem !important;
+  padding: 0.4rem 0.65rem !important;
+}
+
+/* Badges */
+.shell-content .badge {
+  font-size: 0.7rem !important;
+  padding: 0.28rem 0.55rem !important;
+}
+
+/* Cards */
+.shell-content .card-header {
+  padding: 0.65rem 0.9rem !important;
+}
+.shell-content .card-body {
+  padding: 0.85rem !important;
+}
+
+/* Tables */
+.shell-content table th {
+  font-size: 0.78rem !important;
+  padding: 0.55rem 0.7rem !important;
+}
+.shell-content table td {
+  font-size: 0.8rem !important;
+  padding: 0.55rem 0.7rem !important;
+}
+
+/* Page headers (gradient banners) */
+.shell-content .page-header,
+.shell-content .admin-header {
+  padding: 1rem 0 !important;
+}
+
+/* Stats boxes */
+.shell-content .stats-quick,
+.shell-content .admin-stats-quick {
+  padding: 0.6rem 0.9rem !important;
+}
+.shell-content .stat-item {
+  padding: 0.55rem 0.9rem !important;
+}
+
+/* Container padding */
+.shell-content .container-fluid {
+  padding-left: 1.1rem !important;
+  padding-right: 1.1rem !important;
+}
+
+/* Module cards */
+.shell-content .module-title {
+  font-size: 1.0rem !important;
+}
+.shell-content .module-description {
+  font-size: 0.82rem !important;
+}
+.shell-content .detail-item {
+  font-size: 0.78rem !important;
+}
+
+/* Filters section */
+.shell-content .filters-section {
+  padding: 1rem !important;
+}
+
+/* Learning modules container */
+.shell-content .learning-modules-container {
+  padding: 1.25rem !important;
+}
+
+/* Page content sections */
+.shell-content .page-content,
+.shell-content .admin-content {
+  padding: 1rem 0 !important;
+}
+
+/* Action bars */
+.shell-content .action-bar {
+  margin-bottom: 1rem !important;
+}
+
+/* Results summary */
+.shell-content .results-summary {
+  padding: 0.65rem 1rem !important;
+  margin-bottom: 1rem !important;
 }

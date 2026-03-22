@@ -1,105 +1,168 @@
 <!-- src/app/components/teacher-dashboard/teacher-dashboard.component.html -->
 
-<div class="dashboard-container">
-  <div class="scrollable-content dashboard">
-
-  <!-- Teacher Navigation -->
-  <div class="teacher-nav mb-4">
-    <div class="d-flex gap-2 flex-wrap">
-      <button class="btn btn-outline-primary" routerLink="/teacher-dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
-        <i class="fas fa-users"></i> My Students
-      </button>
-      <button class="btn btn-outline-success" routerLink="/teacher/meetings" routerLinkActive="active">
-        <i class="fas fa-calendar-alt"></i> My Meetings
-      </button>
-      <button class="btn btn-outline-info" routerLink="/teacher/meetings/create" routerLinkActive="active">
-        <i class="fas fa-video"></i> Create Meeting
-      </button>
-      
-      <!-- Admin Features for TEACHER_ADMIN -->
-      <ng-container *ngIf="isTeacherAdmin()">
-        <button class="btn btn-outline-danger" routerLink="/admin-dashboard" routerLinkActive="active">
-          <i class="fas fa-user-graduate"></i> Manage All Students
-        </button>
-        <button class="btn btn-outline-warning" routerLink="/teachers" routerLinkActive="active">
-          <i class="fas fa-chalkboard-teacher"></i> Manage Teachers
-        </button>
-        <button class="btn btn-outline-secondary" routerLink="/admin-analytics" routerLinkActive="active">
-          <i class="fas fa-chart-line"></i> Analytics
-        </button>
-      </ng-container>
+<div class="teacher-dashboard">
+  <!-- Header Section -->
+  <div class="teacher-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="teacher-title">
+            <i class="fas fa-users"></i>
+            My Students
+          </h1>
+          <p class="teacher-subtitle">View and monitor your assigned students</p>
+        </div>
+        <div class="col-md-4 text-end">
+          <div class="teacher-stats-quick">
+            <div class="stat-item">
+              <span class="stat-number">{{ filteredStudents.length }}</span>
+              <span class="stat-label">Total Students</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="filters">
-  <select [(ngModel)]="filters.level" (change)="applyFilters()">
-    <option value="">Filter by Level</option>
-    <option value="A1">A1</option>
-    <option value="A2">A2</option>
-    <option value="B1">B1</option>
-    <option value="B2">B2</option>
-  </select>
+  <!-- Main Content Area -->
+  <div class="teacher-content">
+    <div class="container-fluid">
 
-  <select [(ngModel)]="filters.plan" (change)="applyFilters()">
-    <option value="">Filter by Plan</option>
-    <option value="PLATINUM">PLATINUM</option>
-    <option value="SILVER">SILVER</option>
-  </select>
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <div class="row align-items-center">
+          <div class="col-md-6">
+            <!-- Admin Features for TEACHER_ADMIN -->
+            <ng-container *ngIf="isTeacherAdmin()">
+              <button class="btn btn-outline-danger me-2" routerLink="/admin-dashboard">
+                <i class="fas fa-user-graduate"></i>
+                Manage All Students
+              </button>
+              <button class="btn btn-outline-warning me-2" routerLink="/teachers">
+                <i class="fas fa-chalkboard-teacher"></i>
+                Manage Teachers
+              </button>
+            </ng-container>
+          </div>
+          <div class="col-md-6 text-end">
+          </div>
+        </div>
+      </div>
 
-  <input type="number" [(ngModel)]="filters.batch" placeholder="Filter by Batch" (input)="applyFilters()">
+      <!-- Filters Section -->
+      <div class="filters-card">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="fas fa-filter"></i>
+              Filter Students
+            </h5>
+            <button class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">
+              <i class="fas fa-times"></i> Clear Filters
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label">Student Name</label>
+                <input type="text" class="form-control" [(ngModel)]="filters.name" placeholder="Search by name..." (input)="applyFilters()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Level</label>
+                <select class="form-select" [(ngModel)]="filters.level" (change)="applyFilters()">
+                  <option value="">All Levels</option>
+                  <option value="A1">A1</option>
+                  <option value="A2">A2</option>
+                  <option value="B1">B1</option>
+                  <option value="B2">B2</option>
+                  <option value="C1">C1</option>
+                  <option value="C2">C2</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Plan</label>
+                <select class="form-select" [(ngModel)]="filters.plan" (change)="applyFilters()">
+                  <option value="">All Plans</option>
+                  <option value="PLATINUM">Platinum</option>
+                  <option value="SILVER">Silver</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Batch</label>
+                <input type="number" class="form-control" [(ngModel)]="filters.batch" placeholder="Batch #" (input)="applyFilters()">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  </div>
+      <!-- Results Summary -->
+      <div class="results-summary">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="results-info">
+            <span class="results-count">{{ filteredStudents.length }}</span>
+            <span class="results-text">students found</span>
+          </div>
+        </div>
+      </div>
 
-  <!-- Students Table -->
-  <table class="students-table">
-    <thead>
-      <tr>
-        <!-- <th></th> -->
-         <th>Registration No</th>
-        <th>Name</th>
-        <th>Plan</th>
-        <th>Batch</th>
-        <th>Level</th>
-        <th>Bot Remaining Minutes</th>
-        <th>Subscription Update Date</th>
-  
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let student of filteredStudents; trackBy: trackById">
-        <td data-label="Registration No">{{ student.regNo || 'N/A' }}</td>
-        <td data-label="Name">{{ student.name }}</td>
-        <td data-label="Plan">{{student.subscription}}</td>
-        <td data-label="Batch">{{ student.batch || 'N/A' }}</td>
-        <td data-label="Level">{{ student.level || 'N/A' }}</td>
-        <td data-label="Bot Remaining Minutes">{{ student.remainingMinutes ?? 'N/A' }}</td>
-        <td data-label="Subscription Update Date">{{ student.planUpgradeDate ?? 'N/A' }}</td>
-      </tr>
-    </tbody>
-  </table>
+      <!-- Students Table -->
+      <div class="data-table-card">
+        <div class="card">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-dark">
+                <tr>
+                  <th>Reg No</th>
+                  <th>Student Info</th>
+                  <th>Plan</th>
+                  <th>Batch</th>
+                  <th>Level</th>
+                  <th>Medium</th>
+                  <th>Status</th>
+                  <th>Last Credentials Sent</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let student of filteredStudents; trackBy: trackById">
+                  <td>
+                    <span class="reg-number">{{ student.regNo || 'N/A' }}</span>
+                  </td>
+                  <td>
+                    <div class="student-info">
+                      <div class="student-name">{{ student.name }}</div>
+                      <div class="student-email">{{ student.email }}</div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge bg-primary">{{ student.subscription || 'N/A' }}</span>
+                  </td>
+                  <td>{{ student.batch || 'N/A' }}</td>
+                  <td>
+                    <span class="badge bg-info">{{ student.level || 'N/A' }}</span>
+                  </td>
+                  <td>{{ student.medium || 'N/A' }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="{
+                      'bg-success': student.studentStatus === 'COMPLETED',
+                      'bg-primary': student.studentStatus === 'ONGOING',
+                      'bg-warning': student.studentStatus === 'UNCERTAIN',
+                      'bg-danger': student.studentStatus === 'DROPPED' || student.studentStatus === 'WITHDREW',
+                      'bg-secondary': !student.studentStatus
+                    }">
+                      {{ student.studentStatus || 'N/A' }}
+                    </span>
+                  </td>
+                  <td>
+                    <small class="text-muted">{{ formatDate(student.lastCredentialsEmailSent) }}</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
+    </div>
   </div>
 </div>
-
-<section class="teacher-assignments-section">
-  <h2>Exams & Assignments</h2>
-  
-  <div class="assignments-card">
-    <app-teacher-assignments></app-teacher-assignments>
-  </div>
-</section>
-
-
-<section class="teacher-assignments-section">
-  <app-teacher-assignment-templates></app-teacher-assignment-templates>
-</section>
-
-<section class="teacher-assignments-section">
-  <app-teacher-assignments></app-teacher-assignments>
-</section>
-
-<section class="teacher-notifications-section">
-  <app-teacher-notifications></app-teacher-notifications>
-</section>
-
-  

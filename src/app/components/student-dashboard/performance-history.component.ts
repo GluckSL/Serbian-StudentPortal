@@ -343,52 +343,192 @@ interface PerformanceStats {
     </div>
   `,
   styles: [`
+    :host {
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .container-fluid {
+      max-width: 1100px;
+      padding: 14px;
+    }
+    .card {
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+    }
+    .card-header {
+      background: #b3cde0;
+      color: #011f4b;
+      border-radius: 14px 14px 0 0 !important;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e8ecf4;
+    }
+    .card-header h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #011f4b;
+    }
+    .card-body {
+      padding: 14px 16px;
+    }
+    .card-body h5 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .form-select-sm {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-primary {
+      background: #005b96;
+      border-color: #005b96;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+    .btn-primary:hover {
+      background: #03396c;
+      border-color: #03396c;
+    }
+    .btn-outline-primary {
+      color: #005b96;
+      border-color: #005b96;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 8px;
+    }
+    .btn-outline-primary:hover {
+      background: #005b96;
+      border-color: #005b96;
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #6497b1;
+      border-color: #6497b1;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
     .stat-card {
       transition: transform 0.2s;
-      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px !important;
+      border: none !important;
     }
     .stat-card:hover {
       transform: translateY(-2px);
     }
-    .bg-purple {
-      background-color: #6f42c1 !important;
+    .stat-card h4 {
+      font-size: 16px;
+      font-weight: 700;
     }
+    .stat-card small {
+      font-size: 10px;
+    }
+    .bg-primary { background-color: #005b96 !important; }
+    .bg-success { background-color: #28a745 !important; }
+    .bg-info { background-color: #6497b1 !important; }
+    .bg-warning { background-color: #f59e0b !important; }
+    .bg-secondary { background-color: #64748b !important; }
+    .bg-dark { background-color: #011f4b !important; }
+    .bg-purple { background-color: #03396c !important; }
+    .bg-danger { background-color: #FC5C65 !important; }
     .module-group {
-      border: 1px solid #dee2e6;
-      border-radius: 0.375rem;
+      border: 1px solid #e8ecf4;
+      border-radius: 12px;
       overflow: hidden;
+    }
+    .module-header {
+      background: #f1f5f9 !important;
+      padding: 10px 14px !important;
+    }
+    .module-header h6 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .module-header small {
+      font-size: 10px;
+      color: #94a3b8;
     }
     .sessions-timeline {
       background: white;
     }
     .session-card {
-      border-bottom: 1px solid #f0f0f0;
+      border-bottom: 1px solid #f1f5f9;
       transition: background-color 0.2s;
+      padding: 10px 14px !important;
     }
     .session-card:hover {
-      background-color: #f8f9fa !important;
+      background-color: #f8fafc !important;
     }
     .session-card:last-child {
       border-bottom: none;
     }
+    .session-card strong {
+      font-size: 12px;
+    }
+    .session-card small {
+      font-size: 11px;
+    }
     .attempt-badge .badge-lg {
-      font-size: 0.9em;
-      padding: 0.5em 0.8em;
+      font-size: 10px;
+      padding: 3px 8px;
+    }
+    .badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
     }
     .vocabulary-tags {
       max-height: 60px;
       overflow-y: auto;
     }
+    .vocabulary-tags .badge {
+      font-size: 10px;
+    }
     .improvement-indicator {
       margin-left: 2rem;
       border-left: 3px solid #28a745;
+      font-size: 11px;
     }
     .status-icon i {
-      font-size: 1.5em;
+      font-size: 1.2em;
+    }
+    .status-text {
+      font-size: 10px;
     }
     .vocabulary-display {
       max-height: 120px;
       overflow-y: auto;
+    }
+    .text-muted {
+      font-size: 11px;
+    }
+    .modal-title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .modal-body h6 {
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .modal-body li {
+      font-size: 12px;
+    }
+    .modal-body .bg-light h5 {
+      font-size: 14px;
+    }
+    .modal-body .bg-light small {
+      font-size: 10px;
+    }
+    .session-metrics div {
+      font-size: 12px;
+    }
+    .session-metrics small {
+      font-size: 11px;
     }
   `]
 })

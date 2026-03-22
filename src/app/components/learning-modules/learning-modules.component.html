@@ -1,191 +1,132 @@
 <!-- src/app/components/learning-modules/learning-modules.component.html -->
 
 <div class="learning-modules-container">
-  <!-- Header -->
-  <div class="page-header">
-    <div class="header-content">
-      <div class="title-section">
-        <h1>Learning Modules</h1>
-        <p class="subtitle">Discover and practice with AI-powered tutoring</p>
-        
-        <!-- Subscription Status Badge -->
-        <div class="subscription-status" *ngIf="isStudent()">
-          <span class="badge" 
-                [class.badge-warning]="getSubscriptionBadge() === 'SILVER'"
-                [class.badge-success]="getSubscriptionBadge() === 'PLATINUM'"
-                [class.badge-secondary]="getSubscriptionBadge() === 'No Subscription'">
-            <i class="fas" 
-               [class.fa-star]="getSubscriptionBadge() === 'SILVER'"
-               [class.fa-crown]="getSubscriptionBadge() === 'PLATINUM'"
-               [class.fa-user]="getSubscriptionBadge() === 'No Subscription'"></i>
-            {{ getSubscriptionBadge() }} Subscription
+  <!-- ═══ Header card ═══ -->
+  <div class="lm-header-card">
+    <div class="lm-header-top">
+      <div class="lm-header-left">
+        <span class="lm-header-title">📚 Learning Modules</span>
+        <span class="lm-header-sub">Discover and practice with AI-powered tutoring</span>
+      </div>
+      <div class="lm-header-right">
+        <span class="lm-sub-badge" *ngIf="isStudent()"
+              [class.lm-sub-badge--platinum]="getSubscriptionBadge() === 'PLATINUM'"
+              [class.lm-sub-badge--silver]="getSubscriptionBadge() === 'SILVER'"
+              [class.lm-sub-badge--none]="getSubscriptionBadge() === 'No Subscription'">
+          <i class="fas"
+             [class.fa-crown]="getSubscriptionBadge() === 'PLATINUM'"
+             [class.fa-star]="getSubscriptionBadge() === 'SILVER'"
+             [class.fa-user]="getSubscriptionBadge() === 'No Subscription'"></i>
+          {{ getSubscriptionBadge() }}
+        </span>
+        <div class="lm-header-actions">
+          <button class="lm-action-btn" *ngIf="isStudent()" (click)="loadRecommendedModules()" title="Show Recommended">
+            <i class="fas fa-star"></i> Recommended
+          </button>
+          <button class="lm-action-btn" *ngIf="isStudent()" (click)="loadModules()" title="Show All Accessible">
+            <i class="fas fa-list"></i> All
+          </button>
+          <button class="lm-action-btn" (click)="testAudio()" title="Audio Test">
+            <i class="fas fa-microphone-alt"></i> Audio
+          </button>
+          <button class="lm-action-btn lm-action-btn--primary" (click)="createNewModule()" *ngIf="isTeacherOrAdmin()">
+            <i class="fas fa-plus"></i> Create
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level progression -->
+    <div class="lm-level-row" *ngIf="isStudent() && getCurrentLevelInfo()">
+      <span class="lm-level-label">
+        <i class="fas fa-graduation-cap"></i> {{ formatLevel(currentUser.level) }}
+      </span>
+      <div class="lm-level-track">
+        <ng-container *ngFor="let level of levelAccessService.getAllLevels(); let i = index">
+          <span class="lm-level-chip"
+                [class.lm-level-chip--done]="levelAccessService.canAccessModule(currentUser.level, level.code) && level.code !== currentUser.level"
+                [class.lm-level-chip--current]="level.code === currentUser.level"
+                [class.lm-level-chip--locked]="!levelAccessService.canAccessModule(currentUser.level, level.code)"
+                [title]="level.description">
+            <i class="fas"
+               [class.fa-check]="levelAccessService.canAccessModule(currentUser.level, level.code) && level.code !== currentUser.level"
+               [class.fa-star]="level.code === currentUser.level"
+               [class.fa-lock]="!levelAccessService.canAccessModule(currentUser.level, level.code)"
+               style="font-size:8px;"></i>
+            {{ level.code }}
           </span>
-          <small class="text-muted ms-2" *ngIf="getSubscriptionBadge() !== 'PLATINUM'">
-            <i class="fas fa-info-circle"></i> AI Tutoring requires PLATINUM
-          </small>
-        </div>
-        
-        <!-- Level Progression for Students -->
-        <div class="level-progression" *ngIf="isStudent() && getCurrentLevelInfo()">
-          <div class="level-info">
-            <span class="current-level">
-              <i class="fas fa-graduation-cap"></i>
-              Current Level: <strong>{{ formatLevel(currentUser.level) }}</strong>
-            </span>
-            <div class="progression-path mt-2">
-              <ng-container *ngFor="let level of levelAccessService.getAllLevels(); let i = index">
-                <span class="level-badge"
-                      [class.completed]="levelAccessService.canAccessModule(currentUser.level, level.code)"
-                      [class.current]="level.code === currentUser.level"
-                      [class.locked]="!levelAccessService.canAccessModule(currentUser.level, level.code)"
-                      [title]="level.description">
-                  <i class="fas" 
-                     [class.fa-check-circle]="levelAccessService.canAccessModule(currentUser.level, level.code) && level.code !== currentUser.level"
-                     [class.fa-star]="level.code === currentUser.level"
-                     [class.fa-lock]="!levelAccessService.canAccessModule(currentUser.level, level.code)"></i>
-                  {{ level.code }}
-                </span>
-                <i class="fas fa-arrow-right progression-arrow" *ngIf="i < levelAccessService.getAllLevels().length - 1"></i>
-              </ng-container>
-            </div>
-            <small class="text-muted">
-              You can access modules at your level ({{ currentUser.level }}) and below for review
-            </small>
-          </div>
-        </div>
+          <span class="lm-level-arrow" *ngIf="i < levelAccessService.getAllLevels().length - 1">→</span>
+        </ng-container>
       </div>
-      
-      <div class="header-actions">
-        <!-- Student Level Filters -->
-        <div class="level-filters" *ngIf="isStudent()">
-          <button class="btn btn-outline-info btn-sm me-2" (click)="loadRecommendedModules()">
-            <i class="fas fa-star"></i> Show Recommended
-          </button>
-          <button class="btn btn-outline-secondary btn-sm me-2" (click)="loadModules()">
-            <i class="fas fa-list"></i> Show All Accessible
-          </button>
-        </div>
-        
-        <button class="btn btn-outline-secondary" (click)="testAudio()">
-          <i class="fas fa-microphone-alt"></i> Audio Test
-        </button>
-        
-        <button class="btn btn-primary" (click)="createNewModule()" *ngIf="isTeacherOrAdmin()">
-          <i class="fas fa-plus"></i> Create Module
-        </button>
-      </div>
+      <span class="lm-level-hint">Access {{ currentUser.level }} and below</span>
+    </div>
+
+    <!-- Non-platinum hint -->
+    <div class="lm-upgrade-hint" *ngIf="isStudent() && getSubscriptionBadge() !== 'PLATINUM'">
+      <i class="fas fa-info-circle"></i> AI Tutoring requires PLATINUM subscription
     </div>
   </div>
 
-  <!-- Filters -->
-  <div class="filters-section">
-    <div class="filters-container">
-      <div class="row g-3">
-        <!-- Search -->
-        <div class="col-md-3">
-          <div class="form-group">
-            <label class="form-label">Search</label>
-            <input 
-              type="text" 
-              class="form-control"
-              [(ngModel)]="filters.search"
-              placeholder="Search modules..."
-              (keyup.enter)="applyFilters()">
-          </div>
-        </div>
-        
-        <!-- Target Language Filter -->
-        <div class="col-md-2">
-          <div class="form-group">
-            <label class="form-label">Target Language</label>
-            <select class="form-select" [(ngModel)]="filters.targetLanguage" (change)="applyFilters()">
-              <option value="">All Languages</option>
-              <option *ngFor="let language of targetLanguages" [value]="language">{{ language }}</option>
-            </select>
-          </div>
-        </div>
-        
-        <!-- Native Language Filter -->
-        <div class="col-md-2">
-          <div class="form-group">
-            <label class="form-label">Native Language</label>
-            <select class="form-select" [(ngModel)]="filters.nativeLanguage" (change)="applyFilters()">
-              <option value="">All Languages</option>
-              <option *ngFor="let language of nativeLanguages" [value]="language">{{ language }}</option>
-            </select>
-          </div>
-        </div>
-        
-        <!-- Level Filter -->
-        <div class="col-md-2">
-          <div class="form-group">
-            <label class="form-label">Level</label>
-            <select class="form-select" [(ngModel)]="filters.level" (change)="applyFilters()">
-              <option value="">All Levels</option>
-              <option *ngFor="let level of levels" [value]="level">{{ level }}</option>
-            </select>
-          </div>
-        </div>
-        
-        <!-- Category Filter -->
-        <div class="col-md-2">
-          <div class="form-group">
-            <label class="form-label">Category</label>
-            <select class="form-select" [(ngModel)]="filters.category" (change)="applyFilters()">
-              <option value="">All Categories</option>
-              <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
-            </select>
-          </div>
-        </div>
-        
-        <!-- Difficulty Filter -->
-        <div class="col-md-2">
-          <div class="form-group">
-            <label class="form-label">Difficulty</label>
-            <select class="form-select" [(ngModel)]="filters.difficulty" (change)="applyFilters()">
-              <option value="">All</option>
-              <option *ngFor="let difficulty of difficulties" [value]="difficulty">{{ difficulty }}</option>
-            </select>
-          </div>
-        </div>
-        
-        <!-- Actions -->
-        <div class="col-md-1">
-          <div class="form-group">
-            <label class="form-label">&nbsp;</label>
-            <div class="d-flex gap-2">
-              <button class="btn btn-outline-secondary btn-sm" (click)="clearFilters()" title="Clear Filters">
-                <i class="fas fa-times">Clear Filters</i>
-              </button>
-            </div>
-          </div>
-        </div>
+  <!-- ═══ Filters bar ═══ -->
+  <div class="lm-filters-card">
+    <div class="lm-filters-row">
+      <div class="lm-filter-group lm-filter-group--search">
+        <label class="lm-filter-label">Search</label>
+        <input type="text" class="lm-filter-input" [(ngModel)]="filters.search"
+               placeholder="Search modules..." (keyup.enter)="applyFilters()">
       </div>
+      <div class="lm-filter-group">
+        <label class="lm-filter-label">Target Lang</label>
+        <select class="lm-filter-select" [(ngModel)]="filters.targetLanguage" (change)="applyFilters()">
+          <option value="">All</option>
+          <option *ngFor="let language of targetLanguages" [value]="language">{{ language }}</option>
+        </select>
+      </div>
+      <div class="lm-filter-group">
+        <label class="lm-filter-label">Native Lang</label>
+        <select class="lm-filter-select" [(ngModel)]="filters.nativeLanguage" (change)="applyFilters()">
+          <option value="">All</option>
+          <option *ngFor="let language of nativeLanguages" [value]="language">{{ language }}</option>
+        </select>
+      </div>
+      <div class="lm-filter-group">
+        <label class="lm-filter-label">Level</label>
+        <select class="lm-filter-select" [(ngModel)]="filters.level" (change)="applyFilters()">
+          <option value="">All</option>
+          <option *ngFor="let level of levels" [value]="level">{{ level }}</option>
+        </select>
+      </div>
+      <div class="lm-filter-group">
+        <label class="lm-filter-label">Category</label>
+        <select class="lm-filter-select" [(ngModel)]="filters.category" (change)="applyFilters()">
+          <option value="">All</option>
+          <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
+        </select>
+      </div>
+      <div class="lm-filter-group">
+        <label class="lm-filter-label">Difficulty</label>
+        <select class="lm-filter-select" [(ngModel)]="filters.difficulty" (change)="applyFilters()">
+          <option value="">All</option>
+          <option *ngFor="let difficulty of difficulties" [value]="difficulty">{{ difficulty }}</option>
+        </select>
+      </div>
+      <button class="lm-clear-btn" (click)="clearFilters()" title="Clear all filters">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
   </div>
 
-  <!-- View Toggle -->
-  <div class="view-controls">
-    <div class="view-toggle">
-      <button 
-        class="btn btn-sm"
-        [class.btn-primary]="viewMode === 'grid'"
-        [class.btn-outline-primary]="viewMode !== 'grid'"
-        (click)="viewMode = 'grid'">
+  <!-- ═══ View toggle + count ═══ -->
+  <div class="lm-toolbar">
+    <div class="lm-view-toggle">
+      <button class="lm-view-btn" [class.lm-view-btn--active]="viewMode === 'grid'" (click)="viewMode = 'grid'">
         <i class="fas fa-th"></i> Grid
       </button>
-      <button 
-        class="btn btn-sm"
-        [class.btn-primary]="viewMode === 'list'"
-        [class.btn-outline-primary]="viewMode !== 'list'"
-        (click)="viewMode = 'list'">
+      <button class="lm-view-btn" [class.lm-view-btn--active]="viewMode === 'list'" (click)="viewMode = 'list'">
         <i class="fas fa-list"></i> List
       </button>
     </div>
-    
-    <div class="results-info">
-      Showing {{ modules.length }} of {{ pagination.total }} modules
-    </div>
+    <span class="lm-results-count">Showing {{ modules.length }} of {{ pagination.total }} modules</span>
   </div>
 
   <!-- Loading State -->
@@ -322,30 +263,25 @@
                 </div>
                 
                 <!-- AI Tutoring Buttons - PLATINUM ONLY -->
-                <div class="btn-group" *ngIf="canStartTutoring(module) && canAccessAiTutoring() && canAccessModule(module)">
-                  <button 
-                    class="btn btn-success btn-sm"
-                    (click)="startTutoring(module, 'practice')">
-                    <i class="fas fa-robot"></i> Start AI Practice
-                  </button>
-                  <button 
-                    type="button" 
-                    class="btn btn-success btn-sm dropdown-toggle dropdown-toggle-split" 
-                    data-bs-toggle="dropdown">
-                    <span class="visually-hidden">Toggle Dropdown</span>
+                <div class="dropdown" *ngIf="canStartTutoring(module) && canAccessAiTutoring() && canAccessModule(module)">
+                  <button class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-robot"></i> AI Tutor
                   </button>
                   <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" (click)="startTutoring(module, 'practice')">
+                      <i class="fas fa-book"></i> Practice
+                    </a></li>
                     <li><a class="dropdown-item" (click)="startTutoring(module, 'conversation')">
-                      <i class="fas fa-comments"></i> AI Conversation
+                      <i class="fas fa-comments"></i> Conversation
                     </a></li>
                     <li><a class="dropdown-item" (click)="startTutoring(module, 'assessment')">
-                      <i class="fas fa-clipboard-check"></i> AI Assessment
+                      <i class="fas fa-clipboard-check"></i> Assessment
                     </a></li>
                     <li><a class="dropdown-item" (click)="startTutoring(module, 'help')">
-                      <i class="fas fa-question-circle"></i> Get AI Help
+                      <i class="fas fa-question-circle"></i> Get Help
                     </a></li>
                     <li><a class="dropdown-item" (click)="startTutoring(module, 'review')">
-                      <i class="fas fa-redo"></i> AI Review
+                      <i class="fas fa-redo"></i> Review
                     </a></li>
                   </ul>
                 </div>

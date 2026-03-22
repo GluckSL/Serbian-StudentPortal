@@ -11,7 +11,7 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 
 // GET /api/admin-analytics/module-usage - Get detailed module usage analytics
-router.get('/module-usage', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+router.get('/module-usage', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     console.log('📊 Admin requesting module usage analytics');
     
@@ -233,7 +233,7 @@ router.get('/module-usage', verifyToken, checkRole(['ADMIN']), async (req, res) 
 });
 
 // GET /api/admin-analytics/teacher-performance - Get teacher batch performance analytics
-router.get('/teacher-performance', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+router.get('/teacher-performance', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     console.log('👨‍🏫 Admin requesting teacher performance analytics');
     
@@ -475,7 +475,7 @@ router.get('/teacher-performance', verifyToken, checkRole(['ADMIN']), async (req
 });
 
 // GET /api/admin-analytics/student-module-details - Get detailed student usage per module
-router.get('/student-module-details', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+router.get('/student-module-details', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     console.log('👨‍🎓 Admin requesting detailed student module usage');
     
@@ -623,7 +623,7 @@ router.get('/student-module-details', verifyToken, checkRole(['ADMIN']), async (
 });
 
 // GET /api/admin-analytics/teacher-module-details - Get detailed teacher usage per module
-router.get('/teacher-module-details', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+router.get('/teacher-module-details', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     console.log('👨‍🏫 Admin requesting detailed teacher module usage');
     
@@ -753,7 +753,7 @@ router.get('/teacher-module-details', verifyToken, checkRole(['ADMIN']), async (
 });
 
 // GET /api/admin-analytics/teacher-own-usage - Get teacher's own AI bot usage
-router.get('/teacher-own-usage', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+router.get('/teacher-own-usage', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     console.log('👨‍🎓 Admin requesting teacher own usage');
     
@@ -926,7 +926,7 @@ function getGroupByField(groupBy) {
 }
 
 // GET /api/admin-analytics/filter-options - Get available filter options
-router.get('/filter-options', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+router.get('/filter-options', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     console.log('📊 Admin requesting filter options');
     

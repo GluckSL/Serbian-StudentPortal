@@ -78,6 +78,8 @@ const meetingLinkSchema = new mongoose.Schema({
   // Attendance metadata
   attendanceRecorded: { type: Boolean, default: false },
   attendanceRecordedAt: Date,
+  attendanceRetries: { type: Number, default: 0 },
+  attendanceError: { type: String, default: '' },
   
   // Email notification status
   emailNotificationStatus: {

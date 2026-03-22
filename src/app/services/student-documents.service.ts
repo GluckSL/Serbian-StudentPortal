@@ -111,6 +111,17 @@ export class StudentDocumentsService {
     });
   }
 
+  // Get document requirements for the logged-in student (filtered by their servicesOpted)
+  getStudentRequirements(): Observable<{
+    success: boolean;
+    requirements: DocumentRequirement[];
+  }> {
+    return this.http.get<{
+      success: boolean;
+      requirements: DocumentRequirement[];
+    }>(`${this.apiUrl}/requirements`, { withCredentials: true });
+  }
+
   // Get document statistics
   getDocumentStats(): Observable<{
     success: boolean;

@@ -66,4 +66,32 @@ check-*.js
 fix-*.js
 convert-*.js
 get-*.js
-added-*.json 
+added-*.json
+test-*.js
+debug-*.js
+analyze-*.js
+backfill-*.js
+cleanup-*.js
+find-*.js
+reset-*.js
+migrate-*.js
+sync-*.js
+export-*.js
+list-all-*.js
+show-*.js
+sample-*.js
+manual-*.js
+health-check.js
+
+# One-off data dumps
+exports/
+*-export.json
+*-report-*.json
+*-raw-data.json
+students-export.json
+
+# Dev-only scripts folder
+scripts/
+
+# Batch files
+*.bat

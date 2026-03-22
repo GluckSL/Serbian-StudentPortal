@@ -6,19 +6,49 @@ const router = express.Router();
 const { verifyToken, checkRole } = require('../middleware/auth');
 const upload = require('../config/documentUpload');
 const StudentDocument = require('../models/StudentDocument');
+const DocumentRequirement = require('../models/DocumentRequirement');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 
-// GET /api/student-documents/requirements - Get document requirements list
-router.get('/requirements', verifyToken, checkRole(['STUDENT']), (req, res) => {
+// Services that don't require any documents
+const NO_DOCS_SERVICES = ['German Language Only', 'Language only', 'Only for language', 'None', ''];
+
+// GET /api/student-documents/requirements - Get document requirements for the logged-in student
+router.get('/requirements', verifyToken, checkRole(['STUDENT']), async (req, res) => {
   try {
-    const requirements = StudentDocument.getDocumentRequirements();
-    res.json({
-      success: true,
-      requirements
-    });
+    const student = await User.findById(req.user.id).select('servicesOpted').lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    const service = (student.servicesOpted || '').trim();
+
+    // If student's service doesn't require documents, return empty
+    if (!service || NO_DOCS_SERVICES.some(s => s.toLowerCase() === service.toLowerCase())) {
+      return res.json({ success: true, requirements: [] });
+    }
+
+    // Fetch active requirements that apply to this student's service
+    // Normalize: treat spaces and hyphens as interchangeable, case-insensitive
+    const normalized = service.replace(/[\s\-]+/g, '[\\s\\-]*');
+    const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+    const requirements = await DocumentRequirement.find({
+      active: true,
+      applicableServices: serviceRegex
+    }).sort({ order: 1 }).lean();
+
+    // Map to the shape the frontend expects
+    const mapped = requirements.map(r => ({
+      type: r.type,
+      label: r.label,
+      description: r.description,
+      required: r.required,
+      category: r.category
+    }));
+
+    res.json({ success: true, requirements: mapped });
   } catch (error) {
     console.error('❌ Error fetching document requirements:', error);
     res.status(500).json({
@@ -592,9 +622,20 @@ router.get('/stats', verifyToken, checkRole(['STUDENT']), async (req, res) => {
       { $group: { _id: '$documentType', count: { $sum: 1 } } }
     ]);
     
-    // Get required documents
-    const requirements = StudentDocument.getDocumentRequirements();
-    const requiredDocs = requirements.filter(r => r.required);
+    // Get required documents filtered by student's service
+    const service = (student.servicesOpted || '').trim();
+    let requiredDocs = [];
+    
+    if (service && !NO_DOCS_SERVICES.some(s => s.toLowerCase() === service.toLowerCase())) {
+      const normalized = service.replace(/[\s\-]+/g, '[\\s\\-]*');
+      const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+      requiredDocs = await DocumentRequirement.find({
+        active: true,
+        required: true,
+        applicableServices: serviceRegex
+      }).lean();
+    }
+    
     const uploadedRequiredDocs = documentsByType.filter(d => 
       requiredDocs.some(r => r.type === d._id)
     ).length;
@@ -629,6 +670,7 @@ function formatFileSize(bytes) {
 }
 
 function getDocumentTypeDisplayName(type) {
+  // For legacy types, provide display names; for new types, format the type key
   const displayNames = {
     'CV': 'CV',
     'O_LEVEL_CERTIFICATE': 'O Level Certificate',
@@ -644,7 +686,9 @@ function getDocumentTypeDisplayName(type) {
     'POLICE_CLEARANCE': 'Police Clearance',
     'OTHER': 'Other Document'
   };
-  return displayNames[type] || type;
+  if (displayNames[type]) return displayNames[type];
+  // Convert TYPE_KEY to Title Case
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 // POST /api/student-documents/admin/send-email - Send custom email to a student (Admin only)

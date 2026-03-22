@@ -30,108 +30,64 @@
       
       <!-- Action Bar -->
       <div class="action-bar">
-        <div class="row align-items-center">
-          <div class="col-md-6">
+        <div class="action-bar-row">
+          <div class="action-group-left">
             <button class="btn btn-primary btn-add-user" routerLink="/signup">
-              <i class="fas fa-plus"></i>
-              Add New Student
+              <i class="fas fa-plus"></i> Add New Student
+            </button>
+            <button class="btn btn-success" (click)="showBulkUpload = !showBulkUpload">
+              <i class="fas fa-upload"></i> Bulk Upload
+            </button>
+            <button class="btn btn-secondary btn-assign-teacher-by-batch" (click)="openAssignTeacherByBatchModal()">
+              <i class="fas fa-edit"></i> Assign Tutor
             </button>
 
-            <button class="btn btn-success ms-2" (click)="showBulkUpload = !showBulkUpload">
-              <i class="fas fa-upload"></i>
-              Bulk Upload
+            <span class="action-divider"></span>
+
+            <button class="btn btn-warning" (click)="openBulkEditPanel()" [disabled]="getSelectedCount() === 0">
+              <i class="fas fa-edit"></i> Bulk Edit ({{ getSelectedCount() }})
             </button>
-
-            <button 
-              class=" btn btn-secondary ms-2 btn-assign-teacher-by-batch"
-              (click)="openAssignTeacherByBatchModal()"
-            >
-              <i class="fas fa-edit"></i>
-              Assign Tutor
+            <button class="btn btn-outline-success" (click)="exportSelectedStudents()" [disabled]="getSelectedCount() === 0">
+              <i class="fas fa-download"></i> Export ({{ getSelectedCount() }})
             </button>
-
-            <!-- Assign Teacher By Batch Section -->
-            <div *ngIf="showAssignTeacherByBatch" class="card mt-3 p-3">
-
-              <div class="row g-3 align-items-end">
-
-                <div class="col-md-4">
-                  <label class="form-label">Batch Number</label>
-                  <input type="number"
-                        class="form-control"
-                        [(ngModel)]="assignBatchNo"
-                        (ngModelChange)="onBatchChange($event)">
-                </div>
-
-                <div class="col-md-4">
-                  <label class="form-label">Teacher</label>
-                  <select class="form-select"
-                          [(ngModel)]="assignTeacherId"
-                          [disabled]="batchTeachers.length === 0">
-                    <option value="">Select Teacher</option>
-                    <option *ngFor="let teacher of batchTeachers"
-                            [value]="teacher._id">
-                      {{ teacher.name }}
-                    </option>
-                  </select>
-                  <small *ngIf="assignBatchNo && batchTeachers.length === 0" class="text-muted">
-                    No teachers registered for this batch
-                  </small>
-                </div>
-
-                <div class="col-md-4">
-                  <button class="btn btn-success w-100 btn-assign-teacher"
-                          (click)="updateAssignedTeacherByBatchNo(assignBatchNo, assignTeacherId)">
-                    Assign Teacher
-                  </button>
-                </div>
-
-              </div>
-            </div>
-
-            <button 
-              class="btn btn-warning ms-2" 
-              (click)="openBulkEditPanel()"
-              [disabled]="getSelectedCount() === 0"
-            >
-              <i class="fas fa-edit"></i>
-              Bulk Edit ({{ getSelectedCount() }})
-            </button>
-
-            <button 
-              class="btn btn-danger ms-2" 
-              (click)="bulkDeleteStudents()"
-              [disabled]="getSelectedCount() === 0"
-            >
-              <i class="fas fa-trash"></i>
-              Bulk Delete ({{ getSelectedCount() }})
-            </button>
-
-            <button 
-              class="btn btn-success ms-2" 
-              (click)="exportSelectedStudents()"
-              [disabled]="getSelectedCount() === 0"
-            >
-              <i class="fas fa-download"></i>
-              Export Selected ({{ getSelectedCount() }})
-            </button>
-
-            <button class="btn btn-info ms-2" routerLink="/student-logs">
-              <i class="fas fa-history"></i>
-              Student Logs
+            <button class="btn btn-outline-danger" (click)="bulkDeleteStudents()" [disabled]="getSelectedCount() === 0">
+              <i class="fas fa-trash"></i> Delete ({{ getSelectedCount() }})
             </button>
           </div>
-          <div class="col-md-6 text-end">
+          <div class="action-group-right">
+            <button class="btn btn-info" routerLink="/student-logs">
+              <i class="fas fa-history"></i> Student Logs
+            </button>
             <button class="btn btn-outline-secondary" (click)="clearFilters()">
-              <i class="fas fa-times"></i>
-              Clear Filters
+              <i class="fas fa-times"></i> Clear Filters
             </button>
-
-      <!-- Bulk Upload Section -->
-      <div *ngIf="showBulkUpload" class="bulk-upload-section mt-4">
-        <app-bulk-student-upload></app-bulk-student-upload>
-      </div>
           </div>
+        </div>
+
+        <!-- Assign Teacher By Batch Section -->
+        <div *ngIf="showAssignTeacherByBatch" class="card mt-3 p-3">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label">Batch Number</label>
+              <input type="number" class="form-control" [(ngModel)]="assignBatchNo" (ngModelChange)="onBatchChange($event)">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Teacher</label>
+              <select class="form-select" [(ngModel)]="assignTeacherId" [disabled]="batchTeachers.length === 0">
+                <option value="">Select Teacher</option>
+                <option *ngFor="let teacher of batchTeachers" [value]="teacher._id">{{ teacher.name }}</option>
+              </select>
+              <small *ngIf="assignBatchNo && batchTeachers.length === 0" class="text-muted">No teachers registered for this batch</small>
+            </div>
+            <div class="col-md-4">
+              <button class="btn btn-success w-100 btn-assign-teacher" (click)="updateAssignedTeacherByBatchNo(assignBatchNo, assignTeacherId)">Assign Teacher</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Upload Section -->
+        <div *ngIf="showBulkUpload" class="bulk-upload-section mt-3">
+          <app-bulk-student-upload></app-bulk-student-upload>
         </div>
       </div>
 

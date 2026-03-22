@@ -1,0 +1,95 @@
+.vs { max-width: 1100px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; gap: 14px; }
+.vs-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.vs-title { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0; }
+.vs-subtitle { font-size: 12px; color: #64748b; margin: 2px 0 0; }
+.vs-back { font-size: 12px; font-weight: 600; color: #1d4ed8; text-decoration: none; padding: 4px 10px; border-radius: 8px; }
+.vs-back:hover { background: #eff6ff; }
+
+.vs-card { background: #fff; border-radius: 14px; padding: 16px 18px; box-shadow: 0 2px 12px rgba(15,23,42,0.07); border: 1px solid #e8ecf4; }
+
+/* Stepper */
+.vs-stepper { display: flex; align-items: flex-start; padding: 8px 0 14px; }
+.vs-step { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; min-width: 60px; }
+.vs-step__dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #d1d5db; background: #f9fafb; margin-bottom: 5px; }
+.vs-step--active .vs-step__dot { border-color: #3b82f6; background: #dbeafe; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.vs-step--done .vs-step__dot { border-color: #22c55e; background: #dcfce7; }
+.vs-step__label { font-size: 10px; color: #6b7280; text-align: center; max-width: 70px; line-height: 1.2; }
+.vs-step__line { flex: 1; height: 2px; background: #e5e7eb; margin-top: 7px; min-width: 10px; }
+.vs-step__line--done { background: #4ade80; }
+
+/* Progress */
+.vs-progress { margin-bottom: 10px; }
+.vs-progress__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.vs-progress__title { font-size: 13px; font-weight: 700; color: #0f172a; }
+.vs-progress__pct { font-size: 16px; font-weight: 800; color: #1d4ed8; }
+.vs-bar { height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+.vs-bar__fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width 0.4s ease; }
+
+/* Dates */
+.vs-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+.vs-date { display: flex; flex-direction: column; gap: 2px; }
+.vs-date__label { font-size: 10px; color: #64748b; }
+.vs-date__val { font-size: 12px; font-weight: 700; color: #1e293b; }
+
+/* Stages */
+.vs-stages { display: flex; flex-direction: column; gap: 10px; }
+.vs-stage { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.vs-stage--active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.10); }
+.vs-stage--done { border-color: #bbf7d0; }
+.vs-stage--future { opacity: 0.5; }
+.vs-stage__head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.vs-stage--active .vs-stage__head { background: #eff6ff; }
+.vs-stage--done .vs-stage__head { background: #f0fdf4; }
+.vs-stage__num { width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #64748b; flex-shrink: 0; }
+.vs-stage__num--active { background: #3b82f6; color: #fff; }
+.vs-stage__num--done { background: #22c55e; color: #fff; }
+.vs-stage__name { flex: 1; font-size: 13px; font-weight: 600; color: #334155; }
+.vs-stage__outcome { font-size: 10px; font-weight: 700; padding: 2px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
+.vs-stage__outcome--completed { background: #dcfce7; color: #166534; }
+.vs-stage__outcome--rejected { background: #fee2e2; color: #dc2626; }
+.vs-stage__outcome--progress { background: #dbeafe; color: #1d4ed8; }
+.vs-stage__date { font-size: 10px; color: #64748b; }
+.vs-stage__body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.vs-stage__msg { font-size: 12px; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 6px 10px; }
+.vs-stage__action { font-size: 12px; color: #9a3412; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 6px 10px; }
+.vs-stage__handled { font-size: 11px; color: #64748b; font-style: italic; }
+.vs-stage__stage-date { font-size: 11px; color: #334155; font-weight: 600; }
+
+/* Final outcome */
+.vs-final { background: #f8fafc; }
+.vs-final__row { display: flex; justify-content: space-between; align-items: center; }
+.vs-final__label { font-size: 13px; font-weight: 700; color: #0f172a; }
+.vs-final__val { font-size: 14px; font-weight: 800; text-transform: uppercase; }
+.vs-final__val--approved { color: #16a34a; }
+.vs-final__val--rejected { color: #dc2626; }
+.vs-final__note { font-size: 12px; color: #334155; margin-top: 6px; padding: 6px 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
+
+/* History */
+.vs-section-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 12px; }
+.vs-history { border-left: 2px solid #e2e8f0; padding-left: 14px; }
+.vs-history__item { position: relative; margin-bottom: 14px; }
+.vs-history__dot { position: absolute; left: -19px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; }
+.vs-history__content { display: flex; flex-direction: column; gap: 2px; }
+.vs-history__date { font-size: 10px; color: #94a3b8; }
+.vs-history__note { font-size: 12px; color: #1e293b; font-weight: 500; }
+.vs-history__by { font-size: 10px; color: #94a3b8; font-style: italic; }
+
+/* Spinner */
+.vs-spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: vs-spin 0.6s linear infinite; margin: 0 auto; }
+@keyframes vs-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  .vs-header { flex-direction: column; gap: 8px; }
+  .vs-dates { grid-template-columns: 1fr 1fr; }
+}
+
+/* Two-column layout */
+.vs-columns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; align-items: start; }
+.vs-col-left { display: flex; flex-direction: column; gap: 10px; }
+.vs-col-right { position: sticky; top: 20px; }
+.vs-history-card { max-height: calc(100vh - 60px); overflow-y: auto; }
+
+@media (max-width: 800px) {
+  .vs-columns { grid-template-columns: 1fr; }
+  .vs-col-right { position: static; }
+}

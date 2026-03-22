@@ -27,9 +27,14 @@ const documentRequirementSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['ACADEMIC', 'IDENTIFICATION', 'PROFESSIONAL', 'LEGAL', 'OTHER'],
+    enum: ['ACADEMIC', 'IDENTIFICATION', 'PROFESSIONAL', 'LEGAL', 'VISA', 'OTHER'],
     default: 'OTHER'
   },
+  // Which services this document applies to. Empty array = ALL services.
+  applicableServices: [{
+    type: String,
+    trim: true
+  }],
   order: {
     type: Number,
     default: 0

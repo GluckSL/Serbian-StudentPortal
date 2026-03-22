@@ -7,9 +7,9 @@
         <div class="col-md-8">
           <h1 class="admin-title">
             <i class="fas fa-chart-bar"></i>
-            Analytics Dashboard
+            {{ isTeacherRole ? 'AI Bot Report' : 'Analytics Dashboard' }}
           </h1>
-          <p class="admin-subtitle">Comprehensive insights into student learning and teacher performance</p>
+          <p class="admin-subtitle">{{ isTeacherRole ? 'Insights into your students\' learning activity' : 'Comprehensive insights into student learning and teacher performance' }}</p>
         </div>
         <div class="col-md-4 text-end">
           <div class="admin-stats-quick">
@@ -25,7 +25,6 @@
 
   <!-- Main Content Area -->
   <div class="container-fluid">
-    <p class="text-muted">Comprehensive insights into student usage, module performance, and teacher effectiveness</p>
 
   <!-- Navigation Tabs -->
   <ul class="nav nav-tabs mb-4">
@@ -43,7 +42,7 @@
         <i class="fas fa-book"></i> Module Usage
       </button>
     </li>
-    <li class="nav-item">
+    <li class="nav-item" *ngIf="!isTeacherRole">
       <button class="nav-link" 
               [class.active]="activeTab === 'teacher-performance'"
               (click)="setActiveTab('teacher-performance')">
@@ -106,7 +105,7 @@
             </option>
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2" *ngIf="!isTeacherRole">
           <label class="form-label">Teacher</label>
           <select class="form-select form-select-sm" [(ngModel)]="moduleUsageFilters.teacherId">
             <option value="">All Teachers</option>
@@ -566,7 +565,7 @@
     <!-- Filters -->
     <div class="filters-section mb-4">
       <div class="row">
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label">Student Name</label>
           <mat-form-field class="w-100" appearance="outline">
             <input type="text"
@@ -607,7 +606,7 @@
           <label class="form-label">Date To</label>
           <input type="date" class="form-control form-control-sm" [(ngModel)]="moduleUsageFilters.dateTo">
         </div>
-        <div class="col-md-1">
+        <div class="col-md-2">
           <label class="form-label">Actions</label>
           <div class="d-flex gap-1">
             <button class="btn btn-primary btn-sm" (click)="loadAIUsageData()">

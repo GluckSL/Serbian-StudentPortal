@@ -77,21 +77,8 @@ export class DocumentVerificationComponent implements OnInit {
   // Loading states
   loading: boolean = false;
   
-  // Document types
-  documentTypes = [
-    { value: 'CV', label: 'CV' },
-    { value: 'O_LEVEL_CERTIFICATE', label: 'O Level Certificate' },
-    { value: 'A_LEVEL_CERTIFICATE', label: 'A Level Certificate' },
-    { value: 'BROWN_CERTIFICATE', label: 'Brown Certificate' },
-    { value: 'DEGREE_DIPLOMA', label: 'Degree / Diploma' },
-    { value: 'ACADEMIC_TRANSCRIPT', label: 'Academic Transcript' },
-    { value: 'PASSPORT', label: 'Passport' },
-    { value: 'EXPERIENCE_LETTER', label: 'Experience Letter' },
-    { value: 'LANGUAGE_CERTIFICATE', label: 'Language Certificate' },
-    { value: 'EXTRACURRICULAR_CERTIFICATE', label: 'Extra-curricular Certificate' },
-    { value: 'AFFIDAVIT', label: 'Affidavit' },
-    { value: 'POLICE_CLEARANCE', label: 'Police Clearance' }
-  ];
+  // Document types - populated dynamically from requirements
+  documentTypes: { value: string; label: string }[] = [];
   
   displayedColumns: string[] = [
     'select',
@@ -167,6 +154,7 @@ export class DocumentVerificationComponent implements OnInit {
     { value: 'IDENTIFICATION', label: 'Identification' },
     { value: 'PROFESSIONAL', label: 'Professional' },
     { value: 'LEGAL', label: 'Legal' },
+    { value: 'VISA', label: 'Visa' },
     { value: 'OTHER', label: 'Other' }
   ];
 
@@ -174,6 +162,66 @@ export class DocumentVerificationComponent implements OnInit {
   showEmailDialog = false;
   emailForm = { to: '', studentName: '', subject: '', message: '' };
   sendingEmail = false;
+
+  // ========== EXPORT CSV ==========
+
+  exportToCSV(): void {
+    if (this.documents.length === 0) {
+      this.snackBar.open('No documents to export', 'Close', { duration: 3000 });
+      return;
+    }
+
+    // Get all unique document types from requirements
+    const docTypes = this.requirements.map(r => r.type);
+    const docLabels = this.requirements.map(r => r.label);
+
+    // Group documents by student
+    const studentMap = new Map<string, any>();
+    this.documents.forEach(doc => {
+      const id = typeof doc.studentId === 'object' && doc.studentId !== null
+        ? (doc.studentId as any)._id : doc.studentId;
+      const idStr = String(id);
+      if (!studentMap.has(idStr)) {
+        studentMap.set(idStr, {
+          name: doc.studentName,
+          email: doc.studentEmail,
+          service: (doc as any).servicesOpted || '',
+          docs: new Map<string, string>()
+        });
+      }
+      // Store status for this doc type (latest wins if duplicates)
+      studentMap.get(idStr).docs.set(doc.documentType, doc.status);
+    });
+
+    // Build CSV header
+    const headers = ['Student Name', 'Email', 'Service Opted', ...docLabels];
+    const rows: string[] = [headers.map(h => `"${h}"`).join(',')];
+
+    // Build rows
+    studentMap.forEach(student => {
+      const cols = [
+        `"${student.name}"`,
+        `"${student.email}"`,
+        `"${student.service}"`,
+      ];
+      docTypes.forEach(type => {
+        const status = student.docs.get(type) || '';
+        cols.push(`"${status}"`);
+      });
+      rows.push(cols.join(','));
+    });
+
+    // Download
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `document-status-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    this.snackBar.open('CSV exported successfully', 'Close', { duration: 3000 });
+  }
 
   constructor(
     private documentService: StudentDocumentsService,
@@ -778,6 +826,11 @@ export class DocumentVerificationComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.requirements = response.requirements;
+          // Build documentTypes dropdown from requirements
+          this.documentTypes = this.requirements.map(r => ({
+            value: r.type,
+            label: r.label
+          }));
         }
       },
       error: (error) => {

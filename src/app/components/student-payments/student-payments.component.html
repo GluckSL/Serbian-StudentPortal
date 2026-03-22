@@ -1,0 +1,138 @@
+<div class="sp" *ngIf="!isLoading; else loadingTpl">
+
+  <!-- Payment Summary Card -->
+  <div class="sp-card" *ngIf="ledger">
+    <div class="sp-card__head">
+      <span class="sp-card__title">💳 Payment Summary</span>
+      <span class="sp-badge sp-badge--blue">{{ currency }}</span>
+    </div>
+
+    <div class="sp-summary-grid">
+      <div class="sp-summary-box sp-summary-box--total">
+        <div class="sp-summary-box__label">Total Amount</div>
+        <div class="sp-summary-box__val">{{ formatCurrency(totalAmount) }}</div>
+      </div>
+      <div class="sp-summary-box sp-summary-box--paid">
+        <div class="sp-summary-box__label">Paid Amount</div>
+        <div class="sp-summary-box__val">{{ formatCurrency(paidAmount) }}</div>
+      </div>
+      <div class="sp-summary-box sp-summary-box--balance">
+        <div class="sp-summary-box__label">Balance</div>
+        <div class="sp-summary-box__val">{{ formatCurrency(balance) }}</div>
+      </div>
+    </div>
+
+    <div class="sp-bar sp-bar--lg" style="margin-top:14px;">
+      <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="payPct"></div>
+    </div>
+    <div class="sp-bar-label">{{ payPct }}% paid</div>
+
+    <!-- Extra details -->
+    <div class="sp-details" *ngIf="ledger.serviceOpted || ledger.batchNumber">
+      <div class="sp-kv-row" *ngIf="ledger.serviceOpted"><span>Service</span><span class="sp-kv-val">{{ ledger.serviceOpted }}</span></div>
+      <div class="sp-kv-row" *ngIf="ledger.batchNumber"><span>Batch</span><span class="sp-kv-val">{{ ledger.batchNumber }}</span></div>
+      <div class="sp-kv-row"><span>Total Invoiced</span><span class="sp-kv-val">{{ formatCurrency(liveTotals?.totalInvoiced ?? ledger.totalInvoiced) }}</span></div>
+    </div>
+  </div>
+
+  <!-- No ledger data -->
+  <div class="sp-card" *ngIf="!ledger && !invoices.length">
+    <div class="sp-card__head">
+      <span class="sp-card__title">💳 Payments</span>
+    </div>
+    <div class="sp-empty-state">
+      <div class="sp-empty-state__icon">📭</div>
+      <div class="sp-empty-state__text">No payment records found yet.</div>
+      <div class="sp-empty-state__sub">Contact the admin team if you believe this is an error.</div>
+    </div>
+  </div>
+
+  <!-- Payment History (from ledger) -->
+  <div class="sp-card" *ngIf="paymentHistory.length">
+    <div class="sp-card__head">
+      <span class="sp-card__title">🕐 Payment History</span>
+      <span class="sp-card__meta">{{ paymentHistory.length }} payment(s)</span>
+    </div>
+    <table class="sp-table-full">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Amount</th>
+          <th>Method</th>
+          <th>Note</th>
+          <th>Recorded By</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let p of paymentHistory">
+          <td>{{ formatDate(p.date) }}</td>
+          <td class="sp-amount-green">+{{ formatCurrency(p.amount) }}</td>
+          <td>{{ p.method || '—' }}</td>
+          <td>{{ p.note || '—' }}</td>
+          <td>{{ p.recordedBy?.name || '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Invoices -->
+  <div class="sp-card">
+    <div class="sp-card__head">
+      <span class="sp-card__title">📄 Invoices</span>
+      <span class="sp-card__meta">{{ invoices.length }} invoice(s)</span>
+    </div>
+    <table class="sp-table-full" *ngIf="invoices.length">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th>Due Date</th>
+          <th>Description</th>
+          <th>Subtotal</th>
+          <th>Tax</th>
+          <th>Total</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let inv of invoices">
+          <td class="sp-mono">{{ inv.invoice_number }}</td>
+          <td>{{ inv.invoice_date || '—' }}</td>
+          <td [class.sp-overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)">{{ inv.due_date || '—' }}</td>
+          <td>{{ inv.items?.length ? inv.items[0].description : '—' }}</td>
+          <td>{{ formatCurrency(inv.subtotal) }}</td>
+          <td>{{ formatCurrency(inv.total_tax) }}</td>
+          <td class="sp-bold">{{ formatCurrency(inv.total_payable) }}</td>
+          <td>
+            <span class="sp-status-badge"
+                  [class.sp-status-badge--paid]="inv.payment_status === 'paid'"
+                  [class.sp-status-badge--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)"
+                  [class.sp-status-badge--unpaid]="inv.payment_status !== 'paid' && !isOverdue(inv.due_date)">
+              {{ inv.payment_status === 'paid' ? '✓ Paid' : (isOverdue(inv.due_date) ? 'Overdue' : 'Unpaid') }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr class="sp-table-total">
+          <td colspan="6">Total</td>
+          <td class="sp-bold">{{ formatCurrency(invoiceTotal) }}</td>
+          <td>
+            <span class="sp-status-badge sp-status-badge--paid">Paid: {{ formatCurrency(invoicePaid) }}</span>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="sp-empty-msg" *ngIf="!invoices.length">No invoices found yet.</div>
+  </div>
+
+</div>
+
+<ng-template #loadingTpl>
+  <div class="sp" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+    <div style="text-align:center;">
+      <div class="sp-spinner"></div>
+      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading payment details...</p>
+    </div>
+  </div>
+</ng-template>

@@ -38,10 +38,25 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
 router.get('/teachers', verifyToken, isAdmin, async (req, res) => {
   try {
     const teachers = await User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
-      .populate('assignedCourses', 'title') // <-- only fetch 'name' field of Course
-      .select('-password');
+      .populate('assignedCourses', 'title')
+      .select('-password')
+      .lean();
 
-    res.json({ success: true, data: teachers });
+    // Count students per teacher
+    const studentCounts = await User.aggregate([
+      { $match: { role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } } },
+      { $group: { _id: '$assignedTeacher', count: { $sum: 1 } } }
+    ]);
+    console.log('📊 Student counts per teacher:', studentCounts);
+    const countMap = {};
+    studentCounts.forEach(sc => { countMap[sc._id.toString()] = sc.count; });
+
+    const teachersWithCount = teachers.map(t => ({
+      ...t,
+      studentCount: countMap[t._id.toString()] || 0
+    }));
+
+    res.json({ success: true, data: teachersWithCount });
   } catch (err) {
     res.status(500).json({
       success: false,

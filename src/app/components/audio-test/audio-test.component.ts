@@ -445,6 +445,6 @@ export class AudioTestComponent implements OnInit, OnDestroy {
 
   // Navigate back to dashboard
   goToDashboard(): void {
-    this.router.navigate(['/student-dashboard']);
+    this.router.navigate(['/student-progress']);
   }
 }

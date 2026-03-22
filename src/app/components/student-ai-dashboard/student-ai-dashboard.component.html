@@ -67,6 +67,35 @@
     </div>
   </div>
 
+  <!-- Overall Journey Progress -->
+  <div class="journey-bar" *ngIf="journeyData">
+    <div class="journey-bar__header">
+      <span class="journey-bar__title">🎯 Overall Journey</span>
+      <span class="journey-bar__pct">{{ jOverallPct }}%</span>
+    </div>
+    <div class="journey-bar__track">
+      <div class="journey-bar__fill" [style.width.%]="jOverallPct"></div>
+    </div>
+    <div class="journey-bar__metrics">
+      <div class="journey-bar__metric">
+        <span class="journey-bar__metric-label">📚 Learning</span>
+        <span class="journey-bar__metric-val">{{ jLearningPct }}%</span>
+      </div>
+      <div class="journey-bar__metric">
+        <span class="journey-bar__metric-label">📁 Documents</span>
+        <span class="journey-bar__metric-val">{{ jDocsPct }}%</span>
+      </div>
+      <div class="journey-bar__metric">
+        <span class="journey-bar__metric-label">💳 Payments</span>
+        <span class="journey-bar__metric-val">{{ jPayPct }}%</span>
+      </div>
+      <div class="journey-bar__metric">
+        <span class="journey-bar__metric-label">✈️ Visa</span>
+        <span class="journey-bar__metric-val">{{ jVisaPct }}%</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Progress by Level -->
   <div class="progress-section">
     <h2>Progress by Level</h2>

@@ -104,6 +104,10 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
   showSpeechError: boolean = false; // Track speech error state for inline display
   
   private subscriptions: Subscription[] = [];
+  
+  // Track if AI has sent a farewell message (for browser close handling)
+  private pendingAutoComplete = false;
+  private boundBeforeUnload: (() => void) | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -280,6 +284,20 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     console.log('🧹 Cleaning up AI tutor chat component...');
+    
+    // If completion was pending (AI said goodbye), mark it now before destroying
+    if (this.pendingAutoComplete && this.moduleId && this.sessionActive) {
+      console.log('📡 Pending completion detected on destroy — marking module as completed');
+      this.pendingAutoComplete = false;
+      this.autoCompleteModule();
+    }
+    
+    // Remove beforeunload handler
+    if (this.boundBeforeUnload) {
+      window.removeEventListener('pagehide', this.boundBeforeUnload);
+      window.removeEventListener('beforeunload', this.boundBeforeUnload);
+      this.boundBeforeUnload = null;
+    }
     
     // Unsubscribe from all subscriptions
     this.subscriptions.forEach(sub => {
@@ -1916,6 +1934,7 @@ Keep practicing! 🌟`,
 
   // Mark module as completed when role-play session ends
   private markModuleAsCompleted(): void {
+    this.pendingAutoComplete = false; // Clear flag to prevent double-trigger
     if (!this.moduleId) {
       console.warn('⚠️ Cannot mark module as completed: No module ID');
       return;
@@ -2626,6 +2645,10 @@ You've done great work in this session. Keep up the excellent progress! 🌟`,
         messagePreview: messageContent.substring(0, 100) + '...'
       });
       
+      // Flag that completion is pending — if user closes browser, ngOnDestroy can handle it
+      this.pendingAutoComplete = true;
+      this.registerBeforeUnloadHandler();
+      
       // Wait a moment for the message to be displayed, then auto-complete
       setTimeout(() => {
         this.autoCompleteModule();
@@ -2724,7 +2747,14 @@ You've done great work in this session. Keep up the excellent progress! 🌟`,
         
         // FALLBACK: Patterns without பாடம்
         { keywords: ['நன்றி', 'பயிற்சி', 'சிறப்பு'], description: 'நன்றி + பயிற்சி + சிறப்பு' },
-        { keywords: ['நன்றி', 'பயிற்சி', 'இன்று'], description: 'நன்றி + பயிற்சி + இன்று' }
+        { keywords: ['நன்றி', 'பயிற்சி', 'இன்று'], description: 'நன்றி + பயிற்சி + இன்று' },
+        // Farewell patterns the AI actually uses
+        { keywords: ['நன்றி', 'நல்ல நாள்'], description: 'நன்றி + நல்ல நாள்' },
+        { keywords: ['பயிற்சி', 'நன்றி'], description: 'பயிற்சி + நன்றி' },
+        { keywords: ['நன்றி', 'இருக்கட்டும்'], description: 'நன்றி + இருக்கட்டும்' },
+        { keywords: ['நன்றி', 'சந்திப்போம்'], description: 'நன்றி + சந்திப்போம்' },
+        { keywords: ['நன்றி', 'வாழ்த்துக்கள்'], description: 'நன்றி + வாழ்த்துக்கள்' },
+        { keywords: ['பயிற்சி', 'நல்ல நாள்'], description: 'பயிற்சி + நல்ல நாள்' }
       ],
       'Sinhala': [
         // PRIMARY: Combination with පාඩම (module)
@@ -2734,7 +2764,13 @@ You've done great work in this session. Keep up the excellent progress! 🌟`,
         
         // FALLBACK: Patterns without පාඩම
         { keywords: ['ස්තූතියි', 'පුහුණුව', 'විශිෂ්ට'], description: 'ස්තූතියි + පුහුණුව + විශිෂ්ට' },
-        { keywords: ['ස්තූතියි', 'පුහුණුව', 'අද'], description: 'ස්තූතියි + පුහුණුව + අද' }
+        { keywords: ['ස්තූතියි', 'පුහුණුව', 'අද'], description: 'ස්තූතියි + පුහුණුව + අද' },
+        // Farewell patterns
+        { keywords: ['ස්තූතියි', 'හොඳ දිනයක්'], description: 'ස්තූතියි + හොඳ දිනයක්' },
+        { keywords: ['පුහුණු', 'ස්තූතියි'], description: 'පුහුණු + ස්තූතියි' },
+        { keywords: ['ස්තූතියි', 'සුභපැතුම්'], description: 'ස්තූතියි + සුභපැතුම්' },
+        { keywords: ['ස්තූතියි', 'හමුවෙමු'], description: 'ස්තූතියි + හමුවෙමු' },
+        { keywords: ['පුහුණු', 'හොඳ දිනයක්'], description: 'පුහුණු + හොඳ දිනයක්' }
       ]
     };
     
@@ -2946,11 +2982,39 @@ You've done great work in this session. Keep up the excellent progress! 🌟`,
   }
 
   // Automatically complete the module when AI indicates session is done
+  // Register beforeunload handler so browser close still triggers completion
+  private registerBeforeUnloadHandler(): void {
+    if (this.boundBeforeUnload) return; // Already registered
+    this.boundBeforeUnload = () => {
+      if (this.pendingAutoComplete && this.moduleId && this.sessionActive) {
+        const duration = this.calculateSessionDuration();
+        const data = JSON.stringify({
+          sessionData: {
+            totalScore: 0,
+            messagesExchanged: this.getStudentMessageCount(),
+            sessionType: this.sessionType,
+            completedAt: new Date().toISOString(),
+            timeSpentMinutes: duration
+          },
+          autoCompleted: true
+        });
+        // Use sendBeacon for reliable delivery on page close
+        navigator.sendBeacon('/api/learning-modules/' + this.moduleId + '/complete', new Blob([data], { type: 'application/json' }));
+        console.log('📡 Sent completion beacon on browser close');
+      }
+    };
+    window.addEventListener('pagehide', this.boundBeforeUnload);
+    window.addEventListener('beforeunload', this.boundBeforeUnload);
+  }
+
   private autoCompleteModule(): void {
     if (!this.sessionActive) {
       console.log('⚠️ Session already inactive, skipping auto-completion');
       return;
     }
+    
+    // Clear pending flag to prevent double-trigger from ngOnDestroy/beforeunload
+    this.pendingAutoComplete = false;
     
     // ✅ CHECK MINIMUM TIME REQUIREMENT BEFORE AUTO-COMPLETING
     const duration = this.calculateSessionDuration();

@@ -23,8 +23,8 @@ export class StudentAiDashboardComponent implements OnInit {
   isLoading: boolean = true;
   currentCourseId: string | null = null;
   currentModuleId: string | null = null;
-// Make Math available in template
-Math = Math;
+  journeyData: any = null;
+  Math = Math;
 
 constructor(
     private studentProgressService: StudentProgressService,
@@ -40,27 +40,22 @@ constructor(
   loadDashboardData(): void {
     this.isLoading = true;
 
-    console.log('🔄 Loading dashboard data for student...');
-
     // Load analytics
     this.studentProgressService.getDashboardAnalytics().subscribe({
       next: (analytics) => {
-        console.log('✅ Dashboard analytics loaded:', analytics);
         this.analytics = analytics;
         this.isLoading = false;
       },
       error: (error) => {
         console.error('❌ Error loading dashboard analytics:', error);
-        console.error('❌ Error details:', {
-          status: error.status,
-          message: error.message,
-          error: error.error
-        });
         this.isLoading = false;
-
-        // Show error message to user
-        alert(`Failed to load dashboard analytics: ${error.message || 'Unknown error'}`);
       }
+    });
+
+    // Load journey data for overall progress bar
+    this.studentProgressService.getStudentJourney().subscribe({
+      next: (res) => { this.journeyData = res; },
+      error: () => {}
     });
 
     // Load recent modules
@@ -137,6 +132,41 @@ constructor(
       total: data.total,
       percentage: this.getProgressPercentage(data.completed, data.total)
     }));
+  }
+
+  // Journey progress getters
+  get jLevelProgression() { return this.journeyData?.levelProgression || []; }
+  get jDocuments() { return this.journeyData?.documents || []; }
+  get jPayments() {
+    const p = this.journeyData?.payments || {};
+    return { totalAmount: p.totalAmount || 0, paidAmount: p.paidAmount || 0 };
+  }
+  get jVisa() { return this.journeyData?.visa || { steps: [], currentStep: 0 }; }
+
+  get jDocsSubmitted(): number { return this.jDocuments.filter((d: any) => d.status === 'verified').length; }
+
+  get jLearningPct(): number {
+    const lp = this.jLevelProgression;
+    const completed = lp.filter((l: any) => l.status === 'completed').length;
+    return lp.length ? Math.round((completed / lp.length) * 100) : 0;
+  }
+  get jDocsPct(): number {
+    return this.jDocuments.length ? Math.round((this.jDocsSubmitted / this.jDocuments.length) * 100) : 0;
+  }
+  get jPayPct(): number {
+    return this.jPayments.totalAmount ? Math.round((this.jPayments.paidAmount / this.jPayments.totalAmount) * 100) : 0;
+  }
+  get jVisaPct(): number {
+    return this.jVisa.steps.length > 1 ? Math.round((this.jVisa.currentStep / (this.jVisa.steps.length - 1)) * 100) : 0;
+  }
+  get jOverallPct(): number {
+    const lp = this.jLevelProgression;
+    const completed = lp.filter((l: any) => l.status === 'completed').length;
+    const learningPct = lp.length ? completed / lp.length : 0;
+    const docsPct = this.jDocuments.length ? this.jDocsSubmitted / this.jDocuments.length : 0;
+    const payPct = this.jPayments.totalAmount ? this.jPayments.paidAmount / this.jPayments.totalAmount : 0;
+    const visaPct = this.jVisa.steps.length > 1 ? this.jVisa.currentStep / (this.jVisa.steps.length - 1) : 0;
+    return Math.round((learningPct * 0.4 + docsPct * 0.2 + payPct * 0.2 + visaPct * 0.2) * 100);
   }
 
 }

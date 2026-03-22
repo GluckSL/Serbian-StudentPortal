@@ -1,0 +1,126 @@
+.sp {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Card */
+.sp-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+  border: 1px solid #e8ecf4;
+}
+.sp-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.sp-card__title { font-size: 14px; font-weight: 700; color: #0f172a; }
+.sp-card__meta { font-size: 11px; color: #6b7280; }
+
+/* Badge */
+.sp-badge {
+  font-size: 10px; font-weight: 700;
+  padding: 2px 10px; border-radius: 999px;
+}
+.sp-badge--blue { background: #dbeafe; color: #1d4ed8; }
+
+/* Summary grid */
+.sp-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.sp-summary-box {
+  text-align: center;
+  padding: 14px 8px;
+  border-radius: 12px;
+  border: 1px solid #e8ecf4;
+}
+.sp-summary-box__label {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: #64748b; margin-bottom: 4px;
+}
+.sp-summary-box__val { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.sp-summary-box--total { background: #f8fafc; }
+.sp-summary-box--total .sp-summary-box__val { color: #0f172a; }
+.sp-summary-box--paid { background: #f0fdf4; border-color: #bbf7d0; }
+.sp-summary-box--paid .sp-summary-box__val { color: #16a34a; }
+.sp-summary-box--balance { background: #fef2f2; border-color: #fecaca; }
+.sp-summary-box--balance .sp-summary-box__val { color: #dc2626; }
+
+/* Progress bar */
+.sp-bar { height: 9px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+.sp-bar--lg { height: 10px; }
+.sp-bar__fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.sp-bar__fill--green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.sp-bar-label { font-size: 11px; color: #64748b; margin-top: 4px; text-align: right; }
+
+/* KV rows */
+.sp-details { margin-top: 14px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+.sp-kv-row {
+  display: flex; justify-content: space-between;
+  font-size: 12px; color: #64748b; padding: 4px 0;
+  border-bottom: 1px solid #f8fafc;
+}
+.sp-kv-val { font-weight: 700; color: #1e293b; }
+
+/* Table */
+.sp-table-full { width: 100%; border-collapse: collapse; }
+.sp-table-full th {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #94a3b8; padding: 8px 10px; border-bottom: 2px solid #e5e7eb;
+  text-align: left; font-weight: 700;
+}
+.sp-table-full td {
+  padding: 8px 10px; font-size: 12px; color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+}
+.sp-table-total td {
+  font-weight: 700; color: #0f172a;
+  border-top: 2px solid #e5e7eb; border-bottom: none; padding-top: 10px;
+}
+.sp-mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; }
+.sp-bold { font-weight: 700; }
+.sp-amount-green { color: #16a34a; font-weight: 700; }
+.sp-overdue { color: #dc2626; font-weight: 600; }
+
+/* Status badges */
+.sp-status-badge {
+  font-size: 10px; font-weight: 600; padding: 3px 10px;
+  border-radius: 999px; display: inline-block; white-space: nowrap;
+}
+.sp-status-badge--paid { background: #dcfce7; color: #166534; }
+.sp-status-badge--unpaid { background: #f1f5f9; color: #64748b; }
+.sp-status-badge--overdue { background: #fee2e2; color: #991b1b; }
+
+/* Empty state */
+.sp-empty-state { text-align: center; padding: 30px 10px; }
+.sp-empty-state__icon { font-size: 36px; margin-bottom: 8px; }
+.sp-empty-state__text { font-size: 14px; font-weight: 600; color: #334155; }
+.sp-empty-state__sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+/* Spinner */
+.sp-spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #e5e7eb; border-top-color: #3b82f6;
+  border-radius: 50%; animation: sp-spin 0.6s linear infinite; margin: 0 auto;
+}
+@keyframes sp-spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .sp-summary-grid { grid-template-columns: 1fr; }
+  .sp-table-full { font-size: 11px; }
+  .sp-table-full th, .sp-table-full td { padding: 6px 6px; }
+}
+
+/* Empty message */
+.sp-empty-msg { font-size: 12px; color: #94a3b8; text-align: center; padding: 16px 0; }

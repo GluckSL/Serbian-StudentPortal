@@ -1,0 +1,70 @@
+<nav class="sidebar">
+  <!-- Header -->
+  <div class="sidebar-header">
+    <div class="sidebar-logo" [style.background]="roleColor">G</div>
+    <div class="brand-info">
+      <div class="brand-name">Glück Global</div>
+    </div>
+    <div class="role-badge" [style.background]="badgeColor">
+      {{ userRole }}
+    </div>
+  </div>
+
+  <!-- Nav Groups -->
+  <div class="nav-body">
+    <div *ngFor="let group of navGroups" class="nav-group">
+
+      <!-- Single-item group: render as a direct nav link, no dropdown -->
+      <ng-container *ngIf="group.items.length === 1">
+        <a
+          class="nav-item single-item"
+          [routerLink]="getRoute(group.items[0])"
+          routerLinkActive="active"
+          (click)="closeSidebar.emit()">
+          <span class="nav-icon">{{ group.items[0].icon }}</span>
+          <span class="nav-label">{{ group.items[0].label }}</span>
+        </a>
+      </ng-container>
+
+      <!-- Multi-item group: collapsible with group header -->
+      <ng-container *ngIf="group.items.length > 1">
+        <div class="group-header" (click)="toggle(group.group)">
+          <span>{{ group.group }}</span>
+          <span class="chevron">{{ collapsed[group.group] ? '▸' : '▾' }}</span>
+        </div>
+        <div class="group-items" [class.collapsed]="collapsed[group.group]">
+          <ng-container *ngFor="let item of group.items; let i = index">
+            <div
+              class="sub-group-label"
+              *ngIf="item.subGroup && (i === 0 || group.items[i - 1].subGroup !== item.subGroup)">
+              {{ item.subGroup }}
+            </div>
+            <a
+              class="nav-item"
+              [routerLink]="getRoute(item)"
+              routerLinkActive="active"
+              (click)="closeSidebar.emit()">
+              <span class="nav-icon">{{ item.icon }}</span>
+              <span class="nav-label">{{ item.label }}</span>
+            </a>
+          </ng-container>
+        </div>
+      </ng-container>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="sidebar-footer">
+    <a class="nav-item profile-link" routerLink="/profile" routerLinkActive="active" (click)="closeSidebar.emit()">
+      <div class="avatar" [style.background]="roleColor">
+        {{ initials }}
+      </div>
+      <div class="profile-info">
+        <div class="profile-name">{{ userName }}</div>
+        <div class="profile-role">{{ userRole }}</div>
+      </div>
+    </a>
+    <button class="logout-btn" (click)="logout()">🔴 Logout</button>
+  </div>
+</nav>

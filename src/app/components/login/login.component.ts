@@ -53,7 +53,7 @@ export class LoginComponent {
             } else if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
               this.router.navigate(['/teacher-dashboard']);
             } else if (role === 'STUDENT') {
-              this.router.navigate(['/student-dashboard']);
+              this.router.navigate(['/student-progress']);
             } else {
               this.errorMessage = 'Unknown user role.';
             }

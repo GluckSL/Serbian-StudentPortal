@@ -1,13 +1,30 @@
-<!-- app.component.html -->
+<!-- Public pages (home/login): no sidebar, show header -->
+<ng-container *ngIf="!showSidebar">
+  <app-header *ngIf="showHeader"></app-header>
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+  <app-footer></app-footer>
+</ng-container>
 
-<!-- Header Section -->
-<app-header *ngIf="showHeader"> </app-header>
+<!-- Logged-in pages: sidebar + content -->
+<ng-container *ngIf="showSidebar">
+  <!-- Mobile hamburger -->
+  <button class="mobile-menu-btn" (click)="toggleSidebar()">☰</button>
 
-<!-- Main Content Section -->
-<main class="main-content">
-  <!-- Dynamically load routed components -->
-  <router-outlet></router-outlet>
-</main>
+  <!-- Overlay for mobile -->
+  <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
 
-<!-- Footer Section - Now shows on all pages -->
-<app-footer></app-footer>
+  <div class="app-shell">
+    <app-sidebar
+      [class.open]="sidebarOpen"
+      (closeSidebar)="sidebarOpen = false">
+    </app-sidebar>
+    <div class="shell-content">
+      <main class="main-content">
+        <router-outlet></router-outlet>
+      </main>
+      <app-footer></app-footer>
+    </div>
+  </div>
+</ng-container>

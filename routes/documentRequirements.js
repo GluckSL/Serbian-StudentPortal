@@ -7,11 +7,18 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const DocumentRequirement = require('../models/DocumentRequirement');
 
 // GET /api/document-requirements - Get all document requirements
+// Optional query params: ?activeOnly=true&service=Work Visa
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const { activeOnly } = req.query;
+    const { activeOnly, service } = req.query;
     
     const filter = activeOnly === 'true' ? { active: true } : {};
+    
+    // Filter by applicable service if provided
+    if (service) {
+      const normalized = service.trim().replace(/[\s\-]+/g, '[\\s\\-]*');
+      filter.applicableServices = new RegExp('^' + normalized + '$', 'i');
+    }
     
     const requirements = await DocumentRequirement.find(filter)
       .sort({ order: 1, label: 1 })

@@ -1,0 +1,179 @@
+<div class="sp">
+
+  <!-- Header -->
+  <div class="sp-header">
+    <div>
+      <h2 class="sp-header__title">🔄 Monday.com Sync Preview</h2>
+      <p class="sp-header__sub">Preview what the next cron sync will create or update</p>
+    </div>
+    <div class="sp-header__actions">
+      <button class="sp-btn sp-btn--primary" (click)="loadPreview()" [disabled]="loading">
+        {{ loading ? 'Fetching...' : '🔍 Fetch Preview' }}
+      </button>
+      <button class="sp-btn sp-btn--danger" (click)="forceSync()" [disabled]="syncing || loading">
+        {{ syncing ? '⏳ Syncing...' : '⚡ Force Sync Now' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Last sync info -->
+  <div class="sp-sync-status">
+    <span class="sp-sync-status__label">Last sync:</span>
+    <span class="sp-sync-status__val">{{ formatSyncDate(lastSyncRun) }}</span>
+    <ng-container *ngIf="lastSyncResult && !lastSyncResult.error">
+      <span class="sp-sync-chip sp-sync-chip--created">{{ lastSyncResult.created }} created</span>
+      <span class="sp-sync-chip sp-sync-chip--updated">{{ lastSyncResult.updated }} updated</span>
+      <span class="sp-sync-chip" *ngIf="lastSyncResult.errors">{{ lastSyncResult.errors }} errors</span>
+      <span class="sp-sync-chip sp-sync-chip--time">{{ lastSyncResult.duration }}s</span>
+    </ng-container>
+    <span class="sp-sync-chip sp-sync-chip--error" *ngIf="lastSyncResult?.error">Error: {{ lastSyncResult.error }}</span>
+  </div>
+
+  <!-- Force sync result -->
+  <div class="sp-sync-result" *ngIf="syncResult">
+    <div class="sp-sync-result__head">✅ Sync completed in {{ syncResult.duration }}s</div>
+    <div class="sp-sync-result__body">
+      <span class="sp-sync-chip sp-sync-chip--created">{{ syncResult.created }} created</span>
+      <span class="sp-sync-chip sp-sync-chip--updated">{{ syncResult.updated }} updated</span>
+      <span class="sp-sync-chip">{{ syncResult.skipped }} skipped</span>
+      <span class="sp-sync-chip sp-sync-chip--error" *ngIf="syncResult.errors">{{ syncResult.errors }} errors</span>
+    </div>
+    <div class="sp-sync-result__names" *ngIf="syncResult.createdNames?.length">
+      <strong>New students:</strong> {{ syncResult.createdNames.join(', ') }}
+    </div>
+    <div class="sp-sync-result__names" *ngIf="syncResult.errorNames?.length">
+      <strong>Errors:</strong> {{ syncResult.errorNames.join(', ') }}
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="sp-loading" *ngIf="loading">
+    <div class="sp-spinner"></div>
+    <p>Fetching data from Monday.com board... This may take a moment.</p>
+  </div>
+
+  <!-- Error -->
+  <div class="sp-error" *ngIf="error">⚠️ {{ error }}</div>
+
+  <!-- Results -->
+  <div *ngIf="data && !loading">
+
+    <!-- Summary cards -->
+    <div class="sp-summary">
+      <div class="sp-summary__card sp-summary__card--board">
+        <div class="sp-summary__val">{{ data.totalOnBoard }}</div>
+        <div class="sp-summary__label">Total on Board</div>
+      </div>
+      <div class="sp-summary__card sp-summary__card--eligible">
+        <div class="sp-summary__val">{{ data.eligibleCount }}</div>
+        <div class="sp-summary__label">Eligible (excl. Withdrew)</div>
+      </div>
+      <div class="sp-summary__card sp-summary__card--new">
+        <div class="sp-summary__val">{{ data.summary.willCreate }}</div>
+        <div class="sp-summary__label">Will Be Created</div>
+      </div>
+      <div class="sp-summary__card sp-summary__card--update">
+        <div class="sp-summary__val">{{ data.summary.willUpdate }}</div>
+        <div class="sp-summary__label">Will Be Updated</div>
+      </div>
+      <div class="sp-summary__card">
+        <div class="sp-summary__val">{{ data.summary.noChanges }}</div>
+        <div class="sp-summary__label">No Changes</div>
+      </div>
+      <div class="sp-summary__card sp-summary__card--skip">
+        <div class="sp-summary__val">{{ data.summary.skipped }}</div>
+        <div class="sp-summary__label">Skipped (No Email)</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="sp-tabs">
+      <button class="sp-tab" [class.sp-tab--active]="activeTab === 'new'" (click)="activeTab = 'new'">
+        🆕 New Students ({{ data.summary.willCreate }})
+      </button>
+      <button class="sp-tab" [class.sp-tab--active]="activeTab === 'updated'" (click)="activeTab = 'updated'">
+        ✏️ Updates ({{ data.summary.willUpdate }})
+      </button>
+    </div>
+
+    <!-- Search -->
+    <div class="sp-filters" *ngIf="activeTab === 'new' || activeTab === 'updated'">
+      <input class="sp-input" type="text" placeholder="Search name, email, reg no..."
+             [(ngModel)]="searchQuery">
+    </div>
+
+    <!-- New Students Tab -->
+    <div class="sp-table-wrap" *ngIf="activeTab === 'new'">
+      <table class="sp-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Subscription</th>
+            <th>Service</th>
+            <th>Teacher</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of filteredNew">
+            <td class="sp-name">{{ s.name }}</td>
+            <td class="sp-email">{{ s.email }}</td>
+            <td>{{ s.batch || '—' }}</td>
+            <td>{{ s.level || '—' }}</td>
+            <td>{{ s.subscription || '—' }}</td>
+            <td>{{ s.servicesOpted || '—' }}</td>
+            <td>{{ s.teacherIncharge || '—' }}</td>
+          </tr>
+          <tr *ngIf="!filteredNew.length">
+            <td colspan="7" class="sp-empty">No new students to create</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Updated Students Tab -->
+    <div class="sp-table-wrap" *ngIf="activeTab === 'updated'">
+      <table class="sp-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Reg No</th>
+            <th>Changes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let s of filteredUpdated">
+            <tr class="sp-row--clickable" (click)="toggleRow(s.email)">
+              <td class="sp-name">{{ s.name }}</td>
+              <td class="sp-email">{{ s.email }}</td>
+              <td>{{ s.regNo }}</td>
+              <td><span class="sp-badge">{{ s.changes.length }} field{{ s.changes.length !== 1 ? 's' : '' }}</span></td>
+              <td class="sp-expand">{{ isExpanded(s.email) ? '▲' : '▼' }}</td>
+            </tr>
+            <tr *ngIf="isExpanded(s.email)" class="sp-row--detail">
+              <td colspan="5">
+                <div class="sp-changes">
+                  <div class="sp-change" *ngFor="let c of s.changes">
+                    <span class="sp-change__field">{{ c.field }}</span>
+                    <span class="sp-change__old">{{ c.portalValue }}</span>
+                    <span class="sp-change__arrow">→</span>
+                    <span class="sp-change__new">{{ c.mondayValue }}</span>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+          <tr *ngIf="!filteredUpdated.length">
+            <td colspan="5" class="sp-empty">No students with pending updates</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>

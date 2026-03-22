@@ -84,7 +84,7 @@ export class FeedbackFormComponent implements OnInit {
           this.successMessage = 'Thank you for your feedback!';
           this.feedbackForm.reset({ rating: null });
           this.submitted = false;
-          this.router.navigate(['/student-dashboard']);
+          this.router.navigate(['/student-progress']);
         } else {
           this.errorMessage = (response as any).message || 'Something went wrong.';
         }

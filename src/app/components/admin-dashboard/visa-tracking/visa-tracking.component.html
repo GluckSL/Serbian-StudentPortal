@@ -1,0 +1,246 @@
+<div class="vt">
+  <div class="vt-header">
+    <h2>✈️ Visa Tracking</h2>
+    <button class="vt-btn vt-btn--primary" (click)="openCreate()">+ New Record</button>
+  </div>
+
+  <div class="vt-search">
+    <input type="text" [(ngModel)]="searchTerm" placeholder="Search by name, ID or email..." class="vt-input" />
+  </div>
+
+  <div *ngIf="isLoading" class="vt-loading">Loading...</div>
+
+  <!-- Records table -->
+  <div class="vt-table-wrap" *ngIf="!isLoading && !showForm">
+    <table class="vt-table" *ngIf="filteredRecords.length; else noRecords">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Reg No</th>
+          <th>Visa Type</th>
+          <th>Current Stage</th>
+          <th>Final Outcome</th>
+          <th>Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of filteredRecords">
+          <td>{{ r.studentId?.name || '—' }}</td>
+          <td>{{ r.studentId?.regNo || '—' }}</td>
+          <td><span class="vt-chip" [class.vt-chip--au]="r.visaType === 'AU_PAIR'">{{ r.visaType === 'AU_PAIR' ? 'Au Pair' : 'Portal' }}</span></td>
+          <td>{{ r.currentStage }}/{{ r.visaType === 'AU_PAIR' ? 5 : 6 }} – {{ stageLabel(r) }}</td>
+          <td>
+            <span class="vt-outcome"
+                  [class.vt-outcome--approved]="r.finalOutcome === 'approved'"
+                  [class.vt-outcome--rejected]="r.finalOutcome === 'rejected'">
+              {{ r.finalOutcome || 'In Progress' }}
+            </span>
+          </td>
+          <td>{{ formatDate(r.updatedAt) }}</td>
+          <td>
+            <button class="vt-btn vt-btn--sm vt-btn--info" (click)="openHistory(r)">History</button>
+            <button class="vt-btn vt-btn--sm" (click)="openEdit(r)">Edit</button>
+            <button class="vt-btn vt-btn--sm vt-btn--danger" (click)="deleteRecord(r)">Del</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #noRecords>
+      <div class="vt-empty">No visa records found. Click "+ New Record" to create one.</div>
+    </ng-template>
+  </div>
+
+  <!-- Create / Edit Form -->
+  <div class="vt-form-wrap" *ngIf="showForm">
+    <h3>{{ editingRecord ? 'Edit Visa Record' : 'Create Visa Record' }}</h3>
+
+    <!-- Student search (create only) -->
+    <div class="vt-field vt-student-picker" *ngIf="!editingRecord">
+      <label>Student</label>
+      <input type="text" class="vt-input" [(ngModel)]="studentSearch" (focus)="studentDropdownOpen = true"
+             (input)="studentDropdownOpen = true" placeholder="Type to search student..." autocomplete="off" />
+      <div class="vt-dropdown" *ngIf="studentDropdownOpen && filteredStudents.length">
+        <div class="vt-dropdown__item" *ngFor="let s of filteredStudents" (mousedown)="selectStudent(s)">
+          {{ s.name }} ({{ s.regNo }})
+        </div>
+      </div>
+      <div class="vt-dropdown" *ngIf="studentDropdownOpen && studentSearch && !filteredStudents.length">
+        <div class="vt-dropdown__empty">No students found</div>
+      </div>
+    </div>
+    <div class="vt-field" *ngIf="editingRecord">
+      <label>Student</label>
+      <input class="vt-input" [value]="editingRecord.studentId?.name + ' (' + editingRecord.studentId?.regNo + ')'" disabled />
+    </div>
+
+    <div class="vt-field">
+      <label>Visa Type</label>
+      <select [(ngModel)]="form.visaType" class="vt-input" (change)="onVisaTypeChange()" [disabled]="!!editingRecord">
+        <option value="PORTAL">Portal (6 stages)</option>
+        <option value="AU_PAIR">Au Pair (5 stages)</option>
+      </select>
+    </div>
+
+    <!-- Per-stage cards -->
+    <div class="vt-stages-section">
+      <div class="vt-stage-card" *ngFor="let stg of form.stages; let i = index"
+           [class.vt-stage-card--active]="isStageEditable(stg) && stg.outcome !== 'completed' && stg.outcome !== 'rejected'"
+           [class.vt-stage-card--done]="stg.outcome === 'completed'"
+           [class.vt-stage-card--rejected]="stg.outcome === 'rejected'"
+           [class.vt-stage-card--locked]="!isStageEditable(stg) && stg.outcome !== 'completed'">
+
+        <div class="vt-stage-card__head">
+          <span class="vt-stage-card__num">{{ stg.stage }}</span>
+          <span class="vt-stage-card__label">{{ stageDefs[i]?.label || 'Stage ' + stg.stage }}</span>
+          <span class="vt-stage-card__badge" *ngIf="isStageEditable(stg) && stg.outcome !== 'completed' && stg.outcome !== 'rejected'">Current</span>
+          <span class="vt-stage-card__badge vt-stage-card__badge--done" *ngIf="stg.outcome === 'completed'">✓ Completed</span>
+          <span class="vt-stage-card__badge vt-stage-card__badge--rejected" *ngIf="stg.outcome === 'rejected'">✕ Rejected — Retry</span>
+          <span class="vt-stage-card__badge vt-stage-card__badge--locked" *ngIf="!isStageEditable(stg) && stg.outcome !== 'completed'">🔒 Locked</span>
+          <span class="vt-stage-card__outcome-date" *ngIf="stg.outcome === 'completed' && stg.outcomeDate">
+            {{ formatDate(stg.outcomeDate) }}
+          </span>
+        </div>
+
+        <!-- Editable body (unlocked stages) -->
+        <div class="vt-stage-card__body" *ngIf="isStageEditable(stg)">
+          <div class="vt-row">
+            <div class="vt-field">
+              <label>Message to Student</label>
+              <input [(ngModel)]="stg.message" class="vt-input" placeholder="Status update visible to student" />
+            </div>
+            <div class="vt-field">
+              <label>Outcome</label>
+              <select [(ngModel)]="stg.outcome" class="vt-input">
+                <option value="">—</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+          </div>
+          <div class="vt-row">
+            <div class="vt-field">
+              <label>Handled By</label>
+              <select [(ngModel)]="stg.handledBy" class="vt-input">
+                <option value="">—</option>
+                <option value="team">Glück Global Team</option>
+                <option value="embassy">Embassy</option>
+                <option value="student">Student</option>
+              </select>
+            </div>
+            <div class="vt-field">
+              <label>Action Required?</label>
+              <select [(ngModel)]="stg.actionRequired" class="vt-input">
+                <option [ngValue]="false">No</option>
+                <option [ngValue]="true">Yes</option>
+              </select>
+            </div>
+          </div>
+          <div class="vt-field" *ngIf="stg.actionRequired">
+            <label>Action Note</label>
+            <input [(ngModel)]="stg.actionNote" class="vt-input" placeholder="What the student needs to do" />
+          </div>
+          <div class="vt-field" *ngIf="stg.stageDateLabel">
+            <label>📅 {{ stg.stageDateLabel }}</label>
+            <input type="date" [(ngModel)]="stg.stageDate" class="vt-input" />
+          </div>
+        </div>
+
+        <!-- Read-only summary for completed but not currently editable stages -->
+        <div class="vt-stage-card__body vt-stage-card__body--readonly" *ngIf="stg.outcome === 'completed' && !isStageEditable(stg)">
+          <div class="vt-readonly-row" *ngIf="stg.message"><span class="vt-readonly-label">Message:</span> {{ stg.message }}</div>
+          <div class="vt-readonly-row" *ngIf="stg.handledBy"><span class="vt-readonly-label">Handled by:</span> {{ stg.handledBy === 'team' ? 'Glück Global Team' : (stg.handledBy === 'embassy' ? 'Embassy' : 'Student') }}</div>
+          <div class="vt-readonly-row" *ngIf="stg.stageDate && stg.stageDateLabel"><span class="vt-readonly-label">📅 {{ stg.stageDateLabel }}:</span> {{ formatDate(stg.stageDate) }}</div>
+          <div class="vt-readonly-row" *ngIf="stg.actionRequired"><span class="vt-readonly-label">⚠️ Action:</span> {{ stg.actionNote || 'Required' }}</div>
+        </div>
+
+        <!-- Locked (not yet reachable) -->
+        <div class="vt-stage-card__locked-summary" *ngIf="!isStageEditable(stg) && stg.outcome !== 'completed'">
+          <span class="vt-stage-card__locked-text">Complete the previous stage to unlock this one.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final outcome (only visible when last stage is completed) -->
+    <div class="vt-final-section" *ngIf="isLastStageCompleted">
+      <div class="vt-row">
+        <div class="vt-field">
+          <label>🏁 Final Visa Outcome</label>
+          <select [(ngModel)]="form.finalOutcome" class="vt-input">
+            <option value="">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div class="vt-field" *ngIf="form.finalOutcome">
+          <label>Final Outcome Note</label>
+          <input [(ngModel)]="form.finalOutcomeNote" class="vt-input" placeholder="Details about the final decision" />
+        </div>
+      </div>
+    </div>
+
+    <div class="vt-field">
+      <label>Admin Notes (internal only)</label>
+      <textarea [(ngModel)]="form.adminNotes" class="vt-input vt-textarea" rows="2" placeholder="Internal notes..."></textarea>
+    </div>
+
+    <!-- Stage reference -->
+    <div class="vt-stage-ref">
+      <strong>{{ form.visaType === 'AU_PAIR' ? 'Au Pair' : 'Portal' }} Stages:</strong>
+      <div *ngFor="let st of stageDefs; let i = index" class="vt-stage-ref__item"
+           [class.vt-stage-ref__item--active]="form.stages[i]?.outcome !== 'completed' && isStageEditable(form.stages[i])">
+        {{ st.stage }}. {{ st.label }} — <span class="vt-stage-ref__desc">{{ st.desc }}</span>
+      </div>
+    </div>
+
+    <!-- History log (editing only) -->
+    <div class="vt-history" *ngIf="editingRecord?.history?.length">
+      <strong>📜 Update History</strong>
+      <div class="vt-history__list">
+        <div class="vt-history__item" *ngFor="let h of editingRecord.history.slice().reverse()">
+          <div class="vt-history__dot"></div>
+          <div class="vt-history__content">
+            <span class="vt-history__date">{{ formatDate(h.date) }}</span>
+            <span class="vt-history__note">Stage {{ h.stage }} — {{ h.note }}</span>
+            <span class="vt-history__by">by {{ h.updatedBy?.name || h.updatedBy || 'Unknown user' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vt-form-actions">
+      <button class="vt-btn vt-btn--primary" (click)="save()" [disabled]="!editingRecord && !form.studentId">Save</button>
+      <button class="vt-btn" (click)="cancel()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div class="vt-modal-overlay" *ngIf="historyRecord" (click)="closeHistory()">
+    <div class="vt-modal" (click)="$event.stopPropagation()">
+      <div class="vt-modal__header">
+        <h3>📜 Visa History — {{ historyRecord.studentId?.name }}</h3>
+        <button class="vt-btn vt-btn--sm" (click)="closeHistory()">✕</button>
+      </div>
+      <div class="vt-modal__summary">
+        <div class="vt-modal__kv"><span>Reg No</span><strong>{{ historyRecord.studentId?.regNo || '—' }}</strong></div>
+        <div class="vt-modal__kv"><span>Visa Type</span><strong>{{ historyRecord.visaType === 'AU_PAIR' ? 'Au Pair' : 'Portal' }}</strong></div>
+        <div class="vt-modal__kv"><span>Current Stage</span><strong>{{ historyRecord.currentStage }}/{{ historyRecord.visaType === 'AU_PAIR' ? 5 : 6 }} – {{ stageLabel(historyRecord) }}</strong></div>
+        <div class="vt-modal__kv"><span>Final Outcome</span><strong [style.color]="historyRecord.finalOutcome === 'approved' ? '#16a34a' : (historyRecord.finalOutcome === 'rejected' ? '#dc2626' : '#64748b')">{{ historyRecord.finalOutcome || 'In Progress' }}</strong></div>
+      </div>
+      <div class="vt-modal__timeline" *ngIf="historyRecord.history?.length; else noHistory">
+        <div class="vt-modal__item" *ngFor="let h of historyRecord.history.slice().reverse()">
+          <div class="vt-modal__dot"></div>
+          <div class="vt-modal__content">
+            <div class="vt-modal__date">{{ formatDate(h.date) }}</div>
+            <div class="vt-modal__note">Stage {{ h.stage }} — {{ h.note }}</div>
+            <div class="vt-modal__by">by {{ h.updatedBy?.name || h.updatedBy || 'Unknown user' }}</div>
+          </div>
+        </div>
+      </div>
+      <ng-template #noHistory>
+        <div class="vt-empty">No history entries yet.</div>
+      </ng-template>
+    </div>
+  </div>
+</div>
