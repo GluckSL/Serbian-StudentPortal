@@ -105,7 +105,7 @@ export class MeetingNotificationsComponent implements OnInit, OnDestroy {
   }
 
   viewAllMeetings(): void {
-    this.router.navigate(['/student/meetings']);
+    this.router.navigate(['/student/my-course'], { queryParams: { tab: 'classes' } });
   }
 
   formatTime(date: Date): string {

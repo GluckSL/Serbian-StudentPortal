@@ -4,7 +4,7 @@
   <!-- ═══ Header card ═══ -->
   <div class="lm-header-card">
     <div class="lm-header-top">
-      <div class="lm-header-left">
+      <div class="lm-header-left" *ngIf="!(embedded && isStudent())">
         <span class="lm-header-title">📚 Learning Modules</span>
         <span class="lm-header-sub">Discover and practice with AI-powered tutoring</span>
       </div>
@@ -37,7 +37,7 @@
     </div>
 
     <!-- Level progression -->
-    <div class="lm-level-row" *ngIf="isStudent() && getCurrentLevelInfo()">
+    <div class="lm-level-row" *ngIf="isStudent() && getCurrentLevelInfo() && !(embedded && isStudent())">
       <span class="lm-level-label">
         <i class="fas fa-graduation-cap"></i> {{ formatLevel(currentUser.level) }}
       </span>

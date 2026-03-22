@@ -1,0 +1,80 @@
+<div class="mc" *ngIf="!loading; else mcLoading">
+  <header class="mc-hero">
+    <div class="mc-hero__text">
+      <p class="mc-hero__kicker">Your course</p>
+      <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }} <span class="mc-hero__wave" aria-hidden="true">👋</span></h1>
+      <p class="mc-hero__sub">
+        Join live classes, practice with exercises, and work through modules—all in one place.
+      </p>
+    </div>
+    <aside class="mc-hero__level" aria-label="Your current language level">
+      <div class="mc-hero__level-head">
+        <span class="mc-hero__level-icon" aria-hidden="true"></span>
+        <div class="mc-hero__level-titles">
+          <span class="mc-hero__level-label">Current level</span>
+          <span class="mc-hero__level-value">{{ levelShortLabel }}</span>
+        </div>
+      </div>
+      <div class="mc-hero__track" *ngIf="levelProgression.length">
+        <div class="mc-hero__track-fill" [style.width.%]="learningPct"></div>
+      </div>
+      <span class="mc-hero__track-cap" *ngIf="levelProgression.length">{{ learningPct }}% of levels completed</span>
+    </aside>
+  </header>
+
+  <!-- Tabs -->
+  <div class="mc-tabs-wrap">
+    <div class="mc-tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        class="mc-tab"
+        [class.mc-tab--on]="activeTab === 'classes'"
+        (click)="setTab('classes')">
+        My class
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="mc-tab"
+        [class.mc-tab--on]="activeTab === 'exercises'"
+        (click)="setTab('exercises')">
+        Exercises
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="mc-tab"
+        [class.mc-tab--on]="activeTab === 'modules'"
+        (click)="setTab('modules')">
+        Modules
+      </button>
+    </div>
+    <div class="mc-tabs-meta">
+      <a routerLink="/time-table-view-student" class="mc-schedule-link">View schedule →</a>
+      <a routerLink="/student-payments" class="mc-schedule-link mc-schedule-link--muted">Payments</a>
+    </div>
+  </div>
+
+  <div class="mc-panel" *ngIf="activeTab === 'classes'" role="tabpanel">
+    <p class="mc-panel__intro">Live and upcoming classes appear first; past sessions and recordings are below.</p>
+    <app-student-meetings [embedded]="true"></app-student-meetings>
+    <h3 class="mc-subsection-title">Recorded classes</h3>
+    <app-student-recordings [embedded]="true"></app-student-recordings>
+  </div>
+
+  <div class="mc-panel" *ngIf="activeTab === 'exercises'" role="tabpanel">
+    <app-digital-exercises [embedded]="true"></app-digital-exercises>
+  </div>
+
+  <div class="mc-panel" *ngIf="activeTab === 'modules'" role="tabpanel">
+    <app-learning-modules [embedded]="true"></app-learning-modules>
+  </div>
+</div>
+
+<ng-template #mcLoading>
+  <div class="mc mc--loading">
+    <div class="mc-spinner"></div>
+    <p>Loading your course…</p>
+  </div>
+</ng-template>

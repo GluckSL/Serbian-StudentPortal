@@ -1,6 +1,6 @@
 // src/app/components/digital-exercises/digital-exercises.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -15,6 +15,9 @@ import { AuthService } from '../../services/auth.service';
   styleUrls: ['./digital-exercises.component.css']
 })
 export class DigitalExercisesComponent implements OnInit {
+  /** Hides the large page header when embedded (e.g. My Course). */
+  @Input() embedded = false;
+
   exercises: DigitalExercise[] = [];
   loading = false;
   userRole: string = '';

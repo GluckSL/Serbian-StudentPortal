@@ -152,17 +152,9 @@ export class NavService {
       ]
     },
     {
-      group: 'Learning',
+      group: 'My Course',
       items: [
-        { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/learning-modules',    subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/digital-exercises',   subGroup: null }
-      ]
-    },
-    {
-      group: 'My Classes',
-      items: [
-        { id: 'classes', label: 'My Classes', icon: '🎥', route: '/student/meetings', subGroup: null },
-        { id: 'class-recordings', label: 'Class Recordings', icon: '📹', route: '/student/class-recordings', subGroup: null }
+        { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null }
       ]
     },
     {

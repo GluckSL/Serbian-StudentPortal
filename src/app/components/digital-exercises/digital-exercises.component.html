@@ -2,7 +2,7 @@
 <div class="exercises-page">
 
   <!-- Page Header -->
-  <div class="page-header">
+  <div class="page-header" *ngIf="!embedded">
     <div class="header-text">
       <h1><span class="material-icons">edit_note</span> Digital Exercises</h1>
       <p>Practice your {{ isTeacherOrAdmin ? 'students\'' : '' }} language skills with interactive exercises</p>

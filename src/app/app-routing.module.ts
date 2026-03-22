@@ -147,8 +147,16 @@ export const routes: Routes = [
   { path: 'teacher/meetings/:id/attendance/review', loadComponent: () => import('./components/meeting-link/attendance-review.component').then(m => m.AttendanceReviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'teacher/meetings/:id/engagement', loadComponent: () => import('./components/meeting-link/meeting-engagement.component').then(m => m.MeetingEngagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
-  // Student Zoom Meetings
-  { path: 'student/meetings', loadComponent: () => import('./components/meeting-link/student-meetings.component').then(m => m.StudentMeetingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  // Student course hub (classes, exercises, modules)
+  {
+    path: 'student/my-course',
+    loadComponent: () => import('./components/my-course/my-course.component').then(m => m.MyCourseComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'STUDENT' }
+  },
+
+  // Student Zoom Meetings & recordings — consolidated into My Course
+  { path: 'student/meetings', redirectTo: '/student/my-course', pathMatch: 'full' },
 
   // Admin Zoom Reports
   { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
@@ -252,8 +260,8 @@ export const routes: Routes = [
   // Class Recordings — Teacher/Admin manage
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
-  // Class Recordings — Student view
-  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  // Class Recordings — Student view (hub)
+  { path: 'student/class-recordings', redirectTo: '/student/my-course', pathMatch: 'full' },
 
   // Wildcard route to handle invalid paths
   { path: '**', redirectTo: 'home' }

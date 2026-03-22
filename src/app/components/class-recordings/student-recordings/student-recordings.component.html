@@ -2,7 +2,7 @@
 <div class="sr" *ngIf="!loading; else loadingTpl">
 
   <!-- ── Page Header ── -->
-  <div class="sr-header">
+  <div class="sr-header" *ngIf="!embedded">
     <div>
       <h2 class="sr-header__title">Class Recordings</h2>
       <p class="sr-header__sub">{{ filteredRecordings.length }} recording{{ filteredRecordings.length !== 1 ? 's' : '' }} available for your batch &amp; level</p>

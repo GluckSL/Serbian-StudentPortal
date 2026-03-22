@@ -11,6 +11,8 @@ import {
 import { environment } from '../../../environments/environment';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
+import { AuthService } from '../../services/auth.service';
+import { take } from 'rxjs/operators';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -75,7 +77,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     public exerciseService: DigitalExerciseService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -463,7 +466,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   // ─── Navigation ──────────────────────────────────────────────────────────────
 
   backToExercises(): void {
-    this.router.navigate(['/digital-exercises']);
+    this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
+      if (user?.role === 'STUDENT') {
+        this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
+      } else {
+        this.router.navigate(['/digital-exercises']);
+      }
+    });
   }
 
   tryAgain(): void {
