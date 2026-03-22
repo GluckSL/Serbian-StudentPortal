@@ -205,6 +205,17 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       updateData.batch = updates.batch;
     }
 
+    if (updates.currentCourseDay !== undefined && updates.currentCourseDay !== null) {
+      const d = parseInt(String(updates.currentCourseDay), 10);
+      if (!Number.isFinite(d) || d < 1 || d > 200) {
+        return res.status(400).json({
+          success: false,
+          message: 'currentCourseDay must be a number from 1 to 200'
+        });
+      }
+      updateData.currentCourseDay = d;
+    }
+
     // Update all selected students
     const result = await User.updateMany(
       { _id: { $in: studentIds }, role: 'STUDENT' },

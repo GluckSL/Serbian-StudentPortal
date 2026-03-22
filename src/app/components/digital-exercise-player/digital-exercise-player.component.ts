@@ -107,7 +107,29 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.isSubmittedState = false;
         this.state = 'intro';
       },
-      error: () => { this.state = 'error'; }
+      error: (err) => {
+        if (err?.status === 403 && err?.error?.code === 'COURSE_DAY_LOCKED') {
+          const day = err.error?.exerciseCourseDay;
+          this.snackBar.open(
+            day != null
+              ? `This exercise is for course day ${day}. Complete earlier days first.`
+              : (err.error?.error || 'This exercise is not available yet.'),
+            'Close',
+            { duration: 6000, panelClass: ['error-snack'] }
+          );
+        } else if (err?.status === 403 && err?.error?.code === 'LEVEL_NOT_ALLOWED') {
+          const exLv = err.error?.exerciseLevel;
+          const stLv = err.error?.studentLevel;
+          this.snackBar.open(
+            exLv && stLv
+              ? `This exercise is ${exLv} level. Your profile is ${stLv} — you can only open exercises up to your level.`
+              : (err.error?.error || 'This exercise is not available for your level.'),
+            'Close',
+            { duration: 7000, panelClass: ['error-snack'] }
+          );
+        }
+        this.state = 'error';
+      }
     });
   }
 

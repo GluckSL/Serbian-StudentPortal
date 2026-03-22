@@ -123,6 +123,13 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   tags: [String],
 
+  /**
+   * Optional: day in the 200-day course when this exercise is assigned.
+   * Omit or null = general pool (any student who can see published exercises).
+   * If set, students only see it when currentCourseDay >= courseDay (browse + play).
+   */
+  courseDay: { type: Number, default: null, min: 1, max: 200 },
+
   // Visibility and state
   isActive: { type: Boolean, default: true },
   visibleToStudents: { type: Boolean, default: false },
@@ -153,5 +160,6 @@ DigitalExerciseSchema.pre('save', function (next) {
 DigitalExerciseSchema.index({ level: 1, category: 1, isActive: 1 });
 DigitalExerciseSchema.index({ createdBy: 1 });
 DigitalExerciseSchema.index({ visibleToStudents: 1, isActive: 1, isDeleted: 1 });
+DigitalExerciseSchema.index({ courseDay: 1, visibleToStudents: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('DigitalExercise', DigitalExerciseSchema);

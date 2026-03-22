@@ -92,6 +92,8 @@ export interface DigitalExercise {
   averageScore?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  /** 1–200: assigned course day; omit/null = general exercise for any unlocked day */
+  courseDay?: number | null;
   stats?: { completions: number; avgScore: number; uniqueStudents: number };
   studentAttempt?: ExerciseAttempt | null;
 }
@@ -144,6 +146,10 @@ export interface ExerciseFilters {
   status?: string;
   page?: number;
   limit?: number;
+  /** Student list: only exercises tagged for this journey day */
+  todayOnly?: boolean;
+  /** Admin list: numeric day 1–200, or "unassigned" */
+  courseDay?: string | number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -157,9 +163,12 @@ export class DigitalExerciseService {
   getExercises(filters: ExerciseFilters = {}): Observable<any> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        params = params.set(key, val.toString());
+      if (val === undefined || val === null || val === '') return;
+      if (key === 'todayOnly') {
+        if (val === true) params = params.set('todayOnly', 'true');
+        return;
       }
+      params = params.set(key, val.toString());
     });
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }

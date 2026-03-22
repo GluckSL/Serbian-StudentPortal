@@ -1174,3 +1174,108 @@
   .metadata-section { grid-template-columns: 1fr; }
   .save-buttons { flex-direction: column; width: 100%; }
 }
+
+/* ── Journey / course day (Configure + Review) ───────────────────────────── */
+.journey-day-section {
+  padding: 20px 22px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 55%, #f8fafc 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 14px;
+  margin-top: 8px;
+}
+.journey-day-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: #1e1b4b;
+  margin-bottom: 8px;
+}
+.journey-day-icon {
+  font-size: 24px;
+  color: #4f46e5;
+}
+.journey-day-lead {
+  margin-bottom: 14px;
+  line-height: 1.55;
+  color: #475569;
+  font-size: 0.875rem;
+}
+.journey-day-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+.journey-day-input-wrap {
+  display: flex;
+  align-items: stretch;
+  max-width: 300px;
+  width: 100%;
+}
+.journey-day-input-wrap--meta {
+  max-width: 260px;
+}
+.journey-day-num-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px 0 0 10px;
+  border-right: none;
+  font-family: inherit;
+  background: #fff;
+  color: #0f172a;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.journey-day-num-input::placeholder {
+  font-weight: 500;
+  color: #94a3b8;
+}
+.journey-day-num-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+.journey-day-suffix {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: #f1f5f9;
+  border: 1.5px solid #e2e8f0;
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #64748b;
+}
+.journey-day-input-wrap:focus-within .journey-day-suffix {
+  border-color: #6366f1;
+}
+.journey-day-num-input::-webkit-outer-spin-button,
+.journey-day-num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.journey-day-num-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.config-summary-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: #4338ca;
+}
+.config-summary-day .material-icons {
+  font-size: 18px;
+}
+.meta-field--journey {
+  min-width: 200px;
+}

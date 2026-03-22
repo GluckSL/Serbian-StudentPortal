@@ -155,6 +155,10 @@ export const routes: Routes = [
     data: { role: 'STUDENT' }
   },
 
+  // Common typos / old links → same hub (avoids ** → home and stale UI confusion)
+  { path: 'student/my_course', redirectTo: '/student/my-course', pathMatch: 'full' },
+  { path: 'student/mycourse', redirectTo: '/student/my-course', pathMatch: 'full' },
+
   // Student Zoom Meetings & recordings — consolidated into My Course
   { path: 'student/meetings', redirectTo: '/student/my-course', pathMatch: 'full' },
 

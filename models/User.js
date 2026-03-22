@@ -69,6 +69,9 @@ const UserSchema = new mongoose.Schema({
   examRemark: { type: String, default: "", function() { return this.role === "STUDENT"; } },
   candidateStatus: { type: String, default: "", function() { return this.role === "STUDENT"; } },
 
+  /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
+  currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
+
   // ✅ move these inside schema
   courseProgress: [{
     courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },

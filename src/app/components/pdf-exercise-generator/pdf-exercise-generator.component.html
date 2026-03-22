@@ -253,7 +253,34 @@
       </div>
     </div>
 
-    <!-- Number of questions is now driven by per-type counts above — no extra section needed -->
+    <!-- When this exercise becomes visible on the student journey -->
+    <div class="config-section journey-day-section">
+      <h3 class="config-label journey-day-heading">
+        <span class="material-icons journey-day-icon">event_note</span>
+        Course day (200-day journey)
+      </h3>
+      <p class="config-hint journey-day-lead">
+        Enter the day this pack is for (for example <strong>20</strong>). When a student reaches day 20, this exercise becomes available to them (together with level and publish rules). Leave empty if it is not tied to a specific day.
+      </p>
+      <div class="journey-day-row">
+        <label class="visually-hidden" for="pdf-step2-course-day">Day number 1 to 200</label>
+        <div class="journey-day-input-wrap">
+          <input
+            id="pdf-step2-course-day"
+            type="number"
+            class="journey-day-num-input"
+            min="1"
+            max="200"
+            step="1"
+            [ngModel]="courseDayAsNumber"
+            (ngModelChange)="onCourseDayNumberInput($event)"
+            placeholder="e.g. 20"
+            autocomplete="off"
+          />
+          <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
+        </div>
+      </div>
+    </div>
 
     <div class="step-footer">
       <button class="btn-secondary" (click)="back()">
@@ -305,6 +332,9 @@
         <span *ngFor="let t of selectedTypes; let i = index">{{ getTypeInfo(t).label }}{{ i < selectedTypes.length - 1 ? ', ' : '' }}</span>
         &nbsp;·&nbsp;
         {{ level }} · {{ targetLanguage }} · {{ maxQuestions }} questions
+        <ng-container *ngIf="courseDayAsNumber !== null">
+          &nbsp;·&nbsp;<span class="config-summary-day"><span class="material-icons">event_note</span> Day {{ courseDayStr.trim() }}</span>
+        </ng-container>
       </div>
     </div>
 
@@ -363,6 +393,25 @@
           <select [(ngModel)]="targetLanguage" class="meta-select">
             <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
           </select>
+        </div>
+        <div class="meta-field meta-field--journey">
+          <label class="meta-label" for="pdf-step4-course-day">Course day (1–200)</label>
+          <div class="journey-day-input-wrap journey-day-input-wrap--meta">
+            <input
+              id="pdf-step4-course-day"
+              type="number"
+              class="journey-day-num-input"
+              min="1"
+              max="200"
+              step="1"
+              [ngModel]="courseDayAsNumber"
+              (ngModelChange)="onCourseDayNumberInput($event)"
+              placeholder="Optional"
+              autocomplete="off"
+            />
+            <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
+          </div>
+          <p class="meta-hint">Same value as in Configure. Students see this exercise from this day onward; empty = general pool.</p>
         </div>
         <div class="meta-field">
           <label class="meta-label">

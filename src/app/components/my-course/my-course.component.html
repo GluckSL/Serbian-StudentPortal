@@ -1,25 +1,44 @@
 <div class="mc" *ngIf="!loading; else mcLoading">
-  <header class="mc-hero">
-    <div class="mc-hero__text">
+  <header class="mc-hero" aria-label="Welcome">
+    <div class="mc-hero__content">
       <p class="mc-hero__kicker">Your course</p>
-      <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }} <span class="mc-hero__wave" aria-hidden="true">👋</span></h1>
+      <h1 class="mc-hero__title">
+        Welcome back, {{ studentFirstName }}
+        <span class="mc-hero__wave" aria-hidden="true">👋</span>
+      </h1>
       <p class="mc-hero__sub">
         Join live classes, practice with exercises, and work through modules—all in one place.
       </p>
+      <div class="mc-hero__badges">
+        <span class="mc-hero__pill">
+          <span class="mc-hero__pill-icon" aria-hidden="true">🎓</span>
+          Current level <strong>{{ levelShortLabel }}</strong>
+        </span>
+        <span class="mc-hero__pill" *ngIf="levelProgression.length">
+          <span class="mc-hero__pill-icon" aria-hidden="true">📈</span>
+          {{ learningPct }}% of levels completed
+        </span>
+      </div>
     </div>
-    <aside class="mc-hero__level" aria-label="Your current language level">
-      <div class="mc-hero__level-head">
-        <span class="mc-hero__level-icon" aria-hidden="true"></span>
-        <div class="mc-hero__level-titles">
-          <span class="mc-hero__level-label">Current level</span>
-          <span class="mc-hero__level-value">{{ levelShortLabel }}</span>
-        </div>
+    <div class="mc-hero__photo">
+      <img
+        *ngIf="profilePhotoUrl as url"
+        class="mc-hero__avatar"
+        [src]="url"
+        [alt]="'Profile photo — ' + studentFirstName"
+        width="120"
+        height="120"
+        loading="eager"
+      />
+      <div
+        *ngIf="!profilePhotoUrl"
+        class="mc-hero__avatar mc-hero__avatar--fallback"
+        role="img"
+        [attr.aria-label]="'No photo — ' + studentInitial"
+      >
+        {{ studentInitial }}
       </div>
-      <div class="mc-hero__track" *ngIf="levelProgression.length">
-        <div class="mc-hero__track-fill" [style.width.%]="learningPct"></div>
-      </div>
-      <span class="mc-hero__track-cap" *ngIf="levelProgression.length">{{ learningPct }}% of levels completed</span>
-    </aside>
+    </div>
   </header>
 
   <!-- Tabs -->
@@ -56,11 +75,75 @@
     </div>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'classes'" role="tabpanel">
-    <p class="mc-panel__intro">Live and upcoming classes appear first; past sessions and recordings are below.</p>
-    <app-student-meetings [embedded]="true"></app-student-meetings>
-    <h3 class="mc-subsection-title">Recorded classes</h3>
-    <app-student-recordings [embedded]="true"></app-student-recordings>
+  <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
+    <div class="mc-classes-layout__main mc-panel">
+      <p class="mc-panel__intro">Live and upcoming classes appear first; past sessions and recordings are below.</p>
+      <app-student-meetings [embedded]="true"></app-student-meetings>
+      <h3 class="mc-subsection-title">Recorded classes</h3>
+      <app-student-recordings [embedded]="true"></app-student-recordings>
+    </div>
+    <aside class="mc-classes-layout__aside" aria-label="Journey and updates">
+      <div class="mc-side-card mc-side-card--journey">
+        <p class="mc-side-card__eyebrow">Your journey</p>
+        <div class="mc-side-card__dayline">
+          <span class="mc-side-card__num">{{ elapsedJourneyDayNumber }}</span>
+          <span class="mc-side-card__ordinal">{{ ordinalSuffix(elapsedJourneyDayNumber) }}</span>
+        </div>
+        <p class="mc-side-card__daylabel">day since you joined</p>
+        <p class="mc-side-card__motivate">{{ motivateLine }}</p>
+        <div class="mc-side-card__foot">
+          <span class="material-icons" aria-hidden="true">flag</span>
+          <span
+            >Journey day <strong>{{ journeyCourseDay }}</strong> / 200
+            <span class="mc-side-card__foot-hint">(set by your teacher)</span></span
+          >
+        </div>
+      </div>
+
+      <div class="mc-side-card mc-side-card--updates">
+        <p class="mc-side-card__eyebrow">Updates</p>
+
+        <div class="mc-update" *ngIf="nextMeetingPreview as mtg">
+          <span class="mc-update__icon mc-update__icon--live" aria-hidden="true">
+            <span class="material-icons">videocam</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">Upcoming live class</p>
+            <p class="mc-update__text">
+              <strong>{{ mtg.topic }}</strong>
+              <span class="mc-update__when">{{ mtg.whenLabel }}</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="mc-update" *ngIf="nextLockedDigitalExercise as locked">
+          <span class="mc-update__icon mc-update__icon--lock" aria-hidden="true">
+            <span class="material-icons">lock_clock</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">Digital exercise ahead</p>
+            <p class="mc-update__text">
+              <strong>{{ locked.title }}</strong>
+              is tied to <strong>day {{ locked.courseDay }}</strong>.
+              {{ lockedExerciseUnlockText(locked) }}
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="mc-update mc-update--empty"
+          *ngIf="!nextMeetingPreview && !nextLockedDigitalExercise"
+        >
+          <span class="material-icons" aria-hidden="true">notifications_none</span>
+          <p>No new class or locked exercise alerts right now. Check <strong>Exercises</strong> anytime.</p>
+        </div>
+
+        <button type="button" class="mc-side-card__link" (click)="setTab('exercises')">
+          Go to exercises
+          <span class="material-icons">arrow_forward</span>
+        </button>
+      </div>
+    </aside>
   </div>
 
   <div class="mc-panel" *ngIf="activeTab === 'exercises'" role="tabpanel">

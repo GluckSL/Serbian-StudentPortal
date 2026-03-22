@@ -4,7 +4,7 @@ import { Component, OnInit, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { DigitalExerciseService, DigitalExercise } from '../../services/digital-exercise.service';
+import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -29,13 +29,20 @@ export class DigitalExercisesComponent implements OnInit {
   selectedCategory = '';
   selectedDifficulty = '';
 
+  /** Students: show only exercises tagged for the current journey day. */
+  todayOnly = false;
+
   // Pagination
   currentPage = 1;
   totalPages = 1;
   totalExercises = 0;
   readonly pageSize = 12;
+  /** Aligned with server submit `passed` rule */
+  readonly passScorePercent = 60;
 
-  levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  readonly allLevels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  /** Level filter dropdown options (students = only up to profile level). */
+  levelFilterOptions: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -67,12 +74,25 @@ export class DigitalExercisesComponent implements OnInit {
     if (this.selectedLevel) filters.level = this.selectedLevel;
     if (this.selectedCategory) filters.category = this.selectedCategory;
     if (this.selectedDifficulty) filters.difficulty = this.selectedDifficulty;
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role === 'STUDENT' && this.todayOnly) filters.todayOnly = true;
 
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
         this.totalExercises = res.total || 0;
         this.totalPages = res.pages || 1;
+        const r = this.authService.getSnapshotUser()?.role || this.userRole;
+        if (r === 'STUDENT') {
+          if (Array.isArray(res.accessibleLevels) && res.accessibleLevels.length) {
+            this.levelFilterOptions = [...res.accessibleLevels];
+            if (this.selectedLevel && !this.levelFilterOptions.includes(this.selectedLevel)) {
+              this.selectedLevel = '';
+            }
+          }
+        } else {
+          this.levelFilterOptions = [...this.allLevels];
+        }
         this.loading = false;
       },
       error: () => { this.loading = false; }
@@ -92,11 +112,17 @@ export class DigitalExercisesComponent implements OnInit {
     this.loadExercises();
   }
 
+  onTodayOnlyChange(): void {
+    this.currentPage = 1;
+    this.loadExercises();
+  }
+
   clearFilters(): void {
     this.searchQuery = '';
     this.selectedLevel = '';
     this.selectedCategory = '';
     this.selectedDifficulty = '';
+    this.todayOnly = false;
     this.currentPage = 1;
     this.loadExercises();
   }
@@ -130,18 +156,65 @@ export class DigitalExercisesComponent implements OnInit {
     return Object.entries(counts).map(([t, c]) => `${labels[t] || t}×${c}`).join(' · ');
   }
 
-  getScoreClass(score: number): string {
-    if (score >= 80) return 'score-excellent';
-    if (score >= 60) return 'score-good';
-    return 'score-needs-work';
+  isAttemptPassing(att: ExerciseAttempt | null | undefined): boolean {
+    const s = att?.scorePercentage;
+    if (s == null || !Number.isFinite(Number(s))) return false;
+    return Number(s) >= this.passScorePercent;
+  }
+
+  attemptStatusLabel(att: ExerciseAttempt): string {
+    const s = Number(att.scorePercentage);
+    if (s >= this.passScorePercent) return 'Passed';
+    if (s > 0) return 'Below pass';
+    return 'No score yet';
+  }
+
+  attemptStatusClass(att: ExerciseAttempt): string {
+    const s = Number(att.scorePercentage);
+    if (s >= this.passScorePercent) return 'status-pass';
+    if (s > 0) return 'status-warn';
+    return 'status-muted';
   }
 
   hasActiveFilters(): boolean {
-    return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty);
+    return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty || this.todayOnly);
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {
     return (exercise.questions || []).some(q => q.type === type);
+  }
+
+  /** Compact type labels for table "Types" column */
+  typeSummaryShort(ex: DigitalExercise): string {
+    const pairs: Array<[string, string]> = [
+      ['mcq', 'MCQ'],
+      ['matching', 'Match'],
+      ['fill-blank', 'Fill'],
+      ['pronunciation', 'Speak'],
+      ['question-answer', 'Written'],
+      ['listening', 'Listen']
+    ];
+    const parts = pairs.filter(([t]) => this.hasType(ex, t)).map(([, l]) => l);
+    return parts.length ? parts.join(' · ') : '—';
+  }
+
+  exerciseMetaLine(ex: DigitalExercise): string {
+    const n = ex.questions?.length || 0;
+    const m = ex.estimatedDuration || 15;
+    const d = ex.difficulty || '—';
+    return `${n} qs · ~${m} min · ${d}`;
+  }
+
+  clipDescription(text: string | undefined, max = 96): string {
+    const t = (text || '').trim().replace(/\s+/g, ' ');
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1).trimEnd() + '…';
+  }
+
+  tableActionLabel(ex: DigitalExercise): string {
+    const att = ex.studentAttempt;
+    if (!att) return 'Start';
+    return this.isAttemptPassing(att) ? 'Again' : 'Retry';
   }
 
   getPageNumbers(): number[] {

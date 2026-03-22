@@ -158,6 +158,11 @@ export class AuthService {
     return loggedIn;
   }
 
+  /** Synchronous read of the last known user (e.g. before HTTP calls in the same tick). */
+  getSnapshotUser(): any | null {
+    return this.currentUserSubject.value;
+  }
+
   // Logout
   logout(): Observable<any> {
     return this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true })

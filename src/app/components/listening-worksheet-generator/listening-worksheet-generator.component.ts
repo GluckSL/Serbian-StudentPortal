@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { environment } from '../../../environments/environment';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -96,6 +96,7 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
   generationMeta: any = null;
   exerciseTitle = '';
   exerciseDescription = '';
+  courseDayStr = '';
   visibleToStudents = false;
   saving = false;
 
@@ -109,10 +110,39 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
   constructor(
     private exerciseService: DigitalExerciseService,
     private router: Router,
+    private route: ActivatedRoute,
     private snackBar: MatSnackBar
   ) {}
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    const q = this.route.snapshot.queryParamMap.get('courseDay');
+    if (q == null || q === '') return;
+    const p = parseInt(String(q).trim(), 10);
+    if (Number.isFinite(p) && p >= 1 && p <= 200) {
+      this.courseDayStr = String(p);
+    }
+  }
+
+  get courseDayAsNumber(): number | null {
+    const t = this.courseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p)) return null;
+    return p;
+  }
+
+  onCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.courseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.courseDayStr = '';
+      return;
+    }
+    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
 
   ngOnDestroy(): void {
     this.clearProgressTimer();
@@ -494,6 +524,17 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Please add a title and ensure at least one valid question.');
       return;
     }
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.showError('Course day must be empty or a number from 1 to 200');
+        return;
+      }
+      courseDay = p;
+    }
+
     this.saving = true;
 
     const payload: Partial<any> = {
@@ -504,6 +545,7 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
       level: this.level as any,
       category: 'Listening',
       difficulty: this.difficulty,
+      courseDay,
       visibleToStudents: publish,
       sharedAudioUrl: this.sharedAudioUrl,
       tags: ['audio-worksheet', 'pdf-import'],

@@ -375,3 +375,75 @@
   font-weight:900;
 }
 
+/* Course day on Configure + Review */
+.lwg-journey-section {
+  margin-top: 8px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 45%, #f8fafc 100%);
+  border: 1px solid #99f6e4;
+  border-radius: 14px;
+}
+.lwg-journey-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: #134e4a;
+  font-size: 1rem;
+}
+.lwg-journey-label .material-icons {
+  font-size: 22px;
+  color: #0d9488;
+}
+.lwg-journey-lead {
+  margin: 0 0 12px;
+  line-height: 1.5;
+  max-width: 42rem;
+}
+.lwg-journey-day-wrap {
+  display: flex;
+  align-items: stretch;
+  max-width: 300px;
+  width: 100%;
+}
+.lwg-journey-num {
+  flex: 1;
+  min-width: 0;
+  border-radius: 10px 0 0 10px;
+  border-right: none;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.lwg-journey-num:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+.lwg-journey-suffix {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  background: #ccfbf1;
+  border: 1px solid #99f6e4;
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #0f766e;
+}
+.lwg-journey-day-wrap:focus-within .lwg-journey-suffix {
+  border-color: #0d9488;
+}
+.lwg-journey-num::-webkit-outer-spin-button,
+.lwg-journey-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.lwg-journey-num {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.lwg-field--journey .lwg-journey-day-wrap {
+  max-width: 280px;
+}
+

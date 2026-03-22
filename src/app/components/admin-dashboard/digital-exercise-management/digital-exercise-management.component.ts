@@ -70,6 +70,21 @@ import { MaterialModule } from '../../../shared/material.module';
       <option value="">All Categories</option>
       <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
     </select>
+    <select [(ngModel)]="filters.scheduleFilter" (change)="onScheduleFilterChange()" class="filter-select">
+      <option value="all">All schedule days</option>
+      <option value="unassigned">General (no day)</option>
+      <option value="by_day">Specific day…</option>
+    </select>
+    <input
+      *ngIf="filters.scheduleFilter === 'by_day'"
+      type="number"
+      min="1"
+      max="200"
+      [(ngModel)]="filters.scheduleDay"
+      (change)="loadExercises()"
+      class="filter-input day-filter-input"
+      placeholder="Day 1–200"
+    />
   </div>
 
   <!-- Loading State -->
@@ -87,6 +102,7 @@ import { MaterialModule } from '../../../shared/material.module';
           <th>Type Mix</th>
           <th>Level</th>
           <th>Category</th>
+          <th>Day</th>
           <th>Questions</th>
           <th>Completions</th>
           <th>Avg Score</th>
@@ -111,6 +127,10 @@ import { MaterialModule } from '../../../shared/material.module';
             <span class="level-badge" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
           </td>
           <td>{{ ex.category }}</td>
+          <td class="center">
+            <span *ngIf="ex.courseDay != null" class="day-pill">Day {{ ex.courseDay }}</span>
+            <span *ngIf="ex.courseDay == null" class="text-muted">—</span>
+          </td>
           <td class="center">{{ ex.questions?.length || 0 }}</td>
           <td class="center">{{ ex.stats?.completions || 0 }}</td>
           <td class="center">
@@ -379,6 +399,26 @@ import { MaterialModule } from '../../../shared/material.module';
 
     .filter-select:focus { border-color: #005b96; outline: none; box-shadow: 0 0 0 2px rgba(0,91,150,0.08); }
 
+    .filter-input.day-filter-input {
+      width: 100px;
+      padding: 6px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 12px;
+      background: #f8fafc;
+      font-family: inherit;
+    }
+
+    .day-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+
     /* ── Loading ── */
     .loading-state { text-align: center; padding: 40px; color: #64748b; font-size: 12px; }
     .spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #005b96; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
@@ -631,7 +671,10 @@ export class DigitalExerciseManagementComponent implements OnInit {
   filters: any = {
     search: '',
     level: '',
-    category: ''
+    category: '',
+    /** all | unassigned | by_day */
+    scheduleFilter: 'all',
+    scheduleDay: null as number | null
   };
 
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -663,11 +706,21 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   loadExercises(): void {
     this.loading = true;
-    const params = {
-      ...this.filters,
+    const params: any = {
+      search: this.filters.search,
+      level: this.filters.level,
+      category: this.filters.category,
       page: this.currentPage,
       limit: 20
     };
+    if (this.filters.scheduleFilter === 'unassigned') {
+      params.courseDay = 'unassigned';
+    } else if (this.filters.scheduleFilter === 'by_day') {
+      const d = parseInt(String(this.filters.scheduleDay), 10);
+      if (Number.isFinite(d) && d >= 1 && d <= 200) {
+        params.courseDay = d;
+      }
+    }
     this.exerciseService.getExercisesForAdmin(params).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
@@ -687,6 +740,13 @@ export class DigitalExerciseManagementComponent implements OnInit {
   onSearchChange(): void {
     clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => this.loadExercises(), 400);
+  }
+
+  onScheduleFilterChange(): void {
+    if (this.filters.scheduleFilter !== 'by_day') {
+      this.filters.scheduleDay = null;
+    }
+    this.loadExercises();
   }
 
   navigateToCreate(): void {

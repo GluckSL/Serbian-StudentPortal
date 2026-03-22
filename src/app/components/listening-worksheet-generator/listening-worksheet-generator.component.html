@@ -162,6 +162,32 @@
           <input type="number" class="lwg-input" [(ngModel)]="maxQuestions" min="1" max="50" />
           <div class="lwg-muted">Extraction will cap to this number.</div>
         </div>
+
+        <div class="lwg-field full lwg-journey-section">
+          <label class="lwg-journey-label">
+            <span class="material-icons">event_note</span>
+            Course day (200-day journey)
+          </label>
+          <p class="lwg-muted lwg-journey-lead">
+            Enter the day this listening exercise is for (e.g. <strong>20</strong>). Students see it once their journey reaches that day. Leave empty if it is not tied to a specific day.
+          </p>
+          <label class="visually-hidden" for="lwg-step2-course-day">Day number 1 to 200</label>
+          <div class="lwg-journey-day-wrap">
+            <input
+              id="lwg-step2-course-day"
+              type="number"
+              class="lwg-input lwg-journey-num"
+              min="1"
+              max="200"
+              step="1"
+              [ngModel]="courseDayAsNumber"
+              (ngModelChange)="onCourseDayNumberInput($event)"
+              placeholder="e.g. 20"
+              autocomplete="off"
+            />
+            <span class="lwg-journey-suffix" aria-hidden="true">/ 200</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -218,6 +244,25 @@
         <div class="lwg-field full">
           <label>Description</label>
           <textarea class="lwg-input" rows="2" [(ngModel)]="exerciseDescription"></textarea>
+        </div>
+        <div class="lwg-field lwg-field--journey">
+          <label for="lwg-step4-course-day">Course day (1–200)</label>
+          <div class="lwg-journey-day-wrap">
+            <input
+              id="lwg-step4-course-day"
+              type="number"
+              class="lwg-input lwg-journey-num"
+              min="1"
+              max="200"
+              step="1"
+              [ngModel]="courseDayAsNumber"
+              (ngModelChange)="onCourseDayNumberInput($event)"
+              placeholder="Optional"
+              autocomplete="off"
+            />
+            <span class="lwg-journey-suffix" aria-hidden="true">/ 200</span>
+          </div>
+          <div class="lwg-muted">Editable here or in Configure — saved with the exercise.</div>
         </div>
         <div class="lwg-field full">
           <label class="publish-row">

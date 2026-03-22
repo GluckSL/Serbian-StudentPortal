@@ -4,7 +4,7 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/co
 import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
@@ -108,6 +108,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // Exercise metadata
   exerciseTitle = '';
   exerciseDescription = '';
+  /** Optional journey day 1–200; empty = general pool */
+  courseDayStr = '';
   visibleToStudents = false;
   saving = false;
 
@@ -130,10 +132,40 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   constructor(
     private exerciseService: DigitalExerciseService,
     private router: Router,
+    private route: ActivatedRoute,
     private snackBar: MatSnackBar
   ) {}
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    const q = this.route.snapshot.queryParamMap.get('courseDay');
+    if (q == null || q === '') return;
+    const p = parseInt(String(q).trim(), 10);
+    if (Number.isFinite(p) && p >= 1 && p <= 200) {
+      this.courseDayStr = String(p);
+    }
+  }
+
+  /** Number input binding for course day (empty = any day). */
+  get courseDayAsNumber(): number | null {
+    const t = this.courseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p)) return null;
+    return p;
+  }
+
+  onCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.courseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.courseDayStr = '';
+      return;
+    }
+    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
 
   ngOnDestroy(): void {
     this.clearProgressTimer();
@@ -475,6 +507,18 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Please add a title and ensure at least one valid question.');
       return;
     }
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.saving = false;
+        this.showError('Course day must be empty or a number from 1 to 200');
+        return;
+      }
+      courseDay = p;
+    }
+
     this.saving = true;
     const payload = {
       title: this.exerciseTitle.trim(),
@@ -484,6 +528,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       level: this.level as any,
       category: 'Grammar' as any,
       difficulty: this.difficulty,
+      courseDay,
       visibleToStudents: publish,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
         const { expanded, aiGenerated, ...rest } = q;
