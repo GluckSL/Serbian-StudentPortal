@@ -117,11 +117,16 @@ async function fetchAttendanceForMeeting(meeting) {
 
     const attendanceData = meeting.attendees.map(attendee => {
       const matchResult = findBestParticipantMatch(attendee, zoomReport.participants);
+      const participantDuration = matchResult.match?.durationMinutes || 0;
+      const meetingDuration = meeting.duration || 60; // in minutes
+      const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
+      // Must be present for at least 70% of the meeting to count as attended
+      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
       return {
         studentId: attendee.studentId,
         name: attendee.name,
         email: attendee.email,
-        attended: !!matchResult.match,
+        attended: meetsThreshold,
         confidence: matchResult.confidence,
         matchMethod: matchResult.method,
         zoomName: matchResult.match?.name || null,
@@ -129,8 +134,9 @@ async function fetchAttendanceForMeeting(meeting) {
         joinTime: matchResult.match?.joinTime || null,
         leaveTime: matchResult.match?.leaveTime || null,
         duration: matchResult.match?.duration || 0,
-        durationMinutes: matchResult.match?.durationMinutes || 0,
-        status: matchResult.match ? 'attended' : 'absent',
+        durationMinutes: participantDuration,
+        attendancePercent: Math.round(attendancePercent),
+        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
         needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
       };
     });

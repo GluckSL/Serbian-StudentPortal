@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const meetingLinkSchema = new mongoose.Schema({
   // Basic Info
   batch: { type: String, required: true },
-  plan: { type: String, required: true, enum: ['SILVER', 'PLATINUM'] },
+  plan: { type: String, required: true, enum: ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'] },
   platform: { type: String, required: true },
   link: { type: String, required: true },
   

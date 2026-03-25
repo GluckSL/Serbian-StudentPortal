@@ -524,6 +524,8 @@ router.post("/signup", async (req, res) => {
       user.assignedBatches = assignedBatches;
       user.medium = medium;
       user.assignedCourses = assignedCourses; // Assign courses if provided
+      // Zoom host email
+      if (req.body.zoomHostEmail) user.zoomHostEmail = req.body.zoomHostEmail;
     }
 
     await user.save();
@@ -851,6 +853,9 @@ router.put("/:id", async (req, res) => {
       courseStartDates,
       qualifications
     };
+
+    // Zoom host email for teachers
+    if (req.body.zoomHostEmail !== undefined) updateData.zoomHostEmail = req.body.zoomHostEmail;
 
     // âœ… Auto-set start date for new level if level changed and start date not set
     if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {

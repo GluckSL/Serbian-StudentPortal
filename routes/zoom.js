@@ -218,35 +218,27 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
       });
     }
 
-    // Get teacher's email for alternative host
-    const teacher = await User.findById(req.user.id).select('email name');
+    // Get teacher with Zoom host email
+    const teacher = await User.findById(req.user.id).select('email name zoomHostEmail');
     if (!teacher) {
-      return res.status(404).json({
+      return res.status(404).json({ success: false, message: 'Teacher not found' });
+    }
+
+    // Validate Zoom host email
+    if (!teacher.zoomHostEmail) {
+      return res.status(400).json({
         success: false,
-        message: 'Teacher not found'
+        message: 'Zoom host email not configured for your account. Please ask admin to add your Zoom host email.'
       });
     }
 
-    console.log('👨‍🏫 Teacher:', teacher.name, '(' + teacher.email + ')');
+    console.log('👨‍🏫 Teacher (host):', teacher.name, '— Zoom:', teacher.zoomHostEmail);
 
-    const mediumDoc = await User.findOne({
-      batch: batch,
-      subscription: plan,
-      role: 'STUDENT'
-    }).select('medium');
-
-    const medium = mediumDoc?.medium?.[0] || null;
-
-    console.log('🌐 Medium for batch/plan:', medium?.medium || 'N/A');
-
-    // Find students by IDs or names
+    // Find students by IDs
     let students = [];
-    
     if (studentIds[0] && typeof studentIds[0] === 'object' && studentIds[0]._id) {
-      // If full student objects are passed
       students = studentIds;
     } else {
-      // Find students by IDs
       students = await User.find({
         _id: { $in: studentIds },
         role: 'STUDENT'
@@ -254,72 +246,34 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
     }
 
     if (students.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No students found with the provided IDs'
-      });
+      return res.status(404).json({ success: false, message: 'No students found with the provided IDs' });
     }
 
     console.log(`✅ Found ${students.length} students`);
 
-    // Prepare attendees for Zoom
-    const attendees = students.map(student => ({
-      email: student.email,
-      name: student.name,
-      firstName: student.name.split(' ')[0],
-      lastName: student.name.split(' ').slice(1).join(' ') || ''
-    }));
-
-    // Create Zoom meeting
+    // Create Zoom meeting on teacher's Zoom user (under master account)
     const zoomResult = await zoomService.createMeeting({
       topic,
       startTime,
       duration: duration || 60,
       timezone: timezone || 'Asia/Colombo',
-      agenda: agenda || `German Language Class - Batch ${batch}`,
-      teacherEmail: teacher.email, // Add teacher as alternative host
-      attendees,
-      settings: {
-        host_video: true,
-        participant_video: true,
-        join_before_host: false,
-        mute_upon_entry: true,
-        waiting_room: false, // No waiting room for registered participants
-        approval_type: 0, // Auto-approve registrants
-        registration_type: 1 // Registration required for unique URLs
-      }
-    });
+      agenda: agenda || `German Language Class - Batch ${batch}`
+    }, teacher.zoomHostEmail);
 
     if (!zoomResult.success) {
       throw new Error('Failed to create Zoom meeting');
     }
 
     const meeting = zoomResult.meeting;
-    const registrants = zoomResult.registrants || [];
 
-    console.log('✅ Zoom meeting created with registrants:', {
-      meetingId: meeting.id,
-      registrantCount: registrants.length,
-      sampleRegistrant: registrants[0] ? {
-        email: registrants[0].email,
-        hasUniqueUrl: !!registrants[0].joinUrl
-      } : null
-    });
+    console.log('✅ Zoom meeting created on teacher account:', meeting.id);
 
-    // Create a map of email to unique join URL for easy lookup
-    const registrantUrlMap = {};
-    registrants.forEach(reg => {
-      if (reg.email && reg.joinUrl) {
-        registrantUrlMap[reg.email.toLowerCase()] = reg.joinUrl;
-      }
-    });
-
-    // Save meeting to database with registrant URLs
+    // Save meeting to database — all students share the same join URL (no registration)
     const meetingLink = new MeetingLink({
       batch,
       plan,
       platform: 'Zoom',
-      link: meeting.joinUrl, // Generic meeting URL
+      link: meeting.joinUrl,
       topic: meeting.topic,
       agenda: meeting.agenda,
       startTime: new Date(meeting.startTime),
@@ -329,15 +283,13 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
       zoomPassword: meeting.password,
       hostEmail: meeting.hostEmail,
       startUrl: meeting.startUrl,
-      joinUrl: meeting.joinUrl, // Generic URL for fallback
+      joinUrl: meeting.joinUrl,
       createdBy: req.user.id,
       attendees: students.map(student => ({
         studentId: student._id,
         name: student.name,
         email: student.email,
-        // Store unique registrant URL for each student
-        joinUrl: registrantUrlMap[student.email.toLowerCase()] || meeting.joinUrl,
-        registrantId: registrants.find(r => r.email?.toLowerCase() === student.email.toLowerCase())?.registrantId
+        joinUrl: meeting.joinUrl // Same URL for all students
       })),
       status: 'scheduled'
     });
@@ -365,8 +317,8 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
         emailResults.attempted++;
         
         try {
-          // Get unique registrant URL for this student
-          const studentJoinUrl = registrantUrlMap[student.email.toLowerCase()] || meeting.joinUrl;
+          // All students share the same join URL (teacher is host)
+          const studentJoinUrl = meeting.joinUrl;
           
           console.log(`📧 Sending email to ${student.name} with URL: ${studentJoinUrl.substring(0, 50)}...`);
           
@@ -984,25 +936,13 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
         name: student.name
       }));
 
-      // Add to Zoom and capture unique registration URLs
-      const registrantResults = await zoomService.addRegistrants(meeting.zoomMeetingId, attendees);
-
-      // Create email-to-URL mapping
-      const registrantUrlMap = {};
-      registrantResults.forEach(reg => {
-        if (reg.email && reg.joinUrl && reg.success) {
-          registrantUrlMap[reg.email.toLowerCase()] = reg.joinUrl;
-        }
-      });
-
-      // Add to database with unique URLs
+      // No registration needed — students use the shared join URL
       newStudents.forEach(student => {
         meeting.attendees.push({
           studentId: student._id,
           name: student.name,
           email: student.email,
-          joinUrl: registrantUrlMap[student.email.toLowerCase()] || meeting.joinUrl,
-          registrantId: registrantResults.find(r => r.email?.toLowerCase() === student.email.toLowerCase())?.registrantId
+          joinUrl: meeting.joinUrl
         });
       });
 
@@ -1015,7 +955,7 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
         for (const student of newStudents) {
           try {
             // Get unique registrant URL for this student
-            const studentJoinUrl = registrantUrlMap[student.email.toLowerCase()] || meeting.joinUrl;
+            const studentJoinUrl = meeting.joinUrl;
             
             const mailOptions = {
               from: process.env.EMAIL_USER,
@@ -1692,18 +1632,26 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
 
     const attendanceData = meeting.attendees.map(attendee => {
       const matchResult = findBestParticipantMatch(attendee, zoomReport.participants);
+      const participantDuration = matchResult.match?.durationMinutes || 0;
+      const meetingDuration = meeting.duration || 60;
+      const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
+      // Must be present for at least 70% of the meeting to count as attended
+      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
       
       console.log(`🎯 Matching ${attendee.name}:`, {
         confidence: matchResult.confidence,
         method: matchResult.method,
-        matched: !!matchResult.match
+        matched: !!matchResult.match,
+        durationMinutes: participantDuration,
+        attendancePercent: Math.round(attendancePercent),
+        meetsThreshold
       });
       
       return {
         studentId: attendee.studentId,
         name: attendee.name,
         email: attendee.email,
-        attended: matchResult.match ? true : false,
+        attended: meetsThreshold,
         confidence: matchResult.confidence,
         matchMethod: matchResult.method,
         zoomName: matchResult.match?.name || null,
@@ -1711,8 +1659,9 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         joinTime: matchResult.match?.joinTime || null,
         leaveTime: matchResult.match?.leaveTime || null,
         duration: matchResult.match?.duration || 0,
-        durationMinutes: matchResult.match?.durationMinutes || 0,
-        status: matchResult.match ? 'attended' : 'absent',
+        durationMinutes: participantDuration,
+        attendancePercent: Math.round(attendancePercent),
+        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
         needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
       };
     });
@@ -1810,9 +1759,7 @@ router.get('/meeting/:meetingId/engagement/students', verifyToken, async (req, r
 
     const engagementData = await zoomService.getParticipantEngagement(meetingId);
 
-    // Get meeting from database to identify registered students
-    const meeting = await MeetingLink.findOne({ zoomMeetingId: meetingId });
-    
+    // Identify registered students
     let studentData;
     
     if (meeting && meeting.attendees && meeting.attendees.length > 0) {
@@ -1875,11 +1822,10 @@ router.get('/meeting/:meetingId/engagement/teacher', verifyToken, async (req, re
 
     console.log('📊 Fetching TEACHER engagement data for meeting:', meetingId);
 
-    const engagementData = await zoomService.getParticipantEngagement(meetingId);
-
     // Get meeting from database to identify the teacher
     const meeting = await MeetingLink.findOne({ zoomMeetingId: meetingId })
       .populate('createdBy', 'name email');
+    const engagementData = await zoomService.getParticipantEngagement(meetingId);
     
     let teacherData;
     
