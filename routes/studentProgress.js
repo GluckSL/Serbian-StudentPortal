@@ -209,6 +209,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     const Invoice = require('../models/Invoice');
     const StudentPayment = require('../models/StudentPayment');
     const VisaTracking = require('../models/VisaTracking');
+    const ExerciseAttempt = require('../models/ExerciseAttempt');
     const studentId = req.user.id;
 
     const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
@@ -336,12 +337,16 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         enrollmentDate: student.enrollmentDate || student.createdAt,
         examScores: student.examScores || {}, languageExamStatus: student.languageExamStatus || '',
         profilePic: student.profilePic || '',
-        currentCourseDay: studentCourseDay
+        currentCourseDay: studentCourseDay,
+        subscription: student.subscription || ''
       },
       nextLockedDigitalExercise,
       levelProgression, lessonsByLevel,
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
+      exercisesThisWeek: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed', completedAt: { $gte: weekStart } }),
+      exercisesToday: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed', completedAt: { $gte: todayStart } }),
+      exercisesTotal: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed' }),
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),
