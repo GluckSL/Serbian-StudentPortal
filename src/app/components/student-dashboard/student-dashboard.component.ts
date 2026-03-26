@@ -92,7 +92,6 @@ export class StudentDashboardComponent implements OnInit {
   }
 
   fetchUserProfile(): void {
-    // Simplified user profile fetching without VAPI/ElevenLabs
     this.loading = true;
     this.authService.getUserProfile().subscribe({
       next: (profile) => {

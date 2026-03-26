@@ -14,7 +14,6 @@
   <mat-card class="filters-card">
     <div class="filters">
       <mat-form-field appearance="outline">
-        <mat-label>Search</mat-label>
         <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onFilterChange()" placeholder="Search by topic, batch...">
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>

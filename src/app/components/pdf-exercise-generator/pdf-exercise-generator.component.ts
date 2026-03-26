@@ -1,17 +1,18 @@
 // src/app/components/pdf-exercise-generator/pdf-exercise-generator.component.ts
 
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
+import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../shared/material.module';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
 interface ReviewQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -36,6 +37,11 @@ interface ReviewQuestion {
   sampleAnswers?: string[];
   similarityThreshold?: number;
   scoringMode?: 'full' | 'proportional';
+  // Listening
+  mediaUrl?: string;
+  expectedTranscript?: string;
+  attemptMode?: 'typing' | 'typing-or-speech';
+  transcribing?: boolean;
   // Common
   points: number;
   // Editor state
@@ -56,12 +62,13 @@ const PROGRESS_MESSAGES = [
 @Component({
   selector: 'app-pdf-exercise-generator',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './pdf-exercise-generator.component.html',
   styleUrls: ['./pdf-exercise-generator.component.css']
 })
 export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
 
   currentStep: WizardStep = 1;
 
@@ -101,6 +108,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // Exercise metadata
   exerciseTitle = '';
   exerciseDescription = '';
+  /** Optional journey day 1–200; empty = general pool */
+  courseDayStr = '';
   visibleToStudents = false;
   saving = false;
 
@@ -123,10 +132,40 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   constructor(
     private exerciseService: DigitalExerciseService,
     private router: Router,
+    private route: ActivatedRoute,
     private snackBar: MatSnackBar
   ) {}
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    const q = this.route.snapshot.queryParamMap.get('courseDay');
+    if (q == null || q === '') return;
+    const p = parseInt(String(q).trim(), 10);
+    if (Number.isFinite(p) && p >= 1 && p <= 200) {
+      this.courseDayStr = String(p);
+    }
+  }
+
+  /** Number input binding for course day (empty = any day). */
+  get courseDayAsNumber(): number | null {
+    const t = this.courseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p)) return null;
+    return p;
+  }
+
+  onCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.courseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.courseDayStr = '';
+      return;
+    }
+    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
 
   ngOnDestroy(): void {
     this.clearProgressTimer();
@@ -252,7 +291,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     this.exerciseService.generateFromPdf({
       uploadId: this.uploadResult.uploadId,
-      types: this.selectedTypes,
+      types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
       typeCounts: { ...this.typeCounts },
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
@@ -330,6 +369,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     else if (type === 'fill-blank') Object.assign(q, { sentence: '', answers: [''], hint: '', caseSensitive: false });
     else if (type === 'pronunciation') Object.assign(q, { word: '', phonetic: '', translation: '', acceptedVariants: [] });
     else if (type === 'question-answer') Object.assign(q, { prompt: '', sampleAnswers: [''], similarityThreshold: 70, scoringMode: 'full' });
+    else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
     this.reviewQuestions.push(q);
     this.addingType = '';
   }
@@ -397,6 +437,55 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     q.similarityThreshold = v;
   }
 
+  triggerListeningFile(q: ReviewQuestion): void {
+    (this as any).currentListeningQ = q;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onListeningFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = (this as any).currentListeningQ as ReviewQuestion | null;
+    (this as any).currentListeningQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio uploaded'); },
+      error: (err) => this.showError(err.error?.error || 'Upload failed')
+    });
+  }
+
+  fetchListeningFromUrl(q: ReviewQuestion, url: string): void {
+    if (!url?.trim()) { this.showError('Enter a valid URL'); return; }
+    this.exerciseService.fetchListeningFromUrl(url.trim()).subscribe({
+      next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio fetched'); },
+      error: (err) => this.showError(err.error?.error || 'Fetch failed')
+    });
+  }
+
+  generateListeningTranscript(q: ReviewQuestion): void {
+    if (!q.mediaUrl) { this.showError('Upload or add audio URL first'); return; }
+    q.transcribing = true;
+    this.exerciseService.transcribeListening(q.mediaUrl).subscribe({
+      next: (res) => {
+        q.expectedTranscript = res.transcript;
+        q.transcribing = false;
+        this.showSuccess('Transcript generated. Verify and edit if needed.');
+      },
+      error: (err) => {
+        q.transcribing = false;
+        this.showError(err.error?.error || 'Transcription failed');
+      }
+    });
+  }
+
+  getMediaFullUrl(relative: string): string {
+    if (!relative) return '';
+    if (relative.startsWith('http')) return relative;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return base ? base + relative : relative;
+  }
+
   // Validation
   isQuestionValid(q: ReviewQuestion): boolean {
     if (q.type === 'mcq') return !!(q.question?.trim()) && (q.options?.filter(o => o.trim()).length ?? 0) >= 2;
@@ -404,6 +493,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
+    if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     return false;
   }
 
@@ -417,6 +507,18 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Please add a title and ensure at least one valid question.');
       return;
     }
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.saving = false;
+        this.showError('Course day must be empty or a number from 1 to 200');
+        return;
+      }
+      courseDay = p;
+    }
+
     this.saving = true;
     const payload = {
       title: this.exerciseTitle.trim(),
@@ -426,6 +528,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       level: this.level as any,
       category: 'Grammar' as any,
       difficulty: this.difficulty,
+      courseDay,
       visibleToStudents: publish,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
         const { expanded, aiGenerated, ...rest } = q;

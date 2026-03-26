@@ -3,17 +3,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatInputModule } from '@angular/material/input';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatChipsModule } from '@angular/material/chips';
+import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
+import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 
 interface MeetingReport {
@@ -22,103 +14,70 @@ interface MeetingReport {
   batch: string;
   startTime: Date;
   duration: number;
-  teacher: {
-    name: string;
-    email: string;
-  };
+  teacher: { name: string; email: string; };
   attendees: number;
   attended: number;
   absent: number;
   attendanceRate: number;
-  avgCameraOn: number;
-  avgMicOn: number;
   status: string;
 }
 
 @Component({
   selector: 'app-zoom-reports',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTableModule,
-    MatProgressSpinnerModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatTabsModule,
-    MatChipsModule
-  ],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './zoom-reports.component.html',
   styleUrls: ['./zoom-reports.component.css']
 })
 export class ZoomReportsComponent implements OnInit {
-  // Data
   allMeetings: any[] = [];
   completedMeetings: MeetingReport[] = [];
   filteredMeetings: MeetingReport[] = [];
-  
-  // Loading states
+
   loading = false;
   error = '';
-  
-  // Filters
+
   teacherFilter = 'all';
   batchFilter = 'all';
-  dateFilter = 'all'; // all, today, week, month
+  dateFilter = 'all';
+  customDateFrom = '';
+  customDateTo = '';
   searchQuery = '';
-  
-  // Statistics
-  stats = {
-    totalMeetings: 0,
-    totalStudents: 0,
-    avgAttendance: 0,
-    avgCameraOn: 0,
-    totalDuration: 0
-  };
-  
-  // Table columns
-  displayedColumns: string[] = [
-    'date',
-    'topic',
-    'teacher',
-    'batch',
-    'duration',
-    'attendance',
-    'engagement',
-    'actions'
-  ];
+
+  stats = { totalMeetings: 0, totalStudents: 0, avgAttendance: 0, totalDuration: 0 };
+
+  isTeacherRole = false;
 
   constructor(
     private zoomService: ZoomService,
+    private authService: AuthService,
     private router: Router
   ) {}
 
   ngOnInit(): void {
-    this.loadCompletedMeetings();
+    this.authService.currentUser$.subscribe(user => {
+      if (user) {
+        this.isTeacherRole = user.role === 'TEACHER';
+        this.loadCompletedMeetings();
+      }
+    });
   }
 
   loadCompletedMeetings(): void {
     this.loading = true;
     this.error = '';
-
     this.zoomService.getAllMeetings().subscribe({
       next: (response) => {
         if (response.success) {
           this.allMeetings = response.data;
           this.processCompletedMeetings();
-          this.calculateStatistics();
           this.applyFilters();
         } else {
           this.error = response.message || 'Failed to load meetings';
         }
         this.loading = false;
       },
-      error: (err) => {
-        console.error('Error loading meetings:', err);
+      error: () => {
         this.error = 'Failed to load meeting reports';
         this.loading = false;
       }
@@ -127,276 +86,165 @@ export class ZoomReportsComponent implements OnInit {
 
   processCompletedMeetings(): void {
     const now = new Date();
-    
     this.completedMeetings = this.allMeetings
-      .filter(meeting => {
-        const endTime = new Date(new Date(meeting.startTime).getTime() + meeting.duration * 60000);
-        return endTime < now; // Meeting has ended
-      })
-      .map(meeting => {
-        const attended = meeting.attendance?.filter((a: any) => a.attended).length || 0;
-        const total = meeting.attendees?.length || 0;
-        const absent = total - attended;
-        
+      .filter(m => new Date(new Date(m.startTime).getTime() + m.duration * 60000) < now)
+      .map(m => {
+        const attended = m.attendance?.filter((a: any) => a.attended).length || 0;
+        const total = m.attendees?.length || 0;
         return {
-          _id: meeting._id,
-          topic: meeting.topic,
-          batch: meeting.batch,
-          startTime: new Date(meeting.startTime),
-          duration: meeting.duration,
-          teacher: {
-            name: meeting.createdBy?.name || 'Unknown',
-            email: meeting.createdBy?.email || ''
-          },
+          _id: m._id,
+          topic: m.topic,
+          batch: m.batch,
+          startTime: new Date(m.startTime),
+          duration: m.duration,
+          teacher: { name: m.createdBy?.name || 'Unknown', email: m.createdBy?.email || '' },
           attendees: total,
-          attended: attended,
-          absent: absent,
+          attended,
+          absent: total - attended,
           attendanceRate: total > 0 ? Math.round((attended / total) * 100) : 0,
-          avgCameraOn: 0, // Will be calculated if engagement data available
-          avgMicOn: 0,
           status: 'completed'
         };
       })
       .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
   }
 
-  calculateStatistics(): void {
-    if (this.completedMeetings.length === 0) {
-      this.stats = {
-        totalMeetings: 0,
-        totalStudents: 0,
-        avgAttendance: 0,
-        avgCameraOn: 0,
-        totalDuration: 0
-      };
-      return;
-    }
-
-    const totalAttended = this.completedMeetings.reduce((sum, m) => sum + m.attended, 0);
-    const totalStudents = this.completedMeetings.reduce((sum, m) => sum + m.attendees, 0);
-    const totalDuration = this.completedMeetings.reduce((sum, m) => sum + m.duration, 0);
-    const avgAttendanceRate = this.completedMeetings.reduce((sum, m) => sum + m.attendanceRate, 0) / this.completedMeetings.length;
-
-    this.stats = {
-      totalMeetings: this.completedMeetings.length,
-      totalStudents: totalStudents,
-      avgAttendance: Math.round(avgAttendanceRate),
-      avgCameraOn: 0, // Can be calculated from engagement data
-      totalDuration: totalDuration
-    };
-  }
-
   applyFilters(): void {
-    this.filteredMeetings = this.completedMeetings.filter(meeting => {
-      // Teacher filter
-      if (this.teacherFilter !== 'all' && meeting.teacher.name !== this.teacherFilter) {
-        return false;
-      }
+    this.filteredMeetings = this.completedMeetings.filter(m => {
+      if (this.teacherFilter !== 'all' && m.teacher.name !== this.teacherFilter) return false;
+      if (this.batchFilter !== 'all' && m.batch !== this.batchFilter) return false;
 
-      // Batch filter
-      if (this.batchFilter !== 'all' && meeting.batch !== this.batchFilter) {
-        return false;
-      }
-
-      // Date filter
       if (this.dateFilter !== 'all') {
         const now = new Date();
-        const meetingDate = meeting.startTime;
-        
-        if (this.dateFilter === 'today') {
-          if (meetingDate.toDateString() !== now.toDateString()) {
-            return false;
+        if (this.dateFilter === 'today' && m.startTime.toDateString() !== now.toDateString()) return false;
+        if (this.dateFilter === 'week' && m.startTime < new Date(now.getTime() - 7 * 864e5)) return false;
+        if (this.dateFilter === 'month' && m.startTime < new Date(now.getTime() - 30 * 864e5)) return false;
+        if (this.dateFilter === 'custom') {
+          if (this.customDateFrom) {
+            const from = new Date(this.customDateFrom); from.setHours(0, 0, 0, 0);
+            if (m.startTime < from) return false;
           }
-        } else if (this.dateFilter === 'week') {
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          if (meetingDate < weekAgo) {
-            return false;
-          }
-        } else if (this.dateFilter === 'month') {
-          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          if (meetingDate < monthAgo) {
-            return false;
+          if (this.customDateTo) {
+            const to = new Date(this.customDateTo); to.setHours(23, 59, 59, 999);
+            if (m.startTime > to) return false;
           }
         }
       }
 
-      // Search query
       if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        return (
-          meeting.topic.toLowerCase().includes(query) ||
-          meeting.teacher.name.toLowerCase().includes(query) ||
-          meeting.batch.toLowerCase().includes(query)
-        );
+        const q = this.searchQuery.toLowerCase();
+        return m.topic.toLowerCase().includes(q) ||
+               m.teacher.name.toLowerCase().includes(q) ||
+               m.batch.toLowerCase().includes(q);
       }
 
       return true;
     });
+
+    this.recalculateStats();
   }
 
-  onFilterChange(): void {
+  recalculateStats(): void {
+    if (!this.filteredMeetings.length) {
+      this.stats = { totalMeetings: 0, totalStudents: 0, avgAttendance: 0, totalDuration: 0 };
+      return;
+    }
+    const filteredIds = new Set(this.filteredMeetings.map(m => m._id));
+    const uniqueStudents = new Set<string>();
+    this.allMeetings.filter(m => filteredIds.has(m._id)).forEach(m => {
+      m.attendees?.forEach((a: any) => {
+        const id = a.studentId?._id || a.studentId;
+        if (id) uniqueStudents.add(id.toString());
+      });
+    });
+    this.stats = {
+      totalMeetings: this.filteredMeetings.length,
+      totalStudents: uniqueStudents.size,
+      avgAttendance: Math.round(this.filteredMeetings.reduce((s, m) => s + m.attendanceRate, 0) / this.filteredMeetings.length),
+      totalDuration: this.filteredMeetings.reduce((s, m) => s + m.duration, 0)
+    };
+  }
+
+  onFilterChange(): void { this.applyFilters(); }
+
+  clearFilters(): void {
+    this.searchQuery = '';
+    this.teacherFilter = 'all';
+    this.batchFilter = 'all';
+    this.dateFilter = 'all';
+    this.customDateFrom = '';
+    this.customDateTo = '';
     this.applyFilters();
   }
 
   getUniqueTeachers(): string[] {
-    const teachers = this.completedMeetings.map(m => m.teacher.name);
-    return [...new Set(teachers)].sort();
+    return [...new Set(this.completedMeetings.map(m => m.teacher.name))].sort();
   }
 
   getUniqueBatches(): string[] {
-    const batches = this.completedMeetings.map(m => m.batch);
-    return [...new Set(batches)].sort();
+    return [...new Set(this.completedMeetings.map(m => m.batch))].sort();
   }
 
-  viewMeetingDetails(meetingId: string): void {
-    this.router.navigate(['/teacher/meetings', meetingId]);
-  }
+  viewMeetingDetails(id: string): void { this.router.navigate(['/teacher/meetings', id]); }
+  viewAttendance(id: string): void { this.router.navigate(['/teacher/meetings', id, 'attendance']); }
 
-  viewAttendance(meetingId: string): void {
-    this.router.navigate(['/teacher/meetings', meetingId, 'attendance']);
-  }
-
-  viewEngagement(meetingId: string): void {
-    this.router.navigate(['/teacher/meetings', meetingId, 'engagement']);
-  }
-
-  formatDate(date: Date): string {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  deleteMeeting(id: string, topic: string): void {
+    if (!confirm(`Delete "${topic}"? This cannot be undone.`)) return;
+    this.zoomService.deleteMeeting(id).subscribe({
+      next: () => {
+        this.allMeetings = this.allMeetings.filter(m => m._id !== id);
+        this.completedMeetings = this.completedMeetings.filter(m => m._id !== id);
+        this.applyFilters();
+      },
+      error: () => alert('Failed to delete. Please try again.')
     });
+  }
+
+  formatDateShort(date: Date): string {
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  formatTime(date: Date): string {
+    return new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
   formatDuration(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins} min`;
-  }
-
-  getAttendanceColor(rate: number): string {
-    if (rate >= 80) return 'success';
-    if (rate >= 60) return 'warning';
-    return 'danger';
+    const h = Math.floor(minutes / 60), m = minutes % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m} min`;
   }
 
   exportToCSV(): void {
-    if (this.filteredMeetings.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    const headers = [
-      'Date',
-      'Topic',
-      'Teacher',
-      'Batch',
-      'Duration (min)',
-      'Total Students',
-      'Attended',
-      'Absent',
-      'Attendance Rate (%)'
-    ];
-
-    const rows = this.filteredMeetings.map(meeting => [
-      this.formatDate(meeting.startTime),
-      meeting.topic,
-      meeting.teacher.name,
-      meeting.batch,
-      meeting.duration,
-      meeting.attendees,
-      meeting.attended,
-      meeting.absent,
-      meeting.attendanceRate
+    if (!this.filteredMeetings.length) { alert('No data to export'); return; }
+    const headers = ['Date', 'Topic', 'Teacher', 'Batch', 'Duration (min)', 'Total', 'Attended', 'Absent', 'Rate (%)'];
+    const rows = this.filteredMeetings.map(m => [
+      this.formatDateShort(m.startTime), m.topic, m.teacher.name, m.batch,
+      m.duration, m.attendees, m.attended, m.absent, m.attendanceRate
     ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `zoom_reports_${new Date().toISOString().split('T')[0]}.csv`);
-    link.click();
-    URL.revokeObjectURL(url);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `zoom_reports_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   }
 
   exportTeacherReport(): void {
-    if (this.completedMeetings.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    // Group by teacher
-    const teacherStats: any = {};
-    
-    this.completedMeetings.forEach(meeting => {
-      const teacherName = meeting.teacher.name;
-      
-      if (!teacherStats[teacherName]) {
-        teacherStats[teacherName] = {
-          name: teacherName,
-          email: meeting.teacher.email,
-          totalMeetings: 0,
-          totalDuration: 0,
-          totalStudents: 0,
-          totalAttended: 0,
-          avgAttendance: 0
-        };
-      }
-      
-      teacherStats[teacherName].totalMeetings++;
-      teacherStats[teacherName].totalDuration += meeting.duration;
-      teacherStats[teacherName].totalStudents += meeting.attendees;
-      teacherStats[teacherName].totalAttended += meeting.attended;
+    if (!this.completedMeetings.length) { alert('No data to export'); return; }
+    const map: any = {};
+    this.completedMeetings.forEach(m => {
+      if (!map[m.teacher.name]) map[m.teacher.name] = { name: m.teacher.name, email: m.teacher.email, meetings: 0, duration: 0, students: 0, attended: 0 };
+      map[m.teacher.name].meetings++;
+      map[m.teacher.name].duration += m.duration;
+      map[m.teacher.name].students += m.attendees;
+      map[m.teacher.name].attended += m.attended;
     });
-
-    // Calculate averages
-    Object.values(teacherStats).forEach((stats: any) => {
-      stats.avgAttendance = stats.totalStudents > 0 
-        ? Math.round((stats.totalAttended / stats.totalStudents) * 100)
-        : 0;
-    });
-
-    const headers = [
-      'Teacher Name',
-      'Email',
-      'Total Meetings',
-      'Total Duration (min)',
-      'Total Students',
-      'Total Attended',
-      'Avg Attendance Rate (%)'
-    ];
-
-    const rows = Object.values(teacherStats).map((stats: any) => [
-      stats.name,
-      stats.email,
-      stats.totalMeetings,
-      stats.totalDuration,
-      stats.totalStudents,
-      stats.totalAttended,
-      stats.avgAttendance
+    const headers = ['Teacher', 'Email', 'Meetings', 'Duration (min)', 'Students', 'Attended', 'Avg Rate (%)'];
+    const rows = Object.values(map).map((s: any) => [
+      s.name, s.email, s.meetings, s.duration, s.students, s.attended,
+      s.students > 0 ? Math.round((s.attended / s.students) * 100) : 0
     ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `teacher_report_${new Date().toISOString().split('T')[0]}.csv`);
-    link.click();
-    URL.revokeObjectURL(url);
+    const csv = [headers, ...rows].map((r: any) => r.map((c: any) => `"${c}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `teacher_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   }
 }

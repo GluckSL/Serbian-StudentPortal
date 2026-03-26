@@ -4,14 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatInputModule } from '@angular/material/input';
+import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 
 @Component({
@@ -20,14 +13,7 @@ import { ZoomService } from '../../services/zoom.service';
   imports: [
     CommonModule,
     FormsModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    MatProgressSpinnerModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule
+    MaterialModule
   ],
   templateUrl: './meetings-list.component.html',
   styleUrls: ['./meetings-list.component.css']
@@ -116,8 +102,9 @@ export class MeetingsListComponent implements OnInit {
 
   joinMeeting(meeting: any, event: Event): void {
     event.stopPropagation();
-    if (meeting.startUrl) {
-      window.open(meeting.startUrl, '_blank');
+    const url = meeting.joinUrl || meeting.startUrl;
+    if (url) {
+      window.open(url, '_blank');
     }
   }
 

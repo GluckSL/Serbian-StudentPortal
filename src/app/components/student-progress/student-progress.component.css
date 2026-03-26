@@ -1,249 +1,664 @@
-/* src/app/components/student-progress/student-progress.component.css */
+/* ═══ Student Progress – Dockworks-inspired ═══ */
 
-.progress-container {
-  padding: 2rem;
-  max-width: 1400px;
+.sp {
+  max-width: 1100px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-/* Header Styles */
-.page-header {
-  margin-bottom: 2rem;
+/* ── Card ── */
+.sp-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+  border: 1px solid #e8ecf4;
 }
 
-.header-content {
+.sp-card__head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  margin-bottom: 10px;
 }
 
-.title-section h1 {
-  margin: 0;
-  color: #2c3e50;
+.sp-card__title {
+  font-size: 13px;
   font-weight: 700;
+  color: #0f172a;
 }
 
-.subtitle {
-  margin: 0.5rem 0 0 0;
-  color: #6c757d;
-  font-size: 1.1rem;
+.sp-card__meta {
+  font-size: 11px;
+  color: #6b7280;
 }
 
-/* Loading State */
-.loading-container {
+/* ── Alert ── */
+.sp-alert {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 300px;
+  gap: 10px;
+  align-items: flex-start;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.sp-alert__icon { font-size: 16px; flex-shrink: 0; }
+.sp-alert__msg { font-size: 12px; color: #991b1b; line-height: 1.5; }
+
+/* ── Badge ── */
+.sp-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.sp-badge--green { background: #dcfce7; color: #166534; }
+.sp-badge--gray  { background: #f1f5f9; color: #64748b; }
+
+/* ═══ SECTIONS ═══ */
+.sp-section {
+  display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #6c757d;
+.sp-section__title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  padding: 2px 0;
 }
 
-/* Level Progression Section */
-.level-progression-section {
-  background: white;
-  border-radius: 1rem;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+.sp-section__grid--learning {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
 }
 
-.section-header {
-  text-align: center;
-  margin-bottom: 2rem;
+.sp-section__grid--learning .sp-card--wide {
+  grid-column: 1 / -1;
 }
 
-.section-header i {
-  font-size: 2rem;
-  color: #667eea;
-  margin-bottom: 0.5rem;
+.sp-section__grid--two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
-.section-header h2 {
-  margin: 0.5rem 0;
-  color: #2c3e50;
-  font-weight: 700;
-  font-size: 1.75rem;
+/* Inline status grid inside profile card */
+.sp-status-grid.sp-status-grid--inline {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  grid-template-columns: repeat(3, 1fr);
 }
 
-.section-header .subtitle {
-  color: #6c757d;
-  font-size: 1rem;
-  margin: 0;
+/* Learning quick stats row */
+.sp-status-grid.sp-status-grid--learning-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
 }
 
-/* Level Badges */
-.level-badges {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
+@media (min-width: 768px) {
+  .sp-section__grid--learning {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .sp-section__grid--learning .sp-card--wide {
+    grid-column: 1 / -1;
+  }
 }
 
-.current-level-badge {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 2rem;
+@media (max-width: 767px) {
+  .sp-section__grid--two { grid-template-columns: 1fr; }
+  .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Profile table ── */
+.sp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sp-table td {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sp-table__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
   font-weight: 600;
-  font-size: 1rem;
-  display: inline-flex;
+  width: 90px;
+  white-space: nowrap;
+}
+
+/* ── Status grid ── */
+.sp-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sp-stat {
+  text-align: center;
+  padding: 12px 6px;
+  border-radius: 12px;
+  border: 1px solid #e8ecf4;
+}
+
+.sp-stat__val {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.sp-stat__lbl {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.sp-stat--blue   { background: #eff6ff; border-color: #bfdbfe; }
+.sp-stat--blue .sp-stat__val { color: #1d4ed8; }
+.sp-stat--green  { background: #f0fdf4; border-color: #bbf7d0; }
+.sp-stat--green .sp-stat__val { color: #16a34a; }
+.sp-stat--orange { background: #fff7ed; border-color: #fed7aa; }
+.sp-stat--orange .sp-stat__val { color: #ea580c; }
+.sp-stat--purple { background: #faf5ff; border-color: #e9d5ff; }
+.sp-stat--purple .sp-stat__val { color: #7c3aed; }
+
+/* ── Level chips ── */
+.sp-levels {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.sp-level {
+  flex: 1;
+  text-align: center;
+  padding: 4px 0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.sp-level--active { background: #dbeafe; color: #1d4ed8; border-color: #60a5fa; }
+.sp-level--done   { background: #dcfce7; color: #166534; border-color: #4ade80; }
+
+/* ── Lesson rows ── */
+.sp-lesson-rows { display: flex; flex-direction: column; gap: 6px; }
+
+.sp-lesson-row {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  gap: 8px;
 }
 
-.current-level-badge i {
-  font-size: 1.1rem;
+.sp-lesson-row__lbl {
+  font-size: 11px;
+  color: #475569;
+  min-width: 28px;
+  font-weight: 600;
 }
 
-/* Level Timeline */
-.level-timeline {
-  position: relative;
-  padding: 1rem 0;
+.sp-lesson-row__ct {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  min-width: 32px;
+  text-align: right;
 }
 
-.level-item {
-  position: relative;
+/* ── Shared bar ── */
+.sp-bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.sp-bar--lg { height: 9px; margin-bottom: 8px; }
+
+.sp-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.sp-bar__fill--blue   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.sp-bar__fill--green  { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.sp-bar__fill--yellow { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.sp-bar__fill--purple { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+
+.sp-small-text { font-size: 10px; color: #94a3b8; margin-top: 4px; }
+
+/* ── Level completion details ── */
+.sp-level-details { display: flex; flex-direction: column; gap: 6px; }
+
+.sp-level-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+
+.sp-level-detail__lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  min-width: 24px;
+}
+
+.sp-level-detail__info {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.sp-level-detail__dates {
+  font-size: 11px;
+  color: #475569;
+}
+
+.sp-level-detail__na {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.sp-level-detail__days {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  min-width: 80px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-level-detail__days--done {
+  color: #16a34a;
+}
+
+.sp-level-detail__days--active {
+  color: #1d4ed8;
+}
+
+/* ── Invoice table ── */
+.sp-invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.sp-invoice-table th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  font-weight: 700;
+}
+
+.sp-invoice-table td {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sp-invoice-total td {
+  font-weight: 700;
+  color: #0f172a;
+  border-top: 2px solid #e5e7eb;
+  border-bottom: none;
+  padding-top: 8px;
+}
+
+.sp-pay-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.sp-pay-badge--paid    { background: #dcfce7; color: #166534; }
+.sp-pay-badge--overdue { background: #fee2e2; color: #991b1b; }
+.sp-pay-badge--pending { background: #f1f5f9; color: #64748b; }
+
+.sp-pay-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sp-pay-blocks {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.sp-pay-block {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.sp-pay-block--paid    { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.sp-pay-block--overdue { background: #fca5a5; }
+
+/* ── Documents table ── */
+.sp-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sp-doc-table th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  padding: 5px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  font-weight: 700;
+}
+
+.sp-doc-table td {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sp-doc-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.sp-doc-badge--ok      { background: #dcfce7; color: #166534; }
+.sp-doc-badge--pending { background: #fef3c7; color: #92400e; }
+.sp-doc-badge--rejected { background: #fef2f2; color: #dc2626; }
+.sp-doc-badge--not-uploaded { background: #f9fafb; color: #6b7280; border: 1px dashed #d1d5db; }
+
+.sp-doc-more { text-align: center; font-size: 11px; color: #6497b1; font-weight: 600; padding: 8px; }
+
+/* Document summary chips */
+.sp-doc-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+.sp-doc-chip {
+  padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+}
+.sp-doc-chip--verified { background: #dcfce7; color: #166534; }
+.sp-doc-chip--pending { background: #fef3c7; color: #92400e; }
+.sp-doc-chip--rejected { background: #fef2f2; color: #dc2626; }
+.sp-doc-chip--not-uploaded { background: #f1f5f9; color: #64748b; }
+
+/* ── Visa ── */
+.sp-visa {
   display: flex;
   align-items: flex-start;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  border-radius: 1rem;
-  transition: all 0.3s ease;
+  margin-top: 8px;
+  padding: 8px 0;
 }
 
-.level-item.completed {
-  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-  border-left: 4px solid #28a745;
-}
-
-.level-item.in-progress {
-  background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
-  border-left: 4px solid #17a2b8;
-}
-
-.level-item.not-started {
-  background: #f8f9fa;
-  border-left: 4px solid #e9ecef;
-  opacity: 0.7;
-}
-
-.level-item:hover {
-  transform: translateX(5px);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-/* Level Icon */
-.level-icon {
-  flex-shrink: 0;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
+.sp-visa__node {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  background: white;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  flex: 0 0 auto;
+  min-width: 52px;
 }
 
-.level-item.completed .level-icon { color: #28a745; }
-.level-item.in-progress .level-icon { color: #17a2b8; }
-.level-item.not-started .level-icon { color: #6c757d; }
+.sp-visa__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid #d1d5db;
+  background: #f9fafb;
+  margin-bottom: 4px;
+}
 
-/* Level Content */
-.level-content { flex: 1; }
+.sp-visa__node--active .sp-visa__dot {
+  border-color: #3b82f6;
+  background: #dbeafe;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
 
-.level-header {
+.sp-visa__node--done .sp-visa__dot {
+  border-color: #22c55e;
+  background: #dcfce7;
+}
+
+.sp-visa__label {
+  font-size: 9px;
+  color: #6b7280;
+  text-align: center;
+  max-width: 58px;
+  line-height: 1.2;
+}
+
+.sp-visa__line {
+  flex: 1;
+  height: 2px;
+  background: #e5e7eb;
+  margin-top: 6px;
+  min-width: 10px;
+}
+
+.sp-visa__line--done { background: #4ade80; }
+
+/* ── Visa Application Progress ── */
+.sp-visa-progress {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+
+.sp-visa-progress__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  margin-bottom: 6px;
 }
 
-.level-header h3 {
-  margin: 0;
-  font-size: 1.5rem;
+.sp-visa-progress__title {
+  font-size: 12px;
   font-weight: 700;
-  color: #2c3e50;
+  color: #0f172a;
 }
 
-.level-status-badge {
-  padding: 0.35rem 0.75rem;
-  border-radius: 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+.sp-visa-progress__pct {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1d4ed8;
 }
 
-.level-status-badge.badge-completed { background: #28a745; color: white; }
-.level-status-badge.badge-in-progress { background: #17a2b8; color: white; }
-.level-status-badge.badge-not-started { background: #6c757d; color: white; }
+.sp-visa-progress__dates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
 
-/* Level Details */
-.level-details {
+.sp-visa-progress__date {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 2px;
 }
 
-.detail-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.95rem;
-  color: #495057;
+.sp-visa-progress__date-label {
+  font-size: 10px;
+  color: #64748b;
 }
 
-.detail-item i { width: 20px; color: #667eea; }
+.sp-visa-progress__date-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+}
 
-/* Level Connector */
-.level-connector {
+/* ── Visa History Timeline ── */
+.sp-visa-history {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sp-visa-history__list {
+  border-left: 2px solid #e2e8f0;
+  padding-left: 12px;
+}
+
+.sp-visa-history__item {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.sp-visa-history__dot {
   position: absolute;
-  left: 2.5rem;
-  top: 100%;
-  width: 2px;
-  height: 1rem;
-  background: #e9ecef;
+  left: -17px;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
 }
 
-.level-item.completed .level-connector { background: #28a745; }
-.level-item.in-progress .level-connector { background: #17a2b8; }
-
-/* Responsive */
-@media (max-width: 768px) {
-  .progress-container { padding: 1rem; }
-  .header-content { flex-direction: column; align-items: stretch; text-align: center; }
-  .level-progression-section { padding: 1.5rem; }
-  .section-header h2 { font-size: 1.5rem; }
-  .level-badges { flex-direction: column; align-items: center; }
-  .current-level-badge { width: 100%; justify-content: center; }
-  .level-item { padding: 1rem; gap: 1rem; }
-  .level-icon { width: 40px; height: 40px; font-size: 1.25rem; }
-  .level-header { flex-direction: column; align-items: flex-start; }
-  .level-header h3 { font-size: 1.25rem; }
-  .level-connector { left: 2rem; }
+.sp-visa-history__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-@media (max-width: 576px) {
-  .level-progression-section { padding: 1rem; }
-  .section-header i { font-size: 1.5rem; }
-  .section-header h2 { font-size: 1.25rem; }
-  .level-item { flex-direction: column; align-items: center; text-align: center; }
-  .level-details { align-items: center; }
-  .level-connector { display: none; }
+.sp-visa-history__date {
+  font-size: 10px;
+  color: #94a3b8;
 }
+
+.sp-visa-history__note {
+  font-size: 11px;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.sp-visa-history__by {
+  font-size: 9px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* ── KV rows (attendance, bot, journey) ── */
+.sp-kv-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748b;
+  padding: 3px 0;
+  border-bottom: 1px solid #f8fafc;
+}
+
+.sp-kv-val {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* ── Timeline ── */
+.sp-timeline {
+  border-left: 2px solid #e2e8f0;
+  padding-left: 12px;
+}
+
+.sp-timeline__item {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.sp-timeline__dot {
+  position: absolute;
+  left: -17px;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #3b82f6;
+}
+
+.sp-timeline__date  { font-size: 10px; color: #94a3b8; display: block; }
+.sp-timeline__title { font-size: 12px; font-weight: 600; color: #1e293b; display: block; }
+.sp-timeline__desc  { font-size: 11px; color: #64748b; display: block; }
+
+/* ── Empty / spinner ── */
+.sp-empty { font-size: 11px; color: #94a3b8; padding: 6px 0; text-align: center; }
+
+.sp-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: sp-spin 0.6s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes sp-spin { to { transform: rotate(360deg); } }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sp-section__grid--two { grid-template-columns: 1fr; }
+  .sp-section__grid--learning { grid-template-columns: 1fr; }
+  .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
+}
+
+.sp-visa-link {
+  display: block;
+  text-align: center;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: none;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.sp-visa-link:hover { background: #eff6ff; }

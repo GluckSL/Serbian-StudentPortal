@@ -159,7 +159,6 @@ button:disabled,
 /* ============================= */
 /* Angular Material overrides    */
 /* ============================= */
-.header-shade,
 .mat-toolbar {
   background: var(--app-primary);
   color: var(--app-on-primary);
@@ -185,6 +184,3 @@ button:disabled,
   color: #2c3e50;
   margin-bottom: 1rem;
 }
-
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }

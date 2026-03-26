@@ -111,6 +111,17 @@ export class StudentDocumentsService {
     });
   }
 
+  // Get document requirements for the logged-in student (filtered by their servicesOpted)
+  getStudentRequirements(): Observable<{
+    success: boolean;
+    requirements: DocumentRequirement[];
+  }> {
+    return this.http.get<{
+      success: boolean;
+      requirements: DocumentRequirement[];
+    }>(`${this.apiUrl}/requirements`, { withCredentials: true });
+  }
+
   // Get document statistics
   getDocumentStats(): Observable<{
     success: boolean;
@@ -325,5 +336,16 @@ export class StudentDocumentsService {
       message: string;
       document: StudentDocument;
     }>(`${this.apiUrl}/admin/mark-verified`, data, { withCredentials: true });
+  }
+
+  // Send custom email to a student (Admin only)
+  sendEmailToStudent(data: { to: string; subject: string; message: string }): Observable<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      message: string;
+    }>(`${this.apiUrl}/admin/send-email`, data, { withCredentials: true });
   }
 }

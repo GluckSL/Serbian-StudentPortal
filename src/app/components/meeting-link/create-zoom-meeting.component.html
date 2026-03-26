@@ -23,6 +23,22 @@
     </div>
   </div>
 
+  <!-- Zoom Not Configured Warning -->
+  <div class="row mb-3" *ngIf="zoomNotConfigured">
+    <div class="col-12">
+      <div class="alert alert-warning border-0 shadow-sm" style="border-left: 4px solid #f59e0b !important;">
+        <div class="d-flex align-items-start">
+          <span style="font-size:24px;margin-right:12px;">⚠️</span>
+          <div>
+            <strong>Zoom Host Email Not Configured</strong>
+            <p class="mb-1 mt-1">Your account does not have a Zoom host email address set up. You cannot create meetings until an admin adds your Zoom host email to your profile.</p>
+            <p class="mb-0 text-muted"><small>Please contact your administrator to update your profile with your Zoom account email.</small></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Success/Error Messages -->
   <div class="row mb-3" *ngIf="successMessage || errorMessage">
     <div class="col-12">
@@ -128,6 +144,7 @@
                 <option value="">Select Plan</option>
                 <option value="SILVER">SILVER</option>
                 <option value="PLATINUM">PLATINUM</option>
+                <option value="VISA_DOC_ONLY">VISA & DOC ONLY</option>
               </select>
               <div class="invalid-feedback">
                 Plan is required
@@ -338,7 +355,7 @@
                 <button 
                   type="submit" 
                   class="btn btn-primary"
-                  [disabled]="meetingForm.invalid || selectedStudents.length === 0 || isCreatingMeeting">
+                  [disabled]="meetingForm.invalid || selectedStudents.length === 0 || isCreatingMeeting || zoomNotConfigured">
                   <span *ngIf="!isCreatingMeeting">
                     <i class="fas fa-video me-2"></i>Create Zoom Meeting
                   </span>

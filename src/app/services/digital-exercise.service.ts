@@ -5,7 +5,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation';
+export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
 
 export interface MCQQuestion {
   type: 'mcq';
@@ -48,7 +48,27 @@ export interface PronunciationQuestion {
   points: number;
 }
 
-export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion;
+export interface QuestionAnswerQuestion {
+  type: 'question-answer';
+  _id?: string;
+  prompt: string;
+  sampleAnswers?: string[];
+  similarityThreshold?: number;
+  scoringMode?: 'full' | 'proportional';
+  points: number;
+}
+
+export interface ListeningQuestion {
+  type: 'listening';
+  _id?: string;
+  prompt?: string;
+  mediaUrl: string;
+  expectedTranscript: string;
+  attemptMode?: 'typing' | 'typing-or-speech';
+  points: number;
+}
+
+export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion;
 
 export interface DigitalExercise {
   _id?: string;
@@ -61,6 +81,7 @@ export interface DigitalExercise {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   estimatedDuration?: number;
   questions: ExerciseQuestion[];
+  sharedAudioUrl?: string;
   tags?: string[];
   isActive?: boolean;
   visibleToStudents?: boolean;
@@ -71,6 +92,8 @@ export interface DigitalExercise {
   averageScore?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  /** 1–200: assigned course day; omit/null = general exercise for any unlocked day */
+  courseDay?: number | null;
   stats?: { completions: number; avgScore: number; uniqueStudents: number };
   studentAttempt?: ExerciseAttempt | null;
 }
@@ -96,7 +119,9 @@ export interface QuestionResponse {
   spokenText?: string;
   pronunciationScore?: number;
   qaResponse?: string;
+  listeningText?: string;
 }
+
 
 export interface SubmitResult {
   scorePercentage: number;
@@ -121,6 +146,10 @@ export interface ExerciseFilters {
   status?: string;
   page?: number;
   limit?: number;
+  /** Student list: only exercises tagged for this journey day */
+  todayOnly?: boolean;
+  /** Admin list: numeric day 1–200, or "unassigned" */
+  courseDay?: string | number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -134,9 +163,12 @@ export class DigitalExerciseService {
   getExercises(filters: ExerciseFilters = {}): Observable<any> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        params = params.set(key, val.toString());
+      if (val === undefined || val === null || val === '') return;
+      if (key === 'todayOnly') {
+        if (val === true) params = params.set('todayOnly', 'true');
+        return;
       }
+      params = params.set(key, val.toString());
     });
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }
@@ -250,6 +282,23 @@ export class DigitalExerciseService {
     return this.http.delete<any>(`${environment.apiUrl}/pdf-exercises/cleanup/${uploadId}`, { withCredentials: true });
   }
 
+  // ─── Manual Listening Worksheet Extraction ──────────────────────────────
+  generateListeningFromWorksheet(options: {
+    uploadId: string;
+    audioUrl?: string;
+    targetLanguage: string;
+    nativeLanguage: string;
+    level: string;
+    difficulty: string;
+    maxQuestions?: number;
+  }): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/listening-worksheets/generate`,
+      options,
+      { withCredentials: true }
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
 
   getLevels(): string[] { return ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']; }
@@ -269,7 +318,9 @@ export class DigitalExerciseService {
       mcq: 'Multiple Choice',
       matching: 'Matching Exercise',
       'fill-blank': 'Fill in the Blanks',
-      pronunciation: 'Pronunciation Check'
+      pronunciation: 'Pronunciation Check',
+      'question-answer': 'Question / Answer',
+      listening: 'Listening'
     };
     return labels[type] || type;
   }
@@ -279,8 +330,36 @@ export class DigitalExerciseService {
       mcq: 'quiz',
       matching: 'compare_arrows',
       'fill-blank': 'text_fields',
-      pronunciation: 'record_voice_over'
+      pronunciation: 'record_voice_over',
+      'question-answer': 'short_text',
+      listening: 'headphones'
     };
     return icons[type] || 'help';
+  }
+
+  uploadListeningMedia(file: File): Observable<{ success: boolean; url: string }> {
+    const formData = new FormData();
+    formData.append('media', file);
+    return this.http.post<{ success: boolean; url: string }>(
+      `${environment.apiUrl}/listening-media/upload`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  fetchListeningFromUrl(url: string): Observable<{ success: boolean; url: string }> {
+    return this.http.post<{ success: boolean; url: string }>(
+      `${environment.apiUrl}/listening-media/fetch-from-url`,
+      { url },
+      { withCredentials: true }
+    );
+  }
+
+  transcribeListening(mediaUrl: string): Observable<{ success: boolean; transcript: string }> {
+    return this.http.post<{ success: boolean; transcript: string }>(
+      `${environment.apiUrl}/listening-media/transcribe`,
+      { mediaUrl },
+      { withCredentials: true }
+    );
   }
 }

@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, checkRole } = require('../middleware/auth');
 const SessionRecord = require('../models/SessionRecord');
+const AiTutorSession = require('../models/AiTutorSession');
 const User = require('../models/User');
 const LearningModule = require('../models/LearningModule');
 
@@ -90,6 +91,20 @@ router.post('/', verifyToken, async (req, res) => {
         messageCount: sessionRecord.messages.length
       }
     });
+
+    // Sync AiTutorSession status (runs after response is sent)
+    try {
+      if (sessionState === 'manually_ended' || sessionState === 'completed' || sessionState === 'abandoned') {
+        const atsStatus = sessionState === 'manually_ended' ? 'completed' : sessionState;
+        await AiTutorSession.updateOne(
+          { sessionId },
+          { $set: { status: atsStatus, endTime: now, updatedAt: now } }
+        );
+        console.log(`🔄 AiTutorSession synced: ${sessionId} → ${atsStatus}`);
+      }
+    } catch (syncErr) {
+      console.error('⚠️ AiTutorSession sync error (non-fatal):', syncErr.message);
+    }
 
   } catch (error) {
     console.error('❌ Error saving session record:', error);

@@ -30,7 +30,7 @@ interface User {
   phoneNumber?: string;
   address?: string;
   age?: number;
-  programEnrolled?: string;
+  servicesOpted?: string;
   leadSource?: string;
   languageLevelOpted?: string;
   dateWithdrew?: Date;
@@ -90,15 +90,13 @@ export class AuthService {
     subscription?: string,
     level?: string,
     conversationId?: string,
-    elevenLabsWidgetLink?: string,
-    elevenLabsApiKey?: string
     assignedCourses?: string[],   // for TEACHER
     assignedTeacher?: string      // for STUDENT (teacher _id)
     studentStatus?: string      // for STUDENT (UNCERTAIN, ONGOING, COMPLETED, DROPPED)
     phoneNumber?: string;     // for STUDENT
     address?: string;   // for STUDENT
     age?: number;   // for STUDENT
-    programEnrolled?: string; // for STUDENT
+    servicesOpted?: string; // for STUDENT
     leadSource?: string; // for STUDENT
     languageLevelOpted?: string;
     dateWithdrew?: Date;
@@ -158,6 +156,11 @@ export class AuthService {
   isLoggedIn(): boolean {
     const loggedIn = this.currentUserSubject.value !== null;
     return loggedIn;
+  }
+
+  /** Synchronous read of the last known user (e.g. before HTTP calls in the same tick). */
+  getSnapshotUser(): any | null {
+    return this.currentUserSubject.value;
   }
 
   // Logout

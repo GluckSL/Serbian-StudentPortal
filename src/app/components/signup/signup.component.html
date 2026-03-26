@@ -93,14 +93,14 @@
         />
       </div>
 
-      <!-- Program Enrolled -->
+      <!-- Services Opted -->
       <div class="mb-3" *ngIf="role === 'STUDENT'">
-        <label for="programEnrolled" class="form-label">Program Enrolled</label>
+        <label for="servicesOpted" class="form-label">Services Opted</label>
         <input
           type="text"
-          id="programEnrolled"
-          name="programEnrolled"  
-          [(ngModel)]="programEnrolled"
+          id="servicesOpted"
+          name="servicesOpted"  
+          [(ngModel)]="servicesOpted"
           class="form-control"
         />
       </div>
@@ -189,6 +189,13 @@
         />
       </div>
 
+      <!-- Zoom Host Email for Teachers -->
+      <div class="mb-3" *ngIf="role === 'TEACHER' || role === 'TEACHER_ADMIN'">
+        <label for="zoomHostEmail" class="form-label">🎥 Zoom Host Email</label>
+        <input type="email" id="zoomHostEmail" name="zoomHostEmail" [(ngModel)]="zoomHostEmail" class="form-control" placeholder="e.g., teacher@company.com" />
+        <small class="text-muted">The teacher's Zoom account email (under the master Zoom account). Meetings will be created on this host.</small>
+      </div>
+
       <!-- Medium for STUDENT (single select) -->
       <div class="mb-3" *ngIf="role === 'STUDENT'">
         <label for="medium" class="form-label">Medium</label>
@@ -241,6 +248,7 @@
           <option value="">Select Plan</option>
           <option value="SILVER">Silver</option>
           <option value="PLATINUM">Platinum</option>
+          <option value="VISA_DOC_ONLY">Visa and Documentation Only</option>
         </select>
       </div>
 

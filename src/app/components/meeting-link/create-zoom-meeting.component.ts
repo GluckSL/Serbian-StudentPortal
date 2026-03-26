@@ -5,6 +5,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ZoomService, Student } from '../../services/zoom.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-create-zoom-meeting',
@@ -27,6 +28,7 @@ export class CreateZoomMeetingComponent implements OnInit {
   showStudentSelector = false;
   successMessage = '';
   errorMessage = '';
+  zoomNotConfigured = false;
   
   // Filter options
   batches: string[] = [];
@@ -39,12 +41,24 @@ export class CreateZoomMeetingComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private zoomService: ZoomService,
+    private authService: AuthService,
     private router: Router
   ) {}
 
   ngOnInit(): void {
     this.initializeForm();
     this.loadStudents();
+    this.checkZoomConfig();
+  }
+
+  private checkZoomConfig(): void {
+    this.authService.getUserProfile().subscribe({
+      next: (user) => {
+        if (!user.zoomHostEmail) {
+          this.zoomNotConfigured = true;
+        }
+      }
+    });
   }
 
   private initializeForm(): void {

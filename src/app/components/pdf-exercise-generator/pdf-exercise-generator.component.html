@@ -1,4 +1,5 @@
 <!-- pdf-exercise-generator.component.html -->
+<input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
 <div class="generator-page">
 
   <!-- ── Top Bar ── -->
@@ -252,7 +253,34 @@
       </div>
     </div>
 
-    <!-- Number of questions is now driven by per-type counts above — no extra section needed -->
+    <!-- When this exercise becomes visible on the student journey -->
+    <div class="config-section journey-day-section">
+      <h3 class="config-label journey-day-heading">
+        <span class="material-icons journey-day-icon">event_note</span>
+        Course day (200-day journey)
+      </h3>
+      <p class="config-hint journey-day-lead">
+        Enter the day this pack is for (for example <strong>20</strong>). When a student reaches day 20, this exercise becomes available to them (together with level and publish rules). Leave empty if it is not tied to a specific day.
+      </p>
+      <div class="journey-day-row">
+        <label class="visually-hidden" for="pdf-step2-course-day">Day number 1 to 200</label>
+        <div class="journey-day-input-wrap">
+          <input
+            id="pdf-step2-course-day"
+            type="number"
+            class="journey-day-num-input"
+            min="1"
+            max="200"
+            step="1"
+            [ngModel]="courseDayAsNumber"
+            (ngModelChange)="onCourseDayNumberInput($event)"
+            placeholder="e.g. 20"
+            autocomplete="off"
+          />
+          <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
+        </div>
+      </div>
+    </div>
 
     <div class="step-footer">
       <button class="btn-secondary" (click)="back()">
@@ -304,6 +332,9 @@
         <span *ngFor="let t of selectedTypes; let i = index">{{ getTypeInfo(t).label }}{{ i < selectedTypes.length - 1 ? ', ' : '' }}</span>
         &nbsp;·&nbsp;
         {{ level }} · {{ targetLanguage }} · {{ maxQuestions }} questions
+        <ng-container *ngIf="courseDayAsNumber !== null">
+          &nbsp;·&nbsp;<span class="config-summary-day"><span class="material-icons">event_note</span> Day {{ courseDayStr.trim() }}</span>
+        </ng-container>
       </div>
     </div>
 
@@ -363,6 +394,25 @@
             <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
           </select>
         </div>
+        <div class="meta-field meta-field--journey">
+          <label class="meta-label" for="pdf-step4-course-day">Course day (1–200)</label>
+          <div class="journey-day-input-wrap journey-day-input-wrap--meta">
+            <input
+              id="pdf-step4-course-day"
+              type="number"
+              class="journey-day-num-input"
+              min="1"
+              max="200"
+              step="1"
+              [ngModel]="courseDayAsNumber"
+              (ngModelChange)="onCourseDayNumberInput($event)"
+              placeholder="Optional"
+              autocomplete="off"
+            />
+            <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
+          </div>
+          <p class="meta-hint">Same value as in Configure. Students see this exercise from this day onward; empty = general pool.</p>
+        </div>
         <div class="meta-field">
           <label class="meta-label">
             <input type="checkbox" [(ngModel)]="visibleToStudents" />
@@ -404,6 +454,7 @@
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || '—' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || '—' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen' }} ({{ q.mediaUrl ? 'audio' : '—' }})</span>
               </ng-container>
             </span>
           </div>
@@ -535,6 +586,45 @@
           </ng-container>
 
           <!-- Question / Answer Editor -->
+          <!-- Listening Editor -->
+          <ng-container *ngIf="q.type === 'listening'">
+            <div class="ed-field">
+              <label>Instruction</label>
+              <input type="text" [(ngModel)]="q.prompt" class="ed-input" placeholder="Listen and type what you hear." />
+            </div>
+            <div class="ed-field">
+              <label>Audio</label>
+              <div class="listening-upload-row">
+                <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
+                  <span class="material-icons">upload_file</span> Upload
+                </button>
+                <span class="upload-or">or</span>
+                <input type="text" #listeningUrl placeholder="Paste URL..." class="ed-input" style="width:200px" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
+                <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
+              </div>
+              <div *ngIf="q.mediaUrl" class="audio-preview">
+                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+              </div>
+            </div>
+            <div class="ed-field">
+              <div class="sentence-label-row">
+                <label>Expected transcript</label>
+                <button type="button" class="btn-insert-blank" (click)="generateListeningTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
+                  <span class="material-icons">auto_awesome</span>
+                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
+                </button>
+              </div>
+              <textarea [(ngModel)]="q.expectedTranscript" class="ed-input" rows="3"></textarea>
+            </div>
+            <div class="ed-field">
+              <label>Student mode</label>
+              <select [(ngModel)]="q.attemptMode" class="ed-input" style="width:auto">
+                <option value="typing">Typing only</option>
+                <option value="typing-or-speech">Typing or speaking</option>
+              </select>
+            </div>
+          </ng-container>
+
           <ng-container *ngIf="q.type === 'question-answer'">
             <div class="ed-field">
               <label>Question <span class="required">*</span></label>
@@ -635,6 +725,10 @@
           <button *ngFor="let qt of questionTypes" class="add-q-btn" (click)="addBlankQuestion(qt.value)"
             [style.background]="qt.bg" [style.color]="qt.color">
             <span class="material-icons">{{ qt.icon }}</span> {{ qt.label }}
+          </button>
+          <button class="add-q-btn" (click)="addBlankQuestion('listening')"
+            style="background:#fef3c7;color:#b45309">
+            <span class="material-icons">headphones</span> Listening
           </button>
         </div>
       </div>

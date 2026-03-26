@@ -144,6 +144,14 @@ const LearningModuleSchema = new mongoose.Schema({
     helpfulPhrases: [String], // German phrases to teach
     culturalNotes: [String], // Cultural context to include
     
+    // AI Tutor vocabulary control - words the AI is allowed to use
+    allowedVocabulary: [{
+      word: String,
+      translation: String,
+      category: String,
+      usage: String
+    }],
+    
     // Enhanced role-play instructions
     rolePlayInstructions: {
       aiRole: String, // The role AI should play

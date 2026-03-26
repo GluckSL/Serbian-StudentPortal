@@ -46,12 +46,17 @@ const assignmentTemplatesRoutes = require('./routes/assignmentTemplates');
 const notificationRoutes = require('./routes/notifications');
 const metaLeadsRoutes = require('./routes/metaLeads');
 const digitalExercisesRoutes = require('./routes/digitalExercises');
+const visaTrackingRoutes = require('./routes/visaTracking');
+const studentPaymentRoutes = require('./routes/studentPayments');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
 
 // Import and schedule Meta to Monday.com sync job
 const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
+
+// Import and schedule auto-fetch Zoom attendance job
+const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -140,9 +145,20 @@ app.use('/api/assignment-templates', assignmentTemplatesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/digital-exercises', digitalExercisesRoutes);
+app.use('/api/visa-tracking', visaTrackingRoutes);
+app.use('/api/student-payments', studentPaymentRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
+
+const listeningMediaRoutes = require('./routes/listeningMedia');
+app.use('/api/listening-media', listeningMediaRoutes);
+
+const listeningWorksheetRoutes = require('./routes/listeningWorksheetGenerator');
+app.use('/api/listening-worksheets', listeningWorksheetRoutes);
+
+const classRecordingRoutes = require('./routes/classRecordings');
+app.use('/api/class-recordings', classRecordingRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
@@ -195,8 +211,9 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   
-  // Initialize Meta to Monday.com sync cron job
+  // Initialize cron jobs
   scheduleMetaToMondaySync();
+  scheduleAutoFetchAttendance();
 });
 
 

@@ -1,6 +1,6 @@
 /* ========== Header Base ========== */
 header {
-  background: linear-gradient(135deg, #000e89 0%, #1a237e 100%);
+  background: linear-gradient(135deg, #011f4b 0%, #03396c 100%);
   color: white;
   padding: 12px 24px;
   display: flex;
@@ -100,7 +100,7 @@ nav a.active::after {
   transform: translateX(-50%);
   width: 20px;
   height: 2px;
-  background-color: #ffd700;
+  background-color: #b3cde0;
   border-radius: 1px;
 }
 
@@ -191,7 +191,7 @@ nav a.active::after {
     width: 100%;
     max-height: calc(100vh - 60px); /* ensures it never overflows screen */
     overflow-y: auto;               /* scroll if menu too long */
-    background: linear-gradient(135deg, #000e89 0%, #1a237e 100%);
+    background: linear-gradient(135deg, #011f4b 0%, #03396c 100%);
     display: none;
     flex-direction: column;
     align-items: stretch;
@@ -259,7 +259,7 @@ nav a.active::after {
 
   nav a.active {
     background-color: rgba(255, 255, 255, 0.12);
-    border-left: 3px solid #ffd700;
+    border-left: 3px solid #b3cde0;
   }
 
   .logout-button {

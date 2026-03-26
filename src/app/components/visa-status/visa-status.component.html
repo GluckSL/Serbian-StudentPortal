@@ -1,0 +1,131 @@
+<div class="vs" *ngIf="!isLoading; else loadingTpl">
+
+  <div class="vs-header">
+    <div>
+      <h2 class="vs-title">✈️ Visa Application Status</h2>
+      <p class="vs-subtitle">{{ profile.name }} — {{ visa.route || 'Not set' }}</p>
+    </div>
+    <a routerLink="/student-progress" class="vs-back">← Back to Progress</a>
+  </div>
+
+  <div *ngIf="visa.steps.length; else noVisa">
+
+    <!-- Stepper + Progress (full width) -->
+    <div class="vs-card">
+      <div class="vs-stepper">
+        <ng-container *ngFor="let step of visa.steps; let i = index; let last = last">
+          <div class="vs-step"
+               [class.vs-step--active]="i === visa.currentStep"
+               [class.vs-step--done]="i < visa.currentStep">
+            <div class="vs-step__dot"></div>
+            <span class="vs-step__label">{{ step }}</span>
+          </div>
+          <div class="vs-step__line" *ngIf="!last"
+               [class.vs-step__line--done]="i < visa.currentStep"></div>
+        </ng-container>
+      </div>
+      <div class="vs-progress">
+        <div class="vs-progress__header">
+          <span class="vs-progress__title">Application Progress</span>
+          <span class="vs-progress__pct">{{ progressPct }}%</span>
+        </div>
+        <div class="vs-bar"><div class="vs-bar__fill" [style.width.%]="progressPct"></div></div>
+      </div>
+      <div class="vs-dates" *ngIf="visaStageDates.length">
+        <div class="vs-date" *ngFor="let sd of visaStageDates">
+          <span class="vs-date__label">📅 {{ sd.label }}</span>
+          <span class="vs-date__val">{{ formatDate(sd.date) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two-column layout: Stages (left) + History (right) -->
+    <div class="vs-columns">
+
+      <!-- LEFT: Stages -->
+      <div class="vs-col-left">
+        <div class="vs-stages">
+          <div class="vs-stage" *ngFor="let stg of visa.stages; let i = index"
+               [class.vs-stage--active]="i === visa.currentStep"
+               [class.vs-stage--done]="i < visa.currentStep"
+               [class.vs-stage--future]="i > visa.currentStep">
+            <div class="vs-stage__head">
+              <span class="vs-stage__num"
+                    [class.vs-stage__num--active]="i === visa.currentStep"
+                    [class.vs-stage__num--done]="i < visa.currentStep">{{ stg.stage }}</span>
+              <span class="vs-stage__name">{{ visa.steps[i] || 'Stage ' + stg.stage }}</span>
+              <span class="vs-stage__outcome" *ngIf="stg.outcome"
+                    [class.vs-stage__outcome--completed]="stg.outcome === 'completed'"
+                    [class.vs-stage__outcome--rejected]="stg.outcome === 'rejected'"
+                    [class.vs-stage__outcome--progress]="stg.outcome === 'in_progress'">
+                {{ stg.outcome === 'completed' ? '✓ Completed' : (stg.outcome === 'rejected' ? '✕ Rejected' : '◌ In Progress') }}
+              </span>
+              <span class="vs-stage__date" *ngIf="stg.outcomeDate">{{ formatDate(stg.outcomeDate) }}</span>
+            </div>
+            <div class="vs-stage__body" *ngIf="stg.message || stg.actionRequired || stg.handledBy || (stg.stageDate && stg.stageDateLabel)">
+              <div class="vs-stage__msg" *ngIf="stg.message">💬 {{ stg.message }}</div>
+              <div class="vs-stage__action" *ngIf="stg.actionRequired">
+                ⚠️ Action required: {{ stg.actionNote || 'Please check with the team.' }}
+              </div>
+              <div class="vs-stage__handled" *ngIf="stg.handledBy">
+                Handled by: {{ stg.handledBy === 'team' ? 'Glück Global Team' : (stg.handledBy === 'embassy' ? 'Embassy' : 'Student') }}
+              </div>
+              <div class="vs-stage__stage-date" *ngIf="stg.stageDate && stg.stageDateLabel">
+                📅 {{ stg.stageDateLabel }}: {{ formatDate(stg.stageDate) }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Final outcome -->
+        <div class="vs-card vs-final" *ngIf="visa.finalOutcome">
+          <div class="vs-final__row">
+            <span class="vs-final__label">🏁 Final Visa Outcome</span>
+            <span class="vs-final__val"
+                  [class.vs-final__val--approved]="visa.finalOutcome === 'approved'"
+                  [class.vs-final__val--rejected]="visa.finalOutcome === 'rejected'">
+              {{ visa.finalOutcome | titlecase }}
+            </span>
+          </div>
+          <div class="vs-final__note" *ngIf="visa.finalOutcomeNote">📝 {{ visa.finalOutcomeNote }}</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: History -->
+      <div class="vs-col-right">
+        <div class="vs-card vs-history-card">
+          <h3 class="vs-section-title">📜 Complete Update History</h3>
+          <div class="vs-history" *ngIf="visa.history?.length; else noHistory">
+            <div class="vs-history__item" *ngFor="let h of visa.history">
+              <div class="vs-history__dot"></div>
+              <div class="vs-history__content">
+                <span class="vs-history__date">{{ formatDate(h.date) }}</span>
+                <span class="vs-history__note">{{ h.note }}</span>
+                <span class="vs-history__by">by {{ h.updatedBy }}</span>
+              </div>
+            </div>
+          </div>
+          <ng-template #noHistory>
+            <p style="color:#94a3b8;font-size:12px;">No updates yet.</p>
+          </ng-template>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <ng-template #noVisa>
+    <div class="vs-card" style="text-align:center;padding:40px;">
+      <p style="color:#94a3b8;font-size:14px;">No visa tracking record yet. Contact the team for updates.</p>
+    </div>
+  </ng-template>
+</div>
+
+<ng-template #loadingTpl>
+  <div class="vs" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+    <div style="text-align:center;">
+      <div class="vs-spinner"></div>
+      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading visa status...</p>
+    </div>
+  </div>
+</ng-template>

@@ -1,0 +1,313 @@
+<div class="ap" *ngIf="!isLoading; else loadingTpl">
+
+  <!-- Header -->
+  <div class="ap-header">
+    <div>
+      <h2 class="ap-header__title">📊 Student Progress Overview</h2>
+      <p class="ap-header__sub">{{ filtered.length }} of {{ students.length }} students</p>
+    </div>
+  </div>
+
+  <!-- Summary stats -->
+  <div class="ap-stats">
+    <div class="ap-stat ap-stat--blue">
+      <div class="ap-stat__val">{{ avgOverall }}%</div>
+      <div class="ap-stat__lbl">Avg Journey</div>
+    </div>
+    <div class="ap-stat ap-stat--green">
+      <div class="ap-stat__val">{{ avgLearning }}%</div>
+      <div class="ap-stat__lbl">Avg Learning</div>
+    </div>
+    <div class="ap-stat ap-stat--purple">
+      <div class="ap-stat__val">{{ avgAttendance }}%</div>
+      <div class="ap-stat__lbl">Avg Attendance</div>
+    </div>
+    <div class="ap-stat" [class.ap-stat--red]="lowAttendanceCount > 0" [class.ap-stat--gray]="lowAttendanceCount === 0">
+      <div class="ap-stat__val">{{ lowAttendanceCount }}</div>
+      <div class="ap-stat__lbl">Low Attendance</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="ap-filters">
+    <input class="ap-input" type="text" placeholder="Search name, email, reg no..."
+           [(ngModel)]="searchTerm" (input)="applyFilters()">
+    <select class="ap-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
+      <option value="">All Batches</option>
+      <option *ngFor="let b of batches" [value]="b">Batch {{ b }}</option>
+    </select>
+    <select class="ap-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
+      <option value="">All Levels</option>
+      <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+    </select>
+    <select class="ap-select" [(ngModel)]="filterStatus" (change)="applyFilters()">
+      <option value="">All Status</option>
+      <option value="ONGOING">Ongoing</option>
+      <option value="COMPLETED">Completed</option>
+      <option value="WITHDREW">Withdrew</option>
+      <option value="UNCERTAIN">Uncertain</option>
+    </select>
+    <button class="ap-btn ap-btn--sm" (click)="clearFilters()">Clear</button>
+  </div>
+
+  <!-- Table -->
+  <div class="ap-table-wrap">
+    <table class="ap-table">
+      <thead>
+        <tr>
+          <th class="ap-th--sort" (click)="sort('name')">Student {{ sortIcon('name') }}</th>
+          <th>Batch</th>
+          <th>Level</th>
+          <th class="ap-th--sort" (click)="sort('overallPct')">Overall {{ sortIcon('overallPct') }}</th>
+          <th class="ap-th--sort" (click)="sort('learningPct')">Learning {{ sortIcon('learningPct') }}</th>
+          <th>Attendance</th>
+          <th>Docs</th>
+          <th>Payment</th>
+          <th>Visa</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let s of filtered">
+          <tr class="ap-row" [class.ap-row--selected]="selectedStudent?._id === s._id"
+              [class.ap-row--warn]="s.attendance.total > 0 && s.attendance.rate < 70"
+              (click)="selectStudent(s)">
+            <td class="ap-name-cell">
+              <span class="ap-name">{{ s.name }}</span>
+              <span class="ap-sub">{{ s.regNo }}</span>
+            </td>
+            <td>{{ s.batch || '—' }}</td>
+            <td><span class="ap-level-chip">{{ s.level }}</span></td>
+            <td>
+              <div class="ap-bar-cell">
+                <div class="ap-mini-bar"><div class="ap-mini-bar__fill" [style.width.%]="s.overallPct" [style.background]="barColor(s.overallPct)"></div></div>
+                <span class="ap-pct">{{ s.overallPct }}%</span>
+              </div>
+            </td>
+            <td>
+              <div class="ap-bar-cell">
+                <div class="ap-mini-bar"><div class="ap-mini-bar__fill" [style.width.%]="s.learningPct" [style.background]="barColor(s.learningPct)"></div></div>
+                <span class="ap-pct">{{ s.learningPct }}%</span>
+              </div>
+            </td>
+            <td>
+              <span [class.ap-text-red]="s.attendance.total > 0 && s.attendance.rate < 70">
+                {{ s.attendance.rate }}% <span class="ap-sub">({{ s.attendance.attended }}/{{ s.attendance.total }})</span>
+              </span>
+            </td>
+            <td>{{ s.docs.verified }}/{{ s.docs.total }}</td>
+            <td>{{ s.payment ? s.payment.pct + '%' : '—' }}</td>
+            <td>{{ s.visa ? s.visa.pct + '%' : '—' }}</td>
+            <td>
+              <span class="ap-status-badge"
+                    [class.ap-status--ongoing]="s.status === 'ONGOING'"
+                    [class.ap-status--completed]="s.status === 'COMPLETED'"
+                    [class.ap-status--withdrew]="s.status === 'WITHDREW'"
+                    [class.ap-status--uncertain]="s.status === 'UNCERTAIN'">
+                {{ s.status }}
+              </span>
+            </td>
+            <td><button class="ap-btn ap-btn--view" (click)="openJourney(s, $event)">👁 View</button></td>
+          </tr>
+
+          <!-- Expanded detail row -->
+          <tr *ngIf="selectedStudent?._id === s._id" class="ap-detail-row">
+            <td colspan="11">
+              <div class="ap-detail">
+                <div class="ap-detail__section">
+                  <div class="ap-detail__title">Profile</div>
+                  <div class="ap-detail__kv"><span>Email</span><span>{{ s.email }}</span></div>
+                  <div class="ap-detail__kv"><span>Teacher</span><span>{{ s.teacher || '—' }}</span></div>
+                  <div class="ap-detail__kv"><span>Service</span><span>{{ s.service || '—' }}</span></div>
+                  <div class="ap-detail__kv"><span>Enrolled</span><span>{{ formatDate(s.enrollmentDate) }}</span></div>
+                </div>
+                <div class="ap-detail__section">
+                  <div class="ap-detail__title">Learning</div>
+                  <div class="ap-detail__kv"><span>Current Level</span><span>{{ s.currentLevel }}</span></div>
+                  <div class="ap-detail__kv"><span>Levels Done</span><span>{{ s.levelsCompleted }}/{{ s.totalLevels }}</span></div>
+                  <div class="ap-detail__kv"><span>Progress</span><span>{{ s.learningPct }}%</span></div>
+                </div>
+                <div class="ap-detail__section">
+                  <div class="ap-detail__title">Attendance</div>
+                  <div class="ap-detail__kv"><span>Sessions</span><span>{{ s.attendance.attended }}/{{ s.attendance.total }}</span></div>
+                  <div class="ap-detail__kv"><span>Rate</span><span [class.ap-text-red]="s.attendance.rate < 70">{{ s.attendance.rate }}%</span></div>
+                </div>
+                <div class="ap-detail__section">
+                  <div class="ap-detail__title">Documents</div>
+                  <div class="ap-detail__kv"><span>Verified</span><span>{{ s.docs.verified }}/{{ s.docs.total }}</span></div>
+                  <div class="ap-detail__kv"><span>Progress</span><span>{{ s.docs.pct }}%</span></div>
+                </div>
+                <div class="ap-detail__section" *ngIf="s.payment">
+                  <div class="ap-detail__title">Payment ({{ s.payment.currency }})</div>
+                  <div class="ap-detail__kv"><span>Total</span><span>{{ s.payment.total | number:'1.0-0' }}</span></div>
+                  <div class="ap-detail__kv"><span>Paid</span><span style="color:#16a34a;">{{ s.payment.paid | number:'1.0-0' }}</span></div>
+                  <div class="ap-detail__kv"><span>Balance</span><span [style.color]="s.payment.pending > 0 ? '#dc2626' : '#16a34a'">{{ s.payment.pending | number:'1.0-0' }}</span></div>
+                </div>
+                <div class="ap-detail__section" *ngIf="s.visa">
+                  <div class="ap-detail__title">Visa</div>
+                  <div class="ap-detail__kv"><span>Type</span><span>{{ s.visa.type === 'au_pair' ? 'Au Pair' : 'Portal' }}</span></div>
+                  <div class="ap-detail__kv"><span>Stage</span><span>{{ s.visa.current }}/{{ s.visa.total }}</span></div>
+                  <div class="ap-detail__kv"><span>Progress</span><span>{{ s.visa.pct }}%</span></div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </ng-container>
+        <tr *ngIf="!filtered.length"><td colspan="11" class="ap-empty">No students found</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══ JOURNEY MODAL ═══ -->
+<div class="jm-overlay" *ngIf="journeyModal" (click)="closeJourney()">
+  <div class="jm" (click)="$event.stopPropagation()">
+    <div class="jm-head">
+      <h3>📊 {{ journeyStudentName }}'s Progress</h3>
+      <button class="jm-close" (click)="closeJourney()">✕</button>
+    </div>
+    <div class="jm-body" *ngIf="!journeyLoading && journeyData; else jmLoading">
+
+      <!-- Profile + Status -->
+      <div class="sp-row sp-row--top">
+        <div class="sp-card sp-card--profile">
+          <div class="sp-card__head">
+            <span class="sp-card__title">👤 Student Profile</span>
+            <span class="sp-badge" [class.sp-badge--green]="jProfile.studentStatus === 'ONGOING'" [class.sp-badge--gray]="jProfile.studentStatus !== 'ONGOING'">{{ jProfile.studentStatus === 'ONGOING' ? 'Active' : jProfile.studentStatus }}</span>
+          </div>
+          <table class="sp-table"><tbody>
+            <tr><td class="sp-table__label">Student ID</td><td>{{ jProfile.regNo }}</td><td class="sp-table__label">Name</td><td>{{ jProfile.name }}</td></tr>
+            <tr><td class="sp-table__label">Batch</td><td>{{ jProfile.batch || '—' }}</td><td class="sp-table__label">Teacher</td><td>{{ jProfile.teacher || '—' }}</td></tr>
+            <tr><td class="sp-table__label">Service</td><td>{{ jProfile.servicesOpted || '—' }}</td><td class="sp-table__label">Visa Route</td><td>{{ jVisa.route || 'Not set' }}</td></tr>
+            <tr><td class="sp-table__label">Level Path</td><td>{{ jLevelPath }}</td><td class="sp-table__label">Enrolled</td><td>{{ formatDate(jProfile.enrollmentDate) }}</td></tr>
+          </tbody></table>
+        </div>
+        <div class="sp-card sp-card--status">
+          <div class="sp-card__head"><span class="sp-card__title">📊 Status</span></div>
+          <div class="sp-status-grid">
+            <div class="sp-stat sp-stat--blue"><div class="sp-stat__val">{{ jAttendanceRate }}%</div><div class="sp-stat__lbl">Attendance</div></div>
+            <div class="sp-stat sp-stat--green"><div class="sp-stat__val">{{ jDocsSubmitted }}/{{ jDocuments.length }}</div><div class="sp-stat__lbl">Docs Verified</div></div>
+            <div class="sp-stat sp-stat--orange"><div class="sp-stat__val">{{ jBotUsage.weekMinutes }}m</div><div class="sp-stat__lbl">AI Bot / Week</div></div>
+            <div class="sp-stat sp-stat--purple"><div class="sp-stat__val">{{ jOverallPct }}%</div><div class="sp-stat__lbl">Journey</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Language + Payments -->
+      <div class="sp-row sp-row--mid">
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">📚 Language Progress</span><span class="sp-card__meta">{{ jCurrentLevelLabel }}</span></div>
+          <div class="sp-levels">
+            <div *ngFor="let lv of jLevelProgression" class="sp-level" [class.sp-level--done]="lv.status === 'completed'" [class.sp-level--active]="lv.status === 'in-progress'">{{ lv.level }}</div>
+          </div>
+          <div class="sp-lesson-rows">
+            <div class="sp-lesson-row" *ngFor="let lv of jLevelProgression">
+              <ng-container *ngIf="jLessonsByLevel[lv.level]">
+                <span class="sp-lesson-row__lbl">{{ lv.level }}</span>
+                <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jLessonsByLevel[lv.level].total ? (jLessonsByLevel[lv.level].completed / jLessonsByLevel[lv.level].total * 100) : 0"></div></div>
+                <span class="sp-lesson-row__ct">{{ jLessonsByLevel[lv.level].completed }}/{{ jLessonsByLevel[lv.level].total }}</span>
+              </ng-container>
+            </div>
+          </div>
+          <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">💳 Payments</span><span class="sp-card__meta">{{ jPayments.currency }}</span></div>
+          <div class="sp-kv-row"><span>Total Amount</span><span class="sp-kv-val">{{ jPayments.totalAmount | number:'1.0-0' }}</span></div>
+          <div class="sp-kv-row"><span>Paid Amount</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ jPayments.paidAmount | number:'1.0-0' }}</span></div>
+          <div class="sp-kv-row"><span>Balance</span><span class="sp-kv-val" [style.color]="jPayments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ jPayments.pendingAmount | number:'1.0-0' }}</span></div>
+          <div class="sp-bar sp-bar--lg" style="margin-top:10px;"><div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div></div>
+          <div class="sp-small-text" style="margin-top:4px;">{{ jPayPct }}% paid</div>
+        </div>
+      </div>
+
+      <!-- Documents + Visa -->
+      <div class="sp-row sp-row--bottom">
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">📁 Documents</span><span class="sp-card__meta">{{ jDocsSubmitted }} verified / {{ jDocuments.length }}</span></div>
+          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="jDocsPct"></div></div>
+          <table class="sp-doc-table"><thead><tr><th>Document</th><th>Status</th></tr></thead><tbody>
+            <tr *ngFor="let doc of $any(jDocuments | slice:0:6)"><td>{{ doc.name }}</td><td><span class="sp-doc-badge" [class.sp-doc-badge--ok]="doc.status === 'verified'" [class.sp-doc-badge--pending]="doc.status !== 'verified'">{{ doc.status === 'verified' ? '✓ Verified' : '○ Pending' }}</span></td></tr>
+            <tr *ngIf="jDocuments.length > 6"><td colspan="2" class="sp-doc-more">+ {{ jDocuments.length - 6 }} more documents</td></tr>
+            <tr *ngIf="!jDocuments.length"><td colspan="2" class="sp-empty">No documents uploaded yet</td></tr>
+          </tbody></table>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">✈️ Visa Stage</span><span class="sp-card__meta">{{ jVisa.route || 'Not set' }}</span></div>
+          <div *ngIf="jVisa.steps.length; else noVisaTpl">
+            <div class="sp-visa">
+              <ng-container *ngFor="let step of jVisa.steps; let i = index; let last = last">
+                <div class="sp-visa__node" [class.sp-visa__node--active]="i === jVisa.currentStep" [class.sp-visa__node--done]="i < jVisa.currentStep">
+                  <div class="sp-visa__dot"></div><span class="sp-visa__label">{{ step }}</span>
+                </div>
+                <div class="sp-visa__line" *ngIf="!last" [class.sp-visa__line--done]="i < jVisa.currentStep"></div>
+              </ng-container>
+            </div>
+            <div class="sp-visa-progress">
+              <div class="sp-visa-progress__header"><span class="sp-visa-progress__title">Application Progress</span><span class="sp-visa-progress__pct">{{ jVisa.totalSteps ? (((jVisa.currentStep) / jVisa.totalSteps) * 100 | number:'1.0-0') : 0 }}%</span></div>
+              <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jVisa.totalSteps ? ((jVisa.currentStep) / jVisa.totalSteps * 100) : 0"></div></div>
+            </div>
+          </div>
+          <ng-template #noVisaTpl><div class="sp-empty">No visa tracking record yet.</div></ng-template>
+        </div>
+      </div>
+
+      <!-- Attendance + AI Bot + Overall -->
+      <div class="sp-row sp-row--triple">
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">📋 Attendance</span><span class="sp-card__meta">{{ jAttendance.attended }}/{{ jAttendance.total }}</span></div>
+          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jAttendanceRate"></div></div>
+          <div class="sp-kv-row"><span>Rate</span><span class="sp-kv-val">{{ jAttendanceRate }}%</span></div>
+          <div class="sp-kv-row"><span>Last session</span><span class="sp-kv-val">{{ jAttendance.lastSessionDate ? formatDate(jAttendance.lastSessionDate) : '—' }}</span></div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">🤖 AI Bot Usage</span><span class="sp-card__meta">{{ jBotUsage.weekMinutes }}/{{ jBotUsage.targetMinutesPerWeek }} min</span></div>
+          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="jBotWeekPct"></div></div>
+          <div class="sp-kv-row"><span>Today</span><span class="sp-kv-val">{{ jBotUsage.todayMinutes }} min</span></div>
+          <div class="sp-kv-row"><span>This week</span><span class="sp-kv-val">{{ jBotUsage.weekMinutes }} min</span></div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head"><span class="sp-card__title">🎯 Overall Journey</span><span class="sp-card__meta">{{ jOverallPct }}%</span></div>
+          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jOverallPct"></div></div>
+          <div class="sp-kv-row"><span>Learning</span><span class="sp-kv-val">{{ jLearningPct }}%</span></div>
+          <div class="sp-kv-row"><span>Documents</span><span class="sp-kv-val">{{ jDocsPct }}%</span></div>
+          <div class="sp-kv-row"><span>Payments</span><span class="sp-kv-val">{{ jPayPct }}%</span></div>
+          <div class="sp-kv-row"><span>Visa</span><span class="sp-kv-val">{{ jVisaPct }}%</span></div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="sp-card">
+        <div class="sp-card__head"><span class="sp-card__title">🕐 History</span><span class="sp-card__meta">Recent actions</span></div>
+        <div class="sp-timeline">
+          <div class="sp-timeline__item" *ngFor="let h of jHistory">
+            <div class="sp-timeline__dot"></div>
+            <div class="sp-timeline__body">
+              <span class="sp-timeline__date">{{ formatDate(h.date) }}</span>
+              <span class="sp-timeline__title">{{ h.title }}</span>
+              <span class="sp-timeline__desc">{{ h.desc }}</span>
+            </div>
+          </div>
+          <div *ngIf="!jHistory.length" class="sp-empty">No history yet</div>
+        </div>
+      </div>
+
+    </div>
+    <ng-template #jmLoading>
+      <div style="display:flex;align-items:center;justify-content:center;min-height:300px;">
+        <div style="text-align:center;"><div class="ap-spinner"></div><p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading student progress...</p></div>
+      </div>
+    </ng-template>
+  </div>
+</div>
+
+<ng-template #loadingTpl>
+  <div class="ap" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+    <div style="text-align:center;">
+      <div class="ap-spinner"></div>
+      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading progress data...</p>
+    </div>
+  </div>
+</ng-template>

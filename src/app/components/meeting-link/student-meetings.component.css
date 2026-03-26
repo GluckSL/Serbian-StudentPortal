@@ -1,359 +1,366 @@
 /* src/app/components/meeting-link/student-meetings.component.css */
 
 .student-meetings-container {
-  padding: 24px;
-  max-width: 1200px;
+  padding: 14px;
+  max-width: 1100px;
   margin: 0 auto;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-/* Header */
+/* ── Header ── */
 .header {
-  margin-bottom: 32px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 18px;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+  border: 1px solid #e8ecf4;
+  margin-bottom: 12px;
 }
 
 .header h1 {
-  margin: 0 0 8px 0;
-  font-size: 32px;
-  font-weight: 600;
-  color: #333;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .subtitle {
-  margin: 0;
-  font-size: 16px;
-  color: #666;
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
-/* Loading */
+/* ── Loading ── */
 .loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 20px;
-  gap: 20px;
+  min-height: 200px;
+  gap: 10px;
 }
 
 .loading-container p {
-  color: #666;
-  font-size: 16px;
+  color: #94a3b8;
+  font-size: 12px;
 }
 
-/* Error */
+/* ── Error ── */
 .error-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px;
-  gap: 16px;
+  padding: 30px;
+  gap: 10px;
   text-align: center;
+  border-radius: 14px !important;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
 }
 
 .error-card mat-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
+  font-size: 28px; width: 28px; height: 28px;
+  color: #FC5C65;
 }
 
-/* Sections */
+.error-card p { font-size: 12px; color: #64748b; }
+
+/* ── Sections ── */
 .ongoing-section,
 .upcoming-section,
 .past-section {
-  margin-bottom: 40px;
+  margin-bottom: 16px;
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  font-size: 24px;
-  font-weight: 500;
-  color: #333;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #011f4b;
 }
 
 .section-title mat-icon {
-  font-size: 28px;
-  width: 28px;
-  height: 28px;
+  font-size: 16px; width: 16px; height: 16px;
+  color: #005b96;
 }
 
-/* Meetings Grid */
+/* ── Meetings Grid ── */
 .meetings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
 }
 
-/* Meeting Card */
+/* ── Meeting Card ── */
 .meeting-card {
   position: relative;
-  padding: 20px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  padding: 0;
+  border-radius: 14px !important;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
 }
 
 .meeting-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 18px rgba(15,23,42,0.12);
 }
 
 .meeting-card.ongoing {
-  border: 2px solid #f44336;
-  background: linear-gradient(135deg, #fff 0%, #ffebee 100%);
+  border: 2px solid #FC5C65;
+  background: #fff;
 }
 
 .meeting-card.ready {
-  border: 2px solid #4caf50;
+  border: 2px solid #28a745;
 }
 
-/* Status Badge */
+/* ── Status Badge ── */
 .meeting-status-badge {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  padding: 6px 12px;
-  border-radius: 16px;
-  font-size: 12px;
-  font-weight: 600;
+  top: 10px;
+  right: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  letter-spacing: 0.03em;
+  z-index: 1;
 }
 
 .meeting-status-badge mat-icon {
-  font-size: 14px;
-  width: 14px;
-  height: 14px;
+  font-size: 10px; width: 10px; height: 10px;
 }
 
-.meeting-status-badge.ongoing {
-  background: #f44336;
-  color: white;
-}
+.meeting-status-badge.ongoing { background: #FC5C65; color: #fff; }
+.meeting-status-badge.ready   { background: #28a745; color: #fff; }
+.meeting-status-badge.upcoming { background: #005b96; color: #fff; }
+.meeting-status-badge.ended   { background: #94a3b8; color: #fff; }
 
-.meeting-status-badge.ready {
-  background: #4caf50;
-  color: white;
-}
-
-.meeting-status-badge.upcoming {
-  background: #2196f3;
-  color: white;
-}
-
-.meeting-status-badge.ended {
-  background: #9e9e9e;
-  color: white;
-}
-
-/* Card Header */
+/* ── Card Header ── */
 mat-card-header {
-  margin-bottom: 16px;
+  padding: 12px 14px 0;
+  margin-bottom: 0;
 }
 
 mat-card-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0f172a;
+  margin-bottom: 2px !important;
+  line-height: 1.4;
 }
 
 mat-card-subtitle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: #666;
-  font-size: 14px;
+  gap: 4px;
+  color: #005b96;
+  font-size: 11px !important;
 }
 
 mat-card-subtitle mat-icon {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
+  font-size: 13px; width: 13px; height: 13px;
+  color: #005b96;
 }
 
-/* Meeting Details */
+/* ── Meeting Details ── */
+mat-card-content {
+  padding: 8px 14px 12px !important;
+}
+
 .meeting-details {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 4px;
+  margin-bottom: 0;
 }
 
 .detail-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #555;
-  font-size: 14px;
+  gap: 6px;
+  color: #475569;
+  font-size: 12px;
 }
 
 .detail-item mat-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-  color: #666;
+  font-size: 14px; width: 14px; height: 14px;
+  color: #6497b1;
 }
 
 .detail-item.time-until {
-  color: #2196f3;
-  font-weight: 500;
+  color: #005b96;
+  font-weight: 600;
 }
 
 .meeting-agenda {
-  margin-top: 12px;
-  padding: 12px;
-  background: #f5f5f5;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f1f5f9;
   border-radius: 8px;
-  font-size: 14px;
-  color: #555;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.5;
 }
 
 .meeting-agenda strong {
-  color: #333;
+  color: #0f172a;
+  font-weight: 600;
 }
 
-/* Actions */
+/* ── Card Actions ── */
 mat-card-actions {
   display: flex;
-  gap: 8px;
-  padding: 16px 0 0 0;
-  margin: 0;
+  gap: 4px;
+  padding: 10px 14px !important;
+  margin: 0 !important;
+  border-top: 1px solid #e8ecf4;
+  background: #f8fafc;
 }
 
-.join-button {
+mat-card-actions button {
+  font-size: 11px !important;
+  padding: 4px 12px;
+  border-radius: 8px;
+  line-height: 1.4;
+}
+
+mat-card-actions .join-button {
   flex: 1;
+  background: #005b96 !important;
+  color: #fff !important;
+  font-weight: 600;
 }
 
-/* Pulse Animation */
+mat-card-actions .join-button:disabled {
+  background: #b3cde0 !important;
+  color: #fff !important;
+}
+
+mat-card-actions .join-button mat-icon,
+mat-card-actions button mat-icon {
+  font-size: 14px; width: 14px; height: 14px;
+  margin-right: 4px;
+}
+
+/* ── Pulse Animation ── */
 .pulse {
   animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
-/* Past Meetings List */
+/* ── Past Meetings List ── */
 .meetings-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .meeting-card-compact {
-  padding: 16px;
+  padding: 10px 14px !important;
+  border-radius: 14px !important;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
 }
 
 .compact-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .compact-info h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .compact-details {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  font-size: 13px;
-  color: #666;
+  gap: 12px;
+  font-size: 11px;
+  color: #64748b;
 }
 
 .compact-details span {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .compact-details mat-icon {
-  font-size: 14px;
-  width: 14px;
-  height: 14px;
+  font-size: 12px; width: 12px; height: 12px;
+  color: #94a3b8;
 }
 
-.compact-status {
-  flex-shrink: 0;
-}
+.compact-status { flex-shrink: 0; }
 
 .ended-chip {
-  background: #e0e0e0;
-  color: #666;
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
 }
 
-/* Empty State */
+/* ── Empty State ── */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px 20px;
+  padding: 50px 20px;
   text-align: center;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px dashed #e2e8f0;
 }
 
 .empty-state mat-icon {
-  font-size: 80px;
-  width: 80px;
-  height: 80px;
-  color: #bbb;
-  margin-bottom: 24px;
+  font-size: 40px; width: 40px; height: 40px;
+  color: #b3cde0;
+  margin-bottom: 12px;
 }
 
 .empty-state h3 {
-  margin: 0 0 12px 0;
-  font-size: 24px;
-  color: #666;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
 }
 
 .empty-state p {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  color: #888;
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
 .help-text {
-  font-size: 14px;
-  color: #999;
+  font-size: 11px;
+  color: #b3cde0;
 }
 
-/* Responsive */
+/* ── Responsive ── */
 @media (max-width: 768px) {
-  .student-meetings-container {
-    padding: 16px;
-  }
-
-  .header h1 {
-    font-size: 24px;
-  }
-
-  .meetings-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .section-title {
-    font-size: 20px;
-  }
-
-  .compact-content {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .compact-details {
-    flex-direction: column;
-    gap: 8px;
-  }
+  .student-meetings-container { padding: 10px; }
+  .header h1 { font-size: 14px; }
+  .meetings-grid { grid-template-columns: 1fr; }
+  .section-title { font-size: 12px; }
+  .compact-content { flex-direction: column; align-items: flex-start; }
+  .compact-details { flex-direction: column; gap: 4px; }
 }

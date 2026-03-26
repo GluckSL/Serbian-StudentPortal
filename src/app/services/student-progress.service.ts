@@ -247,4 +247,11 @@ export class StudentProgressService {
       withCredentials: true
     });
   }
+
+  // Get full student journey data for progress page
+  getStudentJourney(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/journey`, {
+      withCredentials: true
+    });
+  }
 }

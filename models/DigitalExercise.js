@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening'], required: true },
     // MCQ fields
     question: String,
     imageUrl: String,
@@ -109,11 +109,26 @@ const DigitalExerciseSchema = new mongoose.Schema({
     sampleAnswers: [String],
     similarityThreshold: { type: Number, default: 70 },   // 0-100 — min AI score to pass
     scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
+    // Listening fields (prompt reused for instruction)
+    mediaUrl: String,  // URL to audio file (uploaded or external link)
+    expectedTranscript: String,  // AI-extracted text, teacher-verified before publish
+    attemptMode: { type: String, enum: ['typing', 'typing-or-speech'], default: 'typing' },
     // Common
     points: { type: Number, default: 1 }
   }],
 
+  // Optional shared audio for manual listening worksheets.
+  // When present, the student can play this audio for all questions in the exercise.
+  sharedAudioUrl: { type: String, default: null },
+
   tags: [String],
+
+  /**
+   * Optional: day in the 200-day course when this exercise is assigned.
+   * Omit or null = general pool (any student who can see published exercises).
+   * If set, students only see it when currentCourseDay >= courseDay (browse + play).
+   */
+  courseDay: { type: Number, default: null, min: 1, max: 200 },
 
   // Visibility and state
   isActive: { type: Boolean, default: true },
@@ -145,5 +160,6 @@ DigitalExerciseSchema.pre('save', function (next) {
 DigitalExerciseSchema.index({ level: 1, category: 1, isActive: 1 });
 DigitalExerciseSchema.index({ createdBy: 1 });
 DigitalExerciseSchema.index({ visibleToStudents: 1, isActive: 1, isDeleted: 1 });
+DigitalExerciseSchema.index({ courseDay: 1, visibleToStudents: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('DigitalExercise', DigitalExerciseSchema);

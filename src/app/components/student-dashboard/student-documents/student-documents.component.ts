@@ -70,7 +70,7 @@ export class StudentDocumentsComponent implements OnInit {
 
   async loadRequirements(): Promise<void> {
     try {
-      const response = await this.documentService.getDocumentRequirements().toPromise();
+      const response = await this.documentService.getStudentRequirements().toPromise();
       if (response && response.success) {
         this.requirements = response.requirements;
       }

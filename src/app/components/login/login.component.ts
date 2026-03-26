@@ -53,7 +53,8 @@ export class LoginComponent {
             } else if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
               this.router.navigate(['/teacher-dashboard']);
             } else if (role === 'STUDENT') {
-              this.router.navigate(['/student-dashboard']);
+              const isVisaDocOnly = (user?.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
+              this.router.navigate([isVisaDocOnly ? '/student-progress' : '/student/my-course']);
             } else {
               this.errorMessage = 'Unknown user role.';
             }

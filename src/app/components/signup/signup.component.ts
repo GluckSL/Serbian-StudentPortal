@@ -28,7 +28,7 @@ export class SignupComponent {
   phoneNumber: string = '';
   address: string = '';
   age: number | null = null;
-  programEnrolled: string = '';
+  servicesOpted: string = '';
   leadSource: string = '';
   languageLevelOpted: string = '';
   dateWithdrew: Date | null = null;
@@ -54,6 +54,8 @@ export class SignupComponent {
    // Teacher fields
   assignedCourses: string[] = []; // selected course IDs
   assignedBatches: string[] = []; // selected batches
+  // Zoom host email for teachers
+  zoomHostEmail: string = '';
   courses: any[] = []; // list fetched from backend
 
   isEditMode = false; // ✅ flag to track update mode
@@ -117,7 +119,7 @@ export class SignupComponent {
           this.phoneNumber = data.phoneNumber || '';
           this.address = data.address || '';
           this.age = data.age || null;
-          this.programEnrolled = data.programEnrolled || '';
+          this.servicesOpted = data.servicesOpted || data['programEnrolled'] || '';
           this.leadSource = data.leadSource || '';
           this.languageLevelOpted = data.languageLevelOpted || '';
           this.dateWithdrew = data.dateWithdrew || null;
@@ -158,6 +160,7 @@ export class SignupComponent {
           this.medium = data.medium || [];
           this.assignedCourses = data.assignedCourses?.map((c: any) => c._id || c) || [];
           this.assignedBatches = data['assignedBatches'] || [];
+          this.zoomHostEmail = data['zoomHostEmail'] || '';
         }
       },
       error: (err) => {
@@ -206,7 +209,7 @@ export class SignupComponent {
       user.phoneNumber = this.phoneNumber;
       user.address = this.address;
       user.age = this.age;
-      user.programEnrolled = this.programEnrolled;
+      user.servicesOpted = this.servicesOpted;
       user.leadSource = this.leadSource;
       user.languageLevelOpted = this.languageLevelOpted;
       user.dateWithdrew = this.dateWithdrew;
@@ -220,6 +223,7 @@ export class SignupComponent {
       user.medium = this.medium;
       user.assignedCourses = this.assignedCourses;
       user.assignedBatches = this.assignedBatches;
+      user.zoomHostEmail = this.zoomHostEmail;
     }
 
     // ✅ Decide whether to create or update

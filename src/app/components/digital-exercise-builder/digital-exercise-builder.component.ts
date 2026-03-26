@@ -1,15 +1,16 @@
 // src/app/components/digital-exercise-builder/digital-exercise-builder.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../services/digital-exercise.service';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { environment } from '../../../environments/environment';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../shared/material.module';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -35,6 +36,11 @@ interface BuilderQuestion {
   sampleAnswers?: string[];
   similarityThreshold?: number;   // 0-100, default 70
   scoringMode?: 'full' | 'proportional';
+  // Listening
+  mediaUrl?: string;
+  expectedTranscript?: string;
+  attemptMode?: 'typing' | 'typing-or-speech';
+  transcribing?: boolean;
   // Common
   points: number;
 }
@@ -42,7 +48,7 @@ interface BuilderQuestion {
 @Component({
   selector: 'app-digital-exercise-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './digital-exercise-builder.component.html',
   styleUrls: ['./digital-exercise-builder.component.css']
 })
@@ -62,12 +68,17 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
   estimatedDuration = 15;
   tags = '';
+  /** Empty = not tied to a journey day (visible whenever published + student filters). */
+  courseDayStr = '';
   visibleToStudents = false;
 
   questions: BuilderQuestion[] = [];
 
   activeTab: 'info' | 'questions' | 'preview' = 'info';
   expandedQuestion = -1;
+
+  @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
+  currentListeningQ: BuilderQuestion | null = null;
 
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -80,7 +91,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'matching',        label: 'Matching Exercise',  icon: 'compare_arrows',    description: 'Match left items with right items.' },
     { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with ___ blanks to fill in.' },
     { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
-    { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' }
+    { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
+    { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types or speaks what they hear.' }
   ];
 
   constructor(
@@ -111,6 +123,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.difficulty = exercise.difficulty || 'Beginner';
         this.estimatedDuration = exercise.estimatedDuration || 15;
         this.tags = (exercise.tags || []).join(', ');
+        this.courseDayStr =
+          exercise.courseDay != null && exercise.courseDay !== undefined
+            ? String(exercise.courseDay)
+            : '';
         this.visibleToStudents = exercise.visibleToStudents || false;
         this.questions = (exercise.questions || []).map(q => this.mapQuestionFromApi(q));
         this.loading = false;
@@ -159,6 +175,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         similarityThreshold: q.similarityThreshold ?? 70,
         scoringMode: q.scoringMode || 'full'
       });
+    } else if (q.type === 'listening') {
+      Object.assign(base, {
+        prompt: q.prompt || 'Listen and type what you hear.',
+        mediaUrl: q.mediaUrl || '',
+        expectedTranscript: q.expectedTranscript || '',
+        attemptMode: q.attemptMode || 'typing'
+      });
     }
     return base;
   }
@@ -203,6 +226,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.sampleAnswers = [''];
       q.similarityThreshold = 70;
       q.scoringMode = 'full';
+    } else if (type === 'listening') {
+      q.prompt = 'Listen and type what you hear.';
+      q.mediaUrl = '';
+      q.expectedTranscript = '';
+      q.attemptMode = 'typing-or-speech';
     }
     this.questions.push(q);
     this.expandedQuestion = this.questions.length - 1;
@@ -279,6 +307,62 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     q.similarityThreshold = v;
   }
 
+  // Listening helpers
+  triggerListeningFile(q: BuilderQuestion): void {
+    this.currentListeningQ = q;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onListeningFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = this.currentListeningQ;
+    this.currentListeningQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => {
+        q.mediaUrl = res.url;
+        this.showSuccess('Audio uploaded');
+      },
+      error: (err) => this.showError(err.error?.error || 'Upload failed')
+    });
+  }
+
+  fetchListeningFromUrl(q: BuilderQuestion, url: string): void {
+    if (!url?.trim()) { this.showError('Enter a valid URL'); return; }
+    this.exerciseService.fetchListeningFromUrl(url.trim()).subscribe({
+      next: (res) => {
+        q.mediaUrl = res.url;
+        this.showSuccess('Audio fetched');
+      },
+      error: (err) => this.showError(err.error?.error || 'Fetch failed')
+    });
+  }
+
+  generateTranscript(q: BuilderQuestion): void {
+    if (!q.mediaUrl) { this.showError('Upload or add audio URL first'); return; }
+    q.transcribing = true;
+    this.exerciseService.transcribeListening(q.mediaUrl).subscribe({
+      next: (res) => {
+        q.expectedTranscript = res.transcript;
+        q.transcribing = false;
+        this.showSuccess('Transcript generated. Verify and edit if needed.');
+      },
+      error: (err) => {
+        q.transcribing = false;
+        this.showError(err.error?.error || 'Transcription failed');
+      }
+    });
+  }
+
+  getMediaFullUrl(relative: string): string {
+    if (!relative) return '';
+    if (relative.startsWith('http')) return relative;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return base ? base + relative : relative;
+  }
+
   getBlankCount(q: BuilderQuestion): number {
     return (q.sentence?.match(/___/g) || []).length;
   }
@@ -311,12 +395,25 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
+    if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     return false;
   }
 
   save(): void {
     if (!this.isInfoValid()) { this.showError('Please fill in all required exercise info'); this.activeTab = 'info'; return; }
     if (!this.isQuestionsValid()) { this.showError('Please complete all questions'); this.activeTab = 'questions'; return; }
+
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.showError('Course day must be empty or a number from 1 to 200');
+        this.activeTab = 'info';
+        return;
+      }
+      courseDay = p;
+    }
 
     this.saving = true;
     const payload: Partial<DigitalExercise> = {
@@ -329,6 +426,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       difficulty: this.difficulty,
       estimatedDuration: this.estimatedDuration,
       tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
+      courseDay,
       visibleToStudents: this.visibleToStudents,
       questions: this.questions as any
     };
@@ -354,8 +452,47 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.router.navigate(['/admin/digital-exercises']);
   }
 
+  /** For query params when opening AI / Audio wizards (1–200 only). */
+  private courseDayQueryParams(): Record<string, string> {
+    const t = this.courseDayStr.trim();
+    if (!t) return {};
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p) || p < 1 || p > 200) return {};
+    return { courseDay: String(p) };
+  }
+
+  /** Bound to course day number input (empty = any day). */
+  get courseDayAsNumber(): number | null {
+    const t = this.courseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p)) return null;
+    return p;
+  }
+
+  onCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.courseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.courseDayStr = '';
+      return;
+    }
+    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
+
   navigateToAiGenerator(): void {
-    this.router.navigate(['/admin/digital-exercises/generate-ai']);
+    this.router.navigate(['/admin/digital-exercises/generate-ai'], {
+      queryParams: this.courseDayQueryParams()
+    });
+  }
+
+  navigateToListeningGenerator(): void {
+    this.router.navigate(['/admin/digital-exercises/generate-listening-manual'], {
+      queryParams: this.courseDayQueryParams()
+    });
   }
 
   getTotalPoints(): number {

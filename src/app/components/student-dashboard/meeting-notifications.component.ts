@@ -2,11 +2,7 @@
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MaterialModule } from '../../shared/material.module';
 import { Router } from '@angular/router';
 import { ZoomService } from '../../services/zoom.service';
 
@@ -32,11 +28,7 @@ interface UpcomingMeeting {
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatBadgeModule,
-    MatTooltipModule
+    MaterialModule
   ],
   templateUrl: './meeting-notifications.component.html',
   styleUrls: ['./meeting-notifications.component.css']
@@ -113,7 +105,7 @@ export class MeetingNotificationsComponent implements OnInit, OnDestroy {
   }
 
   viewAllMeetings(): void {
-    this.router.navigate(['/student/meetings']);
+    this.router.navigate(['/student/my-course'], { queryParams: { tab: 'classes' } });
   }
 
   formatTime(date: Date): string {

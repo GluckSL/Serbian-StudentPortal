@@ -7,8 +7,6 @@ import { HttpClient, HttpClientModule} from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FeedbackService } from '../../services/feedback.service';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatCardModule } from '@angular/material/card';
 import { NgChartsModule } from 'ng2-charts';
 import { MaterialModule } from '../../shared/material.module';
 import { MatDialog } from '@angular/material/dialog';
@@ -40,8 +38,6 @@ interface Teacher {
     HttpClientModule,
     CommonModule,
     FormsModule,
-    MatProgressBarModule,
-    MatCardModule,
     MaterialModule,
     NgChartsModule,
     RouterModule

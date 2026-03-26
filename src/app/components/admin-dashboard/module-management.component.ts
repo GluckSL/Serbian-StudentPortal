@@ -3,7 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { ModuleTrashService } from '../../services/module-trash.service';
 
@@ -78,6 +78,10 @@ interface ModuleWithStats {
                 <button class="btn btn-primary btn-add-module" routerLink="/learning-modules">
                   <i class="fas fa-plus"></i>
                   Create New Module
+                </button>
+                <button class="btn btn-trash-module" routerLink="/admin-trash">
+                  <i class="fas fa-trash"></i>
+                  Trash
                 </button>
               </div>
               <div class="col-md-6 text-end">
@@ -237,6 +241,9 @@ interface ModuleWithStats {
                                     [title]="module.visibleToStudents ? 'Hide from students' : 'Show to students'">
                               <i class="fas" [class]="module.visibleToStudents ? 'fa-eye-slash' : 'fa-eye'"></i>
                             </button>
+                            <button class="btn btn-sm btn-outline-success me-1" (click)="testModule(module)" title="Test Module">
+                              <i class="fas fa-play-circle"></i>
+                            </button>
                             <button class="btn btn-sm btn-outline-info me-1" (click)="viewHistory(module._id)" title="View History">
                               <i class="fas fa-history"></i>
                             </button>
@@ -311,387 +318,346 @@ interface ModuleWithStats {
     </div>
   `,
   styles: [`
-    /* Module Management Dashboard Styles */
-    .admin-modules {
-      background-color: #f8f9fa;
+    :host {
+      display: block;
       min-height: calc(100vh - 80px);
-      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     }
 
-    /* ====== Header Section ====== */
+    .admin-modules { min-height: calc(100vh - 80px); }
+
+    /* ── Header ── */
     .admin-header {
-      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-      color: white;
-      padding: 2rem 0;
-      margin-bottom: 2rem;
+      background: #b3cde0;
+      color: #011f4b;
+      padding: 14px 18px;
+      margin: 14px;
+      border-radius: 14px;
     }
+
+    .admin-header .row { margin: 0; }
+    .admin-header .col-md-8,
+    .admin-header .col-md-4 { padding: 0; }
 
     .admin-title {
-      font-size: 2.25rem;
+      font-size: 15px;
       font-weight: 700;
-      margin-bottom: 0.5rem;
+      margin: 0;
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 6px;
     }
+
+    .admin-title i { font-size: 14px; }
 
     .admin-subtitle {
-      font-size: 1.1rem;
-      opacity: 0.9;
-      margin-bottom: 0;
+      font-size: 11px;
+      opacity: 0.65;
+      margin: 2px 0 0;
     }
 
-    .admin-stats-quick {
-      display: flex;
-      justify-content: flex-end;
-      gap: 2rem;
-    }
+    .admin-stats-quick { display: flex; justify-content: flex-end; }
 
     .stat-item {
       text-align: center;
-      background: rgba(255, 255, 255, 0.1);
-      padding: 1rem 1.5rem;
-      border-radius: 12px;
-      backdrop-filter: blur(10px);
+      background: rgba(1,31,75,0.08);
+      padding: 8px 14px;
+      border-radius: 10px;
     }
 
     .stat-number {
       display: block;
-      font-size: 2rem;
+      font-size: 18px;
       font-weight: 700;
       line-height: 1;
+      color: #011f4b;
     }
 
     .stat-label {
       display: block;
-      font-size: 0.875rem;
-      opacity: 0.8;
-      margin-top: 0.25rem;
+      font-size: 9px;
+      opacity: 0.6;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
-    /* ====== Main Content Area ====== */
-    .admin-content {
-      padding: 0 1rem;
-    }
+    /* ── Content ── */
+    .admin-content { padding: 12px 14px; }
 
-    /* ====== Action Bar ====== */
+    /* ── Action Bar ── */
     .action-bar {
-      margin-bottom: 2rem;
+      margin-bottom: 10px;
+      background: #fff;
+      border-radius: 14px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      border: 1px solid #e8ecf4;
     }
+
+    .action-bar .row { margin: 0; }
+    .action-bar .col-md-6 { padding: 0; }
 
     .btn-add-module {
-      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+      background: #005b96;
       border: none;
-      color: white;
+      color: #fff;
       font-weight: 600;
-      padding: 0.75rem 1.5rem;
+      padding: 5px 12px;
       border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
-      transition: all 0.2s ease;
+      font-size: 11px;
+      font-family: inherit;
     }
 
-    .btn-add-module:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(0, 123, 255, 0.4);
-      color: white;
+    .btn-add-module:hover { background: #03396c; color: #fff; }
+
+    .btn-trash-module {
+      background: #e11d48;
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 8px;
+      margin-left: 6px;
+      font-size: 11px;
+      font-family: inherit;
     }
+
+    .btn-trash-module:hover { background: #be123c; color: #fff; }
 
     .filter-options .form-select {
-      border-color: #007bff;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 0.5rem 1rem;
+      padding: 5px 10px;
+      font-size: 11px;
       font-weight: 500;
+      background: #f8fafc;
+      color: #1e293b;
     }
 
     .filter-options .form-select:focus {
-      border-color: #007bff;
-      box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+      border-color: #005b96;
+      box-shadow: 0 0 0 2px rgba(0,91,150,0.08);
     }
 
-    /* ====== Statistics Cards ====== */
-    .stats-section {
-      margin-bottom: 2rem;
-    }
+    /* ── Stats Cards ── */
+    .stats-section { margin-bottom: 10px; }
 
     .stat-card {
       display: flex;
       align-items: center;
-      padding: 1.5rem;
+      padding: 10px 12px;
       border-radius: 12px;
-      margin-bottom: 1rem;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      transition: transform 0.2s ease;
+      margin-bottom: 8px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      border: 1px solid #e8ecf4;
     }
 
-    .stat-card:hover {
-      transform: translateY(-2px);
-    }
+    .stat-card.bg-primary   { background: #005b96 !important; }
+    .stat-card.bg-success   { background: #28a745 !important; }
+    .stat-card.bg-warning   { background: #f59e0b !important; }
+    .stat-card.bg-info      { background: #6497b1 !important; }
+    .stat-card.bg-secondary { background: #64748b !important; }
 
-    .stat-icon {
-      font-size: 2.5rem;
-      margin-right: 1.5rem;
-      opacity: 0.8;
-    }
+    .stat-icon { font-size: 18px; margin-right: 10px; opacity: 0.85; }
 
-    .stat-content h3 {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: bold;
-    }
+    .stat-content h3 { margin: 0; font-size: 16px; font-weight: 700; }
+    .stat-content p  { margin: 0; font-size: 10px; opacity: 0.9; }
 
-    .stat-content p {
-      margin: 0;
-      font-size: 0.9rem;
-      opacity: 0.9;
-    }
-
-    /* ====== Loading State ====== */
+    /* ── Loading ── */
     .loading-state {
-      background: white;
-      border-radius: 12px;
-      padding: 3rem 2rem;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      background: #fff;
+      border-radius: 14px;
+      padding: 30px 20px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      text-align: center;
     }
 
-    .loading-state .spinner-border {
-      color: #007bff;
-    }
+    .loading-state p { font-size: 12px; color: #64748b; margin-top: 10px; }
+    .spinner-border { color: #005b96; }
 
-    /* ====== Results Summary ====== */
+    /* ── Results Summary ── */
     .results-summary {
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 10px;
+      padding: 8px 14px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      border: 1px solid #e8ecf4;
     }
 
-    .results-count {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #007bff;
-    }
+    .results-count { font-size: 13px; font-weight: 700; color: #005b96; }
+    .results-text  { color: #94a3b8; margin-left: 4px; font-size: 11px; }
 
-    .results-text {
-      color: #6c757d;
-      margin-left: 0.5rem;
-    }
-
-    /* ====== Modules Table ====== */
-    .modules-table .data-table-card .card {
-      border: none;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      border-radius: 12px;
+    /* ── Table Card ── */
+    .data-table-card .card {
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      border-radius: 14px;
       overflow: hidden;
     }
 
-    .modules-table .table {
-      margin-bottom: 0;
-      font-size: 0.9rem;
-    }
+    .table { margin-bottom: 0; }
 
-    .modules-table .table thead th {
-      background: linear-gradient(135deg, #343a40 0%, #495057 100%);
-      color: white;
+    .table thead th {
+      background: #03396c;
+      color: #fff;
       font-weight: 600;
       border: none;
-      padding: 1rem 0.75rem;
-      font-size: 0.85rem;
+      padding: 8px 10px;
+      font-size: 10px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.04em;
     }
 
-    .modules-table .table tbody td {
-      padding: 1rem 0.75rem;
+    .table tbody td {
+      padding: 8px 10px;
       vertical-align: middle;
-      border-bottom: 1px solid #f0f0f0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 12px;
     }
 
-    .modules-table .table tbody tr:hover {
-      background-color: rgba(0, 123, 255, 0.05);
-    }
+    .table tbody tr:hover { background: #f8fafc; }
+    .table tbody tr { transition: background 0.15s; }
 
-    /* ====== Module Info Styling ====== */
-    .module-info .module-title {
+    /* ── Module Info ── */
+    .module-info .module-title { font-weight: 600; color: #0f172a; font-size: 12px; }
+    .module-info .module-desc  { color: #94a3b8; font-size: 10px; margin-top: 2px; }
+
+    .level-category small { font-size: 10px; }
+
+    .creator-info .creator-name { font-weight: 600; color: #0f172a; font-size: 12px; }
+
+    .update-info .update-date { font-size: 11px; color: #475569; }
+    .update-info small { font-size: 10px; }
+
+    .version-info small { font-size: 10px; }
+
+    /* ── Badges ── */
+    .badge {
       font-weight: 600;
-      color: #333;
-      font-size: 0.95rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
     }
 
-    .module-info .module-desc {
-      color: #6c757d;
-      font-size: 0.8rem;
-      margin-top: 0.25rem;
-    }
+    .badge.bg-primary   { background: #dbeafe !important; color: #005b96 !important; }
+    .badge.bg-info      { background: #e0f2fe !important; color: #0369a1 !important; }
+    .badge.bg-success   { background: #dcfce7 !important; color: #166534 !important; }
+    .badge.bg-warning   { background: #fef3c7 !important; color: #92400e !important; }
+    .badge.bg-danger    { background: #ffe0e6 !important; color: #e11d48 !important; }
+    .badge.bg-secondary { background: #f1f5f9 !important; color: #64748b !important; }
 
-    .level-category .badge {
-      font-size: 0.75rem;
-      padding: 0.4em 0.6em;
-      font-weight: 500;
-    }
-
-    .creator-info .creator-name {
-      font-weight: 600;
-      color: #333;
-      font-size: 0.9rem;
-    }
-
-    .update-info .update-date {
-      font-size: 0.85rem;
-      color: #495057;
-    }
-
-    .version-info .badge {
-      font-size: 0.75rem;
-      padding: 0.4em 0.6em;
-      font-weight: 500;
-    }
-
-    /* ====== Action Buttons ====== */
-    .action-buttons {
-      display: flex;
-      gap: 0.25rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
+    /* ── Action Buttons ── */
+    .action-buttons { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
 
     .action-buttons .btn {
-      padding: 0.375rem 0.5rem;
-      font-size: 0.875rem;
+      padding: 3px 7px;
+      font-size: 11px;
       border-radius: 6px;
-      transition: all 0.2s ease;
     }
 
-    .action-buttons .btn:hover {
-      transform: translateY(-1px);
-    }
+    .btn-outline-primary  { color: #005b96; border-color: #005b96; }
+    .btn-outline-primary:hover { background: #005b96; color: #fff; }
 
-    /* ====== Pagination ====== */
-    .pagination-nav {
-      margin-top: 2rem;
-    }
+    .btn-outline-success  { color: #28a745; border-color: #28a745; }
+    .btn-outline-success:hover { background: #28a745; color: #fff; }
+
+    .btn-outline-info     { color: #6497b1; border-color: #6497b1; }
+    .btn-outline-info:hover { background: #6497b1; color: #fff; }
+
+    .btn-outline-warning  { color: #f59e0b; border-color: #f59e0b; }
+    .btn-outline-warning:hover { background: #f59e0b; color: #fff; }
+
+    .btn-outline-danger   { color: #e11d48; border-color: #e11d48; }
+    .btn-outline-danger:hover { background: #e11d48; color: #fff; }
+
+    /* ── Pagination ── */
+    .pagination-nav { margin-top: 14px; }
 
     .pagination .page-link {
-      color: #007bff;
-      border-color: #dee2e6;
+      color: #005b96;
+      border-color: #e2e8f0;
+      font-size: 11px;
+      padding: 4px 10px;
     }
 
     .pagination .page-item.active .page-link {
-      background-color: #007bff;
-      border-color: #007bff;
+      background: #005b96;
+      border-color: #005b96;
+      color: #fff;
     }
 
     .pagination .page-link:hover {
-      color: #0056b3;
-      background-color: #e9ecef;
-      border-color: #dee2e6;
+      color: #03396c;
+      background: #f8fafc;
+      border-color: #e2e8f0;
     }
 
-    /* ====== Timeline Styles ====== */
-    .timeline {
-      position: relative;
-      padding-left: 2rem;
+    /* ── History Modal ── */
+    .modal-content {
+      border-radius: 14px;
+      border: none;
+      box-shadow: 0 10px 40px rgba(15,23,42,0.2);
     }
 
-    .timeline-item {
-      position: relative;
-      margin-bottom: 1.5rem;
+    .modal-header {
+      border-radius: 14px 14px 0 0;
+      background: #b3cde0;
+      padding: 12px 16px;
     }
+
+    .modal-header .modal-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #011f4b;
+    }
+
+    .modal-body { padding: 16px; font-size: 12px; }
+    .modal-body h6 { font-size: 13px; font-weight: 700; color: #011f4b; }
+    .modal-body p  { font-size: 11px; color: #475569; }
+
+    .timeline { position: relative; padding-left: 20px; }
+
+    .timeline-item { position: relative; margin-bottom: 12px; }
 
     .timeline-marker {
       position: absolute;
-      left: -2rem;
-      width: 12px;
-      height: 12px;
+      left: -20px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      top: 0.25rem;
+      top: 4px;
+      background: #005b96;
     }
 
     .timeline-content {
-      background: #f8f9fa;
-      padding: 1rem;
-      border-radius: 0.5rem;
-      border-left: 3px solid #007bff;
+      background: #f8fafc;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border-left: 3px solid #005b96;
+      font-size: 11px;
     }
 
-    /* ====== Responsive Design ====== */
+    .timeline-content strong { font-size: 12px; color: #011f4b; }
+    .timeline-content small  { font-size: 10px; }
+
+    /* ── Responsive ── */
     @media (max-width: 768px) {
-      .admin-content {
-        padding: 0 0.5rem;
-      }
-      
-      .admin-title {
-        font-size: 1.75rem;
-      }
-      
-      .admin-subtitle {
-        font-size: 1rem;
-      }
-      
-      .stat-item {
-        padding: 0.75rem 1rem;
-      }
-      
-      .stat-number {
-        font-size: 1.5rem;
-      }
-      
-      .action-bar .row > div {
-        margin-bottom: 1rem;
-        text-align: center;
-      }
-      
-      .results-summary {
-        text-align: center;
-      }
-      
-      .stat-card {
-        flex-direction: column;
-        text-align: center;
-        padding: 1rem;
-      }
-      
-      .stat-icon {
-        margin-right: 0;
-        margin-bottom: 0.5rem;
-        font-size: 2rem;
-      }
-      
-      .action-buttons {
-        flex-direction: column;
-        gap: 0.25rem;
-      }
-      
-      .action-buttons .btn {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-      }
-      
-      .modules-table .table-responsive {
-        font-size: 0.8rem;
-      }
+      .admin-header { margin: 10px; padding: 12px 14px; }
+      .admin-title { font-size: 14px; }
+      .admin-stats-quick { justify-content: center; margin-top: 8px; }
+      .action-bar .row > div { margin-bottom: 8px; text-align: center; }
+      .stat-card { flex-direction: column; text-align: center; padding: 8px; }
+      .stat-icon { margin-right: 0; margin-bottom: 4px; }
+      .action-buttons { flex-direction: column; gap: 3px; }
+      .action-buttons .btn { font-size: 10px; padding: 2px 6px; }
     }
 
     @media (max-width: 576px) {
-      .admin-header {
-        padding: 1.5rem 0;
-      }
-      
-      .admin-title {
-        font-size: 1.5rem;
-        flex-direction: column;
-        text-align: center;
-        gap: 0.5rem;
-      }
-      
-      .admin-stats-quick {
-        justify-content: center;
-        margin-top: 1rem;
-      }
-      
-      .stats-section .row > div {
-        margin-bottom: 1rem;
-      }
+      .admin-content { padding: 10px; }
+      .admin-title { font-size: 13px; flex-direction: column; text-align: center; gap: 4px; }
+      .admin-stats-quick { justify-content: center; margin-top: 8px; }
     }
   `]
 })
@@ -705,7 +671,8 @@ export class ModuleManagementComponent implements OnInit {
 
   constructor(
     private learningModulesService: LearningModulesService,
-    private moduleTrashService: ModuleTrashService
+    private moduleTrashService: ModuleTrashService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -822,6 +789,25 @@ export class ModuleManagementComponent implements OnInit {
         error: (error) => {
           console.error(`Error toggling module visibility:`, error);
           alert(`Failed to update module visibility`);
+        }
+      });
+    }
+  }
+
+  // Test module directly via AI tutor chat
+  testModule(module: ModuleWithStats): void {
+    const confirmTest = confirm(
+      `🧪 Test Module: "${module.title}"\n\n` +
+      `This will start the AI tutoring session for this module, allowing you to experience it as a student would.\n\n` +
+      `Continue with testing?`
+    );
+
+    if (confirmTest) {
+      this.router.navigate(['/ai-tutor-chat'], {
+        queryParams: {
+          moduleId: module._id,
+          sessionType: 'teacher-test',
+          testMode: 'true'
         }
       });
     }

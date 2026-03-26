@@ -8,7 +8,11 @@ import {
   DigitalExerciseService, DigitalExercise, ExerciseQuestion,
   QuestionResponse, SubmitResult
 } from '../../services/digital-exercise.service';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { environment } from '../../../environments/environment';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MaterialModule } from '../../shared/material.module';
+import { AuthService } from '../../services/auth.service';
+import { take } from 'rxjs/operators';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -30,6 +34,8 @@ interface PlayerQuestion {
   hasRecorded?: boolean;
   // Question/Answer state
   qaResponse?: string;
+  // Listening state
+  listeningText?: string;
   // Result state
   isAnswered?: boolean;
   isCorrect?: boolean | null;
@@ -39,7 +45,7 @@ interface PlayerQuestion {
 @Component({
   selector: 'app-digital-exercise-player',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './digital-exercise-player.component.html',
   styleUrls: ['./digital-exercise-player.component.css']
 })
@@ -64,13 +70,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   // Speech recognition
   private recognition: any = null;
+  private listeningRecognition: any = null;
   speechSupported = false;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     public exerciseService: DigitalExerciseService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -99,7 +107,29 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.isSubmittedState = false;
         this.state = 'intro';
       },
-      error: () => { this.state = 'error'; }
+      error: (err) => {
+        if (err?.status === 403 && err?.error?.code === 'COURSE_DAY_LOCKED') {
+          const day = err.error?.exerciseCourseDay;
+          this.snackBar.open(
+            day != null
+              ? `This exercise is for course day ${day}. Complete earlier days first.`
+              : (err.error?.error || 'This exercise is not available yet.'),
+            'Close',
+            { duration: 6000, panelClass: ['error-snack'] }
+          );
+        } else if (err?.status === 403 && err?.error?.code === 'LEVEL_NOT_ALLOWED') {
+          const exLv = err.error?.exerciseLevel;
+          const stLv = err.error?.studentLevel;
+          this.snackBar.open(
+            exLv && stLv
+              ? `This exercise is ${exLv} level. Your profile is ${stLv} — you can only open exercises up to your level.`
+              : (err.error?.error || 'This exercise is not available for your level.'),
+            'Close',
+            { duration: 7000, panelClass: ['error-snack'] }
+          );
+        }
+        this.state = 'error';
+      }
     });
   }
 
@@ -128,6 +158,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.hasRecorded = false;
       } else if (q.type === 'question-answer') {
         pq.qaResponse = '';
+      } else if (q.type === 'listening') {
+        pq.listeningText = '';
       }
       return pq;
     });
@@ -177,6 +209,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'fill-blank') return (pq.fillAnswers || []).every(a => a.trim() !== '');
     if (q.type === 'pronunciation') return pq.hasRecorded === true;
     if (q.type === 'question-answer') return (pq.qaResponse || '').trim().length > 0;
+    if (q.type === 'listening') return (pq.listeningText || '').trim().length > 0;
     return false;
   }
 
@@ -382,6 +415,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         resp.pronunciationScore = pq.pronunciationScore || 0;
       } else if (pq.data.type === 'question-answer') {
         resp.qaResponse = pq.qaResponse || '';
+      } else if (pq.data.type === 'listening') {
+        resp.listeningText = pq.listeningText || '';
       }
       return resp;
     });
@@ -453,7 +488,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   // ─── Navigation ──────────────────────────────────────────────────────────────
 
   backToExercises(): void {
-    this.router.navigate(['/digital-exercises']);
+    this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
+      if (user?.role === 'STUDENT') {
+        this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
+      } else {
+        this.router.navigate(['/digital-exercises']);
+      }
+    });
   }
 
   tryAgain(): void {
@@ -492,6 +533,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (pq.data.type === 'pronunciation') return (pq.spokenText || '—').trim();
     if (pq.data.type === 'question-answer') return (pq.qaResponse || '—').trim();
+    if (pq.data.type === 'listening') return (pq.listeningText || '—').trim();
     return '—';
   }
 
@@ -514,6 +556,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const samples = pq.data.sampleAnswers || [];
       return samples.length ? samples.join('; ') : '(AI graded)';
     }
+    if (pq.data.type === 'listening') return pq.data.expectedTranscript || '—';
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
     return '—';
   }
@@ -546,8 +589,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string }> {
     const counts: Record<string, number> = {};
-    const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation' };
-    const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over' };
+    const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening' };
+    const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones' };
     this.playerQuestions.forEach(pq => { counts[pq.data.type] = (counts[pq.data.type] || 0) + 1; });
     return Object.entries(counts).map(([type, count]) => ({ type, count, label: labels[type] || type, icon: icons[type] || 'help' }));
   }
@@ -558,6 +601,43 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   getTypeLabel(type: string): string {
     return this.exerciseService.getQuestionTypeLabel(type as any);
+  }
+
+  getMediaFullUrl(relative?: string | null): string {
+    if (!relative) return '';
+    if (relative.startsWith('http')) return relative;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return base ? base + relative : relative;
+  }
+
+  startListeningSpeech(pq: PlayerQuestion): void {
+    if (this.state === 'submitted') return;
+    if (!this.speechSupported) {
+      this.snackBar.open('Speech recognition not supported in this browser', 'Close', { duration: 3000 });
+      return;
+    }
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SpeechRecognition) return;
+    if (this.listeningRecognition) try { this.listeningRecognition.stop(); } catch {}
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.onresult = (e: any) => {
+      let full = '';
+      for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
+      pq.listeningText = full;
+    };
+    rec.onend = () => { pq.isRecording = false; this.listeningRecognition = null; };
+    rec.start();
+    this.listeningRecognition = rec;
+    pq.isRecording = true;
+  }
+
+  stopListeningSpeech(pq: PlayerQuestion): void {
+    if (this.listeningRecognition) try { this.listeningRecognition.stop(); } catch {}
+    this.listeningRecognition = null;
+    pq.isRecording = false;
   }
 
   isMatchCorrect(pq: PlayerQuestion, leftIndex: number): boolean {

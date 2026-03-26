@@ -1,13 +1,8 @@
 // src/app/components/meeting-link/student-meetings.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTabsModule } from '@angular/material/tabs';
+import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 
 interface StudentMeeting {
@@ -36,17 +31,15 @@ interface StudentMeeting {
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    MatProgressSpinnerModule,
-    MatTabsModule
+    MaterialModule
   ],
   templateUrl: './student-meetings.component.html',
   styleUrls: ['./student-meetings.component.css']
 })
-export class StudentMeetingsComponent implements OnInit {
+export class StudentMeetingsComponent implements OnInit, OnDestroy {
+  /** When true, hides the page title block (e.g. inside My Course). */
+  @Input() embedded = false;
+
   allMeetings: StudentMeeting[] = [];
   upcomingMeetings: StudentMeeting[] = [];
   ongoingMeetings: StudentMeeting[] = [];
@@ -54,16 +47,20 @@ export class StudentMeetingsComponent implements OnInit {
   
   loading = false;
   error = '';
+  private meetingsRefreshId: ReturnType<typeof setInterval> | null = null;
 
   constructor(private zoomService: ZoomService) {}
 
   ngOnInit(): void {
     this.loadMeetings();
-    
-    // Refresh every minute to update meeting status
-    setInterval(() => {
-      this.loadMeetings();
-    }, 60000);
+    this.meetingsRefreshId = setInterval(() => this.loadMeetings(), 60000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.meetingsRefreshId) {
+      clearInterval(this.meetingsRefreshId);
+      this.meetingsRefreshId = null;
+    }
   }
 
   loadMeetings(): void {

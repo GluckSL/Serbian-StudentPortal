@@ -3,7 +3,10 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { ModuleDataTransferService } from '../../services/module-data-transfer.service';
 
@@ -247,6 +250,19 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                         </button>
                       </div>
                     </div>
+
+                    <!-- CSV Upload for Student Vocabulary -->
+                    <div class="mb-2">
+                      <input type="file" class="d-none" accept=".csv" #studentVocabCsv 
+                             (change)="onStudentVocabCsvUpload($event)">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="studentVocabCsv.click()">
+                        <i class="fas fa-file-csv me-1"></i> Import from CSV
+                      </button>
+                      <small class="text-muted ms-2">Format: word, translation (optional), category (optional) — translations auto-generated if missing</small>
+                      <span *ngIf="isTranslating" class="ms-2 text-primary">
+                        <span class="spinner-border spinner-border-sm me-1"></span>Auto-translating...
+                      </span>
+                    </div>
                     
                     <div class="vocabulary-list">
                       <div *ngFor="let vocab of allowedVocabulary; let i = index" 
@@ -313,6 +329,19 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                       </button>
                       <small class="text-muted ms-2">Quick start: Copy all student words, then add AI support words</small>
                     </div>
+
+                    <!-- CSV Upload for AI Tutor Vocabulary -->
+                    <div class="mb-2">
+                      <input type="file" class="d-none" accept=".csv" #aiVocabCsv 
+                             (change)="onAiVocabCsvUpload($event)">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="aiVocabCsv.click()">
+                        <i class="fas fa-file-csv me-1"></i> Import from CSV
+                      </button>
+                      <small class="text-muted ms-2">Format: word, translation (optional), category, usage — translations auto-generated if missing</small>
+                      <span *ngIf="isTranslating" class="ms-2 text-primary">
+                        <span class="spinner-border spinner-border-sm me-1"></span>Auto-translating...
+                      </span>
+                    </div>
                     
                     <div class="vocabulary-list border rounded p-2" style="background-color: #f8f9fa;">
                       <div *ngIf="aiTutorVocabulary.length === 0" class="text-center text-muted py-3">
@@ -364,6 +393,16 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                           <i class="fas fa-plus"></i>
                         </button>
                       </div>
+                    </div>
+
+                    <!-- CSV Upload for Grammar -->
+                    <div class="mb-2">
+                      <input type="file" class="d-none" accept=".csv" #grammarCsv 
+                             (change)="onGrammarCsvUpload($event)">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="grammarCsv.click()">
+                        <i class="fas fa-file-csv me-1"></i> Import from CSV
+                      </button>
+                      <small class="text-muted ms-2">Format: structure, example1; example2; example3</small>
                     </div>
                     
                     <div class="grammar-list">
@@ -436,6 +475,21 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                 <!-- Form Actions -->
                 <div class="row">
                   <div class="col-12">
+                    <!-- Validation feedback -->
+                    <div *ngIf="moduleForm.invalid && isEditMode" class="alert alert-warning mb-3">
+                      <small><i class="fas fa-exclamation-triangle me-1"></i> Please fix the following to enable save:</small>
+                      <ul class="mb-0 small">
+                        <li *ngIf="moduleForm.get('title')?.invalid">Title is required</li>
+                        <li *ngIf="moduleForm.get('description')?.invalid">Description is required</li>
+                        <li *ngIf="moduleForm.get('targetLanguage')?.invalid">Target Language is required</li>
+                        <li *ngIf="moduleForm.get('nativeLanguage')?.invalid">Native Language is required</li>
+                        <li *ngIf="moduleForm.get('level')?.invalid">Level is required</li>
+                        <li *ngIf="moduleForm.get('minimumCompletionTime')?.invalid">Minimum Completion Time must be between 5 and 60</li>
+                        <li *ngIf="moduleForm.get('rolePlayScenario.situation')?.invalid">Situation is required</li>
+                        <li *ngIf="moduleForm.get('rolePlayScenario.studentRole')?.invalid">Student Role is required</li>
+                        <li *ngIf="moduleForm.get('rolePlayScenario.aiRole')?.invalid">AI Role is required</li>
+                      </ul>
+                    </div>
                     <div class="d-flex justify-content-end gap-2">
                       <button type="button" class="btn btn-secondary" (click)="goBack()">
                         Cancel
@@ -489,6 +543,7 @@ export class RoleplayModuleFormComponent implements OnInit {
   isEditMode: boolean = false;
   moduleId: string | null = null;
   existingModule: any = null;
+  isTranslating: boolean = false;
 
   // Input fields for dynamic arrays
   newVocabWord = '';
@@ -508,6 +563,7 @@ export class RoleplayModuleFormComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
+    private http: HttpClient,
     private learningModulesService: LearningModulesService,
     private moduleDataTransferService: ModuleDataTransferService,
     private router: Router,
@@ -838,7 +894,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       level: module.level || '',
       category: module.category || 'Conversation',
       difficulty: module.difficulty || 'Beginner',
-      minimumCompletionTime: module.minimumCompletionTime || 10, // ✅ Load minimum completion time
+      minimumCompletionTime: Math.min(60, Math.max(5, module.minimumCompletionTime || 10)), // ✅ Clamp to valid range
       rolePlayScenario: {
         situation: module.content?.rolePlayScenario?.situation || '',
         studentRole: module.content?.rolePlayScenario?.studentRole || '',
@@ -959,5 +1015,133 @@ export class RoleplayModuleFormComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/learning-modules']);
+  }
+
+  // CSV Parsing Helpers
+  private parseCsvText(text: string): string[][] {
+    return text.split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => line.split(',').map(cell => cell.trim()));
+  }
+
+  private isHeaderRow(row: string[]): boolean {
+    const headerKeywords = ['word', 'translation', 'category', 'usage', 'structure', 'example', 'phrase'];
+    return row.some(cell => headerKeywords.includes(cell.toLowerCase()));
+  }
+
+  private async autoTranslate(word: string): Promise<string> {
+    const targetLang = this.moduleForm.get('targetLanguage')?.value || 'German';
+    const nativeLang = this.moduleForm.get('nativeLanguage')?.value || 'English';
+    // Translate from target language to native language (word is in target, translation is in native)
+    try {
+      const result: any = await firstValueFrom(
+        this.http.post(`${environment.apiUrl}/translate`, {
+          text: word,
+          from: targetLang,
+          to: nativeLang
+        })
+      );
+      // Remove the 💬 prefix the API adds
+      return (result.translatedText || '').replace(/^💬\s*/, '').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  onStudentVocabCsvUpload(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const rows = this.parseCsvText(reader.result as string);
+      let imported = 0;
+      this.isTranslating = true;
+
+      for (const row of rows) {
+        if (this.isHeaderRow(row)) continue;
+        if (row.length >= 1 && row[0]) {
+          const word = row[0];
+          const translation = row.length >= 2 && row[1] ? row[1] : await this.autoTranslate(word);
+          this.allowedVocabulary.push({
+            word,
+            translation,
+            category: (row.length >= 3 ? row[2] : '') || 'general'
+          });
+          imported++;
+        }
+      }
+
+      this.isTranslating = false;
+      alert(`Imported ${imported} words to Student Vocabulary.`);
+      (event.target as HTMLInputElement).value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  onAiVocabCsvUpload(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const rows = this.parseCsvText(reader.result as string);
+      let imported = 0;
+      this.isTranslating = true;
+
+      for (const row of rows) {
+        if (this.isHeaderRow(row)) continue;
+        if (row.length >= 1 && row[0]) {
+          const word = row[0];
+          const translation = row.length >= 2 && row[1] ? row[1] : await this.autoTranslate(word);
+          this.aiTutorVocabulary.push({
+            word,
+            translation,
+            category: (row.length >= 3 ? row[2] : '') || 'general',
+            usage: row.length >= 4 ? row[3] : undefined
+          });
+          imported++;
+        }
+      }
+
+      this.isTranslating = false;
+      alert(`Imported ${imported} words to AI Tutor Vocabulary.`);
+      (event.target as HTMLInputElement).value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  onGrammarCsvUpload(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = this.parseCsvText(reader.result as string);
+      let imported = 0;
+
+      for (const row of rows) {
+        if (this.isHeaderRow(row)) continue;
+        if (row.length >= 1 && row[0]) {
+          const examples = row.slice(1)
+            .join(',')
+            .split(';')
+            .map(e => e.trim())
+            .filter(e => e.length > 0);
+
+          this.allowedGrammar.push({
+            structure: row[0],
+            examples: examples,
+            level: this.moduleForm.get('level')?.value || 'A1'
+          });
+          imported++;
+        }
+      }
+
+      alert(`Imported ${imported} grammar structures.`);
+      (event.target as HTMLInputElement).value = '';
+    };
+    reader.readAsText(file);
   }
 }

@@ -23,13 +23,15 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN"], required: true },
-  subscription: { type: String, enum: ["SILVER", "PLATINUM"], required: function() { return this.role === "STUDENT"; } },
+  subscription: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: function() { return this.role === "STUDENT"; } },
   level: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: function() { return this.role === "STUDENT"; }},
   batch: { type: String, required: function() { return this.role === "STUDENT"; }},
   medium: { type: [String], required: function() { return this.role === "STUDENT" || this.role === "TEACHER"; }},
   conversationId: { type: String, default: "" },
   assignedCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: function() { return this.role === "TEACHER"; } }], // Courses assigned to the user
   assignedBatches: [{ type: String, required: function() { return this.role === "TEACHER"; } }], // Batches assigned to the teacher
+  // Zoom host email for teachers (user under the master Zoom account)
+  zoomHostEmail: { type: String, default: "" },
   assignedTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, function() { return this.role === "STUDENT"; } }, // Teacher assigned to the student
   isActive: { type: Boolean, default: true },
   profilePic: { type: String, default: "" },
@@ -43,7 +45,7 @@ const UserSchema = new mongoose.Schema({
   phoneNumber: { type: String, default: "", required: false, function() { return this.role === "STUDENT"; } },
   address: { type: String, default: "", required: false, function() { return this.role === "STUDENT"; } },
   age: { type: Number, default: null, required: false, function() { return this.role === "STUDENT"; } },
-  programEnrolled: { type: String, default: "", required: false, function() { return this.role === "STUDENT"; } },
+
   leadSource: { type: String, default: "", required: false, function() { return this.role === "STUDENT"; } },
   languageLevelOpted: { type: String, default: "", required: false, function() { return this.role === "STUDENT"; } },
   dateWithdrew: { type: Date, default: null, function() { return this.role === "STUDENT" && this.studentStatus === "WITHDREW"; }  },
@@ -51,6 +53,26 @@ const UserSchema = new mongoose.Schema({
   courseCompletionDates: {type: completionDates, default: () => ({}) , function() { return this.role === "STUDENT"; }  },
   courseStartDates: {type: startDates, default: () => ({}) , function() { return this.role === "STUDENT"; }  },
   qualifications: { type: String, default: "", function() { return this.role === "STUDENT"; }  },
+  whatsappNumber: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  otherLanguageKnown: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  enrollmentDate: { type: Date, default: null, function() { return this.role === "STUDENT"; } },
+  servicesOpted: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  stream: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  batchStartedOn: { type: Date, default: null, function() { return this.role === "STUDENT"; } },
+  teacherIncharge: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  languageExamStatus: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  examPassedDate: { type: Date, default: null, function() { return this.role === "STUDENT"; } },
+  examScores: {
+    reading: { type: Number, default: null },
+    listening: { type: Number, default: null },
+    writing: { type: Number, default: null },
+    speaking: { type: Number, default: null }
+  },
+  examRemark: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  candidateStatus: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+
+  /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
+  currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
 
   // ✅ move these inside schema
   courseProgress: [{

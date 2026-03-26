@@ -112,6 +112,7 @@
                   <th>Assigned Courses</th>
                   <th>Assigned Batches</th>
                   <th>Medium</th>
+                  <th class="text-center">Students</th>
                   <th class="text-center">Actions</th>
                 </tr>
               </thead>
@@ -163,6 +164,9 @@
                   </td>
                   <td>
                     <span class="badge bg-secondary">{{ teacher.medium || 'N/A' }}</span>
+                  </td>
+                  <td class="text-center">
+                    <span class="badge bg-primary">{{ teacher.studentCount || 0 }}</span>
                   </td>
                   <td class="text-center">
                     <div class="action-buttons">

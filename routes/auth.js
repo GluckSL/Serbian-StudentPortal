@@ -1,4 +1,4 @@
-//routes/auth.js
+﻿//routes/auth.js
 
 require('dotenv').config();  // Load environment variables
 
@@ -18,177 +18,301 @@ const { verifyToken, isAdmin } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Read CRM data from Monday.com and create users
-cron.schedule(
-  "50 23 * * *", // ✅ Every day at 11:50 PM
-  async () => {
+// Read CRM data from Monday.com â€” Full sync: update existing + create new (all packages, exclude WITHDREW)
+// Track last sync status
+let lastSyncStatus = { lastRun: null, result: null };
 
+// Reusable Monday.com sync function
+async function runMondaySync() {
+  console.log("ðŸ”„ Starting Monday CRM full sync...");
+  const startTime = new Date();
+  const BOARD_ID = process.env.MONDAY_BOARD_ID;
+
+  let allItems = [];
+  let cursor = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const query = cursor
+      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { id text } } } } }`
+      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { id text } } } } }`;
+    const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
+    const response = await axios.post("https://api.monday.com/v2", { query, variables }, { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } });
+    const page = response.data.data.boards[0].items_page;
+    allItems = allItems.concat(page.items);
+    cursor = page.cursor;
+    hasMore = !!cursor;
+  }
+
+  console.log(`ðŸ“‹ Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
+
+  const eligibleItems = allItems.filter(item => {
+    const get = id => item.column_values.find(c => c.id === id)?.text || "";
+    return get("color_mm019dcv").toUpperCase().trim() !== "WITHDREW";
+  });
+
+  console.log(`âœ… ${eligibleItems.length} eligible (excluding WITHDREW)`);
+
+  let created = 0, updated = 0, skipped = 0, errors = 0;
+  const createdNames = [], updatedNames = [], errorNames = [];
+
+  for (const item of eligibleItems) {
     try {
-      const BOARD_ID = process.env.MONDAY_BOARD_ID;
+      const get = id => item.column_values.find(c => c.id === id)?.text || "";
+      const name = item.name;
+      const email = get("text_mkw3spks").trim().toLowerCase();
+      if (!email) { skipped++; continue; }
 
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "Asia/Colombo"
-      }); // YYYY-MM-DD
+      const phoneNumber = get("text_mkw2wpvr");
+      const whatsappNumber = get("phone_mkv0a5mm");
+      const address = get("text_mkv080k2");
+      const ageStr = get("text_mkw38wse");
+      const qualifications = get("text_mkw32n6r");
+      const enrollmentDateStr = get("date_mkw7wejn");
+      const servicesOpted = get("color_mm023vmt") || get("text_mkwz1j6q");
+      const subscription = get("color_mm02jfyb").toUpperCase().trim();
+      const languageLevelOpted = get("color_mm02c95");
+      const batch = get("dropdown_mkxx6cfp");
+      const studentStatus = get("color_mm019dcv").toUpperCase().trim();
+      const level = get("dropdown_mkzshj5a").toUpperCase().trim();
+      const otherLanguageKnown = get("dropdown_mkzsadkp");
+      const medium = get("dropdown_mkw09h9j");
+      const leadSource = get("dropdown_mm0d9jrv");
+      const stream = get("text_mkwtq4fq");
+      const batchStartedOnStr = get("date_mkxkba8t");
+      const teacherIncharge = get("dropdown_mkw72gz4");
 
-      const query = `
-        query ($boardId: [ID!]) {
-          boards(ids: $boardId) {
-            items_page(limit: 500) {
-              items {
-                id
-                name
-                column_values(
-                  ids: [
-                    "date_mkzs9xr7",
-                    "text_mkw3spks",
-                    "dropdown_mkw09h9j",
-                    "color_mky3jxt1",
-                    "dropdown_mkxx6cfp",
-                    "dropdown_mkxwsaxq",
-                    "dropdown_mkzshj5a",
-                    "text_mkw2wpvr",
-                    "text_mkv080k2",
-                    "text_mkw38wse",
-                    "text_mkwz1j6q",
-                    "text_mkvdkw8g"
-                  ]
-                ) {
-                  id
-                  text
-                }
-              }
-            }
-          }
-        }
-      `;
+      let assignedTeacherId = null;
+      if (teacherIncharge) {
+        const tName = teacherIncharge.trim();
+        const escapedName = tName.replace(/[.*+?^${}()|[\]\\]/g, '\\' + '$&');
+        const teacher = await User.findOne({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }, name: { $regex: new RegExp('(^|\\s)' + escapedName + '(\\s|$)', 'i') } }).select('_id');
+        if (teacher) assignedTeacherId = teacher._id;
+      }
 
-      const response = await axios.post(
-        "https://api.monday.com/v2",
-        { query, variables: { boardId: [BOARD_ID] } },
-        {
-          headers: {
-            Authorization: process.env.MONDAY_API_KEY,
-            "Content-Type": "application/json"
-          }
-        }
-      );
+      const dateWithdrewStr = get("date_mkzzgvxv");
+      const reasonForWithdrawing = get("text_mkzz24qx");
+      const a1StartStr = get("date_mm1dceqs"), a1CompletedStr = get("date_mkzt1xj");
+      const a2StartStr = get("date_mm1dwzc8"), a2CompletedStr = get("date_mkztk1pn");
+      const b1StartStr = get("date_mm1d7az3"), b1CompletedStr = get("date_mkztxce7");
+      const b2StartStr = get("date_mm1dbv8e"), b2CompletedStr = get("date_mkztwdfn");
+      const examPassedDateStr = get("date_mkw7zwjh");
+      const languageExamStatus = get("color_mkw7syb");
+      const candidateStatus = get("text_mkzzjdv1");
+      const examRemark = get("text_mkzzbgz1");
+      const readingScore = get("numeric_mkzz97be"), listeningScore = get("numeric_mkzz8sr4");
+      const writingScore = get("numeric_mkzz2bzg"), speakingScore = get("numeric_mkzz8q32");
 
-      const items = response.data.data.boards[0].items_page.items;
+      const parseDate = (str) => str ? new Date(str) : null;
 
-      const todayItems = items.filter(item => {
-        const dateText = item.column_values.find(
-          c => c.id === "date_mkzs9xr7"
-        )?.text;
-        return dateText === today;
-      });
+      const updateData = {
+        name, phoneNumber, whatsappNumber, address,
+        age: ageStr ? parseInt(ageStr) : null, qualifications,
+        servicesOpted, subscription, languageLevelOpted, batch,
+        studentStatus, level, otherLanguageKnown,
+        medium: medium ? [medium] : [], leadSource, stream, teacherIncharge,
+        ...(assignedTeacherId ? { assignedTeacher: assignedTeacherId } : {}),
+        reasonForWithdrawing, languageExamStatus, candidateStatus, examRemark,
+        enrollmentDate: parseDate(enrollmentDateStr),
+        batchStartedOn: parseDate(batchStartedOnStr),
+        dateWithdrew: parseDate(dateWithdrewStr),
+        examPassedDate: parseDate(examPassedDateStr),
+        examScores: { reading: readingScore ? parseFloat(readingScore) : null, listening: listeningScore ? parseFloat(listeningScore) : null, writing: writingScore ? parseFloat(writingScore) : null, speaking: speakingScore ? parseFloat(speakingScore) : null },
+        courseStartDates: { A1StartDate: parseDate(a1StartStr), A2StartDate: parseDate(a2StartStr), B1StartDate: parseDate(b1StartStr), B2StartDate: parseDate(b2StartStr) },
+        courseCompletionDates: { A1CompletionDate: parseDate(a1CompletedStr), A2CompletionDate: parseDate(a2CompletedStr), B1CompletionDate: parseDate(b1CompletedStr), B2CompletionDate: parseDate(b2CompletedStr) },
+        updatedAt: new Date()
+      };
 
-      let created = [];
-      let skipped = [];
-
-      for (const item of todayItems) {
-        const get = id =>
-          item.column_values.find(c => c.id === id)?.text || "";
-
-        const name          = item.name;
-        const email         = get("text_mkw3spks");
-        const medium        = get("dropdown_mkw09h9j");
-        const subscription  = get("color_mky3jxt1");
-        const batch         = get("dropdown_mkxx6cfp");
-        const studentStatus = get("dropdown_mkxwsaxq");
-        const level         = get("dropdown_mkzshj5a");
-        const phoneNumber   = get("text_mkw2wpvr");
-        const address       = get("text_mkv080k2");
-        const age           = get("text_mkw38wse");
-        const programEnrolled = get("text_mkwz1j6q");
-        const leadSource    = get("text_mkvdkw8g");
-
-        if (!email) {
-          skipped.push({ name, reason: "No email" });
-          continue;
-        }
-
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-          skipped.push({ name, email, reason: "Already exists" });
-          continue;
-        }
-
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        await User.updateOne({ email }, { $set: updateData });
+        updated++; updatedNames.push(name);
+      } else {
         const regNo = await generateRegNo("STUDENT");
         const passwordPlain = await generatePassword("STUDENT", regNo);
         const hashedPassword = await bcrypt.hash(passwordPlain, 10);
-
-        const newUser = new User({
-          name,
-          email,
-          regNo,
-          password: hashedPassword,
-          role: "STUDENT",
-          subscription,
-          level,
-          medium,
-          batch,
-          studentStatus,
-          phoneNumber,
-          address,
-          age: age ? parseInt(age) : null,
-          programEnrolled,
-          leadSource
-        });
-
-        // ✅ Auto-set start date for current level
-        if (!newUser.courseStartDates) {
-          newUser.courseStartDates = {};
-        }
-        const levelStartField = `${level}StartDate`;
-        newUser.courseStartDates[levelStartField] = new Date();
-
+        const newUser = new User({ ...updateData, email, regNo, password: hashedPassword, role: "STUDENT", registeredAt: parseDate(enrollmentDateStr) || new Date(), createdAt: new Date() });
         await newUser.save();
-
-        await transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: email,
-          subject: "Welcome to Glück Global Student Portal 🎉",
-          html: `
-            <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-              <p>Hello ${name},</p>
-
-              <p>You have successfully registered to the <strong>Glück Global Student Portal</strong>. Here are your login credentials:</p>
-
-              <ul>
-                <li><strong>Web App ID:</strong> ${regNo}</li>
-                <li><strong>Password:</strong> ${passwordPlain}</li>
-              </ul>
-
-              <p>Please keep this information safe and do not share it with anyone.</p>
-
-              <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
-
-              <p>Best regards,<br>
-              <strong>Glück Global Pvt Ltd</strong></p>
-            </div>
-          `
-        });
-
-        // Update lastCredentialsEmailSent timestamp
-        newUser.lastCredentialsEmailSent = new Date();
-        await newUser.save();
-
-        console.log("✅ Monday CRM sync completed");
+        try {
+          await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
+            html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>GlÃ¼ck Global Pvt Ltd</strong></p></div>` });
+          newUser.lastCredentialsEmailSent = new Date(); await newUser.save();
+          console.log(`  ðŸ“§ Credentials email sent to ${email}`);
+        } catch (emailErr) { console.error(`  âš ï¸ Failed to send email to ${email}:`, emailErr.message); }
+        created++; createdNames.push(name);
       }
-
-    } catch (err) {
-      console.error("CRM sync error:", err);
-      res.status(500).json({ success: false, error: err.message });
-    }
-  },
-  {
-    timezone: "Asia/Colombo" // ✅ Set timezone to Sri Lanka
+    } catch (itemErr) { console.error(`  âŒ Error processing item "${item.name}":`, itemErr.message); errors++; errorNames.push(item.name); }
   }
-);
+
+  const result = { created, updated, skipped, errors, totalOnBoard: allItems.length, eligible: eligibleItems.length, createdNames, updatedNames, errorNames, duration: Math.round((Date.now() - startTime.getTime()) / 1000) };
+  console.log(`\nâœ… Monday CRM sync completed: Created: ${created} | Updated: ${updated} | Skipped: ${skipped} | Errors: ${errors}`);
+  lastSyncStatus = { lastRun: new Date(), result };
+  return result;
+}
+
+// Cron: run sync every day at 11:50 PM Sri Lanka time
+cron.schedule("50 23 * * *", async () => {
+  try { await runMondaySync(); } catch (err) { console.error("âŒ CRM sync error:", err.message); lastSyncStatus = { lastRun: new Date(), result: { error: err.message } }; }
+}, { timezone: "Asia/Colombo" });
+
+// GET /api/auth/monday-sync-status â€” Last sync info
+router.get("/monday-sync-status", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  res.json({ success: true, ...lastSyncStatus });
+});
+
+// POST /api/auth/monday-sync-run â€” Force manual sync
+router.post("/monday-sync-run", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const result = await runMondaySync();
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+// âœ… Preview Monday.com sync â€” dry run showing what would change
+router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const BOARD_ID = process.env.MONDAY_BOARD_ID;
+
+    // Fetch ALL items from the board (paginated) â€” same logic as cron
+    let allItems = [];
+    let cursor = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      const query = cursor
+        ? `query ($boardId: [ID!], $cursor: String!) {
+            boards(ids: $boardId) {
+              items_page(limit: 500, cursor: $cursor) {
+                cursor
+                items { id name column_values { id text } }
+              }
+            }
+          }`
+        : `query ($boardId: [ID!]) {
+            boards(ids: $boardId) {
+              items_page(limit: 500) {
+                cursor
+                items { id name column_values { id text } }
+              }
+            }
+          }`;
+
+      const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
+      const response = await axios.post(
+        "https://api.monday.com/v2",
+        { query, variables },
+        { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } }
+      );
+
+      const page = response.data.data.boards[0].items_page;
+      allItems = allItems.concat(page.items);
+      cursor = page.cursor;
+      hasMore = !!cursor;
+    }
+
+    // Filter: All packages, exclude WITHDREW status
+    const eligibleItems = allItems.filter(item => {
+      const get = id => item.column_values.find(c => c.id === id)?.text || "";
+      const currentStatus = get("color_mm019dcv").toUpperCase().trim();
+      return currentStatus !== "WITHDREW";
+    });
+
+    const parseDate = (str) => str ? new Date(str) : null;
+    const newStudents = [];
+    const updatedStudents = [];
+    const skipped = [];
+
+    for (const item of eligibleItems) {
+      const get = id => item.column_values.find(c => c.id === id)?.text || "";
+
+      const name              = item.name;
+      const email             = get("text_mkw3spks").trim().toLowerCase();
+      const phoneNumber       = get("text_mkw2wpvr");
+      const address           = get("text_mkv080k2");
+      const age               = get("text_mkw38wse");
+      const qualifications    = get("text_mkw32n6r");
+      const enrollmentDate    = get("date_mkw7wejn");
+      const servicesOpted     = get("color_mm023vmt") || get("text_mkwz1j6q");
+      const subscription      = get("color_mm02jfyb").toUpperCase().trim();
+      const languageLevelOpted = get("color_mm02c95");
+      const batch             = get("dropdown_mkxx6cfp");
+      const studentStatus     = get("color_mm019dcv").toUpperCase().trim();
+      const level             = get("dropdown_mkzshj5a").toUpperCase().trim();
+      const medium            = get("dropdown_mkw09h9j");
+      const leadSource        = get("dropdown_mm0d9jrv");
+      const stream            = get("text_mkwtq4fq");
+      const teacherIncharge   = get("dropdown_mkw72gz4");
+
+      if (!email) { skipped.push({ name, reason: 'No email' }); continue; }
+
+      const mondayData = {
+        name, email, phoneNumber, address, age, qualifications,
+        servicesOpted, subscription, languageLevelOpted, batch,
+        studentStatus, level, medium, leadSource, stream,
+        teacherIncharge, enrollmentDate
+      };
+
+      const existingUser = await User.findOne({ email }).lean();
+
+      if (existingUser) {
+        // Compare fields to find changes
+        const changes = [];
+        const fieldsToCompare = {
+          name: name,
+          phoneNumber: phoneNumber,
+          subscription: subscription,
+          batch: batch,
+          level: level,
+          studentStatus: studentStatus,
+          servicesOpted: servicesOpted,
+          languageLevelOpted: languageLevelOpted,
+          stream: stream,
+          leadSource: leadSource,
+          teacherIncharge: teacherIncharge,
+          address: address
+        };
+
+        for (const [field, mondayVal] of Object.entries(fieldsToCompare)) {
+          const portalVal = String(existingUser[field] || '');
+          const mVal = String(mondayVal || '');
+          if (portalVal !== mVal && mVal) {
+            changes.push({ field, portalValue: portalVal || '(empty)', mondayValue: mVal });
+          }
+        }
+
+        if (changes.length > 0) {
+          updatedStudents.push({
+            name, email, regNo: existingUser.regNo, changes
+          });
+        }
+      } else {
+        newStudents.push(mondayData);
+      }
+    }
+
+    res.json({
+      success: true,
+      totalOnBoard: allItems.length,
+      eligibleCount: eligibleItems.length,
+      newStudents,
+      updatedStudents,
+      skipped,
+      summary: {
+        willCreate: newStudents.length,
+        willUpdate: updatedStudents.length,
+        noChanges: eligibleItems.length - newStudents.length - updatedStudents.length - skipped.length,
+        skipped: skipped.length
+      }
+    });
+  } catch (err) {
+    console.error("âŒ Monday sync preview error:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 
-
-// ✅ Reg No generation for different roles
+// âœ… Reg No generation for different roles
 async function generateRegNo(role) {
   // map roles to prefixes
   const prefixMap = {
@@ -241,7 +365,7 @@ async function generatePassword(role, regNo) {
   return password;
 }
 
-// ✅ Get teachers by student level + medium
+// âœ… Get teachers by student level + medium
 router.get("/teachers", async (req, res) => {
   try {
     const { level, medium } = req.query;
@@ -250,13 +374,13 @@ router.get("/teachers", async (req, res) => {
       return res.status(400).json({ msg: "Level and medium are required" });
     }
 
-    // 1️⃣ Find the course for this level
+    // 1ï¸âƒ£ Find the course for this level
     const course = await Course.findOne({ title: level }); // assuming title = level like "A1"
     if (!course) {
       return res.status(404).json({ msg: "No course found for this level" });
     }
 
-    // 2️⃣ Find teachers (including TEACHER_ADMIN) who teach this course & match medium
+    // 2ï¸âƒ£ Find teachers (including TEACHER_ADMIN) who teach this course & match medium
     const teachers = await User.find({
       role: { $in: ["TEACHER", "TEACHER_ADMIN"] },
       medium: { $in: [medium] },
@@ -274,7 +398,7 @@ router.get("/teachers", async (req, res) => {
   }
 });
 
-// ✅ Get teachers by student medium
+// âœ… Get teachers by student medium
 router.get("/teachersByMedium", async (req, res) => {
   try {
     const { medium } = req.query;
@@ -300,7 +424,7 @@ router.get("/teachersByMedium", async (req, res) => {
 });
 
 
-// ✅ Signup
+// âœ… Signup
 router.post("/signup", async (req, res) => {
   try {
     const {
@@ -318,7 +442,7 @@ router.post("/signup", async (req, res) => {
       phoneNumber,
       address,
       age,
-      programEnrolled,
+      programEnrolled: servicesOpted,
       leadSource,
       languageLevelOpted,
       dateWithdrew,
@@ -353,7 +477,7 @@ router.post("/signup", async (req, res) => {
       user.phoneNumber = phoneNumber;
       user.address = address;
       user.age = age;
-      user.programEnrolled = programEnrolled;
+      user.servicesOpted = servicesOpted;
       user.leadSource = leadSource;
       user.languageLevelOpted = languageLevelOpted;
       user.dateWithdrew = dateWithdrew;
@@ -362,7 +486,7 @@ router.post("/signup", async (req, res) => {
       user.courseStartDates = courseStartDates;
       user.qualifications = qualifications;
 
-      // ✅ Auto-set start date for current level if not provided
+      // âœ… Auto-set start date for current level if not provided
       if (!user.courseStartDates) {
         user.courseStartDates = {};
       }
@@ -371,7 +495,7 @@ router.post("/signup", async (req, res) => {
         user.courseStartDates[levelStartField] = new Date();
       }
 
-      // 🔍 Teacher assignment
+      // ðŸ” Teacher assignment
       if (assignedTeacher) {
         // case 1: frontend provided teacher id
         user.assignedTeacher = assignedTeacher;
@@ -400,23 +524,25 @@ router.post("/signup", async (req, res) => {
       user.assignedBatches = assignedBatches;
       user.medium = medium;
       user.assignedCourses = assignedCourses; // Assign courses if provided
+      // Zoom host email
+      if (req.body.zoomHostEmail) user.zoomHostEmail = req.body.zoomHostEmail;
     }
 
     await user.save();
 
-    // ✉️ Send email
+    // âœ‰ï¸ Send email
     const passwordPlain = password; // Store plain password temporarily for email
 
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Welcome to Glück Global Student Portal 🎉",
+      subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
       html: `
         <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
           <p>Hello ${user.name},</p>
 
-          <p>You have successfully registered to the <strong>Glück Global Student Portal</strong>. Here are your login credentials:</p>
+          <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
 
           <ul>
             <li><strong>Web App ID:</strong> ${user.regNo}</li>
@@ -428,7 +554,7 @@ router.post("/signup", async (req, res) => {
           <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
           <p>Best regards,<br>
-          <strong>Glück Global Pvt Ltd</strong></p>
+          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
         </div>
       `
     };
@@ -436,13 +562,13 @@ router.post("/signup", async (req, res) => {
 
     try {
       await transporter.sendMail(mailOptions);
-      console.log("✅ Email sent to", user.email);
+      console.log("âœ… Email sent to", user.email);
 
       // Update lastCredentialsEmailSent timestamp
       user.lastCredentialsEmailSent = new Date();
       await user.save();
     } catch (err) {
-      console.error("❌ Email sending failed:", err);
+      console.error("âŒ Email sending failed:", err);
   }
 
     res.status(201).json({ msg: "User created successfully", user });
@@ -452,7 +578,7 @@ router.post("/signup", async (req, res) => {
 });
 
 
-// ✅ Login
+// âœ… Login
 router.post("/login", async (req, res) => {
   try {
     const { regNo, password } = req.body;
@@ -460,7 +586,7 @@ router.post("/login", async (req, res) => {
     const user = await User.findOne({ regNo });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
-    // 🔴 BLOCK WITHDREW STUDENTS
+    // ðŸ”´ BLOCK WITHDREW STUDENTS
     if (user.role === "STUDENT" && user.studentStatus === "WITHDREW") {
       return res.status(403).json({
         msg: "Your student account has been withdrawn. Access denied."
@@ -480,16 +606,16 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    // ✅ Set cookie instead of sending token
+    // âœ… Set cookie instead of sending token
     res.cookie("authToken", token, {
       httpOnly: true,
-      secure: false,   // ✅ FIXED: false in development
-      sameSite: 'Lax', // ✅ FIXED: 'Lax' for localhost
+      secure: false,   // âœ… FIXED: false in development
+      sameSite: 'Lax', // âœ… FIXED: 'Lax' for localhost
       path: '/',
       maxAge: 60 * 60 * 1000 // 1 hour
     });
 
-    // ✅ Send user info only (no token in response)
+    // âœ… Send user info only (no token in response)
     return res.json({
       user: {
         name: user.name,
@@ -505,28 +631,28 @@ router.post("/login", async (req, res) => {
 });
 
 
-// ✅ Logout
+// âœ… Logout
 router.post("/logout", (req, res) => {
   res.clearCookie("authToken", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // ✅ true in production with HTTPS
-    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // ✅ FIXED: Match login settings
-    domain: process.env.NODE_ENV === 'production' ? '.gluckstudentsportal.com' : undefined, // ✅ FIXED: Match login settings
-    path: '/' // ✅ FIXED: Match login settings
+    secure: process.env.NODE_ENV === 'production', // âœ… true in production with HTTPS
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // âœ… FIXED: Match login settings
+    domain: process.env.NODE_ENV === 'production' ? '.gluckstudentsportal.com' : undefined, // âœ… FIXED: Match login settings
+    path: '/' // âœ… FIXED: Match login settings
   });
   return res.json({ msg: "Logged out successfully" });
 });
 
 
-// ✅ Profile route
+// âœ… Profile route
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     let query = User.findById(req.user.id).select("-password");
 
-    // If the logged-in user is a student → populate teacher info
+    // If the logged-in user is a student â†’ populate teacher info
     if (req.user.role === "STUDENT") {
       query = query.populate("assignedTeacher", "name email");
-      // 👆 populate assignedTeacher with only name & email fields
+      // ðŸ‘† populate assignedTeacher with only name & email fields
     }
 
     const user = await query;
@@ -542,7 +668,7 @@ router.get("/profile", verifyToken, async (req, res) => {
   }
 });
 
-// ✅ Get all teachers and admins for role management (MUST be before /:id route)
+// âœ… Get all teachers and admins for role management (MUST be before /:id route)
 router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const users = await User.find({
@@ -551,12 +677,12 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     res.status(200).json(users);
   } catch (error) {
-    console.error("❌ Error fetching teachers and admins:", error);
+    console.error("âŒ Error fetching teachers and admins:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 });
 
-// ✅ Get a user by ID
+// âœ… Get a user by ID
 router.get("/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-password");
@@ -565,16 +691,16 @@ router.get("/:id", async (req, res) => {
     }
     res.status(200).json(user);
   } catch (error) {
-    console.error("❌ Error fetching user:", error);
+    console.error("âŒ Error fetching user:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 });
 
-// ✅ Get teachers by batch
+// âœ… Get teachers by batch
 router.get("/teachers-by-batch/:batch", async (req, res) => {
   try {
     const batch = req.params.batch;
-    console.log("🔍 Fetching teachers for batch:", batch);
+    console.log("ðŸ” Fetching teachers for batch:", batch);
 
     if (!batch) {
       return res.status(400).json({ message: "Batch is required." });
@@ -586,14 +712,14 @@ router.get("/teachers-by-batch/:batch", async (req, res) => {
     }).select("name");
 
     teachers.forEach(teacher => {
-      console.log("👨‍🏫 Found teacher:", teacher.name);
+      console.log("ðŸ‘¨â€ðŸ« Found teacher:", teacher.name);
     });
 
-    // ✅ Always return 200 with array
+    // âœ… Always return 200 with array
     res.status(200).json(teachers);
 
   } catch (error) {
-    console.error("❌ Error fetching teachers by batch:", error);
+    console.error("âŒ Error fetching teachers by batch:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 });
@@ -633,7 +759,7 @@ router.put("/update-teacher-by-batch", async (req, res) => {
     }));
 
     await StudentLogs.insertMany(logs);
-    console.log(`✅ Created ${logs.length} student log entries for teacher update by batch.`);
+    console.log(`âœ… Created ${logs.length} student log entries for teacher update by batch.`);
 
     const result = await User.updateMany(
       { role: "STUDENT", batch: batch },
@@ -650,17 +776,17 @@ router.put("/update-teacher-by-batch", async (req, res) => {
 });
 
 
-// ✅ Update user by ID
+// âœ… Update user by ID
 router.put("/:id", async (req, res) => {
   try {
-    // 1️⃣ Get existing user (OLD data)
+    // 1ï¸âƒ£ Get existing user (OLD data)
     const existingUser = await User.findById(req.params.id);
 
     if (!existingUser) {
       return res.status(404).json({ message: "User not found." });
     }
 
-    // 2️⃣ Log OLD data into StudentLogs (if STUDENT)
+    // 2ï¸âƒ£ Log OLD data into StudentLogs (if STUDENT)
     if (existingUser.role === "STUDENT") {
       const logEntry = new StudentLogs({
         action: "UPDATE",
@@ -676,7 +802,7 @@ router.put("/:id", async (req, res) => {
       await logEntry.save();
     }
 
-    // 3️⃣ Extract NEW data
+    // 3ï¸âƒ£ Extract NEW data
     const {
       name,
       email,
@@ -692,7 +818,7 @@ router.put("/:id", async (req, res) => {
       phoneNumber,
       address,
       age,
-      programEnrolled,
+      programEnrolled: servicesOpted,
       leadSource,
       languageLevelOpted,
       dateWithdrew,
@@ -702,7 +828,7 @@ router.put("/:id", async (req, res) => {
       qualifications
     } = req.body;
 
-    // 4️⃣ Build update object
+    // 4ï¸âƒ£ Build update object
     const updateData = {
       name,
       email,
@@ -718,7 +844,7 @@ router.put("/:id", async (req, res) => {
       phoneNumber,
       address,
       age,
-      programEnrolled,
+      servicesOpted,
       leadSource,
       languageLevelOpted,
       dateWithdrew,
@@ -728,7 +854,10 @@ router.put("/:id", async (req, res) => {
       qualifications
     };
 
-    // ✅ Auto-set start date for new level if level changed and start date not set
+    // Zoom host email for teachers
+    if (req.body.zoomHostEmail !== undefined) updateData.zoomHostEmail = req.body.zoomHostEmail;
+
+    // âœ… Auto-set start date for new level if level changed and start date not set
     if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
       if (!updateData.courseStartDates) {
         updateData.courseStartDates = existingUser.courseStartDates || {};
@@ -739,13 +868,13 @@ router.put("/:id", async (req, res) => {
       }
     }
 
-    // 5️⃣ Clear withdraw data if not withdrew
+    // 5ï¸âƒ£ Clear withdraw data if not withdrew
     if (studentStatus !== "WITHDREW") {
       updateData.dateWithdrew = null;
       updateData.reasonForWithdrawing = "";
     }
 
-    // 6️⃣ Update user
+    // 6ï¸âƒ£ Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -760,7 +889,7 @@ router.put("/:id", async (req, res) => {
   } catch (error) {
     console.error("Update error:", error);
 
-    // ✅ Handle duplicate key error specifically
+    // âœ… Handle duplicate key error specifically
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
       return res.status(400).json({
@@ -773,7 +902,7 @@ router.put("/:id", async (req, res) => {
 });
 
 
-// ✅ Delete user by ID
+// âœ… Delete user by ID
 router.delete("/:id", async (req, res) => {
   try {
     const deletedUser = await User.findByIdAndDelete(req.params.id);
@@ -787,7 +916,7 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// ✅ Resend credentials email to a student
+// âœ… Resend credentials email to a student
 router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -817,12 +946,12 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Your Glück Global Student Portal Credentials 🎉",
+      subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸŽ‰",
       html: `
         <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
           <p>Hello ${user.name},</p>
 
-          <p>As requested, here are your login credentials for the <strong>Glück Global Student Portal</strong>:</p>
+          <p>As requested, here are your login credentials for the <strong>GlÃ¼ck Global Student Portal</strong>:</p>
 
           <ul>
             <li><strong>Web App ID:</strong> ${user.regNo}</li>
@@ -834,14 +963,14 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
           <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
           <p>Best regards,<br>
-          <strong>Glück Global Pvt Ltd</strong></p>
+          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
         </div>
       `
     };
 
     try {
       await transporter.sendMail(mailOptions);
-      console.log("✅ Credentials email resent to", user.email);
+      console.log("âœ… Credentials email resent to", user.email);
 
       res.json({
         success: true,
@@ -849,7 +978,7 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
         lastSent: user.lastCredentialsEmailSent
       });
     } catch (emailErr) {
-      console.error("❌ Email sending failed:", emailErr);
+      console.error("âŒ Email sending failed:", emailErr);
       res.status(500).json({
         success: false,
         msg: "Failed to send email. Please try again."
@@ -862,7 +991,7 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
   }
 });
 
-// ✅ Protected role-based routes
+// âœ… Protected role-based routes
 router.get("/protected", verifyToken, (req, res) => {
   res.json({ msg: "You have access!", user: req.user });
 });
@@ -879,7 +1008,7 @@ router.get("/student-dashboard", verifyToken, checkRole('STUDENT'), (req, res) =
   res.json({ msg: "Welcome to the student dashboard" });
 });
 
-// ✅ NEW: Get users by role (for unified user management)
+// âœ… NEW: Get users by role (for unified user management)
 router.get("/users-by-role/:role", verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const { role } = req.params;
@@ -901,7 +1030,7 @@ router.get("/users-by-role/:role", verifyToken, checkRole(['ADMIN']), async (req
   }
 });
 
-// ✅ NEW: Bulk upload students
+// âœ… NEW: Bulk upload students
 router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const { students, sendEmails = true } = req.body;
@@ -973,7 +1102,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
         // Check if email already exists
         const existingUser = await User.findOne({ email: student.email.trim().toLowerCase() });
         if (existingUser) {
-          // ✅ RESEND CREDENTIALS instead of skipping
+          // âœ… RESEND CREDENTIALS instead of skipping
           if (sendEmails) {
             try {
               // Generate new password for existing user
@@ -989,12 +1118,12 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
               await transporter.sendMail({
                 from: process.env.EMAIL_USER,
                 to: existingUser.email,
-                subject: "Your Glück Global Student Portal Credentials 🔑",
+                subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸ”‘",
                 html: `
                   <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
                     <p>Hello ${existingUser.name},</p>
 
-                    <p>Your login credentials for the <strong>Glück Global Student Portal</strong> have been sent as requested:</p>
+                    <p>Your login credentials for the <strong>GlÃ¼ck Global Student Portal</strong> have been sent as requested:</p>
 
                     <ul>
                       <li><strong>Web App ID:</strong> ${existingUser.regNo}</li>
@@ -1006,7 +1135,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
                     <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
                     <p>Best regards,<br>
-                    <strong>Glück Global Pvt Ltd</strong></p>
+                    <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
                   </div>
                 `
               });
@@ -1062,11 +1191,11 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           phoneNumber: student.phoneNumber ? student.phoneNumber.trim() : undefined,
           address: student.address ? student.address.trim() : undefined,
           age: student.age ? parseInt(student.age) : undefined,
-          programEnrolled: student.programEnrolled ? student.programEnrolled.trim() : undefined,
+          servicesOpted: student.programEnrolled ? student.programEnrolled.trim() : (student.servicesOpted ? student.servicesOpted.trim() : undefined),
           leadSource: student.leadSource ? student.leadSource.trim() : undefined
         });
 
-        // ✅ Auto-set start date for current level
+        // âœ… Auto-set start date for current level
         const level = student.level.toUpperCase();
         if (!newUser.courseStartDates) {
           newUser.courseStartDates = {};
@@ -1082,12 +1211,12 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
             await transporter.sendMail({
               from: process.env.EMAIL_USER,
               to: newUser.email,
-              subject: "Welcome to Glück Global Student Portal 🎉",
+              subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
               html: `
                 <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
                   <p>Hello ${newUser.name},</p>
 
-                  <p>You have successfully registered to the <strong>Glück Global Student Portal</strong>. Here are your login credentials:</p>
+                  <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
 
                   <ul>
                     <li><strong>Web App ID:</strong> ${regNo}</li>
@@ -1099,7 +1228,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
                   <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
                   <p>Best regards,<br>
-                  <strong>Glück Global Pvt Ltd</strong></p>
+                  <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
                 </div>
               `
             });

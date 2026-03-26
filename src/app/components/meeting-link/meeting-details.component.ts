@@ -3,15 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTableModule } from '@angular/material/table';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatMenuModule } from '@angular/material/menu';
+import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 
 @Component({
@@ -19,15 +11,7 @@ import { ZoomService } from '../../services/zoom.service';
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    MatDividerModule,
-    MatProgressSpinnerModule,
-    MatTableModule,
-    MatTabsModule,
-    MatMenuModule
+    MaterialModule
   ],
   templateUrl: './meeting-details.component.html',
   styleUrls: ['./meeting-details.component.css']
@@ -78,9 +62,11 @@ export class MeetingDetailsComponent implements OnInit {
   }
 
   joinMeeting(): void {
-    if (this.meeting?.startUrl) {
-      // Open Zoom meeting in new tab
-      window.open(this.meeting.startUrl, '_blank');
+    // Use joinUrl instead of startUrl to avoid "meeting already in progress" conflict
+    // when the Zoom desktop app is logged into a different host account
+    const url = this.meeting?.joinUrl || this.meeting?.startUrl;
+    if (url) {
+      window.open(url, '_blank');
     }
   }
 

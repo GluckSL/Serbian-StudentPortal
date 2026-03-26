@@ -1,8 +1,8 @@
 <!-- digital-exercises.component.html -->
-<div class="exercises-page">
+<div class="exercises-page" [class.exercises-page--embedded]="embedded">
 
   <!-- Page Header -->
-  <div class="page-header">
+  <div class="page-header" *ngIf="!embedded">
     <div class="header-text">
       <h1><span class="material-icons">edit_note</span> Digital Exercises</h1>
       <p>Practice your {{ isTeacherOrAdmin ? 'students\'' : '' }} language skills with interactive exercises</p>
@@ -18,7 +18,7 @@
   </div>
 
   <!-- Filters Bar -->
-  <div class="filters-section">
+  <div class="filters-section" [class.filters-section--embedded]="embedded">
     <div class="search-wrap">
       <span class="material-icons search-icon">search</span>
       <input
@@ -35,7 +35,7 @@
     <div class="filter-chips">
       <select [(ngModel)]="selectedLevel" (change)="onFilterChange()" class="filter-select">
         <option value="">All Levels</option>
-        <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+        <option *ngFor="let l of levelFilterOptions" [value]="l">{{ l }}</option>
       </select>
       <select [(ngModel)]="selectedCategory" (change)="onFilterChange()" class="filter-select">
         <option value="">All Categories</option>
@@ -45,6 +45,10 @@
         <option value="">All Difficulties</option>
         <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
       </select>
+      <label class="today-only-inline" *ngIf="userRole === 'STUDENT'">
+        <input type="checkbox" [(ngModel)]="todayOnly" (change)="onTodayOnlyChange()" />
+        <span>Today only</span>
+      </label>
       <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
@@ -58,75 +62,70 @@
 
   <!-- Loading -->
   <div class="loading-state" *ngIf="loading">
-    <div class="loading-grid">
-      <div class="skeleton-card" *ngFor="let _ of [1,2,3,4,5,6]"></div>
+    <div class="ex-table-wrap ex-table-wrap--loading">
+      <div class="ex-skel-row" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></div>
     </div>
   </div>
 
-  <!-- Exercises Grid -->
-  <div class="exercises-grid" *ngIf="!loading && exercises.length > 0">
-    <div class="exercise-card" *ngFor="let ex of exercises">
-
-      <!-- Card Header -->
-      <div class="card-top">
-        <div class="card-badges">
-          <span class="level-badge" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
-          <span class="cat-badge">{{ ex.category }}</span>
-        </div>
-        <div class="card-score" *ngIf="ex.studentAttempt">
-          <span class="score-dot" [class]="getScoreClass(ex.studentAttempt.scorePercentage)"></span>
-          <span class="score-text">{{ ex.studentAttempt.scorePercentage }}%</span>
-        </div>
-        <div class="card-new-badge" *ngIf="!ex.studentAttempt">
-          <span class="new-tag">NEW</span>
-        </div>
-      </div>
-
-      <!-- Card Body -->
-      <div class="card-body">
-        <h3 class="card-title">{{ ex.title }}</h3>
-        <p class="card-desc">{{ ex.description }}</p>
-
-        <div class="card-meta">
-          <span class="meta-item">
-            <span class="material-icons">quiz</span>
-            {{ ex.questions?.length || 0 }} questions
-          </span>
-          <span class="meta-item">
-            <span class="material-icons">schedule</span>
-            ~{{ ex.estimatedDuration || 15 }} min
-          </span>
-          <span class="meta-item" *ngIf="ex.difficulty">
-            <span class="material-icons">signal_cellular_alt</span>
-            {{ ex.difficulty }}
-          </span>
-        </div>
-
-        <div class="type-chips">
-          <span class="type-chip chip-mcq" *ngIf="hasType(ex, 'mcq')">❓ MCQ</span>
-          <span class="type-chip chip-matching" *ngIf="hasType(ex, 'matching')">🔗 Match</span>
-          <span class="type-chip chip-fill" *ngIf="hasType(ex, 'fill-blank')">📝 Fill</span>
-          <span class="type-chip chip-pronunciation" *ngIf="hasType(ex, 'pronunciation')">🎤 Speak</span>
-        </div>
-      </div>
-
-      <!-- Card Footer -->
-      <div class="card-footer">
-        <div class="completion-info" *ngIf="ex.studentAttempt">
-          <span class="material-icons done-icon">check_circle</span>
-          <span>Completed · {{ ex.studentAttempt.scorePercentage }}%</span>
-          <button class="btn-retry" (click)="startExercise(ex)">Retry</button>
-        </div>
-        <button class="btn-start" (click)="startExercise(ex)" *ngIf="!ex.studentAttempt">
-          <span class="material-icons">play_arrow</span> Start Exercise
-        </button>
-        <div class="admin-actions" *ngIf="isTeacherOrAdmin">
-          <span class="visibility-indicator" [class.visible]="ex.visibleToStudents">
-            <span class="material-icons">{{ ex.visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
-          </span>
-        </div>
-      </div>
-    </div>
+  <!-- Exercises table -->
+  <div class="ex-table-wrap" *ngIf="!loading && exercises.length > 0">
+    <table class="ex-table">
+      <thead>
+        <tr>
+          <th class="ex-th ex-th--level">Level</th>
+          <th class="ex-th ex-th--cat">Category</th>
+          <th class="ex-th ex-th--day">Day</th>
+          <th class="ex-th ex-th--title">Exercise</th>
+          <th class="ex-th ex-th--types">Types</th>
+          <th class="ex-th ex-th--meta">Details</th>
+          <th class="ex-th ex-th--result">Result</th>
+          <th class="ex-th ex-th--action">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="ex-tr" *ngFor="let ex of exercises">
+          <td class="ex-td ex-td--level">
+            <span class="ex-level-pill" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
+          </td>
+          <td class="ex-td ex-td--cat">{{ ex.category }}</td>
+          <td class="ex-td ex-td--day">
+            <span class="ex-day-pill" *ngIf="ex.courseDay != null">D{{ ex.courseDay }}</span>
+            <span class="ex-day-pill ex-day-pill--open" *ngIf="ex.courseDay == null">Open</span>
+          </td>
+          <td class="ex-td ex-td--title">
+            <div class="ex-title-cell">{{ ex.title }}</div>
+            <div class="ex-desc-cell">{{ clipDescription(ex.description) }}</div>
+          </td>
+          <td class="ex-td ex-td--types">{{ typeSummaryShort(ex) }}</td>
+          <td class="ex-td ex-td--meta">{{ exerciseMetaLine(ex) }}</td>
+          <td class="ex-td ex-td--result">
+            <ng-container *ngIf="ex.studentAttempt as att">
+              <span class="ex-result-pill" [class.ex-result-pill--pass]="isAttemptPassing(att)" [class.ex-result-pill--warn]="!isAttemptPassing(att)">
+                {{ att.scorePercentage }}%
+              </span>
+              <span class="ex-result-label" [ngClass]="attemptStatusClass(att)">{{ attemptStatusLabel(att) }}</span>
+            </ng-container>
+            <span class="ex-result-new" *ngIf="!ex.studentAttempt">New</span>
+          </td>
+          <td class="ex-td ex-td--action">
+            <div class="ex-action-cell">
+              <button type="button" class="ex-btn-play" (click)="startExercise(ex)" [title]="tableActionLabel(ex)">
+                <span class="material-icons">play_arrow</span>
+                <span class="ex-btn-play__text">{{ tableActionLabel(ex) }}</span>
+              </button>
+              <span
+                *ngIf="isTeacherOrAdmin"
+                class="ex-vis ex-vis--table"
+                [class.ex-vis--on]="ex.visibleToStudents"
+                [attr.title]="ex.visibleToStudents ? 'Visible to students' : 'Hidden from students'"
+              >
+                <span class="material-icons">{{ ex.visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
+              </span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <!-- Empty State -->

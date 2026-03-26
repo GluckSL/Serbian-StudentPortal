@@ -30,7 +30,8 @@ export class RoleGuard implements CanActivate {
 
         // ❌ wrong role → redirect them to their correct dashboard
         if (user?.role === 'STUDENT') {
-          this.router.navigate(['/student-dashboard']);
+          const isVisaDocOnly = (user?.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
+          this.router.navigate([isVisaDocOnly ? '/student-progress' : '/student/my-course']);
         } else if (user?.role === 'TEACHER') {
           this.router.navigate(['/teacher-dashboard']);
         } else if (user?.role === 'TEACHER_ADMIN') {

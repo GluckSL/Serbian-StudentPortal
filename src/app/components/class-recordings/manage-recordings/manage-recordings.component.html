@@ -1,0 +1,249 @@
+<!-- manage-recordings.component.html -->
+<div class="cr" *ngIf="!loading; else loadingTpl">
+
+  <!-- ── Page Header ── -->
+  <div class="cr-header">
+    <div>
+      <h2 class="cr-header__title">Class Recordings</h2>
+      <p class="cr-header__sub">{{ filteredRecordings.length }} of {{ recordings.length }} recordings</p>
+    </div>
+    <button class="cr-btn cr-btn--primary" (click)="openForm()">
+      <i class="fa fa-plus"></i> Add Recording
+    </button>
+  </div>
+
+  <!-- ── Stats ── -->
+  <div class="cr-stats">
+    <div class="cr-stat cr-stat--blue">
+      <div class="cr-stat__val">{{ recordings.length }}</div>
+      <div class="cr-stat__lbl">Total Recordings</div>
+    </div>
+    <div class="cr-stat cr-stat--green">
+      <div class="cr-stat__val">{{ getTotalViews() }}</div>
+      <div class="cr-stat__lbl">Total Views</div>
+    </div>
+    <div class="cr-stat cr-stat--purple">
+      <div class="cr-stat__val">{{ getTotalStudents() }}</div>
+      <div class="cr-stat__lbl">Unique Students</div>
+    </div>
+    <div class="cr-stat cr-stat--orange">
+      <div class="cr-stat__val">{{ levels.length }}</div>
+      <div class="cr-stat__lbl">Levels Covered</div>
+    </div>
+  </div>
+
+  <!-- ── Filters ── -->
+  <div class="cr-filters-wrap">
+    <div class="cr-filters-head">
+      <span class="cr-filters-title">Filters</span>
+      <button class="cr-btn-clear" (click)="clearFilters()">Clear</button>
+    </div>
+    <div class="cr-filters">
+      <input class="cr-input cr-input--search" type="text" placeholder="Search title or description…"
+             [(ngModel)]="searchQuery" (input)="applyFilters()">
+      <select class="cr-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
+        <option value="ALL">All Levels</option>
+        <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+      </select>
+      <select class="cr-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
+        <option value="ALL">All Batches</option>
+        <option *ngFor="let b of availableBatches" [value]="b">{{ b }}</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ── Table ── -->
+  <div class="cr-table-wrap">
+
+    <div *ngIf="!filteredRecordings.length" class="cr-empty">
+      <i class="fa fa-video cr-empty__icon"></i>
+      <h3>No recordings found</h3>
+      <p>Click "Add Recording" to upload one.</p>
+    </div>
+
+    <table *ngIf="filteredRecordings.length" class="cr-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Level</th>
+          <th>Plan</th>
+          <th>Batches</th>
+          <th>Views</th>
+          <th>Students</th>
+          <th>Avg Watch</th>
+          <th>Uploaded</th>
+          <th>By</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of filteredRecordings" class="cr-row">
+          <td>
+            <span class="cr-cell-main">{{ r.title }}</span>
+            <span class="cr-cell-sub" *ngIf="r.description">{{ r.description }}</span>
+          </td>
+          <td><span class="cr-level-chip">{{ r.level }}</span></td>
+          <td>
+            <span class="cr-plan-chip"
+                  [class.cr-plan-chip--silver]="r.plan === 'SILVER'"
+                  [class.cr-plan-chip--platinum]="r.plan === 'PLATINUM'"
+                  [class.cr-plan-chip--all]="r.plan === 'ALL'">
+              {{ r.plan }}
+            </span>
+          </td>
+          <td>
+            <div class="cr-batches">
+              <span class="cr-batch-tag" *ngFor="let b of r.batches">{{ b }}</span>
+            </div>
+          </td>
+          <td>
+            <span class="cr-cell-main">{{ getStats(r._id).views }}</span>
+          </td>
+          <td>
+            <span class="cr-cell-main">{{ getStats(r._id).students }}</span>
+          </td>
+          <td>
+            <span class="cr-cell-sub">{{ getStats(r._id).avgTime }}</span>
+          </td>
+          <td>
+            <span class="cr-cell-sub">{{ formatDate(r.createdAt) }}</span>
+          </td>
+          <td>
+            <div class="cr-teacher" *ngIf="r.uploadedBy">
+              <div class="cr-avatar">{{ r.uploadedBy.name.charAt(0).toUpperCase() }}</div>
+              <span class="cr-cell-sub">{{ r.uploadedBy.name }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="cr-actions">
+              <button class="cr-icon-btn cr-icon-btn--blue" (click)="openViews(r); $event.stopPropagation()" title="View Analytics">
+                <i class="fa fa-chart-bar"></i>
+              </button>
+              <button class="cr-icon-btn cr-icon-btn--green" (click)="openForm(r)" title="Edit">
+                <i class="fa fa-pen"></i>
+              </button>
+              <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecording(r)" title="Delete">
+                <i class="fa fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="filteredRecordings.length" class="cr-footer">
+      Showing <strong>{{ filteredRecordings.length }}</strong> recording{{ filteredRecordings.length !== 1 ? 's' : '' }}
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Add / Edit Modal ── -->
+<div class="cr-overlay" *ngIf="showForm" (click)="closeForm()">
+  <div class="cr-modal" (click)="$event.stopPropagation()">
+    <div class="cr-modal__head">
+      <h3>{{ editing ? 'Edit Recording' : 'Add Recording' }}</h3>
+      <button class="cr-modal__close" (click)="closeForm()">✕</button>
+    </div>
+    <div class="cr-modal__body">
+      <div class="cr-field">
+        <label>Title *</label>
+        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3">
+      </div>
+      <div class="cr-field">
+        <label>Video URL * <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
+        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=...">
+      </div>
+      <div class="cr-field">
+        <label>Description</label>
+        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description"></textarea>
+      </div>
+      <div class="cr-field-row">
+        <div class="cr-field">
+          <label>Level *</label>
+          <select class="cr-select" [(ngModel)]="form.level">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="cr-field">
+          <label>Plan</label>
+          <select class="cr-select" [(ngModel)]="form.plan">
+            <option *ngFor="let p of plans" [value]="p.value">{{ p.label }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="cr-field">
+        <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
+        <div class="cr-batch-grid">
+          <label class="cr-batch-chip" *ngFor="let b of availableBatches"
+                 [class.cr-batch-chip--active]="form.batches.includes(b)">
+            <input type="checkbox" [checked]="form.batches.includes(b)" (change)="toggleBatch(b)" hidden>
+            {{ b }}
+          </label>
+        </div>
+        <p class="cr-hint" *ngIf="!availableBatches.length">No batches found. Students need a batch assigned.</p>
+      </div>
+    </div>
+    <div class="cr-modal__foot">
+      <button class="cr-btn cr-btn--outline" (click)="closeForm()">Cancel</button>
+      <button class="cr-btn cr-btn--primary" (click)="save()">
+        {{ editing ? 'Update' : 'Create' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Views Analytics Modal ── -->
+<div class="cr-overlay" *ngIf="showViewsModal" (click)="closeViews()">
+  <div class="cr-modal cr-modal--wide" (click)="$event.stopPropagation()">
+    <div class="cr-modal__head">
+      <h3><i class="fa fa-chart-bar" style="color:#1d4ed8;margin-right:6px;"></i>{{ viewsRecording?.title }}</h3>
+      <button class="cr-modal__close" (click)="closeViews()">✕</button>
+    </div>
+    <div class="cr-modal__body">
+      <div *ngIf="loadingViews" style="text-align:center;padding:30px;">
+        <div class="cr-spinner"></div>
+      </div>
+      <div *ngIf="!loadingViews && !viewsList.length" class="cr-empty cr-empty--sm">
+        <i class="fa fa-eye-slash cr-empty__icon cr-empty__icon--sm"></i>
+        <p>No views recorded yet.</p>
+      </div>
+      <table class="cr-table" *ngIf="!loadingViews && viewsList.length">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Email</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Started At</th>
+            <th>Watch Duration</th>
+            <th>Last Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let v of viewsList" class="cr-row">
+            <td>
+              <div class="cr-teacher">
+                <div class="cr-avatar">{{ (v.student?.name || '?').charAt(0).toUpperCase() }}</div>
+                <span class="cr-cell-main">{{ v.student?.name || 'Unknown' }}</span>
+              </div>
+            </td>
+            <td><span class="cr-cell-sub">{{ v.student?.email || '—' }}</span></td>
+            <td><span class="cr-level-chip">{{ v.student?.batch || '—' }}</span></td>
+            <td><span class="cr-level-chip">{{ v.student?.level || '—' }}</span></td>
+            <td><span class="cr-cell-sub">{{ formatDateTime(v.startedAt) }}</span></td>
+            <td><span class="cr-duration">{{ formatDuration(v.watchDuration) }}</span></td>
+            <td><span class="cr-cell-sub">{{ formatDateTime(v.lastUpdatedAt) }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<ng-template #loadingTpl>
+  <div class="cr cr--loading">
+    <div class="cr-spinner"></div>
+    <p>Loading recordings…</p>
+  </div>
+</ng-template>

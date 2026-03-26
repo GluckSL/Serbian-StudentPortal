@@ -1,26 +1,14 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatInputModule } from '@angular/material/input';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { PageEvent } from '@angular/material/paginator';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { StudentDocumentsService } from '../../../services/student-documents.service';
 import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { MaterialModule } from '../../../shared/material.module';
 
 interface StudentDocument {
   _id: string;
@@ -33,6 +21,7 @@ interface StudentDocument {
   fileSize: number;
   formattedFileSize?: string;
   documentTypeDisplay?: string;
+  servicesOpted?: string;
   status: 'PENDING' | 'VERIFIED' | 'REJECTED';
   uploadedAt: Date;
   verifiedAt?: Date;
@@ -55,22 +44,7 @@ interface DocumentStats {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    MatCardModule,
-    MatTableModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatDialogModule,
-    MatSnackBarModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
-    MatTooltipModule,
-    MatTabsModule,
-    MatCheckboxModule,
-    MatAutocompleteModule
+    MaterialModule
   ],
   templateUrl: './document-verification.component.html',
   styleUrls: ['./document-verification.component.css']
@@ -91,6 +65,8 @@ export class DocumentVerificationComponent implements OnInit {
   // Filters
   selectedStatus: string = 'ALL';
   selectedDocumentType: string = 'ALL';
+  selectedServiceOpted: string = 'ALL';
+  serviceOptedOptions: string[] = [];
   searchQuery: string = '';
   
   // Pagination
@@ -101,21 +77,8 @@ export class DocumentVerificationComponent implements OnInit {
   // Loading states
   loading: boolean = false;
   
-  // Document types
-  documentTypes = [
-    { value: 'CV', label: 'CV' },
-    { value: 'O_LEVEL_CERTIFICATE', label: 'O Level Certificate' },
-    { value: 'A_LEVEL_CERTIFICATE', label: 'A Level Certificate' },
-    { value: 'BROWN_CERTIFICATE', label: 'Brown Certificate' },
-    { value: 'DEGREE_DIPLOMA', label: 'Degree / Diploma' },
-    { value: 'ACADEMIC_TRANSCRIPT', label: 'Academic Transcript' },
-    { value: 'PASSPORT', label: 'Passport' },
-    { value: 'EXPERIENCE_LETTER', label: 'Experience Letter' },
-    { value: 'LANGUAGE_CERTIFICATE', label: 'Language Certificate' },
-    { value: 'EXTRACURRICULAR_CERTIFICATE', label: 'Extra-curricular Certificate' },
-    { value: 'AFFIDAVIT', label: 'Affidavit' },
-    { value: 'POLICE_CLEARANCE', label: 'Police Clearance' }
-  ];
+  // Document types - populated dynamically from requirements
+  documentTypes: { value: string; label: string }[] = [];
   
   displayedColumns: string[] = [
     'select',
@@ -191,8 +154,74 @@ export class DocumentVerificationComponent implements OnInit {
     { value: 'IDENTIFICATION', label: 'Identification' },
     { value: 'PROFESSIONAL', label: 'Professional' },
     { value: 'LEGAL', label: 'Legal' },
+    { value: 'VISA', label: 'Visa' },
     { value: 'OTHER', label: 'Other' }
   ];
+
+  // Email dialog
+  showEmailDialog = false;
+  emailForm = { to: '', studentName: '', subject: '', message: '' };
+  sendingEmail = false;
+
+  // ========== EXPORT CSV ==========
+
+  exportToCSV(): void {
+    if (this.documents.length === 0) {
+      this.snackBar.open('No documents to export', 'Close', { duration: 3000 });
+      return;
+    }
+
+    // Get all unique document types from requirements
+    const docTypes = this.requirements.map(r => r.type);
+    const docLabels = this.requirements.map(r => r.label);
+
+    // Group documents by student
+    const studentMap = new Map<string, any>();
+    this.documents.forEach(doc => {
+      const id = typeof doc.studentId === 'object' && doc.studentId !== null
+        ? (doc.studentId as any)._id : doc.studentId;
+      const idStr = String(id);
+      if (!studentMap.has(idStr)) {
+        studentMap.set(idStr, {
+          name: doc.studentName,
+          email: doc.studentEmail,
+          service: (doc as any).servicesOpted || '',
+          docs: new Map<string, string>()
+        });
+      }
+      // Store status for this doc type (latest wins if duplicates)
+      studentMap.get(idStr).docs.set(doc.documentType, doc.status);
+    });
+
+    // Build CSV header
+    const headers = ['Student Name', 'Email', 'Service Opted', ...docLabels];
+    const rows: string[] = [headers.map(h => `"${h}"`).join(',')];
+
+    // Build rows
+    studentMap.forEach(student => {
+      const cols = [
+        `"${student.name}"`,
+        `"${student.email}"`,
+        `"${student.service}"`,
+      ];
+      docTypes.forEach(type => {
+        const status = student.docs.get(type) || '';
+        cols.push(`"${status}"`);
+      });
+      rows.push(cols.join(','));
+    });
+
+    // Download
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `document-status-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    this.snackBar.open('CSV exported successfully', 'Close', { duration: 3000 });
+  }
 
   constructor(
     private documentService: StudentDocumentsService,
@@ -237,8 +266,14 @@ export class DocumentVerificationComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.documents = response.documents;
+          // Extract unique servicesOpted values
+          this.serviceOptedOptions = [...new Set(
+            this.documents
+              .map(doc => (doc as any).servicesOpted)
+              .filter((s): s is string => !!s && s.trim() !== '')
+          )].sort();
           this.applyFilters();
-          this.loadStats(); // Calculate stats AFTER documents are loaded
+          this.loadStats();
           this.loading = false;
         }
       },
@@ -279,6 +314,11 @@ export class DocumentVerificationComponent implements OnInit {
     if (this.selectedDocumentType !== 'ALL') {
       filtered = filtered.filter(doc => doc.documentType === this.selectedDocumentType);
     }
+
+    // Service opted filter
+    if (this.selectedServiceOpted !== 'ALL') {
+      filtered = filtered.filter(doc => (doc as any).servicesOpted === this.selectedServiceOpted);
+    }
     
     // Search filter
     if (this.searchQuery.trim()) {
@@ -312,6 +352,7 @@ export class DocumentVerificationComponent implements OnInit {
   clearFilters(): void {
     this.selectedStatus = 'ALL';
     this.selectedDocumentType = 'ALL';
+    this.selectedServiceOpted = 'ALL';
     this.searchQuery = '';
     this.applyFilters();
   }
@@ -785,6 +826,11 @@ export class DocumentVerificationComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.requirements = response.requirements;
+          // Build documentTypes dropdown from requirements
+          this.documentTypes = this.requirements.map(r => ({
+            value: r.type,
+            label: r.label
+          }));
         }
       },
       error: (error) => {
@@ -886,6 +932,38 @@ export class DocumentVerificationComponent implements OnInit {
       error: (error) => {
         console.error('Error deleting requirement:', error);
         this.snackBar.open('Error deleting requirement', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  openEmailDialog(studentName: string, studentEmail: string): void {
+    this.emailForm = { to: studentEmail, studentName, subject: '', message: '' };
+    this.showEmailDialog = true;
+  }
+
+  closeEmailDialog(): void {
+    this.showEmailDialog = false;
+    this.sendingEmail = false;
+  }
+
+  sendEmail(): void {
+    if (!this.emailForm.subject.trim() || !this.emailForm.message.trim()) {
+      this.snackBar.open('Subject and message are required', 'Close', { duration: 3000 });
+      return;
+    }
+    this.sendingEmail = true;
+    this.documentService.sendEmailToStudent({
+      to: this.emailForm.to,
+      subject: this.emailForm.subject,
+      message: this.emailForm.message
+    }).subscribe({
+      next: () => {
+        this.snackBar.open(`Email sent to ${this.emailForm.studentName}`, 'Close', { duration: 3000 });
+        this.closeEmailDialog();
+      },
+      error: () => {
+        this.snackBar.open('Failed to send email', 'Close', { duration: 3000 });
+        this.sendingEmail = false;
       }
     });
   }
