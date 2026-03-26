@@ -159,7 +159,7 @@
       </div>
       <div class="intro-actions">
         <button class="btn-secondary" (click)="backToExercises()">
-          <span class="material-icons">arrow_back</span> Back
+          <span class="material-icons">list</span> Go to exercises
         </button>
         <button class="btn-primary btn-start" (click)="startExercise()">
           <span class="material-icons">play_arrow</span> Start Exercise
@@ -170,50 +170,38 @@
 
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
   <div class="player-layout" *ngIf="state === 'playing'">
-
-    <!-- Player Header -->
-    <div class="player-header">
-      <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
-        <span class="material-icons">close</span>
-      </button>
-      <div class="header-center">
-        <div class="exercise-title-sm">{{ exercise?.title }}</div>
-        <div class="progress-bar-wrap">
-          <div class="progress-bar" [style.width]="getProgressPercentage() + '%'"></div>
+    <div class="player-header assessment-header">
+      <div class="assessment-header-left">
+        <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
+          <span class="material-icons">close</span>
+        </button>
+        <div>
+          <div class="assessment-title">{{ exercise?.title }}</div>
+          <div class="assessment-sub">{{ answeredCount }}/{{ playerQuestions.length }} answered</div>
         </div>
-        <div class="progress-text">{{ answeredCount }} / {{ playerQuestions.length }} answered</div>
       </div>
-      <div class="timer">
-        <span class="material-icons">timer</span>
-        {{ formatTime(elapsedSeconds) }}
+      <div class="assessment-header-right">
+        <div class="timer">
+          <span class="material-icons">schedule</span>
+          Remaining: {{ formatTime(elapsedSeconds) }}
+        </div>
+        <button class="btn-submit top-submit" *ngIf="!isSubmittedState" (click)="submitExercise()" [disabled]="submitting">
+          {{ submitting ? 'Submitting...' : 'Submit' }}
+        </button>
       </div>
     </div>
 
-    <!-- Shared audio for manual listening worksheets -->
-    <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
-      <div class="shared-audio-label">
-        <span class="material-icons">headphones</span>
-        Audio
-      </div>
-      <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
-    </div>
+    <div class="assessment-layout">
+      <div class="assessment-main">
+        <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
+          <div class="shared-audio-label">
+            <span class="material-icons">headphones</span>
+            Audio
+          </div>
+          <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
+        </div>
 
-    <!-- Question Navigator (dots) -->
-    <div class="question-nav">
-      <button
-        *ngFor="let pq of playerQuestions; let i = index"
-        class="q-dot"
-        [class.current]="i === currentIndex"
-        [class.answered]="isQuestionAnswered(pq)"
-        [class.correct]="isSubmittedState && pq.isCorrect === true"
-        [class.wrong]="isSubmittedState && pq.isCorrect === false"
-        (click)="goToQuestion(i)"
-        [title]="'Question ' + (i + 1)"
-      >{{ i + 1 }}</button>
-    </div>
-
-    <!-- Question Area -->
-    <div class="question-area" *ngIf="playerQuestions.length > 0">
+        <div class="question-area" *ngIf="playerQuestions.length > 0">
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
         <!-- Question Header -->
@@ -267,12 +255,21 @@
                 class="match-item left-item"
                 [class.selected]="currentQuestion.selectedLeftIndex === li"
                 [class.matched]="item.matchedRightIndex !== null"
-                [class.correct]="isSubmittedState && isMatchCorrect(currentQuestion, li)"
-                [class.wrong]="isSubmittedState && !isMatchCorrect(currentQuestion, li)"
+                [class.correct]="
+                  item.matchedRightIndex !== null && isMatchCorrect(currentQuestion, li)
+                "
+                [class.wrong]="
+                  item.matchedRightIndex !== null && !isMatchCorrect(currentQuestion, li)
+                "
                 (click)="selectLeft(currentQuestion, li)"
               >
                 {{ item.value }}
-                <span class="match-badge" *ngIf="item.matchedRightIndex !== null">✓</span>
+                <span
+                  class="match-badge"
+                  *ngIf="item.matchedRightIndex !== null"
+                >
+                  {{ isMatchCorrect(currentQuestion, li) ? '✓' : '✕' }}
+                </span>
               </button>
             </div>
             <div class="matching-connector">
@@ -288,6 +285,14 @@
                 [class.available]="item.matchedLeftIndex === null && currentQuestion.selectedLeftIndex !== null"
                 [class.matched]="item.matchedLeftIndex !== null"
                 [class.disabled]="item.matchedLeftIndex !== null"
+                [class.correct]="
+                  item.matchedLeftIndex !== null &&
+                  isMatchCorrect(currentQuestion, item.matchedLeftIndex)
+                "
+                [class.wrong]="
+                  item.matchedLeftIndex !== null &&
+                  !isMatchCorrect(currentQuestion, item.matchedLeftIndex)
+                "
                 (click)="selectRight(currentQuestion, ri)"
               >
                 {{ item.value }}
@@ -442,25 +447,98 @@
       </div>
 
       <!-- Navigation Buttons -->
-      <div class="question-nav-btns">
+      <div class="question-nav-btns assessment-nav-btns">
         <button class="btn-nav prev" (click)="prevQuestion()" [disabled]="isFirstQuestion">
           <span class="material-icons">arrow_back</span> Previous
-        </button>
-        <button
-          class="btn-submit"
-          *ngIf="!isSubmittedState"
-          (click)="submitExercise()"
-          [disabled]="submitting"
-        >
-          <span class="material-icons">{{ submitting ? 'hourglass_empty' : 'send' }}</span>
-          {{ submitting ? 'Submitting...' : 'Submit' }}
         </button>
         <button class="btn-nav next" (click)="nextQuestion()" [disabled]="isLastQuestion">
           Next <span class="material-icons">arrow_forward</span>
         </button>
       </div>
     </div>
+    </div>
 
+      <aside class="assessment-sidebar">
+        <div class="sidebar-questions-card">
+          <div class="sidebar-questions-title">Question Overview</div>
+          <div class="sidebar-caption">Navigation Grid</div>
+          <div class="sidebar-question-grid">
+            <button
+              *ngFor="let pq of playerQuestions; let i = index"
+              class="q-square"
+              [ngClass]="'type-' + pq.data.type"
+              [class.current]="i === currentIndex"
+              [class.answered]="isQuestionAnswered(pq)"
+              [class.correct]="isSubmittedState && pq.isCorrect === true"
+              [class.wrong]="isSubmittedState && pq.isCorrect === false"
+              (click)="goToQuestion(i)"
+            >{{ i + 1 }}</button>
+          </div>
+        </div>
+
+        <div class="assessment-stats-card">
+          <div class="assessment-stat-row stat-total">
+            <span>Total Questions</span><strong>{{ playerQuestions.length }}</strong>
+          </div>
+          <div class="assessment-stat-row stat-attempted">
+            <span>Attempted</span><strong>{{ answeredCount }}</strong>
+          </div>
+          <div class="assessment-stat-row stat-unanswered">
+            <span>Unanswered</span><strong>{{ playerQuestions.length - answeredCount }}</strong>
+          </div>
+        </div>
+
+        <div class="assessment-types-card">
+          <div class="assessment-types-title">Question Types</div>
+          <div class="assessment-type-row" *ngFor="let qt of getQuestionTypes()" [ngClass]="'type-' + qt.type">
+            <div class="assessment-type-label">
+              <span class="material-icons">{{ qt.icon }}</span>
+              <span>{{ qt.label }}</span>
+            </div>
+            <span class="assessment-type-count">{{ qt.count }}</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ─── Submit confirmation modal (no browser confirm) ──────────────────── -->
+  <div class="submit-confirm-overlay" *ngIf="submitConfirmOpen">
+    <div class="submit-confirm-modal" role="dialog" aria-modal="true">
+      <div class="submit-confirm-head">
+        <span class="material-icons submit-confirm-icon">warning_amber</span>
+        <div>
+          <div class="submit-confirm-title">Unanswered questions</div>
+          <div class="submit-confirm-sub">
+            You have <strong>{{ submitUnansweredCount }}</strong> unanswered question(s). Submit anyway?
+          </div>
+        </div>
+      </div>
+
+      <div class="submit-confirm-summary">
+        <div class="submit-confirm-row">
+          <span>Total</span>
+          <strong>{{ playerQuestions.length }}</strong>
+        </div>
+        <div class="submit-confirm-row">
+          <span>Attempted</span>
+          <strong>{{ answeredCount }}</strong>
+        </div>
+        <div class="submit-confirm-row">
+          <span>Unanswered</span>
+          <strong>{{ playerQuestions.length - answeredCount }}</strong>
+        </div>
+      </div>
+
+      <div class="submit-confirm-actions">
+        <button class="btn-secondary submit-confirm-cancel" (click)="cancelSubmitAnyway()">
+          Cancel
+        </button>
+        <button class="btn-primary submit-confirm-ok" (click)="confirmSubmitAnyway()">
+          Submit anyway
+        </button>
+      </div>
+    </div>
   </div>
 
 </div>

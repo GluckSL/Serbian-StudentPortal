@@ -58,6 +58,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   playerQuestions: PlayerQuestion[] = [];
   currentIndex = 0;
   submitting = false;
+  submitConfirmOpen = false;
+  submitUnansweredCount = 0;
 
   startTime = 0;
   elapsedSeconds = 0;
@@ -105,7 +107,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.exercise = exercise;
         this.initPlayerQuestions();
         this.isSubmittedState = false;
-        this.state = 'intro';
+        // Auto-start so students don't see the intro/info screen.
+        this.startExercise();
       },
       error: (err) => {
         if (err?.status === 403 && err?.error?.code === 'COURSE_DAY_LOCKED') {
@@ -177,6 +180,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
+        this.state = 'error';
       }
     });
   }
@@ -388,15 +392,31 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   // ─── Submit ───────────────────────────────────────────────────────────────────
 
   submitExercise(): void {
-    if (this.submitting) return;
+    if (this.submitting || this.submitConfirmOpen) return;
 
     const unanswered = this.playerQuestions.filter(q => !this.isQuestionAnswered(q));
     if (unanswered.length > 0) {
-      const confirmed = confirm(`You have ${unanswered.length} unanswered question(s). Submit anyway?`);
-      if (!confirmed) return;
+      this.submitUnansweredCount = unanswered.length;
+      this.submitConfirmOpen = true;
+      return;
     }
 
+    this.doSubmit();
+  }
+
+  confirmSubmitAnyway(): void {
+    if (this.submitting) return;
+    this.submitConfirmOpen = false;
+    this.doSubmit();
+  }
+
+  cancelSubmitAnyway(): void {
+    this.submitConfirmOpen = false;
+  }
+
+  private doSubmit(): void {
     this.submitting = true;
+    this.submitConfirmOpen = false;
     this.stopTimer();
 
     const responses: QuestionResponse[] = this.playerQuestions.map((pq, i) => {
@@ -431,6 +451,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.submitting = false;
+        this.submitConfirmOpen = false;
         this.snackBar.open(err.error?.error || 'Failed to submit. Please try again.', 'Close', { duration: 5000 });
       }
     });
@@ -588,11 +609,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string }> {
+    const order: string[] = ['matching', 'fill-blank', 'pronunciation', 'question-answer', 'mcq', 'listening'];
     const counts: Record<string, number> = {};
-    const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening' };
-    const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones' };
-    this.playerQuestions.forEach(pq => { counts[pq.data.type] = (counts[pq.data.type] || 0) + 1; });
-    return Object.entries(counts).map(([type, count]) => ({ type, count, label: labels[type] || type, icon: icons[type] || 'help' }));
+
+    const labels: Record<string, string> = {
+      mcq: 'Multiple Choice',
+      matching: 'Matching',
+      'fill-blank': 'Fill Blanks',
+      pronunciation: 'Pronunciation',
+      'question-answer': 'Question / Answer',
+      listening: 'Listening'
+    };
+
+    const icons: Record<string, string> = {
+      mcq: 'quiz',
+      matching: 'compare_arrows',
+      'fill-blank': 'text_fields',
+      pronunciation: 'record_voice_over',
+      'question-answer': 'short_text',
+      listening: 'headphones'
+    };
+
+    this.playerQuestions.forEach(pq => {
+      counts[pq.data.type] = (counts[pq.data.type] || 0) + 1;
+    });
+
+    return order
+      .filter(type => (counts[type] || 0) > 0)
+      .map(type => ({ type, count: counts[type], label: labels[type] || type, icon: icons[type] || 'help' }));
   }
 
   getTypeIcon(type: string): string {
