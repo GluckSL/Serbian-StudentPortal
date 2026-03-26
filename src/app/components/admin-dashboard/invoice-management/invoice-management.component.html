@@ -1,0 +1,73 @@
+<div class="inv" *ngIf="!isLoading; else loadingTpl">
+  <div class="inv-header">
+    <div><h2 class="inv-header__title">🧾 Invoice Management</h2><p class="inv-header__sub">{{ summary.total || 0 }} invoices</p></div>
+  </div>
+  <div class="inv-summary">
+    <div class="inv-summary__card"><div class="inv-summary__label">Total Invoiced</div><div class="inv-summary__val">{{ formatCurrency(summary.totalInvoiced) }}</div></div>
+    <div class="inv-summary__card inv-summary__card--paid"><div class="inv-summary__label">Paid</div><div class="inv-summary__val">{{ formatCurrency(summary.totalPaid) }}</div><div class="inv-summary__count">{{ summary.paid }} invoices</div></div>
+    <div class="inv-summary__card inv-summary__card--unpaid"><div class="inv-summary__label">Unpaid</div><div class="inv-summary__val">{{ formatCurrency(summary.totalUnpaid) }}</div><div class="inv-summary__count">{{ summary.unpaid }} invoices</div></div>
+  </div>
+  <div class="inv-filters">
+    <input class="inv-input" type="text" placeholder="Search name, email, invoice #..." [(ngModel)]="searchTerm" (input)="applyFilters()">
+    <select class="inv-select" [(ngModel)]="filterStatus" (change)="applyFilters()"><option value="all">All Status</option><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
+    <span class="inv-count">{{ filtered.length }} results</span>
+  </div>
+  <div class="inv-table-wrap">
+    <table class="inv-table">
+      <thead><tr>
+        <th class="inv-th--sort" (click)="sort('invoice_number')">Invoice # {{ sortIcon('invoice_number') }}</th>
+        <th class="inv-th--sort" (click)="sort('customer_name')">Customer {{ sortIcon('customer_name') }}</th>
+        <th>Description</th>
+        <th class="inv-th--sort" (click)="sort('invoice_date')">Date {{ sortIcon('invoice_date') }}</th>
+        <th>Due Date</th>
+        <th class="inv-th--right">Amount</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr></thead>
+      <tbody>
+        <tr *ngFor="let inv of filtered" [class.inv-row--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)" [class.inv-row--paid]="inv.payment_status === 'paid'">
+          <td class="inv-mono">{{ inv.invoice_number }}</td>
+          <td><div class="inv-customer">{{ inv.customer_name }}</div><div class="inv-email">{{ inv.customer_email }}</div></td>
+          <td class="inv-desc">{{ inv.items?.length ? inv.items[0].description : '—' }}</td>
+          <td>{{ inv.invoice_date || '—' }}</td>
+          <td [class.inv-overdue-text]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)">{{ inv.due_date || '—' }}</td>
+          <td class="inv-th--right inv-amount">{{ formatCurrency(inv.total_payable) }}</td>
+          <td><span class="inv-badge" [class.inv-badge--paid]="inv.payment_status === 'paid'" [class.inv-badge--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)" [class.inv-badge--unpaid]="inv.payment_status !== 'paid' && !isOverdue(inv.due_date)">{{ inv.payment_status === 'paid' ? '✓ Paid' : (isOverdue(inv.due_date) ? '⚠ Overdue' : '○ Unpaid') }}</span></td>
+          <td>
+            <button *ngIf="inv.payment_status !== 'paid'" class="inv-btn inv-btn--pay" (click)="openMarkPaid(inv)">💰 Mark Paid</button>
+            <button *ngIf="inv.payment_status === 'paid'" class="inv-btn inv-btn--undo" (click)="markUnpaid(inv)">↩ Undo</button>
+          </td>
+        </tr>
+        <tr *ngIf="!filtered.length"><td colspan="8" class="inv-empty">No invoices found</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="inv-modal-overlay" *ngIf="showPayModal" (click)="closeModal()">
+    <div class="inv-modal" (click)="$event.stopPropagation()">
+      <div class="inv-modal__head"><h3>💰 Confirm Payment</h3><button class="inv-modal__close" (click)="closeModal()">✕</button></div>
+      <div class="inv-modal__body" *ngIf="selectedInvoice">
+        <div class="inv-modal__info">
+          <div class="inv-modal__inv-no">{{ selectedInvoice.invoice_number }}</div>
+          <div class="inv-modal__customer">{{ selectedInvoice.customer_name }}</div>
+          <div class="inv-modal__email">{{ selectedInvoice.customer_email }}</div>
+        </div>
+        <div class="inv-modal__amount">{{ formatCurrency(selectedInvoice.total_payable) }}</div>
+        <p class="inv-modal__note-text">This will mark the invoice as paid and add the payment to the student's ledger.</p>
+        <div class="inv-modal__field"><label>Payment Method</label>
+          <select class="inv-select" [(ngModel)]="payMethod"><option value="">Select method</option><option value="Bank Transfer">Bank Transfer</option><option value="Cash">Cash</option><option value="Card">Card</option><option value="Online">Online</option><option value="Other">Other</option></select>
+        </div>
+        <div class="inv-modal__field"><label>Note (optional)</label><input class="inv-input" type="text" [(ngModel)]="payNote" placeholder="e.g., Received via bank on 25/03"></div>
+      </div>
+      <div class="inv-modal__foot">
+        <button class="inv-btn inv-btn--outline" (click)="closeModal()">Cancel</button>
+        <button class="inv-btn inv-btn--confirm" (click)="confirmMarkPaid()" [disabled]="processing">{{ processing ? 'Processing...' : '✓ Confirm Payment' }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+<ng-template #loadingTpl>
+  <div class="inv" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+    <div style="text-align:center;"><div class="inv-spinner"></div><p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading invoices...</p></div>
+  </div>
+</ng-template>

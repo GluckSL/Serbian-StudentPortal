@@ -75,7 +75,8 @@ export class NavService {
     {
       group: 'Payments',
       items: [
-        { id: 'payments', label: 'Payments', icon: '💳', route: '/admin/payments', subGroup: null }
+        { id: 'payments', label: 'Payments', icon: '💳', route: '/admin/payments', subGroup: null },
+        { id: 'invoices', label: 'Invoices', icon: '🧾', route: '/admin/invoices', subGroup: null }
       ]
     },
     {
