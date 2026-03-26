@@ -181,6 +181,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   get unansweredCount(): number { return this.playerQuestions.filter(q => q.isCorrect !== true && q.isCorrect !== false).length; }
   get submittedCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true || q.isCorrect === false).length; }
   get pendingCount(): number { return this.playerQuestions.length - this.submittedCount; }
+  /** Backward-compatible alias used by older template fragments. */
+  get isSubmittedState(): boolean { return this.state === 'submitted'; }
 
   prevQuestion(): void { if (this.currentIndex > 0) this.currentIndex--; }
 
@@ -477,6 +479,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         }
       }
     });
+  }
+
+  /** Backward-compatible alias used by older template fragments. */
+  submitExercise(): void {
+    this.submitCurrentQuestion();
   }
 
   openFinishSummary(): void {

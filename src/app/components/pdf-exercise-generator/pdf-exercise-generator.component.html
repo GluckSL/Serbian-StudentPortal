@@ -213,10 +213,29 @@
       </div>
     </div>
 
+    <!-- Detected-from-PDF banner -->
+    <div class="detected-banner" *ngIf="pdfDetectedTypes">
+      <span class="material-icons detected-banner-icon">auto_fix_high</span>
+      <div class="detected-banner-text">
+        <strong>Question types detected from your PDF!</strong>
+        <span>Counts have been pre-filled based on what was found. Adjust them below if needed.</span>
+      </div>
+    </div>
+    <div class="detected-banner detected-banner-default" *ngIf="!pdfDetectedTypes && uploadResult">
+      <span class="material-icons detected-banner-icon">info</span>
+      <div class="detected-banner-text">
+        <strong>No existing questions detected.</strong>
+        <span>AI will generate new questions from your PDF content. Toggle types and set counts below.</span>
+      </div>
+    </div>
+
     <!-- Exercise Types — table layout -->
     <div class="config-section">
       <h3 class="config-label">Exercise Types <span class="required">*</span></h3>
-      <p class="config-hint">Toggle each type and set how many questions AI should generate for it.</p>
+      <p class="config-hint" *ngIf="pdfDetectedTypes">
+        Counts were <strong>auto-detected from your PDF</strong> — toggle types on/off and adjust counts as needed.
+      </p>
+      <p class="config-hint" *ngIf="!pdfDetectedTypes">Toggle each type and set how many questions AI should generate for it.</p>
 
       <div class="type-table">
         <!-- Header -->
@@ -238,7 +257,14 @@
               <span class="material-icons">{{ qt.icon }}</span>
             </div>
             <div class="tt-info">
-              <span class="tt-name">{{ qt.label }}</span>
+              <span class="tt-name">
+                {{ qt.label }}
+                <span
+                  class="detected-badge"
+                  *ngIf="pdfDetectedTypes && (uploadResult?.detectedTypes?.[qt.value] ?? 0) > 0"
+                  title="Detected in PDF"
+                >PDF</span>
+              </span>
               <span class="tt-desc">{{ qt.desc }}</span>
             </div>
           </div>

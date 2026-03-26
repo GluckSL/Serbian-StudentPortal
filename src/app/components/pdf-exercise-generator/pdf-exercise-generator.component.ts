@@ -85,12 +85,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // ── Step 2: Configure ───────────────────────────────────────────────────────
   // typeCounts drives everything: selected = count > 0
   typeCounts: Record<string, number> = {
-    mcq: 5,
+    mcq: 0,
     matching: 0,
     'fill-blank': 0,
     pronunciation: 0,
     'question-answer': 0
   };
+  /** True when type counts were auto-detected from uploaded PDF. */
+  pdfDetectedTypes = false;
 
   targetLanguage = 'German';
   nativeLanguage = 'English';
@@ -227,6 +229,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     if (this.fileInput?.nativeElement) this.fileInput.nativeElement.value = '';
 
+    this.pdfDetectedTypes = false;
     // Worksheet-style documents are usually built from matching, fill-blank, and short answers.
     if (mode === 'text') {
       this.typeCounts = {
@@ -235,6 +238,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         'fill-blank': 5,
         pronunciation: 0,
         'question-answer': 5
+      };
+    } else {
+      this.typeCounts = {
+        mcq: 0,
+        matching: 0,
+        'fill-blank': 0,
+        pronunciation: 0,
+        'question-answer': 0
       };
     }
   }
@@ -247,6 +258,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.uploadResult = res;
         this.uploading = false;
+        this.applyDetectedTypes(res.detectedTypes);
       },
       error: (err) => {
         this.uploading = false;
@@ -258,7 +270,28 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   removeFile(): void {
     this.selectedFile = null;
     this.uploadResult = null;
+    this.pdfDetectedTypes = false;
+    this.typeCounts = { mcq: 0, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
     if (this.fileInput) this.fileInput.nativeElement.value = '';
+  }
+
+  private applyDetectedTypes(detected: Record<string, number> | undefined): void {
+    if (!detected) return;
+    const hasAny = Object.values(detected).some(v => Number(v) > 0);
+    if (!hasAny) {
+      // Fallback default when no pattern is detected in PDF.
+      this.typeCounts = { mcq: 5, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
+      this.pdfDetectedTypes = false;
+      return;
+    }
+    this.typeCounts = {
+      mcq: Number(detected['mcq']) || 0,
+      matching: Number(detected['matching']) || 0,
+      'fill-blank': Number(detected['fill-blank']) || 0,
+      pronunciation: Number(detected['pronunciation']) || 0,
+      'question-answer': Number(detected['question-answer']) || 0
+    };
+    this.pdfDetectedTypes = true;
   }
 
   readTextForPreview(): void {
@@ -303,7 +336,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         this.typeCounts[type] = 0;
       }
     } else {
-      this.typeCounts[type] = 5;
+      const detectedCount = this.uploadResult?.detectedTypes?.[type] as number | undefined;
+      this.typeCounts[type] = (detectedCount && detectedCount > 0) ? detectedCount : 5;
     }
   }
 

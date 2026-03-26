@@ -683,8 +683,8 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
   }
 });
 
-// POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
-router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+// POST /api/digital-exercises/:id/submit  — Final submit (all questions)
+router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, responses, timeSpentSeconds } = req.body;
 

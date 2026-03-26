@@ -140,6 +140,11 @@ export class DigitalExercisesComponent implements OnInit {
     this.loadExercises();
   }
 
+  onTodayOnlyChange(): void {
+    this.currentPage = 1;
+    this.loadExercises();
+  }
+
   onTabChange(): void {
     this.currentPage = 1;
   }
