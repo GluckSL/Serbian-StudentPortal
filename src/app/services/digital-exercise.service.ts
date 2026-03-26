@@ -137,6 +137,18 @@ export interface SubmitResult {
   }>;
 }
 
+export interface SubmitQuestionResult {
+  questionIndex: number;
+  isCorrect: boolean;
+  pointsEarned: number;
+  correctAnswer: any;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+  allSubmitted: boolean;
+  passed: boolean;
+}
+
 export interface ExerciseFilters {
   level?: string;
   category?: string;
@@ -228,6 +240,20 @@ export class DigitalExerciseService {
     );
   }
 
+  submitQuestion(
+    exerciseId: string,
+    attemptId: string,
+    questionIndex: number,
+    response: QuestionResponse,
+    timeSpentSeconds: number
+  ): Observable<SubmitQuestionResult> {
+    return this.http.post<SubmitQuestionResult>(
+      `${this.apiUrl}/${exerciseId}/submit-question`,
+      { attemptId, questionIndex, response, timeSpentSeconds },
+      { withCredentials: true }
+    );
+  }
+
   getMyAttempts(exerciseId: string): Observable<ExerciseAttempt[]> {
     return this.http.get<ExerciseAttempt[]>(`${this.apiUrl}/${exerciseId}/my-attempts`, { withCredentials: true });
   }
@@ -276,6 +302,18 @@ export class DigitalExerciseService {
     maxQuestions: number;
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
+  }
+
+  generateFromText(options: {
+    text: string;
+    types: string[];
+    targetLanguage: string;
+    nativeLanguage: string;
+    level: string;
+    difficulty: string;
+    maxQuestions: number;
+  }): Observable<any> {
+    return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/text-generate`, options, { withCredentials: true });
   }
 
   cleanupPdf(uploadId: string): Observable<any> {

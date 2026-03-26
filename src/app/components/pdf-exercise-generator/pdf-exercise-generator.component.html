@@ -40,13 +40,45 @@
   <!-- ════════════════════════════════════════════════════════════════════════ -->
   <div class="step-panel" *ngIf="currentStep === 1">
     <div class="step-header">
-      <div class="step-icon-wrap"><span class="material-icons step-icon">upload_file</span></div>
+      <div class="step-icon-wrap">
+        <span class="material-icons step-icon">{{ inputMode === 'pdf' ? 'upload_file' : 'content_paste' }}</span>
+      </div>
       <div>
-        <h2>Upload Your PDF</h2>
-        <p>Upload a PDF with exercises or learning content. We'll extract the text and convert it into interactive exercises.</p>
+        <h2>{{ inputMode === 'pdf' ? 'Upload Your PDF' : 'Paste Your Text' }}</h2>
+        <p>
+          {{
+            inputMode === 'pdf'
+              ? 'Upload a PDF with exercises or learning content. We\'ll extract the text and convert it into interactive exercises.'
+              : 'Paste a worksheet/document text. We\'ll convert it into interactive exercises using the same patterns.'
+          }}
+        </p>
       </div>
     </div>
 
+    <!-- Input mode toggle (PDF vs Copy/Paste text) -->
+    <div class="input-mode-toggle">
+      <button
+        type="button"
+        class="mode-card"
+        [class.active]="inputMode === 'pdf'"
+        (click)="setInputMode('pdf')"
+      >
+        <span class="material-icons">picture_as_pdf</span>
+        Upload PDF
+      </button>
+      <button
+        type="button"
+        class="mode-card"
+        [class.active]="inputMode === 'text'"
+        (click)="setInputMode('text')"
+      >
+        <span class="material-icons">content_paste</span>
+        Paste Text
+      </button>
+    </div>
+
+    <!-- PDF input -->
+    <div *ngIf="inputMode === 'pdf'">
     <!-- Drop Zone -->
     <div class="drop-zone"
       [class.dragging]="isDragging"
@@ -112,6 +144,53 @@
       <button class="btn-change-file" (click)="removeFile()">
         <span class="material-icons">swap_horiz</span> Change PDF
       </button>
+    </div>
+
+    </div>
+
+    <!-- Text input (copy/paste) -->
+    <div *ngIf="inputMode === 'text'" class="text-input-wrap">
+      <div class="text-drop-like">
+        <textarea
+          class="text-input-area"
+          rows="12"
+          [(ngModel)]="selectedText"
+          placeholder="Paste your worksheet/document text here (include the exercises + the answer key at the end)..."
+          (input)="textInputResult = null"
+        ></textarea>
+        <div class="text-help-row">
+          <span class="text-help-muted">Tip: paste at least 1-2 paragraphs + solution key</span>
+          <span class="text-help-counter">{{ (selectedText?.length || 0) }} chars</span>
+        </div>
+      </div>
+
+      <div class="upload-action" *ngIf="selectedText.trim().length > 0 && !textInputResult">
+        <button class="btn-upload" type="button" (click)="readTextForPreview()">
+          <span class="material-icons">search</span>
+          Preview &amp; Enable Generate
+          <div class="upload-spinner" *ngIf="false"></div>
+        </button>
+      </div>
+
+      <div class="upload-result" *ngIf="textInputResult">
+        <div class="result-success">
+          <span class="material-icons">check_circle</span>
+          <strong>Text ready!</strong>
+        </div>
+        <div class="result-stats">
+          <span><span class="material-icons">format_align_left</span> ~{{ textInputResult.totalChars.toLocaleString() }} characters</span>
+          <span *ngIf="!textInputResult.hasContent" class="warn-text">
+            <span class="material-icons">warning</span> Text is short — generation may be limited
+          </span>
+        </div>
+        <div class="text-preview">
+          <div class="preview-label">Text preview:</div>
+          <pre class="preview-text">{{ textInputResult.previewText }}</pre>
+        </div>
+        <button class="btn-change-file" type="button" (click)="selectedText=''; textInputResult=null;">
+          <span class="material-icons">close</span> Clear text
+        </button>
+      </div>
     </div>
 
     <div class="step-footer">

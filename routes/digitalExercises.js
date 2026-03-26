@@ -78,7 +78,6 @@ function levenshteinSimilarity(a, b) {
   return 1 - dp[m][n] / maxLen;
 }
 
-/** CEFR ladder: student at A2 may only access A1 + A2 exercises (not B1+). */
 function getAccessibleLevels(studentLevel) {
   const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const idx = levelOrder.indexOf(studentLevel);
@@ -521,24 +520,176 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
   }
 });
 
-// POST /api/digital-exercises/:id/submit  — Submit attempt answers (students + admin/teacher for testing)
-router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+// POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
+router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { attemptId, responses, timeSpentSeconds } = req.body;
-    const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
+    const { attemptId, questionIndex, response, timeSpentSeconds } = req.body;
 
     const exercise = await DigitalExercise.findById(req.params.id).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    if (!isStaff) {
-      const access = await getStudentExerciseAccess(req.user.id);
-      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
-        return res.status(403).json({ error: 'This exercise is not available for your current course day.', code: 'COURSE_DAY_LOCKED' });
-      }
-      if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
-        return res.status(403).json({ error: 'This exercise is above your current language level.', code: 'LEVEL_NOT_ALLOWED' });
-      }
+    const attempt = await ExerciseAttempt.findOne({
+      _id: attemptId,
+      studentId: req.user.id,
+      exerciseId: req.params.id
+    });
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+    if (attempt.status === 'completed') return res.status(400).json({ error: 'Attempt already submitted' });
+
+    const idx = parseInt(questionIndex, 10);
+    if (isNaN(idx) || idx < 0 || idx >= exercise.questions.length) {
+      return res.status(400).json({ error: 'Invalid question index' });
     }
+
+    const q = exercise.questions[idx];
+    const resp = response || { questionIndex: idx };
+    let isCorrect = false;
+    let pointsEarned = 0;
+    let correctAnswer = null;
+
+    if (q.type === 'mcq') {
+      const correctIdx = typeof q.correctAnswerIndex === 'number' ? q.correctAnswerIndex : 0;
+      isCorrect = resp.selectedOptionIndex === correctIdx;
+      correctAnswer = { correctAnswerIndex: correctIdx, explanation: q.explanation };
+    } else if (q.type === 'matching') {
+      const pairs = q.pairs || [];
+      if (resp.matchingResponse && resp.matchingResponse.length === pairs.length) {
+        let allCorrect = true;
+        for (const match of resp.matchingResponse) {
+          if (pairs[match.leftIndex] && pairs[match.rightIndex]) {
+            const expectedRight = pairs[match.leftIndex].right;
+            const givenRight = pairs[match.rightIndex].right;
+            if (expectedRight !== givenRight) { allCorrect = false; break; }
+          }
+        }
+        isCorrect = allCorrect;
+      }
+      correctAnswer = { pairs: pairs.map((p, i) => ({ leftIndex: i, rightValue: p.right })) };
+    } else if (q.type === 'fill-blank') {
+      const answers = q.answers || [];
+      if (resp.fillBlankResponses && resp.fillBlankResponses.length === answers.length) {
+        isCorrect = resp.fillBlankResponses.every((ans, i) => {
+          const correct = answers[i];
+          return q.caseSensitive
+            ? ans.trim() === correct.trim()
+            : ans.trim().toLowerCase() === correct.trim().toLowerCase();
+        });
+      }
+      correctAnswer = { answers };
+    } else if (q.type === 'pronunciation') {
+      const score = resp.pronunciationScore || 0;
+      isCorrect = score >= 70;
+      pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+      correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+    } else if (q.type === 'question-answer') {
+      const studentAns = (resp.qaResponse || '').trim();
+      if (studentAns) {
+        const aiResult = await aiGradeAnswer(q.prompt || '', Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [], studentAns);
+        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
+        const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
+        const scoringMode = q.scoringMode || 'full';
+        const { score } = aiResult;
+        isCorrect = score >= threshold;
+        pointsEarned = scoringMode === 'proportional'
+          ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
+          : (isCorrect ? (q.points || 1) : 0);
+        correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
+      }
+    } else if (q.type === 'listening') {
+      const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
+      const expected = (q.expectedTranscript || '').trim().toLowerCase();
+      if (expected && studentText) {
+        isCorrect = studentText === expected ||
+          expected.includes(studentText) ||
+          studentText.includes(expected) ||
+          levenshteinSimilarity(studentText, expected) >= 0.85;
+      }
+      correctAnswer = { expectedTranscript: q.expectedTranscript };
+    }
+
+    if (q.type !== 'pronunciation' && q.type !== 'question-answer') {
+      pointsEarned = isCorrect ? (q.points || 1) : 0;
+    }
+
+    const gradedResp = {
+      questionIndex: idx,
+      questionType: q.type,
+      selectedOptionIndex: resp.selectedOptionIndex,
+      matchingResponse: resp.matchingResponse,
+      fillBlankResponses: resp.fillBlankResponses,
+      spokenText: resp.spokenText,
+      pronunciationScore: resp.pronunciationScore,
+      qaResponse: resp.qaResponse,
+      listeningText: resp.listeningText,
+      isCorrect,
+      pointsEarned
+    };
+
+    const existing = Array.isArray(attempt.responses) ? attempt.responses : [];
+    const responsesByIndex = {};
+    existing.forEach(r => { responsesByIndex[r.questionIndex] = r; });
+    responsesByIndex[idx] = gradedResp;
+
+    const gradedResponses = exercise.questions
+      .map((_, i) => responsesByIndex[i])
+      .filter(Boolean)
+      .sort((a, b) => a.questionIndex - b.questionIndex);
+
+    let earnedPoints = 0;
+    gradedResponses.forEach(r => {
+      if (typeof r.pointsEarned === 'number') earnedPoints += r.pointsEarned;
+    });
+
+    const totalPoints = exercise.questions.reduce((sum, qq) => sum + (qq.points || 1), 0);
+    const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+    const allSubmitted = gradedResponses.length >= exercise.questions.length;
+
+    attempt.responses = gradedResponses;
+    attempt.earnedPoints = earnedPoints;
+    attempt.totalPoints = totalPoints;
+    attempt.scorePercentage = scorePercentage;
+    attempt.timeSpentSeconds = timeSpentSeconds ?? attempt.timeSpentSeconds ?? 0;
+
+    if (allSubmitted) {
+      attempt.completedAt = new Date();
+      attempt.status = 'completed';
+
+      const completedCount = await ExerciseAttempt.countDocuments({ exerciseId: req.params.id, status: 'completed' });
+      const avgResult = await ExerciseAttempt.aggregate([
+        { $match: { exerciseId: exercise._id, status: 'completed' } },
+        { $group: { _id: null, avg: { $avg: '$scorePercentage' } } }
+      ]);
+      await DigitalExercise.findByIdAndUpdate(req.params.id, {
+        totalCompletions: completedCount,
+        averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
+      });
+    }
+    await attempt.save();
+
+    res.json({
+      questionIndex: idx,
+      isCorrect,
+      pointsEarned,
+      correctAnswer,
+      earnedPoints,
+      totalPoints,
+      scorePercentage,
+      allSubmitted,
+      passed: scorePercentage >= 60
+    });
+  } catch (err) {
+    console.error('POST /digital-exercises/:id/submit-question error:', err);
+    res.status(500).json({ error: err?.message || 'Server error while grading' });
+  }
+});
+
+// POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
+router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { attemptId, responses, timeSpentSeconds } = req.body;
+
+    const exercise = await DigitalExercise.findById(req.params.id).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
     const attempt = await ExerciseAttempt.findOne({
       _id: attemptId,

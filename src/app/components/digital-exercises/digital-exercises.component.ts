@@ -7,6 +7,8 @@ import { Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
 
+type TabType = 'completed' | 'pending' | 'new';
+
 @Component({
   selector: 'app-digital-exercises',
   standalone: true,
@@ -19,9 +21,12 @@ export class DigitalExercisesComponent implements OnInit {
   @Input() embedded = false;
 
   exercises: DigitalExercise[] = [];
+  filteredExercises: DigitalExercise[] = [];
   loading = false;
   userRole: string = '';
   isTeacherOrAdmin = false;
+
+  activeTab: TabType = 'new';
 
   // Filters
   searchQuery = '';
@@ -67,8 +72,8 @@ export class DigitalExercisesComponent implements OnInit {
   loadExercises(): void {
     this.loading = true;
     const filters: any = {
-      page: this.currentPage,
-      limit: this.pageSize
+      page: 1,
+      limit: 100
     };
     if (this.searchQuery.trim()) filters.search = this.searchQuery.trim();
     if (this.selectedLevel) filters.level = this.selectedLevel;
@@ -80,23 +85,46 @@ export class DigitalExercisesComponent implements OnInit {
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
-        this.totalExercises = res.total || 0;
-        this.totalPages = res.pages || 1;
-        const r = this.authService.getSnapshotUser()?.role || this.userRole;
-        if (r === 'STUDENT') {
-          if (Array.isArray(res.accessibleLevels) && res.accessibleLevels.length) {
-            this.levelFilterOptions = [...res.accessibleLevels];
-            if (this.selectedLevel && !this.levelFilterOptions.includes(this.selectedLevel)) {
-              this.selectedLevel = '';
-            }
-          }
-        } else {
-          this.levelFilterOptions = [...this.allLevels];
-        }
+        this.applyTabFilter();
         this.loading = false;
       },
       error: () => { this.loading = false; }
     });
+  }
+
+  setTab(tab: TabType): void {
+    this.activeTab = tab;
+    this.applyTabFilter();
+  }
+
+  private applyTabFilter(): void {
+    const now = Date.now();
+    const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+
+    let list = this.exercises;
+    if (this.activeTab === 'completed') {
+      list = list.filter(ex => ex.studentAttempt != null);
+    } else if (this.activeTab === 'pending') {
+      list = list.filter(ex => !ex.studentAttempt);
+      list = list.filter(ex => {
+        const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
+        return now - created > fourteenDaysMs;
+      });
+    } else {
+      list = list.filter(ex => !ex.studentAttempt);
+      list = list.filter(ex => {
+        const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
+        return now - created <= fourteenDaysMs;
+      });
+    }
+    this.filteredExercises = list;
+    this.totalExercises = list.length;
+    this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
+  }
+
+  get paginatedExercises(): DigitalExercise[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredExercises.slice(start, start + this.pageSize);
   }
 
   onSearchChange(): void {
@@ -112,9 +140,8 @@ export class DigitalExercisesComponent implements OnInit {
     this.loadExercises();
   }
 
-  onTodayOnlyChange(): void {
+  onTabChange(): void {
     this.currentPage = 1;
-    this.loadExercises();
   }
 
   clearFilters(): void {
@@ -141,7 +168,6 @@ export class DigitalExercisesComponent implements OnInit {
 
   changePage(page: number): void {
     this.currentPage = page;
-    this.loadExercises();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -223,5 +249,37 @@ export class DigitalExercisesComponent implements OnInit {
     const end = Math.min(this.totalPages, this.currentPage + 2);
     for (let i = start; i <= end; i++) pages.push(i);
     return pages;
+  }
+
+  get currentProficiency(): number {
+    const completed = this.exercises.filter(ex => ex.studentAttempt);
+    if (completed.length === 0) return 0;
+    const sum = completed.reduce((s, ex) => s + (ex.studentAttempt?.scorePercentage || 0), 0);
+    return Math.round(sum / completed.length);
+  }
+
+  getCategoryIcon(category: string): string {
+    const icons: Record<string, string> = {
+      Grammar: 'menu_book',
+      Vocabulary: 'translate',
+      Conversation: 'forum',
+      Reading: 'auto_stories',
+      Writing: 'edit_note',
+      Listening: 'headphones',
+      Pronunciation: 'record_voice_over'
+    };
+    return icons[category] || 'quiz';
+  }
+
+  getPriorityLabel(ex: DigitalExercise): string {
+    if (ex.studentAttempt) return 'NORMAL Review';
+    if (this.activeTab === 'new') return 'PRIORITY New Addition';
+    return 'NORMAL Pending';
+  }
+
+  getPriorityClass(ex: DigitalExercise): string {
+    if (ex.studentAttempt) return 'priority-normal';
+    if (this.activeTab === 'new') return 'priority-new';
+    return 'priority-pending';
   }
 }

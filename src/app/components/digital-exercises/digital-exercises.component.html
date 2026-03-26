@@ -4,16 +4,21 @@
   <!-- Page Header -->
   <div class="page-header" *ngIf="!embedded">
     <div class="header-text">
-      <h1><span class="material-icons">edit_note</span> Digital Exercises</h1>
-      <p>Practice your {{ isTeacherOrAdmin ? 'students\'' : '' }} language skills with interactive exercises</p>
+      <h1>Digital Exercises</h1>
+      <p class="header-subtitle">Refine your linguistic precision through our curated set of grammar, vocabulary, and contextual comprehension modules.</p>
     </div>
-    <div class="header-actions" *ngIf="isTeacherOrAdmin">
-      <button class="btn-manage" (click)="navigateToAdmin()">
-        <span class="material-icons">settings</span> Manage
-      </button>
-      <button class="btn-create" (click)="navigateToCreate()">
-        <span class="material-icons">add</span> Create Exercise
-      </button>
+    <div class="header-right">
+      <div class="proficiency-badge" *ngIf="!isTeacherOrAdmin && exercises.length > 0">
+        {{ currentProficiency }}% CURRENT PROFICIENCY
+      </div>
+      <div class="header-actions" *ngIf="isTeacherOrAdmin">
+        <button class="btn-manage" (click)="navigateToAdmin()">
+          <span class="material-icons">settings</span> Manage
+        </button>
+        <button class="btn-create" (click)="navigateToCreate()">
+          <span class="material-icons">add</span> Create Exercise
+        </button>
+      </div>
     </div>
   </div>
 
@@ -24,7 +29,7 @@
       <input
         type="text"
         class="search-input"
-        placeholder="Search exercises..."
+        placeholder="Search exercises by title or topic..."
         [(ngModel)]="searchQuery"
         (input)="onSearchChange()"
       />
@@ -55,77 +60,66 @@
     </div>
   </div>
 
-  <!-- Results Count -->
-  <div class="results-info" *ngIf="!loading && totalExercises > 0">
-    <span>{{ totalExercises }} exercise{{ totalExercises !== 1 ? 's' : '' }} found</span>
+  <!-- Tabs -->
+  <div class="tabs-bar" *ngIf="!loading && exercises.length > 0">
+    <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
+    <button class="tab-btn" [class.active]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
+    <button class="tab-btn" [class.active]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
   </div>
 
   <!-- Loading -->
   <div class="loading-state" *ngIf="loading">
-    <div class="ex-table-wrap ex-table-wrap--loading">
-      <div class="ex-skel-row" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></div>
+    <div class="loading-cards">
+      <div class="skeleton-card" *ngFor="let _ of [1,2,3,4,5]"></div>
     </div>
   </div>
 
-  <!-- Exercises table -->
-  <div class="ex-table-wrap" *ngIf="!loading && exercises.length > 0">
-    <table class="ex-table">
-      <thead>
-        <tr>
-          <th class="ex-th ex-th--level">Level</th>
-          <th class="ex-th ex-th--cat">Category</th>
-          <th class="ex-th ex-th--day">Day</th>
-          <th class="ex-th ex-th--title">Exercise</th>
-          <th class="ex-th ex-th--types">Types</th>
-          <th class="ex-th ex-th--meta">Details</th>
-          <th class="ex-th ex-th--result">Result</th>
-          <th class="ex-th ex-th--action">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr class="ex-tr" *ngFor="let ex of exercises">
-          <td class="ex-td ex-td--level">
-            <span class="ex-level-pill" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
-          </td>
-          <td class="ex-td ex-td--cat">{{ ex.category }}</td>
-          <td class="ex-td ex-td--day">
-            <span class="ex-day-pill" *ngIf="ex.courseDay != null">D{{ ex.courseDay }}</span>
-            <span class="ex-day-pill ex-day-pill--open" *ngIf="ex.courseDay == null">Open</span>
-          </td>
-          <td class="ex-td ex-td--title">
-            <div class="ex-title-cell">{{ ex.title }}</div>
-            <div class="ex-desc-cell">{{ clipDescription(ex.description) }}</div>
-          </td>
-          <td class="ex-td ex-td--types">{{ typeSummaryShort(ex) }}</td>
-          <td class="ex-td ex-td--meta">{{ exerciseMetaLine(ex) }}</td>
-          <td class="ex-td ex-td--result">
-            <ng-container *ngIf="ex.studentAttempt as att">
-              <span class="ex-result-pill" [class.ex-result-pill--pass]="isAttemptPassing(att)" [class.ex-result-pill--warn]="!isAttemptPassing(att)">
-                {{ att.scorePercentage }}%
-              </span>
-              <span class="ex-result-label" [ngClass]="attemptStatusClass(att)">{{ attemptStatusLabel(att) }}</span>
-            </ng-container>
-            <span class="ex-result-new" *ngIf="!ex.studentAttempt">New</span>
-          </td>
-          <td class="ex-td ex-td--action">
-            <div class="ex-action-cell">
-              <button type="button" class="ex-btn-play" (click)="startExercise(ex)" [title]="tableActionLabel(ex)">
-                <span class="material-icons">play_arrow</span>
-                <span class="ex-btn-play__text">{{ tableActionLabel(ex) }}</span>
-              </button>
-              <span
-                *ngIf="isTeacherOrAdmin"
-                class="ex-vis ex-vis--table"
-                [class.ex-vis--on]="ex.visibleToStudents"
-                [attr.title]="ex.visibleToStudents ? 'Visible to students' : 'Hidden from students'"
-              >
-                <span class="material-icons">{{ ex.visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
-              </span>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <!-- Exercise List (Card-based rows) -->
+  <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0">
+    <div class="list-headers">
+      <span class="col-details">EXERCISE DETAILS</span>
+      <span class="col-level">LEVEL</span>
+      <span class="col-cat">CATEGORY</span>
+      <span class="col-vol">VOLUME</span>
+      <span class="col-dur">DURATION</span>
+      <span class="col-priority">STATUS</span>
+      <span class="col-action">ACTION</span>
+    </div>
+    <div class="exercise-row" *ngFor="let ex of paginatedExercises">
+      <div class="row-icon">
+        <span class="material-icons">{{ getCategoryIcon(ex.category) }}</span>
+      </div>
+      <div class="row-details">
+        <span class="ex-title">{{ ex.title }}</span>
+        <span class="ex-desc">{{ ex.description }}</span>
+      </div>
+      <div class="row-level">
+        <span class="level-badge" [style.background]="getLevelColor(ex.level)">LEVEL {{ ex.level }}</span>
+      </div>
+      <div class="row-category">{{ ex.category }}</div>
+      <div class="row-volume">
+        <span class="vol-num">{{ ex.questions?.length || 0 }}</span>
+        <span class="vol-label">ITEMS</span>
+      </div>
+      <div class="row-duration">
+        <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
+        <span class="dur-label">EST.</span>
+      </div>
+      <div class="row-priority">
+        <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+          <svg class="ring-svg" viewBox="0 0 36 36">
+            <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+          </svg>
+          <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+        </div>
+      </div>
+      <div class="row-action">
+        <button class="btn-start" (click)="startExercise(ex)">
+          {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Empty State -->
@@ -143,8 +137,16 @@
     <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Clear Filters</button>
   </div>
 
+  <!-- Empty tab state -->
+  <div class="empty-state" *ngIf="!loading && exercises.length > 0 && filteredExercises.length === 0">
+    <span class="material-icons empty-icon">inbox</span>
+    <h3>No {{ activeTab }} exercises</h3>
+    <p>Try another tab or adjust your filters</p>
+    <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Clear Filters</button>
+  </div>
+
   <!-- Pagination -->
-  <div class="pagination" *ngIf="totalPages > 1 && !loading">
+  <div class="pagination" *ngIf="totalPages > 1 && !loading && filteredExercises.length > 0">
     <button class="page-btn" [disabled]="currentPage === 1" (click)="changePage(currentPage - 1)">
       <span class="material-icons">chevron_left</span>
     </button>

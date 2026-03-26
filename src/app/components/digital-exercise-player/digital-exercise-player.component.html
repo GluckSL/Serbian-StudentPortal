@@ -45,6 +45,24 @@
               {{ result.passed ? 'Passed' : 'Not passed' }}
             </span>
           </div>
+          <div class="result-mini-stats">
+            <div class="mini-stat">
+              <span class="mini-stat-label">Attempted</span>
+              <span class="mini-stat-value">{{ answeredCount }}</span>
+            </div>
+            <div class="mini-stat">
+              <span class="mini-stat-label">Unanswered</span>
+              <span class="mini-stat-value">{{ unattemptedCount }}</span>
+            </div>
+            <div class="mini-stat good">
+              <span class="mini-stat-label">Correct</span>
+              <span class="mini-stat-value">{{ correctCount }}</span>
+            </div>
+            <div class="mini-stat bad">
+              <span class="mini-stat-label">Wrong</span>
+              <span class="mini-stat-value">{{ wrongCount }}</span>
+            </div>
+          </div>
           <p class="result-message-sm">{{ getScoreMessage(result.scorePercentage) }}</p>
           <div class="result-actions-new">
             <button class="btn-review" (click)="showReviewAnswers()">
@@ -170,15 +188,18 @@
 
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
   <div class="player-layout" *ngIf="state === 'playing'">
-    <div class="player-header assessment-header">
-      <div class="assessment-header-left">
-        <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
-          <span class="material-icons">close</span>
-        </button>
-        <div>
-          <div class="assessment-title">{{ exercise?.title }}</div>
-          <div class="assessment-sub">{{ answeredCount }}/{{ playerQuestions.length }} answered</div>
+
+    <!-- Player Header (compact) -->
+    <div class="player-header">
+      <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
+        <span class="material-icons">close</span>
+      </button>
+      <div class="header-center">
+        <div class="exercise-title-sm">{{ exercise?.title }}</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" [style.width]="getProgressPercentage() + '%'"></div>
         </div>
+        <div class="progress-text">{{ answeredCount }} / {{ playerQuestions.length }} attempted</div>
       </div>
       <div class="assessment-header-right">
         <div class="timer">
@@ -191,27 +212,63 @@
       </div>
     </div>
 
-    <div class="assessment-layout">
-      <div class="assessment-main">
-        <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
-          <div class="shared-audio-label">
-            <span class="material-icons">headphones</span>
-            Audio
-          </div>
-          <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
-        </div>
+    <!-- Shared audio for manual listening worksheets -->
+    <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
+      <div class="shared-audio-label">
+        <span class="material-icons">headphones</span>
+        Audio
+      </div>
+      <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
+    </div>
 
-        <div class="question-area" *ngIf="playerQuestions.length > 0">
+    <!-- Three-column layout: Left info | Middle answer | Right nav -->
+    <div class="player-three-col" *ngIf="playerQuestions.length > 0">
+      <!-- LEFT: Exercise info -->
+      <aside class="info-sidebar">
+        <div class="info-badges">
+          <span class="level-badge" [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')">{{ exercise?.level }}</span>
+          <span class="cat-badge">{{ exercise?.category }}</span>
+          <span class="diff-badge">{{ exercise?.difficulty }}</span>
+        </div>
+        <h2 class="info-title">{{ exercise?.title }}</h2>
+        <p class="info-desc">{{ exercise?.description }}</p>
+        <div class="info-summary">
+          <div class="info-stat">
+            <span class="material-icons">quiz</span>
+            <div><strong>{{ playerQuestions.length }}</strong> Questions</div>
+          </div>
+          <div class="info-stat">
+            <span class="material-icons">schedule</span>
+            <div><strong>~{{ exercise?.estimatedDuration || 15 }} min</strong> Estimated</div>
+          </div>
+          <div class="info-stat">
+            <span class="material-icons">stars</span>
+            <div><strong>{{ totalPoints }}</strong> Total Points</div>
+          </div>
+        </div>
+        <div class="info-specs">
+          <div class="spec-label">Question types</div>
+          <div class="spec-pills">
+            <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
+              <span class="material-icons">{{ qt.icon }}</span>
+              {{ qt.indices.join(', ') }}: {{ qt.label }}
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MIDDLE: Question + Answer area -->
+      <div class="question-area">
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
         <!-- Question Header -->
         <div class="q-header">
-          <span class="q-num">{{ currentIndex + 1 }} / {{ playerQuestions.length }}</span>
+          <span class="q-num">QUESTION {{ currentIndex + 1 }}</span>
           <span class="q-type-label" [class]="'label-' + currentQuestion.data.type">
             <span class="material-icons">{{ getTypeIcon(currentQuestion.data.type) }}</span>
             {{ getTypeLabel(currentQuestion.data.type) }}
           </span>
-          <span class="q-points">{{ currentQuestion.data.points || 1 }} pt</span>
+          <span class="q-points">{{ currentQuestion.data.points || 1 }} marks</span>
         </div>
 
         <!-- ── MCQ ── -->
@@ -225,20 +282,23 @@
               *ngFor="let opt of currentQuestion.data.options; let oi = index"
               class="mcq-option"
               [class.selected]="currentQuestion.selectedOption === oi"
-              [class.correct]="isSubmittedState && oi === currentQuestion.data.correctAnswerIndex"
-              [class.wrong]="isSubmittedState && currentQuestion.selectedOption === oi && oi !== currentQuestion.data.correctAnswerIndex"
-              [class.disabled]="isSubmittedState"
+              [class.correct]="hasCurrentSubmitted && oi === currentQuestion.data.correctAnswerIndex"
+              [class.wrong]="hasCurrentSubmitted && currentQuestion.selectedOption === oi && oi !== currentQuestion.data.correctAnswerIndex"
+              [class.disabled]="hasCurrentSubmitted"
               (click)="selectOption(currentQuestion, oi)"
             >
               <span class="opt-letter">{{ 'ABCD'[oi] }}</span>
               <span class="opt-text">{{ opt }}</span>
-              <span class="opt-icon" *ngIf="isSubmittedState">
+              <span class="opt-icon" *ngIf="hasCurrentSubmitted">
                 <span class="material-icons" *ngIf="oi === currentQuestion.data.correctAnswerIndex">check_circle</span>
                 <span class="material-icons" *ngIf="currentQuestion.selectedOption === oi && oi !== currentQuestion.data.correctAnswerIndex">cancel</span>
               </span>
             </button>
           </div>
-          <div class="q-explanation" *ngIf="isSubmittedState && currentQuestion.feedback">
+          <div class="q-feedback-incorrect" *ngIf="hasCurrentSubmitted && !currentQuestion.isCorrect">
+            Your submitted response was incorrect.
+          </div>
+          <div class="q-explanation" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span>
             {{ currentQuestion.feedback }}
           </div>
@@ -253,14 +313,11 @@
               <button
                 *ngFor="let item of currentQuestion.matchingLeft; let li = index"
                 class="match-item left-item"
+                [ngClass]="getLeftMatchClass(currentQuestion, li)"
                 [class.selected]="currentQuestion.selectedLeftIndex === li"
                 [class.matched]="item.matchedRightIndex !== null"
-                [class.correct]="
-                  item.matchedRightIndex !== null && isMatchCorrect(currentQuestion, li)
-                "
-                [class.wrong]="
-                  item.matchedRightIndex !== null && !isMatchCorrect(currentQuestion, li)
-                "
+                [class.correct]="hasCurrentSubmitted && isMatchCorrect(currentQuestion, li)"
+                [class.wrong]="hasCurrentSubmitted && !isMatchCorrect(currentQuestion, li)"
                 (click)="selectLeft(currentQuestion, li)"
               >
                 {{ item.value }}
@@ -282,6 +339,7 @@
               <button
                 *ngFor="let item of currentQuestion.matchingRight; let ri = index"
                 class="match-item right-item"
+                [ngClass]="getRightMatchClass(currentQuestion, ri)"
                 [class.available]="item.matchedLeftIndex === null && currentQuestion.selectedLeftIndex !== null"
                 [class.matched]="item.matchedLeftIndex !== null"
                 [class.disabled]="item.matchedLeftIndex !== null"
@@ -303,7 +361,7 @@
             <span class="material-icons">info</span>
             Now click the matching item on the right →
           </div>
-          <div class="matching-reset" *ngIf="!isSubmittedState">
+          <div class="matching-reset" *ngIf="!hasCurrentSubmitted">
             <button class="btn-text-sm" (click)="resetMatching(currentQuestion)">
               <span class="material-icons">refresh</span> Reset matches
             </button>
@@ -324,18 +382,19 @@
                   type="text"
                   class="blank-input"
                   [(ngModel)]="currentQuestion.fillAnswers![pi]"
+                  (ngModelChange)="markAttempted(currentQuestion)"
                   [placeholder]="'blank ' + (pi + 1)"
-                  [class.correct]="isSubmittedState && isFillCorrect(currentQuestion, pi)"
-                  [class.wrong]="isSubmittedState && !isFillCorrect(currentQuestion, pi)"
-                  [disabled]="isSubmittedState"
+                  [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
+                  [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
+                  [disabled]="hasCurrentSubmitted"
                 />
-                <span class="blank-correct-val" *ngIf="isSubmittedState && !isFillCorrect(currentQuestion, pi)">
+                <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)">
                   → {{ getCorrectFillAnswer(currentQuestion, pi) }}
                 </span>
               </span>
             </ng-container>
           </div>
-          <div class="fill-feedback" *ngIf="isSubmittedState && currentQuestion.feedback">
+          <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
           </div>
         </div>
@@ -359,14 +418,14 @@
               [class.recording]="currentQuestion.isRecording"
               [class.has-result]="currentQuestion.hasRecorded"
               (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : startRecording(currentQuestion)"
-              [disabled]="isSubmittedState"
+              [disabled]="hasCurrentSubmitted"
             >
               <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
               <span>{{ currentQuestion.isRecording ? 'Stop' : (currentQuestion.hasRecorded ? 'Re-record' : 'Speak') }}</span>
             </button>
           </div>
 
-          <div class="pronunciation-result" *ngIf="currentQuestion.hasRecorded || isSubmittedState">
+          <div class="pronunciation-result" *ngIf="currentQuestion.hasRecorded || hasCurrentSubmitted">
             <div class="spoken-text">
               <span class="material-icons">record_voice_over</span>
               You said: "<em>{{ currentQuestion.spokenText || '—' }}</em>"
@@ -398,14 +457,15 @@
               rows="4"
               placeholder="Type what you hear..."
               [(ngModel)]="currentQuestion.listeningText"
-              [disabled]="isSubmittedState"
+              (ngModelChange)="markAttempted(currentQuestion)"
+              [disabled]="hasCurrentSubmitted"
             ></textarea>
             <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
               <button
                 type="button"
                 class="btn-record"
                 [class.recording]="currentQuestion.isRecording"
-                [disabled]="isSubmittedState"
+                [disabled]="hasCurrentSubmitted"
                 (click)="currentQuestion.isRecording ? stopListeningSpeech(currentQuestion) : startListeningSpeech(currentQuestion)"
               >
                 <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
@@ -424,9 +484,10 @@
             rows="4"
             placeholder="Write your answer here..."
             [(ngModel)]="currentQuestion.qaResponse"
-            [disabled]="isSubmittedState"
+            (ngModelChange)="markAttempted(currentQuestion)"
+            [disabled]="hasCurrentSubmitted"
           ></textarea>
-          <div class="qa-hint" *ngIf="isSubmittedState && currentQuestion.data.sampleAnswers?.length">
+          <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
             <strong>Sample answers:</strong>
             <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
               {{ sa }}<span *ngIf="si < currentQuestion.data.sampleAnswers.length - 1">; </span>
@@ -435,7 +496,7 @@
         </div>
 
         <!-- Result Banner -->
-        <div class="result-banner" *ngIf="isSubmittedState && currentQuestion.isCorrect !== null">
+        <div class="result-banner" *ngIf="hasCurrentSubmitted && currentQuestion.isCorrect !== null">
           <div class="result-correct" *ngIf="currentQuestion.isCorrect">
             <span class="material-icons">check_circle</span> Correct! +{{ currentQuestion.data.points || 1 }} point{{ currentQuestion.data.points !== 1 ? 's' : '' }}
           </div>
@@ -444,91 +505,89 @@
           </div>
         </div>
 
-      </div>
-
-      <!-- Navigation Buttons -->
-      <div class="question-nav-btns assessment-nav-btns">
-        <button class="btn-nav prev" (click)="prevQuestion()" [disabled]="isFirstQuestion">
-          <span class="material-icons">arrow_back</span> Previous
-        </button>
-        <button class="btn-nav next" (click)="nextQuestion()" [disabled]="isLastQuestion">
-          Next <span class="material-icons">arrow_forward</span>
-        </button>
+        <!-- Navigation Buttons (inside card) -->
+        <div class="question-nav-btns">
+          <button class="btn-nav btn-prev" (click)="prevQuestion()" [disabled]="isFirstQuestion || finishingAll">
+            <span class="material-icons">arrow_back</span> Previous
+          </button>
+          <button class="btn-nav btn-next" *ngIf="!isLastQuestion" (click)="nextQuestion()" [disabled]="finishingAll">
+            Next <span class="material-icons">arrow_forward</span>
+          </button>
+          <button class="btn-submit btn-finish" *ngIf="isLastQuestion" (click)="openFinishSummary()" [disabled]="finishingAll">
+            <span class="material-icons">{{ finishingAll ? 'hourglass_empty' : 'flag' }}</span>
+            {{ finishingAll ? 'Finishing...' : 'Finish & Submit' }}
+          </button>
+        </div>
       </div>
     </div>
-    </div>
 
-      <aside class="assessment-sidebar">
-        <div class="sidebar-questions-card">
-          <div class="sidebar-questions-title">Question Overview</div>
-          <div class="sidebar-caption">Navigation Grid</div>
-          <div class="sidebar-question-grid">
-            <button
-              *ngFor="let pq of playerQuestions; let i = index"
-              class="q-square"
-              [ngClass]="'type-' + pq.data.type"
-              [class.current]="i === currentIndex"
-              [class.answered]="isQuestionAnswered(pq)"
-              [class.correct]="isSubmittedState && pq.isCorrect === true"
-              [class.wrong]="isSubmittedState && pq.isCorrect === false"
-              (click)="goToQuestion(i)"
-            >{{ i + 1 }}</button>
-          </div>
+      <!-- RIGHT: Question Navigator + Status -->
+      <aside class="question-sidebar">
+        <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
+        <div class="question-nav-grid">
+          <button
+            *ngFor="let pq of playerQuestions; let i = index"
+            class="q-dot"
+            [ngClass]="getQuestionTypeClass(pq)"
+            [class.current]="i === currentIndex"
+            [class.answered]="pq.isAnswered"
+            [class.correct]="pq.isCorrect === true"
+            [class.wrong]="pq.isCorrect === false"
+            (click)="goToQuestion(i)"
+            [title]="'Question ' + (i + 1) + ' - ' + getTypeLabel(pq.data.type)"
+          >{{ i + 1 }}</button>
         </div>
-
-        <div class="assessment-stats-card">
-          <div class="assessment-stat-row stat-total">
-            <span>Total Questions</span><strong>{{ playerQuestions.length }}</strong>
-          </div>
-          <div class="assessment-stat-row stat-attempted">
-            <span>Attempted</span><strong>{{ answeredCount }}</strong>
-          </div>
-          <div class="assessment-stat-row stat-unanswered">
-            <span>Unanswered</span><strong>{{ playerQuestions.length - answeredCount }}</strong>
-          </div>
-        </div>
-
-        <div class="assessment-types-card">
-          <div class="assessment-types-title">Question Types</div>
-          <div class="assessment-type-row" *ngFor="let qt of getQuestionTypes()" [ngClass]="'type-' + qt.type">
-            <div class="assessment-type-label">
-              <span class="material-icons">{{ qt.icon }}</span>
-              <span>{{ qt.label }}</span>
-            </div>
-            <span class="assessment-type-count">{{ qt.count }}</span>
-          </div>
+        <div class="status-legend">
+          <span class="status-item correct">
+            <span class="status-icon correct"></span>
+            {{ correctCount }} Correct
+          </span>
+          <span class="status-item wrong">
+            <span class="status-icon wrong"></span>
+            {{ wrongCount }} Wrong
+          </span>
+          <span class="status-item unanswered">
+            <span class="status-icon unanswered"></span>
+            {{ unattemptedCount }} Unanswered
+          </span>
         </div>
       </aside>
     </div>
-  </div>
 
-  <!-- ─── Submit confirmation modal (no browser confirm) ──────────────────── -->
-  <div class="submit-confirm-overlay" *ngIf="submitConfirmOpen">
-    <div class="submit-confirm-modal" role="dialog" aria-modal="true">
-      <div class="submit-confirm-head">
-        <span class="material-icons submit-confirm-icon">warning_amber</span>
-        <div>
-          <div class="submit-confirm-title">Unanswered questions</div>
-          <div class="submit-confirm-sub">
-            You have <strong>{{ submitUnansweredCount }}</strong> unanswered question(s). Submit anyway?
+    <!-- Finish Summary Modal -->
+    <div class="finish-summary-backdrop" *ngIf="showFinishSummary">
+      <div class="finish-summary-modal">
+        <h3>Finish Exercise?</h3>
+        <p>Review your attempt summary before final submit.</p>
+        <div class="finish-stats">
+          <div class="finish-stat">
+            <span class="finish-num">{{ playerQuestions.length }}</span>
+            <span class="finish-label">Total Questions</span>
+          </div>
+          <div class="finish-stat">
+            <span class="finish-num">{{ answeredCount }}</span>
+            <span class="finish-label">Attempted</span>
+          </div>
+          <div class="finish-stat warn">
+            <span class="finish-num">{{ unattemptedCount }}</span>
+            <span class="finish-label">Unanswered</span>
           </div>
         </div>
+        <div class="finish-actions">
+          <button class="btn-nav" (click)="cancelFinishSummary()">Continue Editing</button>
+          <button class="btn-submit btn-finish" (click)="confirmFinishSubmit()">Submit Final</button>
+        </div>
       </div>
+    </div>
 
-      <div class="submit-confirm-summary">
-        <div class="submit-confirm-row">
-          <span>Total</span>
-          <strong>{{ playerQuestions.length }}</strong>
-        </div>
-        <div class="submit-confirm-row">
-          <span>Attempted</span>
-          <strong>{{ answeredCount }}</strong>
-        </div>
-        <div class="submit-confirm-row">
-          <span>Unanswered</span>
-          <strong>{{ playerQuestions.length - answeredCount }}</strong>
-        </div>
+    <!-- Blocking loader while final submit is in progress -->
+    <div class="submitting-overlay" *ngIf="finishingAll">
+      <div class="submitting-card">
+        <div class="submit-spinner"></div>
+        <h4>Submitting your answers...</h4>
+        <p>Please wait, do not close this page.</p>
       </div>
+    </div>
 
       <div class="submit-confirm-actions">
         <button class="btn-secondary submit-confirm-cancel" (click)="cancelSubmitAnyway()">

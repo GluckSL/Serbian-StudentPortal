@@ -157,9 +157,6 @@ app.use('/api/listening-media', listeningMediaRoutes);
 const listeningWorksheetRoutes = require('./routes/listeningWorksheetGenerator');
 app.use('/api/listening-worksheets', listeningWorksheetRoutes);
 
-const classRecordingRoutes = require('./routes/classRecordings');
-app.use('/api/class-recordings', classRecordingRoutes);
-
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
   try {

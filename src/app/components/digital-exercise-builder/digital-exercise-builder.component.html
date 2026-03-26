@@ -2,6 +2,22 @@
 <div class="builder-container">
   <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
 
+  <!-- AI Generator Banner (create mode only) -->
+  <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
+    <div class="ai-banner-left">
+      <div class="ai-banner-icon">
+        <span class="material-icons">auto_awesome</span>
+      </div>
+      <div>
+        <div class="ai-banner-title">Have a PDF? Generate exercises automatically with AI</div>
+        <div class="ai-banner-sub">Upload a lesson PDF and AI will create MCQ, Fill-in-blank, Matching &amp; Pronunciation questions in seconds</div>
+      </div>
+    </div>
+    <button class="ai-banner-btn" (click)="$event.stopPropagation(); navigateToAiGenerator()">
+      <span class="material-icons">upload_file</span> Upload PDF
+    </button>
+  </div>
+
   <!-- Header -->
   <div class="builder-header">
     <div class="header-left">

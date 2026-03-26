@@ -73,10 +73,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   currentStep: WizardStep = 1;
 
   // ── Step 1: Upload ──────────────────────────────────────────────────────────
+  inputMode: 'pdf' | 'text' = 'pdf';
   selectedFile: File | null = null;
   isDragging = false;
   uploading = false;
   uploadResult: any = null;
+
+  selectedText = '';
+  textInputResult: any = null;
 
   // ── Step 2: Configure ───────────────────────────────────────────────────────
   // typeCounts drives everything: selected = count > 0
@@ -208,6 +212,33 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.uploadResult = null;
   }
 
+  setInputMode(mode: 'pdf' | 'text'): void {
+    if (this.inputMode === mode) return;
+    this.inputMode = mode;
+
+    // Reset other mode state
+    this.selectedFile = null;
+    this.uploadResult = null;
+    this.isDragging = false;
+    this.uploading = false;
+
+    this.selectedText = '';
+    this.textInputResult = null;
+
+    if (this.fileInput?.nativeElement) this.fileInput.nativeElement.value = '';
+
+    // Worksheet-style documents are usually built from matching, fill-blank, and short answers.
+    if (mode === 'text') {
+      this.typeCounts = {
+        mcq: 0,
+        matching: 5,
+        'fill-blank': 5,
+        pronunciation: 0,
+        'question-answer': 5
+      };
+    }
+  }
+
   uploadPdf(): void {
     if (!this.selectedFile) return;
     this.uploading = true;
@@ -228,6 +259,21 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.selectedFile = null;
     this.uploadResult = null;
     if (this.fileInput) this.fileInput.nativeElement.value = '';
+  }
+
+  readTextForPreview(): void {
+    const cleaned = (this.selectedText || '').trim();
+    if (cleaned.length < 20) {
+      this.showError('Please paste at least a few lines of text.');
+      return;
+    }
+    this.textInputResult = {
+      success: true,
+      totalChars: cleaned.length,
+      previewText: cleaned.substring(0, 2000),
+      hasContent: cleaned.length > 50,
+      filename: 'Pasted text'
+    };
   }
 
   formatFileSize(bytes: number): string {
@@ -289,16 +335,27 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.currentProgressMsg = PROGRESS_MESSAGES[0];
     this.startProgressSimulation();
 
-    this.exerciseService.generateFromPdf({
-      uploadId: this.uploadResult.uploadId,
+    const payloadBase = {
       types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
-      typeCounts: { ...this.typeCounts },
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
       level: this.level,
       difficulty: this.difficulty,
       maxQuestions: this.maxQuestions
-    }).subscribe({
+    };
+
+    const gen$ = this.inputMode === 'pdf'
+      ? this.exerciseService.generateFromPdf({
+        uploadId: this.uploadResult.uploadId,
+        ...payloadBase,
+        typeCounts: { ...this.typeCounts }
+      })
+      : this.exerciseService.generateFromText({
+        text: (this.selectedText || '').trim(),
+        ...payloadBase
+      });
+
+    gen$.subscribe({
       next: (res) => {
         this.clearProgressTimer();
         this.progressPercent = 100;
@@ -561,7 +618,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   canProceedFrom(step: WizardStep): boolean {
-    if (step === 1) return !!this.uploadResult?.success;
+    if (step === 1) {
+      if (this.inputMode === 'pdf') return !!this.uploadResult?.success;
+      return !!this.textInputResult?.success;
+    }
     if (step === 2) return this.selectedTypes.length > 0 && this.maxQuestions > 0;
     return true;
   }

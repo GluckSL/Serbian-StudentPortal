@@ -194,59 +194,6 @@ import { MaterialModule } from '../../../shared/material.module';
     </div>
   </div>
 
-  <!-- Completions Panel -->
-  <div class="completions-panel" *ngIf="selectedExercise">
-    <div class="panel-header">
-      <h2><span class="material-icons">bar_chart</span> Completions: {{ selectedExercise.title }}</h2>
-      <div class="panel-controls">
-        <input type="date" [(ngModel)]="selectedDate" (change)="loadCompletions()" class="date-input" />
-        <button class="btn-close" (click)="selectedExercise = null">
-          <span class="material-icons">close</span>
-        </button>
-      </div>
-    </div>
-    <div class="completions-loading" *ngIf="completionsLoading">
-      <div class="spinner small"></div> Loading completions...
-    </div>
-    <div class="completions-table-wrap" *ngIf="!completionsLoading">
-      <table class="completions-table" *ngIf="completions.length > 0">
-        <thead>
-          <tr>
-            <th>Student</th>
-            <th>Batch</th>
-            <th>Level</th>
-            <th>Score</th>
-            <th>Time</th>
-            <th>Attempt #</th>
-            <th>Completed At</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let c of completions">
-            <td>{{ c.studentId?.name || c.studentName || '—' }}</td>
-            <td>{{ c.studentId?.batch || c.studentBatch || '—' }}</td>
-            <td>
-              <span class="level-badge sm" [style.background]="getLevelColor(c.studentId?.level || '')">
-                {{ c.studentId?.level || '—' }}
-              </span>
-            </td>
-            <td>
-              <span class="score-badge sm" [class.good]="c.scorePercentage >= 70">
-                {{ c.scorePercentage }}%
-              </span>
-            </td>
-            <td>{{ formatTime(c.timeSpentSeconds) }}</td>
-            <td class="center">#{{ c.attemptNumber }}</td>
-            <td>{{ c.completedAt | date:'MMM d, y h:mm a' }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="no-completions" *ngIf="completions.length === 0">
-        <span class="material-icons">inbox</span>
-        <p>No completions {{ selectedDate ? 'on ' + selectedDate : 'yet' }}</p>
-      </div>
-    </div>
-  </div>
 </div>
   `,
   styles: [`
@@ -257,8 +204,14 @@ import { MaterialModule } from '../../../shared/material.module';
     }
 
     .dem-container {
-      padding: 14px;
-      min-height: calc(100vh - 80px);
+      padding: 24px 24px 48px;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: #f8f7ff;
+      min-height: 100vh;
+      box-sizing: border-box;
     }
 
     /* ── Header ── */
@@ -554,96 +507,7 @@ import { MaterialModule } from '../../../shared/material.module';
     .page-btn .material-icons { font-size: 16px; }
     .page-btn:hover:not(:disabled) { border-color: #005b96; color: #005b96; background: #f8fafc; }
     .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .page-info { font-size: 11px; color: #64748b; font-weight: 500; }
-
-    /* ── Completions Panel ── */
-    .completions-panel {
-      margin-top: 14px;
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
-      border: 1px solid #e8ecf4;
-      overflow: hidden;
-    }
-
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 14px;
-      background: #b3cde0;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .panel-header h2 {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 0;
-      font-size: 13px;
-      font-weight: 700;
-      color: #011f4b;
-    }
-
-    .panel-header h2 .material-icons { font-size: 16px; }
-    .panel-controls { display: flex; align-items: center; gap: 8px; }
-
-    .date-input {
-      padding: 5px 10px;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      font-size: 11px;
-      background: #fff;
-      font-family: inherit;
-    }
-
-    .date-input:focus { border-color: #005b96; outline: none; }
-
-    .btn-close {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 4px 8px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      transition: all 0.15s;
-    }
-
-    .btn-close .material-icons { font-size: 16px; }
-    .btn-close:hover { border-color: #e11d48; color: #e11d48; }
-
-    .completions-loading { padding: 20px; text-align: center; color: #64748b; font-size: 12px; }
-    .completions-table-wrap { padding: 0; }
-
-    .completions-table { width: 100%; border-collapse: collapse; }
-
-    .completions-table th {
-      background: #03396c;
-      color: #fff;
-      padding: 8px 10px;
-      text-align: left;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      border: none;
-    }
-
-    .completions-table td {
-      padding: 8px 10px;
-      border-bottom: 1px solid #f1f5f9;
-      font-size: 12px;
-    }
-
-    .completions-table tr:hover td { background: #f8fafc; }
-
-    .no-completions { padding: 30px; text-align: center; color: #94a3b8; }
-    .no-completions .material-icons { font-size: 32px; color: #cbd5e1; }
-    .no-completions p { margin: 6px 0 0; font-size: 11px; }
-
-    /* ── Responsive ── */
+    .page-info { font-size: 0.9rem; color: #6b7280; font-weight: 500; }
     @media (max-width: 768px) {
       .dem-header { flex-direction: column; align-items: stretch; }
       .header-actions { justify-content: flex-start; }
@@ -679,12 +543,6 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
-
-  // Completions panel
-  selectedExercise: DigitalExercise | null = null;
-  completions: any[] = [];
-  completionsLoading = false;
-  selectedDate = '';
 
   private searchTimer: any;
 
@@ -798,26 +656,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
   }
 
   viewCompletions(exercise: DigitalExercise): void {
-    this.selectedExercise = exercise;
-    this.selectedDate = new Date().toISOString().split('T')[0];
-    this.loadCompletions();
-  }
-
-  loadCompletions(): void {
-    if (!this.selectedExercise) return;
-    this.completionsLoading = true;
-    const filters: any = {};
-    if (this.selectedDate) filters.date = this.selectedDate;
-    this.exerciseService.getExerciseCompletions(this.selectedExercise._id!, filters).subscribe({
-      next: (res) => {
-        this.completions = res.attempts || [];
-        this.completionsLoading = false;
-      },
-      error: () => {
-        this.completionsLoading = false;
-        this.showError('Failed to load completions');
-      }
-    });
+    const id = exercise._id ?? (exercise as any).id;
+    if (id) this.router.navigate(['/admin/digital-exercises', id, 'completions']);
   }
 
   changePage(page: number): void {
