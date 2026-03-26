@@ -85,6 +85,80 @@ async function extractPdfText(filePath) {
   }
 }
 
+// ─── Question-type detector ───────────────────────────────────────────────────
+// Scans raw PDF text and returns estimated counts per exercise type.
+
+function detectQuestionTypes(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const counts = { mcq: 0, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
+
+  // Fill-in-the-blank: lines with ___
+  const fillBlankLines = lines.filter(l => /_{3,}/.test(l));
+  counts['fill-blank'] = Math.min(fillBlankLines.length, 50);
+
+  // MCQ: groups of option-style lines a)/b)/c)...
+  let mcqCount = 0;
+  let optionRunLen = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const isOption =
+      /^[a-dA-D][.)]\s+\S/.test(l) ||
+      /^\([a-dA-D]\)\s+\S/.test(l) ||
+      /^[a-dA-D]\s*[-–]\s+\S/.test(l);
+    if (isOption) {
+      optionRunLen++;
+      if (optionRunLen >= 3) {
+        mcqCount++;
+        optionRunLen = 0;
+        while (
+          i + 1 < lines.length &&
+          (/^[a-dA-D][.)]\s/.test(lines[i + 1]) || /^\([a-dA-D]\)\s/.test(lines[i + 1]))
+        ) i++;
+      }
+    } else {
+      optionRunLen = 0;
+    }
+  }
+  counts.mcq = Math.min(mcqCount, 50);
+
+  // Matching headings
+  const matchHeadingIdx = lines.findIndex(l =>
+    /\b(match|zuordnen|verbinde|ordne\s+zu|pair\s+up|connect)\b/i.test(l)
+  );
+  if (matchHeadingIdx !== -1) {
+    let numberedItems = 0;
+    for (let i = matchHeadingIdx + 1; i < Math.min(matchHeadingIdx + 31, lines.length); i++) {
+      if (/^\d+[.)]\s+\S/.test(lines[i])) numberedItems++;
+    }
+    counts.matching = Math.min(numberedItems || 1, 20);
+  }
+
+  // Pronunciation headings / phonetic markers
+  const phoneticLines = lines.filter(l => /\/[^/\n]{1,30}\//.test(l));
+  const pronunciationHeadings = lines.filter(l =>
+    /\b(pronunciation|aussprache|phonetic|speak\s+aloud|pronounce)\b/i.test(l)
+  );
+  if (phoneticLines.length > 0) {
+    counts.pronunciation = Math.min(phoneticLines.length, 30);
+  } else if (pronunciationHeadings.length > 0) {
+    counts.pronunciation = Math.min(pronunciationHeadings.length * 3, 20);
+  }
+
+  // Q&A: numbered questions ending in ? not followed by MCQ options
+  let qaCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\d+[.)]\s+.{5,}\?\s*$/.test(l)) {
+      const nextLine = lines[i + 1] || '';
+      const nextIsOption = /^[a-dA-D][.)]\s/.test(nextLine) || /^\([a-dA-D]\)/.test(nextLine);
+      if (!nextIsOption) qaCount++;
+    }
+  }
+  counts['question-answer'] = Math.min(qaCount, 30);
+
+  return counts;
+}
+
 // ─── AI generation prompt builder ────────────────────────────────────────────
 
 function buildGenerationPrompt(pdfText, options) {
@@ -217,6 +291,7 @@ router.post('/upload',
 
       // Return preview (first 2000 chars of text) and file reference
       const previewText = result.text.substring(0, 2000);
+      const detectedTypes = detectQuestionTypes(result.text);
 
       res.json({
         success: true,
@@ -225,7 +300,8 @@ router.post('/upload',
         pages: result.pages,
         totalChars: result.text.length,
         previewText,
-        hasContent: result.text.trim().length > 50
+        hasContent: result.text.trim().length > 50,
+        detectedTypes
       });
     } catch (err) {
       // Clean up on error

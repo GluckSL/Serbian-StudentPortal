@@ -1279,3 +1279,64 @@
 .meta-field--journey {
   min-width: 200px;
 }
+
+/* ── Detected-from-PDF banner ───────────────────────────────────────────────── */
+.detected-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #eff6ff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0 0 20px 0;
+}
+
+.detected-banner.detected-banner-default {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.detected-banner-icon {
+  color: #2563eb;
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.detected-banner-default .detected-banner-icon {
+  color: #64748b;
+}
+
+.detected-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #1e40af;
+}
+
+.detected-banner-default .detected-banner-text {
+  color: #475569;
+}
+
+.detected-banner-text strong {
+  font-weight: 700;
+}
+
+.detected-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  margin-left: 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+  vertical-align: middle;
+  line-height: 1.6;
+}
