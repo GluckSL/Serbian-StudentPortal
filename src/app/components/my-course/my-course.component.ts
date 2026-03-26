@@ -11,6 +11,8 @@ import { StudentMeetingsComponent } from '../meeting-link/student-meetings.compo
 import { StudentRecordingsComponent } from '../class-recordings/student-recordings/student-recordings.component';
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
 import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
+import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
+import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 
 type MyCourseTab = 'classes' | 'exercises' | 'modules';
 
@@ -39,6 +41,12 @@ export class MyCourseComponent implements OnInit {
   /** Next upcoming live class (not ended, not ongoing). */
   nextMeetingPreview: { topic: string; whenLabel: string } | null = null;
 
+  /** Quick access: newest unlocked + not-started exercise. */
+  nextNewDigitalExercise: DigitalExercise | null = null;
+
+  /** Quick access: newest accessible module not completed. */
+  nextNewAccessibleModule: LearningModule | null = null;
+
   private readonly motivateLines = [
     'You’re going strong — keep showing up!',
     'Small steps every day add up. Proud of you!',
@@ -54,7 +62,9 @@ export class MyCourseComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private authService: AuthService,
-    private zoomService: ZoomService
+    private zoomService: ZoomService,
+    private exerciseService: DigitalExerciseService,
+    private learningModulesService: LearningModulesService
   ) {}
 
   ngOnInit(): void {
@@ -76,6 +86,7 @@ export class MyCourseComponent implements OnInit {
       next: ({ journey, meetings }) => {
         this.journey = journey;
         this.applyMeetingsPreview(meetings);
+        this.loadQuickAccess();
         this.loading = false;
       },
       error: () => {
@@ -89,6 +100,67 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = t;
       }
     });
+  }
+
+  private loadQuickAccess(): void {
+    this.nextNewDigitalExercise = null;
+    this.nextNewAccessibleModule = null;
+
+    const courseDay = this.journeyCourseDay;
+    const levelRaw = this.profile?.currentLevel || this.profile?.currentLevelCode || this.profile?.level;
+    const studentLevel = typeof levelRaw === 'string' ? levelRaw.split(/\s+/)[0] : '';
+
+    this.exerciseService
+      .getExercises({ page: 1, limit: 24 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
+          const unlocked = items.filter((ex) => {
+            const noAttempt = !ex.studentAttempt;
+            if (!noAttempt) return false;
+            const exDay = ex.courseDay;
+            return exDay == null || exDay <= courseDay;
+          });
+          unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
+          this.nextNewDigitalExercise = unlocked[0] || null;
+        }
+      });
+
+    if (studentLevel) {
+      this.learningModulesService
+        .getAccessibleModules(studentLevel, { page: 1, limit: 8 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            const modules: LearningModule[] = Array.isArray(res?.modules) ? res.modules : [];
+            const candidates = modules.filter((m: any) => {
+              // Module is "new/available" if student hasn't completed it.
+              return !m.studentProgress || m.studentProgress.status !== 'completed';
+            });
+            candidates.sort((a: any, b: any) => this.getPublishedTs(b) - this.getPublishedTs(a));
+            this.nextNewAccessibleModule = candidates[0] || null;
+          },
+          error: () => {}
+        });
+    }
+  }
+
+  private getPublishedTs(item: any): number {
+    const raw = item?.publishedAt || item?.createdAt;
+    const t = raw ? new Date(raw).getTime() : NaN;
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  get updatesPrimaryTab(): MyCourseTab {
+    if (this.nextNewDigitalExercise || this.nextLockedDigitalExercise) return 'exercises';
+    if (this.nextNewAccessibleModule) return 'modules';
+    return 'exercises';
+  }
+
+  get updatesLinkText(): string {
+    if (this.updatesPrimaryTab === 'modules') return 'Go to modules';
+    return 'Go to exercises';
   }
 
   setTab(tab: MyCourseTab): void {

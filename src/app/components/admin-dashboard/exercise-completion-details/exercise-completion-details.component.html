@@ -1,0 +1,160 @@
+<!-- exercise-completion-details.component.html -->
+<div class="details-page">
+  <div class="details-header">
+    <button class="btn-back" (click)="backToList()">
+      <span class="material-icons">arrow_back</span> Back to Exercises
+    </button>
+    <h1 *ngIf="exercise">
+      <span class="material-icons">bar_chart</span>
+      {{ exercise.title }} — Completion Analytics
+    </h1>
+    <p *ngIf="exercise" class="header-meta">{{ exercise.level }} · {{ exercise.category }} · {{ exercise.questions?.length || 0 }} questions</p>
+  </div>
+
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading completion data...</p>
+  </div>
+
+  <div class="error-state" *ngIf="error && !loading">
+    <span class="material-icons">error_outline</span>
+    <p>{{ error }}</p>
+    <button class="btn-back" (click)="backToList()">Back to Exercises</button>
+  </div>
+
+  <div class="details-content" *ngIf="!loading && !error && exercise">
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+      <div class="summary-card">
+        <span class="card-value">{{ totalCompletions }}</span>
+        <span class="card-label">Total Completions</span>
+      </div>
+      <div class="summary-card">
+        <span class="card-value">{{ uniqueStudents }}</span>
+        <span class="card-label">Unique Students</span>
+      </div>
+      <div class="summary-card">
+        <span class="card-value">{{ avgScore }}%</span>
+        <span class="card-label">Average Score</span>
+      </div>
+    </div>
+
+    <!-- Student Details -->
+    <section class="section">
+      <h2><span class="material-icons">people</span> Students & Attempts</h2>
+      <p class="section-desc">Who took this exercise and how many times</p>
+      <div class="table-wrap" *ngIf="hasStudentSummaries">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Batch</th>
+              <th>Level</th>
+              <th>Attempts</th>
+              <th>Best Score</th>
+              <th>Last Attempt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of studentSummaries">
+              <td>
+                <span class="student-name">{{ s.name }}</span>
+                <span class="student-email" *ngIf="s.email">{{ s.email }}</span>
+              </td>
+              <td>{{ s.batch || '—' }}</td>
+              <td>
+                <span class="level-badge" *ngIf="s.level" [style.background]="getLevelColor(s.level)">{{ s.level }}</span>
+                <span *ngIf="!s.level">—</span>
+              </td>
+              <td><strong>{{ s.attempts }}</strong></td>
+              <td>
+                <span class="score-badge" [class.good]="s.bestScore >= 70" [class.poor]="s.bestScore < 50">
+                  {{ s.bestScore }}%
+                </span>
+              </td>
+              <td>{{ formatDate(s.lastAttemptAt) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="empty-msg" *ngIf="!hasStudentSummaries">
+        <span class="material-icons">inbox</span>
+        <p>No students have completed this exercise yet</p>
+      </div>
+    </section>
+
+    <!-- Question-Level Analytics -->
+    <section class="section" *ngIf="hasQuestionStats">
+      <h2><span class="material-icons">quiz</span> Question Difficulty — Where Students Struggle</h2>
+      <p class="section-desc">Questions sorted by failure rate (most failed first)</p>
+      <div class="table-wrap">
+        <table class="data-table question-stats-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Type</th>
+              <th>Question Preview</th>
+              <th>Attempts</th>
+              <th>Correct</th>
+              <th>Wrong</th>
+              <th>Failure Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let q of questionStats" [class.highlight-fail]="q.failureRate >= 50">
+              <td>{{ q.index }}</td>
+              <td><span class="type-tag">{{ getTypeLabel(q.type || '') }}</span></td>
+              <td class="prompt-cell">{{ q.prompt || '—' }}</td>
+              <td>{{ q.totalAttempts }}</td>
+              <td class="correct-cell">{{ q.correctCount }}</td>
+              <td class="wrong-cell">{{ q.wrongCount }}</td>
+              <td>
+                <span class="failure-badge" [ngClass]="getFailureClass(q.failureRate)">
+                  {{ q.failureRate }}%
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- All Attempts (detailed) -->
+    <section class="section">
+      <h2><span class="material-icons">history</span> All Attempts</h2>
+      <p class="section-desc">Complete attempt history</p>
+      <div class="table-wrap" *ngIf="hasAttempts">
+        <table class="data-table attempts-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Attempt #</th>
+              <th>Score</th>
+              <th>Points</th>
+              <th>Time</th>
+              <th>Completed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let a of attempts">
+              <td>{{ a.studentId?.name || a.studentName || '—' }}</td>
+              <td>#{{ a.attemptNumber }}</td>
+              <td>
+                <span class="score-badge" [class.good]="a.scorePercentage >= 70" [class.poor]="a.scorePercentage < 50">
+                  {{ a.scorePercentage }}%
+                </span>
+              </td>
+              <td>{{ a.earnedPoints || 0 }} / {{ a.totalPoints || 0 }}</td>
+              <td>{{ formatTime(a.timeSpentSeconds) }}</td>
+              <td>{{ formatDate(a.completedAt) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="empty-msg" *ngIf="!hasAttempts">
+        <span class="material-icons">inbox</span>
+        <p>No completion records yet</p>
+      </div>
+    </section>
+  </div>
+</div>

@@ -9,7 +9,7 @@ const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
 
-// ΓöÇΓöÇΓöÇ AI answer grader ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── AI answer grader ─────────────────────────────────────────────────────────
 // Returns { score: 0-100 } representing how correct the student's answer is.
 async function aiGradeAnswer(question, sampleAnswers, studentAnswer) {
   if (!studentAnswer || !studentAnswer.trim()) return { score: 0 };
@@ -27,9 +27,9 @@ async function aiGradeAnswer(question, sampleAnswers, studentAnswer) {
     : `Question: "${question}"\n\nJudge whether the student's answer correctly answers the question, even if it is a short or informal response.`;
 
   const systemPrompt = `You are a teacher grading a student's short answer.
-Focus ONLY on whether the student's answer conveys the correct meaning or key fact ΓÇö NOT on sentence completeness, grammar, or word count.
+Focus ONLY on whether the student's answer conveys the correct meaning or key fact — NOT on sentence completeness, grammar, or word count.
 A short answer like "jupiter" is fully correct if the question asks which planet is biggest and the accepted answer mentions jupiter.
-Score 0ΓÇô100:
+Score 0–100:
   100 = correct meaning/fact, even if brief
   70  = mostly correct, minor misunderstanding
   50  = partially correct
@@ -59,7 +59,7 @@ Reply with ONLY this JSON: {"score": <number 0-100>}`;
   }
 }
 
-// ΓöÇΓöÇΓöÇ HELPER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── HELPER ──────────────────────────────────────────────────────────────────
 
 function levenshteinSimilarity(a, b) {
   if (!a || !b) return 0;
@@ -121,9 +121,9 @@ function exerciseUnlockedForStudentDay(exercise, studentDay) {
   return n <= studentDay;
 }
 
-// ΓöÇΓöÇΓöÇ PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ───────────────────────────────────
 
-// GET /api/digital-exercises  ΓÇö Browse exercises
+// GET /api/digital-exercises  — Browse exercises
 router.get('/', verifyToken, async (req, res) => {
   try {
     const {
@@ -233,7 +233,7 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/digital-exercises/:id  ΓÇö Get full exercise (with answers for non-students, or for playing)
+// GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
 router.get('/:id', verifyToken, async (req, res) => {
   try {
     const exercise = await DigitalExercise.findOne({
@@ -301,9 +301,9 @@ router.get('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// ΓöÇΓöÇΓöÇ TEACHER/ADMIN MANAGEMENT ROUTES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── TEACHER/ADMIN MANAGEMENT ROUTES ─────────────────────────────────────────
 
-// GET /api/digital-exercises/admin/all  ΓÇö Admin list with full details
+// GET /api/digital-exercises/admin/all  — Admin list with full details
 router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { page = 1, limit = 20, status, level, category, search, courseDay } = req.query;
@@ -373,7 +373,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
   }
 });
 
-// POST /api/digital-exercises  ΓÇö Create exercise
+// POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exerciseData = {
@@ -389,7 +389,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
   }
 });
 
-// PATCH /api/digital-exercises/:id/visibility  ΓÇö Toggle student visibility (must be before PUT /:id)
+// PATCH /api/digital-exercises/:id/visibility  — Toggle student visibility (must be before PUT /:id)
 router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const visibleToStudents = req.body.visibleToStudents === true || String(req.body.visibleToStudents) === 'true';
@@ -414,7 +414,7 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
   }
 });
 
-// PATCH /api/digital-exercises/:id/toggle-active  ΓÇö Toggle active state (must be before PUT /:id)
+// PATCH /api/digital-exercises/:id/toggle-active  — Toggle active state (must be before PUT /:id)
 router.patch('/:id/toggle-active', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findById(req.params.id);
@@ -427,7 +427,7 @@ router.patch('/:id/toggle-active', verifyToken, checkRole(['ADMIN', 'TEACHER', '
   }
 });
 
-// PUT /api/digital-exercises/:id  ΓÇö Update exercise
+// PUT /api/digital-exercises/:id  — Update exercise
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findById(req.params.id);
@@ -451,7 +451,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
   }
 });
 
-// DELETE /api/digital-exercises/:id  ΓÇö Soft delete
+// DELETE /api/digital-exercises/:id  — Soft delete
 router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findByIdAndUpdate(
@@ -466,9 +466,9 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
   }
 });
 
-// ΓöÇΓöÇΓöÇ STUDENT ATTEMPT ROUTES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── STUDENT ATTEMPT ROUTES ───────────────────────────────────────────────────
 
-// POST /api/digital-exercises/:id/start  ΓÇö Start a new attempt (students + admin/teacher for testing)
+// POST /api/digital-exercises/:id/start  — Start a new attempt (students + admin/teacher for testing)
 router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
@@ -520,7 +520,7 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
   }
 });
 
-// POST /api/digital-exercises/:id/submit-question  ΓÇö Submit a single question (per-question feedback)
+// POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
 router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, questionIndex, response, timeSpentSeconds } = req.body;
@@ -683,7 +683,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
   }
 });
 
-// POST /api/digital-exercises/:id/submit  ΓÇö Final submit (all questions)
+// POST /api/digital-exercises/:id/submit  — Final submit (all questions)
 router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, responses, timeSpentSeconds } = req.body;
@@ -699,10 +699,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
     if (attempt.status === 'completed') return res.status(400).json({ error: 'Attempt already submitted' });
 
-    // ΓöÇΓöÇ Fire all AI grading calls in parallel first ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Fire all AI grading calls in parallel first ──────────────────────────
     // Pre-compute AI scores for every Q/A question simultaneously so we don't
     // block the loop waiting for each one sequentially.
-    const qaScoreMap = {}; // questionIndex ΓåÆ { score }
+    const qaScoreMap = {}; // questionIndex → { score }
     const qaPromises = exercise.questions.map((q, i) => {
       if (q.type !== 'question-answer') return Promise.resolve();
       const resp = (responses || []).find(r => r.questionIndex === i) || {};
@@ -713,7 +713,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     });
     await Promise.all(qaPromises);
 
-    // ΓöÇΓöÇ Grade each response (now synchronous ΓÇö AI results already in map) ΓöÇΓöÇΓöÇ
+    // ── Grade each response (now synchronous — AI results already in map) ───
     let earnedPoints = 0;
     const gradedResponses = [];
     const answerDetails = [];
@@ -847,7 +847,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
   }
 });
 
-// GET /api/digital-exercises/:id/my-attempts  ΓÇö Student: view own attempt history
+// GET /api/digital-exercises/:id/my-attempts  — Student: view own attempt history
 router.get('/:id/my-attempts', verifyToken, async (req, res) => {
   try {
     const attempts = await ExerciseAttempt.find({
@@ -860,9 +860,9 @@ router.get('/:id/my-attempts', verifyToken, async (req, res) => {
   }
 });
 
-// ΓöÇΓöÇΓöÇ TEACHER/ADMIN ANALYTICS ROUTES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── TEACHER/ADMIN ANALYTICS ROUTES ──────────────────────────────────────────
 
-// GET /api/digital-exercises/:id/completions  ΓÇö All completions for an exercise
+// GET /api/digital-exercises/:id/completions  — All completions for an exercise
 router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { date, studentId, page = 1, limit = 50 } = req.query;
@@ -890,7 +890,7 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
   }
 });
 
-// GET /api/digital-exercises/analytics/daily-overview  ΓÇö Daily completion overview for teachers
+// GET /api/digital-exercises/analytics/daily-overview  — Daily completion overview for teachers
 router.get('/analytics/daily-overview', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { date, exerciseId } = req.query;
@@ -948,7 +948,7 @@ router.get('/analytics/daily-overview', verifyToken, checkRole(['ADMIN', 'TEACHE
   }
 });
 
-// GET /api/digital-exercises/analytics/student/:studentId  ΓÇö All exercise completions for a student
+// GET /api/digital-exercises/analytics/student/:studentId  — All exercise completions for a student
 router.get('/analytics/student/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const attempts = await ExerciseAttempt.find({

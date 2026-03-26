@@ -131,15 +131,59 @@
         </div>
 
         <div
-          class="mc-update mc-update--empty"
-          *ngIf="!nextMeetingPreview && !nextLockedDigitalExercise"
+          class="mc-update"
+          *ngIf="nextNewDigitalExercise as ex"
+          role="button"
+          tabindex="0"
+          (click)="setTab('exercises')"
+          (keydown.enter)="setTab('exercises')"
         >
-          <span class="material-icons" aria-hidden="true">notifications_none</span>
-          <p>No new class or locked exercise alerts right now. Check <strong>Exercises</strong> anytime.</p>
+          <span class="mc-update__icon mc-update__icon--exercise" aria-hidden="true">
+            <span class="material-icons">quiz</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">New exercise available</p>
+            <p class="mc-update__text">
+              <strong>{{ ex.title }}</strong>
+              <span class="mc-update__when">is ready now</span>
+            </p>
+          </div>
         </div>
 
-        <button type="button" class="mc-side-card__link" (click)="setTab('exercises')">
-          Go to exercises
+        <div
+          class="mc-update"
+          *ngIf="nextNewAccessibleModule as mod"
+          role="button"
+          tabindex="0"
+          (click)="setTab('modules')"
+          (keydown.enter)="setTab('modules')"
+        >
+          <span class="mc-update__icon mc-update__icon--module" aria-hidden="true">
+            <span class="material-icons">school</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">New module available</p>
+            <p class="mc-update__text">
+              <strong>{{ mod.title }}</strong>
+              <span class="mc-update__when">{{ mod.level }} · {{ mod.category }}</span>
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="mc-update mc-update--empty"
+          *ngIf="!nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise && !nextNewAccessibleModule"
+        >
+          <span class="material-icons" aria-hidden="true">notifications_none</span>
+          <p>No new class, module, or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Modules</strong> anytime.</p>
+        </div>
+
+        <button
+          type="button"
+          class="mc-side-card__link"
+          (click)="setTab(updatesPrimaryTab)"
+        >
+          {{ updatesLinkText }}
           <span class="material-icons">arrow_forward</span>
         </button>
       </div>

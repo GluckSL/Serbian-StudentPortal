@@ -68,7 +68,7 @@ app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx
 
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.use(cors({
   origin: allowedOrigins,
@@ -148,6 +148,9 @@ app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 
+const invoiceManagementRoutes = require('./routes/invoiceManagement');
+app.use('/api/invoices', invoiceManagementRoutes);
+
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
 
@@ -156,9 +159,6 @@ app.use('/api/listening-media', listeningMediaRoutes);
 
 const listeningWorksheetRoutes = require('./routes/listeningWorksheetGenerator');
 app.use('/api/listening-worksheets', listeningWorksheetRoutes);
-
-const classRecordingRoutes = require('./routes/classRecordings');
-app.use('/api/class-recordings', classRecordingRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
