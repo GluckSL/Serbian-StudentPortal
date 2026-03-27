@@ -4,99 +4,141 @@
   <div class="ap-header">
     <div class="ap-header__left">
       <h2 class="ap-header__title">💳 Student Payments</h2>
-      <p class="ap-header__sub">{{ filteredCount }} of {{ summary.count }} students</p>
+      <p class="ap-header__sub">{{ filteredCount }} students</p>
     </div>
-    <button class="ap-btn ap-btn--outline" (click)="exportCSV()">📥 Export CSV</button>
+    <div class="ap-header__actions">
+      <input type="file" accept=".csv" #csvInput hidden (change)="onCsvUpload($event)">
+      <button class="ap-btn ap-btn--outline" (click)="downloadTemplate()">� CSV Template</button>
+      <button class="ap-btn ap-btn--outline" (click)="csvInput.click()" [disabled]="importing">{{ importing ? '⏳ Importing...' : '📤 Import CSV' }}</button>
+      <button class="ap-btn ap-btn--outline" (click)="exportCSV()">📥 Export CSV</button>
+    </div>
   </div>
 
-  <!-- Summary cards per currency -->
+  <!-- Import result -->
+  <div class="ap-import-result" *ngIf="importResult">
+    <span>{{ importResult }}</span>
+    <button class="ap-btn ap-btn--xs" (click)="importResult = ''">✕</button>
+  </div>
+
+  <!-- Grand Summary -->
+  <div class="ap-grand-summary">
+    <div class="ap-grand-summary__title">📊 Overall Summary</div>
+    <div class="ap-grand-summary__grid">
+      <div class="ap-grand-card" *ngFor="let gs of grandSummaryByCurrency">
+        <div class="ap-grand-card__currency">{{ gs.currency }} <span>({{ gs.students }} students)</span></div>
+        <div class="ap-grand-card__row">
+          <div class="ap-grand-card__item"><div class="ap-grand-card__label">Total Quoted</div><div class="ap-grand-card__val">{{ formatCurrency(gs.totalQuoted, gs.currency) }}</div></div>
+          <div class="ap-grand-card__item ap-grand-card__item--received"><div class="ap-grand-card__label">Total Received</div><div class="ap-grand-card__val">{{ formatCurrency(gs.totalReceived, gs.currency) }}</div></div>
+          <div class="ap-grand-card__item ap-grand-card__item--pending"><div class="ap-grand-card__label">Total Pending</div><div class="ap-grand-card__val">{{ formatCurrency(gs.totalPending, gs.currency) }}</div></div>
+        </div>
+        <div class="ap-grand-card__bar"><div class="ap-grand-card__bar-fill" [style.width.%]="gs.totalQuoted ? (gs.totalReceived / gs.totalQuoted * 100) : 0"></div></div>
+        <div class="ap-grand-card__pct">{{ gs.totalQuoted ? (gs.totalReceived / gs.totalQuoted * 100 | number:'1.0-0') : 0 }}% collected</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="ap-tabs">
+    <button class="ap-tab" [class.ap-tab--active]="activeTab === 'language'" (click)="switchTab('language')">📚 Language</button>
+    <button class="ap-tab" [class.ap-tab--active]="activeTab === 'documentation'" (click)="switchTab('documentation')">📄 Documentation</button>
+    <button class="ap-tab" [class.ap-tab--active]="activeTab === 'visa'" (click)="switchTab('visa')">✈️ Visa</button>
+    <button class="ap-tab" [class.ap-tab--active]="activeTab === 'relocation'" (click)="switchTab('relocation')">🏠 Relocation</button>
+  </div>
+
+  <!-- Tab Summary -->
   <div class="ap-currency-summaries">
-    <div class="ap-currency-group" *ngFor="let cs of filteredSummaryByCurrency">
+    <div class="ap-currency-group" *ngFor="let cs of tabSummaryByCurrency">
       <div class="ap-currency-group__label">{{ cs.currency }} ({{ cs.count }} students)</div>
       <div class="ap-summary">
-        <div class="ap-summary__card ap-summary__card--total">
-          <div class="ap-summary__label">Total Package</div>
-          <div class="ap-summary__val">{{ formatCurrency(cs.totalPackage, cs.currency) }}</div>
-        </div>
-        <div class="ap-summary__card ap-summary__card--paid">
-          <div class="ap-summary__label">Total Received</div>
-          <div class="ap-summary__val">{{ formatCurrency(cs.totalPaid, cs.currency) }}</div>
-        </div>
-        <div class="ap-summary__card ap-summary__card--pending">
-          <div class="ap-summary__label">Total Pending</div>
-          <div class="ap-summary__val">{{ formatCurrency(cs.totalPending, cs.currency) }}</div>
-        </div>
+        <div class="ap-summary__card ap-summary__card--total"><div class="ap-summary__label">Total Quoted</div><div class="ap-summary__val">{{ formatCurrency(cs.totalQuoted, cs.currency) }}</div></div>
+        <div class="ap-summary__card ap-summary__card--paid"><div class="ap-summary__label">Total Received</div><div class="ap-summary__val">{{ formatCurrency(cs.totalPaid, cs.currency) }}</div></div>
+        <div class="ap-summary__card ap-summary__card--pending"><div class="ap-summary__label">Total Pending</div><div class="ap-summary__val">{{ formatCurrency(cs.totalPending, cs.currency) }}</div></div>
       </div>
     </div>
   </div>
 
   <!-- Filters -->
   <div class="ap-filters">
-    <input class="ap-input" type="text" placeholder="Search name, email, reg no..."
-           [(ngModel)]="searchTerm" (input)="applyFilters()">
-    <select class="ap-select" [(ngModel)]="filterStatus" (change)="applyFilters()">
-      <option value="">All Status</option>
-      <option value="pending">Has Balance</option>
-      <option value="paid">Fully Paid</option>
-    </select>
-    <select class="ap-select" [(ngModel)]="filterService" (change)="applyFilters()">
-      <option value="">All Services</option>
-      <option *ngFor="let s of services" [value]="s">{{ s }}</option>
-    </select>
-    <select class="ap-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
-      <option value="">All Batches</option>
-      <option *ngFor="let b of batches" [value]="b">Batch {{ b }}</option>
-    </select>
-    <select class="ap-select" [(ngModel)]="filterCurrency" (change)="applyFilters()">
-      <option value="">All Currencies</option>
-      <option *ngFor="let c of currencies" [value]="c">{{ c }}</option>
-    </select>
+    <input class="ap-input" type="text" placeholder="Search name, email, reg no..." [(ngModel)]="searchTerm" (input)="applyFilters()">
+    <select class="ap-select" [(ngModel)]="filterService" (change)="applyFilters()"><option value="">All Services</option><option *ngFor="let s of services" [value]="s">{{ s }}</option></select>
+    <select class="ap-select" [(ngModel)]="filterBatch" (change)="applyFilters()"><option value="">All Batches</option><option *ngFor="let b of batches" [value]="b">Batch {{ b }}</option></select>
+    <select class="ap-select" [(ngModel)]="filterCurrency" (change)="applyFilters()"><option value="">All Currencies</option><option *ngFor="let c of currencies" [value]="c">{{ c }}</option></select>
     <button class="ap-btn ap-btn--sm" (click)="clearFilters()">Clear</button>
   </div>
 
-  <!-- Payments table -->
-  <div class="ap-table-wrap">
+  <!-- LANGUAGE TAB -->
+  <div class="ap-table-wrap" *ngIf="activeTab === 'language'">
     <table class="ap-table">
-      <thead>
-        <tr>
-          <th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th>
-          <th>Email</th>
-          <th>Batch</th>
-          <th>Service</th>
-          <th class="ap-th--sortable ap-th--right" (click)="sort('totalPackageAmount')">Total {{ sortIcon('totalPackageAmount') }}</th>
-          <th class="ap-th--sortable ap-th--right" (click)="sort('totalPaid')">Paid {{ sortIcon('totalPaid') }}</th>
-          <th class="ap-th--sortable ap-th--right" (click)="sort('pendingPayment')">Balance {{ sortIcon('pendingPayment') }}</th>
-          <th>Progress</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        <th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th>
+        <th>Email</th><th>Batch</th><th>Service</th>
+        <th class="ap-th--right">Invoiced</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th>
+        <th>Progress</th><th>Actions</th>
+      </tr></thead>
       <tbody>
-        <tr *ngFor="let p of filtered" [class.ap-row--overdue]="p.pendingPayment > 0">
-          <td class="ap-name">
-            <span>{{ p.studentName }}</span>
-            <span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span>
-          </td>
-          <td class="ap-email">{{ p.email }}</td>
-          <td>{{ p.batch || '—' }}</td>
-          <td>{{ p.service || '—' }}</td>
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="p.pendingPayment > 0">
+          <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
+          <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
           <td class="ap-right">{{ formatCurrency(p.totalPackageAmount, p.currency) }}</td>
           <td class="ap-right ap-paid">{{ formatCurrency(p.totalPaid, p.currency) }}</td>
-          <td class="ap-right" [class.ap-balance-red]="p.pendingPayment > 0" [class.ap-balance-green]="p.pendingPayment <= 0">
-            {{ formatCurrency(p.pendingPayment, p.currency) }}
-          </td>
-          <td>
-            <div class="ap-bar">
-              <div class="ap-bar__fill" [style.width.%]="p.totalPackageAmount ? (p.totalPaid / p.totalPackageAmount * 100) : 0"></div>
-            </div>
-          </td>
-          <td>
-            <button class="ap-btn ap-btn--xs" (click)="openHistory(p)">📋 History</button>
-            <button class="ap-btn ap-btn--xs" (click)="openRecordPayment(p)">+ Payment</button>
-          </td>
+          <td class="ap-right" [style.color]="p.pendingPayment > 0 ? '#e11d48' : '#28a745'" [style.font-weight]="'700'">{{ formatCurrency(p.pendingPayment, p.currency) }}</td>
+          <td><div class="ap-bar"><div class="ap-bar__fill" [style.width.%]="p.totalPackageAmount ? (p.totalPaid / p.totalPackageAmount * 100) : 0"></div></div></td>
+          <td><button class="ap-btn ap-btn--xs" (click)="openHistory(p)">📋</button> <button class="ap-btn ap-btn--xs" (click)="openRecordPayment(p)">+</button></td>
         </tr>
-        <tr *ngIf="!filtered.length">
-          <td colspan="9" class="ap-empty">No payment records found</td>
+        <tr *ngIf="!tabFiltered.length"><td colspan="9" class="ap-empty">No language payment records found</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- DOCUMENTATION TAB -->
+  <div class="ap-table-wrap" *ngIf="activeTab === 'documentation'">
+    <table class="ap-table">
+      <thead><tr><th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th><th>Email</th><th>Batch</th><th>Service</th><th class="ap-th--right">Quoted</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th><th>Progress</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.docQuoted || 0) - (p.docPaid || 0) > 0">
+          <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
+          <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
+          <td class="ap-right">{{ formatCurrency(p.docQuoted, p.currency) }}</td>
+          <td class="ap-right ap-paid">{{ formatCurrency(p.docPaid || 0, p.currency) }}</td>
+          <td class="ap-right" [style.color]="(p.docQuoted || 0) - (p.docPaid || 0) > 0 ? '#e11d48' : '#28a745'" [style.font-weight]="'700'">{{ formatCurrency((p.docQuoted || 0) - (p.docPaid || 0), p.currency) }}</td>
+          <td><div class="ap-bar"><div class="ap-bar__fill" [style.width.%]="p.docQuoted ? ((p.docPaid || 0) / p.docQuoted * 100) : 0"></div></div></td>
         </tr>
+        <tr *ngIf="!tabFiltered.length"><td colspan="8" class="ap-empty">No documentation payment records found</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- VISA TAB -->
+  <div class="ap-table-wrap" *ngIf="activeTab === 'visa'">
+    <table class="ap-table">
+      <thead><tr><th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th><th>Email</th><th>Batch</th><th>Service</th><th class="ap-th--right">Quoted</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th><th>Progress</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.visaQuoted || 0) - (p.visaPaid || 0) > 0">
+          <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
+          <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
+          <td class="ap-right">{{ formatCurrency(p.visaQuoted, p.currency) }}</td>
+          <td class="ap-right ap-paid">{{ formatCurrency(p.visaPaid || 0, p.currency) }}</td>
+          <td class="ap-right" [style.color]="(p.visaQuoted || 0) - (p.visaPaid || 0) > 0 ? '#e11d48' : '#28a745'" [style.font-weight]="'700'">{{ formatCurrency((p.visaQuoted || 0) - (p.visaPaid || 0), p.currency) }}</td>
+          <td><div class="ap-bar"><div class="ap-bar__fill" [style.width.%]="p.visaQuoted ? ((p.visaPaid || 0) / p.visaQuoted * 100) : 0"></div></div></td>
+        </tr>
+        <tr *ngIf="!tabFiltered.length"><td colspan="8" class="ap-empty">No visa payment records found</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- RELOCATION TAB -->
+  <div class="ap-table-wrap" *ngIf="activeTab === 'relocation'">
+    <table class="ap-table">
+      <thead><tr><th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th><th>Email</th><th>Batch</th><th>Service</th><th class="ap-th--right">Quoted</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.reloQuoted || 0) - (p.reloPaid || 0) > 0">
+          <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
+          <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
+          <td class="ap-right">{{ p.reloQuoted != null ? formatCurrency(p.reloQuoted, p.currency) : '—' }}</td>
+          <td class="ap-right ap-paid">{{ p.reloPaid != null ? formatCurrency(p.reloPaid, p.currency) : '—' }}</td>
+          <td class="ap-right" [style.color]="p.reloQuoted != null ? ((p.reloQuoted - (p.reloPaid || 0)) > 0 ? '#e11d48' : '#28a745') : ''" [style.font-weight]="'700'">{{ p.reloQuoted != null ? formatCurrency(p.reloQuoted - (p.reloPaid || 0), p.currency) : '—' }}</td>
+        </tr>
+        <tr *ngIf="!tabFiltered.length"><td colspan="7" class="ap-empty">No relocation payment records found</td></tr>
       </tbody>
     </table>
   </div>
@@ -104,106 +146,46 @@
   <!-- Record Payment Modal -->
   <div class="ap-modal-overlay" *ngIf="showPaymentModal" (click)="closeModal()">
     <div class="ap-modal" (click)="$event.stopPropagation()">
-      <div class="ap-modal__head">
-        <h3>Record Payment</h3>
-        <button class="ap-modal__close" (click)="closeModal()">✕</button>
-      </div>
+      <div class="ap-modal__head"><h3>Record Payment</h3><button class="ap-modal__close" (click)="closeModal()">✕</button></div>
       <div class="ap-modal__body" *ngIf="selectedPayment">
-        <div class="ap-modal__info">
-          <span>{{ selectedPayment.studentName }}</span>
-          <span class="ap-modal__email">{{ selectedPayment.email }}</span>
-        </div>
+        <div class="ap-modal__info"><span>{{ selectedPayment.studentName }}</span><span class="ap-modal__email">{{ selectedPayment.email }}</span></div>
         <div class="ap-modal__summary">
           <div>Total: {{ formatCurrency(selectedPayment.totalPackageAmount, selectedPayment.currency) }}</div>
           <div>Paid: {{ formatCurrency(selectedPayment.totalPaid, selectedPayment.currency) }}</div>
           <div>Balance: {{ formatCurrency(selectedPayment.pendingPayment, selectedPayment.currency) }}</div>
         </div>
-        <div class="ap-modal__field">
-          <label>Amount ({{ selectedPayment.currency }})</label>
-          <input type="number" class="ap-input" [(ngModel)]="newPayment.amount" min="1" placeholder="Enter amount">
-        </div>
-        <div class="ap-modal__field">
-          <label>Payment Method</label>
-          <select class="ap-select" [(ngModel)]="newPayment.method">
-            <option value="">Select method</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-            <option value="Cash">Cash</option>
-            <option value="Card">Card</option>
-            <option value="Online">Online</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="ap-modal__field">
-          <label>Note</label>
-          <input type="text" class="ap-input" [(ngModel)]="newPayment.note" placeholder="Optional note">
-        </div>
+        <div class="ap-modal__field"><label>Amount ({{ selectedPayment.currency }})</label><input type="number" class="ap-input" [(ngModel)]="newPayment.amount" min="1" placeholder="Enter amount"></div>
+        <div class="ap-modal__field"><label>Payment Method</label><select class="ap-select" [(ngModel)]="newPayment.method"><option value="">Select method</option><option value="Bank Transfer">Bank Transfer</option><option value="Cash">Cash</option><option value="Card">Card</option><option value="Online">Online</option><option value="Other">Other</option></select></div>
+        <div class="ap-modal__field"><label>Note</label><input type="text" class="ap-input" [(ngModel)]="newPayment.note" placeholder="Optional note"></div>
       </div>
-      <div class="ap-modal__foot">
-        <button class="ap-btn ap-btn--outline" (click)="closeModal()">Cancel</button>
-        <button class="ap-btn ap-btn--primary" (click)="submitPayment()" [disabled]="saving || !newPayment.amount">
-          {{ saving ? 'Saving...' : 'Record Payment' }}
-        </button>
-      </div>
+      <div class="ap-modal__foot"><button class="ap-btn ap-btn--outline" (click)="closeModal()">Cancel</button><button class="ap-btn ap-btn--primary" (click)="submitPayment()" [disabled]="saving || !newPayment.amount">{{ saving ? 'Saving...' : 'Record Payment' }}</button></div>
     </div>
   </div>
 
   <!-- Payment History Modal -->
   <div class="ap-modal-overlay" *ngIf="showHistoryModal" (click)="closeHistory()">
     <div class="ap-modal ap-modal--wide" (click)="$event.stopPropagation()">
-      <div class="ap-modal__head">
-        <h3>Payment History</h3>
-        <button class="ap-modal__close" (click)="closeHistory()">✕</button>
-      </div>
+      <div class="ap-modal__head"><h3>Payment History</h3><button class="ap-modal__close" (click)="closeHistory()">✕</button></div>
       <div class="ap-modal__body" *ngIf="historyPayment">
-        <div class="ap-modal__info">
-          <span>{{ historyPayment.studentName }}</span>
-          <span class="ap-modal__email">{{ historyPayment.email }}</span>
-        </div>
+        <div class="ap-modal__info"><span>{{ historyPayment.studentName }}</span><span class="ap-modal__email">{{ historyPayment.email }}</span></div>
         <div class="ap-modal__summary">
           <div>Total: {{ formatCurrency(historyPayment.totalPackageAmount, historyPayment.currency) }}</div>
           <div>Paid: {{ formatCurrency(historyPayment.totalPaid, historyPayment.currency) }}</div>
           <div>Balance: {{ formatCurrency(historyPayment.pendingPayment, historyPayment.currency) }}</div>
         </div>
         <div class="ap-history-table-wrap" *ngIf="historyPayment.payments?.length; else noHistory">
-          <table class="ap-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th class="ap-th--right">Amount</th>
-                <th>Method</th>
-                <th>Note</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let h of historyPayment.payments">
-                <td>{{ h.date | date:'dd MMM yyyy' }}</td>
-                <td class="ap-right ap-paid">{{ formatCurrency(h.amount, historyPayment.currency) }}</td>
-                <td>{{ h.method || '—' }}</td>
-                <td>{{ h.note || '—' }}</td>
-                <td>
-                  <span class="ap-source-badge" [class.ap-source-badge--invoice]="h.source === 'invoice'">
-                    {{ h.source === 'invoice' ? '🧾 Invoice' : '✍️ Manual' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
+          <table class="ap-table"><thead><tr><th>Date</th><th class="ap-th--right">Amount</th><th>Method</th><th>Note</th><th>Source</th></tr></thead>
+            <tbody><tr *ngFor="let h of historyPayment.payments"><td>{{ h.date | date:'dd MMM yyyy' }}</td><td class="ap-right ap-paid">{{ formatCurrency(h.amount, historyPayment.currency) }}</td><td>{{ h.method || '—' }}</td><td>{{ h.note || '—' }}</td><td><span class="ap-source-badge" [class.ap-source-badge--invoice]="h.source === 'invoice'">{{ h.source === 'invoice' ? '🧾 Invoice' : '✍️ Manual' }}</span></td></tr></tbody>
           </table>
         </div>
-        <ng-template #noHistory>
-          <p class="ap-empty">No payment history recorded yet.</p>
-        </ng-template>
+        <ng-template #noHistory><p class="ap-empty">No payment history recorded yet.</p></ng-template>
       </div>
     </div>
   </div>
-
 </div>
 
 <ng-template #loadingTpl>
   <div class="ap" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
-    <div style="text-align:center;">
-      <div class="ap-spinner"></div>
-      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading payments...</p>
-    </div>
+    <div style="text-align:center;"><div class="ap-spinner"></div><p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading payments...</p></div>
   </div>
 </ng-template>

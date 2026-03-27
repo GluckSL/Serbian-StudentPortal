@@ -3,6 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import * as Papa from 'papaparse';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -425,6 +426,16 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                   <div class="col-12">
                     <h5 class="border-bottom pb-2">💬 Conversation Flow (Optional)</h5>
                     <p class="text-muted">Define the expected flow of the conversation</p>
+                    <div class="mb-2 d-flex gap-2">
+                      <input type="file" accept=".csv" #flowCsvInput hidden (change)="onConversationFlowCsvUpload($event)">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="flowCsvInput.click()">
+                        <i class="fas fa-file-csv me-1"></i> Import from CSV
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadConversationFlowTemplate()">
+                        <i class="fas fa-download me-1"></i> CSV Template
+                      </button>
+                      <small class="text-muted align-self-center">Format: stage, aiPrompts, expectedResponses, helpfulPhrases (semicolon-separated within columns)</small>
+                    </div>
                   </div>
                   
                   <div class="col-12 mb-3">
@@ -725,6 +736,45 @@ export class RoleplayModuleFormComponent implements OnInit {
 
   removeConversationFlow(index: number): void {
     this.conversationFlow.splice(index, 1);
+  }
+
+  onConversationFlowCsvUpload(event: any): void {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result: any) => {
+        const rows = result.data || [];
+        let added = 0;
+        rows.forEach((row: any) => {
+          const stage = (row['stage'] || row['Stage'] || '').trim();
+          if (!stage) return;
+          const split = (val: string) => val ? val.split(';').map((s: string) => s.trim()).filter((s: string) => s) : [];
+          this.conversationFlow.push({
+            stage,
+            aiPrompts: split(row['aiPrompts'] || row['AI Prompts'] || ''),
+            expectedResponses: split(row['expectedResponses'] || row['Expected Responses'] || ''),
+            helpfulPhrases: split(row['helpfulPhrases'] || row['Helpful Phrases'] || '')
+          });
+          added++;
+        });
+        alert(`Imported ${added} conversation flow stages from CSV.`);
+      },
+      error: () => alert('Failed to parse CSV file')
+    });
+    event.target.value = '';
+  }
+
+  downloadConversationFlowTemplate(): void {
+    const headers = ['stage', 'aiPrompts', 'expectedResponses', 'helpfulPhrases'];
+    const sample = ['greeting', 'Guten Tag! Was möchten Sie?; Willkommen!', 'Ich möchte bitte...; Ein Bier bitte', 'Guten Tag; Bitte; Danke'];
+    const csv = [headers, sample].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'conversation-flow-template.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   addAiOpeningLine(): void {
