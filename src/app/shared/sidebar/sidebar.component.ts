@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { NavService, NavGroup } from '../services/nav.service';
+import { TourService } from '../../services/tour.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -23,7 +24,8 @@ export class SidebarComponent implements OnInit {
   constructor(
     private authService: AuthService,
     private navService: NavService,
-    private router: Router
+    private router: Router,
+    private tourService: TourService
   ) {}
 
   ngOnInit(): void {
@@ -57,6 +59,14 @@ export class SidebarComponent implements OnInit {
     this.authService.logout().subscribe(() => {
       this.router.navigate(['/home']);
     });
+    this.closeSidebar.emit();
+  }
+
+  get isStudent(): boolean { return this.userRole === 'STUDENT'; }
+
+  restartTour(): void {
+    this.tourService.resetTour();
+    this.tourService.startStudentTour();
     this.closeSidebar.emit();
   }
 

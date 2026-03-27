@@ -35,6 +35,7 @@ export class MyCourseComponent implements OnInit {
 
   journey: any = null;
   loading = true;
+  private _tourChecked = false;
   activeTab: MyCourseTab = 'classes';
   /** Fallback when journey.profile.profilePic is empty (login/profile API often has photo). */
   private authProfilePicRaw: string | null = null;
@@ -88,6 +89,16 @@ export class MyCourseComponent implements OnInit {
         this.applyMeetingsPreview(meetings);
         this.loadQuickAccess();
         this.loading = false;
+        // Start tour for first-time students
+        if (!this._tourChecked) {
+          this._tourChecked = true;
+          import('../../services/tour.service').then(m => {
+            const tourService = new m.TourService();
+            if (!tourService.hasCompletedTour()) {
+              setTimeout(() => tourService.startStudentTour(), 500);
+            }
+          });
+        }
       },
       error: () => {
         this.loading = false;

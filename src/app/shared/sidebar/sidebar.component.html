@@ -65,6 +65,7 @@
         <div class="profile-role">{{ userRole }}</div>
       </div>
     </a>
+    <button *ngIf="isStudent" class="tour-btn" (click)="restartTour()">🎓 Take a Tour</button>
     <button class="logout-btn" (click)="logout()">🔴 Logout</button>
   </div>
 </nav>

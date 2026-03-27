@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { StudentProgressService } from '../../services/student-progress.service';
+import { TourService } from '../../services/tour.service';
 
 @Component({
   selector: 'app-student-progress',
@@ -15,11 +16,20 @@ export class StudentProgressComponent implements OnInit {
   data: any = null;
   alerts: string[] = [];
 
-  constructor(private progressService: StudentProgressService) {}
+  constructor(
+    private progressService: StudentProgressService,
+    private tourService: TourService
+  ) {}
 
   ngOnInit(): void {
     this.progressService.getStudentJourney().subscribe({
-      next: (res) => { this.data = res; this.buildAlerts(); this.isLoading = false; },
+      next: (res) => {
+        this.data = res; this.buildAlerts(); this.isLoading = false;
+        // Start tour for first-time students after page renders
+        if (!this.tourService.hasCompletedTour()) {
+          setTimeout(() => this.tourService.startStudentTour(), 500);
+        }
+      },
       error: () => { this.isLoading = false; }
     });
   }
