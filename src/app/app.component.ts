@@ -20,6 +20,7 @@ export class AppComponent implements OnInit {
   showHeader = true;
   isLoggedIn = false;
   sidebarOpen = false;
+  authChecked = false;
 
   constructor(
     private router: Router,
@@ -43,11 +44,15 @@ export class AppComponent implements OnInit {
       this.authService.refreshUserProfile().subscribe({
         next: (user) => {
           console.log('User authenticated on app load:', user);
+          this.authChecked = true;
         },
         error: (err) => {
           console.log('No active session on app load');
+          this.authChecked = true;
         }
       });
+    } else {
+      this.authChecked = true;
     }
   }
 

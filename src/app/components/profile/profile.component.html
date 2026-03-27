@@ -1,88 +1,100 @@
 <div class="pf" *ngIf="userProfile; else loadingTpl">
 
-  <!-- Hero banner -->
-  <div class="pf-hero">
-    <div class="pf-hero__avatar">
-      <img *ngIf="userProfile.profilePhoto" [src]="userProfile.profilePhoto" alt="Profile" class="pf-hero__img">
-      <div *ngIf="!userProfile.profilePhoto" class="pf-hero__initials">{{ userProfile.name?.slice(0,2).toUpperCase() }}</div>
-      <label class="pf-hero__upload" title="Change photo">
+  <h2 class="pf-page-title">My Profile</h2>
+
+  <div class="pf-layout">
+    <!-- Left: Photo Card -->
+    <div class="pf-photo-card">
+      <div class="pf-photo-wrap">
+        <img *ngIf="userProfile.profilePhoto" [src]="userProfile.profilePhoto" alt="Profile" class="pf-photo">
+        <div *ngIf="!userProfile.profilePhoto" class="pf-photo pf-photo--initials">{{ userProfile.name?.slice(0,2).toUpperCase() }}</div>
+      </div>
+      <h3 class="pf-name">{{ userProfile.name }}</h3>
+      <span class="pf-role-badge">{{ userProfile.role }}</span>
+      <p class="pf-reg">Registration No: {{ userProfile.regNo }}</p>
+
+      <!-- Quick stats (students only) -->
+      <div class="pf-stats" *ngIf="userProfile.role === 'STUDENT'">
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.level || '—' }}</div><div class="pf-stat__lbl">Level</div></div>
+        <div class="pf-stat-divider"></div>
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.batch || '—' }}</div><div class="pf-stat__lbl">Batch</div></div>
+        <div class="pf-stat-divider"></div>
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.studentStatus || '—' }}</div><div class="pf-stat__lbl">Status</div></div>
+      </div>
+
+      <!-- Photo upload -->
+      <label class="pf-edit-btn">
         <input type="file" (change)="onFileSelected($event)" accept="image/*" hidden>
-        📷
+        Edit Photo
       </label>
+      <div class="pf-upload-bar" *ngIf="selectedFile">
+        <span>{{ selectedFile.name }}</span>
+        <button class="pf-upload-go" (click)="uploadPhoto($event)" [disabled]="uploading">{{ uploading ? 'Uploading...' : 'Upload' }}</button>
+      </div>
+      <div class="pf-error" *ngIf="uploadError">{{ uploadError }}</div>
     </div>
-    <div class="pf-hero__info">
-      <h2 class="pf-hero__name">{{ userProfile.name }}</h2>
-      <span class="pf-hero__badge">{{ userProfile.role }}</span>
-      <p class="pf-hero__email">{{ userProfile.email }}</p>
-      <p class="pf-hero__reg">{{ userProfile.regNo }}</p>
+
+    <!-- Right: Details -->
+    <div class="pf-details">
+
+      <!-- Personal Information -->
+      <div class="pf-card">
+        <h4 class="pf-card__title">Personal Information</h4>
+        <div class="pf-field"><span class="pf-field__label">Full Name</span><span class="pf-field__value">{{ userProfile.name }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Email</span><span class="pf-field__value">{{ userProfile.email }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Registration No</span><span class="pf-field__value pf-mono">{{ userProfile.regNo }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.role === 'STUDENT'">
+          <span class="pf-field__label">Subscription Plan</span>
+          <span class="pf-field__value"><span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span></span>
+        </div>
+        <div class="pf-field" *ngIf="userProfile.assignedTeacher"><span class="pf-field__label">Assigned Teacher</span><span class="pf-field__value">{{ userProfile.assignedTeacher?.name || '—' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.phoneNumber"><span class="pf-field__label">Phone</span><span class="pf-field__value">{{ userProfile.phoneNumber }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.address"><span class="pf-field__label">Address</span><span class="pf-field__value">{{ userProfile.address }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.servicesOpted"><span class="pf-field__label">Service</span><span class="pf-field__value">{{ userProfile.servicesOpted }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.medium"><span class="pf-field__label">Medium</span><span class="pf-field__value">{{ userProfile.medium?.join ? userProfile.medium.join(', ') : userProfile.medium }}</span></div>
+      </div>
+
+      <!-- Course Progress (students) -->
+      <div class="pf-card" *ngIf="userProfile.role === 'STUDENT'">
+        <h4 class="pf-card__title">Course Progress</h4>
+        <p class="pf-field__label" style="margin-bottom:8px;">German Levels</p>
+        <div class="pf-levels-bar">
+          <div class="pf-levels-bar__track">
+            <div class="pf-levels-bar__fill" [style.width.%]="getLevelPercent()"></div>
+          </div>
+          <div class="pf-levels-labels">
+            <span *ngFor="let lv of ['A1','A2','B1','B2','C1','C2']" class="pf-levels-label" [class.pf-levels-label--active]="userProfile.level === lv">{{ lv }}</span>
+          </div>
+        </div>
+        <div class="pf-field" *ngIf="userProfile.languageLevelOpted"><span class="pf-field__label">Level Opted</span><span class="pf-field__value">{{ userProfile.languageLevelOpted }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.languageExamStatus"><span class="pf-field__label">Exam Status</span><span class="pf-field__value">{{ userProfile.languageExamStatus }}</span></div>
+      </div>
+
+      <!-- Teacher Info -->
+      <div class="pf-card" *ngIf="userProfile.role === 'TEACHER' || userProfile.role === 'TEACHER_ADMIN'">
+        <h4 class="pf-card__title">Teaching Details</h4>
+        <div class="pf-field"><span class="pf-field__label">Medium</span><span class="pf-field__value">{{ userProfile.medium?.join ? userProfile.medium.join(', ') : userProfile.medium || '—' }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Assigned Batches</span><span class="pf-field__value">{{ userProfile.assignedBatches?.join(', ') || '—' }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Zoom Host Email</span><span class="pf-field__value">{{ userProfile.zoomHostEmail || 'Not configured' }}</span></div>
+      </div>
+
+      <!-- Account -->
+      <div class="pf-card">
+        <h4 class="pf-card__title">Account</h4>
+        <div class="pf-field"><span class="pf-field__label">Role</span><span class="pf-field__value"><span class="pf-chip pf-chip--blue">{{ userProfile.role }}</span></span></div>
+        <div class="pf-field"><span class="pf-field__label">Member Since</span><span class="pf-field__value">{{ userProfile.createdAt | date:'dd MMM yyyy' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.lastLogin"><span class="pf-field__label">Last Login</span><span class="pf-field__value">{{ userProfile.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.role === 'ADMIN'" style="margin-top:12px;">
+          <button class="pf-btn-danger" (click)="deleteAccount(userProfile._id)">🗑 Delete Account</button>
+        </div>
+      </div>
+
     </div>
   </div>
-
-  <!-- Upload bar (shows when file selected) -->
-  <div class="pf-upload-bar" *ngIf="selectedFile">
-    <span class="pf-upload-bar__name">{{ selectedFile.name }}</span>
-    <button class="pf-btn pf-btn--primary" (click)="uploadPhoto($event)" [disabled]="uploading">
-      {{ uploading ? 'Uploading...' : '📤 Upload Photo' }}
-    </button>
-  </div>
-  <div class="pf-error" *ngIf="uploadError">{{ uploadError }}</div>
-
-  <!-- Details grid -->
-  <div class="pf-grid">
-    <!-- Personal Info -->
-    <div class="pf-card">
-      <div class="pf-card__title">👤 Personal Information</div>
-      <div class="pf-row"><span class="pf-label">Full Name</span><span class="pf-value">{{ userProfile.name }}</span></div>
-      <div class="pf-row"><span class="pf-label">Email</span><span class="pf-value">{{ userProfile.email }}</span></div>
-      <div class="pf-row"><span class="pf-label">Registration No</span><span class="pf-value pf-mono">{{ userProfile.regNo }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.phoneNumber"><span class="pf-label">Phone</span><span class="pf-value">{{ userProfile.phoneNumber }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.address"><span class="pf-label">Address</span><span class="pf-value">{{ userProfile.address }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.age"><span class="pf-label">Age</span><span class="pf-value">{{ userProfile.age }}</span></div>
-    </div>
-
-    <!-- Academic Info (Students) -->
-    <div class="pf-card" *ngIf="userProfile.role === 'STUDENT'">
-      <div class="pf-card__title">📚 Academic Details</div>
-      <div class="pf-row"><span class="pf-label">Level</span><span class="pf-value"><span class="pf-chip pf-chip--blue">{{ userProfile.level }}</span></span></div>
-      <div class="pf-row"><span class="pf-label">Batch</span><span class="pf-value">{{ userProfile.batch || '—' }}</span></div>
-      <div class="pf-row"><span class="pf-label">Medium</span><span class="pf-value">{{ userProfile.medium?.join(', ') || '—' }}</span></div>
-      <div class="pf-row"><span class="pf-label">Subscription</span><span class="pf-value"><span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span></span></div>
-      <div class="pf-row"><span class="pf-label">Status</span><span class="pf-value"><span class="pf-chip" [class.pf-chip--green]="userProfile.studentStatus === 'ONGOING'" [class.pf-chip--gray]="userProfile.studentStatus !== 'ONGOING'">{{ userProfile.studentStatus }}</span></span></div>
-      <div class="pf-row" *ngIf="userProfile.assignedTeacher"><span class="pf-label">Teacher</span><span class="pf-value">{{ userProfile.assignedTeacher?.name || '—' }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.servicesOpted"><span class="pf-label">Service</span><span class="pf-value">{{ userProfile.servicesOpted }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.languageLevelOpted"><span class="pf-label">Level Opted</span><span class="pf-value">{{ userProfile.languageLevelOpted }}</span></div>
-    </div>
-
-    <!-- Teacher Info -->
-    <div class="pf-card" *ngIf="userProfile.role === 'TEACHER' || userProfile.role === 'TEACHER_ADMIN'">
-      <div class="pf-card__title">🧑‍🏫 Teaching Details</div>
-      <div class="pf-row"><span class="pf-label">Medium</span><span class="pf-value">{{ userProfile.medium?.join(', ') || '—' }}</span></div>
-      <div class="pf-row"><span class="pf-label">Assigned Batches</span><span class="pf-value">{{ userProfile.assignedBatches?.join(', ') || '—' }}</span></div>
-      <div class="pf-row"><span class="pf-label">Zoom Host</span><span class="pf-value">{{ userProfile.zoomHostEmail || 'Not configured' }}</span></div>
-    </div>
-
-    <!-- Account Info -->
-    <div class="pf-card">
-      <div class="pf-card__title">⚙️ Account</div>
-      <div class="pf-row"><span class="pf-label">Role</span><span class="pf-value"><span class="pf-chip pf-chip--blue">{{ userProfile.role }}</span></span></div>
-      <div class="pf-row"><span class="pf-label">Member Since</span><span class="pf-value">{{ userProfile.createdAt | date:'dd MMM yyyy' }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.lastLogin"><span class="pf-label">Last Login</span><span class="pf-value">{{ userProfile.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span></div>
-      <div class="pf-row" *ngIf="userProfile.isActive !== undefined"><span class="pf-label">Account Status</span><span class="pf-value"><span class="pf-chip" [class.pf-chip--green]="userProfile.isActive" [class.pf-chip--red]="!userProfile.isActive">{{ userProfile.isActive ? 'Active' : 'Inactive' }}</span></span></div>
-    </div>
-  </div>
-
-  <!-- Danger zone (admin only) -->
-  <div class="pf-danger" *ngIf="userProfile.role === 'ADMIN'">
-    <button class="pf-btn pf-btn--danger" (click)="deleteAccount(userProfile._id)">🗑 Delete Account</button>
-  </div>
-
 </div>
 
 <ng-template #loadingTpl>
   <div class="pf" style="display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 80px);">
-    <div style="text-align:center;">
-      <div class="pf-spinner"></div>
-      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading profile...</p>
-    </div>
+    <div style="text-align:center;"><div class="pf-spinner"></div><p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading profile...</p></div>
   </div>
 </ng-template>
