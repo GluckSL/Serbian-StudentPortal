@@ -1,161 +1,94 @@
-/* ===== Wrapper ===== */
-.profile-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 90vh;
-  padding: 20px;
+:host { display: block; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+.pf { max-width: 100%; margin: 0 auto; padding: 16px; }
+
+/* Hero */
+.pf-hero {
+  display: flex; align-items: center; gap: 24px;
+  background: linear-gradient(135deg, #03396c 0%, #005b96 60%, #6497b1 100%);
+  color: #fff; padding: 28px 32px; border-radius: 18px;
+  margin-bottom: 16px; position: relative;
+  box-shadow: 0 4px 20px rgba(3,57,108,0.25);
 }
-
-/* ===== Card Container ===== */
-.profile-card {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 25px 20px;
-  max-width: 400px;
-  width: 100%;
-  text-align: center;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+.pf-hero__avatar { position: relative; flex-shrink: 0; }
+.pf-hero__img {
+  width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+  border: 3px solid rgba(255,255,255,0.4);
 }
-
-.profile-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+.pf-hero__initials {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); border: 3px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; font-weight: 800; color: #fff;
 }
-
-/* ===== Header ===== */
-.profile-header {
-  margin-bottom: 20px;
+.pf-hero__upload {
+  position: absolute; bottom: 0; right: 0;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.15s;
 }
-
-.profile-pic {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 50%;
-  border: 3px solid #000e89;
-  margin-bottom: 15px;
+.pf-hero__upload:hover { transform: scale(1.1); }
+.pf-hero__name { font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+.pf-hero__badge {
+  display: inline-block; padding: 3px 12px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; background: rgba(255,255,255,0.2);
+  color: #fff; text-transform: uppercase; letter-spacing: 0.05em;
 }
+.pf-hero__email { margin: 8px 0 2px; font-size: 13px; opacity: 0.85; }
+.pf-hero__reg { margin: 0; font-size: 12px; opacity: 0.6; font-family: monospace; }
 
-.profile-header h2 {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 5px;
-  color: #000e89;
+/* Upload bar */
+.pf-upload-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+  padding: 10px 16px; margin-bottom: 12px; font-size: 12px; color: #1d4ed8;
 }
+.pf-upload-bar__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.pf-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 14px; margin-bottom: 12px; font-size: 12px; color: #dc2626; }
 
-.role-tag {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-  background: #f0f0f0;
-  color: #555;
+/* Grid */
+.pf-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+/* Card */
+.pf-card {
+  background: #fff; border-radius: 14px; padding: 16px 18px;
+  border: 1px solid #e8ecf4; box-shadow: 0 2px 12px rgba(15,23,42,0.05);
 }
+.pf-card__title { font-size: 13px; font-weight: 700; color: #011f4b; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
 
-/* Profile Info Styling */
-.profile-info {
-  text-align: center;  /* centers all text */
-  margin-top: 5px;
-  margin-bottom: 5px;
-}
+/* Rows */
+.pf-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f8fafc; }
+.pf-row:last-child { border-bottom: none; }
+.pf-label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.pf-value { font-size: 13px; color: #1e293b; font-weight: 500; text-align: right; }
+.pf-mono { font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: #005b96; }
 
-.profile-info p {
-  font-size: 15px;
-  color: #000; /* black */
-  margin: 10px 0;
-}
+/* Chips */
+.pf-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.pf-chip--blue { background: #dbeafe; color: #1d4ed8; }
+.pf-chip--green { background: #dcfce7; color: #166534; }
+.pf-chip--red { background: #fee2e2; color: #991b1b; }
+.pf-chip--gray { background: #f1f5f9; color: #64748b; }
+.pf-chip--gold { background: #fef3c7; color: #92400e; }
+.pf-chip--silver { background: #f1f5f9; color: #475569; }
 
+/* Buttons */
+.pf-btn { padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+.pf-btn--primary { background: #005b96; color: #fff; }
+.pf-btn--primary:hover { background: #03396c; }
+.pf-btn--primary:disabled { background: #94a3b8; cursor: not-allowed; }
+.pf-btn--danger { background: #fee2e2; color: #dc2626; }
+.pf-btn--danger:hover { background: #fecaca; }
 
-/* ===== File Upload & Button ===== */
-.upload-form {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
+/* Danger zone */
+.pf-danger { margin-top: 16px; text-align: right; }
 
-.file-upload {
-  display: inline-block;
-  padding: 8px 14px;
-  background: #f1f1f1;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.3s ease;
-}
+/* Spinner */
+.pf-spinner { width: 36px; height: 36px; border: 3px solid #e5e7eb; border-top-color: #005b96; border-radius: 50%; animation: pf-spin 0.7s linear infinite; margin: 0 auto; }
+@keyframes pf-spin { to { transform: rotate(360deg); } }
 
-.file-upload:hover {
-  background: #e4e4e4;
-}
-
-.file-upload input[type="file"] {
-  display: none;
-}
-
-.upload {
-  padding: 10px 18px;
-  background: #000e89;
-  border: none;
-  border-radius: 6px;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-.upload:hover {
-  background: #4a6cf7;
-  color: yellow;
-}
-
-.upload-form button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-/* ===== Loading State ===== */
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 100px;
-  color: #fff;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid #fff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-/* ===== Responsive ===== */
-@media (max-width: 600px) {
-  .profile-card {
-    padding: 20px 15px;
-  }
-
-  .profile-pic {
-    width: 100px;
-    height: 100px;
-  }
-
-  .profile-header h2 {
-    font-size: 20px;
-  }
-
-  .profile-info p {
-    font-size: 14px;
-  }
+/* Responsive */
+@media (max-width: 900px) {
+  .pf-hero { flex-direction: column; text-align: center; padding: 24px 20px; }
+  .pf-grid { grid-template-columns: 1fr; }
 }
