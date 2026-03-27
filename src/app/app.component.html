@@ -13,7 +13,7 @@
   <!-- Logged-in pages: sidebar + content -->
   <ng-container *ngIf="showSidebar">
     <!-- Mobile hamburger -->
-    <button class="mobile-menu-btn" (click)="toggleSidebar()">☰</button>
+    <button class="mobile-menu-btn" (click)="toggleSidebar()">☰ <span style="font-size:14px;font-weight:700;margin-left:8px;">Glück Global</span></button>
 
     <!-- Overlay for mobile -->
     <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
