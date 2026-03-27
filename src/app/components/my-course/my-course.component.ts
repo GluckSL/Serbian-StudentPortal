@@ -32,6 +32,7 @@ type MyCourseTab = 'classes' | 'exercises' | 'modules';
 })
 export class MyCourseComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private destroyed = false;
 
   journey: any = null;
   loading = true;
@@ -69,6 +70,7 @@ export class MyCourseComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.destroyed = true);
     this.setAuthProfilePicFromUser(this.authService.getSnapshotUser());
     this.authService.currentUser$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -114,6 +116,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   private loadQuickAccess(): void {
+    if (this.destroyed) return;
     this.nextNewDigitalExercise = null;
     this.nextNewAccessibleModule = null;
 

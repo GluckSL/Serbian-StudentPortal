@@ -63,10 +63,12 @@ export class SidebarComponent implements OnInit {
   }
 
   get isStudent(): boolean { return this.userRole === 'STUDENT'; }
+  get isTeacher(): boolean { return this.userRole === 'TEACHER' || this.userRole === 'TEACHER_ADMIN'; }
 
   restartTour(): void {
-    this.tourService.resetTour();
-    this.tourService.startStudentTour();
+    this.tourService.resetTour(this.userRole);
+    if (this.isStudent) this.tourService.startStudentTour();
+    else if (this.isTeacher) this.tourService.startTeacherTour();
     this.closeSidebar.emit();
   }
 

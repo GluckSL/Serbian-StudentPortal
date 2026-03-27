@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { TeacherService } from '../../services/teacher.service';
 import { AuthService } from '../../services/auth.service';
+import { TourService } from '../../services/tour.service';
 
 
 @Component({
@@ -30,7 +31,8 @@ export class TeacherDashboardComponent implements OnInit {
 
   constructor(
     private teacherService: TeacherService,
-    private authService: AuthService
+    private authService: AuthService,
+    private tourService: TourService
   ) {}
 
   ngOnInit(): void {
@@ -57,9 +59,11 @@ export class TeacherDashboardComponent implements OnInit {
     this.teacherService.getAssignedStudents().subscribe({
       next: (res) => {
         this.students = res.data || [];
-
-        // Students loaded successfully
         this.applyFilters();
+        // Start tour for first-time teachers
+        if (!this.tourService.hasCompletedTour('TEACHER')) {
+          setTimeout(() => this.tourService.startTeacherTour(), 500);
+        }
       },
       error: (err) => {
         console.error('Failed to fetch students:', err);

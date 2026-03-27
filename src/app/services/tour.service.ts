@@ -4,23 +4,21 @@ import Shepherd from 'shepherd.js';
 @Injectable({ providedIn: 'root' })
 export class TourService {
   private tour: any = null;
-  private readonly STORAGE_KEY = 'gluck_tour_completed';
 
-  hasCompletedTour(): boolean {
-    return localStorage.getItem(this.STORAGE_KEY) === 'true';
+  hasCompletedTour(role: string = 'STUDENT'): boolean {
+    return localStorage.getItem('gluck_tour_' + role.toLowerCase()) === 'true';
   }
 
-  markTourCompleted(): void {
-    localStorage.setItem(this.STORAGE_KEY, 'true');
+  markTourCompleted(role: string = 'STUDENT'): void {
+    localStorage.setItem('gluck_tour_' + role.toLowerCase(), 'true');
   }
 
-  resetTour(): void {
-    localStorage.removeItem(this.STORAGE_KEY);
+  resetTour(role: string = 'STUDENT'): void {
+    localStorage.removeItem('gluck_tour_' + role.toLowerCase());
   }
 
-  startStudentTour(): void {
-    if (this.tour) { this.tour.cancel(); }
-
+  private createTour(): any {
+    if (this.tour) this.tour.cancel();
     this.tour = new Shepherd.Tour({
       useModalOverlay: true,
       defaultStepOptions: {
@@ -31,132 +29,100 @@ export class TourService {
         modalOverlayOpeningRadius: 12
       }
     });
-
-    this.tour.addStep({
-      id: 'welcome',
-      text: `
-        <div style="text-align:center;padding:8px 0;">
-          <div style="font-size:32px;margin-bottom:8px;">👋</div>
-          <h3 style="margin:0 0 8px;font-size:16px;color:#011f4b;">Welcome to Glück Global!</h3>
-          <p style="margin:0;font-size:13px;color:#64748b;">Let us give you a quick tour of your student portal.</p>
-        </div>
-      `,
-      buttons: [
-        { text: 'Skip Tour', action: () => this.completeTour(), classes: 'shepherd-button-secondary' },
-        { text: 'Start Tour →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'sidebar',
-      attachTo: { element: '.sidebar .nav-body', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">📌 Navigation Menu</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">This is your main menu. Use it to navigate between all sections of the portal.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'dashboard',
-      attachTo: { element: '.nav-item[href="/student-progress"], a[ng-reflect-router-link="/student-progress"]', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">🏠 Dashboard</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">Your dashboard shows your overall progress — language levels, attendance, AI bot usage, payments, and visa status at a glance.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'my-course',
-      attachTo: { element: '.nav-item[href="/student/my-course"], a[ng-reflect-router-link="/student/my-course"]', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">📖 My Course</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">Access your Zoom classes, class recordings, digital exercises, and AI learning modules — all in one place.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'documents',
-      attachTo: { element: '.nav-item[href="/student-documents"], a[ng-reflect-router-link="/student-documents"]', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">📁 Documents</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">Upload and manage your required documents here. The admin team will verify them for your visa process.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'payments',
-      attachTo: { element: '.nav-item[href="/student-payments"], a[ng-reflect-router-link="/student-payments"]', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">💳 Payments</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">View your payment summary, invoices, and payment history. Track what's been paid and what's pending.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'visa',
-      attachTo: { element: '.nav-item[href="/visa-status"], a[ng-reflect-router-link="/visa-status"]', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">✈️ Visa Status</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">Track your visa application progress step by step. Stay updated on your application status.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'profile',
-      attachTo: { element: '.sidebar-footer .profile-link', on: 'right' },
-      text: `
-        <h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">👤 Your Profile</h3>
-        <p style="margin:0;font-size:13px;color:#64748b;">View and update your profile information, including your photo and contact details.</p>
-      `,
-      buttons: [
-        { text: '← Back', action: () => this.tour!.back(), classes: 'shepherd-button-secondary' },
-        { text: 'Next →', action: () => this.tour!.next() }
-      ]
-    });
-
-    this.tour.addStep({
-      id: 'finish',
-      text: `
-        <div style="text-align:center;padding:8px 0;">
-          <div style="font-size:32px;margin-bottom:8px;">🎉</div>
-          <h3 style="margin:0 0 8px;font-size:16px;color:#011f4b;">You're all set!</h3>
-          <p style="margin:0;font-size:13px;color:#64748b;">Explore the portal and start your learning journey. If you need help, contact your teacher or the admin team.</p>
-        </div>
-      `,
-      buttons: [
-        { text: 'Finish Tour ✓', action: () => this.completeTour() }
-      ]
-    });
-
-    this.tour.start();
+    return this.tour;
   }
 
-  private completeTour(): void {
-    this.markTourCompleted();
+  private navBtn(back: boolean = true): any[] {
+    const btns: any[] = [];
+    if (back) btns.push({ text: '← Back', action: () => this.tour.back(), classes: 'shepherd-button-secondary' });
+    btns.push({ text: 'Next →', action: () => this.tour.next() });
+    return btns;
+  }
+
+  private step(id: string, element: string, title: string, icon: string, desc: string, back = true): any {
+    return {
+      id,
+      attachTo: { element, on: 'right' as const },
+      text: `<h3 style="margin:0 0 6px;font-size:14px;color:#011f4b;">${icon} ${title}</h3><p style="margin:0;font-size:13px;color:#64748b;">${desc}</p>`,
+      buttons: this.navBtn(back)
+    };
+  }
+
+  startStudentTour(): void {
+    const t = this.createTour();
+
+    t.addStep({ id: 'welcome', text: `
+      <div style="text-align:center;padding:8px 0;">
+        <div style="font-size:32px;margin-bottom:8px;">👋</div>
+        <h3 style="margin:0 0 8px;font-size:16px;color:#011f4b;">Welcome to Glück Global!</h3>
+        <p style="margin:0;font-size:13px;color:#64748b;">Let us give you a quick tour of your student portal.</p>
+      </div>`,
+      buttons: [
+        { text: 'Skip Tour', action: () => this.completeTour('STUDENT'), classes: 'shepherd-button-secondary' },
+        { text: 'Start Tour →', action: () => t.next() }
+      ]
+    });
+
+    t.addStep(this.step('sidebar', '.sidebar .nav-body', 'Navigation Menu', '📌', 'This is your main menu. Use it to navigate between all sections of the portal.', false));
+    t.addStep(this.step('dashboard', '.nav-item[href="/student-progress"]', 'Dashboard', '🏠', 'Your dashboard shows your overall progress — language levels, attendance, AI bot usage, payments, and visa status at a glance.'));
+    t.addStep(this.step('my-course', '.nav-item[href="/student/my-course"]', 'My Course', '📖', 'Access your Zoom classes, class recordings, digital exercises, and AI learning modules — all in one place.'));
+    t.addStep(this.step('documents', '.nav-item[href="/student-documents"]', 'Documents', '📁', 'Upload and manage your required documents here. The admin team will verify them for your visa process.'));
+    t.addStep(this.step('payments', '.nav-item[href="/student-payments"]', 'Payments', '💳', 'View your payment summary, invoices, and payment history. Track what\'s been paid and what\'s pending.'));
+    t.addStep(this.step('visa', '.nav-item[href="/visa-status"]', 'Visa Status', '✈️', 'Track your visa application progress step by step. Stay updated on your application status.'));
+    t.addStep(this.step('profile', '.sidebar-footer .profile-link', 'Your Profile', '👤', 'View and update your profile information, including your photo and contact details.'));
+
+    t.addStep({ id: 'finish', text: `
+      <div style="text-align:center;padding:8px 0;">
+        <div style="font-size:32px;margin-bottom:8px;">🎉</div>
+        <h3 style="margin:0 0 8px;font-size:16px;color:#011f4b;">You're all set!</h3>
+        <p style="margin:0;font-size:13px;color:#64748b;">Explore the portal and start your learning journey. If you need help, contact your teacher or the admin team.</p>
+      </div>`,
+      buttons: [{ text: 'Finish Tour ✓', action: () => this.completeTour('STUDENT') }]
+    });
+
+    t.start();
+  }
+
+  startTeacherTour(): void {
+    const t = this.createTour();
+
+    t.addStep({ id: 'welcome', text: `
+      <div style="text-align:center;padding:8px 0;">
+        <div style="font-size:32px;margin-bottom:8px;">👋</div>
+        <h3 style="margin:0 0 8px;font-size:16px;color:#011f4b;">Welcome, Teacher!</h3>
+        <p style="margin:0;font-size:13px;color:#64748b;">Here's a quick tour of your teaching portal.</p>
+      </div>`,
+      buttons: [
+        { text: 'Skip Tour', action: () => this.completeTour('TEACHER'), classes: 'shepherd-button-secondary' },
+        { text: 'Start Tour →', action: () => t.next() }
+      ]
+    });
+
+    t.addStep(this.step('sidebar', '.sidebar .nav-body', 'Navigation Menu', '📌', 'Your main menu to access all teaching tools and reports.', false));
+    t.addStep(this.step('students', '.nav-item[href="/teacher-dashboard"]', 'Students', '👥', 'View and manage your assigned students. Track their progress, update details, and monitor performance.'));
+    t.addStep(this.step('modules', '.nav-item[href="/learning-modules"]', 'Learning Modules', '🤖', 'Create and manage AI-powered learning modules and role-play scenarios for your students.'));
+    t.addStep(this.step('exercises', '.nav-item[href="/admin/digital-exercises"]', 'Online Exercises', '🏋️', 'Build and manage digital exercises — MCQ, fill-in-the-blank, matching, listening, and more.'));
+    t.addStep(this.step('classes', '.nav-item[href="/teacher/meetings"]', 'Manage Classes', '🎥', 'Create Zoom meetings, invite students, and manage your class schedule.'));
+    t.addStep(this.step('attendance', '.nav-item[href="/admin/zoom-reports"]', 'Attendance', '📊', 'View Zoom meeting reports and student attendance records.'));
+    t.addStep(this.step('recordings', '.nav-item[href="/class-recordings"]', 'Class Recordings', '📹', 'Upload and manage class recordings for students to review.'));
+    t.addStep(this.step('ai-report', '.nav-item[href="/admin-analytics"]', 'AI Bot Report', '📈', 'Monitor how students are using the AI tutor — session counts, duration, and engagement.'));
+    t.addStep(this.step('timetable', '.nav-item[href="/time-table-view-teacher"]', 'Timetable', '📅', 'View your teaching schedule and upcoming classes.'));
+    t.addStep(this.step('profile', '.sidebar-footer .profile-link', 'Your Profile', '👤', 'View and update your profile information.'));
+
+    t.addStep({ id: 'finish', text: `
+      <div style="text-align:center;padding:8px 0;">
+        <div style="font-size:32px;margin-bottom:8px;">🎉</div>
+        <h3 style="margin:0 0 8px;font-size:16px;color:#011f4b;">You're ready to teach!</h3>
+        <p style="margin:0;font-size:13px;color:#64748b;">Explore the portal and manage your classes. Happy teaching!</p>
+      </div>`,
+      buttons: [{ text: 'Finish Tour ✓', action: () => this.completeTour('TEACHER') }]
+    });
+
+    t.start();
+  }
+
+  private completeTour(role: string): void {
+    this.markTourCompleted(role);
     if (this.tour) { this.tour.cancel(); this.tour = null; }
   }
 }
