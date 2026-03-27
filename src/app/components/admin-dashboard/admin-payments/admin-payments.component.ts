@@ -132,7 +132,7 @@ export class AdminPaymentsComponent implements OnInit {
 
   formatCurrency(amount: number, currency?: string): string {
     if (!amount && amount !== 0) return '0';
-    const prefix = currency === 'INR' ? '₹' : 'LKR ';
+    const prefix = currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : 'LKR ';
     return prefix + amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
 
@@ -182,25 +182,32 @@ export class AdminPaymentsComponent implements OnInit {
   }
 
   exportCSV(): void {
-    let headers: string[], mapRow: (p: any) => any[];
-    if (this.activeTab === 'language') {
-      headers = ['Name', 'Email', 'Batch', 'Service', 'Currency', 'Invoiced', 'Paid', 'Balance', 'Status'];
-      mapRow = p => [p.studentName, p.email, p.batch || '', p.service || '', p.currency, p.totalPackageAmount, p.totalPaid, p.pendingPayment, p.pendingPayment > 0 ? 'Pending' : 'Fully Paid'];
-    } else if (this.activeTab === 'documentation') {
-      headers = ['Name', 'Email', 'Batch', 'Service', 'Currency', 'Quoted', 'Paid', 'Balance'];
-      mapRow = p => [p.studentName, p.email, p.batch || '', p.service || '', p.currency, p.docQuoted ?? '', p.docPaid ?? '', p.docQuoted != null ? (p.docQuoted - (p.docPaid || 0)) : ''];
-    } else if (this.activeTab === 'visa') {
-      headers = ['Name', 'Email', 'Batch', 'Service', 'Currency', 'Quoted', 'Paid', 'Balance'];
-      mapRow = p => [p.studentName, p.email, p.batch || '', p.service || '', p.currency, p.visaQuoted ?? '', p.visaPaid ?? '', p.visaQuoted != null ? (p.visaQuoted - (p.visaPaid || 0)) : ''];
-    } else {
-      headers = ['Name', 'Email', 'Batch', 'Service', 'Currency', 'Quoted', 'Paid', 'Balance'];
-      mapRow = p => [p.studentName, p.email, p.batch || '', p.service || '', p.currency, p.reloQuoted ?? '', p.reloPaid ?? '', p.reloQuoted != null ? (p.reloQuoted - (p.reloPaid || 0)) : ''];
-    }
-    const rows = [headers, ...this.tabFiltered.map(mapRow)];
+    const headers = ['students name', 'email ID', 'Current status', 'service opted', 'Batch number', 'Total Invoiced', 'complete package payment', 'pending payment', 'Doc Quoted', 'Doc Pay', 'Visa Quoted', 'Visa Pay', 'Relo Quo', 'Relo Pay'];
+    const rows = [headers];
+    this.filtered.forEach(p => {
+      const cur = p.currency === 'INR' ? '₹' : p.currency === 'EUR' ? '€' : 'LKR ';
+      const fmt = (v: any) => v != null && v !== 0 ? ` ${cur} ${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ` : '';
+      rows.push([
+        p.studentName || '',
+        p.email || '',
+        p.studentStatus || p.currentStatus || '',
+        p.service || '',
+        p.batch || '',
+        fmt(p.totalPackageAmount),
+        fmt(p.totalPaid),
+        fmt(p.pendingPayment),
+        fmt(p.docQuoted),
+        fmt(p.docPaid),
+        fmt(p.visaQuoted),
+        fmt(p.visaPaid),
+        fmt(p.reloQuoted),
+        fmt(p.reloPaid)
+      ]);
+    });
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `payments-${this.activeTab}.csv`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'student-payments-export.csv'; a.click();
     URL.revokeObjectURL(url);
   }
 }

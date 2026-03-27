@@ -30,6 +30,7 @@
 .inv-row--overdue { background: #fffbeb !important; }
 .inv-row--overdue:hover { background: #fef3c7 !important; }
 .inv-row--paid { opacity: 0.7; }
+.inv-row--clickable { cursor: pointer; }
 .inv-mono { font-family: 'Monaco','Menlo',monospace; font-size: 11px; font-weight: 600; color: #005b96; }
 .inv-customer { font-weight: 600; color: #0f172a; }
 .inv-email { font-size: 10px; color: #94a3b8; }
@@ -39,11 +40,14 @@
 .inv-empty { text-align: center; color: #94a3b8; padding: 32px; }
 .inv-badge { font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 .inv-badge--paid { background: #dcfce7; color: #166534; }
+.inv-badge--partial { background: #fef3c7; color: #92400e; }
 .inv-badge--unpaid { background: #f1f5f9; color: #64748b; }
 .inv-badge--overdue { background: #fee2e2; color: #991b1b; }
 .inv-btn { padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
 .inv-btn--pay { background: #dcfce7; color: #166534; }
 .inv-btn--pay:hover { background: #bbf7d0; }
+.inv-btn--history { background: #dbeafe; color: #005b96; margin-left: 4px; }
+.inv-btn--history:hover { background: #bfdbfe; }
 .inv-btn--undo { background: #f1f5f9; color: #64748b; font-size: 10px; }
 .inv-btn--undo:hover { background: #e2e8f0; }
 .inv-btn--outline { background: #fff; color: #475569; border: 1px solid #e2e8f0; padding: 7px 14px; border-radius: 8px; }
@@ -61,11 +65,26 @@
 .inv-modal__customer { font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 2px; }
 .inv-modal__email { font-size: 11px; color: #64748b; }
 .inv-modal__amount { font-size: 28px; font-weight: 800; color: #011f4b; text-align: center; padding: 14px 0; background: #f8fafc; border-radius: 10px; margin-bottom: 12px; }
+.inv-modal__summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #f8fafc; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.inv-modal__summary-row div { text-align: center; }
+.inv-modal__label { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
+.inv-modal__val { display: block; font-size: 16px; font-weight: 800; color: #011f4b; }
+.inv-modal__hint { font-size: 10px; color: #6497b1; margin-top: 2px; display: block; }
 .inv-modal__note-text { font-size: 11px; color: #64748b; margin-bottom: 14px; line-height: 1.5; }
+.inv-bar { width: 60px; height: 6px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+.inv-bar__fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #28a745, #4ade80); transition: width 0.3s; }
+.inv-modal--wide { width: 640px; max-width: 95vw; }
 .inv-modal__field { margin-bottom: 12px; }
 .inv-modal__field label { display: block; font-size: 10px; font-weight: 600; color: #475569; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
 .inv-modal__field .inv-input, .inv-modal__field .inv-select { width: 100%; box-sizing: border-box; }
 .inv-modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #e8ecf4; }
 .inv-spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: #005b96; border-radius: 50%; animation: inv-spin 0.6s linear infinite; margin: 0 auto; }
+.inv-proof-link { color: #005b96; text-decoration: none; font-size: 11px; font-weight: 600; cursor: pointer; }
+.inv-proof-link:hover { text-decoration: underline; }
+.inv-proof-viewer { position: relative; max-width: 90vw; max-height: 90vh; background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(15,23,42,0.3); }
+.inv-proof-viewer__close { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; }
+.inv-proof-viewer__close:hover { background: rgba(0,0,0,0.8); }
+.inv-proof-viewer__img { display: block; max-width: 90vw; max-height: 85vh; object-fit: contain; }
+.inv-proof-viewer__pdf { width: 80vw; height: 85vh; border: none; }
 @keyframes inv-spin { to { transform: rotate(360deg); } }
 @media (max-width: 768px) { .inv-summary { grid-template-columns: 1fr; } .inv-filters { flex-direction: column; } }

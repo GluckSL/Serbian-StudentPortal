@@ -76,14 +76,14 @@
         <th>Progress</th><th>Actions</th>
       </tr></thead>
       <tbody>
-        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="p.pendingPayment > 0">
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="p.pendingPayment > 0" class="ap-row--clickable" (click)="openHistory(p)">
           <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
           <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
           <td class="ap-right">{{ formatCurrency(p.totalPackageAmount, p.currency) }}</td>
           <td class="ap-right ap-paid">{{ formatCurrency(p.totalPaid, p.currency) }}</td>
           <td class="ap-right" [style.color]="p.pendingPayment > 0 ? '#e11d48' : '#28a745'" [style.font-weight]="'700'">{{ formatCurrency(p.pendingPayment, p.currency) }}</td>
           <td><div class="ap-bar"><div class="ap-bar__fill" [style.width.%]="p.totalPackageAmount ? (p.totalPaid / p.totalPackageAmount * 100) : 0"></div></div></td>
-          <td><button class="ap-btn ap-btn--xs" (click)="openHistory(p)">📋</button> <button class="ap-btn ap-btn--xs" (click)="openRecordPayment(p)">+</button></td>
+          <td><button class="ap-btn ap-btn--xs" (click)="openRecordPayment(p); $event.stopPropagation()">+</button></td>
         </tr>
         <tr *ngIf="!tabFiltered.length"><td colspan="9" class="ap-empty">No language payment records found</td></tr>
       </tbody>
@@ -95,7 +95,7 @@
     <table class="ap-table">
       <thead><tr><th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th><th>Email</th><th>Batch</th><th>Service</th><th class="ap-th--right">Quoted</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th><th>Progress</th></tr></thead>
       <tbody>
-        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.docQuoted || 0) - (p.docPaid || 0) > 0">
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.docQuoted || 0) - (p.docPaid || 0) > 0" class="ap-row--clickable" (click)="openHistory(p)">
           <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
           <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
           <td class="ap-right">{{ formatCurrency(p.docQuoted, p.currency) }}</td>
@@ -113,7 +113,7 @@
     <table class="ap-table">
       <thead><tr><th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th><th>Email</th><th>Batch</th><th>Service</th><th class="ap-th--right">Quoted</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th><th>Progress</th></tr></thead>
       <tbody>
-        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.visaQuoted || 0) - (p.visaPaid || 0) > 0">
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.visaQuoted || 0) - (p.visaPaid || 0) > 0" class="ap-row--clickable" (click)="openHistory(p)">
           <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
           <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
           <td class="ap-right">{{ formatCurrency(p.visaQuoted, p.currency) }}</td>
@@ -131,7 +131,7 @@
     <table class="ap-table">
       <thead><tr><th class="ap-th--sortable" (click)="sort('studentName')">Name {{ sortIcon('studentName') }}</th><th>Email</th><th>Batch</th><th>Service</th><th class="ap-th--right">Quoted</th><th class="ap-th--right">Paid</th><th class="ap-th--right">Balance</th></tr></thead>
       <tbody>
-        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.reloQuoted || 0) - (p.reloPaid || 0) > 0">
+        <tr *ngFor="let p of tabFiltered" [class.ap-row--overdue]="(p.reloQuoted || 0) - (p.reloPaid || 0) > 0" class="ap-row--clickable" (click)="openHistory(p)">
           <td class="ap-name"><span>{{ p.studentName }}</span><span class="ap-regno" *ngIf="p.regNo">{{ p.regNo }}</span></td>
           <td class="ap-email">{{ p.email }}</td><td>{{ p.batch || '—' }}</td><td>{{ p.service || '—' }}</td>
           <td class="ap-right">{{ p.reloQuoted != null ? formatCurrency(p.reloQuoted, p.currency) : '—' }}</td>
