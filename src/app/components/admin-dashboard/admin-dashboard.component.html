@@ -1,6 +1,6 @@
 <!-- src/app/components/admin-dashboard/admin-dashboard.component.html -->
 
-<div class="admin-dashboard">
+<div class="admin-dashboard" *ngIf="!loading; else loadingTpl">
   <!-- Header Section -->
   <div class="admin-header">
     <div class="container-fluid">
@@ -407,4 +407,13 @@
     </div>
   </div>
 </div>
+
+<ng-template #loadingTpl>
+  <div style="display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 80px);">
+    <div style="text-align:center;">
+      <div class="admin-loading-spinner"></div>
+      <p class="admin-loading-text">Loading student data...</p>
+    </div>
+  </div>
+</ng-template>
 <div class="modal-backdrop fade" [class.show]="showBulkEditPanel" *ngIf="showBulkEditPanel"></div>

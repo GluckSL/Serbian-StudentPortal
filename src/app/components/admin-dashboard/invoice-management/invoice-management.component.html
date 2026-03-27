@@ -63,6 +63,7 @@
           <td>
             <button *ngIf="inv.payment_status !== 'paid'" class="inv-btn inv-btn--pay" (click)="openRecordPayment(inv); $event.stopPropagation()">💰 Record Payment</button>
             <span *ngIf="inv.payment_status === 'paid'" class="inv-badge inv-badge--paid">✓ Fully Paid</span>
+            <button *ngIf="!inv.amount_paid" class="inv-btn inv-btn--delete" (click)="deleteInvoice(inv); $event.stopPropagation()">🗑</button>
           </td>
         </tr>
         <tr *ngIf="!filtered.length"><td colspan="10" class="inv-empty">No invoices found</td></tr>
@@ -102,6 +103,9 @@
           <label>Proof of Payment (optional)</label>
           <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" (change)="onProofFileSelected($event)" class="inv-input">
           <small class="inv-modal__hint">JPG, PNG, PDF or WebP — max 5MB</small>
+        </div>
+        <div class="inv-modal__checkbox">
+          <label><input type="checkbox" [(ngModel)]="sendReceiptEmail"> Send payment receipt email to {{ selectedInvoice?.customer_email }}</label>
         </div>
       </div>
       <div class="inv-modal__foot">

@@ -146,6 +146,48 @@ router.post('/:id/record-payment', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       }
     }
 
+    // Send payment receipt email to student (if admin opted in)
+    if (req.body.sendEmail === 'true') {
+      try {
+      const paymentTransporter = require('../config/paymentEmailConfig');
+      const remainingAfter = (invoice.total_payable || 0) - (invoice.amount_paid || 0);
+      const statusText = invoice.payment_status === 'paid' ? 'Fully Paid' : 'Partial Payment';
+
+      await paymentTransporter.sendMail({
+        from: `"Glück Global Finance" <${process.env.PAYMENT_EMAIL_USER}>`,
+        to: invoice.customer_email,
+        cc: 'coordination@gluckglobal.com',
+        subject: `Payment Receipt — ${invoice.invoice_number} — Glück Global`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+            <div style="background:#03396c;padding:20px 24px;">
+              <h2 style="color:#fff;margin:0;font-size:18px;">Glück Global — Payment Receipt</h2>
+            </div>
+            <div style="padding:24px;">
+              <p style="margin:0 0 16px;">Hello <strong>${invoice.customer_name}</strong>,</p>
+              <p style="margin:0 0 16px;">We have received your payment for invoice <strong>${invoice.invoice_number}</strong>. Here are the details:</p>
+              <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                <tr style="background:#f8fafc;"><td style="padding:10px 14px;font-size:13px;color:#64748b;">Invoice Number</td><td style="padding:10px 14px;font-size:13px;font-weight:700;">${invoice.invoice_number}</td></tr>
+                <tr><td style="padding:10px 14px;font-size:13px;color:#64748b;">Invoice Total</td><td style="padding:10px 14px;font-size:13px;font-weight:700;">LKR ${(invoice.total_payable || 0).toLocaleString()}</td></tr>
+                <tr style="background:#f8fafc;"><td style="padding:10px 14px;font-size:13px;color:#64748b;">Amount Received</td><td style="padding:10px 14px;font-size:13px;font-weight:700;color:#16a34a;">LKR ${payAmount.toLocaleString()}</td></tr>
+                <tr><td style="padding:10px 14px;font-size:13px;color:#64748b;">Payment Method</td><td style="padding:10px 14px;font-size:13px;">${method || 'Not specified'}</td></tr>
+                <tr style="background:#f8fafc;"><td style="padding:10px 14px;font-size:13px;color:#64748b;">Total Paid So Far</td><td style="padding:10px 14px;font-size:13px;font-weight:700;">LKR ${(invoice.amount_paid || 0).toLocaleString()}</td></tr>
+                <tr><td style="padding:10px 14px;font-size:13px;color:#64748b;">Remaining Balance</td><td style="padding:10px 14px;font-size:13px;font-weight:700;color:${remainingAfter > 0 ? '#dc2626' : '#16a34a'};">LKR ${remainingAfter.toLocaleString()}</td></tr>
+                <tr style="background:#f8fafc;"><td style="padding:10px 14px;font-size:13px;color:#64748b;">Status</td><td style="padding:10px 14px;font-size:13px;font-weight:700;">${statusText}</td></tr>
+              </table>
+              ${note ? '<p style="margin:16px 0 0;font-size:13px;color:#64748b;">Note: ' + note + '</p>' : ''}
+              <p style="margin:20px 0 0;font-size:13px;color:#64748b;">Thank you for your payment.</p>
+              <p style="margin:8px 0 0;font-size:13px;">Best regards,<br><strong>Glück Global Pvt Ltd</strong></p>
+            </div>
+          </div>
+        `
+      });
+      console.log('📧 Payment receipt sent to', invoice.customer_email);
+    } catch (emailErr) {
+      console.error('⚠️ Failed to send payment receipt email:', emailErr.message);
+    }
+    }
+
     res.json({
       success: true,
       message: invoice.payment_status === 'paid'
@@ -160,3 +202,22 @@ router.post('/:id/record-payment', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 });
 
 module.exports = router;
+
+
+// DELETE /api/invoices/:id - Delete an invoice
+router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+
+    if (invoice.payment_status === 'paid' || (invoice.amount_paid || 0) > 0) {
+      return res.status(400).json({ message: 'Cannot delete an invoice that has payments recorded. Revert payments first.' });
+    }
+
+    await Invoice.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Invoice deleted' });
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    res.status(500).json({ message: 'Error deleting invoice' });
+  }
+});

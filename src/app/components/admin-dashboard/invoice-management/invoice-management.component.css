@@ -1,5 +1,5 @@
 :host { display: block; min-height: calc(100vh - 80px); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
-.inv { max-width: 1200px; margin: 0 auto; padding: 12px 14px; }
+.inv { max-width: 100%; margin: 0 auto; padding: 12px 14px; }
 .inv-header { background: #b3cde0; color: #011f4b; padding: 14px 18px; border-radius: 14px; margin-bottom: 12px; }
 .inv-header__title { font-size: 15px; font-weight: 700; margin: 0; }
 .inv-header__sub { font-size: 11px; opacity: 0.65; margin: 2px 0 0; }
@@ -18,7 +18,7 @@
 .inv-select { padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; background: #f8fafc; }
 .inv-count { font-size: 11px; color: #6497b1; font-weight: 600; margin-left: auto; }
 .inv-table-wrap { overflow-x: auto; background: #fff; border-radius: 14px; border: 1px solid #e8ecf4; box-shadow: 0 2px 12px rgba(15,23,42,0.07); }
-.inv-table { width: 100%; border-collapse: collapse; min-width: 850px; }
+.inv-table { width: 100%; border-collapse: collapse; }
 .inv-table thead { background: #03396c; }
 .inv-table th { padding: 10px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; font-weight: 600; text-align: left; white-space: nowrap; }
 .inv-th--sort { cursor: pointer; user-select: none; }
@@ -48,6 +48,8 @@
 .inv-btn--pay:hover { background: #bbf7d0; }
 .inv-btn--history { background: #dbeafe; color: #005b96; margin-left: 4px; }
 .inv-btn--history:hover { background: #bfdbfe; }
+.inv-btn--delete { background: #fee2e2; color: #991b1b; margin-left: 4px; }
+.inv-btn--delete:hover { background: #fecaca; }
 .inv-btn--undo { background: #f1f5f9; color: #64748b; font-size: 10px; }
 .inv-btn--undo:hover { background: #e2e8f0; }
 .inv-btn--outline { background: #fff; color: #475569; border: 1px solid #e2e8f0; padding: 7px 14px; border-radius: 8px; }
@@ -70,6 +72,8 @@
 .inv-modal__label { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
 .inv-modal__val { display: block; font-size: 16px; font-weight: 800; color: #011f4b; }
 .inv-modal__hint { font-size: 10px; color: #6497b1; margin-top: 2px; display: block; }
+.inv-modal__checkbox { margin-bottom: 12px; font-size: 12px; color: #334155; }
+.inv-modal__checkbox input { margin-right: 6px; vertical-align: middle; }
 .inv-modal__note-text { font-size: 11px; color: #64748b; margin-bottom: 14px; line-height: 1.5; }
 .inv-bar { width: 60px; height: 6px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
 .inv-bar__fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #28a745, #4ade80); transition: width 0.3s; }

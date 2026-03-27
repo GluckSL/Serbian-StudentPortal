@@ -27,6 +27,7 @@ export class InvoiceManagementComponent implements OnInit {
   payMethod = '';
   payNote = '';
   payProofFile: File | null = null;
+  sendReceiptEmail = true;
   processing = false;
 
   // History modal
@@ -76,6 +77,7 @@ export class InvoiceManagementComponent implements OnInit {
     this.payMethod = '';
     this.payNote = '';
     this.payProofFile = null;
+    this.sendReceiptEmail = true;
     this.showPayModal = true;
   }
   closeModal(): void { this.showPayModal = false; this.selectedInvoice = null; this.payProofFile = null; }
@@ -91,6 +93,7 @@ export class InvoiceManagementComponent implements OnInit {
     formData.append('amount', this.payAmount.toString());
     formData.append('method', this.payMethod);
     formData.append('note', this.payNote);
+    formData.append('sendEmail', this.sendReceiptEmail ? 'true' : 'false');
     if (this.payProofFile) formData.append('proof', this.payProofFile);
     this.http.post<any>(`/api/invoices/${this.selectedInvoice._id}/record-payment`, formData, { withCredentials: true }).subscribe({
       next: () => { this.processing = false; this.closeModal(); this.load(); },
@@ -104,6 +107,14 @@ export class InvoiceManagementComponent implements OnInit {
   proofIsPdf = false;
 
   openHistory(inv: any): void { this.historyInvoice = inv; this.showHistoryModal = true; }
+
+  deleteInvoice(inv: any): void {
+    if (!confirm('Delete invoice ' + (inv.invoice_number || '') + '? This cannot be undone.')) return;
+    this.http.delete<any>(`/api/invoices/${inv._id}`, { withCredentials: true }).subscribe({
+      next: () => this.load(),
+      error: (err: any) => alert(err.error?.message || 'Failed to delete')
+    });
+  }
   closeHistory(): void { this.showHistoryModal = false; this.historyInvoice = null; }
 
   viewProof(url: string): void {
