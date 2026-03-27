@@ -520,13 +520,49 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
     </div>
   `,
   styles: [`
-    .vocabulary-list, .grammar-list, .flow-list {
-      max-height: 300px;
-      overflow-y: auto;
+    :host { display: block; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .container-fluid { max-width: 1100px; }
+
+    .card { border: 1px solid #e8ecf4; border-radius: 14px; box-shadow: 0 2px 12px rgba(15,23,42,0.07); overflow: hidden; }
+    .card:hover { transform: none; box-shadow: 0 2px 12px rgba(15,23,42,0.07); }
+    .card-header { background: #b3cde0; border-bottom: none; padding: 14px 18px; }
+    .card-header h4 { font-size: 15px; font-weight: 700; color: #011f4b; }
+    .card-body { padding: 18px; }
+
+    h5 { font-size: 13px; font-weight: 700; color: #011f4b; }
+    .form-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+    .form-control, .form-select {
+      border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; background: #f8fafc; color: #1e293b; transition: border 0.15s;
     }
-    .border {
-      border-color: #dee2e6 !important;
-    }
+    .form-control:focus, .form-select:focus { border-color: #005b96; box-shadow: 0 0 0 2px rgba(0,91,150,0.08); background: #fff; }
+    textarea.form-control { font-size: 13px; }
+
+    .btn { font-size: 11px; font-weight: 600; border-radius: 8px; padding: 7px 14px; }
+    .btn-primary { background: #005b96; border-color: #005b96; }
+    .btn-primary:hover { background: #03396c; border-color: #03396c; }
+    .btn-secondary { background: #6497b1; border-color: #6497b1; color: #fff; }
+    .btn-secondary:hover { background: #005b96; border-color: #005b96; }
+    .btn-success { background: #28a745; border-color: #28a745; }
+    .btn-success:hover { background: #1e7e34; }
+    .btn-outline-primary { color: #005b96; border-color: #005b96; }
+    .btn-outline-primary:hover { background: #005b96; color: #fff; }
+    .btn-outline-danger { color: #e11d48; border-color: #e11d48; }
+    .btn-outline-danger:hover { background: #ffe0e6; color: #e11d48; }
+    .btn-outline-secondary { color: #64748b; border-color: #e2e8f0; }
+    .btn-outline-secondary:hover { background: #f1f5f9; }
+
+    .badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
+    .text-muted { color: #94a3b8 !important; font-size: 11px; }
+    .border { border-color: #e8ecf4 !important; }
+    .border-bottom { border-color: #f1f5f9 !important; }
+    .rounded { border-radius: 10px !important; }
+    .p-3 { padding: 14px !important; }
+
+    .vocabulary-list, .grammar-list, .flow-list { max-height: 300px; overflow-y: auto; }
+
+    h6 { font-size: 12px; font-weight: 600; color: #011f4b; }
+    small { font-size: 11px; }
   `]
 })
 export class RoleplayModuleFormComponent implements OnInit {
