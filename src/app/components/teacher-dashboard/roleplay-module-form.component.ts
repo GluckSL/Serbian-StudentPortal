@@ -92,6 +92,16 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                       <br><strong>Suggestions:</strong> Quick (5-8 min) | Standard (10-15 min) | Complex (15-20 min)
                     </small>
                   </div>
+
+                  <!-- Course Day -->
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Course Day (Optional)</label>
+                    <input type="number" class="form-control" formControlName="courseDay" 
+                           min="1" max="200" placeholder="e.g., 45">
+                    <small class="form-text text-muted">
+                      📅 Day in the 200-day course journey (1–200). Leave empty for general pool.
+                    </small>
+                  </div>
                 </div>
 
                 <!-- Role-Play Scenario -->
@@ -651,7 +661,8 @@ export class RoleplayModuleFormComponent implements OnInit {
         aiRole: ['', Validators.required],
         setting: [''],
         objective: ['']
-      })
+      }),
+      courseDay: [null, [Validators.min(1), Validators.max(200)]]
     });
   }
 
@@ -981,6 +992,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       category: module.category || 'Conversation',
       difficulty: module.difficulty || 'Beginner',
       minimumCompletionTime: Math.min(60, Math.max(5, module.minimumCompletionTime || 10)), // ✅ Clamp to valid range
+      courseDay: module.courseDay || null,
       rolePlayScenario: {
         situation: module.content?.rolePlayScenario?.situation || '',
         studentRole: module.content?.rolePlayScenario?.studentRole || '',

@@ -30,12 +30,31 @@ export interface ZoomMeeting {
 
 export interface CreateMeetingRequest {
   batch: string;
+  plan: string;
   topic: string;
   startTime: string;
   duration: number;
   timezone?: string;
   agenda?: string;
   studentIds: string[];
+  teacherId: string;
+  zoomHostEmail: string;
+  courseDay?: number | null;
+}
+
+export interface ZoomAccount {
+  id: string;
+  email: string;
+  name: string;
+  isBusy?: boolean;
+}
+
+export interface Teacher {
+  _id: string;
+  name: string;
+  email: string;
+  assignedBatches: string[];
+  medium: string[];
 }
 
 @Injectable({
@@ -51,6 +70,30 @@ export class ZoomService {
    */
   createMeeting(meetingData: CreateMeetingRequest): Observable<any> {
     return this.http.post(`${this.apiUrl}/create-meeting`, meetingData, {
+      withCredentials: true
+    });
+  }
+
+  /**
+   * Get all teachers for meeting creation
+   */
+  getTeachers(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/teachers`, { withCredentials: true });
+  }
+
+  /**
+   * Get all zoom host accounts from Zoom API
+   */
+  getZoomHosts(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/external/hosts`, { withCredentials: true });
+  }
+
+  /**
+   * Get available zoom hosts for a time slot (checks overlap)
+   */
+  getAvailableZoomHosts(startTime: string, duration: number): Observable<any> {
+    return this.http.get(`${this.apiUrl}/available-hosts`, {
+      params: { startTime, duration: duration.toString() },
       withCredentials: true
     });
   }

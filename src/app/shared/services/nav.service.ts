@@ -45,6 +45,7 @@ export class NavService {
       items: [
         { id: 'manage-classes', label: 'Manage Classes', icon: '🎥', route: '/teacher/meetings',    subGroup: null },
         { id: 'attendance',     label: 'Attendance',     icon: '📊', route: '/admin/zoom-reports',   subGroup: null },
+        { id: 'import-meeting', label: 'Import Meeting', icon: '🔗', route: '/admin/external-meetings', subGroup: null },
         { id: 'class-recordings', label: 'Class Recordings', icon: '📹', route: '/class-recordings', subGroup: null }
       ]
     },

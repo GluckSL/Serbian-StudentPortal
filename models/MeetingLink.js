@@ -15,6 +15,9 @@ const meetingLinkSchema = new mongoose.Schema({
   duration: { type: Number }, // in minutes
   timezone: { type: String, default: 'Asia/Colombo' },
   
+  // Optional: day in the 200-day course journey
+  courseDay: { type: Number, default: null, min: 1, max: 200 },
+  
   // Zoom-specific fields
   zoomMeetingId: { type: String }, // Zoom meeting ID
   zoomPassword: { type: String },
@@ -22,10 +25,16 @@ const meetingLinkSchema = new mongoose.Schema({
   startUrl: { type: String }, // For host to start meeting
   joinUrl: { type: String }, // For participants to join
   
-  // Teacher who created the meeting
+  // Admin/user who created the meeting
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User' 
+  },
+
+  // Teacher assigned to host/teach the class
+  assignedTeacher: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   
   // Students invited to the meeting
