@@ -254,3 +254,10 @@ button:disabled,
   background: #fff !important;
   border: 1px solid #e8ecf4 !important;
 }
+
+@media (max-width: 768px) {
+  .shepherd-element { max-width: 90vw !important; }
+  .gluck-tour-step .shepherd-content { max-width: 90vw !important; }
+  .gluck-tour-step .shepherd-text { padding: 14px 16px !important; }
+  .gluck-tour-step .shepherd-footer { padding: 0 16px 12px !important; }
+}
