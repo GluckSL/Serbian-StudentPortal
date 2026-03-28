@@ -683,9 +683,12 @@ router.get('/meetings', verifyToken, async (req, res) => {
     // If user is TEACHER or TEACHER_ADMIN, only show their meetings
     // If user is ADMIN, show all meetings
     if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      query.createdBy = req.user.id;
+      query.$or = [
+        { createdBy: req.user.id },
+        { assignedTeacher: req.user.id }
+      ];
     }
-    // For ADMIN, no createdBy filter - show all meetings
+    // For ADMIN, no filter - show all meetings
 
     if (status) query.status = status;
     if (batch) query.batch = batch;
@@ -1131,10 +1134,12 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 
     // Check if user has permission to edit this meeting
     const user = await User.findById(req.user.id).select('role');
-    if ((user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') && meeting.createdBy.toString() !== req.user.id) {
+    const isOwnerOrAssigned = meeting.createdBy.toString() === req.user.id ||
+      (meeting.assignedTeacher && meeting.assignedTeacher.toString() === req.user.id);
+    if ((user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') && !isOwnerOrAssigned) {
       return res.status(403).json({
         success: false,
-        message: 'You can only edit meetings you created'
+        message: 'You can only edit meetings assigned to you'
       });
     }
 
