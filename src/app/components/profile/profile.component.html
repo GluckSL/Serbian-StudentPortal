@@ -1,54 +1,99 @@
-<div class="profile-wrapper" *ngIf="userProfile; else loading">
-  <div class="profile-card shadow">
-    <div class="profile-header">
-      <img
-        *ngIf="userProfile.profilePhoto; else defaultPhoto"
-        [src]="userProfile.profilePhoto"
-        alt="Profile Picture"
-        class="profile-pic"
-      />
-      <ng-template #defaultPhoto>
-        <img
-          src="https://via.placeholder.com/150"
-          alt="Profile Picture"
-          class="profile-pic"
-        />
-      </ng-template>
-      <h2>{{ userProfile.name }}</h2>
-      <p class="role-tag">{{ userProfile.role }}</p>
-    </div>
+<div class="pf" *ngIf="userProfile; else loadingTpl">
 
-    <div class="profile-info">
-      <p>{{ userProfile.regNo }}</p>
-      <p>{{ userProfile.email }}</p>
-      <p *ngIf="userProfile.role === 'STUDENT'">
-        <strong>Subscription Plan:</strong> {{ userProfile.subscription }}
-      </p>
-    
-      <p *ngIf="userProfile.role === 'STUDENT'">
-        <strong>Teacher Name:</strong> {{ userProfile.assignedTeacher?.name }}
-      </p>
-    </div>
+  <h2 class="pf-page-title">My Profile</h2>
 
-    <form (submit)="uploadPhoto($event)" class="upload-form">
-      <label class="file-upload">
-        <input type="file" (change)="onFileSelected($event)" accept="image/*" />
-        Choose Photo
-      </label>
-      <button class="upload" type="submit" [disabled]="uploading">Upload Photo</button>
-      <div class="actions" *ngIf="userProfile.role === 'ADMIN'">
-        <button class="btn btn-danger" (click)="deleteAccount(userProfile._id)">
-          Delete Account
-        </button>
+  <div class="pf-layout">
+    <!-- Left: Photo Card -->
+    <div class="pf-photo-card">
+      <div class="pf-photo-wrap">
+        <img *ngIf="userProfile.profilePhoto" [src]="userProfile.profilePhoto" alt="Profile" class="pf-photo">
+        <div *ngIf="!userProfile.profilePhoto" class="pf-photo pf-photo--initials">{{ userProfile.name?.slice(0,2).toUpperCase() }}</div>
       </div>
-    </form>
-    <div *ngIf="uploadError" class="text-danger mt-2">{{ uploadError }}</div>
+      <h3 class="pf-name">{{ userProfile.name }}</h3>
+      <span class="pf-role-badge">{{ userProfile.role }}</span>
+      <p class="pf-reg">Registration No: {{ userProfile.regNo }}</p>
+
+      <!-- Quick stats (students only) -->
+      <div class="pf-stats" *ngIf="userProfile.role === 'STUDENT'">
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.level || '—' }}</div><div class="pf-stat__lbl">Level</div></div>
+        <div class="pf-stat-divider"></div>
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.batch || '—' }}</div><div class="pf-stat__lbl">Batch</div></div>
+        <div class="pf-stat-divider"></div>
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.studentStatus || '—' }}</div><div class="pf-stat__lbl">Status</div></div>
+      </div>
+
+      <!-- Photo upload -->
+      <label class="pf-edit-btn">
+        <input type="file" (change)="onFileSelected($event)" accept="image/*" hidden>
+        Edit Photo
+      </label>
+      <div class="pf-upload-bar" *ngIf="selectedFile">
+        <span>{{ selectedFile.name }}</span>
+        <button class="pf-upload-go" (click)="uploadPhoto($event)" [disabled]="uploading">{{ uploading ? 'Uploading...' : 'Upload' }}</button>
+      </div>
+      <div class="pf-error" *ngIf="uploadError">{{ uploadError }}</div>
+    </div>
+
+    <!-- Right: Details -->
+    <div class="pf-details">
+
+      <!-- Personal Information -->
+      <div class="pf-card">
+        <h4 class="pf-card__title">Personal Information</h4>
+        <div class="pf-field"><span class="pf-field__label">Full Name</span><span class="pf-field__value">{{ userProfile.name }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Email</span><span class="pf-field__value">{{ userProfile.email }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Registration No</span><span class="pf-field__value pf-mono">{{ userProfile.regNo }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.role === 'STUDENT'">
+          <span class="pf-field__label">Subscription Plan</span>
+          <span class="pf-field__value"><span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span></span>
+        </div>
+        <div class="pf-field" *ngIf="userProfile.assignedTeacher"><span class="pf-field__label">Assigned Teacher</span><span class="pf-field__value">{{ userProfile.assignedTeacher?.name || '—' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.phoneNumber"><span class="pf-field__label">Phone</span><span class="pf-field__value">{{ userProfile.phoneNumber }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.address"><span class="pf-field__label">Address</span><span class="pf-field__value">{{ userProfile.address }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.servicesOpted"><span class="pf-field__label">Service</span><span class="pf-field__value">{{ userProfile.servicesOpted }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.medium"><span class="pf-field__label">Medium</span><span class="pf-field__value">{{ userProfile.medium?.join ? userProfile.medium.join(', ') : userProfile.medium }}</span></div>
+      </div>
+
+      <!-- Course Progress (students) -->
+      <div class="pf-card" *ngIf="userProfile.role === 'STUDENT'">
+        <h4 class="pf-card__title">Course Progress</h4>
+        <p class="pf-field__label" style="margin-bottom:8px;">German Levels</p>
+        <div class="pf-levels-bar">
+          <div class="pf-levels-bar__track">
+            <div class="pf-levels-bar__fill" [style.width.%]="getLevelPercent()"></div>
+          </div>
+          <div class="pf-levels-labels">
+            <span *ngFor="let lv of ['A1','A2','B1','B2','C1','C2']" class="pf-levels-label" [class.pf-levels-label--active]="userProfile.level === lv">{{ lv }}</span>
+          </div>
+        </div>
+        <div class="pf-field" *ngIf="userProfile.languageLevelOpted"><span class="pf-field__label">Level Opted</span><span class="pf-field__value">{{ userProfile.languageLevelOpted }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.languageExamStatus"><span class="pf-field__label">Exam Status</span><span class="pf-field__value">{{ userProfile.languageExamStatus }}</span></div>
+      </div>
+
+      <!-- Teacher Info -->
+      <div class="pf-card" *ngIf="userProfile.role === 'TEACHER' || userProfile.role === 'TEACHER_ADMIN'">
+        <h4 class="pf-card__title">Teaching Details</h4>
+        <div class="pf-field"><span class="pf-field__label">Medium</span><span class="pf-field__value">{{ userProfile.medium?.join ? userProfile.medium.join(', ') : userProfile.medium || '—' }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Assigned Batches</span><span class="pf-field__value">{{ userProfile.assignedBatches?.join(', ') || '—' }}</span></div>
+      </div>
+
+      <!-- Account -->
+      <div class="pf-card">
+        <h4 class="pf-card__title">Account</h4>
+        <div class="pf-field"><span class="pf-field__label">Role</span><span class="pf-field__value"><span class="pf-chip pf-chip--blue">{{ userProfile.role }}</span></span></div>
+        <div class="pf-field"><span class="pf-field__label">Member Since</span><span class="pf-field__value">{{ userProfile.createdAt | date:'dd MMM yyyy' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.lastLogin"><span class="pf-field__label">Last Login</span><span class="pf-field__value">{{ userProfile.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.role === 'ADMIN'" style="margin-top:12px;">
+          <button class="pf-btn-danger" (click)="deleteAccount(userProfile._id)">🗑 Delete Account</button>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 
-<ng-template #loading>
-  <div class="loading">
-    <div class="spinner"></div>
-    <p>Loading user profile...</p>
+<ng-template #loadingTpl>
+  <div class="pf" style="display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 80px);">
+    <div style="text-align:center;"><div class="pf-spinner"></div><p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading profile...</p></div>
   </div>
 </ng-template>

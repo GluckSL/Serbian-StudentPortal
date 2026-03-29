@@ -276,6 +276,33 @@ class ZoomService {
       throw new Error('Failed to get participant engagement data');
     }
   }
+  /**
+   * Get all licensed Zoom users on the master account
+   */
+  async getZoomUsers() {
+    const token = await this.getAccessToken();
+    const response = await axios.get(`${zoomConfig.apiBaseUrl}/users`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      params: { page_size: 100, status: 'active' }
+    });
+    return (response.data.users || []).filter(u => u.type === 2);
+  }
+
+  /**
+   * Get past meetings for a specific Zoom user
+   */
+  async getUserPastMeetings(userEmail, from, to) {
+    const token = await this.getAccessToken();
+    const params = { page_size: 100, type: 'past' };
+    if (from) params.from = from;
+    if (to) params.to = to;
+
+    const response = await axios.get(`${zoomConfig.apiBaseUrl}/users/${userEmail}/meetings`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      params
+    });
+    return response.data.meetings || [];
+  }
 }
 
 module.exports = new ZoomService();

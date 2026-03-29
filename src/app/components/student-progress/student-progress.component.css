@@ -8,6 +8,8 @@
   flex-direction: column;
   gap: 12px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* ── Card ── */
@@ -120,6 +122,14 @@
 @media (max-width: 767px) {
   .sp-section__grid--two { grid-template-columns: 1fr; }
   .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
+  .sp { padding: 10px; }
+  .sp-card { padding: 12px 14px; }
+  .sp-table td { font-size: 11px; padding: 4px 6px; }
+  .sp-table__label { font-size: 9px; width: 70px; }
+  .sp-levels { flex-wrap: wrap; }
+  .sp-level { min-width: 0; font-size: 10px; padding: 3px 0; }
+  .sp-level-detail { flex-wrap: wrap; gap: 4px; padding: 5px 8px; }
+  .sp-level-detail__info { flex-basis: 100%; }
 }
 
 /* ── Profile table ── */

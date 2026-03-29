@@ -7,7 +7,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 function parseCurrencyValue(str) {
   if (!str || typeof str !== 'string') return { amount: 0, currency: 'LKR' };
   const cleaned = str.trim();
-  const currency = cleaned.includes('\u20B9') ? 'INR' : 'LKR';
+  const currency = cleaned.includes('\u20B9') ? 'INR' : cleaned.includes('€') ? 'EUR' : 'LKR';
   const isNegative = cleaned.includes('(') && cleaned.includes(')');
   const numStr = cleaned.replace(/[^0-9.]/g, '');
   let amount = parseFloat(numStr) || 0;
@@ -30,13 +30,12 @@ router.post('/import', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async
     let created = 0, updated = 0, skipped = 0;
 
     for (const row of records) {
-      const email = (row.email || '').trim().toLowerCase();
+      const email = (row.email || '').trim().toLowerCase().replace(/\s+/g, '');
       if (!email) { skipped++; continue; }
 
       const totalInvoiced = parseCurrencyValue(row.totalInvoiced);
-      const totalPaid = parseCurrencyValue(row.completePaid);
+      const completePaid = parseCurrencyValue(row.completePaid);
       const pending = parseCurrencyValue(row.pendingPayment);
-      const totalAmount = parseCurrencyValue(row.totalAmount);
 
       const escaped = escapeRegex(email);
       const user = await User.findOne({
@@ -49,11 +48,11 @@ router.post('/import', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async
         currentStatus: (row.currentStatus || '').trim(),
         serviceOpted: (row.serviceOpted || '').trim(),
         batchNumber: (row.batchNumber || '').toString().trim(),
-        currency: totalInvoiced.currency,
-        totalPackageAmount: totalAmount.amount,
-        totalInvoiced: totalInvoiced.amount,
-        totalPaid: totalPaid.amount,
-        pendingPayment: pending.amount,
+        currency: completePaid.currency || totalInvoiced.currency,
+        totalPackageAmount: completePaid.amount || 0,
+        totalInvoiced: totalInvoiced.amount || 0,
+        totalPaid: totalInvoiced.amount || 0,
+        pendingPayment: pending.amount || 0,
         lastUpdatedBy: req.user.id
       };
       if (user) updateData.studentId = user._id;

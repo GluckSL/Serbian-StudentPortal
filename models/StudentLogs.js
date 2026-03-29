@@ -8,7 +8,7 @@ const StudentLogsSchema = new mongoose.Schema({
     batchAtUpdate: { type: String, required: true },
     assignedTeacherAtUpdate: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     statusAtUpdate: { type: String, enum: ["UNCERTAIN", "ONGOING", "COMPLETED", "WITHDREW"], required: true },
-    subscriptionAtUpdate: { type: String, enum: ["SILVER", "PLATINUM"], required: true },
+    subscriptionAtUpdate: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: true },
     mediumAtUpdate: { type: [String], required: true },
     updatedAt: { type: Date, default: Date.now }
 });

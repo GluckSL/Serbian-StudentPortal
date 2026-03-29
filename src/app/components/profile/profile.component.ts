@@ -108,6 +108,13 @@ export class ProfileComponent implements OnInit {
     return `https://gluckstudentsportal.com${relativePath}`;
   }
 
+  getLevelPercent(): number {
+    const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const idx = levels.indexOf(this.userProfile?.level);
+    if (idx < 0) return 0;
+    return ((idx + 1) / levels.length) * 100;
+  }
+
   deleteAccount(userId: string) {
     if (confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
       this.authService.deleteUser(userId).subscribe({

@@ -1,30 +1,44 @@
-<!-- Public pages (home/login): no sidebar, show header -->
-<ng-container *ngIf="!showSidebar">
-  <app-header *ngIf="showHeader"></app-header>
-  <main class="main-content">
-    <router-outlet></router-outlet>
-  </main>
-  <app-footer></app-footer>
+<!-- Wait for auth check on page refresh -->
+<ng-container *ngIf="authChecked; else appLoading">
+
+  <!-- Public pages (home/login): no sidebar, show header -->
+  <ng-container *ngIf="!showSidebar">
+    <app-header *ngIf="showHeader"></app-header>
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+    <app-footer></app-footer>
+  </ng-container>
+
+  <!-- Logged-in pages: sidebar + content -->
+  <ng-container *ngIf="showSidebar">
+    <!-- Mobile hamburger -->
+    <button class="mobile-menu-btn" (click)="toggleSidebar()">☰ <span style="font-size:14px;font-weight:700;margin-left:8px;">Glück Global</span></button>
+
+    <!-- Overlay for mobile -->
+    <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
+
+    <div class="app-shell">
+      <app-sidebar
+        [class.open]="sidebarOpen"
+        (closeSidebar)="sidebarOpen = false">
+      </app-sidebar>
+      <div class="shell-content">
+        <main class="main-content">
+          <router-outlet></router-outlet>
+        </main>
+        <app-footer></app-footer>
+      </div>
+    </div>
+  </ng-container>
+
 </ng-container>
 
-<!-- Logged-in pages: sidebar + content -->
-<ng-container *ngIf="showSidebar">
-  <!-- Mobile hamburger -->
-  <button class="mobile-menu-btn" (click)="toggleSidebar()">☰</button>
-
-  <!-- Overlay for mobile -->
-  <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
-
-  <div class="app-shell">
-    <app-sidebar
-      [class.open]="sidebarOpen"
-      (closeSidebar)="sidebarOpen = false">
-    </app-sidebar>
-    <div class="shell-content">
-      <main class="main-content">
-        <router-outlet></router-outlet>
-      </main>
-      <app-footer></app-footer>
+<ng-template #appLoading>
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+    <div style="text-align:center;">
+      <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#005b96;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 14px;"></div>
+      <p style="color:#6b7280;font-size:13px;">Loading...</p>
     </div>
   </div>
-</ng-container>
+</ng-template>

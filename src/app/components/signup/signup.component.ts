@@ -51,11 +51,9 @@ export class SignupComponent {
   assignedTeacher: string = '';   // ✅ selected teacher ID
   teachers: any[] = [];           // all fetched teachers
 
-   // Teacher fields
+  // Teacher fields
   assignedCourses: string[] = []; // selected course IDs
   assignedBatches: string[] = []; // selected batches
-  // Zoom host email for teachers
-  zoomHostEmail: string = '';
   courses: any[] = []; // list fetched from backend
 
   isEditMode = false; // ✅ flag to track update mode
@@ -160,7 +158,6 @@ export class SignupComponent {
           this.medium = data.medium || [];
           this.assignedCourses = data.assignedCourses?.map((c: any) => c._id || c) || [];
           this.assignedBatches = data['assignedBatches'] || [];
-          this.zoomHostEmail = data['zoomHostEmail'] || '';
         }
       },
       error: (err) => {
@@ -223,7 +220,6 @@ export class SignupComponent {
       user.medium = this.medium;
       user.assignedCourses = this.assignedCourses;
       user.assignedBatches = this.assignedBatches;
-      user.zoomHostEmail = this.zoomHostEmail;
     }
 
     // ✅ Decide whether to create or update

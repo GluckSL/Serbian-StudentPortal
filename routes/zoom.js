@@ -6,6 +6,7 @@ const zoomService = require('../services/zoomService');
 const MeetingLink = require('../models/MeetingLink');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
+const checkRole = require('../middleware/checkRole');
 
 /**
  * Enhanced participant matching algorithm
@@ -194,7 +195,7 @@ function levenshteinDistance(str1, str2) {
  * Create a Zoom meeting with selected students
  * POST /api/zoom/create-meeting
  */
-router.post('/create-meeting', verifyToken, async (req, res) => {
+router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const {
       batch,
@@ -204,35 +205,58 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
       duration,
       timezone,
       agenda,
-      studentIds // Array of student IDs or names
+      studentIds, // Array of student IDs
+      teacherId,  // Teacher assigned to the class
+      zoomHostEmail, // Zoom host email from the Zoom API
+      courseDay   // Optional: day in the 200-day journey
     } = req.body;
 
     console.log('📝 Creating Zoom meeting for batch:', batch);
     console.log('👥 Selected students:', studentIds);
 
     // Validate required fields
-    if (!batch || !plan || !topic || !startTime || !studentIds || studentIds.length === 0) {
+    if (!batch || !plan || !topic || !startTime || !studentIds || studentIds.length === 0 || !teacherId || !zoomHostEmail) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: batch, plan, topic, startTime, and studentIds are required'
+        message: 'Missing required fields: batch, plan, topic, startTime, studentIds, teacherId, and zoomHostEmail are required'
       });
     }
 
-    // Get teacher with Zoom host email
-    const teacher = await User.findById(req.user.id).select('email name zoomHostEmail');
-    if (!teacher) {
+    // Get the assigned teacher
+    const teacher = await User.findById(teacherId).select('email name role');
+    if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
     }
 
-    // Validate Zoom host email
-    if (!teacher.zoomHostEmail) {
-      return res.status(400).json({
-        success: false,
-        message: 'Zoom host email not configured for your account. Please ask admin to add your Zoom host email.'
-      });
+    // Overlap detection: check if this zoom host already has a meeting at this time
+    const meetingStart = new Date(startTime);
+    const meetingEnd = new Date(meetingStart.getTime() + (duration || 60) * 60000);
+
+    const overlap = await MeetingLink.findOne({
+      hostEmail: zoomHostEmail,
+      status: { $ne: 'cancelled' },
+      startTime: { $lt: meetingEnd },
+      $expr: {
+        $gt: [
+          { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
+          meetingStart
+        ]
+      }
+    });
+
+    if (overlap) {
+      const err = new Error(`Zoom account "${zoomHostEmail}" is already booked for "${overlap.topic}" at this time.`);
+      err.statusCode = 409;
+      err.conflicts = [{
+        meetingId: overlap._id,
+        topic: overlap.topic,
+        startTime: overlap.startTime,
+        duration: overlap.duration
+      }];
+      throw err;
     }
 
-    console.log('👨‍🏫 Teacher (host):', teacher.name, '— Zoom:', teacher.zoomHostEmail);
+    console.log('👨‍🏫 Teacher:', teacher.name, '— Zoom Host:', zoomHostEmail);
 
     // Find students by IDs
     let students = [];
@@ -251,14 +275,14 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
 
     console.log(`✅ Found ${students.length} students`);
 
-    // Create Zoom meeting on teacher's Zoom user (under master account)
+    // Create Zoom meeting on the selected zoom account
     const zoomResult = await zoomService.createMeeting({
       topic,
       startTime,
       duration: duration || 60,
       timezone: timezone || 'Asia/Colombo',
       agenda: agenda || `German Language Class - Batch ${batch}`
-    }, teacher.zoomHostEmail);
+    }, zoomHostEmail);
 
     if (!zoomResult.success) {
       throw new Error('Failed to create Zoom meeting');
@@ -266,7 +290,7 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
 
     const meeting = zoomResult.meeting;
 
-    console.log('✅ Zoom meeting created on teacher account:', meeting.id);
+    console.log('✅ Zoom meeting created on account:', zoomHostEmail, meeting.id);
 
     // Save meeting to database — all students share the same join URL (no registration)
     const meetingLink = new MeetingLink({
@@ -285,6 +309,8 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
       startUrl: meeting.startUrl,
       joinUrl: meeting.joinUrl,
       createdBy: req.user.id,
+      assignedTeacher: teacherId,
+      courseDay: courseDay || null,
       attendees: students.map(student => ({
         studentId: student._id,
         name: student.name,
@@ -517,7 +543,6 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
         weekEndDate.setHours(23, 59, 59, 999);
 
         // Get teacher info for timetable
-        const teacher = await User.findById(req.user.id);
         
         // Get student info to determine medium and plan
         const firstStudent = students[0];
@@ -525,11 +550,11 @@ router.post('/create-meeting', verifyToken, async (req, res) => {
         
         timetable = new TimeTable({
           batch: batch,
-          medium: medium,
+          medium: firstStudent.medium || 'English',
           plan: plan,
           weekStartDate: weekStartDate,
           weekEndDate: weekEndDate,
-          assignedTeacher: req.user.id,
+          assignedTeacher: teacherId,
           [dayOfWeek]: [{
             start: meetingTime,
             end: endTime,
@@ -658,9 +683,12 @@ router.get('/meetings', verifyToken, async (req, res) => {
     // If user is TEACHER or TEACHER_ADMIN, only show their meetings
     // If user is ADMIN, show all meetings
     if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      query.createdBy = req.user.id;
+      query.$or = [
+        { createdBy: req.user.id },
+        { assignedTeacher: req.user.id }
+      ];
     }
-    // For ADMIN, no createdBy filter - show all meetings
+    // For ADMIN, no filter - show all meetings
 
     if (status) query.status = status;
     if (batch) query.batch = batch;
@@ -668,6 +696,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     const meetings = await MeetingLink.find(query)
       .populate('createdBy', 'name email role')
+      .populate('assignedTeacher', 'name email')
       .populate('attendees.studentId', 'name email batch level subscription')
       .sort({ startTime: -1 });
 
@@ -697,6 +726,7 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
 
     const meeting = await MeetingLink.findById(id)
       .populate('createdBy', 'name email')
+      .populate('assignedTeacher', 'name email')
       .populate('attendees.studentId', 'name email batch level subscription studentStatus');
 
     if (!meeting) {
@@ -767,6 +797,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       plan: student.subscription
     })
       .populate('createdBy', 'name email')
+      .populate('assignedTeacher', 'name email')
       //.populate('attendees.studentId', 'name email batch level subscription')
       .sort({ startTime: -1 });
 
@@ -808,8 +839,8 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
         startTime: meeting.startTime,
         duration: meeting.duration,
         teacher: {
-          name: meeting.createdBy?.name || 'Unknown',
-          email: meeting.createdBy?.email || ''
+          name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
+          email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
         },
         joinUrl: personalJoinUrl, // Use personal URL
         password: meeting.zoomPassword,
@@ -1103,10 +1134,12 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 
     // Check if user has permission to edit this meeting
     const user = await User.findById(req.user.id).select('role');
-    if ((user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') && meeting.createdBy.toString() !== req.user.id) {
+    const isOwnerOrAssigned = meeting.createdBy.toString() === req.user.id ||
+      (meeting.assignedTeacher && meeting.assignedTeacher.toString() === req.user.id);
+    if ((user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') && !isOwnerOrAssigned) {
       return res.status(403).json({
         success: false,
-        message: 'You can only edit meetings you created'
+        message: 'You can only edit meetings assigned to you'
       });
     }
 
@@ -1880,6 +1913,202 @@ router.get('/meeting/:meetingId/engagement/teacher', verifyToken, async (req, re
       success: false,
       message: error.message || 'Failed to fetch teacher engagement data'
     });
+  }
+});
+
+// ═══ EXTERNAL MEETING IMPORT ═══
+
+/**
+ * GET /api/zoom/available-hosts - Get Zoom hosts with busy status for a time slot
+ */
+router.get('/available-hosts', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { startTime, duration } = req.query;
+
+    if (!startTime || !duration) {
+      return res.status(400).json({ success: false, message: 'startTime and duration are required' });
+    }
+
+    const meetingStart = new Date(startTime);
+    const meetingEnd = new Date(meetingStart.getTime() + Number(duration) * 60000);
+
+    // Get all Zoom hosts from Zoom API
+    const users = await zoomService.getZoomUsers();
+    const hosts = users.map(u => ({ id: u.id, email: u.email, name: u.first_name + ' ' + u.last_name }));
+
+    // Find meetings that overlap with the requested time
+    const overlapping = await MeetingLink.find({
+      status: { $ne: 'cancelled' },
+      startTime: { $lt: meetingEnd },
+      $expr: {
+        $gt: [
+          { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
+          meetingStart
+        ]
+      }
+    }).select('hostEmail startTime duration');
+
+    const busyEmails = new Set(
+      overlapping
+        .filter(m => m.hostEmail)
+        .map(m => m.hostEmail.toLowerCase())
+    );
+
+    const data = hosts.map(h => ({
+      ...h,
+      isBusy: busyEmails.has(h.email.toLowerCase())
+    }));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching available hosts:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch available hosts' });
+  }
+});
+
+/**
+ * GET /api/zoom/external/hosts - List all Zoom users on the master account
+ */
+router.get('/external/hosts', verifyToken, async (req, res) => {
+  try {
+    const users = await zoomService.getZoomUsers();
+    res.json({ success: true, hosts: users.map(u => ({ id: u.id, email: u.email, name: u.first_name + ' ' + u.last_name })) });
+  } catch (error) {
+    console.error('Error fetching Zoom hosts:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch Zoom hosts' });
+  }
+});
+
+/**
+ * GET /api/zoom/external/meetings/:hostEmail - List past meetings for a host
+ */
+router.get('/external/meetings/:hostEmail', verifyToken, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const meetings = await zoomService.getUserPastMeetings(req.params.hostEmail, from, to);
+
+    // Check which ones are already linked in our system
+    const zoomIds = meetings.map(m => String(m.id));
+    const linked = await MeetingLink.find({ zoomMeetingId: { $in: zoomIds } }).select('zoomMeetingId').lean();
+    const linkedSet = new Set(linked.map(l => l.zoomMeetingId));
+
+    const enriched = meetings.map(m => ({
+      ...m,
+      linkedInPortal: linkedSet.has(String(m.id))
+    }));
+
+    res.json({ success: true, meetings: enriched });
+  } catch (error) {
+    console.error('Error fetching past meetings:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch past meetings' });
+  }
+});
+
+/**
+ * POST /api/zoom/external/link - Link an external meeting to a batch and fetch attendance
+ */
+router.post('/external/link', verifyToken, async (req, res) => {
+  try {
+    const { zoomMeetingId, batch, plan, topic } = req.body;
+    if (!zoomMeetingId || !batch) {
+      return res.status(400).json({ success: false, message: 'zoomMeetingId and batch are required' });
+    }
+
+    // Check if already linked
+    const existing = await MeetingLink.findOne({ zoomMeetingId: String(zoomMeetingId) });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'This meeting is already linked in the system' });
+    }
+
+    // Get meeting report from Zoom
+    const report = await zoomService.getMeetingReport(String(zoomMeetingId));
+
+    // Get students in the batch
+    const studentFilter = { role: 'STUDENT', batch, studentStatus: { $in: ['ONGOING', 'UNCERTAIN'] } };
+    if (plan) studentFilter.subscription = plan;
+    const students = await User.find(studentFilter).select('name email').lean();
+
+    // Match participants to students
+    const attendanceData = students.map(student => {
+      const matchResult = findBestParticipantMatch(student, report.participants);
+      const participantDuration = matchResult.match?.durationMinutes || 0;
+      const meetingDuration = report.meeting?.duration || 60;
+      const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
+      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
+
+      return {
+        studentId: student._id,
+        name: student.name,
+        email: student.email,
+        attended: meetsThreshold,
+        confidence: matchResult.confidence,
+        matchMethod: matchResult.method,
+        zoomName: matchResult.match?.name || null,
+        zoomEmail: matchResult.match?.email || null,
+        joinTime: matchResult.match?.joinTime || null,
+        leaveTime: matchResult.match?.leaveTime || null,
+        duration: matchResult.match?.duration || 0,
+        durationMinutes: participantDuration,
+        attendancePercent: Math.round(attendancePercent),
+        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
+        needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
+      };
+    });
+
+    // Save as a MeetingLink
+    const meetingLink = new MeetingLink({
+      batch,
+      plan: plan || 'PLATINUM',
+      platform: 'Zoom',
+      link: '',
+      topic: topic || report.meeting?.topic || 'External Meeting',
+      startTime: report.meeting?.startTime ? new Date(report.meeting.startTime) : new Date(),
+      duration: report.meeting?.duration || 60,
+      zoomMeetingId: String(zoomMeetingId),
+      hostEmail: report.meeting?.hostId || '',
+      createdBy: req.user.id,
+      attendees: students.map(s => ({ studentId: s._id, name: s.name, email: s.email, joinUrl: '' })),
+      attendance: attendanceData,
+      attendanceRecorded: true,
+      attendanceRecordedAt: new Date(),
+      status: 'ended'
+    });
+
+    await meetingLink.save();
+
+    const attended = attendanceData.filter(a => a.attended).length;
+
+    res.json({
+      success: true,
+      message: `Meeting linked. ${attended}/${students.length} students marked as attended.`,
+      data: {
+        meetingId: meetingLink._id,
+        topic: meetingLink.topic,
+        attended,
+        total: students.length,
+        attendance: attendanceData
+      }
+    });
+  } catch (error) {
+    console.error('Error linking external meeting:', error.message);
+    res.status(500).json({ success: false, message: error.message || 'Failed to link meeting' });
+  }
+});
+
+/**
+ * GET /api/zoom/teachers - Get all teachers for admin meeting creation
+ */
+router.get('/teachers', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const teachers = await User.find({
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+      isActive: true
+    }).select('name email assignedBatches medium').sort({ name: 1 });
+
+    res.json({ success: true, data: teachers });
+  } catch (error) {
+    console.error('Error fetching teachers:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch teachers' });
   }
 });
 

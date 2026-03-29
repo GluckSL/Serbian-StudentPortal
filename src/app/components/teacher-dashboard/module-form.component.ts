@@ -52,6 +52,18 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                       <br><strong>Suggestions:</strong> Quick role-play (15-20 min) | Standard session (30-45 min) | Extended practice (60+ min)
                     </small>
                   </div>
+
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Course Day (Optional)</label>
+                    <input type="number" class="form-control" formControlName="courseDay" 
+                           placeholder="e.g., 45" min="1" max="200">
+                    <div class="text-danger" *ngIf="moduleForm.get('courseDay')?.invalid && moduleForm.get('courseDay')?.touched">
+                      Must be between 1 and 200
+                    </div>
+                    <small class="form-text text-muted">
+                      Day in the 200-day course journey (1–200). Leave empty for general pool.
+                    </small>
+                  </div>
                   
                   <div class="col-12 mb-3">
                     <label class="form-label">Description *</label>
@@ -433,7 +445,8 @@ export class ModuleFormComponent implements OnInit {
         helpfulPhrases: [[]],
         culturalNotes: [[]]
       }),
-      tags: [[]]
+      tags: [[]],
+      courseDay: [null, [Validators.min(1), Validators.max(200)]]
     });
   }
 
@@ -551,6 +564,11 @@ export class ModuleFormComponent implements OnInit {
     this.focusAreas = [...(module.aiTutorConfig.focusAreas || [])];
     this.helpfulPhrases = [...(module.aiTutorConfig.helpfulPhrases || [])];
     this.tags = [...(module.tags || [])];
+    
+    // Set courseDay if available
+    if (module.courseDay) {
+      this.moduleForm.patchValue({ courseDay: module.courseDay });
+    }
     
     // Set selected languages
     this.selectedTargetLanguage = module.targetLanguage || 'German';

@@ -297,6 +297,12 @@
               <p>{{ meeting.createdBy?.email }}</p>
             </div>
 
+            <div class="info-section" *ngIf="meeting.assignedTeacher">
+              <h3>Assigned Teacher</h3>
+              <p><strong>{{ meeting.assignedTeacher?.name }}</strong></p>
+              <p>{{ meeting.assignedTeacher?.email }}</p>
+            </div>
+
             <div class="info-section">
               <h3>Platform</h3>
               <p>{{ meeting.platform }}</p>

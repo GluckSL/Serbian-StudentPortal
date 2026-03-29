@@ -176,6 +176,6 @@ export class MeetingsListComponent implements OnInit {
   }
 
   getTeacherName(meeting: any): string {
-    return meeting.createdBy?.name || 'Unknown Teacher';
+    return meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown Teacher';
   }
 }
