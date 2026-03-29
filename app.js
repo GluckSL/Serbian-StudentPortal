@@ -148,8 +148,8 @@ app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 
-const invoiceManagementRoutes = require('./routes/invoiceManagement');
-app.use('/api/invoices', invoiceManagementRoutes);
+// const invoiceManagementRoutes = require('./routes/invoiceManagement');
+// app.use('/api/invoices', invoiceManagementRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
