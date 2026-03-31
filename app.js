@@ -48,6 +48,7 @@ const metaLeadsRoutes = require('./routes/metaLeads');
 const digitalExercisesRoutes = require('./routes/digitalExercises');
 const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
+const batchJourneyRoutes = require('./routes/batchJourney');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -147,6 +148,7 @@ app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
+app.use('/api/batch-journey', batchJourneyRoutes);
 
 // const invoiceManagementRoutes = require('./routes/invoiceManagement');
 // app.use('/api/invoices', invoiceManagementRoutes);

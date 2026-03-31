@@ -36,6 +36,8 @@ interface ModuleWithStats {
   lastUpdateDate: Date;
   createdByTeacher: boolean;
   totalEnrollments: number;
+  /** 1–200 day in course journey; null = general pool */
+  courseDay?: number | null;
 }
 
 @Component({
@@ -175,6 +177,7 @@ interface ModuleWithStats {
                       <tr>
                         <th>Module</th>
                         <th>Level/Category</th>
+                        <th>Journey day</th>
                         <th>Created By</th>
                         <th>Last Updated</th>
                         <th>Version</th>
@@ -196,6 +199,16 @@ interface ModuleWithStats {
                             <span class="badge bg-primary me-1">{{ module.level }}</span>
                             <br>
                             <small class="text-muted">{{ module.category }}</small>
+                          </div>
+                        </td>
+                        <td>
+                          <div class="journey-day-cell">
+                            <span class="badge journey-day-badge" *ngIf="module.courseDay != null">
+                              Day {{ module.courseDay }}
+                            </span>
+                            <span class="text-muted journey-day-pool" *ngIf="module.courseDay == null">
+                              —
+                            </span>
                           </div>
                         </td>
                         <td>
@@ -525,6 +538,14 @@ interface ModuleWithStats {
     .module-info .module-desc  { color: #94a3b8; font-size: 10px; margin-top: 2px; }
 
     .level-category small { font-size: 10px; }
+
+    .journey-day-cell { min-width: 72px; }
+    .journey-day-badge {
+      background: #e8f4fc !important;
+      color: #005b96 !important;
+      border: 1px solid #b8d4e8;
+    }
+    .journey-day-pool { font-size: 11px; }
 
     .creator-info .creator-name { font-weight: 600; color: #0f172a; font-size: 12px; }
 

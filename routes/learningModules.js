@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const LearningModule = require('../models/LearningModule');
 const StudentProgress = require('../models/StudentProgress');
+const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // GET /api/learning-modules - Get all modules (with filtering and level-based access control)
@@ -26,12 +27,28 @@ router.get('/', verifyToken, async (req, res) => {
     // Build filter object
     const filter = { isActive: true, isDeleted: { $ne: true } }; // Exclude deleted items
     
-    // ✅ NEW: Filter by visibility - Students only see published modules
+    // ✅ Filter by visibility - Students only see published modules
     if (req.user.role === 'STUDENT') {
       filter.visibleToStudents = true;
+
+      // ✅ Journey day gating: only show modules for days the student has reached
+      const student = await User.findById(req.user.id).select('currentCourseDay').lean();
+      const studentDay = (student && student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay)))
+        ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+        : 1;
+
+      // Modules without a courseDay are always visible; those with one must be <= student's day
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { courseDay: null },
+          { courseDay: { $exists: false } },
+          { courseDay: { $lte: studentDay } }
+        ]
+      });
     }
     // Teachers and Admins see all modules (including drafts)
-    
+
     if (level) filter.level = level;
     if (category) filter.category = category;
     if (difficulty) filter.difficulty = difficulty;
@@ -210,15 +227,15 @@ router.put('/:id', verifyToken, checkRole(['TEACHER', 'ADMIN']), async (req, res
     
     // Validate and fix module data before updating
     const updatedData = fixModuleValidationIssues(req.body);
-    
+
     // Set update context for tracking
     module._updateContext = {
       userId: req.user.id,
       changes: req.body.changeDescription || 'Module content updated'
     };
-    
-    // Update module fields
-    Object.assign(module, updatedData);
+
+    // Document#set tracks path changes reliably (e.g. courseDay) vs plain Object.assign
+    module.set(updatedData);
     await module.save();
     
     await module.populate('createdBy', 'name email');
@@ -709,6 +726,19 @@ function fixModuleValidationIssues(module) {
 
   // Create a copy to avoid modifying the original
   const fixedModule = JSON.parse(JSON.stringify(module));
+
+  if (Object.prototype.hasOwnProperty.call(module, 'courseDay')) {
+    const v = fixedModule.courseDay;
+    fixedModule.courseDay =
+      v === '' || v === null || v === undefined
+        ? null
+        : (() => {
+            const n = Number(v);
+            if (!Number.isFinite(n)) return null;
+            const r = Math.round(n);
+            return r < 1 || r > 200 ? null : r;
+          })();
+  }
 
   // Fix title length
   if (fixedModule.title && fixedModule.title.length > 60) {

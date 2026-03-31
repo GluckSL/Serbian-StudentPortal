@@ -565,9 +565,8 @@ export class ModuleFormComponent implements OnInit {
     this.helpfulPhrases = [...(module.aiTutorConfig.helpfulPhrases || [])];
     this.tags = [...(module.tags || [])];
     
-    // Set courseDay if available
-    if (module.courseDay) {
-      this.moduleForm.patchValue({ courseDay: module.courseDay });
+    if (module.courseDay != null) {
+      this.moduleForm.patchValue({ courseDay: Number(module.courseDay) });
     }
     
     // Set selected languages
@@ -698,6 +697,15 @@ export class ModuleFormComponent implements OnInit {
     this.tags.splice(index, 1);
   }
 
+  private normalizeCourseDay(raw: unknown): number | null {
+    if (raw === '' || raw === null || raw === undefined) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    const r = Math.round(n);
+    if (r < 1 || r > 200) return null;
+    return r;
+  }
+
   onSubmit(): void {
     if (this.moduleForm.invalid) {
       this.moduleForm.markAllAsTouched();
@@ -706,10 +714,12 @@ export class ModuleFormComponent implements OnInit {
 
     this.isSubmitting = true;
     const formValue = this.moduleForm.value;
+    const courseDay = this.normalizeCourseDay(formValue.courseDay);
 
     // Prepare the module data
     const moduleData = {
       ...formValue,
+      courseDay,
       content: {
         ...formValue.content,
         keyTopics: this.keyTopics

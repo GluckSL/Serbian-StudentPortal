@@ -846,6 +846,16 @@ export class RoleplayModuleFormComponent implements OnInit {
     this.suggestedStudentResponses.splice(index, 1);
   }
 
+  /** Persist as number | null so the API always receives an explicit `courseDay` key */
+  private normalizeCourseDay(raw: unknown): number | null {
+    if (raw === '' || raw === null || raw === undefined) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    const r = Math.round(n);
+    if (r < 1 || r > 200) return null;
+    return r;
+  }
+
   onSubmit(): void {
     if (this.moduleForm.invalid) {
       this.moduleForm.markAllAsTouched();
@@ -854,10 +864,12 @@ export class RoleplayModuleFormComponent implements OnInit {
 
     this.isSubmitting = true;
     const formValue = this.moduleForm.value;
+    const courseDay = this.normalizeCourseDay(formValue.courseDay);
 
     // Prepare the role-play module data
     const moduleData = {
       ...formValue,
+      courseDay,
       estimatedDuration: 30, // Default value - actual time tracked per session
       minimumCompletionTime: formValue.minimumCompletionTime || 10, // Use form value or default to 10
       content: {
@@ -992,7 +1004,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       category: module.category || 'Conversation',
       difficulty: module.difficulty || 'Beginner',
       minimumCompletionTime: Math.min(60, Math.max(5, module.minimumCompletionTime || 10)), // ✅ Clamp to valid range
-      courseDay: module.courseDay || null,
+      courseDay: module.courseDay != null ? Number(module.courseDay) : null,
       rolePlayScenario: {
         situation: module.content?.rolePlayScenario?.situation || '',
         studentRole: module.content?.rolePlayScenario?.studentRole || '',

@@ -37,7 +37,8 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',          subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null }
+        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null },
+        { id: 'journey',   label: 'Journey',           icon: '📅', route: '/admin/journey',           subGroup: null }
       ]
     },
     {

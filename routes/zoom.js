@@ -781,7 +781,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
     const studentId = req.user.id;
 
     const student = await User.findById(studentId)
-    .select('batch subscription');
+    .select('batch subscription currentCourseDay');
 
     if(!student) {
       return res.status(404).json({
@@ -789,6 +789,10 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
         message: 'Student not found'
       });
     }
+
+    const studentDay = (student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay)))
+      ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+      : 1;
 
     // Find meetings for student's batch & plan
     const meetings = await MeetingLink.find({
@@ -801,9 +805,12 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       //.populate('attendees.studentId', 'name email batch level subscription')
       .sort({ startTime: -1 });
 
+    // ✅ Journey day gating: hide meetings scheduled beyond the student's current day
+    const gatedMeetings = meetings.filter(m => m.courseDay == null || m.courseDay <= studentDay);
+
     // Calculate meeting status for each meeting
     const now = new Date();
-    const meetingsWithStatus = meetings.map(meeting => {
+    const meetingsWithStatus = gatedMeetings.map(meeting => {
       const meetingStart = new Date(meeting.startTime);
       const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
 
