@@ -396,6 +396,104 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
   }
 });
 
+/** Subset of fields safe for admin bulk metadata updates (no title/description/questions). */
+const BULK_METADATA_KEYS = [
+  'level',
+  'category',
+  'courseDay',
+  'difficulty',
+  'visibleToStudents',
+  'targetLanguage',
+  'nativeLanguage',
+  'estimatedDuration'
+];
+
+// POST /api/digital-exercises/admin/bulk-delete  — Soft-delete many (ADMIN / TEACHER_ADMIN only)
+router.post('/admin/bulk-delete', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+    const objectIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+    if (objectIds.length === 0) {
+      return res.status(400).json({ error: 'No valid exercise ids' });
+    }
+    const result = await DigitalExercise.updateMany(
+      {
+        _id: { $in: objectIds },
+        isDeleted: { $ne: true }
+      },
+      { $set: { isDeleted: true, deletedAt: new Date(), isActive: false, updatedAt: new Date() } }
+    );
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error('POST /digital-exercises/admin/bulk-delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/digital-exercises/admin/bulk-update  — Apply metadata to many exercises
+router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = req.body?.ids;
+    const updates = req.body?.updates;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'updates object required' });
+    }
+    const $set = {};
+    for (const key of BULK_METADATA_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        $set[key] = updates[key];
+      }
+    }
+    if (Object.keys($set).length === 0) {
+      return res.status(400).json({ error: 'No valid metadata fields to update' });
+    }
+
+    const objectIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+    if (objectIds.length === 0) {
+      return res.status(400).json({ error: 'No valid exercise ids' });
+    }
+
+    const filter = {
+      _id: { $in: objectIds },
+      isDeleted: { $ne: true }
+    };
+    if (req.user.role === 'TEACHER') {
+      filter.createdBy = req.user.id;
+    }
+
+    $set.updatedAt = new Date();
+    $set.lastUpdatedBy = req.user.id;
+
+    const result = await DigitalExercise.updateMany(filter, { $set });
+
+    if (Object.prototype.hasOwnProperty.call($set, 'visibleToStudents') && $set.visibleToStudents === true) {
+      await DigitalExercise.updateMany(
+        {
+          ...filter,
+          visibleToStudents: true,
+          $or: [{ publishedAt: null }, { publishedAt: { $exists: false } }]
+        },
+        { $set: { publishedAt: new Date() } }
+      );
+    }
+
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/admin/bulk-update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {

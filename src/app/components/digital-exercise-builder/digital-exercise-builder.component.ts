@@ -115,7 +115,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
     { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
     { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types the correct answer.' },
-    { value: 'true-false', label: 'True / False', icon: 'toggle_on', description: 'Decide if a statement is true or false.' },
+    { value: 'true-false', label: 'Richtig / Falsch', icon: 'toggle_on', description: 'Entscheiden Sie, ob eine Aussage richtig oder falsch ist.' },
     { value: 'sentence-transformation', label: 'Sentence Transformation', icon: 'transform', description: 'Transform a sentence (statement → question, etc.).' },
     { value: 'singular-plural', label: 'Singular → Plural', icon: 'swap_horiz', description: 'Write the plural form.' },
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', icon: 'table_rows', description: 'Fill values in a table/profile.' },
@@ -574,7 +574,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   getTypeLabel(type: string): string {
     const worksheetKindLabels: Record<string, string> = {
-      'true-false': 'True / False',
+      'true-false': 'Richtig / Falsch',
       'sentence-transformation': 'Sentence Transformation',
       'singular-plural': 'Singular → Plural',
       'table-profile-fill': 'Table / Profile Fill-in',

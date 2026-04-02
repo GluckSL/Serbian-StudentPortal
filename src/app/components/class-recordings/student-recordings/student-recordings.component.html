@@ -1,5 +1,5 @@
 <!-- student-recordings.component.html -->
-<div class="sr" *ngIf="!loading; else loadingTpl">
+<div class="sr" [class.sr--embedded]="embedded" *ngIf="!loading; else loadingTpl">
 
   <!-- ── Page Header ── -->
   <div class="sr-header" *ngIf="!embedded">

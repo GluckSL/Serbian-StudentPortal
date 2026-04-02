@@ -46,6 +46,85 @@
   box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
 }
 
+/* Compact action buttons in table (replaces bulky mat-buttons) */
+.sm-action {
+  appearance: none;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.sm-action:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+.sm-action:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.sm-action:disabled {
+  cursor: default;
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+.sm-action--join {
+  border-color: #a5b4fc;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  color: #4338ca;
+}
+.sm-action--join:hover:not(:disabled) {
+  border-color: #818cf8;
+  color: #3730a3;
+  background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+}
+.sm-action--live-cta {
+  border: none;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.35);
+  padding: 4px 11px;
+}
+.sm-action--live-cta:hover {
+  filter: brightness(1.06);
+}
+
+.student-meetings--embedded .student-meetings-container {
+  padding: 0;
+  max-width: none;
+}
+.student-meetings--embedded .table-wrap {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.student-meetings--embedded .tab-row {
+  border-radius: 0;
+  padding: 8px 10px;
+}
+.student-meetings--embedded .classes-table {
+  width: 100%;
+}
+.student-meetings--embedded .classes-table th:first-child,
+.student-meetings--embedded .classes-table td:first-child {
+  padding-left: 10px;
+}
+.student-meetings--embedded .classes-table th:last-child,
+.student-meetings--embedded .classes-table td:last-child {
+  padding-right: 10px;
+}
+
 .classes-table {
   width: 100%;
   border-collapse: collapse;

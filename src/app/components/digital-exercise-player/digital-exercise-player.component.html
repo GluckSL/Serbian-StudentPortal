@@ -234,19 +234,38 @@
       <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
     </div>
 
-    <!-- Video-only: 30% details | 40% video | 30% practice history -->
-    <div class="player-vp-chat-layout" *ngIf="playerQuestions.length > 0 && isVideoOnlyExercise">
+    <!-- Video-only: framed shell (85% × 88%) → three columns inside -->
+    <div class="player-vp-chat-frame" *ngIf="playerQuestions.length > 0 && isVideoOnlyExercise">
+      <div class="player-vp-chat-layout">
       <aside class="vp-details-col">
-        <button type="button" class="vp-details-close" (click)="backToExercises()" title="Exit">
-          <span class="material-icons">close</span>
-        </button>
         <div class="vp-details-cards">
-          <div class="vp-detail-card vp-detail-card--info">
+          <div class="vp-detail-card vp-detail-card--info vp-detail-card--rich">
             <span class="vp-detail-card-label">Exercise</span>
             <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
-            <div class="vp-detail-meta">
-              <span class="vp-detail-pill level" [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')">{{ exercise?.level }}</span>
-              <span class="vp-detail-pill muted"><span class="material-icons">schedule</span> ~{{ exercise?.estimatedDuration || 15 }} min</span>
+            <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">{{ exercise?.description }}</p>
+            <dl class="vp-detail-specs">
+              <div class="vp-detail-row">
+                <dt>Journey</dt>
+                <dd>Journey to Germany</dd>
+              </div>
+              <div class="vp-detail-row" *ngIf="exercise?.category">
+                <dt>Category</dt>
+                <dd>{{ exercise?.category }}</dd>
+              </div>
+              <div class="vp-detail-row">
+                <dt>CEFR</dt>
+                <dd>
+                  <span class="vp-detail-pill level vp-detail-pill--inline" [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')">{{ exercise?.level }}</span>
+                </dd>
+              </div>
+              <div class="vp-detail-row">
+                <dt>Time</dt>
+                <dd>~{{ exercise?.estimatedDuration || 15 }} min</dd>
+              </div>
+            </dl>
+            <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
+              <span class="vp-detail-tags-label">Tags</span>
+              <span class="vp-detail-tag" *ngFor="let t of exercise?.tags || []">{{ t }}</span>
             </div>
           </div>
           <div class="vp-detail-card vp-detail-card--clips">
@@ -261,43 +280,47 @@
           </div>
           <div class="vp-detail-card vp-detail-card--ring">
             <span class="vp-detail-card-label">Progress</span>
-            <div class="vp-ring-wrap">
-              <svg class="vp-ring-svg" viewBox="0 0 36 36">
-                <circle class="vp-ring-track" cx="18" cy="18" [attr.r]="vpRingR" fill="none" stroke-width="3" />
-                <circle
-                  class="vp-ring-bar"
-                  cx="18"
-                  cy="18"
-                  [attr.r]="vpRingR"
-                  fill="none"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  transform="rotate(-90 18 18)"
-                  [attr.stroke-dasharray]="vpRingCircumference"
-                  [attr.stroke-dashoffset]="vpRingOffset"
-                />
-              </svg>
-              <span class="vp-ring-label">{{ vpRingPercent }}%</span>
+            <div class="vp-ring-card-row">
+              <div
+                class="vp-countdown"
+                [class.vp-countdown--warn]="vpCountdownRemainingSeconds > 0 && vpCountdownRemainingSeconds <= 60"
+                [class.vp-countdown--done]="vpCountdownRemainingSeconds <= 0"
+              >
+                <span class="vp-countdown-label">Time left</span>
+                <span class="vp-countdown-digits">{{ formatTime(vpCountdownRemainingSeconds) }}</span>
+              </div>
+              <div class="vp-ring-wrap">
+                <svg class="vp-ring-svg" viewBox="0 0 36 36">
+                  <circle class="vp-ring-track" cx="18" cy="18" [attr.r]="vpRingR" fill="none" stroke-width="3" />
+                  <circle
+                    class="vp-ring-bar"
+                    cx="18"
+                    cy="18"
+                    [attr.r]="vpRingR"
+                    fill="none"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    transform="rotate(-90 18 18)"
+                    [attr.stroke-dasharray]="vpRingCircumference"
+                    [attr.stroke-dashoffset]="vpRingOffset"
+                  />
+                </svg>
+                <span class="vp-ring-label">{{ vpRingPercent }}%</span>
+              </div>
             </div>
           </div>
         </div>
-        <button type="button" class="vp-details-prev" (click)="prevQuestion()" [disabled]="isFirstQuestion || finishingAll">
-          <span class="material-icons">arrow_back</span> Previous clip
-        </button>
       </aside>
 
       <div class="vp-video-col">
-        <div class="vp-stage-topbar">
-          <span class="vp-stage-badge">
-            <span class="material-icons">videocam</span>
-            Clip {{ currentIndex + 1 }} · {{ currentIndex + 1 }}/{{ playerQuestions.length }}
-          </span>
-        </div>
-
         <div class="vp-stage-hero" *ngIf="currentQuestion.data.videoUrl">
           <div class="vp-stage-gradient"></div>
           <div class="vp-stage-video-column">
             <div class="vp-stage-video-frame">
+              <div class="vp-stage-clip-badge" aria-label="Current clip">
+                <span class="material-icons">videocam</span>
+                <span>Clip {{ currentIndex + 1 }} · {{ currentIndex + 1 }}/{{ playerQuestions.length }}</span>
+              </div>
               <video
                 class="vp-stage-video"
                 [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
@@ -358,7 +381,7 @@
 
                   <div class="vp-stage-listening" *ngIf="currentQuestion.isRecording">
                     <span class="material-icons vp-stage-listening-icon">mic</span>
-                    <span>Listening…</span>
+                    <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
                   </div>
 
                   <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
@@ -393,11 +416,14 @@
         </div>
       </div>
 
-      <aside class="vp-chat-panel--studio">
+      <aside
+        class="vp-chat-panel--studio"
+        [attr.aria-busy]="currentQuestion.isRecording ? 'true' : null"
+      >
         <header class="vp-chat-topbar">
           <div class="vp-chat-brand">
-            <div class="vp-chat-brand-avatar" aria-hidden="true">
-              <span class="material-icons">pets</span>
+            <div class="vp-chat-brand-avatar vp-chat-brand-avatar--fox" aria-hidden="true">
+              <img src="assets/images/practice-partner-fox.svg" alt="" width="48" height="48" />
             </div>
             <div class="vp-chat-brand-text">
               <div class="vp-chat-brand-name">Practice partner</div>
@@ -410,60 +436,78 @@
           </div>
         </header>
 
-        <div class="vp-chat-phrase-bar">
-          <span class="vp-chat-phrase-bar-inner">Clip {{ currentIndex + 1 }} / {{ playerQuestions.length }}</span>
-        </div>
-
         <div class="vp-chat-lesson-pill" *ngIf="exercise?.category || exercise?.title">
           <span class="material-icons">menu_book</span>
           <span class="vp-chat-lesson-text">{{ exercise?.title || 'Lesson' }}<ng-container *ngIf="exercise?.category"> · {{ exercise?.category }}</ng-container></span>
         </div>
 
-        <div class="vp-chat-scroll" #vpChatScroll>
-          <ng-container *ngFor="let m of vpChatMessages">
-            <!-- Tutor / bot -->
-            <div *ngIf="m.role === 'tutor'" class="vp-chat-msg vp-chat-msg--bot">
-              <div class="vp-chat-msg-avatar" aria-hidden="true">
-                <span class="material-icons">pets</span>
+        <div
+          class="vp-chat-scroll-wrap"
+          [class.vp-chat-scroll-wrap--listening]="currentQuestion.isRecording"
+        >
+          <div class="vp-chat-scroll" #vpChatScroll>
+            <ng-container *ngFor="let m of vpChatMessages">
+              <!-- Tutor / bot -->
+              <div *ngIf="m.role === 'tutor'" class="vp-chat-msg vp-chat-msg--bot">
+                <div class="vp-chat-msg-avatar vp-chat-msg-avatar--fox" aria-hidden="true">
+                  <img src="assets/images/practice-partner-fox.svg" alt="" width="34" height="34" />
+                </div>
+                <div class="vp-chat-msg-stack">
+                  <span class="vp-chat-bot-label">Tutor</span>
+                  <div class="vp-chat-bubble vp-chat-bubble--cream">
+                    <p class="vp-chat-bubble-text">{{ m.text }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- User -->
+              <div *ngIf="m.role === 'user'" class="vp-chat-msg vp-chat-msg--user">
+                <div class="vp-chat-msg-stack vp-chat-msg-stack--end">
+                  <div class="vp-chat-bubble vp-chat-bubble--user">
+                    <p class="vp-chat-user-quote">"{{ m.text }}"</p>
+                    <p class="vp-chat-match-line" *ngIf="m.score != null">Match: {{ m.score }}%</p>
+                  </div>
+                  <div
+                    class="vp-chat-success-strip"
+                    *ngIf="m.isCorrect === true || m.isCorrect === false"
+                    [class.vp-chat-success-strip--ok]="m.isCorrect === true"
+                    [class.vp-chat-success-strip--retry]="m.isCorrect === false"
+                  >
+                    <span class="material-icons">{{ m.isCorrect ? 'check_circle' : 'tips_and_updates' }}</span>
+                    <span>{{ m.isCorrect ? 'Nice! Great pronunciation.' : 'Keep going — listen and try again.' }}</span>
+                  </div>
+                </div>
+                <div class="vp-chat-user-cap" aria-hidden="true">
+                  <span class="material-icons">school</span>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- In-thread “listening” row (same layout as tutor messages) -->
+            <div
+              *ngIf="currentQuestion.isRecording"
+              class="vp-chat-msg vp-chat-msg--bot vp-chat-msg--listening-thread"
+              role="status"
+              aria-live="polite"
+              aria-label="Listening for your speech"
+            >
+              <div class="vp-chat-msg-avatar vp-chat-msg-avatar--fox" aria-hidden="true">
+                <img src="assets/images/practice-partner-fox.svg" alt="" width="34" height="34" />
               </div>
               <div class="vp-chat-msg-stack">
                 <span class="vp-chat-bot-label">Tutor</span>
-                <div class="vp-chat-bubble vp-chat-bubble--cream">
-                  <p class="vp-chat-bubble-text">{{ m.text }}</p>
+                <div class="vp-chat-bubble vp-chat-bubble--cream vp-chat-bubble--listening-chat">
+                  <p class="vp-chat-bubble-text vp-chat-bubble-text--listening">
+                    Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                  </p>
+                  <p class="vp-chat-listening-inline-hint">Keep speaking — I’m capturing your voice.</p>
                 </div>
               </div>
             </div>
-
-            <!-- User -->
-            <div *ngIf="m.role === 'user'" class="vp-chat-msg vp-chat-msg--user">
-              <div class="vp-chat-msg-stack vp-chat-msg-stack--end">
-                <div class="vp-chat-bubble vp-chat-bubble--user">
-                  <p class="vp-chat-user-quote">"{{ m.text }}"</p>
-                  <p class="vp-chat-match-line" *ngIf="m.score != null">Match: {{ m.score }}%</p>
-                </div>
-                <div
-                  class="vp-chat-success-strip"
-                  *ngIf="m.isCorrect === true || m.isCorrect === false"
-                  [class.vp-chat-success-strip--ok]="m.isCorrect === true"
-                  [class.vp-chat-success-strip--retry]="m.isCorrect === false"
-                >
-                  <span class="material-icons">{{ m.isCorrect ? 'check_circle' : 'tips_and_updates' }}</span>
-                  <span>{{ m.isCorrect ? 'Nice! Great pronunciation.' : 'Keep going — listen and try again.' }}</span>
-                </div>
-              </div>
-              <div class="vp-chat-user-cap" aria-hidden="true">
-                <span class="material-icons">school</span>
-              </div>
-            </div>
-          </ng-container>
-        </div>
-
-        <div class="vp-chat-footer vp-chat-footer--hint" [class.vp-chat-footer--listening]="currentQuestion.isRecording">
-          <span class="material-icons vp-chat-footer-mic">mic</span>
-          <span class="vp-chat-footer-msg" *ngIf="currentQuestion.isRecording">Listening… speak clearly.</span>
-          <span class="vp-chat-footer-msg" *ngIf="!currentQuestion.isRecording">Your turn — tap the mic on the video when you are ready.</span>
+          </div>
         </div>
       </aside>
+      </div>
     </div>
 
     <!-- Three-column layout: Left info | Middle answer | Right nav -->
@@ -784,7 +828,7 @@
                 <!-- Listening -->
                 <div class="vp-mob-listening" *ngIf="currentQuestion.isRecording">
                   <span class="material-icons vp-mob-pulse">mic</span>
-                  <span>Listening… speak now</span>
+                  <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span> — speak now</span>
                 </div>
 
                 <ng-container *ngIf="currentQuestion.vpResult === 'correct'">
@@ -826,7 +870,7 @@
           </ng-template>
 
           <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
-            <div class="tf-answers" role="group" aria-label="True or False">
+            <div class="tf-answers" role="group" aria-label="Richtig oder Falsch">
               <label
                 class="tf-btn"
                 [class.active]="parseTrueFalse(currentQuestion.qaResponse) === true"
@@ -839,7 +883,7 @@
                   [disabled]="hasCurrentSubmitted"
                   (click)="$event.preventDefault(); selectTrueFalse(currentQuestion, true)"
                 />
-                True
+                Richtig
               </label>
 
               <label
@@ -854,7 +898,7 @@
                   [disabled]="hasCurrentSubmitted"
                   (click)="$event.preventDefault(); selectTrueFalse(currentQuestion, false)"
                 />
-                False
+                Falsch
               </label>
             </div>
           </ng-container>

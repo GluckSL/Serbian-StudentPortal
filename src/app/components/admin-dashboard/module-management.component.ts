@@ -161,7 +161,7 @@ interface ModuleWithStats {
           <div *ngIf="!loading" class="results-summary">
             <div class="d-flex justify-content-between align-items-center">
               <div class="results-info">
-                <span class="results-count">{{ modules?.length || 0 }}</span>
+                <span class="results-count">{{ modules.length || 0 }}</span>
                 <span class="results-text">modules found</span>
               </div>
             </div>

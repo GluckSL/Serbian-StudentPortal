@@ -1,6 +1,6 @@
 <!-- src/app/components/meeting-link/student-meetings.component.html -->
 
-<div class="student-meetings-container">
+<div class="student-meetings-container" [class.student-meetings--embedded]="embedded">
   <!-- Header -->
   <div class="header" *ngIf="!embedded">
     <h1>My Zoom Classes</h1>
@@ -27,13 +27,13 @@
   <div *ngIf="!loading && !error">
     <div class="table-wrap" *ngIf="allMeetings.length > 0">
       <div class="tab-row">
-        <button class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
+        <button type="button" class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
           Upcoming Classes ({{ upcomingMeetings.length }})
         </button>
-        <button class="tab-btn" [class.active]="activeTab === 'live'" (click)="setTab('live')">
+        <button type="button" class="tab-btn" [class.active]="activeTab === 'live'" (click)="setTab('live')">
           Live Classes ({{ ongoingMeetings.length }})
         </button>
-        <button class="tab-btn" [class.active]="activeTab === 'attempted'" (click)="setTab('attempted')">
+        <button type="button" class="tab-btn" [class.active]="activeTab === 'attempted'" (click)="setTab('attempted')">
           Attempted Classes ({{ attemptedMeetings.length }})
         </button>
       </div>
@@ -53,13 +53,19 @@
         <tbody>
           <tr *ngFor="let meeting of upcomingMeetings">
             <td>{{ meeting.topic }}</td>
-            <td>{{ meeting.teacher.name }}</td>
+            <td>{{ meeting.teacher.name || '—' }}</td>
             <td>{{ formatDate(meeting.startTime) }}</td>
             <td>{{ formatTime(meeting.startTime) }}</td>
             <td>{{ formatDuration(meeting.duration) }}</td>
             <td><span class="status-pill status-upcoming">{{ getStatusText(meeting) }}</span></td>
             <td>
-              <button mat-stroked-button color="primary" [disabled]="!meeting.canJoin" (click)="joinMeeting(meeting)">
+              <button
+                type="button"
+                class="sm-action"
+                [class.sm-action--join]="meeting.canJoin"
+                [disabled]="!meeting.canJoin"
+                (click)="joinMeeting(meeting)"
+              >
                 {{ meeting.canJoin ? 'Join' : getTimeUntilStart(meeting) }}
               </button>
             </td>
@@ -83,12 +89,14 @@
         <tbody>
           <tr *ngFor="let meeting of ongoingMeetings">
             <td>{{ meeting.topic }}</td>
-            <td>{{ meeting.teacher.name }}</td>
+            <td>{{ meeting.teacher.name || '—' }}</td>
             <td>{{ formatDate(meeting.startTime) }}</td>
             <td>{{ formatTime(meeting.startTime) }}</td>
             <td>{{ formatDuration(meeting.duration) }}</td>
             <td><span class="status-pill status-live">Live</span></td>
-            <td><button mat-raised-button color="warn" (click)="joinMeeting(meeting)">Join Now</button></td>
+            <td>
+              <button type="button" class="sm-action sm-action--live-cta" (click)="joinMeeting(meeting)">Join now</button>
+            </td>
           </tr>
           <tr *ngIf="ongoingMeetings.length === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>
         </tbody>
@@ -108,10 +116,10 @@
         <tbody>
           <tr *ngFor="let meeting of attemptedMeetings">
             <td>{{ meeting.topic }}</td>
-            <td>{{ meeting.teacher.name }}</td>
+            <td>{{ meeting.teacher.name || '—' }}</td>
             <td>{{ formatDate(meeting.startTime) }}</td>
             <td>{{ formatTime(meeting.startTime) }}</td>
-            <td><span class="status-pill" [class]="getAttendanceBadgeClass(meeting)">{{ getAttendanceStatus(meeting) }}</span></td>
+            <td><span class="status-pill" [ngClass]="getAttendanceBadgeClass(meeting)">{{ getAttendanceStatus(meeting) }}</span></td>
             <td>
               <div class="progress-cell">
                 <div class="progress-track">

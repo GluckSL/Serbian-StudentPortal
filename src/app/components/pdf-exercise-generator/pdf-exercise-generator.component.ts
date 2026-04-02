@@ -136,7 +136,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     { value: 'fill-blank',      label: 'Fill in the Blanks',desc: 'Sentence with ___ gaps',            icon: 'text_fields',       color: '#388e3c', bg: '#e8f5e9' },
     { value: 'pronunciation',   label: 'Pronunciation',     desc: 'Speak a word aloud',               icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' },
     { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' },
-    { value: 'true-false', label: 'True / False', desc: 'Decide if a statement is true or false', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
+    { value: 'true-false', label: 'Richtig / Falsch', desc: 'Entscheiden, ob eine Aussage richtig oder falsch ist', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
     { value: 'sentence-transformation', label: 'Sentence Transformation', desc: 'Transform the sentence (e.g. statement → question)', icon: 'transform', color: '#9333ea', bg: '#f3e8ff' },
     { value: 'singular-plural', label: 'Singular → Plural', desc: 'Write the plural form with the right article', icon: 'swap_horiz', color: '#16a34a', bg: '#dcfce7' },
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', desc: 'Fill values from a table/profile', icon: 'table_rows', color: '#64748b', bg: '#f1f5f9' },

@@ -80,6 +80,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   startTime = 0;
   elapsedSeconds = 0;
   timerInterval: any;
+  /** Video-only: avoid firing auto-submit more than once when time runs out */
+  private vpTimeUpHandled = false;
 
   result: SubmitResult | null = null;
 
@@ -200,6 +202,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.playerQuestions.length > 0 &&
       this.playerQuestions.every((pq) => pq.data?.type === 'video-pronunciation')
     );
+  }
+
+  /** Video-only session cap from estimated duration (minutes → seconds). */
+  get vpSessionBudgetSeconds(): number {
+    const m = Number(this.exercise?.estimatedDuration);
+    const mins = Number.isFinite(m) && m > 0 ? m : 15;
+    return Math.floor(mins * 60);
+  }
+
+  /** Countdown for sidebar timer (stops at 0). */
+  get vpCountdownRemainingSeconds(): number {
+    return Math.max(0, this.vpSessionBudgetSeconds - this.elapsedSeconds);
   }
 
   /** Centered Submit on last clip after this clip is graded correct (final hand-in). */
@@ -414,6 +428,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.attemptId = res.attemptId;
         this.currentIndex = 0;
         this.startTime = Date.now();
+        this.vpTimeUpHandled = false;
         this.startTimer();
         this.state = 'playing';
         if (this.isVideoOnlyExercise) {
@@ -922,7 +937,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.startTime = Date.now();
     this.timerInterval = setInterval(() => {
       this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+      this.maybeAutoSubmitVideoOnlyOnDeadline();
     }, 1000);
+  }
+
+  /** When the allotted time is over, submit the full attempt (video-only). */
+  private maybeAutoSubmitVideoOnlyOnDeadline(): void {
+    if (!this.isVideoOnlyExercise || this.state !== 'playing' || this.vpTimeUpHandled) return;
+    if (this.elapsedSeconds < this.vpSessionBudgetSeconds) return;
+    if (this.submitting || this.finishingAll) return;
+    this.vpTimeUpHandled = true;
+    this.snackBar.open("Time's up — submitting your exercise.", 'Close', { duration: 5000 });
+    this.confirmFinishSubmit();
   }
 
   private stopTimer(): void {
@@ -986,7 +1012,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'question-answer') {
       if (this.isTrueFalseQuestion(pq.data)) {
         const parsed = this.parseTrueFalse(pq.qaResponse);
-        return parsed === true ? 'True' : parsed === false ? 'False' : '—';
+        return parsed === true ? 'Richtig' : parsed === false ? 'Falsch' : '—';
       }
       return (pq.qaResponse || '—').trim();
     }
@@ -1022,8 +1048,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (this.isTrueFalseQuestion(pq.data)) {
         const samples: string[] = pq.data.sampleAnswers || [];
         const parsed = samples.map(s => this.parseTrueFalse(s)).find(v => v === true || v === false);
-        if (parsed === true) return 'True';
-        if (parsed === false) return 'False';
+        if (parsed === true) return 'Richtig';
+        if (parsed === false) return 'Falsch';
         return samples.length ? samples.join('; ') : '—';
       }
       const samples = pq.data.sampleAnswers || [];
@@ -1111,7 +1137,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private getWorksheetKindLabel(kind: string | null | undefined): string | null {
     if (!kind) return null;
     const map: Record<string, string> = {
-      'true-false': 'True / False',
+      'true-false': 'Richtig / Falsch',
       'sentence-transformation': 'Sentence Transformation',
       'singular-plural': 'Singular → Plural',
       'table-profile-fill': 'Table / Profile Fill-in',
@@ -1255,6 +1281,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.isRecording = true;
     pq.vpResult = 'idle';
     this.clearVpFeedbackUi();
+    if (this.isVideoOnlyExercise) {
+      setTimeout(() => this.scrollVpChatToBottom(), 0);
+    }
 
     rec.onresult = (event: any) => {
       const best = event.results[0][0].transcript.toLowerCase().trim();

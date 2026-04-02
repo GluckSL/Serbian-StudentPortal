@@ -74,7 +74,7 @@
         class="mc-tab"
         [class.mc-tab--on]="activeTab === 'journey'"
         (click)="setTab('journey')">
-        Journey Day
+        Journey to Germany
       </button>
     </div>
     <div class="mc-tabs-meta">
@@ -84,11 +84,14 @@
   </div>
 
   <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
-    <div class="mc-classes-layout__main mc-panel">
-      <p class="mc-panel__intro">Live and upcoming classes appear first; past sessions and recordings are below.</p>
-      <app-student-meetings [embedded]="true"></app-student-meetings>
-      <h3 class="mc-subsection-title">Recorded classes</h3>
-      <app-student-recordings [embedded]="true"></app-student-recordings>
+    <div class="mc-classes-layout__main">
+      <section class="mc-classes-card mc-classes-card--live" aria-label="Live and scheduled classes">
+        <app-student-meetings [embedded]="true"></app-student-meetings>
+      </section>
+      <section class="mc-classes-card mc-classes-card--recordings" aria-label="Recorded classes">
+        <h3 class="mc-classes-card__title">Recorded classes</h3>
+        <app-student-recordings [embedded]="true"></app-student-recordings>
+      </section>
     </div>
     <aside class="mc-classes-layout__aside" aria-label="Journey and updates">
       <div class="mc-side-card mc-side-card--journey">
@@ -209,67 +212,140 @@
   <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
     <div class="mc-journey-head">
       <div>
-        <h3>Journey Day Tracker</h3>
+        <h3>Journey to Germany</h3>
         <p>See day-wise progress and continue unfinished work.</p>
       </div>
       <div class="mc-journey-head__actions">
-        <button type="button" class="mc-progress-btn" (click)="toggleProgressReport()">
-          <span class="material-icons">monitoring</span>
-          {{ showProgressReport ? 'Hide Progress' : 'View Progress' }}
+        <button
+          type="button"
+          class="mc-progress-btn"
+          [class.mc-progress-btn--muted]="showProgressReport"
+          (click)="toggleProgressReport()"
+        >
+          <span class="material-icons">{{ showProgressReport ? 'expand_less' : 'insights' }}</span>
+          {{ showProgressReport ? 'Hide report' : 'Progress report' }}
         </button>
-        <div class="mc-journey-meta">Current day: <strong>{{ journeyCourseDay }}</strong> / 200</div>
+        <div class="mc-journey-meta">Day <strong>{{ journeyCourseDay }}</strong> / 200</div>
       </div>
     </div>
 
     <div class="mc-progress-page" *ngIf="showProgressReport">
       <div class="mc-progress-page__head">
-        <h4>Progress Report</h4>
-        <p>Track your Weekly or Overall completion for live classes, modules, and exercises.</p>
+        <div>
+          <h4>Progress</h4>
+          <p>Weekly or overall completion across classes, modules, and exercises.</p>
+        </div>
+        <div class="mc-progress-range">
+          <button
+            type="button"
+            class="mc-progress-range__btn"
+            [class.mc-progress-range__btn--on]="progressRange === 'weekly'"
+            (click)="setProgressRange('weekly')"
+          >
+            Weekly
+          </button>
+          <button
+            type="button"
+            class="mc-progress-range__btn"
+            [class.mc-progress-range__btn--on]="progressRange === 'overall'"
+            (click)="setProgressRange('overall')"
+          >
+            Overall
+          </button>
+        </div>
       </div>
 
-      <div class="mc-progress-range">
-        <button
-          type="button"
-          class="mc-progress-range__btn"
-          [class.mc-progress-range__btn--on]="progressRange === 'weekly'"
-          (click)="setProgressRange('weekly')"
-        >
-          Weekly
-        </button>
-        <button
-          type="button"
-          class="mc-progress-range__btn"
-          [class.mc-progress-range__btn--on]="progressRange === 'overall'"
-          (click)="setProgressRange('overall')"
-        >
-          Overall
-        </button>
-      </div>
+      <div class="mc-progress-cards">
+        <div class="mc-progress-card mc-progress-card--classes" tabindex="0">
+          <div class="mc-progress-card__front">
+            <div class="mc-progress-donut" [style.--mc-p]="progressClassesPct + '%'" aria-hidden="true">
+              <span>{{ progressClassesPct }}%</span>
+            </div>
+            <div class="mc-progress-card__body">
+              <span class="mc-progress-card__label">Live classes</span>
+              <strong class="mc-progress-card__count">{{ progressClassesDone }} / {{ progressClassesTotal }}</strong>
+              <p class="mc-progress-card__hint">Hover for details</p>
+              <div class="mc-progress-card__track"><i [style.width.%]="progressClassesPct"></i></div>
+            </div>
+          </div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Live class details">
+            <div class="mc-progress-card__popover-title">In this period</div>
+            <ul class="mc-progress-card__list">
+              <li *ngFor="let m of progressReportMeetings" class="mc-progress-card__item">
+                <div class="mc-progress-card__item-title">{{ m.topic || 'Live class' }}</div>
+                <div class="mc-progress-card__item-meta">
+                  {{ meetingJourneyDayLabel(m) }} · {{ m.teacher.name || '—' }} · {{ formatMeetingDate(m.startTime) }} · {{ formatMeetingTime(m.startTime) }} · {{ formatMeetingDuration(m.duration) }}
+                </div>
+                <div class="mc-progress-card__item-status">{{ meetingProgressStatusLabel(m) }}</div>
+              </li>
+            </ul>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportMeetings.length">No classes in this range.</p>
+          </div>
+        </div>
 
-      <div class="mc-progress-grid">
-        <div class="mc-progress-card">
-          <p>Live Classes</p>
-          <strong>{{ progressClassesDone }} / {{ progressClassesTotal }}</strong>
-          <div class="mc-progress-bar"><span [style.width.%]="progressClassesPct"></span></div>
-          <small>{{ progressClassesPct }}%</small>
+        <div class="mc-progress-card mc-progress-card--modules" tabindex="0">
+          <div class="mc-progress-card__front">
+            <div class="mc-progress-donut mc-progress-donut--amber" [style.--mc-p]="progressModulesPct + '%'" aria-hidden="true">
+              <span>{{ progressModulesPct }}%</span>
+            </div>
+            <div class="mc-progress-card__body">
+              <span class="mc-progress-card__label">Modules</span>
+              <strong class="mc-progress-card__count">{{ progressModulesDone }} / {{ progressModulesTotal }}</strong>
+              <p class="mc-progress-card__hint">Hover for details</p>
+              <div class="mc-progress-card__track mc-progress-card__track--amber"><i [style.width.%]="progressModulesPct"></i></div>
+            </div>
+          </div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Module details">
+            <div class="mc-progress-card__popover-title">In this period</div>
+            <ul class="mc-progress-card__list">
+              <li *ngFor="let mod of progressReportModules" class="mc-progress-card__item">
+                <div class="mc-progress-card__item-title">{{ mod.title }}</div>
+                <div class="mc-progress-card__item-meta">
+                  <ng-container *ngIf="mod.courseDay != null">Day {{ mod.courseDay }} · </ng-container>{{ mod.level }} · {{ mod.category }}
+                </div>
+                <div class="mc-progress-card__item-status" [class.done]="mod.studentProgress?.status === 'completed'">
+                  {{ mod.studentProgress?.status === 'completed' ? 'Completed' : 'Pending' }}
+                </div>
+              </li>
+            </ul>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportModules.length">No modules in this range.</p>
+          </div>
         </div>
-        <div class="mc-progress-card">
-          <p>Modules</p>
-          <strong>{{ progressModulesDone }} / {{ progressModulesTotal }}</strong>
-          <div class="mc-progress-bar"><span [style.width.%]="progressModulesPct"></span></div>
-          <small>{{ progressModulesPct }}%</small>
-        </div>
-        <div class="mc-progress-card">
-          <p>Exercises</p>
-          <strong>{{ progressExercisesDone }} / {{ progressExercisesTotal }}</strong>
-          <div class="mc-progress-bar"><span [style.width.%]="progressExercisesPct"></span></div>
-          <small>{{ progressExercisesPct }}%</small>
+
+        <div class="mc-progress-card mc-progress-card--exercises" tabindex="0">
+          <div class="mc-progress-card__front">
+            <div class="mc-progress-donut mc-progress-donut--green" [style.--mc-p]="progressExercisesPct + '%'" aria-hidden="true">
+              <span>{{ progressExercisesPct }}%</span>
+            </div>
+            <div class="mc-progress-card__body">
+              <span class="mc-progress-card__label">Exercises</span>
+              <strong class="mc-progress-card__count">{{ progressExercisesDone }} / {{ progressExercisesTotal }}</strong>
+              <p class="mc-progress-card__hint">Hover for details</p>
+              <div class="mc-progress-card__track mc-progress-card__track--green"><i [style.width.%]="progressExercisesPct"></i></div>
+            </div>
+          </div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Exercise details">
+            <div class="mc-progress-card__popover-title">In this period</div>
+            <ul class="mc-progress-card__list">
+              <li *ngFor="let ex of progressReportExercises" class="mc-progress-card__item">
+                <div class="mc-progress-card__item-title">{{ ex.title }}</div>
+                <div class="mc-progress-card__item-meta">
+                  <ng-container *ngIf="ex.courseDay != null">Day {{ ex.courseDay }} · </ng-container>{{ ex.level }} · {{ ex.category }}
+                </div>
+                <div class="mc-progress-card__item-status" [class.done]="!!ex.studentAttempt">
+                  {{ ex.studentAttempt ? 'Completed' : 'Pending' }}
+                </div>
+              </li>
+            </ul>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportExercises.length">No exercises in this range.</p>
+          </div>
         </div>
       </div>
 
       <div class="mc-progress-total">
-        Total Progress: <strong>{{ progressOverallDone }} / {{ progressOverallTotal }}</strong>
-        <span>({{ progressOverallPct }}%)</span>
+        <span class="mc-progress-total__label">Combined</span>
+        <strong>{{ progressOverallDone }} / {{ progressOverallTotal }}</strong>
+        <span class="mc-progress-total__pct">{{ progressOverallPct }}%</span>
       </div>
     </div>
 
@@ -407,7 +483,7 @@
           <tbody>
             <tr *ngFor="let meeting of selectedDayAllClasses">
               <td>{{ meeting.topic }}</td>
-              <td>{{ meeting.teacher?.name || '—' }}</td>
+              <td>{{ meeting.teacher.name || '—' }}</td>
               <td>{{ formatMeetingDate(meeting.startTime) }}</td>
               <td>{{ formatMeetingTime(meeting.startTime) }}</td>
               <td>{{ formatMeetingDuration(meeting.duration) }}</td>

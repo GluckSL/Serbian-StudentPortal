@@ -578,6 +578,29 @@ export class MyCourseComponent implements OnInit {
     return this.ratioPct(this.progressOverallDone, this.progressOverallTotal);
   }
 
+  /** Rows shown on progress report cards (hover details) — same scope as counts/% . */
+  get progressReportMeetings(): any[] {
+    return this.progressClassesList;
+  }
+
+  get progressReportModules(): LearningModule[] {
+    return this.progressModulesList;
+  }
+
+  get progressReportExercises(): DigitalExercise[] {
+    return this.progressExercisesList;
+  }
+
+  meetingJourneyDayLabel(meeting: any): string {
+    const d = this.getMeetingJourneyDay(meeting);
+    return d != null ? `Day ${d}` : '—';
+  }
+
+  meetingProgressStatusLabel(meeting: any): string {
+    if (meeting?.hasEnded) return this.getMeetingAttendanceStatus(meeting);
+    return this.getMeetingStateLabel(meeting);
+  }
+
   formatMeetingDate(date: any): string {
     return new Date(date).toLocaleDateString('en-US', {
       weekday: 'short',

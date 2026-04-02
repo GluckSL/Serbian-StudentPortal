@@ -198,8 +198,8 @@
               </div>
               <!-- NEW: Module Type -->
               <div class="detail-item">
-                <i class="fas" [class.fa-theater-masks]="module.content?.rolePlayScenario" [class.fa-book]="!module.content?.rolePlayScenario"></i>
-                <span>{{ module.content?.rolePlayScenario ? 'Role-Play' : 'Practice' }}</span>
+                <i class="fas" [class.fa-theater-masks]="module.content.rolePlayScenario" [class.fa-book]="!module.content.rolePlayScenario"></i>
+                <span>{{ module.content.rolePlayScenario ? 'Role-Play' : 'Practice' }}</span>
               </div>
               <!-- NEW: Minimum Completion Time -->
               <div class="detail-item" *ngIf="module.minimumCompletionTime">
@@ -365,9 +365,9 @@
               <span class="difficulty">{{ module.difficulty }}</span>
               
               <!-- NEW: Module Type Badge -->
-              <span class="badge" [class.badge-success]="module.content?.rolePlayScenario" [class.badge-info]="!module.content?.rolePlayScenario">
-                <i class="fas" [class.fa-theater-masks]="module.content?.rolePlayScenario" [class.fa-book]="!module.content?.rolePlayScenario"></i>
-                {{ module.content?.rolePlayScenario ? 'Role-Play' : 'Practice' }}
+              <span class="badge" [class.badge-success]="module.content.rolePlayScenario" [class.badge-info]="!module.content.rolePlayScenario">
+                <i class="fas" [class.fa-theater-masks]="module.content.rolePlayScenario" [class.fa-book]="!module.content.rolePlayScenario"></i>
+                {{ module.content.rolePlayScenario ? 'Role-Play' : 'Practice' }}
               </span>
               
               <!-- NEW: Minimum Completion Time -->

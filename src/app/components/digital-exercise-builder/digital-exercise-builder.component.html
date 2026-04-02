@@ -452,20 +452,20 @@
                 class="btn-add-opt"
                 (click)="addMoreTrueFalseForSameParagraph(q)"
               >
-                <span class="material-icons">add</span> Add another True/False for same paragraph
+                <span class="material-icons">add</span> Weiteres Richtig/Falsch für denselben Absatz hinzufügen
               </button>
             </div>
             <!-- True / False Editor (worksheetKind="true-false") -->
             <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
               <label class="field-label required">Answer</label>
-              <div class="tf-answers-admin" role="group" aria-label="True or False answer">
+              <div class="tf-answers-admin" role="group" aria-label="Richtig oder Falsch">
                 <label class="tf-check">
                   <input
                     type="checkbox"
                     [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === true"
                     (click)="setTrueFalseAnswer(q, true)"
                   />
-                  True
+                  Richtig
                 </label>
                 <label class="tf-check">
                   <input
@@ -473,10 +473,10 @@
                     [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === false"
                     (click)="setTrueFalseAnswer(q, false)"
                   />
-                  False
+                  Falsch
                 </label>
               </div>
-              <p class="hint-text" style="margin-top:8px">Admin selects which option is correct.</p>
+              <p class="hint-text" style="margin-top:8px">Wählen Sie die richtige Antwort.</p>
             </div>
 
             <!-- Sample Answers (all other question-answer worksheet kinds) -->

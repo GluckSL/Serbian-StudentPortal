@@ -185,6 +185,21 @@ export interface SubmitQuestionResult {
   passed: boolean;
 }
 
+/** Fields allowed in PATCH /digital-exercises/admin/bulk-update */
+export type DigitalExerciseBulkMetadata = Partial<
+  Pick<
+    DigitalExercise,
+    | 'level'
+    | 'category'
+    | 'courseDay'
+    | 'difficulty'
+    | 'visibleToStudents'
+    | 'targetLanguage'
+    | 'nativeLanguage'
+    | 'estimatedDuration'
+  >
+>;
+
 export interface ExerciseFilters {
   level?: string;
   category?: string;
@@ -257,6 +272,22 @@ export class DigitalExerciseService {
 
   deleteExercise(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true });
+  }
+
+  bulkDeleteExercises(ids: string[]): Observable<{ success: boolean; modifiedCount: number }> {
+    return this.http.post<{ success: boolean; modifiedCount: number }>(
+      `${this.apiUrl}/admin/bulk-delete`,
+      { ids },
+      { withCredentials: true }
+    );
+  }
+
+  bulkUpdateExercises(ids: string[], updates: DigitalExerciseBulkMetadata): Observable<{ success: boolean; modifiedCount: number }> {
+    return this.http.patch<{ success: boolean; modifiedCount: number }>(
+      `${this.apiUrl}/admin/bulk-update`,
+      { ids, updates },
+      { withCredentials: true }
+    );
   }
 
   // ─── Student Attempt ──────────────────────────────────────────────────────

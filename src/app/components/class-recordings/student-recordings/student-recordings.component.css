@@ -11,6 +11,16 @@
   padding: 16px;
 }
 
+.sr.sr--embedded {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sr.sr--embedded .sr-filters-wrap {
+  margin-bottom: 12px;
+}
+
 .sr--loading {
   display: flex;
   flex-direction: column;

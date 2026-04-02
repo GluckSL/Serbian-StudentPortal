@@ -8,7 +8,7 @@
       <span class="material-icons">bar_chart</span>
       {{ exercise.title }} — Completion Analytics
     </h1>
-    <p *ngIf="exercise" class="header-meta">{{ exercise.level }} · {{ exercise.category }} · {{ exercise.questions?.length || 0 }} questions</p>
+    <p *ngIf="exercise" class="header-meta">{{ exercise.level }} · {{ exercise.category }} · {{ exercise.questions.length || 0 }} questions</p>
   </div>
 
   <div class="loading-state" *ngIf="loading">

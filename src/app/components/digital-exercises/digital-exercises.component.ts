@@ -230,7 +230,7 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   exerciseMetaLine(ex: DigitalExercise): string {
-    const n = ex.questions?.length || 0;
+    const n = ex.questions.length || 0;
     const m = ex.estimatedDuration || 15;
     const d = ex.difficulty || '—';
     return `${n} qs · ~${m} min · ${d}`;

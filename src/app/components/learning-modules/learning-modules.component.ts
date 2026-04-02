@@ -280,12 +280,12 @@ export class LearningModulesComponent implements OnInit {
     if (!module._id) return;
     
     // Determine module type
-    const moduleType = module.content?.rolePlayScenario ? '🎭 Role-Play' : '📚 Practice';
+    const moduleType = module.content.rolePlayScenario ? '🎭 Role-Play' : '📚 Practice';
     const minTime = module.minimumCompletionTime || 15;
     
     // Build role-play specific details
     let rolePlayInfo = '';
-    if (module.content?.rolePlayScenario) {
+    if (module.content.rolePlayScenario) {
       const scenario = module.content.rolePlayScenario;
       rolePlayInfo = `\n\n🎭 Role-Play Details:
 • Situation: ${scenario.situation || 'N/A'}
