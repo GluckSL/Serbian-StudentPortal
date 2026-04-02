@@ -547,9 +547,19 @@
         <div class="rq-header" (click)="toggleQuestion(i)">
           <div class="rq-left">
             <span class="q-num">{{ i + 1 }}</span>
-            <span class="q-type-pill" [style.background]="getTypeInfo(q.type).bg" [style.color]="getTypeInfo(q.type).color">
-              <span class="material-icons">{{ getTypeInfo(q.type).icon }}</span>
-              {{ getTypeInfo(q.type).label }}
+            <span
+              class="q-type-pill"
+              [style.background]="q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).bg : getTypeInfo(q.type).bg"
+              [style.color]="q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).color : getTypeInfo(q.type).color"
+            >
+              <span class="material-icons">
+                {{
+                  q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).icon : getTypeInfo(q.type).icon
+                }}
+              </span>
+              {{
+                q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).label : getTypeInfo(q.type).label
+              }}
             </span>
             <span class="ai-badge" *ngIf="q.aiGenerated"><span class="material-icons">auto_awesome</span> AI</span>
             <span class="q-summary">

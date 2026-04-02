@@ -11,6 +11,22 @@
   min-height: 100vh;
 }
 
+/* True/False worksheet editor (worksheetKind="true-false") */
+.tf-answers-admin { display: flex; gap: 12px; }
+.tf-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 12px;
+  background: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+}
+.tf-check input { width: 18px; height: 18px; }
+
 /* ── AI Generator Banner ── */
 .ai-banner {
   display: flex;

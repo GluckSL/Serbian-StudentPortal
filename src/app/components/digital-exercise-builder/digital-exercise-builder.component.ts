@@ -11,6 +11,7 @@ import { MaterialModule } from '../../shared/material.module';
 
 interface BuilderQuestion {
   type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
+  worksheetKind?: string | null;
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -34,6 +35,8 @@ interface BuilderQuestion {
   // Question / Answer
   prompt?: string;
   sampleAnswers?: string[];
+  // Story paragraph for worksheet-style questions (e.g. true-false reading passage).
+  storyParagraph?: string;
   similarityThreshold?: number;   // 0-100, default 70
   scoringMode?: 'full' | 'proportional';
   // Listening
@@ -111,7 +114,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with ___ blanks to fill in.' },
     { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
     { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
-    { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types or speaks what they hear.' }
+    { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types or speaks what they hear.' },
+    { value: 'true-false', label: 'True / False', icon: 'toggle_on', description: 'Decide if a statement is true or false.' },
+    { value: 'sentence-transformation', label: 'Sentence Transformation', icon: 'transform', description: 'Transform a sentence (statement → question, etc.).' },
+    { value: 'singular-plural', label: 'Singular → Plural', icon: 'swap_horiz', description: 'Write the plural form.' },
+    { value: 'table-profile-fill', label: 'Table / Profile Fill-in', icon: 'table_rows', description: 'Fill values in a table/profile.' },
+    { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', icon: 'edit_note', description: 'Write your own sentences.' },
+    { value: 'free-writing-profile', label: 'Free Writing – profile', icon: 'badge', description: 'Write a short profile (Steckbrief).' },
+    { value: 'error-correction', label: 'Error Correction', icon: 'error', description: 'Correct mistakes and write the right sentence.' }
   ];
 
   constructor(
@@ -201,8 +211,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       Object.assign(base, {
         prompt: q.prompt || '',
         sampleAnswers: [...(q.sampleAnswers || [''])],
+        storyParagraph: q.storyParagraph || '',
         similarityThreshold: q.similarityThreshold ?? 70,
-        scoringMode: q.scoringMode || 'full'
+        scoringMode: q.scoringMode || 'full',
+        worksheetKind: q.worksheetKind || null
       });
     } else if (q.type === 'video-pronunciation') {
       Object.assign(base, {
@@ -224,7 +236,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   /** Last question type for "Add one more" button. */
   get lastQuestionType(): string {
     if (this.questions.length === 0) return 'mcq';
-    return this.questions[this.questions.length - 1].type;
+    const last = this.questions[this.questions.length - 1];
+    if (last.type === 'question-answer' && last.worksheetKind) return last.worksheetKind;
+    return last.type;
   }
 
   /** Add one more question of the same type as the last one. */
@@ -233,34 +247,61 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   addQuestion(type: string): void {
+    const worksheetKinds = [
+      'true-false',
+      'sentence-transformation',
+      'singular-plural',
+      'table-profile-fill',
+      'free-writing-own-sentences',
+      'free-writing-profile',
+      'error-correction'
+    ];
+
+    const isWorksheetKind = worksheetKinds.includes(type);
+    const qType: BuilderQuestion['type'] = (isWorksheetKind ? 'question-answer' : (type as any));
+
     const q: BuilderQuestion = {
-      type: type as any,
-      points: 1
+      type: qType as any,
+      points: 1,
+      worksheetKind: isWorksheetKind ? type : null
     };
-    if (type === 'mcq') {
+
+    if (qType === 'mcq') {
       q.question = '';
       q.imageUrl = '';
       q.options = ['', '', '', ''];
       q.correctAnswerIndex = 0;
       q.explanation = '';
-    } else if (type === 'matching') {
+    } else if (qType === 'matching') {
       q.instruction = 'Match the items on the left with their correct pairs on the right.';
       q.pairs = [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }];
-    } else if (type === 'fill-blank') {
+    } else if (qType === 'fill-blank') {
       q.sentence = '';
       q.answers = [''];
       q.hint = '';
       q.caseSensitive = false;
-    } else if (type === 'pronunciation') {
+    } else if (qType === 'pronunciation') {
       q.word = '';
       q.phonetic = '';
       q.translation = '';
       q.acceptedVariants = [];
-    } else if (type === 'question-answer') {
+    } else if (qType === 'question-answer') {
       q.prompt = '';
       q.sampleAnswers = [''];
-      q.similarityThreshold = 70;
-      q.scoringMode = 'full';
+      q.storyParagraph = '';
+      // Default grading style:
+      // - transformations / true-false / error correction: mostly exact
+      // - free writing: proportional
+      if (q.worksheetKind === 'free-writing-own-sentences' || q.worksheetKind === 'free-writing-profile' || q.worksheetKind === 'table-profile-fill') {
+        q.similarityThreshold = 60;
+        q.scoringMode = 'proportional';
+      } else if (q.worksheetKind === 'true-false') {
+        q.similarityThreshold = 75;
+        q.scoringMode = 'full';
+      } else {
+        q.similarityThreshold = 70;
+        q.scoringMode = 'full';
+      }
     } else if (type === 'listening') {
       q.prompt = 'Listen and type what you hear.';
       q.mediaUrl = '';
@@ -332,6 +373,28 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   addSampleAnswer(q: BuilderQuestion): void { q.sampleAnswers!.push(''); }
   removeSampleAnswer(q: BuilderQuestion, i: number): void {
     if (q.sampleAnswers!.length > 1) q.sampleAnswers!.splice(i, 1);
+  }
+
+  /** True/False worksheet: store admin selection as a single sampleAnswers entry. */
+  setTrueFalseAnswer(q: BuilderQuestion, value: boolean): void {
+    q.sampleAnswers = [value ? 'true' : 'false'];
+  }
+
+  /** Supports both English and worksheet-generated German values (richtig/falsch). */
+  parseTrueFalseAnswer(raw: any): boolean | null {
+    const s = String(raw ?? '').trim().toLowerCase();
+    if (!s) return null;
+    if (/\b(true|richtig|wahr|ja|yes|correct)\b/.test(s)) return true;
+    if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+    return null;
+  }
+
+  /** True/False worksheet: add another question using the same story paragraph. */
+  addMoreTrueFalseForSameParagraph(q: BuilderQuestion): void {
+    const paragraph = q.storyParagraph || '';
+    this.addQuestion('true-false');
+    const newQ = this.questions[this.questions.length - 1];
+    newQ.storyParagraph = paragraph;
   }
 
   setThreshold(q: BuilderQuestion, raw: any): void {
@@ -526,10 +589,30 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   getTypeLabel(type: string): string {
+    const worksheetKindLabels: Record<string, string> = {
+      'true-false': 'True / False',
+      'sentence-transformation': 'Sentence Transformation',
+      'singular-plural': 'Singular → Plural',
+      'table-profile-fill': 'Table / Profile Fill-in',
+      'free-writing-own-sentences': 'Free Writing / Own Sentences',
+      'free-writing-profile': 'Free Writing – profile',
+      'error-correction': 'Error Correction'
+    };
+    if (worksheetKindLabels[type]) return worksheetKindLabels[type];
     return this.exerciseService.getQuestionTypeLabel(type as any);
   }
 
   getTypeIcon(type: string): string {
+    const worksheetKindIcons: Record<string, string> = {
+      'true-false': 'toggle_on',
+      'sentence-transformation': 'transform',
+      'singular-plural': 'swap_horiz',
+      'table-profile-fill': 'table_rows',
+      'free-writing-own-sentences': 'edit_note',
+      'free-writing-profile': 'badge',
+      'error-correction': 'error'
+    };
+    if (worksheetKindIcons[type]) return worksheetKindIcons[type];
     return this.exerciseService.getQuestionTypeIcon(type as any);
   }
 

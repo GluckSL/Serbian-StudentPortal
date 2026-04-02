@@ -919,6 +919,66 @@
 .qa-hint { font-size: 0.82rem; color: #4b5563; background: #f0f9ff; border-radius: 8px; padding: 10px 12px; }
 .qa-hint strong { color: #0369a1; }
 
+/* True / False (worksheetKind="true-false") */
+.tf-story-paragraph {
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: #111827;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  white-space: pre-wrap; /* preserve admin textarea line breaks */
+  word-break: break-word;
+}
+
+.tf-answers { display: flex; gap: 12px; }
+.tf-btn {
+  flex: 1;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 2px solid #c7d2fe;
+  background: #ffffff;
+  color: #4f46e5;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  transition: all 0.15s ease;
+  min-height: 42px;
+}
+.tf-btn input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #a5b4fc;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #fff;
+  display: inline-block;
+  position: relative;
+  cursor: pointer;
+}
+.tf-btn input:checked {
+  border-color: #4f46e5;
+  background: #dbeafe;
+}
+.tf-btn input:checked::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #4f46e5;
+}
+.tf-btn:hover:not(:disabled) { border-color: #6366f1; background: #eef2ff; transform: translateY(-1px); }
+.tf-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.tf-btn.active { border-color: #4f46e5; background: #dbeafe; box-shadow: 0 0 0 3px rgba(79,70,229,0.10); }
+
 /* Listening body */
 .listening-body { display: flex; flex-direction: column; gap: 16px; }
 .listening-audio-wrap { margin: 4px 0; }
@@ -1478,6 +1538,8 @@
   color: #1a1a2e;
   margin-bottom: 10px;
   line-height: 1.5;
+  white-space: pre-wrap; /* preserve paragraph line breaks */
+  word-break: break-word;
 }
 
 .review-answer-row {
@@ -1675,6 +1737,7 @@
   color: #18181b;
   line-height: 1.25;
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -3005,6 +3068,33 @@
 @keyframes blink-fade {
   from { opacity: 0.55; }
   to { opacity: 1; }
+}
+
+/* ── Worksheet Section Header ── */
+.q-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(90deg, #f0f0ff 0%, #faf5ff 100%);
+  border-left: 4px solid #7c3aed;
+  border-radius: 0 8px 8px 0;
+  padding: 8px 16px;
+  margin: 0 0 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5b21b6;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.q-section-header.review-section-header {
+  margin: 20px 0 8px;
+  border-radius: 8px;
+}
+
+.q-section-icon {
+  font-size: 1rem;
+  opacity: 0.75;
 }
 
 @media (max-width: 400px) {

@@ -97,6 +97,15 @@ function levenshteinSimilarity(a, b) {
   return 1 - dp[m][n] / maxLen;
 }
 
+function parseTrueFalse(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  if (!s) return null;
+  // Accept values from UI, admin selection, and worksheet generator.
+  if (/\b(true|richtig|wahr|ja|yes)\b/.test(s)) return true;
+  if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+  return null;
+}
+
 function getAccessibleLevels(studentLevel) {
   const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const idx = levelOrder.indexOf(studentLevel);
@@ -267,6 +276,11 @@ router.get('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Exercise not available' });
     }
 
+    // "Student view" used by the player UI: it strips correct answers and
+    // shuffles matching right options so the exercise feels like it does for
+    // real students (even when staff are testing).
+    const studentView = req.user.role === 'STUDENT' || String(req.query.asStudent) === 'true';
+
     if (req.user.role === 'STUDENT') {
       const access = await getStudentExerciseAccess(req.user.id);
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
@@ -287,9 +301,9 @@ router.get('/:id', verifyToken, async (req, res) => {
       }
     }
 
-    // For students playing the exercise, keep answers but strip correct indices
-    // (client will verify against server on submit)
-    if (req.user.role === 'STUDENT') {
+    // For student view (real students + staff testing), keep answers but strip
+    // correct indices. (Client will verify against server on submit.)
+    if (studentView) {
       exercise.questions = exercise.questions.map(q => {
         const stripped = { ...q };
         delete stripped.correctAnswerIndex;
@@ -580,10 +594,11 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       if (resp.matchingResponse && resp.matchingResponse.length === pairs.length) {
         let allCorrect = true;
         for (const match of resp.matchingResponse) {
-          if (pairs[match.leftIndex] && pairs[match.rightIndex]) {
-            const expectedRight = pairs[match.leftIndex].right;
-            const givenRight = pairs[match.rightIndex].right;
-            if (expectedRight !== givenRight) { allCorrect = false; break; }
+          const expectedRight = pairs[match.leftIndex]?.right;
+          const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
+          if (expectedRight === undefined || givenRight === undefined || String(expectedRight) !== String(givenRight)) {
+            allCorrect = false;
+            break;
           }
         }
         isCorrect = allCorrect;
@@ -612,7 +627,18 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'question-answer') {
       const studentAns = (resp.qaResponse || '').trim();
-      if (studentAns) {
+
+      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+      const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+
+      if (isTrueFalse) {
+        const expected = parseTrueFalse(expectedRaw);
+        const given = parseTrueFalse(studentAns);
+        isCorrect = expected !== null && given !== null && given === expected;
+        pointsEarned = isCorrect ? (q.points || 1) : 0;
+        correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
+      } else if (studentAns) {
         const aiResult = await aiGradeAnswer(q.prompt || '', Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [], studentAns);
         const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
         const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
@@ -734,6 +760,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     const qaScoreMap = {}; // questionIndex → { score }
     const qaPromises = exercise.questions.map((q, i) => {
       if (q.type !== 'question-answer') return Promise.resolve();
+      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+      const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+      if (isTrueFalse) return Promise.resolve();
       const resp = (responses || []).find(r => r.questionIndex === i) || {};
       const studentAns = (resp.qaResponse || '').trim();
       if (!studentAns) return Promise.resolve();
@@ -761,10 +791,11 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         if (resp.matchingResponse && resp.matchingResponse.length === q.pairs.length) {
           let allCorrect = true;
           for (const match of resp.matchingResponse) {
-            if (q.pairs[match.leftIndex] && q.pairs[match.leftIndex].right !== q.pairs[match.rightIndex]?.right) {
-              const expectedRight = q.pairs[match.leftIndex].right;
-              const givenRight = q.pairs[match.rightIndex]?.right;
-              if (expectedRight !== givenRight) { allCorrect = false; break; }
+            const expectedRight = q.pairs[match.leftIndex]?.right;
+            const givenRight = match.rightValue != null ? match.rightValue : q.pairs[match.rightIndex]?.right;
+            if (expectedRight === undefined || givenRight === undefined || String(expectedRight) !== String(givenRight)) {
+              allCorrect = false;
+              break;
             }
           }
           isCorrect = allCorrect;
@@ -791,19 +822,30 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
         correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'question-answer') {
-        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
-        const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
-        const scoringMode = q.scoringMode || 'full';
-        const aiResult = qaScoreMap[i];
+        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+        const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+        const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+        if (isTrueFalse) {
+          const expected = parseTrueFalse(expectedRaw);
+          const given = parseTrueFalse(resp.qaResponse);
+          isCorrect = expected !== null && given !== null && given === expected;
+          pointsEarned = isCorrect ? (q.points || 1) : 0;
+          correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
+        } else {
+          const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
+          const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
+          const scoringMode = q.scoringMode || 'full';
+          const aiResult = qaScoreMap[i];
 
-        if (aiResult) {
-          const { score } = aiResult;
-          isCorrect = score >= threshold;
-          pointsEarned = scoringMode === 'proportional'
-            ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
-            : (isCorrect ? (q.points || 1) : 0);
+          if (aiResult) {
+            const { score } = aiResult;
+            isCorrect = score >= threshold;
+            pointsEarned = scoringMode === 'proportional'
+              ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
+              : (isCorrect ? (q.points || 1) : 0);
+          }
+          correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
         }
-        correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
       } else if (q.type === 'listening') {
         const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
         const expected = (q.expectedTranscript || '').trim().toLowerCase();

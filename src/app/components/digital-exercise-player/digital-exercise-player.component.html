@@ -95,13 +95,18 @@
       </div>
     </div>
     <div class="review-list">
-      <div class="review-q-block" *ngFor="let pq of playerQuestions; let i = index"
+      <ng-container *ngFor="let pq of playerQuestions; let i = index">
+      <div class="q-section-header review-section-header" *ngIf="getSectionTitle(i) as sec">
+        <span class="q-section-icon material-icons">layers</span>
+        <span class="q-section-text">{{ sec }}</span>
+      </div>
+      <div class="review-q-block"
         [class.correct]="pq.isCorrect === true"
         [class.wrong]="pq.isCorrect === false">
         <div class="review-q-head">
           <span class="review-q-num">Question {{ i + 1 }}</span>
           <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
-            {{ getTypeLabel(pq.data.type) }}
+            {{ getQuestionTypeLabelForDisplay(pq.data) }}
           </span>
           <span class="review-q-pts">{{ pq.data.points || 1 }} pt</span>
           <span class="review-q-badge" [class.correct]="pq.isCorrect" [class.wrong]="!pq.isCorrect">
@@ -114,6 +119,9 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data) && pq.data.storyParagraph">
+            {{ pq.data.storyParagraph }}
+          </div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'">{{ pq.data.prompt }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'listening'">{{ pq.data.prompt }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'video-pronunciation'">
@@ -130,6 +138,7 @@
           </div>
         </div>
       </div>
+      </ng-container>
     </div>
     <div class="review-actions">
       <button class="btn-secondary" (click)="backToResult()">
@@ -497,12 +506,18 @@
       <div class="question-area">
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
+        <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
+        <div class="q-section-header" *ngIf="getSectionTitle(currentIndex) as sec">
+          <span class="q-section-icon material-icons">layers</span>
+          <span class="q-section-text">{{ sec }}</span>
+        </div>
+
         <!-- Question Header -->
         <div class="q-header">
           <span class="q-num">QUESTION {{ currentIndex + 1 }}</span>
           <span class="q-type-label" [class]="'label-' + currentQuestion.data.type">
             <span class="material-icons">{{ getTypeIcon(currentQuestion.data.type) }}</span>
-            {{ getTypeLabel(currentQuestion.data.type) }}
+            {{ getQuestionTypeLabelForDisplay(currentQuestion.data) }}
           </span>
           <span class="q-points">{{ currentQuestion.data.points || 1 }} marks</span>
         </div>
@@ -800,16 +815,62 @@
 
         <!-- Question / Answer body -->
         <div class="q-body qa-body" *ngIf="currentQuestion.data.type === 'question-answer'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
-          <label class="qa-input-label">Your Answer</label>
-          <textarea
-            class="qa-textarea"
-            rows="4"
-            placeholder="Write your answer here..."
-            [(ngModel)]="currentQuestion.qaResponse"
-            (ngModelChange)="markAttempted(currentQuestion)"
-            [disabled]="hasCurrentSubmitted"
-          ></textarea>
+          <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else normalPrompt">
+            <div class="tf-story-paragraph" *ngIf="currentQuestion.data.storyParagraph">
+              {{ currentQuestion.data.storyParagraph }}
+            </div>
+            <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+          </ng-container>
+          <ng-template #normalPrompt>
+            <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+          </ng-template>
+
+          <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
+            <div class="tf-answers" role="group" aria-label="True or False">
+              <label
+                class="tf-btn"
+                [class.active]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                [style.opacity]="hasCurrentSubmitted ? 0.55 : 1"
+                [style.cursor]="hasCurrentSubmitted ? 'not-allowed' : 'pointer'"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="$event.preventDefault(); selectTrueFalse(currentQuestion, true)"
+                />
+                True
+              </label>
+
+              <label
+                class="tf-btn"
+                [class.active]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                [style.opacity]="hasCurrentSubmitted ? 0.55 : 1"
+                [style.cursor]="hasCurrentSubmitted ? 'not-allowed' : 'pointer'"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="$event.preventDefault(); selectTrueFalse(currentQuestion, false)"
+                />
+                False
+              </label>
+            </div>
+          </ng-container>
+
+          <ng-template #qaTextInput>
+            <label class="qa-input-label">Your Answer</label>
+            <textarea
+              class="qa-textarea"
+              rows="4"
+              placeholder="Write your answer here..."
+              [(ngModel)]="currentQuestion.qaResponse"
+              (ngModelChange)="markAttempted(currentQuestion)"
+              [disabled]="hasCurrentSubmitted"
+            ></textarea>
+          </ng-template>
+
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
             <strong>Sample answers:</strong>
             <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
@@ -857,7 +918,7 @@
             [class.correct]="pq.isCorrect === true"
             [class.wrong]="pq.isCorrect === false"
             (click)="goToQuestion(i)"
-            [title]="'Question ' + (i + 1) + ' - ' + getTypeLabel(pq.data.type)"
+            [title]="'Question ' + (i + 1) + ' - ' + getQuestionTypeLabelForDisplay(pq.data)"
           >{{ i + 1 }}</button>
         </div>
         <div class="status-legend">

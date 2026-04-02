@@ -68,6 +68,14 @@
         (click)="setTab('modules')">
         Modules
       </button>
+      <button
+        type="button"
+        role="tab"
+        class="mc-tab"
+        [class.mc-tab--on]="activeTab === 'journey'"
+        (click)="setTab('journey')">
+        Journey Day
+      </button>
     </div>
     <div class="mc-tabs-meta">
       <a routerLink="/time-table-view-student" class="mc-schedule-link">View schedule →</a>
@@ -196,6 +204,253 @@
 
   <div class="mc-panel" *ngIf="activeTab === 'modules'" role="tabpanel">
     <app-learning-modules [embedded]="true"></app-learning-modules>
+  </div>
+
+  <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
+    <div class="mc-journey-head">
+      <div>
+        <h3>Journey Day Tracker</h3>
+        <p>See day-wise progress and continue unfinished work.</p>
+      </div>
+      <div class="mc-journey-head__actions">
+        <button type="button" class="mc-progress-btn" (click)="toggleProgressReport()">
+          <span class="material-icons">monitoring</span>
+          {{ showProgressReport ? 'Hide Progress' : 'View Progress' }}
+        </button>
+        <div class="mc-journey-meta">Current day: <strong>{{ journeyCourseDay }}</strong> / 200</div>
+      </div>
+    </div>
+
+    <div class="mc-progress-page" *ngIf="showProgressReport">
+      <div class="mc-progress-page__head">
+        <h4>Progress Report</h4>
+        <p>Track your Weekly or Overall completion for live classes, modules, and exercises.</p>
+      </div>
+
+      <div class="mc-progress-range">
+        <button
+          type="button"
+          class="mc-progress-range__btn"
+          [class.mc-progress-range__btn--on]="progressRange === 'weekly'"
+          (click)="setProgressRange('weekly')"
+        >
+          Weekly
+        </button>
+        <button
+          type="button"
+          class="mc-progress-range__btn"
+          [class.mc-progress-range__btn--on]="progressRange === 'overall'"
+          (click)="setProgressRange('overall')"
+        >
+          Overall
+        </button>
+      </div>
+
+      <div class="mc-progress-grid">
+        <div class="mc-progress-card">
+          <p>Live Classes</p>
+          <strong>{{ progressClassesDone }} / {{ progressClassesTotal }}</strong>
+          <div class="mc-progress-bar"><span [style.width.%]="progressClassesPct"></span></div>
+          <small>{{ progressClassesPct }}%</small>
+        </div>
+        <div class="mc-progress-card">
+          <p>Modules</p>
+          <strong>{{ progressModulesDone }} / {{ progressModulesTotal }}</strong>
+          <div class="mc-progress-bar"><span [style.width.%]="progressModulesPct"></span></div>
+          <small>{{ progressModulesPct }}%</small>
+        </div>
+        <div class="mc-progress-card">
+          <p>Exercises</p>
+          <strong>{{ progressExercisesDone }} / {{ progressExercisesTotal }}</strong>
+          <div class="mc-progress-bar"><span [style.width.%]="progressExercisesPct"></span></div>
+          <small>{{ progressExercisesPct }}%</small>
+        </div>
+      </div>
+
+      <div class="mc-progress-total">
+        Total Progress: <strong>{{ progressOverallDone }} / {{ progressOverallTotal }}</strong>
+        <span>({{ progressOverallPct }}%)</span>
+      </div>
+    </div>
+
+    <div class="mc-journey-controls">
+      <input
+        type="text"
+        class="mc-journey-search"
+        placeholder="Search day number..."
+        [(ngModel)]="journeySearch"
+      />
+      <select class="mc-journey-filter" [(ngModel)]="journeyFilter">
+        <option value="all">All</option>
+        <option value="completed">Completed only</option>
+        <option value="pending">Pending only</option>
+      </select>
+    </div>
+
+    <div class="mc-day-pills">
+      <button
+        type="button"
+        class="mc-day-pill"
+        *ngFor="let d of filteredJourneyDays"
+        [class.mc-day-pill--on]="selectedJourneyDay === d"
+        (click)="selectJourneyDay(d)"
+      >
+        Day {{ d }}
+      </button>
+    </div>
+
+    <div class="mc-day-summary">
+      <span>Day {{ selectedJourneyDay }}</span>
+      <span>{{ selectedDayCompletedCount }} / {{ selectedDayTotalCount }} completed</span>
+    </div>
+
+    <div class="mc-day-empty" *ngIf="!selectedDayHasItems">
+      No modules or exercises assigned for this day.
+    </div>
+
+    <div class="mc-day-sections" *ngIf="selectedDayHasItems">
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises" *ngIf="selectedDayExercises.length">
+        <div class="mc-day-section__head">
+          <h4>Exercises</h4>
+          <span class="mc-day-section__count">{{ selectedDayExercises.length }}</span>
+        </div>
+        <div class="mc-day-item" *ngFor="let ex of selectedDayExercises">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getExerciseHoverDetails(ex)"
+            (click)="openExercise(ex)"
+            (keydown.enter)="openExercise(ex)"
+          >
+            <div class="mc-day-item__title">{{ ex.title }}</div>
+            <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+            {{ ex.studentAttempt ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="!ex.studentAttempt"
+            [class.mc-day-item__btn--retry]="!!ex.studentAttempt"
+            (click)="openExercise(ex)"
+          >
+            <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>
+            {{ ex.studentAttempt ? 'Re-attempt' : 'Start' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--modules" *ngIf="selectedDayModules.length">
+        <div class="mc-day-section__head">
+          <h4>Modules</h4>
+          <span class="mc-day-section__count">{{ selectedDayModules.length }}</span>
+        </div>
+        <div class="mc-day-item" *ngFor="let mod of selectedDayModules">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getModuleHoverDetails(mod)"
+            (click)="openModule(mod)"
+            (keydown.enter)="openModule(mod)"
+          >
+            <div class="mc-day-item__title">{{ mod.title }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="mod.studentProgress?.status === 'completed'" [class.pending]="mod.studentProgress?.status !== 'completed'">
+            {{ mod.studentProgress?.status === 'completed' ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="mod.studentProgress?.status !== 'completed'"
+            [class.mc-day-item__btn--open]="mod.studentProgress?.status === 'completed'"
+            (click)="openModule(mod)"
+          >
+            <span class="material-icons">{{ mod.studentProgress?.status === 'completed' ? 'launch' : 'play_arrow' }}</span>
+            {{ mod.studentProgress?.status === 'completed' ? 'Open' : 'Start' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mc-journey-classes mc-day-section-card mc-day-section-card--classes">
+      <div class="mc-journey-classes__head">
+        <h4>Live Classes</h4>
+        <p>
+          Day {{ selectedJourneyDay }} classes:
+          {{ selectedDayUpcomingClasses.length }} upcoming,
+          {{ selectedDayLiveClasses.length }} live,
+          {{ selectedDayAttemptedClasses.length }} attempted
+        </p>
+      </div>
+      <div class="mc-jc-empty" *ngIf="!selectedDayAllClasses.length">
+        No classes for Day {{ selectedJourneyDay }}.
+      </div>
+
+      <div class="mc-jc-table-wrap" *ngIf="selectedDayAllClasses.length">
+        <table class="mc-jc-table">
+          <thead>
+            <tr>
+              <th>Class Title</th>
+              <th>Teacher</th>
+              <th>Date</th>
+              <th>Timing</th>
+              <th>Duration</th>
+              <th>Status</th>
+              <th>Action</th>
+              <th>Progress</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let meeting of selectedDayAllClasses">
+              <td>{{ meeting.topic }}</td>
+              <td>{{ meeting.teacher?.name || '—' }}</td>
+              <td>{{ formatMeetingDate(meeting.startTime) }}</td>
+              <td>{{ formatMeetingTime(meeting.startTime) }}</td>
+              <td>{{ formatMeetingDuration(meeting.duration) }}</td>
+              <td>
+                <span
+                  class="mc-jc-status"
+                  [class.live]="meeting.isOngoing"
+                  [class.upcoming]="!meeting.isOngoing && !meeting.hasEnded"
+                  [class.done]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Attended'"
+                  [class.warn]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Not Attended'"
+                  [class.missed]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Missed'"
+                >
+                  {{ meeting.hasEnded ? getMeetingAttendanceStatus(meeting) : getMeetingStateLabel(meeting) }}
+                </span>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="mc-jc-action"
+                  [class.mc-jc-action--live]="meeting.isOngoing"
+                  [disabled]="meeting.hasEnded || !meeting.canJoin"
+                  (click)="joinSelectedDayMeeting(meeting)"
+                >
+                  {{
+                    meeting.hasEnded
+                      ? 'Completed'
+                      : (meeting.canJoin ? (meeting.isOngoing ? 'Join Now' : 'Join') : getMeetingTimeUntilStart(meeting))
+                  }}
+                </button>
+              </td>
+              <td>
+                <div class="mc-jc-progress">
+                  <div class="mc-jc-progress__track">
+                    <div class="mc-jc-progress__fill" [style.width.%]="getMeetingAttendancePercent(meeting)"></div>
+                  </div>
+                  <span>{{ getMeetingAttendancePercent(meeting) }}%</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 

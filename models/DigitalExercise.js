@@ -107,6 +107,8 @@ const DigitalExerciseSchema = new mongoose.Schema({
     // Question / Answer fields
     prompt: String,
     sampleAnswers: [String],
+    // Story passage for worksheet-style questions (e.g. true/false reading).
+    storyParagraph: { type: String, default: '' },
     similarityThreshold: { type: Number, default: 70 },   // 0-100 — min AI score to pass
     scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
     // Listening fields (prompt reused for instruction)
@@ -117,7 +119,14 @@ const DigitalExerciseSchema = new mongoose.Schema({
     videoUrl: String,
     caption: String,
     // Common
-    points: { type: Number, default: 1 }
+    points: { type: Number, default: 1 },
+    // Worksheet metadata: set by AI when generated from a structured worksheet
+    sectionTitle: { type: String, default: null },  // e.g. "STUFE 1 – LEICHT | Übung L1.1"
+    tier: { type: String, enum: ['easy', 'medium', 'hard', null], default: null }
+    ,
+    // Worksheet category label for question-answer style tasks.
+    // Example: "true-false", "sentence-transformation", "error-correction", etc.
+    worksheetKind: { type: String, default: null }
   }],
 
   // Optional shared audio for manual listening worksheets.

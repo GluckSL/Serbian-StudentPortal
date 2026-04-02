@@ -252,8 +252,10 @@
           <div class="question-header-left">
             <span class="q-number">Q{{ i + 1 }}</span>
             <span class="q-type-badge" [class]="'badge-' + q.type">
-              <span class="material-icons">{{ getTypeIcon(q.type) }}</span>
-              {{ getTypeLabel(q.type) }}
+              <span class="material-icons">
+                {{ getTypeIcon(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
+              </span>
+              {{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
             </span>
             <span class="q-summary">
               <ng-container [ngSwitch]="q.type">
@@ -464,7 +466,49 @@
               <label class="field-label required">Question</label>
               <textarea [(ngModel)]="q.prompt" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
             </div>
-            <div class="field-group full">
+            <!-- True/False Story Paragraph -->
+            <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
+              <label class="field-label">Story paragraph (optional)</label>
+              <textarea
+                [(ngModel)]="q.storyParagraph"
+                class="field-input"
+                rows="4"
+                placeholder="Paste the paragraph/story here (optional)..."
+              ></textarea>
+              <button
+                type="button"
+                class="btn-add-opt"
+                (click)="addMoreTrueFalseForSameParagraph(q)"
+              >
+                <span class="material-icons">add</span> Add another True/False for same paragraph
+              </button>
+            </div>
+            <!-- True / False Editor (worksheetKind="true-false") -->
+            <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
+              <label class="field-label required">Answer</label>
+              <div class="tf-answers-admin" role="group" aria-label="True or False answer">
+                <label class="tf-check">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === true"
+                    (click)="setTrueFalseAnswer(q, true)"
+                  />
+                  True
+                </label>
+                <label class="tf-check">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === false"
+                    (click)="setTrueFalseAnswer(q, false)"
+                  />
+                  False
+                </label>
+              </div>
+              <p class="hint-text" style="margin-top:8px">Admin selects which option is correct.</p>
+            </div>
+
+            <!-- Sample Answers (all other question-answer worksheet kinds) -->
+            <div class="field-group full" *ngIf="q.worksheetKind !== 'true-false'">
               <label class="field-label">
                 Sample Answers
                 <span class="hint"> (optional — if none, AI grades automatically)</span>
@@ -485,8 +529,9 @@
                 <span class="material-icons">add</span> Add Sample Answer
               </button>
             </div>
+
             <!-- AI Grading Config -->
-            <div class="qa-grading-config">
+            <div class="qa-grading-config" *ngIf="q.worksheetKind !== 'true-false'">
               <div class="qa-grading-title">
                 <span class="material-icons">auto_awesome</span>
                 AI Grading Settings
@@ -829,7 +874,7 @@
         <div *ngFor="let q of questions; let i = index" class="preview-question">
           <div class="pq-header">
             <span class="pq-number">{{ i + 1 }}</span>
-            <span class="pq-type">{{ getTypeLabel(q.type) }}</span>
+            <span class="pq-type">{{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}</span>
             <span class="pq-points">{{ q.points }} pt{{ q.points !== 1 ? 's' : '' }}</span>
           </div>
 

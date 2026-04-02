@@ -140,14 +140,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   loadExercise(): void {
     this.state = 'loading';
-    this.exerciseService.getExercise(this.exerciseId).subscribe({
-      next: (exercise) => {
-        this.exercise = exercise;
-        this.initPlayerQuestions();
-        // Start immediately when user clicks "Start" from the list page.
-        this.startExercise();
-      },
-      error: () => { this.state = 'error'; }
+    this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
+      const asStudent = user?.role === 'STUDENT';
+      this.exerciseService.getExercise(this.exerciseId, { asStudent }).subscribe({
+        next: (exercise) => {
+          this.exercise = exercise;
+          this.initPlayerQuestions();
+          // Start immediately when user clicks "Start" from the list page.
+          this.startExercise();
+        },
+        error: () => { this.state = 'error'; }
+      });
     });
   }
 
@@ -502,6 +505,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.markAttempted(pq);
   }
 
+  selectTrueFalse(pq: PlayerQuestion, value: boolean): void {
+    if (this.state === 'submitted') return;
+    pq.qaResponse = value ? 'true' : 'false';
+    this.markAttempted(pq);
+  }
+
   selectRight(pq: PlayerQuestion, rightIndex: number): void {
     if (this.state === 'submitted') return;
     if (pq.selectedLeftIndex === null || pq.selectedLeftIndex === undefined) return;
@@ -693,10 +702,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'mcq') {
       resp.selectedOptionIndex = pq.selectedOption;
     } else if (pq.data.type === 'matching') {
-      resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
-        leftIndex: li,
-        rightIndex: l.matchedRightIndex ?? -1
-      }));
+      resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => {
+        const rightIndex = l.matchedRightIndex ?? -1;
+        const rightValue =
+          rightIndex >= 0 && pq.matchingRight && rightIndex < pq.matchingRight.length
+            ? pq.matchingRight[rightIndex].value
+            : null;
+        return { leftIndex: li, rightIndex, rightValue };
+      });
     } else if (pq.data.type === 'fill-blank') {
       resp.fillBlankResponses = pq.fillAnswers || [];
     } else if (pq.data.type === 'pronunciation') {
@@ -801,10 +814,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const resp: QuestionResponse = { questionIndex: i };
       if (pq.data.type === 'mcq') resp.selectedOptionIndex = pq.selectedOption;
       else if (pq.data.type === 'matching') {
-        resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
-          leftIndex: li,
-          rightIndex: l.matchedRightIndex ?? -1
-        }));
+        resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => {
+          const rightIndex = l.matchedRightIndex ?? -1;
+          const rightValue =
+            rightIndex >= 0 && pq.matchingRight && rightIndex < pq.matchingRight.length
+              ? pq.matchingRight[rightIndex].value
+              : null;
+          return { leftIndex: li, rightIndex, rightValue };
+        });
       } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
       else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
@@ -833,10 +850,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const resp: QuestionResponse = { questionIndex: i };
       if (pq.data.type === 'mcq') resp.selectedOptionIndex = pq.selectedOption;
       else if (pq.data.type === 'matching') {
-        resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
-          leftIndex: li,
-          rightIndex: l.matchedRightIndex ?? -1
-        }));
+        resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => {
+          const rightIndex = l.matchedRightIndex ?? -1;
+          const rightValue =
+            rightIndex >= 0 && pq.matchingRight && rightIndex < pq.matchingRight.length
+              ? pq.matchingRight[rightIndex].value
+              : null;
+          return { leftIndex: li, rightIndex, rightValue };
+        });
       } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
       else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
@@ -878,6 +899,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         }
         if (pq.data.type === 'mcq' && detail.correctAnswer?.correctAnswerIndex !== undefined) {
           pq.data.correctAnswerIndex = detail.correctAnswer.correctAnswerIndex;
+        }
+        if (pq.data.type === 'matching' && detail.correctAnswer?.pairs) {
+          pq.data._correctPairs = detail.correctAnswer.pairs;
         }
       }
     });
@@ -959,7 +983,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return parts.length ? parts.join(', ') : '—';
     }
     if (pq.data.type === 'pronunciation') return (pq.spokenText || '—').trim();
-    if (pq.data.type === 'question-answer') return (pq.qaResponse || '—').trim();
+    if (pq.data.type === 'question-answer') {
+      if (this.isTrueFalseQuestion(pq.data)) {
+        const parsed = this.parseTrueFalse(pq.qaResponse);
+        return parsed === true ? 'True' : parsed === false ? 'False' : '—';
+      }
+      return (pq.qaResponse || '—').trim();
+    }
     if (pq.data.type === 'listening') return (pq.listeningText || '—').trim();
     if (pq.data.type === 'video-pronunciation') return (pq.vpSpokenText || '—').trim();
     return '—';
@@ -973,7 +1003,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return idx < opts.length ? opts[idx] : '—';
     }
     if (pq.data.type === 'matching') {
-      const pairs = (pq.data.pairs || []).map((p: any) => `${p.left} → ${p.right}`);
+      // In student view, `pairs.right` is stripped from the API response.
+      // We store correct pairs as `_correctPairs` during grading.
+      const correctPairs = pq.data._correctPairs || [];
+      const leftItems = pq.matchingLeft || [];
+      const pairs = leftItems.map((l: any, li: number) => {
+        const found = Array.isArray(correctPairs) ? correctPairs.find((cp: any) => cp.leftIndex === li) : null;
+        const rv = found?.rightValue;
+        return rv != null && rv !== '' ? `${l.value} → ${rv}` : `${l.value} → undefined`;
+      });
       return pairs.length ? pairs.join('; ') : '—';
     }
     if (pq.data.type === 'fill-blank') {
@@ -981,6 +1019,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return ans || '—';
     }
     if (pq.data.type === 'question-answer') {
+      if (this.isTrueFalseQuestion(pq.data)) {
+        const samples: string[] = pq.data.sampleAnswers || [];
+        const parsed = samples.map(s => this.parseTrueFalse(s)).find(v => v === true || v === false);
+        if (parsed === true) return 'True';
+        if (parsed === false) return 'False';
+        return samples.length ? samples.join('; ') : '—';
+      }
       const samples = pq.data.sampleAnswers || [];
       return samples.length ? samples.join('; ') : '(AI graded)';
     }
@@ -988,6 +1033,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
     if (pq.data.type === 'video-pronunciation') return pq.data.caption || '—';
     return '—';
+  }
+
+  parseTrueFalse(raw: any): boolean | null {
+    const s = String(raw ?? '').trim().toLowerCase();
+    if (!s) return null;
+    // Common values from UI (true/false), admin/manual, and worksheet generator (richtig/falsch).
+    if (/\b(true|richtig|wahr|ja|yes)\b/.test(s)) return true;
+    if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+    return null;
+  }
+
+  /** Detect True/False worksheet even if worksheetKind is missing (old exercises). */
+  isTrueFalseQuestion(data: any): boolean {
+    if (!data || data.type !== 'question-answer') return false;
+    if (data.worksheetKind === 'true-false') return true;
+    const samples: any[] = Array.isArray(data.sampleAnswers) ? data.sampleAnswers : [];
+    return samples.some(s => this.parseTrueFalse(s) !== null);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1044,6 +1106,32 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   getTypeLabel(type: string): string {
     return this.exerciseService.getQuestionTypeLabel(type as any);
+  }
+
+  private getWorksheetKindLabel(kind: string | null | undefined): string | null {
+    if (!kind) return null;
+    const map: Record<string, string> = {
+      'true-false': 'True / False',
+      'sentence-transformation': 'Sentence Transformation',
+      'singular-plural': 'Singular → Plural',
+      'table-profile-fill': 'Table / Profile Fill-in',
+      'free-writing-own-sentences': 'Free Writing / Own Sentences',
+      'free-writing-profile': 'Free Writing – profile',
+      'error-correction': 'Error Correction'
+    };
+    return map[kind] || null;
+  }
+
+  /**
+   * Display label for the question header / navigator.
+   * For question-answer tasks, worksheetKind is shown instead of generic "Question / Answer".
+   */
+  getQuestionTypeLabelForDisplay(data: any): string {
+    if (data?.type === 'question-answer') {
+      const k = this.getWorksheetKindLabel(data?.worksheetKind);
+      if (k) return k;
+    }
+    return this.getTypeLabel(data?.type || 'question-answer');
   }
 
   getMediaFullUrl(relative?: string | null): string {
@@ -1269,5 +1357,20 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (score >= 70) return '👍';
     if (score >= 60) return '💪';
     return '📚';
+  }
+
+  /**
+   * Returns the sectionTitle for question at `index` only when it differs from
+   * the previous question's sectionTitle (i.e. a new section begins), so the
+   * player shows a section header banner at tier boundaries.
+   */
+  getSectionTitle(index: number): string | null {
+    const pq = this.playerQuestions[index];
+    if (!pq) return null;
+    const title = pq.data?.sectionTitle;
+    if (!title) return null;
+    const prev = this.playerQuestions[index - 1];
+    const prevTitle = prev?.data?.sectionTitle;
+    return title !== prevTitle ? title : null;
   }
 }

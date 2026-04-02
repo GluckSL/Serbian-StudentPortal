@@ -13,6 +13,7 @@ type WizardStep = 1 | 2 | 3 | 4;
 
 interface ReviewQuestion {
   type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
+  worksheetKind?: string | null;
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -89,7 +90,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     matching: 0,
     'fill-blank': 0,
     pronunciation: 0,
-    'question-answer': 0
+    'question-answer': 0,
+    'true-false': 0,
+    'sentence-transformation': 0,
+    'singular-plural': 0,
+    'table-profile-fill': 0,
+    'free-writing-own-sentences': 0,
+    'free-writing-profile': 0,
+    'error-correction': 0
   };
   /** True when type counts were auto-detected from uploaded PDF. */
   pdfDetectedTypes = false;
@@ -127,7 +135,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     { value: 'matching',        label: 'Matching',          desc: 'Match word / phrase pairs',         icon: 'compare_arrows',    color: '#7b1fa2', bg: '#f3e5f5' },
     { value: 'fill-blank',      label: 'Fill in the Blanks',desc: 'Sentence with ___ gaps',            icon: 'text_fields',       color: '#388e3c', bg: '#e8f5e9' },
     { value: 'pronunciation',   label: 'Pronunciation',     desc: 'Speak a word aloud',               icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' },
-    { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' }
+    { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' },
+    { value: 'true-false', label: 'True / False', desc: 'Decide if a statement is true or false', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
+    { value: 'sentence-transformation', label: 'Sentence Transformation', desc: 'Transform the sentence (e.g. statement → question)', icon: 'transform', color: '#9333ea', bg: '#f3e8ff' },
+    { value: 'singular-plural', label: 'Singular → Plural', desc: 'Write the plural form with the right article', icon: 'swap_horiz', color: '#16a34a', bg: '#dcfce7' },
+    { value: 'table-profile-fill', label: 'Table / Profile Fill-in', desc: 'Fill values from a table/profile', icon: 'table_rows', color: '#64748b', bg: '#f1f5f9' },
+    { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', desc: 'Write your own sentences', icon: 'edit_note', color: '#f97316', bg: '#fff7ed' },
+    { value: 'free-writing-profile', label: 'Free Writing – profile', desc: 'Write a short profile (Steckbrief)', icon: 'badge', color: '#db2777', bg: '#fce7f3' },
+    { value: 'error-correction', label: 'Error Correction', desc: 'Correct mistakes and write the right sentence', icon: 'error', color: '#dc2626', bg: '#fee2e2' }
   ];
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -237,7 +252,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         matching: 5,
         'fill-blank': 5,
         pronunciation: 0,
-        'question-answer': 5
+        'question-answer': 5,
+        'true-false': 0,
+        'sentence-transformation': 0,
+        'singular-plural': 0,
+        'table-profile-fill': 0,
+        'free-writing-own-sentences': 0,
+        'free-writing-profile': 0,
+        'error-correction': 0
       };
     } else {
       this.typeCounts = {
@@ -245,7 +267,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         matching: 0,
         'fill-blank': 0,
         pronunciation: 0,
-        'question-answer': 0
+        'question-answer': 0,
+        'true-false': 0,
+        'sentence-transformation': 0,
+        'singular-plural': 0,
+        'table-profile-fill': 0,
+        'free-writing-own-sentences': 0,
+        'free-writing-profile': 0,
+        'error-correction': 0
       };
     }
   }
@@ -259,6 +288,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         this.uploadResult = res;
         this.uploading = false;
         this.applyDetectedTypes(res.detectedTypes);
+        // If server detected a worksheet, auto-enable worksheet mode label for display
+        if (res.worksheetMode) {
+          this.pdfDetectedTypes = true;
+        }
       },
       error: (err) => {
         this.uploading = false;
@@ -271,7 +304,20 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.selectedFile = null;
     this.uploadResult = null;
     this.pdfDetectedTypes = false;
-    this.typeCounts = { mcq: 0, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
+    this.typeCounts = {
+      mcq: 0,
+      matching: 0,
+      'fill-blank': 0,
+      pronunciation: 0,
+      'question-answer': 0,
+      'true-false': 0,
+      'sentence-transformation': 0,
+      'singular-plural': 0,
+      'table-profile-fill': 0,
+      'free-writing-own-sentences': 0,
+      'free-writing-profile': 0,
+      'error-correction': 0
+    };
     if (this.fileInput) this.fileInput.nativeElement.value = '';
   }
 
@@ -280,7 +326,20 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const hasAny = Object.values(detected).some(v => Number(v) > 0);
     if (!hasAny) {
       // Fallback default when no pattern is detected in PDF.
-      this.typeCounts = { mcq: 5, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
+      this.typeCounts = {
+        mcq: 5,
+        matching: 0,
+        'fill-blank': 0,
+        pronunciation: 0,
+        'question-answer': 0,
+        'true-false': 0,
+        'sentence-transformation': 0,
+        'singular-plural': 0,
+        'table-profile-fill': 0,
+        'free-writing-own-sentences': 0,
+        'free-writing-profile': 0,
+        'error-correction': 0
+      };
       this.pdfDetectedTypes = false;
       return;
     }
@@ -289,7 +348,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       matching: Number(detected['matching']) || 0,
       'fill-blank': Number(detected['fill-blank']) || 0,
       pronunciation: Number(detected['pronunciation']) || 0,
-      'question-answer': Number(detected['question-answer']) || 0
+      'question-answer': Number(detected['question-answer']) || 0,
+      'true-false': Number(detected['true-false']) || 0,
+      'sentence-transformation': Number(detected['sentence-transformation']) || 0,
+      'singular-plural': Number(detected['singular-plural']) || 0,
+      'table-profile-fill': Number(detected['table-profile-fill']) || 0,
+      'free-writing-own-sentences': Number(detected['free-writing-own-sentences']) || 0,
+      'free-writing-profile': Number(detected['free-writing-profile']) || 0,
+      'error-correction': Number(detected['error-correction']) || 0
     };
     this.pdfDetectedTypes = true;
   }
@@ -371,6 +437,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     const payloadBase = {
       types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
+      typeCounts: { ...this.typeCounts },
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
       level: this.level,
@@ -382,7 +449,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       ? this.exerciseService.generateFromPdf({
         uploadId: this.uploadResult.uploadId,
         ...payloadBase,
-        typeCounts: { ...this.typeCounts }
+        worksheetMode: this.uploadResult?.worksheetMode ?? undefined
       })
       : this.exerciseService.generateFromText({
         text: (this.selectedText || '').trim(),
@@ -454,13 +521,47 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   addBlankQuestion(type: string): void {
+    // These worksheet categories are represented using the existing question-answer
+    // engine, with an extra `worksheetKind` label for UI rendering.
     const q: ReviewQuestion = { type: type as any, points: 1, expanded: true, aiGenerated: false };
+
     if (type === 'mcq') Object.assign(q, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0, explanation: '' });
     else if (type === 'matching') Object.assign(q, { instruction: 'Match the items.', pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
     else if (type === 'fill-blank') Object.assign(q, { sentence: '', answers: [''], hint: '', caseSensitive: false });
     else if (type === 'pronunciation') Object.assign(q, { word: '', phonetic: '', translation: '', acceptedVariants: [] });
     else if (type === 'question-answer') Object.assign(q, { prompt: '', sampleAnswers: [''], similarityThreshold: 70, scoringMode: 'full' });
+    else if ([
+      'true-false',
+      'sentence-transformation',
+      'singular-plural',
+      'table-profile-fill',
+      'free-writing-own-sentences',
+      'free-writing-profile',
+      'error-correction'
+    ].includes(type)) {
+      (q as any).type = 'question-answer';
+      q.worksheetKind = type;
+      let scoringMode: 'full' | 'proportional' = 'full';
+      let similarityThreshold = 70;
+      if (type === 'free-writing-own-sentences' || type === 'free-writing-profile' || type === 'table-profile-fill') {
+        scoringMode = 'proportional';
+        similarityThreshold = 60;
+      } else if (type === 'true-false') {
+        scoringMode = 'full';
+        similarityThreshold = 75;
+      } else if (type === 'error-correction' || type === 'sentence-transformation' || type === 'singular-plural') {
+        scoringMode = 'full';
+        similarityThreshold = 70;
+      }
+      Object.assign(q, {
+        prompt: '',
+        sampleAnswers: [''],
+        similarityThreshold,
+        scoringMode
+      });
+    }
     else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
+
     this.reviewQuestions.push(q);
     this.addingType = '';
   }

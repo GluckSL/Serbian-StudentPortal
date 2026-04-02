@@ -1,6 +1,7 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { forkJoin, of, catchError } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -14,13 +15,16 @@ import { LearningModulesComponent } from '../learning-modules/learning-modules.c
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 
-type MyCourseTab = 'classes' | 'exercises' | 'modules';
+type MyCourseTab = 'classes' | 'exercises' | 'modules' | 'journey';
+type JourneyFilter = 'all' | 'completed' | 'pending';
+type ProgressRange = 'weekly' | 'overall';
 
 @Component({
   selector: 'app-my-course',
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterModule,
     StudentMeetingsComponent,
     StudentRecordingsComponent,
@@ -38,6 +42,15 @@ export class MyCourseComponent implements OnInit {
   loading = true;
   private _tourChecked = false;
   activeTab: MyCourseTab = 'classes';
+  journeyFilter: JourneyFilter = 'all';
+  journeySearch = '';
+  selectedJourneyDay = 1;
+  showProgressReport = false;
+  progressRange: ProgressRange = 'weekly';
+
+  private journeyDayExercises: DigitalExercise[] = [];
+  private journeyDayModules: LearningModule[] = [];
+  private journeyMeetings: any[] = [];
   /** Fallback when journey.profile.profilePic is empty (login/profile API often has photo). */
   private authProfilePicRaw: string | null = null;
   /** Next upcoming live class (not ended, not ongoing). */
@@ -111,6 +124,8 @@ export class MyCourseComponent implements OnInit {
       const t = q.get('tab');
       if (t === 'exercises' || t === 'modules' || t === 'classes') {
         this.activeTab = t;
+      } else if (t === 'journey') {
+        this.activeTab = t;
       }
     });
   }
@@ -123,6 +138,19 @@ export class MyCourseComponent implements OnInit {
     const courseDay = this.journeyCourseDay;
     const levelRaw = this.profile?.currentLevel || this.profile?.currentLevelCode || this.profile?.level;
     const studentLevel = typeof levelRaw === 'string' ? levelRaw.split(/\s+/)[0] : '';
+
+    // Journey Day tab data sources
+    this.exerciseService
+      .getExercises({ page: 1, limit: 500 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.journeyDayExercises = Array.isArray(res?.exercises) ? res.exercises : [];
+        },
+        error: () => {
+          this.journeyDayExercises = [];
+        }
+      });
 
     this.exerciseService
       .getExercises({ page: 1, limit: 24 })
@@ -148,6 +176,7 @@ export class MyCourseComponent implements OnInit {
         .subscribe({
           next: (res) => {
             const modules: LearningModule[] = Array.isArray(res?.modules) ? res.modules : [];
+            this.journeyDayModules = modules;
             const candidates = modules.filter((m: any) => {
               const moduleDay = m?.courseDay;
               const unlockedByJourney = moduleDay != null && Number(moduleDay) <= courseDay;
@@ -160,6 +189,8 @@ export class MyCourseComponent implements OnInit {
           },
           error: () => {}
         });
+    } else {
+      this.journeyDayModules = [];
     }
   }
 
@@ -275,6 +306,95 @@ export class MyCourseComponent implements OnInit {
     return Math.min(200, Math.max(1, Math.floor(Number(d))));
   }
 
+  get journeyDays(): number[] {
+    const n = this.journeyCourseDay;
+    return Array.from({ length: n }, (_, i) => i + 1);
+  }
+
+  get filteredJourneyDays(): number[] {
+    const q = this.journeySearch.trim().toLowerCase();
+    if (!q) return this.journeyDays;
+    return this.journeyDays.filter((d) => String(d).includes(q));
+  }
+
+  selectJourneyDay(day: number): void {
+    this.selectedJourneyDay = day;
+  }
+
+  openProgressReport(): void {
+    this.showProgressReport = true;
+  }
+
+  closeProgressReport(): void {
+    this.showProgressReport = false;
+  }
+
+  toggleProgressReport(): void {
+    this.showProgressReport = !this.showProgressReport;
+  }
+
+  setProgressRange(range: ProgressRange): void {
+    this.progressRange = range;
+  }
+
+  private exerciseDone(ex: DigitalExercise): boolean {
+    return !!ex?.studentAttempt;
+  }
+
+  private moduleDone(mod: LearningModule): boolean {
+    const st = mod?.studentProgress?.status;
+    return st === 'completed';
+  }
+
+  get selectedDayExercises(): DigitalExercise[] {
+    let list = this.journeyDayExercises.filter((ex) => Number(ex.courseDay || 0) === this.selectedJourneyDay);
+    if (this.journeyFilter === 'completed') list = list.filter((x) => this.exerciseDone(x));
+    if (this.journeyFilter === 'pending') list = list.filter((x) => !this.exerciseDone(x));
+    return list;
+  }
+
+  get selectedDayModules(): LearningModule[] {
+    let list = this.journeyDayModules.filter((m) => Number((m as any).courseDay || 0) === this.selectedJourneyDay);
+    if (this.journeyFilter === 'completed') list = list.filter((x) => this.moduleDone(x));
+    if (this.journeyFilter === 'pending') list = list.filter((x) => !this.moduleDone(x));
+    return list;
+  }
+
+  get selectedDayHasItems(): boolean {
+    return this.selectedDayExercises.length > 0 || this.selectedDayModules.length > 0;
+  }
+
+  get selectedDayCompletedCount(): number {
+    return this.selectedDayExercises.filter((x) => this.exerciseDone(x)).length +
+      this.selectedDayModules.filter((x) => this.moduleDone(x)).length;
+  }
+
+  get selectedDayTotalCount(): number {
+    return this.selectedDayExercises.length + this.selectedDayModules.length;
+  }
+
+  openExercise(ex: DigitalExercise): void {
+    if (!ex?._id) return;
+    this.router.navigate(['/digital-exercises', ex._id, 'play']);
+  }
+
+  openModule(mod: LearningModule): void {
+    if (!mod?._id) return;
+    this.router.navigate(['/ai-tutor-chat'], { queryParams: { moduleId: mod._id } });
+  }
+
+  getExerciseHoverDetails(ex: DigitalExercise): string {
+    const status = this.exerciseDone(ex) ? 'Completed' : 'Not completed';
+    const day = Number.isFinite(Number(ex?.courseDay)) ? `Day ${ex.courseDay}` : 'No fixed day';
+    return `${day} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
+  }
+
+  getModuleHoverDetails(mod: LearningModule): string {
+    const status = this.moduleDone(mod) ? 'Completed' : 'Not completed';
+    const day = Number.isFinite(Number((mod as any)?.courseDay)) ? `Day ${(mod as any).courseDay}` : 'No fixed day';
+    return `${day} | ${mod?.level || 'Level N/A'} | ${mod?.category || 'General'} | ${status}`;
+  }
+
   ordinalSuffix(n: number): string {
     const v = n % 100;
     if (v >= 11 && v <= 13) return 'th';
@@ -298,7 +418,11 @@ export class MyCourseComponent implements OnInit {
 
   private applyMeetingsPreview(res: any): void {
     this.nextMeetingPreview = null;
-    if (!res?.success || !Array.isArray(res.data)) return;
+    if (!res?.success || !Array.isArray(res.data)) {
+      this.journeyMeetings = [];
+      return;
+    }
+    this.journeyMeetings = res.data;
     const list = res.data.filter((m: any) => !m.hasEnded && !m.isOngoing);
     if (!list.length) return;
     list.sort(
@@ -331,6 +455,187 @@ export class MyCourseComponent implements OnInit {
     if (d <= 0) return 'Unlocked on your current journey day — open Exercises to start.';
     if (d === 1) return 'Locked for now — it unlocks tomorrow on your journey.';
     return `Locked for now — ${d} more journey days until it opens.`;
+  }
+
+  private getMeetingJourneyDay(meeting: any): number | null {
+    const direct = Number(meeting?.courseDay);
+    if (Number.isFinite(direct) && direct >= 1 && direct <= 200) return direct;
+
+    const topic = String(meeting?.topic || '');
+    const m = topic.match(/\bday\s*[:\-]?\s*(\d{1,3})\b/i);
+    if (!m) return null;
+    const parsed = Number(m[1]);
+    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 200 ? parsed : null;
+  }
+
+  private matchesSelectedJourneyDay(meeting: any): boolean {
+    return this.getMeetingJourneyDay(meeting) === this.selectedJourneyDay;
+  }
+
+  get selectedDayUpcomingClasses(): any[] {
+    return this.journeyMeetings.filter((m) => this.matchesSelectedJourneyDay(m) && !m.isOngoing && !m.hasEnded);
+  }
+
+  get selectedDayLiveClasses(): any[] {
+    return this.journeyMeetings.filter((m) => this.matchesSelectedJourneyDay(m) && !!m.isOngoing);
+  }
+
+  get selectedDayAttemptedClasses(): any[] {
+    return this.journeyMeetings.filter((m) => this.matchesSelectedJourneyDay(m) && !!m.hasEnded);
+  }
+
+  get selectedDayAllClasses(): any[] {
+    const toTs = (v: any) => {
+      const t = new Date(v?.startTime || 0).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    return [...this.selectedDayLiveClasses, ...this.selectedDayUpcomingClasses, ...this.selectedDayAttemptedClasses]
+      .sort((a, b) => toTs(a) - toTs(b));
+  }
+
+  private isInWeeklyJourneyWindow(day: number | null | undefined): boolean {
+    if (!Number.isFinite(Number(day))) return false;
+    const d = Number(day);
+    const min = Math.max(1, this.journeyCourseDay - 6);
+    return d >= min && d <= this.journeyCourseDay;
+  }
+
+  private isInWeeklyDateWindow(raw: any): boolean {
+    const t = new Date(raw).getTime();
+    if (!Number.isFinite(t)) return false;
+    const now = new Date();
+    const from = new Date();
+    from.setDate(now.getDate() - 6);
+    from.setHours(0, 0, 0, 0);
+    return t >= from.getTime() && t <= now.getTime();
+  }
+
+  private get progressExercisesList(): DigitalExercise[] {
+    if (this.progressRange === 'overall') return this.journeyDayExercises;
+    return this.journeyDayExercises.filter((ex) => this.isInWeeklyJourneyWindow(ex.courseDay));
+  }
+
+  private get progressModulesList(): LearningModule[] {
+    if (this.progressRange === 'overall') return this.journeyDayModules;
+    return this.journeyDayModules.filter((m: any) => this.isInWeeklyJourneyWindow(m?.courseDay));
+  }
+
+  private get progressClassesList(): any[] {
+    if (this.progressRange === 'overall') return this.journeyMeetings;
+    return this.journeyMeetings.filter((m) => this.isInWeeklyDateWindow(m?.startTime));
+  }
+
+  get progressExercisesTotal(): number {
+    return this.progressExercisesList.length;
+  }
+
+  get progressExercisesDone(): number {
+    return this.progressExercisesList.filter((x) => this.exerciseDone(x)).length;
+  }
+
+  get progressModulesTotal(): number {
+    return this.progressModulesList.length;
+  }
+
+  get progressModulesDone(): number {
+    return this.progressModulesList.filter((x) => this.moduleDone(x)).length;
+  }
+
+  get progressClassesTotal(): number {
+    return this.progressClassesList.length;
+  }
+
+  get progressClassesDone(): number {
+    return this.progressClassesList.filter((m) => !!m?.hasEnded).length;
+  }
+
+  private ratioPct(done: number, total: number): number {
+    if (!total) return 0;
+    return Math.round((done / total) * 100);
+  }
+
+  get progressExercisesPct(): number {
+    return this.ratioPct(this.progressExercisesDone, this.progressExercisesTotal);
+  }
+
+  get progressModulesPct(): number {
+    return this.ratioPct(this.progressModulesDone, this.progressModulesTotal);
+  }
+
+  get progressClassesPct(): number {
+    return this.ratioPct(this.progressClassesDone, this.progressClassesTotal);
+  }
+
+  get progressOverallDone(): number {
+    return this.progressExercisesDone + this.progressModulesDone + this.progressClassesDone;
+  }
+
+  get progressOverallTotal(): number {
+    return this.progressExercisesTotal + this.progressModulesTotal + this.progressClassesTotal;
+  }
+
+  get progressOverallPct(): number {
+    return this.ratioPct(this.progressOverallDone, this.progressOverallTotal);
+  }
+
+  formatMeetingDate(date: any): string {
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }
+
+  formatMeetingTime(date: any): string {
+    return new Date(date).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  formatMeetingDuration(minutes: number): string {
+    const mins = Number(minutes) || 0;
+    const hours = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return hours > 0 ? `${hours}h ${rem}m` : `${rem} min`;
+  }
+
+  getMeetingTimeUntilStart(meeting: any): string {
+    const raw = Number(meeting?.timeUntilStart);
+    if (!Number.isFinite(raw) || raw <= 0) return 'Starting soon';
+    const minutes = Math.floor(raw / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0) return `in ${days} day${days > 1 ? 's' : ''}`;
+    if (hours > 0) return `in ${hours} hour${hours > 1 ? 's' : ''}`;
+    if (minutes > 0) return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    return 'Starting soon';
+  }
+
+  joinSelectedDayMeeting(meeting: any): void {
+    if (meeting?.joinUrl && meeting?.canJoin) window.open(meeting.joinUrl, '_blank');
+  }
+
+  getMeetingAttendancePercent(meeting: any): number {
+    const total = Number(meeting?.duration || 0);
+    if (!meeting?.hasEnded || total <= 0) return 0;
+    const attended = Number(meeting?.attendedDurationMinutes ?? meeting?.durationMinutes ?? 0);
+    const pct = Math.round((attended / total) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  getMeetingAttendanceStatus(meeting: any): 'Attended' | 'Not Attended' | 'Missed' {
+    const pct = this.getMeetingAttendancePercent(meeting);
+    if (pct >= 70) return 'Attended';
+    if (meeting?.hasEnded && pct > 0) return 'Not Attended';
+    return 'Missed';
+  }
+
+  getMeetingStateLabel(meeting: any): 'Live' | 'Upcoming' | 'Attempted' {
+    if (meeting?.isOngoing) return 'Live';
+    if (meeting?.hasEnded) return 'Attempted';
+    return 'Upcoming';
   }
 
 }

@@ -77,7 +77,26 @@ export interface VideoPronunciationQuestion {
   points: number;
 }
 
-export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion | VideoPronunciationQuestion;
+/** Fields added by the worksheet AI pipeline; present on any question type. */
+export interface WorksheetQuestionMeta {
+  /** STUFE label + Übung number emitted when the exercise was generated from a worksheet,
+   *  e.g. "STUFE 1 – LEICHT | Übung L1.1". Used by the player to render section headers. */
+  sectionTitle?: string | null;
+  /** Coarse difficulty tier: 'easy' | 'medium' | 'hard'. */
+  tier?: 'easy' | 'medium' | 'hard' | null;
+  /** Worksheet category label for question-answer style tasks. */
+  worksheetKind?:
+    | 'true-false'
+    | 'sentence-transformation'
+    | 'singular-plural'
+    | 'table-profile-fill'
+    | 'free-writing-own-sentences'
+    | 'free-writing-profile'
+    | 'error-correction'
+    | null;
+}
+
+export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion | VideoPronunciationQuestion) & WorksheetQuestionMeta;
 
 /** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
 export interface VideoExerciseFeedbackItem {
@@ -131,7 +150,7 @@ export interface ExerciseAttempt {
 export interface QuestionResponse {
   questionIndex: number;
   selectedOptionIndex?: number;
-  matchingResponse?: Array<{ leftIndex: number; rightIndex: number }>;
+  matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
   fillBlankResponses?: string[];
   spokenText?: string;
   pronunciationScore?: number;
@@ -202,8 +221,10 @@ export class DigitalExerciseService {
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }
 
-  getExercise(id: string): Observable<DigitalExercise> {
-    return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { withCredentials: true });
+  getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {
+    const params = new HttpParams();
+    if (opts.asStudent) params.set('asStudent', 'true');
+    return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { params, withCredentials: true });
   }
 
   // ─── Admin / Management ───────────────────────────────────────────────────
@@ -317,6 +338,7 @@ export class DigitalExerciseService {
     level: string;
     difficulty: string;
     maxQuestions: number;
+    worksheetMode?: boolean;
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
   }
@@ -324,6 +346,7 @@ export class DigitalExerciseService {
   generateFromText(options: {
     text: string;
     types: string[];
+    typeCounts?: Record<string, number>;
     targetLanguage: string;
     nativeLanguage: string;
     level: string;
