@@ -4,13 +4,13 @@ import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { DigitalExerciseService, DigitalExercise } from '../../services/digital-exercise.service';
-import { environment } from '../../../environments/environment';
+import { DigitalExerciseService, DigitalExercise, VideoExerciseFeedbackItem } from '../../services/digital-exercise.service';
+import { resolveMediaUrl } from '../../utils/media-url';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -41,8 +41,18 @@ interface BuilderQuestion {
   expectedTranscript?: string;
   attemptMode?: 'typing' | 'typing-or-speech';
   transcribing?: boolean;
+  // Video Pronunciation
+  videoUrl?: string;
+  caption?: string;
+  videoUploading?: boolean;
   // Common
   points: number;
+}
+
+interface VideoFeedbackAudioRow {
+  audioUrl: string;
+  caption: string;
+  uploading: boolean;
 }
 
 @Component({
@@ -74,11 +84,20 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   questions: BuilderQuestion[] = [];
 
-  activeTab: 'info' | 'questions' | 'preview' = 'info';
+  activeTab: 'info' | 'questions' | 'video' | 'preview' = 'info';
   expandedQuestion = -1;
 
   @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
   currentListeningQ: BuilderQuestion | null = null;
+
+  @ViewChild('videoFileInput') videoFileInput!: ElementRef<HTMLInputElement>;
+  currentVideoQ: BuilderQuestion | null = null;
+
+  readonly maxVideoFeedbackClips = 4;
+  videoSuccessFeedbackRows: VideoFeedbackAudioRow[] = [];
+  videoRetryFeedbackRows: VideoFeedbackAudioRow[] = [];
+  @ViewChild('videoFeedbackFileInput') videoFeedbackFileInput!: ElementRef<HTMLInputElement>;
+  private videoFeedbackUploadTarget: { kind: 'success' | 'retry'; index: number } | null = null;
 
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -129,6 +148,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
             : '';
         this.visibleToStudents = exercise.visibleToStudents || false;
         this.questions = (exercise.questions || []).map(q => this.mapQuestionFromApi(q));
+        this.videoSuccessFeedbackRows = (exercise.videoSuccessFeedback || []).map((x) => ({
+          audioUrl: x.audioUrl,
+          caption: x.caption || '',
+          uploading: false
+        }));
+        this.videoRetryFeedbackRows = (exercise.videoRetryFeedback || []).map((x) => ({
+          audioUrl: x.audioUrl,
+          caption: x.caption || '',
+          uploading: false
+        }));
         this.loading = false;
       },
       error: () => {
@@ -174,6 +203,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         sampleAnswers: [...(q.sampleAnswers || [''])],
         similarityThreshold: q.similarityThreshold ?? 70,
         scoringMode: q.scoringMode || 'full'
+      });
+    } else if (q.type === 'video-pronunciation') {
+      Object.assign(base, {
+        videoUrl: q.videoUrl || '',
+        caption: q.caption || '',
+        acceptedVariants: [...(q.acceptedVariants || [])]
       });
     } else if (q.type === 'listening') {
       Object.assign(base, {
@@ -356,11 +391,134 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     });
   }
 
+  // Video pronunciation helpers
+  get videoQuestions(): BuilderQuestion[] {
+    return this.questions.filter(q => q.type === 'video-pronunciation');
+  }
+
+  addVideoQuestion(): void {
+    const q: BuilderQuestion = {
+      type: 'video-pronunciation',
+      videoUrl: '',
+      caption: '',
+      acceptedVariants: [],
+      points: 1
+    };
+    this.questions.push(q);
+    this.activeTab = 'video';
+  }
+
+  triggerVideoFile(q: BuilderQuestion): void {
+    this.currentVideoQ = q;
+    this.videoFileInput?.nativeElement?.click();
+  }
+
+  onVideoFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = this.currentVideoQ;
+    this.currentVideoQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    if (file.size > 200 * 1024 * 1024) {
+      this.showError('Video file is too large (max 200 MB)');
+      return;
+    }
+    q.videoUploading = true;
+    this.exerciseService.uploadVideoMedia(file).subscribe({
+      next: (res) => {
+        q.videoUrl = res.url;
+        q.videoUploading = false;
+        this.showSuccess('Video uploaded');
+      },
+      error: (err) => {
+        q.videoUploading = false;
+        this.showError(err.error?.error || 'Video upload failed');
+      }
+    });
+  }
+
+  removeVideoQuestion(index: number): void {
+    const globalIndex = this.questions.indexOf(this.videoQuestions[index]);
+    if (globalIndex !== -1) this.questions.splice(globalIndex, 1);
+  }
+
+  addVideoSuccessFeedbackRow(): void {
+    if (this.videoSuccessFeedbackRows.length >= this.maxVideoFeedbackClips) return;
+    this.videoSuccessFeedbackRows.push({ audioUrl: '', caption: '', uploading: false });
+  }
+
+  removeVideoSuccessFeedbackRow(i: number): void {
+    this.videoSuccessFeedbackRows.splice(i, 1);
+  }
+
+  addVideoRetryFeedbackRow(): void {
+    if (this.videoRetryFeedbackRows.length >= this.maxVideoFeedbackClips) return;
+    this.videoRetryFeedbackRows.push({ audioUrl: '', caption: '', uploading: false });
+  }
+
+  removeVideoRetryFeedbackRow(i: number): void {
+    this.videoRetryFeedbackRows.splice(i, 1);
+  }
+
+  triggerVideoFeedbackUpload(kind: 'success' | 'retry', index: number): void {
+    this.videoFeedbackUploadTarget = { kind, index };
+    this.videoFeedbackFileInput?.nativeElement?.click();
+  }
+
+  onVideoFeedbackFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const target = this.videoFeedbackUploadTarget;
+    this.videoFeedbackUploadTarget = null;
+    input.value = '';
+    if (!file || !target) return;
+    const rows = target.kind === 'success' ? this.videoSuccessFeedbackRows : this.videoRetryFeedbackRows;
+    const row = rows[target.index];
+    if (!row) return;
+    if (file.size > 40 * 1024 * 1024) {
+      this.showError('Audio file too large (max 40 MB)');
+      return;
+    }
+    row.uploading = true;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => {
+        row.audioUrl = res.url;
+        row.uploading = false;
+        this.showSuccess('Audio uploaded');
+      },
+      error: (err) => {
+        row.uploading = false;
+        this.showError(err.error?.error || 'Upload failed');
+      }
+    });
+  }
+
+  private mapVideoFeedbackToApi(rows: VideoFeedbackAudioRow[]): VideoExerciseFeedbackItem[] {
+    return rows
+      .filter((r) => r.audioUrl.trim())
+      .map((r) => ({ audioUrl: r.audioUrl.trim(), caption: r.caption.trim() }));
+  }
+
+  moveVideoQuestion(vIdx: number, direction: -1 | 1): void {
+    const targetVIdx = vIdx + direction;
+    const vQuestions = this.videoQuestions;
+    if (targetVIdx < 0 || targetVIdx >= vQuestions.length) return;
+    const aIdx = this.questions.indexOf(vQuestions[vIdx]);
+    const bIdx = this.questions.indexOf(vQuestions[targetVIdx]);
+    if (aIdx !== -1 && bIdx !== -1) {
+      [this.questions[aIdx], this.questions[bIdx]] = [this.questions[bIdx], this.questions[aIdx]];
+    }
+  }
+
+  isVideoQuestionsValid(): boolean {
+    const vq = this.videoQuestions;
+    if (vq.length === 0) return false;
+    return vq.every(q => !!(q.videoUrl?.trim()) && !!(q.caption?.trim()));
+  }
+
   getMediaFullUrl(relative: string): string {
-    if (!relative) return '';
-    if (relative.startsWith('http')) return relative;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return base ? base + relative : relative;
+    return resolveMediaUrl(relative);
   }
 
   getBlankCount(q: BuilderQuestion): number {
@@ -396,12 +554,23 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
     if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
+    if (q.type === 'video-pronunciation') return !!(q.videoUrl?.trim()) && !!(q.caption?.trim());
     return false;
   }
 
   save(): void {
+    if (this.videoSuccessFeedbackRows.some((r) => r.uploading) || this.videoRetryFeedbackRows.some((r) => r.uploading)) {
+      this.showError('Wait for feedback audio uploads to finish before saving');
+      this.activeTab = 'video';
+      return;
+    }
     if (!this.isInfoValid()) { this.showError('Please fill in all required exercise info'); this.activeTab = 'info'; return; }
-    if (!this.isQuestionsValid()) { this.showError('Please complete all questions'); this.activeTab = 'questions'; return; }
+    const hasVideoOnly = this.questions.length > 0 && this.questions.every(q => q.type === 'video-pronunciation');
+    if (hasVideoOnly) {
+      if (!this.isVideoQuestionsValid()) { this.showError('Please complete all video questions (video + caption required)'); this.activeTab = 'video'; return; }
+    } else {
+      if (!this.isQuestionsValid()) { this.showError('Please complete all questions'); this.activeTab = 'questions'; return; }
+    }
 
     let courseDay: number | null = null;
     const dayTrim = this.courseDayStr.trim();
@@ -428,7 +597,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
       courseDay,
       visibleToStudents: this.visibleToStudents,
-      questions: this.questions as any
+      questions: this.questions as any,
+      videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
+      videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows)
     };
 
     const request = this.isEditMode

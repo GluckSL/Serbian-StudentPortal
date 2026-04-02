@@ -5,7 +5,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
+export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
 
 export interface MCQQuestion {
   type: 'mcq';
@@ -68,7 +68,22 @@ export interface ListeningQuestion {
   points: number;
 }
 
-export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion;
+export interface VideoPronunciationQuestion {
+  type: 'video-pronunciation';
+  _id?: string;
+  videoUrl: string;
+  caption: string;
+  acceptedVariants?: string[];
+  points: number;
+}
+
+export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion | VideoPronunciationQuestion;
+
+/** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
+export interface VideoExerciseFeedbackItem {
+  audioUrl: string;
+  caption?: string;
+}
 
 export interface DigitalExercise {
   _id?: string;
@@ -82,6 +97,8 @@ export interface DigitalExercise {
   estimatedDuration?: number;
   questions: ExerciseQuestion[];
   sharedAudioUrl?: string;
+  videoSuccessFeedback?: VideoExerciseFeedbackItem[];
+  videoRetryFeedback?: VideoExerciseFeedbackItem[];
   tags?: string[];
   isActive?: boolean;
   visibleToStudents?: boolean;
@@ -358,7 +375,8 @@ export class DigitalExerciseService {
       'fill-blank': 'Fill in the Blanks',
       pronunciation: 'Pronunciation Check',
       'question-answer': 'Question / Answer',
-      listening: 'Listening'
+      listening: 'Listening',
+      'video-pronunciation': 'Video Pronunciation'
     };
     return labels[type] || type;
   }
@@ -370,9 +388,20 @@ export class DigitalExerciseService {
       'fill-blank': 'text_fields',
       pronunciation: 'record_voice_over',
       'question-answer': 'short_text',
-      listening: 'headphones'
+      listening: 'headphones',
+      'video-pronunciation': 'videocam'
     };
     return icons[type] || 'help';
+  }
+
+  uploadVideoMedia(file: File): Observable<{ success: boolean; url: string }> {
+    const formData = new FormData();
+    formData.append('media', file);
+    return this.http.post<{ success: boolean; url: string }>(
+      `${environment.apiUrl}/listening-media/upload`,
+      formData,
+      { withCredentials: true }
+    );
   }
 
   uploadListeningMedia(file: File): Observable<{ success: boolean; url: string }> {

@@ -149,6 +149,9 @@ export class MyCourseComponent implements OnInit {
           next: (res) => {
             const modules: LearningModule[] = Array.isArray(res?.modules) ? res.modules : [];
             const candidates = modules.filter((m: any) => {
+              const moduleDay = m?.courseDay;
+              const unlockedByJourney = moduleDay != null && Number(moduleDay) <= courseDay;
+              if (!unlockedByJourney) return false;
               // Module is "new/available" if student hasn't completed it.
               return !m.studentProgress || m.studentProgress.status !== 'completed';
             });

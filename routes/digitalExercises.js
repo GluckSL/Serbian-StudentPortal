@@ -9,6 +9,25 @@ const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
 
+/** Fields the admin/teacher client may send on PUT; avoids stripping nested arrays or applying unsafe full-document spreads. */
+const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
+  'title',
+  'description',
+  'targetLanguage',
+  'nativeLanguage',
+  'level',
+  'category',
+  'difficulty',
+  'estimatedDuration',
+  'questions',
+  'sharedAudioUrl',
+  'videoSuccessFeedback',
+  'videoRetryFeedback',
+  'tags',
+  'courseDay',
+  'visibleToStudents'
+];
+
 // ─── AI answer grader ─────────────────────────────────────────────────────────
 // Returns { score: 0-100 } representing how correct the student's answer is.
 async function aiGradeAnswer(question, sampleAnswers, studentAnswer) {
@@ -438,11 +457,16 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
-    const updated = await DigitalExercise.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, lastUpdatedBy: req.user.id, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'name email');
+    for (const key of DIGITAL_EXERCISE_ASSIGNABLE_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+        exercise[key] = req.body[key];
+      }
+    }
+    exercise.lastUpdatedBy = req.user.id;
+    exercise.updatedAt = new Date();
+
+    await exercise.save();
+    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email');
 
     res.json(updated);
   } catch (err) {
@@ -581,6 +605,11 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       isCorrect = score >= 70;
       pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
       correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+    } else if (q.type === 'video-pronunciation') {
+      const score = resp.pronunciationScore || 0;
+      isCorrect = score >= 70;
+      pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+      correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'question-answer') {
       const studentAns = (resp.qaResponse || '').trim();
       if (studentAns) {
@@ -607,7 +636,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = { expectedTranscript: q.expectedTranscript };
     }
 
-    if (q.type !== 'pronunciation' && q.type !== 'question-answer') {
+    if (q.type !== 'pronunciation' && q.type !== 'video-pronunciation' && q.type !== 'question-answer') {
       pointsEarned = isCorrect ? (q.points || 1) : 0;
     }
 
@@ -756,6 +785,11 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         isCorrect = score >= 70;
         pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
         correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+      } else if (q.type === 'video-pronunciation') {
+        const score = resp.pronunciationScore || 0;
+        isCorrect = score >= 70;
+        pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+        correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'question-answer') {
         const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
         const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
@@ -782,7 +816,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         correctAnswer = { expectedTranscript: q.expectedTranscript };
       }
 
-      if (q.type !== 'pronunciation' && q.type !== 'question-answer') {
+      if (q.type !== 'pronunciation' && q.type !== 'video-pronunciation' && q.type !== 'question-answer') {
         pointsEarned = isCorrect ? (q.points || 1) : 0;
       }
       earnedPoints += pointsEarned;

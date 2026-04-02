@@ -1,6 +1,6 @@
 // src/app/components/digital-exercise-player/digital-exercise-player.component.ts
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -8,13 +8,21 @@ import {
   DigitalExerciseService, DigitalExercise, ExerciseQuestion,
   QuestionResponse, SubmitResult
 } from '../../services/digital-exercise.service';
-import { environment } from '../../../environments/environment';
+import { resolveMediaUrl } from '../../utils/media-url';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
 import { take } from 'rxjs/operators';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
+
+interface VpChatMessage {
+  id: string;
+  role: 'tutor' | 'user';
+  text: string;
+  isCorrect?: boolean;
+  score?: number;
+}
 
 interface PlayerQuestion {
   data: any; // raw question data from API
@@ -36,6 +44,14 @@ interface PlayerQuestion {
   qaResponse?: string;
   // Listening state
   listeningText?: string;
+  // Video Pronunciation state
+  vpSpokenText?: string;
+  vpResult?: 'idle' | 'correct' | 'incorrect';
+  vpAutoAdvanceTimer?: any;
+  /** Bumped to cancel in-flight praise/retry sequences (e.g. user hits Try again). */
+  vpAdvanceSeq?: number;
+  /** True after the clip fires `ended` — then Replay + Speak are shown */
+  vpPlaybackEnded?: boolean;
   // Result state
   isAnswered?: boolean;
   isCorrect?: boolean | null;
@@ -78,6 +94,21 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private listeningRecognition: any = null;
   speechSupported = false;
 
+  /** Current video-pronunciation element (for autoplay / replay). */
+  private vpVideoElement: HTMLVideoElement | null = null;
+
+  /** Admin-uploaded praise / retry clip (video exercises). */
+  private vpFeedbackAudioEl: HTMLAudioElement | null = null;
+  /** Optional line from admin (e.g. “Try again”) shown under feedback while clip may play. */
+  vpFeedbackCaption: string | null = null;
+
+  /** Practice history chat (video-only exercises). */
+  vpChatMessages: VpChatMessage[] = [];
+  private vpChatSeq = 0;
+  private vpChatClipPrompted = new Set<number>();
+
+  @ViewChild('vpChatScroll') vpChatScroll?: ElementRef<HTMLDivElement>;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -97,6 +128,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.recognition) {
       try { this.recognition.stop(); } catch {}
     }
+    this.stopVpFeedbackAudio();
+    this.playerQuestions.forEach(pq => {
+      if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
+    });
   }
 
   private checkSpeechSupport(): void {
@@ -143,9 +178,231 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.qaResponse = '';
       } else if (q.type === 'listening') {
         pq.listeningText = '';
+      } else if (q.type === 'video-pronunciation') {
+        pq.vpSpokenText = '';
+        pq.vpResult = 'idle';
+        pq.isRecording = false;
+        pq.hasRecorded = false;
+        pq.vpPlaybackEnded = false;
+        pq.vpAdvanceSeq = 0;
       }
       return pq;
     });
+    this.resetVpChat();
+  }
+
+  /** True when every question is a video-pronunciation clip (split chat UI). */
+  get isVideoOnlyExercise(): boolean {
+    return (
+      this.playerQuestions.length > 0 &&
+      this.playerQuestions.every((pq) => pq.data?.type === 'video-pronunciation')
+    );
+  }
+
+  /** Centered Submit on last clip after this clip is graded correct (final hand-in). */
+  get showVpFinalSubmit(): boolean {
+    if (!this.isVideoOnlyExercise || !this.isLastQuestion || this.state !== 'playing') return false;
+    const pq = this.currentQuestion;
+    return pq?.isCorrect === true;
+  }
+
+  /** Overall score ring 0–100 (clips answered correctly / total clips). */
+  get vpRingPercent(): number {
+    const n = this.playerQuestions.length;
+    if (!n) return 0;
+    return Math.round((100 * this.correctCount) / n);
+  }
+
+  readonly vpRingR = 15.9155;
+  get vpRingCircumference(): number {
+    return 2 * Math.PI * this.vpRingR;
+  }
+
+  get vpRingOffset(): number {
+    return this.vpRingCircumference * (1 - this.vpRingPercent / 100);
+  }
+
+  vpClipCellClass(i: number): string {
+    const pq = this.playerQuestions[i];
+    const parts: string[] = ['vp-clip-cell'];
+    if (i === this.currentIndex) parts.push('vp-clip-cell--current');
+    if (pq.isCorrect === true) {
+      parts.push('vp-clip-cell--passed');
+    } else if (pq.isCorrect === false) {
+      parts.push('vp-clip-cell--failed');
+    } else if (pq.vpResult === 'correct') {
+      parts.push('vp-clip-cell--passed');
+    } else if (pq.vpResult === 'incorrect') {
+      parts.push('vp-clip-cell--failed');
+    }
+    return parts.join(' ');
+  }
+
+  private resetVpChat(): void {
+    this.vpChatMessages = [];
+    this.vpChatSeq = 0;
+    this.vpChatClipPrompted.clear();
+  }
+
+  pushVpChat(role: 'tutor' | 'user', text: string, extra?: { isCorrect?: boolean; score?: number }): void {
+    this.vpChatMessages.push({
+      id: `c${++this.vpChatSeq}`,
+      role,
+      text,
+      isCorrect: extra?.isCorrect,
+      score: extra?.score
+    });
+    setTimeout(() => this.scrollVpChatToBottom(), 0);
+  }
+
+  private scrollVpChatToBottom(): void {
+    const el = this.vpChatScroll?.nativeElement;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+
+  /** Tutor line for current clip (once per index). */
+  syncVpChatForCurrentQuestion(): void {
+    if (!this.isVideoOnlyExercise || this.state !== 'playing') return;
+    const pq = this.currentQuestion;
+    if (!pq || pq.data?.type !== 'video-pronunciation') return;
+    if (this.vpChatClipPrompted.has(this.currentIndex)) return;
+    this.vpChatClipPrompted.add(this.currentIndex);
+    const n = this.currentIndex + 1;
+    const total = this.playerQuestions.length;
+    const cap = pq.data.caption || '';
+    this.pushVpChat(
+      'tutor',
+      `Clip ${n} of ${total} — watch the video, then say: "${cap}"`
+    );
+  }
+
+  private afterVideoOnlyNavigation(): void {
+    if (this.isVideoOnlyExercise && this.state === 'playing') {
+      this.clearVpFeedbackUi();
+      this.syncVpChatForCurrentQuestion();
+      setTimeout(() => this.scrollVpChatToBottom(), 80);
+    }
+  }
+
+  private clearVpFeedbackUi(): void {
+    this.vpFeedbackCaption = null;
+    this.stopVpFeedbackAudio();
+  }
+
+  private stopVpFeedbackAudio(): void {
+    if (!this.vpFeedbackAudioEl) return;
+    try {
+      this.vpFeedbackAudioEl.pause();
+      this.vpFeedbackAudioEl.src = '';
+      this.vpFeedbackAudioEl.load();
+    } catch {
+      /* ignore */
+    }
+    this.vpFeedbackAudioEl = null;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Support audioUrl (preferred) or accidental `url` from older payloads. */
+  private feedbackItemUrl(x: { audioUrl?: string; url?: string } | null | undefined): string | null {
+    const u = (x?.audioUrl || (x as any)?.url || '').trim();
+    return u || null;
+  }
+
+  /**
+   * Play one random admin praise/retry clip; resolves when playback ends, errors, or cannot start.
+   * (Video-only exercises — uses Promise so we can chain delay + advance reliably.)
+   */
+  private playVideoExerciseFeedbackAudioPromise(wasCorrect: boolean): Promise<void> {
+    if (!this.isVideoOnlyExercise || !this.exercise) return Promise.resolve();
+    const raw = wasCorrect
+      ? (this.exercise.videoSuccessFeedback || [])
+      : (this.exercise.videoRetryFeedback || []);
+    const list = raw.filter((x) => this.feedbackItemUrl(x));
+    if (list.length === 0) {
+      this.vpFeedbackCaption = null;
+      return Promise.resolve();
+    }
+    const pick = list[Math.floor(Math.random() * list.length)];
+    this.vpFeedbackCaption = pick.caption?.trim() || null;
+    const url = this.getMediaFullUrl(this.feedbackItemUrl(pick)!);
+    this.stopVpFeedbackAudio();
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(safetyTimer);
+        resolve();
+      };
+      let a: HTMLAudioElement;
+      try {
+        a = new Audio(url);
+        this.vpFeedbackAudioEl = a;
+      } catch {
+        this.snackBar.open('Feedback audio could not be loaded.', 'Close', { duration: 3500 });
+        finish();
+        return;
+      }
+      const safetyTimer = window.setTimeout(finish, 30000);
+      a.addEventListener(
+        'error',
+        () => {
+          if (this.vpFeedbackAudioEl === a) {
+            this.snackBar.open('Feedback audio could not be loaded.', 'Close', { duration: 3500 });
+          }
+          finish();
+        },
+        { once: true }
+      );
+      a.addEventListener('ended', finish, { once: true });
+      void a
+        .play()
+        .then(() => {})
+        .catch(() => finish());
+    });
+  }
+
+  /** After correct: praise audio → 1s pause → submit → next clip (video autoplays in onVpVideoReady). */
+  private async runVpCorrectAdvanceSequence(pq: PlayerQuestion): Promise<void> {
+    if (!this.isVideoOnlyExercise) {
+      pq.vpAutoAdvanceTimer = undefined;
+      this.clearVpFeedbackUi();
+      this.submitCurrentQuestion();
+      if (this.currentIndex < this.playerQuestions.length - 1) {
+        setTimeout(() => this.nextQuestion(), 300);
+      }
+      return;
+    }
+    const seq = (pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1);
+    await this.playVideoExerciseFeedbackAudioPromise(true);
+    if (pq.vpAdvanceSeq !== seq) return;
+    await this.delay(1000);
+    if (pq.vpAdvanceSeq !== seq) return;
+    pq.vpAutoAdvanceTimer = undefined;
+    this.clearVpFeedbackUi();
+    this.submitCurrentQuestion();
+    if (this.currentIndex < this.playerQuestions.length - 1) {
+      setTimeout(() => this.nextQuestion(), 300);
+    }
+  }
+
+  /** After incorrect: retry audio → short pause → reset attempt → replay same clip (video-only). */
+  private async runVpIncorrectFeedbackSequence(pq: PlayerQuestion): Promise<void> {
+    if (!this.isVideoOnlyExercise) return;
+    const seq = (pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1);
+    await this.playVideoExerciseFeedbackAudioPromise(false);
+    if (pq.vpAdvanceSeq !== seq) return;
+    await this.delay(500);
+    if (pq.vpAdvanceSeq !== seq) return;
+    pq.vpSpokenText = '';
+    pq.vpResult = 'idle';
+    pq.hasRecorded = false;
+    pq.pronunciationScore = 0;
+    pq.isAnswered = false;
+    this.replayVpVideo();
   }
 
   startExercise(): void {
@@ -156,6 +413,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.startTime = Date.now();
         this.startTimer();
         this.state = 'playing';
+        if (this.isVideoOnlyExercise) {
+          this.resetVpChat();
+          const title = this.exercise?.title || 'this lesson';
+          this.pushVpChat(
+            'tutor',
+            `Hey! Let's practice "${title}" together. Watch each clip, then repeat the phrase when it's your turn.`
+          );
+          this.syncVpChatForCurrentQuestion();
+          setTimeout(() => this.scrollVpChatToBottom(), 120);
+        }
       },
       error: (err) => {
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
@@ -184,15 +451,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Backward-compatible alias used by older template fragments. */
   get isSubmittedState(): boolean { return this.state === 'submitted'; }
 
-  prevQuestion(): void { if (this.currentIndex > 0) this.currentIndex--; }
+  prevQuestion(): void {
+    if (this.currentIndex > 0) {
+      this.currentIndex--;
+      this.afterVideoOnlyNavigation();
+    }
+  }
 
   nextQuestion(): void {
     if (this.currentIndex < this.playerQuestions.length - 1) {
       this.currentIndex++;
+      this.afterVideoOnlyNavigation();
     }
   }
 
-  goToQuestion(index: number): void { this.currentIndex = index; }
+  goToQuestion(index: number): void {
+    this.currentIndex = index;
+    this.afterVideoOnlyNavigation();
+  }
 
   isQuestionAnswered(pq: PlayerQuestion): boolean {
     const q = pq.data;
@@ -202,6 +478,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'pronunciation') return pq.hasRecorded === true;
     if (q.type === 'question-answer') return (pq.qaResponse || '').trim().length > 0;
     if (q.type === 'listening') return (pq.listeningText || '').trim().length > 0;
+    if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
     return false;
   }
 
@@ -429,6 +706,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       resp.qaResponse = pq.qaResponse || '';
     } else if (pq.data.type === 'listening') {
       resp.listeningText = pq.listeningText || '';
+    } else if (pq.data.type === 'video-pronunciation') {
+      resp.spokenText = pq.vpSpokenText || '';
+      resp.pronunciationScore = pq.pronunciationScore || 0;
     }
 
     this.exerciseService.submitQuestion(
@@ -529,8 +809,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
-      } else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
+      }       else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
       else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
+      else if (pq.data.type === 'video-pronunciation') {
+        resp.spokenText = pq.vpSpokenText || '';
+        resp.pronunciationScore = pq.pronunciationScore || 0;
+      }
       return resp;
     });
   }
@@ -557,8 +841,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
-      } else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
+      }       else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
       else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
+      else if (pq.data.type === 'video-pronunciation') {
+        resp.spokenText = pq.vpSpokenText || '';
+        resp.pronunciationScore = pq.pronunciationScore || 0;
+      }
       return resp;
     });
     this.submitting = true;
@@ -673,6 +961,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'pronunciation') return (pq.spokenText || '—').trim();
     if (pq.data.type === 'question-answer') return (pq.qaResponse || '—').trim();
     if (pq.data.type === 'listening') return (pq.listeningText || '—').trim();
+    if (pq.data.type === 'video-pronunciation') return (pq.vpSpokenText || '—').trim();
     return '—';
   }
 
@@ -697,6 +986,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (pq.data.type === 'listening') return pq.data.expectedTranscript || '—';
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
+    if (pq.data.type === 'video-pronunciation') return pq.data.caption || '—';
     return '—';
   }
 
@@ -728,8 +1018,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {
     const byType: Record<string, number[]> = {};
-    const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening' };
-    const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones' };
+    const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening', 'video-pronunciation': 'Video Pronunciation' };
+    const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones', 'video-pronunciation': 'videocam' };
     this.playerQuestions.forEach((pq, i) => {
       const t = pq.data.type;
       if (!byType[t]) byType[t] = [];
@@ -757,10 +1047,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getMediaFullUrl(relative?: string | null): string {
-    if (!relative) return '';
-    if (relative.startsWith('http')) return relative;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return base ? base + relative : relative;
+    return resolveMediaUrl(relative);
   }
 
   startListeningSpeech(pq: PlayerQuestion): void {
@@ -792,6 +1079,156 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.listeningRecognition) try { this.listeningRecognition.stop(); } catch {}
     this.listeningRecognition = null;
     pq.isRecording = false;
+  }
+
+  // ─── Video Pronunciation Interaction ──────────────────────────────────────────
+
+  onVpLoadStart(): void {
+    this.vpVideoElement = null;
+  }
+
+  /** When the clip is ready — autoplay without native controls. */
+  onVpVideoReady(ev: Event): void {
+    const video = ev.target as HTMLVideoElement;
+    if (!video) return;
+    this.vpVideoElement = video;
+    const pq = this.playerQuestions[this.currentIndex];
+    if (pq?.data?.type === 'video-pronunciation') {
+      pq.vpPlaybackEnded = false;
+    }
+    video.muted = false;
+    video.play().catch(() => {});
+  }
+
+  /**
+   * When the clip ends, pause and park on the last frame so the student still sees the video
+   * (not a blank/white surface), then the dim overlay + speak UI appears on top.
+   */
+  onVpVideoEnded(ev: Event | null, pq: PlayerQuestion): void {
+    if (!pq || pq.data?.type !== 'video-pronunciation') return;
+    pq.vpPlaybackEnded = true;
+    const v = (ev?.target as HTMLVideoElement) || this.vpVideoElement;
+    if (!v) return;
+    try {
+      v.pause();
+      if (v.duration && !isNaN(v.duration) && v.duration > 0) {
+        v.currentTime = Math.max(0, v.duration - 0.001);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Dim layer over the video so copy + buttons read clearly on top of the last frame. */
+  get vpPostPlayScrimVisible(): boolean {
+    if (!this.isVideoOnlyExercise || this.state !== 'playing') return false;
+    const pq = this.currentQuestion;
+    if (!pq || pq.data?.type !== 'video-pronunciation') return false;
+    if (this.showVpFinalSubmit) return true;
+    if (pq.vpPlaybackEnded) return true;
+    if (pq.isRecording) return true;
+    if (pq.vpResult === 'correct' || pq.vpResult === 'incorrect') return true;
+    return false;
+  }
+
+  /** Replay from the start; hides Speak until the clip ends again. */
+  replayVpVideo(): void {
+    const pq = this.currentQuestion;
+    if (pq?.data?.type === 'video-pronunciation') {
+      pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
+      pq.vpPlaybackEnded = false;
+    }
+    this.clearVpFeedbackUi();
+    const v = this.vpVideoElement;
+    if (!v) return;
+    v.currentTime = 0;
+    v.play().catch(() => {});
+  }
+
+  startVideoPronunciation(pq: PlayerQuestion): void {
+    if (this.state === 'submitted') return;
+    if (pq.data?.type === 'video-pronunciation' && !pq.vpPlaybackEnded) {
+      this.snackBar.open('Finish watching the clip first, then tap Speak.', 'Close', { duration: 3000 });
+      return;
+    }
+    if (!this.speechSupported) {
+      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
+      return;
+    }
+    if (pq.isRecording) return;
+
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    const rec = new SpeechRecognition();
+    const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
+    rec.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 3;
+    pq.isRecording = true;
+    pq.vpResult = 'idle';
+    this.clearVpFeedbackUi();
+
+    rec.onresult = (event: any) => {
+      const best = event.results[0][0].transcript.toLowerCase().trim();
+      pq.vpSpokenText = event.results[0][0].transcript;
+      pq.isRecording = false;
+      pq.hasRecorded = true;
+
+      const target = (pq.data.caption || '').toLowerCase().trim();
+      const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
+      const allAccepted = [target, ...variants];
+
+      let score = 0;
+      if (allAccepted.some(a => a === best)) {
+        score = 100;
+      } else {
+        score = Math.round(this.calculateStringSimilarity(best, target) * 100);
+        for (const alt of variants) {
+          score = Math.max(score, Math.round(this.calculateStringSimilarity(best, alt) * 100));
+        }
+      }
+      pq.pronunciationScore = score;
+
+      const isCorrect = score >= 70;
+      pq.vpResult = isCorrect ? 'correct' : 'incorrect';
+      this.markAttempted(pq);
+
+      if (this.isVideoOnlyExercise) {
+        this.pushVpChat('user', pq.vpSpokenText || best, { isCorrect, score });
+      }
+
+      if (isCorrect) {
+        if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
+        pq.vpAutoAdvanceTimer = undefined;
+        void this.runVpCorrectAdvanceSequence(pq);
+      } else {
+        void this.runVpIncorrectFeedbackSequence(pq);
+      }
+    };
+
+    rec.onerror = (event: any) => {
+      pq.isRecording = false;
+      if (event.error === 'not-allowed') {
+        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+      } else if (event.error === 'no-speech') {
+        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+      }
+    };
+
+    rec.onend = () => { pq.isRecording = false; };
+    rec.start();
+  }
+
+  retryVideoPronunciation(pq: PlayerQuestion): void {
+    pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
+    this.clearVpFeedbackUi();
+    if (pq.vpAutoAdvanceTimer) { clearTimeout(pq.vpAutoAdvanceTimer); pq.vpAutoAdvanceTimer = undefined; }
+    pq.vpSpokenText = '';
+    pq.vpResult = 'idle';
+    pq.hasRecorded = false;
+    pq.pronunciationScore = 0;
+    pq.isAnswered = false;
+    this.replayVpVideo();
   }
 
   markAttempted(pq: PlayerQuestion): void {

@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation'], required: true },
     // MCQ fields
     question: String,
     imageUrl: String,
@@ -113,6 +113,9 @@ const DigitalExerciseSchema = new mongoose.Schema({
     mediaUrl: String,  // URL to audio file (uploaded or external link)
     expectedTranscript: String,  // AI-extracted text, teacher-verified before publish
     attemptMode: { type: String, enum: ['typing', 'typing-or-speech'], default: 'typing' },
+    // Video pronunciation (watch clip, speak caption)
+    videoUrl: String,
+    caption: String,
     // Common
     points: { type: Number, default: 1 }
   }],
@@ -120,6 +123,18 @@ const DigitalExerciseSchema = new mongoose.Schema({
   // Optional shared audio for manual listening worksheets.
   // When present, the student can play this audio for all questions in the exercise.
   sharedAudioUrl: { type: String, default: null },
+
+  // Video pronunciation exercises: optional feedback sounds (exercise-wide).
+  // On correct / incorrect, the player picks one entry at random (if any) and plays audioUrl.
+  // caption is optional on-screen hint text (e.g. "Try again").
+  videoSuccessFeedback: [{
+    audioUrl: { type: String, required: true },
+    caption: { type: String, default: '' }
+  }],
+  videoRetryFeedback: [{
+    audioUrl: { type: String, required: true },
+    caption: { type: String, default: '' }
+  }],
 
   tags: [String],
 

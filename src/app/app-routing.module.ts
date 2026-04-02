@@ -254,6 +254,13 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+  // Admin/Teacher: create video pronunciation exercise (wizard)
+  {
+    path: 'admin/digital-exercises/create-video',
+    loadComponent: () => import('./components/video-exercise-wizard/video-exercise-wizard.component').then(m => m.VideoExerciseWizardComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
   // Admin/Teacher: edit exercise
   {
     path: 'admin/digital-exercises/:id/edit',

@@ -24,6 +24,9 @@ interface StudentMeeting {
   hasEnded: boolean;
   timeUntilStart: number;
   agenda?: string;
+  attended?: boolean;
+  durationMinutes?: number;
+  attendedDurationMinutes?: number;
 }
 
 @Component({
@@ -44,6 +47,8 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   upcomingMeetings: StudentMeeting[] = [];
   ongoingMeetings: StudentMeeting[] = [];
   pastMeetings: StudentMeeting[] = [];
+  attemptedMeetings: StudentMeeting[] = [];
+  activeTab: 'upcoming' | 'live' | 'attempted' = 'upcoming';
   
   loading = false;
   error = '';
@@ -89,6 +94,15 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     this.ongoingMeetings = this.allMeetings.filter(m => m.isOngoing);
     this.upcomingMeetings = this.allMeetings.filter(m => !m.isOngoing && !m.hasEnded);
     this.pastMeetings = this.allMeetings.filter(m => m.hasEnded);
+    this.attemptedMeetings = this.pastMeetings;
+
+    if (this.ongoingMeetings.length > 0) {
+      this.activeTab = 'live';
+    } else if (this.upcomingMeetings.length > 0) {
+      this.activeTab = 'upcoming';
+    } else {
+      this.activeTab = 'attempted';
+    }
   }
 
   joinMeeting(meeting: StudentMeeting): void {
@@ -169,5 +183,35 @@ Password: ${meeting.password}
     navigator.clipboard.writeText(info).then(() => {
       alert('Meeting information copied to clipboard!');
     });
+  }
+
+  getAttendancePercent(meeting: StudentMeeting): number {
+    const total = Number(meeting.duration || 0);
+    if (!meeting.hasEnded || total <= 0) return 0;
+    const attended = Number(
+      meeting.attendedDurationMinutes ??
+      meeting.durationMinutes ??
+      0
+    );
+    const pct = Math.round((attended / total) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  getAttendanceStatus(meeting: StudentMeeting): 'Attended' | 'Not Attended' | 'Missed' {
+    const pct = this.getAttendancePercent(meeting);
+    if (pct >= 70) return 'Attended';
+    if (meeting.hasEnded && pct > 0) return 'Not Attended';
+    return 'Missed';
+  }
+
+  getAttendanceBadgeClass(meeting: StudentMeeting): string {
+    const status = this.getAttendanceStatus(meeting);
+    if (status === 'Attended') return 'badge-attended';
+    if (status === 'Not Attended') return 'badge-not-attended';
+    return 'badge-missed';
+  }
+
+  setTab(tab: 'upcoming' | 'live' | 'attempted'): void {
+    this.activeTab = tab;
   }
 }

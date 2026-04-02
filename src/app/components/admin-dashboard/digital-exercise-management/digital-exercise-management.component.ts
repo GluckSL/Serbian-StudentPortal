@@ -31,6 +31,9 @@ import { MaterialModule } from '../../../shared/material.module';
       <button class="btn-create" (click)="navigateToCreate()">
         <span class="material-icons">add</span> Create Exercise
       </button>
+      <button class="btn-video-exercise" (click)="navigateToVideoExercise()">
+        <span class="material-icons">videocam</span> + Video Exercise
+      </button>
     </div>
   </div>
 
@@ -278,6 +281,24 @@ import { MaterialModule } from '../../../shared/material.module';
 
     .btn-create:hover { background: #03396c; }
     .btn-create .material-icons { font-size: 14px; }
+
+    .btn-video-exercise {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #7c3aed;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-video-exercise:hover { background: #6d28d9; }
+    .btn-video-exercise .material-icons { font-size: 14px; }
 
     .empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 
@@ -609,6 +630,10 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   navigateToCreate(): void {
     this.router.navigate(['/admin/digital-exercises/create']);
+  }
+
+  navigateToVideoExercise(): void {
+    this.router.navigate(['/admin/digital-exercises/create-video']);
   }
 
   navigateToAiGenerator(): void {

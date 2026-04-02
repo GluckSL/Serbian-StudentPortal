@@ -255,10 +255,10 @@
                 <!-- Level Access Blocked Message -->
                 <div *ngIf="!canAccessModule(module)" class="access-blocked">
                   <button class="btn btn-secondary btn-sm" disabled>
-                    <i class="fas fa-lock"></i> Level {{ module.level }} Required
+                    <i class="fas fa-lock"></i> Locked
                   </button>
                   <small class="text-muted d-block mt-1">
-                    Complete {{ getCurrentLevelInfo()?.code }} modules to unlock
+                    {{ getModuleAccessStatus(module).reason }}
                   </small>
                 </div>
                 

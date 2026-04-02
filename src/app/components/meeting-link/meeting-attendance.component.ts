@@ -143,9 +143,9 @@ import { ZoomService } from '../../services/zoom.service';
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let record">
-                <mat-chip [class]="record.attended ? 'status-attended' : 'status-absent'">
-                  <mat-icon>{{ record.attended ? 'check_circle' : 'cancel' }}</mat-icon>
-                  {{ record.attended ? 'Attended' : 'Absent' }}
+                <mat-chip [class]="getAttendanceChipClass(record)">
+                  <mat-icon>{{ isAttendedByDuration(record) ? 'check_circle' : 'cancel' }}</mat-icon>
+                  {{ isAttendedByDuration(record) ? 'Attended' : 'Absent' }}
                   <mat-icon *ngIf="record.needsReview" class="warning-icon">warning</mat-icon>
                 </mat-chip>
               </td>
@@ -198,9 +198,20 @@ import { ZoomService } from '../../services/zoom.service';
 
             <!-- Duration Column -->
             <ng-container matColumnDef="duration">
-              <th mat-header-cell *matHeaderCellDef>Duration</th>
+              <th mat-header-cell *matHeaderCellDef>Duration / Attendance</th>
               <td mat-cell *matCellDef="let record">
-                {{ record.durationMinutes ? record.durationMinutes + ' min' : '-' }}
+                <div class="duration-cell">
+                  <div class="ring-wrap">
+                    <svg viewBox="0 0 36 36" class="progress-ring">
+                      <path class="ring-bg" d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"/>
+                      <path class="ring-fg" [class.ring-good]="isAttendedByDuration(record)" [class.ring-bad]="!isAttendedByDuration(record)"
+                        d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                        [style.strokeDasharray]="getCircleDash(record)"/>
+                    </svg>
+                    <span class="ring-text">{{ getAttendancePercent(record) }}%</span>
+                  </div>
+                  <span>{{ record.durationMinutes || 0 }} / {{ attendanceData.duration || 0 }} min</span>
+                </div>
               </td>
             </ng-container>
 
@@ -464,6 +475,45 @@ import { ZoomService } from '../../services/zoom.service';
       gap: 10px;
       justify-content: center;
     }
+
+    .duration-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ring-wrap {
+      width: 36px;
+      height: 36px;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .progress-ring {
+      width: 36px;
+      height: 36px;
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg, .ring-fg {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+    }
+
+    .ring-bg { stroke: #e2e8f0; }
+    .ring-fg { stroke: #3b82f6; }
+    .ring-good { stroke: #16a34a; }
+    .ring-bad { stroke: #dc2626; }
+
+    .ring-text {
+      position: absolute;
+      font-size: 9px;
+      font-weight: 700;
+      color: #334155;
+    }
   `]
 })
 export class MeetingAttendanceComponent implements OnInit {
@@ -513,7 +563,8 @@ export class MeetingAttendanceComponent implements OnInit {
     if (!this.attendanceData || this.attendanceData.totalStudents === 0) {
       return 0;
     }
-    return Math.round((this.attendanceData.attendedCount / this.attendanceData.totalStudents) * 100);
+    const attended = (this.attendanceData.attendance || []).filter((r: any) => this.isAttendedByDuration(r)).length;
+    return Math.round((attended / this.attendanceData.totalStudents) * 100);
   }
 
   getConfidenceClass(confidence: number): string {
@@ -562,7 +613,7 @@ export class MeetingAttendanceComponent implements OnInit {
     const rows = this.attendanceData.attendance.map((record: any) => [
       record.name,
       record.email,
-      record.attended ? 'Attended' : 'Absent',
+      this.isAttendedByDuration(record) ? 'Attended' : 'Absent',
       record.confidence || 0,
       this.getMatchMethodLabel(record.matchMethod || ''),
       record.zoomName || '-',
@@ -600,5 +651,25 @@ export class MeetingAttendanceComponent implements OnInit {
 
   getReviewCount(): number {
     return this.attendanceData?.attendance?.filter((item: any) => item.needsReview)?.length || 0;
+  }
+
+  getAttendancePercent(record: any): number {
+    const totalMinutes = Number(this.attendanceData?.duration || 0);
+    const studentMinutes = Number(record?.durationMinutes || 0);
+    if (totalMinutes <= 0) return 0;
+    const pct = Math.round((studentMinutes / totalMinutes) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  isAttendedByDuration(record: any): boolean {
+    return this.getAttendancePercent(record) >= 70;
+  }
+
+  getAttendanceChipClass(record: any): string {
+    return this.isAttendedByDuration(record) ? 'status-attended' : 'status-absent';
+  }
+
+  getCircleDash(record: any): string {
+    return `${this.getAttendancePercent(record)}, 100`;
   }
 }

@@ -9,6 +9,7 @@ import { LearningModulesService, LearningModule, ModuleFilters } from '../../ser
 import { AuthService } from '../../services/auth.service';
 import { SubscriptionGuardService, SubscriptionStatus } from '../../services/subscription-guard.service';
 import { LevelAccessService } from '../../services/level-access.service';
+import { StudentProgressService } from '../../services/student-progress.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -26,6 +27,7 @@ export class LearningModulesComponent implements OnInit {
   filteredModules: LearningModule[] = [];
   isLoading: boolean = false;
   currentUser: any = null;
+  studentJourneyDay = 1;
   
   // Filters
   filters: ModuleFilters = {
@@ -61,6 +63,7 @@ export class LearningModulesComponent implements OnInit {
     private authService: AuthService,
     private subscriptionGuard: SubscriptionGuardService,
     public levelAccessService: LevelAccessService, // Make public for template access
+    private studentProgressService: StudentProgressService,
     private router: Router,
     private http: HttpClient
   ) {}
@@ -71,10 +74,14 @@ export class LearningModulesComponent implements OnInit {
     // Load user first, then load modules
     this.authService.currentUser$.subscribe(user => {
       this.currentUser = user;
+      this.studentJourneyDay = this.getFallbackJourneyDayFromUser(user);
       console.log('👤 Current user loaded:', user);
       
       // Only load modules after user is loaded
       if (user) {
+        if (user.role === 'STUDENT') {
+          this.loadStudentJourneyDay();
+        }
         this.loadModules();
       }
     });
@@ -111,9 +118,13 @@ export class LearningModulesComponent implements OnInit {
       
       this.learningModulesService.getAccessibleModules(this.currentUser.level, this.filters).subscribe({
         next: (response) => {
-          this.modules = response.modules;
-          this.filteredModules = response.modules;
-          this.pagination = response.pagination;
+          const modules = this.filterByJourneyDay(response.modules || []);
+          this.modules = modules;
+          this.filteredModules = modules;
+          this.pagination = {
+            ...response.pagination,
+            total: modules.length
+          };
           this.isLoading = false;
           
           console.log(`✅ Loaded ${response.modules.length} accessible modules`);
@@ -555,7 +566,9 @@ Languages:
       return true; // Teachers and admins can access all modules
     }
     
-    const canAccess = this.levelAccessService.canAccessModule(this.currentUser.level, module.level);
+    const canAccessByLevel = this.levelAccessService.canAccessModule(this.currentUser.level, module.level);
+    const canAccessByJourneyDay = this.canAccessModuleByJourneyDay(module);
+    const canAccess = canAccessByLevel && canAccessByJourneyDay;
     
     // Debug logging
     if (!canAccess) {
@@ -574,7 +587,15 @@ Languages:
     if (!this.currentUser || this.currentUser.role !== 'STUDENT') {
       return { canAccess: true, reason: 'Full access', levelDifference: 0 };
     }
-    
+
+    if (!this.canAccessModuleByJourneyDay(module)) {
+      return {
+        canAccess: false,
+        reason: `Unlocks on journey day ${module.courseDay}`,
+        levelDifference: 0
+      };
+    }
+
     return this.levelAccessService.getModuleAccessStatus(this.currentUser.level, module.level);
   }
 
@@ -630,9 +651,13 @@ Languages:
     this.isLoading = true;
     this.learningModulesService.getRecommendedModules(this.currentUser.level, this.filters).subscribe({
       next: (response) => {
-        this.modules = response.modules;
-        this.filteredModules = response.modules;
-        this.pagination = response.pagination;
+        const modules = this.filterByJourneyDay(response.modules || []);
+        this.modules = modules;
+        this.filteredModules = modules;
+        this.pagination = {
+          ...response.pagination,
+          total: modules.length
+        };
         this.isLoading = false;
         
         console.log(`⭐ Loaded ${response.modules.length} recommended modules for ${this.currentUser.level} level student`);
@@ -642,5 +667,41 @@ Languages:
         this.isLoading = false;
       }
     });
+  }
+
+  private loadStudentJourneyDay(): void {
+    this.studentProgressService.getStudentJourney().subscribe({
+      next: (journey) => {
+        const fromJourney = Number(journey?.profile?.currentCourseDay);
+        if (Number.isFinite(fromJourney) && fromJourney > 0) {
+          this.studentJourneyDay = Math.floor(fromJourney);
+        }
+      },
+      error: () => {
+        // Keep fallback from current user snapshot.
+      }
+    });
+  }
+
+  private filterByJourneyDay(modules: LearningModule[]): LearningModule[] {
+    if (!this.currentUser || this.currentUser.role !== 'STUDENT') {
+      return modules;
+    }
+    return modules.filter((m) => this.canAccessModuleByJourneyDay(m));
+  }
+
+  private canAccessModuleByJourneyDay(module: LearningModule): boolean {
+    if (!this.currentUser || this.currentUser.role !== 'STUDENT') {
+      return true;
+    }
+    const moduleDay = module?.courseDay;
+    if (moduleDay == null) return false;
+    return Number(moduleDay) <= this.studentJourneyDay;
+  }
+
+  private getFallbackJourneyDayFromUser(user: any): number {
+    const day = Number(user?.currentCourseDay ?? user?.profile?.currentCourseDay);
+    if (!Number.isFinite(day) || day < 1) return 1;
+    return Math.floor(day);
   }
 }

@@ -1,7 +1,7 @@
 // src/app/components/pdf-exercise-generator/pdf-exercise-generator.component.ts
 
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
-import { environment } from '../../../environments/environment';
+import { resolveMediaUrl } from '../../utils/media-url';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -571,10 +571,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   getMediaFullUrl(relative: string): string {
-    if (!relative) return '';
-    if (relative.startsWith('http')) return relative;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return base ? base + relative : relative;
+    return resolveMediaUrl(relative);
   }
 
   // Validation

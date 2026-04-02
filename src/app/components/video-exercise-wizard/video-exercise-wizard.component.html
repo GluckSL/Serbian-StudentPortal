@@ -1,0 +1,305 @@
+<!-- video-exercise-wizard.component.html -->
+<div class="vew-page">
+
+  <!-- Hidden file inputs -->
+  <input type="file" #fileInput accept="video/*" (change)="onFileSelected($event)" class="vew-file-hidden" />
+  <input type="file" #feedbackFileInput accept="audio/*" (change)="onFeedbackFileSelected($event)" class="vew-file-hidden" />
+
+  <!-- Header -->
+  <div class="vew-header">
+    <button class="vew-back-btn" (click)="cancel()">
+      <span class="material-icons">arrow_back</span>
+    </button>
+    <div class="vew-header-text">
+      <h1><span class="material-icons">videocam</span> Video Exercise</h1>
+      <p>Teach vocabulary through video — students watch, then pronounce</p>
+    </div>
+    <div class="vew-header-actions">
+      <label class="visibility-toggle">
+        <input type="checkbox" [(ngModel)]="visibleToStudents" />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-label">
+          <span class="material-icons">{{ visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
+          {{ visibleToStudents ? 'Published' : 'Draft' }}
+        </span>
+      </label>
+      <button class="vew-btn-cancel" (click)="cancel()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Step Indicator -->
+  <div class="vew-steps">
+    <div class="vew-step" [class.active]="step === 1" [class.done]="step > 1">
+      <div class="step-circle">
+        <span class="material-icons" *ngIf="step > 1">check</span>
+        <span *ngIf="step <= 1">1</span>
+      </div>
+      <span class="step-label">Exercise Info</span>
+    </div>
+    <div class="vew-step-line" [class.done]="step > 1"></div>
+    <div class="vew-step" [class.active]="step === 2">
+      <div class="step-circle">2</div>
+      <span class="step-label">Video Clips</span>
+    </div>
+  </div>
+
+  <!-- ══ STEP 1: Exercise Info ══════════════════════════════════════════════ -->
+  <div class="vew-card" *ngIf="step === 1">
+    <div class="vew-card-head">
+      <h2>Exercise Information</h2>
+      <p>These details are shown to students and used for filtering.</p>
+    </div>
+
+    <div class="vew-form">
+      <!-- Title + Journey Day row -->
+      <div class="vew-row vew-row--2">
+        <div class="vew-field vew-field--grow">
+          <label class="vew-label required">Title</label>
+          <input type="text" [(ngModel)]="title" class="vew-input"
+            placeholder="e.g. Animals Vocabulary — Beginner" maxlength="120" autocomplete="off" />
+          <span class="vew-char">{{ title.length }}/120</span>
+        </div>
+        <div class="vew-field">
+          <label class="vew-label">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">event_note</span>
+            Journey Day
+          </label>
+          <div class="vew-day-wrap">
+            <input type="number" class="vew-input vew-input--day"
+              min="1" max="200" step="1"
+              [ngModel]="courseDayAsNumber"
+              (ngModelChange)="onCourseDayInput($event)"
+              placeholder="Any" autocomplete="off" />
+            <span class="vew-day-suffix">/200</span>
+          </div>
+          <span class="vew-hint">Leave empty = available any day</span>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="vew-field">
+        <label class="vew-label required">Description</label>
+        <textarea [(ngModel)]="description" class="vew-input vew-input--textarea" rows="3"
+          placeholder="What vocabulary will students learn in this exercise?"></textarea>
+      </div>
+
+      <!-- Language + Level + Category + Difficulty row -->
+      <div class="vew-row vew-row--4">
+        <div class="vew-field">
+          <label class="vew-label">Target Language</label>
+          <select [(ngModel)]="targetLanguage" class="vew-input vew-input--select">
+            <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="vew-field">
+          <label class="vew-label">Native Language</label>
+          <select [(ngModel)]="nativeLanguage" class="vew-input vew-input--select">
+            <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="vew-field">
+          <label class="vew-label">CEFR Level</label>
+          <select [(ngModel)]="level" class="vew-input vew-input--select">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="vew-field">
+          <label class="vew-label">Category</label>
+          <select [(ngModel)]="category" class="vew-input vew-input--select">
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Difficulty + Duration row -->
+      <div class="vew-row vew-row--2">
+        <div class="vew-field">
+          <label class="vew-label">Difficulty</label>
+          <select [(ngModel)]="difficulty" class="vew-input vew-input--select">
+            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+          </select>
+        </div>
+        <div class="vew-field">
+          <label class="vew-label">Duration (minutes)</label>
+          <input type="number" [(ngModel)]="estimatedDuration" class="vew-input" min="1" max="120" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="vew-footer">
+      <div></div>
+      <button class="vew-btn-next" (click)="goToStep2()" [disabled]="!isStep1Valid()">
+        Next: Add Video Clips <span class="material-icons">arrow_forward</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ STEP 2: Video Clips ════════════════════════════════════════════════ -->
+  <div class="vew-card vew-card--clips" *ngIf="step === 2">
+    <div class="vew-card-head">
+      <h2>Video Clips &amp; Pronunciation Words</h2>
+      <p>
+        Upload a video clip and enter the word or phrase students must pronounce correctly to advance.
+        Use <strong>+</strong> to add more clips — students go through them in order.
+      </p>
+    </div>
+
+    <!-- Clip Cards -->
+    <div class="vew-clip-list">
+      <div class="vew-clip-card" *ngFor="let clip of clips; let i = index">
+
+        <!-- Card header -->
+        <div class="vcc-header">
+          <span class="vcc-num">Clip {{ i + 1 }}</span>
+          <button type="button" class="vcc-delete" (click)="removeClip(i)"
+            [disabled]="clips.length === 1" title="Remove clip">
+            <span class="material-icons">delete_outline</span>
+          </button>
+        </div>
+
+        <div class="vcc-body">
+          <!-- Left: video upload -->
+          <div class="vcc-video-col">
+            <!-- Not uploaded yet -->
+            <div class="vcc-upload-area" *ngIf="!clip.videoUrl && !clip.videoUploading" (click)="triggerFile(i)">
+              <span class="material-icons vcc-upload-icon">cloud_upload</span>
+              <p class="vcc-upload-title">Upload Video</p>
+              <p class="vcc-upload-hint">MP4 · WebM · MOV · Any size</p>
+              <button type="button" class="vcc-btn-choose" (click)="$event.stopPropagation(); triggerFile(i)">
+                <span class="material-icons">video_file</span> Choose File
+              </button>
+            </div>
+
+            <!-- Uploading -->
+            <div class="vcc-upload-area vcc-uploading" *ngIf="clip.videoUploading">
+              <span class="material-icons vcc-upload-icon spin">hourglass_empty</span>
+              <p class="vcc-upload-title">Uploading…</p>
+            </div>
+
+            <!-- Uploaded -->
+            <div class="vcc-video-ready" *ngIf="clip.videoUrl && !clip.videoUploading">
+              <video [src]="getMediaFullUrl(clip.videoUrl)" controls class="vcc-video-preview"></video>
+              <button type="button" class="vcc-btn-replace" (click)="triggerFile(i)">
+                <span class="material-icons">swap_horiz</span> Replace Video
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: pronunciation word + variants -->
+          <div class="vcc-fields-col">
+            <div class="vew-field">
+              <label class="vew-label required">Pronunciation Word / Phrase</label>
+              <p class="vew-field-hint">
+                Student must speak this correctly to advance to the next clip.
+              </p>
+              <input type="text" [(ngModel)]="clip.caption"
+                class="vew-input vew-input--caption"
+                placeholder="e.g. der Hund"
+                autocomplete="off" />
+            </div>
+
+            <div class="vew-field">
+              <label class="vew-label">Accepted Variants <span class="vew-optional">optional</span></label>
+              <p class="vew-field-hint">Alternative pronunciations that are also accepted.</p>
+              <div class="vcc-variants">
+                <div class="vcc-variant-row" *ngFor="let v of clip.acceptedVariants; let vi = index">
+                  <input type="text" [(ngModel)]="clip.acceptedVariants[vi]"
+                    class="vew-input vew-input--sm"
+                    placeholder="Alternate form" />
+                  <button type="button" class="vcc-icon-btn" (click)="removeVariant(clip, vi)">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+                <button type="button" class="vcc-add-variant" (click)="addVariant(clip)">
+                  <span class="material-icons">add</span> Add variant
+                </button>
+              </div>
+            </div>
+
+            <div class="vew-field vew-field--inline">
+              <label class="vew-label">Points for this clip</label>
+              <input type="number" [(ngModel)]="clip.points"
+                class="vew-input vew-input--sm vew-input--points"
+                min="1" max="100" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add clip button -->
+    <button type="button" class="vew-add-clip-btn" (click)="addClip()">
+      <span class="material-icons">add_circle_outline</span>
+      Add Another Clip
+    </button>
+
+    <!-- Feedback audio (whole exercise) -->
+    <div class="vew-feedback-card">
+      <div class="vew-feedback-head">
+        <span class="material-icons">campaign</span>
+        <div>
+          <h3>Feedback sounds <span class="vew-optional">optional</span></h3>
+          <p>Upload short MP3/WAV clips. When a student passes a clip, one <strong>praise</strong> sound plays at random; when they don’t, one <strong>retry</strong> sound plays at random. Add a short caption to show text (e.g. “Great job!” / “Try again”).</p>
+        </div>
+      </div>
+
+      <div class="vew-feedback-columns">
+        <div class="vew-feedback-col">
+          <h4><span class="material-icons">emoji_events</span> Correct (up to {{ maxFeedbackClips }})</h4>
+          <p class="vew-feedback-hint">e.g. “Good job”, applause — one is picked randomly.</p>
+          <div class="vew-feedback-row" *ngFor="let row of successFeedbackRows; let si = index">
+            <div class="vew-feedback-upload">
+              <button type="button" class="vew-btn-audio" (click)="triggerFeedbackAudio('success', si)" [disabled]="row.uploading">
+                <span class="material-icons">{{ row.uploading ? 'hourglass_empty' : (row.audioUrl ? 'graphic_eq' : 'upload_file') }}</span>
+                {{ row.uploading ? 'Uploading…' : (row.audioUrl ? 'Replace audio' : 'Upload audio') }}
+              </button>
+              <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="vew-audio-prev"></audio>
+            </div>
+            <input type="text" [(ngModel)]="row.caption" class="vew-input vew-input--caption" placeholder="Caption (e.g. Great job!)" maxlength="80" />
+            <button type="button" class="vew-icon-rm" (click)="removeSuccessFeedbackRow(si)" title="Remove">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <button type="button" class="vew-btn-add-sound" (click)="addSuccessFeedbackRow()" [disabled]="successFeedbackRows.length >= maxFeedbackClips">
+            <span class="material-icons">add</span> Add praise clip
+          </button>
+        </div>
+
+        <div class="vew-feedback-col">
+          <h4><span class="material-icons">replay</span> Not quite (up to {{ maxFeedbackClips }})</h4>
+          <p class="vew-feedback-hint">e.g. “Try again” — one is picked randomly after a wrong answer.</p>
+          <div class="vew-feedback-row" *ngFor="let row of retryFeedbackRows; let ri = index">
+            <div class="vew-feedback-upload">
+              <button type="button" class="vew-btn-audio" (click)="triggerFeedbackAudio('retry', ri)" [disabled]="row.uploading">
+                <span class="material-icons">{{ row.uploading ? 'hourglass_empty' : (row.audioUrl ? 'graphic_eq' : 'upload_file') }}</span>
+                {{ row.uploading ? 'Uploading…' : (row.audioUrl ? 'Replace audio' : 'Upload audio') }}
+              </button>
+              <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="vew-audio-prev"></audio>
+            </div>
+            <input type="text" [(ngModel)]="row.caption" class="vew-input vew-input--caption" placeholder="Caption (e.g. Try again)" maxlength="80" />
+            <button type="button" class="vew-icon-rm" (click)="removeRetryFeedbackRow(ri)" title="Remove">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <button type="button" class="vew-btn-add-sound" (click)="addRetryFeedbackRow()" [disabled]="retryFeedbackRows.length >= maxFeedbackClips">
+            <span class="material-icons">add</span> Add retry clip
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="vew-footer">
+      <button class="vew-btn-back" (click)="step = 1">
+        <span class="material-icons">arrow_back</span> Back to Info
+      </button>
+      <button class="vew-btn-save" (click)="save()"
+        [disabled]="saving || !isStep2Valid()">
+        <span class="material-icons">{{ saving ? 'hourglass_empty' : 'check_circle' }}</span>
+        {{ saving ? 'Creating...' : 'Create Video Exercise' }}
+      </button>
+    </div>
+  </div>
+
+</div>

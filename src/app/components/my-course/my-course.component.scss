@@ -410,11 +410,19 @@
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Tight to the “Updates” heading */
+.mc-side-card__eyebrow + .mc-update {
+  padding-top: 0;
 }
 
 .mc-update:last-of-type {
-  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .mc-update__icon {
@@ -506,6 +514,11 @@
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
+}
+
+/* Extra gap after the bordered update list so the CTA reads as its own block */
+.mc-side-card--updates .mc-side-card__link {
+  margin-top: 16px;
 }
 
 .mc-side-card__link:hover {
