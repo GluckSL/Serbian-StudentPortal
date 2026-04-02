@@ -80,21 +80,11 @@ Reply with ONLY this JSON: {"score": <number 0-100>}`;
 
 // ─── HELPER ──────────────────────────────────────────────────────────────────
 
-function levenshteinSimilarity(a, b) {
-  if (!a || !b) return 0;
-  const m = a.length, n = b.length;
-  if (m === 0 || n === 0) return 0;
-  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-    }
-  }
-  const maxLen = Math.max(m, n);
-  return 1 - dp[m][n] / maxLen;
+function normalizeListeningAnswer(raw) {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
 }
 
 function parseTrueFalse(raw) {
@@ -651,13 +641,10 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
       }
     } else if (q.type === 'listening') {
-      const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
-      const expected = (q.expectedTranscript || '').trim().toLowerCase();
+      const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
+      const expected = normalizeListeningAnswer(q.expectedTranscript || '');
       if (expected && studentText) {
-        isCorrect = studentText === expected ||
-          expected.includes(studentText) ||
-          studentText.includes(expected) ||
-          levenshteinSimilarity(studentText, expected) >= 0.85;
+        isCorrect = studentText === expected;
       }
       correctAnswer = { expectedTranscript: q.expectedTranscript };
     }
@@ -847,13 +834,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
           correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
         }
       } else if (q.type === 'listening') {
-        const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
-        const expected = (q.expectedTranscript || '').trim().toLowerCase();
+        const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
+        const expected = normalizeListeningAnswer(q.expectedTranscript || '');
         if (expected && studentText) {
-          isCorrect = studentText === expected ||
-            expected.includes(studentText) ||
-            studentText.includes(expected) ||
-            levenshteinSimilarity(studentText, expected) >= 0.85;
+          isCorrect = studentText === expected;
         }
         correctAnswer = { expectedTranscript: q.expectedTranscript };
       }

@@ -264,7 +264,7 @@
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
-                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen and type' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
                 <span *ngSwitchCase="'video-pronunciation'">{{ q.caption || 'No caption' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})</span>
               </ng-container>
             </span>
@@ -397,11 +397,11 @@
           <ng-container *ngIf="q.type === 'listening'">
             <div class="info-banner">
               <span class="material-icons">headphones</span>
-              Upload audio (or paste a link). AI will extract the text for you to verify before publishing. Students listen and type (or speak) what they hear.
+              Add a question, upload audio, and set the correct answer. Students listen and type the answer.
             </div>
             <div class="field-group full">
-              <label class="field-label required">Instruction</label>
-              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. Listen and type what you hear." />
+              <label class="field-label required">Question</label>
+              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. What is the name of the person?" />
             </div>
             <div class="field-group full">
               <label class="field-label required">Audio</label>
@@ -423,36 +423,8 @@
               </div>
             </div>
             <div class="field-group full">
-              <div class="sentence-label-row">
-                <label class="field-label required">Expected transcript</label>
-                <button type="button" class="btn-insert-blank" (click)="generateTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
-                  <span class="material-icons">auto_awesome</span>
-                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
-                </button>
-              </div>
-              <p class="hint-text">AI extracts text from the audio. Verify it's correct before publishing.</p>
-              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="4" placeholder="Transcript will appear here after AI extraction..."></textarea>
-            </div>
-            <div class="field-group full">
-              <label class="field-label">Student attempt mode</label>
-              <div class="scoring-mode-opts" style="margin-top:6px">
-                <label class="scoring-opt" [class.active]="(q.attemptMode || 'typing') === 'typing'" (click)="q.attemptMode = 'typing'">
-                  <input type="radio" [name]="'am-'+i" value="typing" [(ngModel)]="q.attemptMode" />
-                  <div class="scoring-opt-icon"><span class="material-icons">keyboard</span></div>
-                  <div class="scoring-opt-text">
-                    <span class="scoring-opt-name">Typing only</span>
-                    <span class="scoring-opt-desc">Student must type what they hear</span>
-                  </div>
-                </label>
-                <label class="scoring-opt" [class.active]="q.attemptMode === 'typing-or-speech'" (click)="q.attemptMode = 'typing-or-speech'">
-                  <input type="radio" [name]="'am-'+i" value="typing-or-speech" [(ngModel)]="q.attemptMode" />
-                  <div class="scoring-opt-icon"><span class="material-icons">mic</span></div>
-                  <div class="scoring-opt-text">
-                    <span class="scoring-opt-name">Typing or speaking</span>
-                    <span class="scoring-opt-desc">Student can type or speak (speech → text)</span>
-                  </div>
-                </label>
-              </div>
+              <label class="field-label required">Answer</label>
+              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="3" placeholder="Enter the correct answer students should type..."></textarea>
             </div>
           </ng-container>
 

@@ -697,7 +697,7 @@
 
         <!-- Listening body -->
         <div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and type what you hear.' }}</div>
+          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and answer the question.' }}</div>
           <div class="listening-audio-wrap" *ngIf="currentQuestion.data.mediaUrl">
             <audio [src]="getMediaFullUrl(currentQuestion.data.mediaUrl)" controls></audio>
           </div>

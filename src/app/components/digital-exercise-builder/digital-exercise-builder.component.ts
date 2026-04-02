@@ -41,7 +41,7 @@ interface BuilderQuestion {
   scoringMode?: 'full' | 'proportional';
   // Listening
   mediaUrl?: string;
-  expectedTranscript?: string;
+  expectedTranscript?: string; // stored as the correct answer text for listening
   attemptMode?: 'typing' | 'typing-or-speech';
   transcribing?: boolean;
   // Video Pronunciation
@@ -114,7 +114,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with ___ blanks to fill in.' },
     { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
     { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
-    { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types or speaks what they hear.' },
+    { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types the correct answer.' },
     { value: 'true-false', label: 'True / False', icon: 'toggle_on', description: 'Decide if a statement is true or false.' },
     { value: 'sentence-transformation', label: 'Sentence Transformation', icon: 'transform', description: 'Transform a sentence (statement → question, etc.).' },
     { value: 'singular-plural', label: 'Singular → Plural', icon: 'swap_horiz', description: 'Write the plural form.' },
@@ -224,10 +224,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       });
     } else if (q.type === 'listening') {
       Object.assign(base, {
-        prompt: q.prompt || 'Listen and type what you hear.',
+        prompt: q.prompt || '',
         mediaUrl: q.mediaUrl || '',
         expectedTranscript: q.expectedTranscript || '',
-        attemptMode: q.attemptMode || 'typing'
+        attemptMode: 'typing'
       });
     }
     return base;
@@ -303,10 +303,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         q.scoringMode = 'full';
       }
     } else if (type === 'listening') {
-      q.prompt = 'Listen and type what you hear.';
+      q.prompt = '';
       q.mediaUrl = '';
       q.expectedTranscript = '';
-      q.attemptMode = 'typing-or-speech';
+      q.attemptMode = 'typing';
     }
     this.questions.push(q);
     this.expandedQuestion = this.questions.length - 1;
@@ -435,22 +435,6 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.showSuccess('Audio fetched');
       },
       error: (err) => this.showError(err.error?.error || 'Fetch failed')
-    });
-  }
-
-  generateTranscript(q: BuilderQuestion): void {
-    if (!q.mediaUrl) { this.showError('Upload or add audio URL first'); return; }
-    q.transcribing = true;
-    this.exerciseService.transcribeListening(q.mediaUrl).subscribe({
-      next: (res) => {
-        q.expectedTranscript = res.transcript;
-        q.transcribing = false;
-        this.showSuccess('Transcript generated. Verify and edit if needed.');
-      },
-      error: (err) => {
-        q.transcribing = false;
-        this.showError(err.error?.error || 'Transcription failed');
-      }
     });
   }
 
