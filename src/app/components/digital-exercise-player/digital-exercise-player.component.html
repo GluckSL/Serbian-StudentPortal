@@ -152,6 +152,12 @@
 
   <!-- ─── INTRO ───────────────────────────────────────────────────────────── -->
   <div class="intro-screen" *ngIf="state === 'intro' && exercise">
+    <div class="intro-back-row">
+      <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
+        <span class="material-icons">arrow_back</span>
+        <span class="btn-back-label">Back</span>
+      </button>
+    </div>
     <div class="intro-card">
       <div class="intro-badges">
         <span class="level-badge" [style.background]="exerciseService.getLevelColor(exercise.level)">{{ exercise.level }}</span>
@@ -204,8 +210,9 @@
 
     <!-- Player Header (hidden for video-only — exit is on the video stage) -->
     <div class="player-header" *ngIf="!isVideoOnlyExercise">
-      <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
-        <span class="material-icons">close</span>
+      <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
+        <span class="material-icons">arrow_back</span>
+        <span class="btn-back-label">Back</span>
       </button>
       <div class="header-center">
         <div class="exercise-title-sm">{{ exercise?.title }}</div>
@@ -236,6 +243,12 @@
 
     <!-- Video-only: framed shell (85% × 88%) → three columns inside -->
     <div class="player-vp-chat-frame" *ngIf="playerQuestions.length > 0 && isVideoOnlyExercise">
+      <div class="vp-back-bar">
+        <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
+          <span class="material-icons">arrow_back</span>
+          <span class="btn-back-label">Back</span>
+        </button>
+      </div>
       <div class="player-vp-chat-layout">
       <aside class="vp-details-col">
         <div class="vp-details-cards">

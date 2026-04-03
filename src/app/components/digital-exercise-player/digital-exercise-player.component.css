@@ -415,6 +415,32 @@
 }
 .btn-icon-back:hover { border-color: #f44336; color: #f44336; }
 
+.btn-back-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  color: #444;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.btn-back-nav:hover { background: #f1f5f9; border-color: #3b82f6; color: #3b82f6; }
+.btn-back-nav .material-icons { font-size: 1.1rem; }
+.btn-back-label { font-size: 0.85rem; }
+
+.intro-back-row {
+  padding: 16px 24px 0 24px;
+}
+
+.vp-back-bar {
+  padding: 10px 16px 0 16px;
+}
+
 .header-center { flex: 1; }
 .exercise-title-sm { font-size: 0.85rem; font-weight: 600; color: #1a1a2e; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

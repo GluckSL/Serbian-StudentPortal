@@ -1,7 +1,7 @@
 // src/app/components/ai-tutor-chat/ai-tutor-chat.component.ts
 
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -112,6 +112,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     public router: Router, // Make router public for template access
+    private location: Location,
     private http: HttpClient,
     private aiTutorService: AiTutorService,
     private learningModulesService: LearningModulesService,
@@ -758,6 +759,10 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
     // Set the suggestion as current message and send it
     this.currentMessage = suggestion;
     this.sendMessage(false); // false indicates it's not from speech
+  }
+
+  goBack(): void {
+    this.location.back();
   }
 
   endSession(navigate: boolean = true): void {

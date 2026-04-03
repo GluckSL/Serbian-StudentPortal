@@ -1,7 +1,7 @@
 // src/app/components/digital-exercise-player/digital-exercise-player.component.ts
 
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
@@ -114,6 +114,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
+    private location: Location,
     public exerciseService: DigitalExerciseService,
     private snackBar: MatSnackBar,
     private authService: AuthService
@@ -965,6 +966,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   // ─── Navigation ──────────────────────────────────────────────────────────────
+
+  goBack(): void {
+    this.location.back();
+  }
 
   backToExercises(): void {
     this.authService.currentUser$.pipe(take(1)).subscribe((user) => {

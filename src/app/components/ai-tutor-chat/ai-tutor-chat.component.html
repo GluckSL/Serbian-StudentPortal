@@ -5,6 +5,12 @@
      *ngIf="!isLoading">
   <!-- Header -->
   <div class="chat-header">
+    <div class="chat-back-row">
+      <button class="chat-back-btn" (click)="goBack()" title="Go back">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back</span>
+      </button>
+    </div>
     <div class="header-content">
       <div class="module-info">
         <h2>{{ getSessionTypeLabel() }}</h2>

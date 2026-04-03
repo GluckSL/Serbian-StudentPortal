@@ -27,6 +27,29 @@
   flex-shrink: 0; /* Prevent shrinking */
 }
 
+.chat-back-row {
+  margin-bottom: 0.5rem;
+}
+
+.chat-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 5px 12px 5px 9px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s;
+}
+.chat-back-btn:hover {
+  background: rgba(255,255,255,0.28);
+  border-color: rgba(255,255,255,0.7);
+}
+
 .header-content {
   display: flex;
   justify-content: space-between;

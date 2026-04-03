@@ -127,6 +127,10 @@ export class MyCourseComponent implements OnInit {
       } else if (t === 'journey') {
         this.activeTab = t;
       }
+      const d = q.get('day');
+      if (d && Number.isFinite(Number(d)) && Number(d) > 0) {
+        this.selectedJourneyDay = Number(d);
+      }
     });
   }
 
@@ -319,6 +323,12 @@ export class MyCourseComponent implements OnInit {
 
   selectJourneyDay(day: number): void {
     this.selectedJourneyDay = day;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: 'journey', day },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   openProgressReport(): void {
