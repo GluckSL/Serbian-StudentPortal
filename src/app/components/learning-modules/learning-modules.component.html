@@ -262,29 +262,13 @@
                   </small>
                 </div>
                 
-                <!-- AI Tutoring Buttons - PLATINUM ONLY -->
-                <div class="dropdown" *ngIf="canStartTutoring(module) && canAccessAiTutoring() && canAccessModule(module)">
-                  <button class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown">
-                    <i class="fas fa-robot"></i> AI Tutor
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'practice')">
-                      <i class="fas fa-book"></i> Practice
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'conversation')">
-                      <i class="fas fa-comments"></i> Conversation
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'assessment')">
-                      <i class="fas fa-clipboard-check"></i> Assessment
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'help')">
-                      <i class="fas fa-question-circle"></i> Get Help
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'review')">
-                      <i class="fas fa-redo"></i> Review
-                    </a></li>
-                  </ul>
-                </div>
+                <!-- AI Tutoring Button - PLATINUM ONLY -->
+                <button
+                  class="btn btn-success btn-sm"
+                  *ngIf="canStartTutoring(module) && canAccessAiTutoring() && canAccessModule(module)"
+                  (click)="startTutoring(module, 'practice')">
+                  <i class="fas fa-robot"></i> AI Tutor
+                </button>
                 
                 <!-- Subscription Upgrade Button for SILVER students -->
                 <div *ngIf="canStartTutoring(module) && !canAccessAiTutoring() && isStudent() && canAccessModule(module)" class="subscription-upgrade">

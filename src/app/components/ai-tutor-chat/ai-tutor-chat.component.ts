@@ -37,7 +37,12 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
   sessionActive: boolean = false;
   sessionStartTime: Date | null = null;
   isTeacherTestMode: boolean = false; // Track if this is a teacher testing session
-  
+  returnUrl: string = '/learning-modules'; // Default fallback — public so template can use it
+
+  // Session summary card (replaces browser alert)
+  showSummaryCard: boolean = false;
+  summaryData: { conversations: number; duration: number; vocabulary: string[] } = { conversations: 0, duration: 0, vocabulary: [] };
+
   // Auto-refresh mechanism
   private autoRefreshInterval: any;
   private autoRefreshCount: number = 0;
@@ -137,6 +142,9 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
       this.isTeacherTestMode = params['testMode'] === 'true';
       this.moduleId = params['moduleId'];
       this.sessionType = params['sessionType'] || 'practice';
+      if (params['returnUrl']) {
+        this.returnUrl = params['returnUrl'];
+      }
       
       console.log('🔍 Route params detected:', {
         testMode: params['testMode'],
@@ -782,6 +790,11 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
     this.location.back();
   }
 
+  dismissSummary(): void {
+    this.showSummaryCard = false;
+    this.router.navigateByUrl(this.returnUrl);
+  }
+
   endSession(navigate: boolean = true): void {
     if (!this.sessionId) return;
     
@@ -828,19 +841,12 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
             }
           });
 
-          // Show simple, concise summary as requested
-          const summaryText = `Session Complete! 🎉
-
-💬 Conversations: ${conversationCount}
-⏱️ Time Spent: ${duration} minutes
-📚 Vocabulary Used: ${vocabularyUsed.length > 0 ? vocabularyUsed.join(', ') : 'Practice completed'}
-
-Great job! 🌟`;
-          
-          alert(summaryText);
-          
-          // Navigate back to learning modules list
-          this.router.navigate(['/learning-modules']);
+          // Show in-page summary card instead of a browser alert
+          this.summaryData = { conversations: conversationCount, duration, vocabulary: vocabularyUsed };
+          this.showSummaryCard = true;
+          this.isLoading = false;
+          this.cdr.detectChanges();
+          return; // navigation happens when user clicks "Go Back" on the card
         }
         
         this.isLoading = false;
@@ -2090,9 +2096,9 @@ You've done great work in this session. Keep up the excellent progress! 🌟`,
   // Navigate to session summary/performance history after module completion
   private navigateToSummary(): void {
     if (this.isTeacherTestMode) {
-      // For teacher test sessions, go back to learning modules
-      console.log('🔄 Teacher test completed, redirecting to learning modules');
-      this.router.navigate(['/learning-modules']);
+      // For teacher test sessions, go back to where they came from
+      console.log('🔄 Teacher test completed, returning to previous page');
+      this.router.navigateByUrl(this.returnUrl);
     } else {
       // For student sessions, go to performance history where they can see the summary
       console.log('🔄 Student session completed, redirecting to performance history');

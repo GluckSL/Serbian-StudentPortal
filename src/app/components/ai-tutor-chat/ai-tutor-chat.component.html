@@ -528,10 +528,63 @@
       </button>
       <button 
         class="btn btn-outline-secondary"
-        (click)="router.navigate(['/learning-modules'])">
-        Back to Module
+        (click)="router.navigateByUrl(returnUrl)">
+        Go Back
       </button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ Session Summary Card (shown after "End Session") ═══ -->
+<div class="summary-overlay" *ngIf="showSummaryCard">
+  <div class="summary-card">
+
+    <!-- Top accent bar -->
+    <div class="summary-card__accent"></div>
+
+    <!-- Trophy icon -->
+    <div class="summary-card__icon">🎉</div>
+
+    <h2 class="summary-card__title">Session Complete!</h2>
+    <p class="summary-card__subtitle">Great work! Here's how your session went.</p>
+
+    <!-- Stats row -->
+    <div class="summary-stats">
+      <div class="summary-stat">
+        <div class="summary-stat__value">{{ summaryData.conversations }}</div>
+        <div class="summary-stat__label">Conversations</div>
+      </div>
+      <div class="summary-stat summary-stat--mid">
+        <div class="summary-stat__value">{{ summaryData.duration }} <span class="summary-stat__unit">min</span></div>
+        <div class="summary-stat__label">Time Spent</div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value">{{ summaryData.vocabulary.length }}</div>
+        <div class="summary-stat__label">Words Used</div>
+      </div>
+    </div>
+
+    <!-- Vocabulary chips -->
+    <div class="summary-vocab" *ngIf="summaryData.vocabulary.length > 0">
+      <p class="summary-vocab__label">Vocabulary practiced</p>
+      <div class="summary-vocab__chips">
+        <span class="summary-vocab__chip" *ngFor="let word of summaryData.vocabulary">{{ word }}</span>
+      </div>
+    </div>
+    <div class="summary-vocab" *ngIf="summaryData.vocabulary.length === 0">
+      <p class="summary-vocab__label" style="color:#64748b;">Practice completed — keep it up! 🌟</p>
+    </div>
+
+    <!-- Actions -->
+    <div class="summary-card__actions">
+      <button class="summary-btn summary-btn--secondary" (click)="showSummaryCard = false; startNewSession()">
+        <i class="fas fa-redo"></i> Practice Again
+      </button>
+      <button class="summary-btn summary-btn--primary" (click)="dismissSummary()">
+        <i class="fas fa-arrow-left"></i> Go Back
+      </button>
+    </div>
+
   </div>
 </div>
 

@@ -390,7 +390,12 @@ export class MyCourseComponent implements OnInit {
 
   openModule(mod: LearningModule): void {
     if (!mod?._id) return;
-    this.router.navigate(['/ai-tutor-chat'], { queryParams: { moduleId: mod._id } });
+    this.router.navigate(['/ai-tutor-chat'], {
+      queryParams: {
+        moduleId: mod._id,
+        returnUrl: this.router.url   // return to current journey/day page
+      }
+    });
   }
 
   getExerciseHoverDetails(ex: DigitalExercise): string {

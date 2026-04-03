@@ -200,23 +200,32 @@ export class LearningModulesComponent implements OnInit {
 
   startTutoring(module: LearningModule, sessionType: string = 'practice'): void {
     if (!module._id) return;
-    
+
+    const doNavigate = () => {
+      this.router.navigate(['/ai-tutor-chat'], {
+        queryParams: {
+          moduleId: module._id,
+          sessionType: sessionType,
+          returnUrl: this.router.url
+        }
+      });
+    };
+
     // Check if user has PLATINUM subscription for AI tutoring
     this.subscriptionGuard.checkPlatinumAccess().subscribe((status: SubscriptionStatus) => {
       if (status.hasAccess) {
-        // Check if enrolled
+        // Auto-enroll if needed, then navigate immediately
         if (!module.studentProgress) {
-          this.enrollInModule(module);
-          return;
+          this.learningModulesService.enrollInModule(module._id!).subscribe({
+            next: () => doNavigate(),
+            error: (err) => {
+              console.error('Auto-enroll failed:', err);
+              doNavigate(); // Try anyway — backend will enroll on session start
+            }
+          });
+        } else {
+          doNavigate();
         }
-        
-        // User has PLATINUM access, proceed to AI tutoring
-        this.router.navigate(['/ai-tutor-chat'], {
-          queryParams: {
-            moduleId: module._id,
-            sessionType: sessionType
-          }
-        });
       } else {
         // User doesn't have PLATINUM access, show upgrade message
         this.showSubscriptionUpgradeDialog(status);
@@ -375,9 +384,9 @@ Languages:
   }
 
   canStartTutoring(module: LearningModule): boolean {
-    return this.currentUser?.role === 'STUDENT' && 
-           module.studentProgress && 
-           module.studentProgress.status !== 'completed';
+    // Allow unenrolled modules too — startTutoring() auto-enrolls before navigating
+    return this.currentUser?.role === 'STUDENT' &&
+           module.studentProgress?.status !== 'completed';
   }
 
   isTeacherOrAdmin(): boolean {

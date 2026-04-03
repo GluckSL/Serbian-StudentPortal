@@ -1,4 +1,5 @@
 /* src/app/components/meeting-link/meeting-details.component.css */
+@import '@angular/material/prebuilt-themes/indigo-pink.css';
 
 .meeting-details-container {
   padding: 24px;
@@ -347,5 +348,3 @@
   }
 }
 
-/* Material Menu Import */
-@import '@angular/material/prebuilt-themes/indigo-pink.css';

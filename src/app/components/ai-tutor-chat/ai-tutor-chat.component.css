@@ -615,6 +615,168 @@
   margin: 0; /* Remove any margin */
 }
 
+/* ─── Session Summary Card ───────────────────────────────────── */
+
+.summary-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+  animation: summary-fade-in 0.25s ease;
+}
+
+@keyframes summary-fade-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.summary-card {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+  text-align: center;
+  position: relative;
+}
+
+.summary-card__accent {
+  height: 6px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+}
+
+.summary-card__icon {
+  font-size: 3rem;
+  margin: 1.4rem 0 0.2rem;
+  line-height: 1;
+}
+
+.summary-card__title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0.3rem 0 0.2rem;
+}
+
+.summary-card__subtitle {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0 0 1.2rem;
+}
+
+/* ── Stats row ── */
+.summary-stats {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.summary-stat {
+  flex: 1;
+  padding: 1rem 0.5rem;
+}
+
+.summary-stat--mid {
+  border-left: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+}
+
+.summary-stat__value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #667eea;
+  line-height: 1;
+}
+
+.summary-stat__unit {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.summary-stat__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.3rem;
+}
+
+/* ── Vocabulary chips ── */
+.summary-vocab {
+  padding: 0.9rem 1.2rem 0.4rem;
+}
+
+.summary-vocab__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin: 0 0 0.5rem;
+}
+
+.summary-vocab__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.summary-vocab__chip {
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 3px 10px;
+}
+
+/* ── Action buttons ── */
+.summary-card__actions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.2rem 1.4rem;
+  justify-content: center;
+}
+
+.summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.6rem 1.1rem;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.summary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.summary-btn--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.summary-btn--secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
 /* ─── Skeleton / Loading ─────────────────────────────────────── */
 
 /* Shimmer keyframe */
