@@ -3,9 +3,8 @@
 const express = require("express");
 const router = express.Router();
 const CourseMaterial = require("../models/CourseMaterial");
-const upload = require("../middleware/upload"); // your multer setup
-const path = require('path'); 
-const fs = require('fs');    
+const upload = require("../middleware/upload");
+const deleteFromS3 = require("../config/s3Delete");
 
 // POST /api/courseMaterial
 // Upload files and save course material
@@ -21,10 +20,10 @@ router.post("/", upload.array("files"), async (req, res) => {
       return res.status(400).json({ message: "At least one file must be uploaded." });
     }
 
-    // Map uploaded files to materials array
+    // Map uploaded files to materials array (file.location is the S3 URL from multer-s3)
     const materials = req.files.map((file) => ({
       fileName: file.originalname,
-      fileUrl: `/uploads/course-materials/${file.filename}`,
+      fileUrl: file.location,
     }));
 
     // Create new course material document
@@ -80,12 +79,8 @@ router.delete("/:materialId/file", async (req, res) => {
       return res.status(404).json({ message: "File not found in material." });
     }
 
-    // Delete the actual file from disk
-    const filePath = path.join(process.cwd(), fileToDelete.fileUrl);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log("🗑️ Deleted file from disk:", filePath);
-    }
+    // Delete the file from S3
+    await deleteFromS3(fileToDelete.fileUrl);
 
     // Remove the file from the array
     material.materials = material.materials.filter(

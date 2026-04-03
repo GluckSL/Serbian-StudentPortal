@@ -3,21 +3,32 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const multerS3 = require('multer-s3');
 const path = require('path');
 const Invoice = require('../models/Invoice');
 const StudentPayment = require('../models/StudentPayment');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const s3Client = require('../config/s3');
 
-// Multer config for payment proofs
-const proofStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/payment-proofs'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'))
+// Multer-S3 config for payment proofs
+const uploadProof = multer({
+  storage: multerS3({
+    s3: s3Client,
+    bucket: process.env.S3_BUCKET,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const prefix = process.env.S3_PREFIX || 'uploads';
+      const key = `${prefix}/payment-proofs/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+      cb(null, key);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|pdf|webp/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  },
 });
-const uploadProof = multer({ storage: proofStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => {
-  const allowed = /jpeg|jpg|png|pdf|webp/;
-  cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
-}});
 
 function escapeRegex(str) {
   return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -85,7 +96,7 @@ router.post('/:id/record-payment', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       return res.status(400).json({ message: `Amount exceeds remaining balance of ${remaining}` });
     }
 
-    const proofPath = req.file ? '/uploads/payment-proofs/' + req.file.filename : '';
+    const proofPath = req.file ? req.file.location : '';
 
     // Add payment to invoice
     invoice.payments.push({

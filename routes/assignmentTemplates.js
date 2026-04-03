@@ -30,7 +30,7 @@ router.post(
       }
 
       const files = req.files.map((f) => ({
-        path: f.path.replace(/\\/g, '/'), // normalize windows paths
+        path: f.location, // S3 URL from multer-s3
         originalName: f.originalname,
         mimeType: f.mimetype,
         size: f.size,

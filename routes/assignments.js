@@ -52,7 +52,7 @@ router.post(
       }
 
       const files = req.files.map((file) => ({
-        path: file.path,
+        path: file.location,
         originalName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
@@ -140,7 +140,7 @@ router.post(
       }
 
       const files = req.files.map((file) => ({
-        path: file.path,
+        path: file.location,
         originalName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
