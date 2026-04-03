@@ -615,14 +615,163 @@
   margin: 0; /* Remove any margin */
 }
 
-/* Loading States */
+/* ─── Skeleton / Loading ─────────────────────────────────────── */
+
+/* Shimmer keyframe */
+@keyframes sk-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+/* Base shimmer block */
+.skeleton-block {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+  background-size: 600px 100%;
+  animation: sk-shimmer 1.4s infinite linear;
+}
+
+/* Full-page skeleton wrapper */
+.skeleton-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #f4f5f7;
+}
+
+/* ── Header skeleton ── */
+.skeleton-header {
+  background: #667eea;
+  padding: 0.8rem 1rem;
+  flex-shrink: 0;
+}
+.skeleton-header-top {
+  margin-bottom: 0.6rem;
+}
+.sk-back-btn {
+  width: 80px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.18) 25%, rgba(255,255,255,0.32) 50%, rgba(255,255,255,0.18) 75%);
+  background-size: 600px 100%;
+}
+.skeleton-header-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.skeleton-header-left { flex: 1; display: flex; flex-direction: column; gap: 0.45rem; }
+.skeleton-header-right { display: flex; gap: 1rem; }
+
+/* White-tinted blocks inside the coloured header */
+.skeleton-header .skeleton-block,
+.skeleton-header .sk-back-btn {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.18) 25%,
+    rgba(255,255,255,0.32) 50%,
+    rgba(255,255,255,0.18) 75%);
+  background-size: 600px 100%;
+  animation: sk-shimmer 1.4s infinite linear;
+}
+
+.sk-title    { height: 20px; width: 160px; border-radius: 5px; }
+.sk-subtitle { height: 13px; width: 220px; border-radius: 5px; }
+.sk-badge-row { display: flex; gap: 0.5rem; margin-top: 0.2rem; }
+.sk-badge      { height: 22px; width: 110px; border-radius: 20px; }
+.sk-badge-wide { height: 22px; width: 180px; border-radius: 20px; }
+.sk-stat { height: 38px; width: 68px; border-radius: 8px; }
+
+/* ── Messages area skeleton ── */
+.skeleton-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 1.5rem 1.2rem 1rem;
+  overflow: hidden;
+}
+
+.sk-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+.sk-message-right { flex-direction: row-reverse; }
+
+.sk-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sk-bubble-wrap       { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
+.sk-bubble-wrap-right { align-items: flex-end; }
+
+.sk-bubble-line {
+  height: 14px;
+  border-radius: 6px;
+}
+
+/* ── Spinner inside skeleton ── */
+.sk-loading-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+  color: #667eea;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.sk-spinner {
+  width: 46px;
+  height: 46px;
+  animation: sk-rotate 1.4s linear infinite;
+}
+@keyframes sk-rotate {
+  100% { transform: rotate(360deg); }
+}
+
+.sk-spinner-svg { width: 100%; height: 100%; }
+
+.sk-spinner-track {
+  stroke: #dde4ff;
+}
+.sk-spinner-arc {
+  stroke: #667eea;
+  animation: sk-dash 1.2s ease-in-out infinite;
+}
+@keyframes sk-dash {
+  0%   { stroke-dasharray: 1 200;  stroke-dashoffset: 0; }
+  50%  { stroke-dasharray: 89 200; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 89 200; stroke-dashoffset: -124; }
+}
+
+/* ── Footer skeleton (mic button) ── */
+.skeleton-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.2rem 0 1.8rem;
+  background: #fff;
+  border-top: 1px solid #e9ecef;
+}
+.sk-mic-btn   { width: 64px; height: 64px; border-radius: 50%; }
+.sk-mic-label { width: 120px; height: 13px; border-radius: 5px; }
+
+/* Legacy loading-container kept in case it's referenced elsewhere */
 .loading-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 50vh; /* Changed from 100vh to 50vh */
+  height: 50vh;
   flex-direction: column;
-  margin: 0; /* Remove any margin */
+  margin: 0;
 }
 
 .typing-indicator {

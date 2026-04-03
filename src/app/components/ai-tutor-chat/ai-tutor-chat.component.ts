@@ -109,6 +109,10 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
   private pendingAutoComplete = false;
   private boundBeforeUnload: (() => void) | null = null;
 
+  /** Keep spinner up until module fetch and session start both finish (avoids a flash of "Session Ended"). */
+  private moduleFetchSettled = false;
+  private sessionStartSettled = false;
+
   constructor(
     private route: ActivatedRoute,
     public router: Router, // Make router public for template access
@@ -206,6 +210,9 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
     });
     
     if (this.moduleId) {
+      this.isLoading = true;
+      this.moduleFetchSettled = false;
+      this.sessionStartSettled = false;
       this.loadModule();
       this.startNewSession();
     } else {
@@ -332,18 +339,25 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
     console.log('✅ AI tutor chat component cleaned up (session remains active if not explicitly ended)');
   }
 
+  private tryFinishInitialLoading(): void {
+    if (this.moduleFetchSettled && this.sessionStartSettled) {
+      this.isLoading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
   loadModule(): void {
-    this.isLoading = true;
     this.learningModulesService.getModule(this.moduleId).subscribe({
       next: (module) => {
         this.module = module;
-        this.isLoading = false;
-        
-        // Update speech recognition language based on module
+        this.moduleFetchSettled = true;
         this.updateSpeechRecognitionLanguage();
+        this.tryFinishInitialLoading();
       },
       error: (error) => {
         console.error('Error loading module:', error);
+        this.moduleFetchSettled = true;
+        this.sessionStartSettled = true;
         this.isLoading = false;
         alert('Failed to load module');
         
@@ -411,6 +425,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
 
   startNewSession(): void {
     this.isLoading = true;
+    this.sessionStartSettled = false;
     
     console.log('🔄 Starting new session with params:', {
       moduleId: this.moduleId,
@@ -473,7 +488,8 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           }
         }
         
-        this.isLoading = false;
+        this.sessionStartSettled = true;
+        this.tryFinishInitialLoading();
       },
       error: (error) => {
         console.error('❌ Error starting session:', error);
@@ -486,7 +502,8 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           sessionType: this.sessionType
         });
         
-        this.isLoading = false;
+        this.sessionStartSettled = true;
+        this.tryFinishInitialLoading();
         
         let errorMessage = 'Failed to start tutoring session';
         if (error.status === 403) {
