@@ -1,50 +1,196 @@
-<!-- login.component.html -->
-<div class="login-container">
-  <h2>Login</h2>
-  <form (ngSubmit)="onSubmit()">
-    <div class="mb-3">
-      <label for="webAppId" class="form-label">Web App ID</label>
-      <input
-        type="text"
-        id="regNo"
-        class="form-control"
-        placeholder="Enter your Web App ID"
-        required
-        [(ngModel)]="regNo"
-        name="regNo"
-      />
-    </div>
+<div class="login-page">
+  <!-- Left: hero -->
+  <aside class="login-hero">
+    <div class="login-hero__bg"></div>
+    <div class="login-hero__vignette"></div>
+    <div class="login-hero__purple-glow"></div>
+    <div class="login-hero__content">
+      <header class="login-hero__top">
+        <img src="assets/gluck-logo.png" alt="" class="login-hero__logo" width="32" height="32" />
+        <span class="login-hero__brand">Glück Global</span>
+      </header>
 
-    <div class="mb-3">
-      <label for="password" class="form-label">Password</label>
-      <div class="password-input-wrapper">
-        <input
-          [type]="showPassword ? 'text' : 'password'"
-          id="password"
-          class="form-control"
-          placeholder="Enter your password"
-          required
-          [(ngModel)]="password"
-          name="password"
-        />
-        <button 
-          type="button" 
-          class="password-toggle-btn"
-          (click)="togglePasswordVisibility()"
-          [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
-        >
-          <i [class]="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-        </button>
+      <div class="login-hero__main">
+        <h1 class="login-hero__title">
+          Welcome to
+          <span class="login-hero__title-accent">Glück Global German Study Buddy</span>
+        </h1>
+        <p class="login-hero__lead">
+          Master German with the power of AI. Personalized, interactive, and built for modern learners.
+        </p>
+
+        <div class="login-hero__cards">
+          <div class="glass-card">
+            <div class="glass-card__icon"><i class="fas fa-graduation-cap"></i></div>
+            <div class="glass-card__body">
+              <strong>For Students</strong>
+              <p>Interactive voice training and structured AI learning paths.</p>
+            </div>
+          </div>
+          <div class="glass-card">
+            <div class="glass-card__icon"><i class="fas fa-file-lines"></i></div>
+            <div class="glass-card__body">
+              <strong>For Teachers</strong>
+              <p>Advanced progress monitoring and curriculum management.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-hero__social">
+        <div class="login-hero__avatars" aria-hidden="true">
+          <div class="avatar">
+            <img
+              src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&h=96&q=80"
+              alt=""
+              width="44"
+              height="44"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <div class="avatar">
+            <img
+              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=96&h=96&q=80"
+              alt=""
+              width="44"
+              height="44"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <div class="avatar">
+            <img
+              src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=96&h=96&q=80"
+              alt=""
+              width="44"
+              height="44"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        </div>
+        <div class="login-hero__social-copy">
+          <p class="login-hero__social-stat"><span class="login-hero__social-num">1,000+</span> Students</p>
+          <p class="login-hero__social-tagline">Join our global community</p>
+        </div>
       </div>
     </div>
+  </aside>
 
-    <!-- Error message -->
-    <div *ngIf="errorMessage" class="error-message">
-      {{ errorMessage }}
+  <!-- Right: form -->
+  <section class="login-panel">
+    <div class="login-panel__inner">
+      <div class="login-eyes" aria-hidden="true">
+        <div class="login-eye" #eyeLeft>
+          <div class="login-eye__outer">
+            <div class="login-eye__iris">
+              <div class="login-eye__pupil" [style.transform]="pupilTransform(leftPupil)"></div>
+            </div>
+          </div>
+        </div>
+        <div class="login-eye" #eyeRight>
+          <div class="login-eye__outer">
+            <div class="login-eye__iris">
+              <div class="login-eye__pupil" [style.transform]="pupilTransform(rightPupil)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="login-panel__title">Login to Study</h2>
+      <p class="login-panel__subtitle">Please enter your credentials to access your lessons.</p>
+
+      <form (ngSubmit)="onSubmit()" class="login-form">
+        <div class="form-field">
+          <label class="form-label" for="regNo">Username or email</label>
+          <div class="form-input-row">
+            <i class="fas fa-user form-input-row__icon" aria-hidden="true"></i>
+            <input
+              type="text"
+              id="regNo"
+              class="form-input"
+              placeholder="Your account identifier"
+              required
+              [(ngModel)]="regNo"
+              (focus)="onCredentialFocus()"
+              name="regNo"
+              autocomplete="username"
+            />
+          </div>
+        </div>
+
+        <div class="form-field">
+          <div class="form-label-row">
+            <label class="form-label" for="password">Password</label>
+            <a class="form-link" href="mailto:support@gluckglobal.com?subject=Forgot%20password">Forgot Password?</a>
+          </div>
+          <div class="form-input-row">
+            <i class="fas fa-lock form-input-row__icon" aria-hidden="true"></i>
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              id="password"
+              class="form-input"
+              placeholder="••••••••"
+              required
+              [(ngModel)]="password"
+              (focus)="onCredentialFocus()"
+              name="password"
+              autocomplete="current-password"
+            />
+            <button
+              type="button"
+              class="form-input-row__toggle"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+            >
+              <i [class]="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+            </button>
+          </div>
+        </div>
+
+        <label class="form-remember">
+          <input type="checkbox" [(ngModel)]="keepSessionActive" name="keepSession" />
+          <span class="form-remember__ui"></span>
+          <span>Remember this device</span>
+        </label>
+
+        <div *ngIf="showSessionExpiredNotice" class="banner-session" role="status">
+          <i class="fas fa-history" aria-hidden="true"></i>
+          <div>
+            <strong>Session expired</strong>
+            <p>Please sign in again to continue.</p>
+          </div>
+          <button type="button" class="banner-session__close" (click)="dismissSessionExpiredNotice()" aria-label="Dismiss">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div *ngIf="errorMessage" class="banner-error" role="alert">{{ errorMessage }}</div>
+
+        <button type="submit" class="btn-study" [disabled]="loading">
+          <ng-container *ngIf="!loading">
+            Let's Study! <i class="fas fa-arrow-right"></i>
+          </ng-container>
+          <ng-container *ngIf="loading">
+            <span class="btn-study__spinner"></span> Signing in…
+          </ng-container>
+        </button>
+      </form>
+
+      <p class="login-panel__join">
+        Don't have an account?
+        <a routerLink="/home">Join the community</a>
+      </p>
+
+      <div class="login-panel__legal" role="contentinfo">
+        <a routerLink="/home">Privacy policy</a>
+        <span class="dot">·</span>
+        <a routerLink="/home">Terms of service</a>
+        <span class="dot">·</span>
+        <a href="mailto:support@gluckglobal.com">Help center</a>
+      </div>
+      <p class="login-panel__copy">© {{ currentYear }} Glück Global German Study Buddy</p>
     </div>
-
-    <button type="submit" class="btn btn-primary w-100 py-2">Login</button>
-
-  </form>
+  </section>
 </div>
-

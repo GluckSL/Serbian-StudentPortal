@@ -1,8 +1,15 @@
 // src/app/components/login/login.component.ts
 
-import { Component } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  NgZone,
+  OnInit,
+  ViewChild
+} from '@angular/core';
 import { AuthService } from '../../services/auth.service';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
@@ -10,40 +17,121 @@ import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule],
+  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule, RouterModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   regNo: string = '';
   password: string = '';
-  errorMessage: string = '';   // <-- holds error messages
-  loading: boolean = false;    // <-- for optional spinner
-  showPassword: boolean = false; // <-- for password visibility toggle
+  errorMessage: string = '';
+  loading: boolean = false;
+  showPassword: boolean = false;
+  keepSessionActive = true;
+  readonly currentYear = new Date().getFullYear();
+  showSessionExpiredNotice = false;
 
-  constructor(private authService: AuthService, private router: Router) {}
+  /** Pupil offset in px (translate) for each eye */
+  leftPupil = { x: 0, y: 0 };
+  rightPupil = { x: 0, y: 0 };
+
+  @ViewChild('eyeLeft', { read: ElementRef }) eyeLeft?: ElementRef<HTMLElement>;
+  @ViewChild('eyeRight', { read: ElementRef }) eyeRight?: ElementRef<HTMLElement>;
+
+  private moveRaf = 0;
+  private lastMove: MouseEvent | null = null;
+
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+    private route: ActivatedRoute,
+    private ngZone: NgZone
+  ) {}
+
+  ngOnInit(): void {
+    const session = this.route.snapshot.queryParamMap.get('session');
+    if (session === 'expired') {
+      this.showSessionExpiredNotice = true;
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true
+      });
+    }
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onDocumentMouseMove(event: MouseEvent): void {
+    this.lastMove = event;
+    if (this.moveRaf) {
+      return;
+    }
+    this.moveRaf = requestAnimationFrame(() => {
+      this.moveRaf = 0;
+      const e = this.lastMove;
+      if (!e) {
+        return;
+      }
+      this.ngZone.run(() => {
+        this.updatePupil(this.eyeLeft, e, (o) => (this.leftPupil = o));
+        this.updatePupil(this.eyeRight, e, (o) => (this.rightPupil = o));
+      });
+    });
+  }
+
+  private updatePupil(
+    eyeRef: ElementRef<HTMLElement> | undefined,
+    e: MouseEvent,
+    set: (o: { x: number; y: number }) => void
+  ): void {
+    const el = eyeRef?.nativeElement;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = e.clientX - cx;
+    let dy = e.clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    const maxMove = 9;
+    const sensitivity = 0.12;
+    if (dist < 0.5) {
+      set({ x: 0, y: 0 });
+      return;
+    }
+    const move = Math.min(maxMove, dist * sensitivity);
+    dx = (dx / dist) * move;
+    dy = (dy / dist) * move;
+    set({ x: dx, y: dy });
+  }
+
+  pupilTransform(p: { x: number; y: number }): string {
+    return `translate(${p.x}px, ${p.y}px)`;
+  }
+
+  dismissSessionExpiredNotice(): void {
+    this.showSessionExpiredNotice = false;
+  }
+
+  onCredentialFocus(): void {
+    this.showSessionExpiredNotice = false;
+  }
 
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;
   }
 
-  onSubmit() {
+  onSubmit(): void {
     this.errorMessage = '';
+    this.showSessionExpiredNotice = false;
     this.loading = true;
 
     const user = { regNo: this.regNo, password: this.password };
-    console.log('🔍 Sending to server:', user);
-    console.log('🔍 regNo value:', this.regNo);
-    console.log('🔍 password value:', this.password);
 
     this.authService.login(user).subscribe({
       next: (response) => {
-        console.log('✅ Login successful:', response);
-        
-        // Ensure user profile is refreshed before navigation
         this.authService.refreshUserProfile().subscribe({
           next: (user) => {
-            console.log('✅ User profile refreshed:', user);
             this.loading = false;
 
             const role = user?.role || response.user?.role || response.role;
@@ -59,8 +147,7 @@ export class LoginComponent {
               this.errorMessage = 'Unknown user role.';
             }
           },
-          error: (err) => {
-            console.error('❌ Error refreshing profile:', err);
+          error: () => {
             this.loading = false;
             this.errorMessage = 'Failed to load user profile.';
           }
@@ -68,15 +155,12 @@ export class LoginComponent {
       },
       error: (err) => {
         this.loading = false;
-        console.error('Login failed', err);
 
         if (err.status === 403) {
           this.errorMessage = 'Access denied. Your student account has been withdrawn.';
-        }
-        else if (err.status === 401 || err.status === 400) {
+        } else if (err.status === 401 || err.status === 400) {
           this.errorMessage = 'Invalid username or password!';
-        }
-        else {
+        } else {
           this.errorMessage = 'Server error. Please try again later.';
         }
       }

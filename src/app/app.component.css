@@ -21,6 +21,15 @@ app-header {
   overflow-y: auto;
 }
 
+.main-content.login-route {
+  padding: 0;
+  background: transparent;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
 app-footer {
   margin-top: auto;
 }

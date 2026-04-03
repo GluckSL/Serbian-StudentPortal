@@ -158,6 +158,11 @@ export class AuthService {
     return loggedIn;
   }
 
+  /** Clear local user state when the session is invalid (no HTTP call — avoids loops on 401). */
+  clearClientSession(): void {
+    this.currentUserSubject.next(null);
+  }
+
   /** Synchronous read of the last known user (e.g. before HTTP calls in the same tick). */
   getSnapshotUser(): any | null {
     return this.currentUserSubject.value;

@@ -21,6 +21,8 @@ export class AppComponent implements OnInit {
   isLoggedIn = false;
   sidebarOpen = false;
   authChecked = false;
+  /** Full-bleed login: no public footer, main fills viewport */
+  isLoginRoute = false;
 
   constructor(
     private router: Router,
@@ -29,12 +31,20 @@ export class AppComponent implements OnInit {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: NavigationEnd) => {
-      const isHomeOrLogin = event.urlAfterRedirects === '/home' || event.urlAfterRedirects === '/login';
+      const path = event.urlAfterRedirects.split('?')[0];
+      const isHomeOrLogin = path === '/home' || path === '/login';
       this.showHeader = !isHomeOrLogin;
+      this.isLoginRoute = path === '/login';
     });
   }
 
   ngOnInit() {
+    const initialPath = this.router.url.split('?')[0];
+    this.isLoginRoute = initialPath === '/login';
+    if (initialPath === '/home' || initialPath === '/login') {
+      this.showHeader = false;
+    }
+
     this.authService.currentUser$.subscribe(user => {
       this.isLoggedIn = !!user;
     });
