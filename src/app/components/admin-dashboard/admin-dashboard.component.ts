@@ -4,7 +4,7 @@ import { Component, OnInit, TrackByFunction } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
 import { jwtDecode } from 'jwt-decode';
-import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { HttpClient, HttpClientModule, HttpParams } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { FeedbackService } from '../../services/feedback.service';
@@ -76,6 +76,17 @@ interface FeedbackEntry {
 interface TeacherResponse {
   success: boolean;
   data: any[];
+}
+
+interface StudentListResponse {
+  success: boolean;
+  data: Student[];
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
 }
 
 @Component({
@@ -169,7 +180,7 @@ export class AdminDashboardComponent implements OnInit {
     // ✅ Check user profile from backend (cookie included automatically)
     this.authService.getUserProfile().subscribe({
       next: (user) => {
-        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN') {
+        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN' && user.role !== 'SUB_ADMIN') {
           this.router.navigate(['/dashboard']);
           return;
         }
@@ -184,13 +195,25 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   totalStudentsCount(): number {
-    return this.students.length;
+    return this.totalStudents;
   }
   
-  fetchStudents(): void {
+  fetchStudents(page: number = this.currentPage): void {
     this.loading = true;
+    this.currentPage = page;
 
-    this.http.get<{ success: boolean; data: Student[] }>(`${apiUrl}/admin/students`, { withCredentials: true }).subscribe({
+    let params = new HttpParams()
+      .set('page', String(this.currentPage))
+      .set('limit', String(this.pageSize));
+
+    if (this.filters.level) params = params.set('level', this.filters.level);
+    if (this.filters.plan) params = params.set('plan', this.filters.plan);
+    if (this.filters.batch) params = params.set('batch', String(this.filters.batch));
+    if (this.filters.studentStatus) params = params.set('studentStatus', this.filters.studentStatus);
+    if (this.filters.studentName) params = params.set('studentName', this.filters.studentName);
+    if (this.filters.teacherName) params = params.set('teacherName', this.filters.teacherName);
+
+    this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, { params, withCredentials: true }).subscribe({
       next: res => {
         if (res.success) {
           this.students = res.data;
@@ -200,7 +223,13 @@ export class AdminDashboardComponent implements OnInit {
             //console.log('Student data:', student);
           });
           this.filteredStudents = [...this.students];
-          this.filteredStudentCount = this.students.length;
+          this.totalStudents = res.pagination?.total ?? this.students.length;
+          this.currentPage = res.pagination?.page ?? this.currentPage;
+          this.pageSize = res.pagination?.limit ?? this.pageSize;
+          this.totalPages = res.pagination?.pages ?? 1;
+          this.filteredStudentCount = this.totalStudents;
+          this.selectAll = false;
+          this.selectedStudentIds.clear();
           
           // Extract student names for autocomplete
           this.allStudentNames = this.students
@@ -256,37 +285,54 @@ export class AdminDashboardComponent implements OnInit {
     }
 
   filteredStudentCount: number = 0;
+  currentPage: number = 1;
+  pageSize: number = 20;
+  totalPages: number = 1;
+  totalStudents: number = 0;
 
   applyFilters() {
-    this.filteredStudents = this.students.filter(student => {
-      const course = student.courseAssigned ? student.courseAssigned.toLowerCase() : '';
-      const plan   = student.subscription ? student.subscription.toUpperCase() : '';
-      const status = student.studentStatus ? student.studentStatus.toLowerCase() : '';
-      const assignedTeacherName =
-      typeof student.assignedTeacher === 'object' && student.assignedTeacher !== null
-        ? (student.assignedTeacher.name?.toLowerCase() || '')
-        : (student.assignedTeacher?.toLowerCase() || '');
-      const studentName = student.name ? student.name.toLowerCase() : '';
-
-      return (
-        (!this.filters.level || student.level === this.filters.level) &&
-        (!this.filters.plan   || plan === this.filters.plan.toUpperCase()) &&
-        (!this.filters.batch || student.batch === this.filters.batch.toString()) &&
-        (!this.filters.assignedTeacher || assignedTeacherName === this.filters.assignedTeacher.toLowerCase()) &&
-        (!this.filters.studentStatus || status === this.filters.studentStatus.toLowerCase()) &&
-        (!this.filters.studentName || studentName.includes(this.filters.studentName.toLowerCase())) &&
-        (!this.filters.teacherName || assignedTeacherName.includes(this.filters.teacherName.toLowerCase()))
-      );
-    });
-
-    this.filteredStudentCount = this.filteredStudents.length;
+    this.fetchStudents(1);
   }
 
   clearFilters() {
     this.filters = { level: '', plan: '', batch: '', assignedTeacher: '', studentStatus: '', studentName: '', teacherName: '' };
     this.studentNameControl.setValue('');
     this.teacherNameControl.setValue('');
-    this.applyFilters();
+    this.fetchStudents(1);
+  }
+
+  changePage(page: number): void {
+    if (page < 1 || page > this.totalPages || page === this.currentPage) {
+      return;
+    }
+    this.fetchStudents(page);
+  }
+
+  getPaginationPages(): number[] {
+    const maxWindow = 5;
+    const half = Math.floor(maxWindow / 2);
+    let start = Math.max(1, this.currentPage - half);
+    let end = Math.min(this.totalPages, start + maxWindow - 1);
+
+    if (end - start + 1 < maxWindow) {
+      start = Math.max(1, end - maxWindow + 1);
+    }
+
+    const pages: number[] = [];
+    for (let p = start; p <= end; p++) {
+      pages.push(p);
+    }
+    return pages;
+  }
+
+  get pageStart(): number {
+    if (this.totalStudents === 0) return 0;
+    return (this.currentPage - 1) * this.pageSize + 1;
+  }
+
+  get pageEnd(): number {
+    if (this.totalStudents === 0) return 0;
+    return Math.min(this.currentPage * this.pageSize, this.totalStudents);
   }
   
   private _filterStudentNames(value: string): string[] {

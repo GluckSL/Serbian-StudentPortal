@@ -17,6 +17,51 @@ const transporter = require("../config/emailConfig");
 const { verifyToken, isAdmin } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
+const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
+const ALLOWED_SIDEBAR_PERMISSION_IDS = [
+  "dashboard",
+  "students",
+  "student-logs",
+  "teachers",
+  "user-roles",
+  "modules",
+  "exercises",
+  "journey",
+  "manage-classes",
+  "attendance",
+  "import-meeting",
+  "class-recordings",
+  "ai-bot-report",
+  "documents",
+  "visa-tracking",
+  "student-progress",
+  "payments",
+  "invoices",
+  "timetable",
+  "monday-sync",
+  "profile"
+];
+
+function normalizeSidebarPermissions(sidebarPermissions) {
+  if (!Array.isArray(sidebarPermissions)) {
+    return [...SUB_ADMIN_DEFAULT_PERMISSIONS];
+  }
+
+  const uniqueValid = Array.from(
+    new Set(
+      sidebarPermissions.filter(
+        (permissionId) =>
+          typeof permissionId === "string" &&
+          ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId)
+      )
+    )
+  );
+
+  if (!uniqueValid.includes("dashboard")) uniqueValid.unshift("dashboard");
+  if (!uniqueValid.includes("profile")) uniqueValid.push("profile");
+
+  return uniqueValid;
+}
 
 // Read CRM data from Monday.com â€” Full sync: update existing + create new (all packages, exclude WITHDREW)
 // Track last sync status
@@ -318,7 +363,8 @@ async function generateRegNo(role) {
   const prefixMap = {
     STUDENT: "STUD",
     TEACHER: "T",
-    ADMIN: "AD"
+    ADMIN: "AD",
+    SUB_ADMIN: "SAD"
   };
 
   const prefix = prefixMap[role] || role.substring(0, 2).toUpperCase(); // fallback
@@ -348,7 +394,8 @@ async function generatePassword(role, regNo) {
   const prefixMap = {
     STUDENT: "Student",
     TEACHER: "Teacher",
-    ADMIN: "Admin"
+    ADMIN: "Admin",
+    SUB_ADMIN: "SubAdmin"
   };
 
   const prefix = prefixMap[role.toUpperCase()] || role;
@@ -449,7 +496,9 @@ router.post("/signup", async (req, res) => {
       reasonForWithdrewing,
       courseCompletionDates,
       courseStartDates,
-      qualifications
+      qualifications,
+      sidebarPermissions,
+      sendCredentialsEmail
      } = req.body;
 
     const regNo = await generateRegNo(role);
@@ -524,52 +573,64 @@ router.post("/signup", async (req, res) => {
       user.assignedBatches = assignedBatches;
       user.medium = medium;
       user.assignedCourses = assignedCourses; // Assign courses if provided
+    } else if (user.role === "SUB_ADMIN") {
+      user.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
     }
 
     await user.save();
 
-    // âœ‰ï¸ Send email
-    const passwordPlain = password; // Store plain password temporarily for email
+    const shouldSendCredentialsEmail =
+      user.role === "SUB_ADMIN" ? !!sendCredentialsEmail : true;
 
+    if (shouldSendCredentialsEmail) {
+      // âœ‰ï¸ Send email
+      const passwordPlain = password; // Store plain password temporarily for email
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
+        html: `
+          <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
+            <p>Hello ${user.name},</p>
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
-      html: `
-        <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-          <p>Hello ${user.name},</p>
+            <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
 
-          <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
+            <ul>
+              <li><strong>Web App ID:</strong> ${user.regNo}</li>
+              <li><strong>Password:</strong> ${passwordPlain}</li>
+            </ul>
 
-          <ul>
-            <li><strong>Web App ID:</strong> ${user.regNo}</li>
-            <li><strong>Password:</strong> ${passwordPlain}</li>
-          </ul>
+            <p>Please keep this information safe and do not share it with anyone.</p>
 
-          <p>Please keep this information safe and do not share it with anyone.</p>
+            <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
-          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
+            <p>Best regards,<br>
+            <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+          </div>
+        `
+      };
 
-          <p>Best regards,<br>
-          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
-        </div>
-      `
-    };
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log("âœ… Email sent to", user.email);
 
+        // Update lastCredentialsEmailSent timestamp
+        user.lastCredentialsEmailSent = new Date();
+        await user.save();
+      } catch (err) {
+        console.error("âŒ Email sending failed:", err);
+      }
+    }
 
-    try {
-      await transporter.sendMail(mailOptions);
-      console.log("âœ… Email sent to", user.email);
+    const responsePayload = { msg: "User created successfully", user };
+    if (user.role === "SUB_ADMIN") {
+      responsePayload.generatedCredentials = {
+        regNo: user.regNo,
+        password
+      };
+    }
 
-      // Update lastCredentialsEmailSent timestamp
-      user.lastCredentialsEmailSent = new Date();
-      await user.save();
-    } catch (err) {
-      console.error("âŒ Email sending failed:", err);
-  }
-
-    res.status(201).json({ msg: "User created successfully", user });
+    res.status(201).json(responsePayload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -620,7 +681,8 @@ router.post("/login", async (req, res) => {
         email: user.email,
         role: user.role,
         subscription: user.subscription,
-        profilePhoto: user.profilePhoto || null
+        profilePhoto: user.profilePhoto || null,
+        sidebarPermissions: user.sidebarPermissions || []
       }
     });
   } catch (err) {
@@ -670,8 +732,8 @@ router.get("/profile", verifyToken, async (req, res) => {
 router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const users = await User.find({
-      role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN'] }
-    }).select("name email regNo role").sort({ role: 1, name: 1 });
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN'] }
+    }).select("name email regNo role sidebarPermissions").sort({ role: 1, name: 1 });
 
     res.status(200).json(users);
   } catch (error) {
@@ -823,7 +885,8 @@ router.put("/:id", async (req, res) => {
       courseCompletionDates,
       courseStartDates,
       reasonForWithdrawing,
-      qualifications
+      qualifications,
+      sidebarPermissions
     } = req.body;
 
     // 4ï¸âƒ£ Build update object
@@ -851,6 +914,16 @@ router.put("/:id", async (req, res) => {
       courseStartDates,
       qualifications
     };
+
+    if (typeof sidebarPermissions !== "undefined") {
+      updateData.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
+    }
+
+    if (role === "SUB_ADMIN" && typeof sidebarPermissions === "undefined") {
+      updateData.sidebarPermissions = normalizeSidebarPermissions(existingUser.sidebarPermissions || []);
+    } else if (role && role !== "SUB_ADMIN") {
+      updateData.sidebarPermissions = [];
+    }
 
     // âœ… Auto-set start date for new level if level changed and start date not set
     if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
@@ -1009,7 +1082,7 @@ router.get("/users-by-role/:role", verifyToken, checkRole(['ADMIN']), async (req
     const { role } = req.params;
 
     // Validate role
-    if (!['ADMIN', 'TEACHER', 'STUDENT'].includes(role)) {
+    if (!['ADMIN', 'TEACHER', 'STUDENT', 'SUB_ADMIN'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role specified' });
     }
 

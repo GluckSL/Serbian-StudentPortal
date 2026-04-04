@@ -16,14 +16,64 @@ router.get("/admin-dashboard", verifyToken, checkRole("admin"), (req, res) => {
 // Get all students
 router.get('/students', verifyToken, isAdmin, async (req, res) => {
   try {
-    const students = await User.find({ role: 'STUDENT' })
+    const toPositiveInt = (value, fallback) => {
+      const parsed = parseInt(String(value), 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    };
+
+    const page = toPositiveInt(req.query.page, 1);
+    const limit = Math.min(toPositiveInt(req.query.limit, 20), 100);
+    const skip = (page - 1) * limit;
+
+    const {
+      level,
+      plan,
+      batch,
+      studentStatus,
+      studentName,
+      teacherName
+    } = req.query;
+
+    const query = { role: 'STUDENT' };
+
+    if (level) query.level = String(level).trim();
+    if (plan) query.subscription = String(plan).trim().toUpperCase();
+    if (batch) query.batch = String(batch).trim();
+    if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
+    if (studentName) query.name = { $regex: new RegExp(String(studentName).trim(), 'i') };
+
+    if (teacherName) {
+      const matchingTeachers = await User.find({
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+        name: { $regex: new RegExp(String(teacherName).trim(), 'i') }
+      }).select('_id');
+
+      const teacherIds = matchingTeachers.map((teacher) => teacher._id);
+      query.assignedTeacher = { $in: teacherIds };
+    }
+
+    const total = await User.countDocuments(query);
+    const students = await User.find(query)
       .select('-password') // exclude passwords
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate({
         path: 'assignedTeacher',   // the field in User schema
         select: 'name regNo email medium' // fetch only useful teacher info
       });
 
-    res.json({ success: true, data: students });
+    const pages = Math.max(1, Math.ceil(total / limit));
+    res.json({
+      success: true,
+      data: students,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages
+      }
+    });
   } catch (err) {
     res.status(500).json({
       success: false,

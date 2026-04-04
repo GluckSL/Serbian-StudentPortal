@@ -70,7 +70,7 @@ export class TeachersComponent implements OnInit {
     // ✅ Check user profile from backend (cookie included automatically)
     this.authService.getUserProfile().subscribe({
       next: (user) => {
-        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN') {
+        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN' && user.role !== 'SUB_ADMIN') {
           this.router.navigate(['/dashboard']);
           return;
         }

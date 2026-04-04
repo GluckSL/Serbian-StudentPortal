@@ -5,8 +5,32 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { NavService } from '../../shared/services/nav.service';
 
 const apiUrl = environment.apiUrl;
+
+interface ManagedUser {
+  _id: string;
+  regNo: string;
+  name: string;
+  email: string;
+  role: string;
+  newRole: string;
+  sidebarPermissions: string[];
+  permissionsDirty: boolean;
+}
+
+interface GeneratedCredentials {
+  regNo: string;
+  password: string;
+}
+
+interface CreateSubAdminForm {
+  name: string;
+  email: string;
+  sendCredentialsEmail: boolean;
+  sidebarPermissions: string[];
+}
 
 @Component({
   selector: 'app-user-roles',
@@ -38,6 +62,92 @@ const apiUrl = environment.apiUrl;
 
       <div class="page-content">
         <div class="container-fluid">
+          <div class="data-table-card">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Create Sub-Admin</h5>
+                <div class="permissions-toolbar">
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="selectAllCreatePermissions()">
+                    Select All
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearCreatePermissions()">
+                    Clear (Keep Required)
+                  </button>
+                </div>
+              </div>
+              <div class="card-body create-sub-admin-body">
+                <div class="row g-3 mb-3">
+                  <div class="col-md-4">
+                    <label class="form-label">Full Name</label>
+                    <input
+                      class="form-control form-control-sm"
+                      [(ngModel)]="createSubAdmin.name"
+                      placeholder="Enter sub-admin name"
+                    />
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Email</label>
+                    <input
+                      class="form-control form-control-sm"
+                      [(ngModel)]="createSubAdmin.email"
+                      placeholder="Enter sub-admin email"
+                    />
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="sendCredentialsEmail" [(ngModel)]="createSubAdmin.sendCredentialsEmail" />
+                      <label class="form-check-label" for="sendCredentialsEmail">
+                        Send credentials email automatically
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="permission-matrix">
+                  <div class="permission-group-card" *ngFor="let group of subAdminPermissionGroups">
+                    <div class="group-top">
+                      <h6>{{ group.group }}</h6>
+                      <button type="button" class="btn btn-sm btn-light" (click)="toggleCreatePermissionGroup(group.group)">
+                        {{ isCreatePermissionGroupFullySelected(group.group) ? 'Unselect Group' : 'Select Group' }}
+                      </button>
+                    </div>
+                    <div class="permissions-grid">
+                      <label class="permission-item" *ngFor="let option of group.items">
+                        <input
+                          type="checkbox"
+                          [checked]="createSubAdmin.sidebarPermissions.includes(option.id)"
+                          [disabled]="isPermissionMandatory(option.id)"
+                          (change)="toggleCreatePermission(option.id, $event)"
+                        />
+                        <span>{{ option.label }}</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="required-hint">
+                  Required permissions: <strong>Dashboard</strong> and <strong>Profile</strong> (always enabled)
+                </div>
+
+                <div class="create-actions">
+                  <button class="btn btn-success btn-sm" (click)="createNewSubAdmin()" [disabled]="creatingSubAdmin">
+                    {{ creatingSubAdmin ? 'Creating...' : 'Create Sub-Admin' }}
+                  </button>
+                </div>
+
+                <div class="credentials-box" *ngIf="lastCreatedSubAdminCredentials">
+                  <div class="credentials-title">New Sub-Admin Credentials</div>
+                  <div class="credentials-row"><strong>ID (Reg No):</strong> {{ lastCreatedSubAdminCredentials.regNo }}</div>
+                  <div class="credentials-row"><strong>Password:</strong> {{ lastCreatedSubAdminCredentials.password }}</div>
+                  <div class="credentials-actions">
+                    <button class="btn btn-sm btn-primary" type="button" (click)="copyCreatedCredentials()">
+                      Copy Credentials
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           
           <!-- Users Table -->
           <div class="data-table-card">
@@ -54,6 +164,7 @@ const apiUrl = environment.apiUrl;
                       <th>Email</th>
                       <th>Current Role</th>
                       <th>Change Role</th>
+                      <th>Sidebar Access (Sub-Admin)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -67,7 +178,8 @@ const apiUrl = environment.apiUrl;
                               [ngClass]="{
                                 'bg-primary': user.role === 'TEACHER',
                                 'bg-warning': user.role === 'TEACHER_ADMIN',
-                                'bg-danger': user.role === 'ADMIN'
+                                'bg-danger': user.role === 'ADMIN',
+                                'bg-dark': user.role === 'SUB_ADMIN'
                               }">
                           {{ user.role }}
                         </span>
@@ -80,12 +192,31 @@ const apiUrl = environment.apiUrl;
                           <option value="TEACHER" *ngIf="user.role !== 'TEACHER'">TEACHER</option>
                           <option value="TEACHER_ADMIN" *ngIf="user.role !== 'TEACHER_ADMIN'">TEACHER_ADMIN</option>
                           <option value="ADMIN" *ngIf="user.role !== 'ADMIN'">ADMIN</option>
+                          <option value="SUB_ADMIN" *ngIf="user.role !== 'SUB_ADMIN'">SUB_ADMIN</option>
                         </select>
+                      </td>
+                      <td>
+                        <div *ngIf="isSubAdminRole(user); else noSidebarConfig" class="permissions-wrap">
+                          <div class="permissions-grid">
+                            <label class="permission-item" *ngFor="let option of subAdminPermissionOptions">
+                              <input
+                                type="checkbox"
+                                [checked]="user.sidebarPermissions.includes(option.id)"
+                                [disabled]="isPermissionMandatory(option.id)"
+                                (change)="toggleSubAdminPermission(user, option.id, $event)"
+                              />
+                              <span>{{ option.label }}</span>
+                            </label>
+                          </div>
+                        </div>
+                        <ng-template #noSidebarConfig>
+                          <span class="text-muted small">N/A</span>
+                        </ng-template>
                       </td>
                       <td>
                         <button class="btn btn-sm btn-success" 
                                 (click)="updateUserRole(user)"
-                                [disabled]="!user.newRole || user.newRole === user.role">
+                                [disabled]="!hasPendingChanges(user)">
                           <i class="fas fa-save"></i> Update
                         </button>
                       </td>
@@ -195,6 +326,83 @@ const apiUrl = environment.apiUrl;
       margin: 0;
     }
 
+    .card-body.create-sub-admin-body {
+      padding: 12px 14px;
+    }
+
+    .permissions-toolbar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .permission-matrix {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .permission-group-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #f8fafc;
+    }
+
+    .group-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .group-top h6 {
+      margin: 0;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .required-hint {
+      font-size: 11px;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+
+    .create-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .credentials-box {
+      border: 1px dashed #93c5fd;
+      border-radius: 10px;
+      padding: 10px;
+      background: #eff6ff;
+    }
+
+    .credentials-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin-bottom: 6px;
+    }
+
+    .credentials-row {
+      font-size: 12px;
+      color: #1e293b;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+
+    .credentials-actions {
+      margin-top: 8px;
+    }
+
     .table { margin-bottom: 0; }
 
     .table thead th {
@@ -229,7 +437,23 @@ const apiUrl = environment.apiUrl;
     .badge.bg-primary   { background: #dbeafe !important; color: #005b96 !important; }
     .badge.bg-warning   { background: #fef3c7 !important; color: #92400e !important; }
     .badge.bg-danger    { background: #ffe0e6 !important; color: #e11d48 !important; }
+    .badge.bg-dark      { background: #e2e8f0 !important; color: #0f172a !important; }
     .badge.bg-secondary { background: #f1f5f9 !important; color: #64748b !important; }
+
+    .permissions-wrap { min-width: 260px; max-width: 340px; }
+    .permissions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 10px;
+    }
+    .permission-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #334155;
+    }
+    .permission-item input { margin: 0; }
 
     /* ── Form Select ── */
     .form-select-sm {
@@ -274,20 +498,149 @@ const apiUrl = environment.apiUrl;
   `]
 })
 export class UserRolesComponent implements OnInit {
-  allTeachersAndAdmins: any[] = [];
+  private readonly requiredSubAdminPermissions = ['dashboard', 'profile'];
+  allTeachersAndAdmins: ManagedUser[] = [];
+  subAdminPermissionGroups: { group: string; items: { id: string; label: string }[] }[] = [];
+  subAdminPermissionOptions: { id: string; label: string }[] = [];
+  createSubAdmin: CreateSubAdminForm = {
+    name: '',
+    email: '',
+    sendCredentialsEmail: false,
+    sidebarPermissions: [...this.requiredSubAdminPermissions]
+  };
+  creatingSubAdmin = false;
+  lastCreatedSubAdminCredentials: GeneratedCredentials | null = null;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private navService: NavService) {
+    this.subAdminPermissionGroups = this.navService.getAdminNavGroups().map((group) => ({
+      group: group.group,
+      items: group.items.map((item) => ({ id: item.id, label: item.label }))
+    }));
+
+    this.subAdminPermissionOptions = this.subAdminPermissionGroups
+      .flatMap((group) => group.items)
+      .filter((item, index, self) => self.findIndex((other) => other.id === item.id) === index);
+  }
 
   ngOnInit(): void {
     this.fetchTeachersAndAdmins();
   }
 
+  isPermissionMandatory(permissionId: string): boolean {
+    return this.requiredSubAdminPermissions.includes(permissionId);
+  }
+
+  toggleCreatePermission(permissionId: string, event: Event): void {
+    if (this.isPermissionMandatory(permissionId)) {
+      return;
+    }
+    const input = event.target as HTMLInputElement;
+    const current = new Set(this.createSubAdmin.sidebarPermissions);
+    if (input.checked) {
+      current.add(permissionId);
+    } else {
+      current.delete(permissionId);
+    }
+    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions(Array.from(current));
+  }
+
+  isCreatePermissionGroupFullySelected(groupName: string): boolean {
+    const group = this.subAdminPermissionGroups.find((g) => g.group === groupName);
+    if (!group) return false;
+    return group.items.every((item) => this.createSubAdmin.sidebarPermissions.includes(item.id));
+  }
+
+  toggleCreatePermissionGroup(groupName: string): void {
+    const group = this.subAdminPermissionGroups.find((g) => g.group === groupName);
+    if (!group) return;
+
+    const current = new Set(this.createSubAdmin.sidebarPermissions);
+    const isFullySelected = group.items.every((item) => current.has(item.id));
+
+    if (isFullySelected) {
+      group.items.forEach((item) => {
+        if (!this.isPermissionMandatory(item.id)) current.delete(item.id);
+      });
+    } else {
+      group.items.forEach((item) => current.add(item.id));
+    }
+
+    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions(Array.from(current));
+  }
+
+  selectAllCreatePermissions(): void {
+    const allIds = this.subAdminPermissionOptions.map((option) => option.id);
+    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions(allIds);
+  }
+
+  clearCreatePermissions(): void {
+    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions([]);
+  }
+
+  createNewSubAdmin(): void {
+    const name = this.createSubAdmin.name.trim();
+    const email = this.createSubAdmin.email.trim().toLowerCase();
+
+    if (!name || !email) {
+      alert('Name and email are required to create a sub-admin.');
+      return;
+    }
+
+    this.creatingSubAdmin = true;
+    this.lastCreatedSubAdminCredentials = null;
+
+    const payload = {
+      name,
+      email,
+      role: 'SUB_ADMIN',
+      sidebarPermissions: this.navService.normalizeSidebarPermissions(this.createSubAdmin.sidebarPermissions),
+      sendCredentialsEmail: this.createSubAdmin.sendCredentialsEmail
+    };
+
+    this.http.post<any>(`${apiUrl}/auth/signup`, payload, { withCredentials: true }).subscribe({
+      next: (response) => {
+        this.creatingSubAdmin = false;
+        const generated = response?.generatedCredentials;
+        if (generated?.regNo && generated?.password) {
+          this.lastCreatedSubAdminCredentials = {
+            regNo: generated.regNo,
+            password: generated.password
+          };
+        }
+        this.createSubAdmin = {
+          name: '',
+          email: '',
+          sendCredentialsEmail: false,
+          sidebarPermissions: [...this.requiredSubAdminPermissions]
+        };
+        this.fetchTeachersAndAdmins();
+        alert('Sub-admin created successfully. Share the generated ID and password with the user.');
+      },
+      error: (err) => {
+        this.creatingSubAdmin = false;
+        console.error('Failed to create sub-admin:', err);
+        alert(err?.error?.msg || err?.error?.message || 'Failed to create sub-admin');
+      }
+    });
+  }
+
+  copyCreatedCredentials(): void {
+    if (!this.lastCreatedSubAdminCredentials) return;
+    const text = `Sub-Admin Login Credentials\nID: ${this.lastCreatedSubAdminCredentials.regNo}\nPassword: ${this.lastCreatedSubAdminCredentials.password}`;
+    navigator.clipboard.writeText(text).then(
+      () => alert('Credentials copied. You can now send them to the sub-admin.'),
+      () => alert('Unable to copy automatically. Please copy the credentials manually.')
+    );
+  }
+
   fetchTeachersAndAdmins(): void {
     this.http.get<any>(`${apiUrl}/auth/teachers-and-admins`, { withCredentials: true }).subscribe({
       next: (response) => {
-        this.allTeachersAndAdmins = response.map((user: any) => ({
+        this.allTeachersAndAdmins = response.map((user: any): ManagedUser => ({
           ...user,
-          newRole: user.role
+          newRole: user.role,
+          sidebarPermissions: this.normalizePermissionsForRole(user.role, user.sidebarPermissions || []),
+          permissionsDirty: false
         }));
       },
       error: (err) => {
@@ -297,30 +650,78 @@ export class UserRolesComponent implements OnInit {
     });
   }
 
-  onRoleChange(user: any): void {
-    console.log(`Role change requested for ${user.name}: ${user.role} -> ${user.newRole}`);
+  onRoleChange(user: ManagedUser): void {
+    if (user.newRole === 'SUB_ADMIN') {
+      user.sidebarPermissions = this.navService.normalizeSidebarPermissions(user.sidebarPermissions || []);
+    } else {
+      user.sidebarPermissions = [];
+    }
+    user.permissionsDirty = true;
   }
 
-  updateUserRole(user: any): void {
-    if (!user.newRole || user.newRole === user.role) {
+  isSubAdminRole(user: ManagedUser): boolean {
+    return user.newRole === 'SUB_ADMIN' || user.role === 'SUB_ADMIN';
+  }
+
+  toggleSubAdminPermission(user: ManagedUser, permissionId: string, event: Event): void {
+    if (this.isPermissionMandatory(permissionId)) {
+      return;
+    }
+    const input = event.target as HTMLInputElement;
+    const current = new Set(user.sidebarPermissions || []);
+    if (input.checked) {
+      current.add(permissionId);
+    } else {
+      current.delete(permissionId);
+    }
+
+    user.sidebarPermissions = this.navService.normalizeSidebarPermissions(Array.from(current));
+    user.permissionsDirty = true;
+  }
+
+  hasPendingChanges(user: ManagedUser): boolean {
+    return user.newRole !== user.role || user.permissionsDirty;
+  }
+
+  private normalizePermissionsForRole(role: string, sidebarPermissions: string[]): string[] {
+    return role === 'SUB_ADMIN' ? this.navService.normalizeSidebarPermissions(sidebarPermissions) : [];
+  }
+
+  updateUserRole(user: ManagedUser): void {
+    if (!this.hasPendingChanges(user)) {
       return;
     }
 
-    if (!confirm(`Are you sure you want to change ${user.name}'s role from ${user.role} to ${user.newRole}?`)) {
+    const actionText = user.newRole === user.role
+      ? `update sidebar access for ${user.name}`
+      : `change ${user.name}'s role from ${user.role} to ${user.newRole}`;
+
+    if (!confirm(`Are you sure you want to ${actionText}?`)) {
       user.newRole = user.role;
+      user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
+      user.permissionsDirty = false;
       return;
     }
 
-    this.http.put(`${apiUrl}/auth/${user._id}`, { role: user.newRole }, { withCredentials: true }).subscribe({
-      next: (response) => {
-        alert(`Successfully updated ${user.name}'s role to ${user.newRole}`);
+    const payload: any = { role: user.newRole };
+    payload.sidebarPermissions = user.newRole === 'SUB_ADMIN'
+      ? this.navService.normalizeSidebarPermissions(user.sidebarPermissions || [])
+      : [];
+
+    this.http.put(`${apiUrl}/auth/${user._id}`, payload, { withCredentials: true }).subscribe({
+      next: () => {
+        alert(`Successfully updated access for ${user.name}`);
         user.role = user.newRole;
+        user.sidebarPermissions = this.normalizePermissionsForRole(user.role, payload.sidebarPermissions || []);
+        user.permissionsDirty = false;
         this.fetchTeachersAndAdmins();
       },
       error: (err) => {
-        console.error('Failed to update role:', err);
-        alert('Failed to update role. Please try again.');
+        console.error('Failed to update role/access:', err);
+        alert('Failed to update role/access. Please try again.');
         user.newRole = user.role;
+        user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
+        user.permissionsDirty = false;
       }
     });
   }

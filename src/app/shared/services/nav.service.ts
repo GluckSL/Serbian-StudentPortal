@@ -15,6 +15,7 @@ export interface NavGroup {
 
 @Injectable({ providedIn: 'root' })
 export class NavService {
+  private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['dashboard', 'profile'];
 
   // ── ADMIN ──────────────────────────────────────────────────────────────
   private readonly ADMIN_NAV: NavGroup[] = [
@@ -192,11 +193,13 @@ export class NavService {
     }
   ];
 
-  getNavForRole(role: string): NavGroup[] {
+  getNavForRole(role: string, sidebarPermissions: string[] = []): NavGroup[] {
     switch (role) {
       case 'ADMIN':
       case 'TEACHER_ADMIN':
         return this.ADMIN_NAV;
+      case 'SUB_ADMIN':
+        return this.getSubAdminNav(sidebarPermissions);
       case 'TEACHER':
         return this.TEACHER_NAV;
       case 'STUDENT':
@@ -210,9 +213,71 @@ export class NavService {
     const map: Record<string, string> = {
       ADMIN: '/admin-dashboard',
       TEACHER_ADMIN: '/admin-dashboard',
+      SUB_ADMIN: '/admin-dashboard',
       TEACHER: '/teacher-dashboard',
       STUDENT: '/student-progress'
     };
     return map[role] || '/home';
+  }
+
+  getAllAdminNavItems(): NavItem[] {
+    return this.ADMIN_NAV.flatMap(group => group.items);
+  }
+
+  getAdminNavGroups(): NavGroup[] {
+    return this.ADMIN_NAV.map(group => ({
+      group: group.group,
+      items: group.items.map(item => ({ ...item }))
+    }));
+  }
+
+  normalizeSidebarPermissions(sidebarPermissions: string[] = []): string[] {
+    const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
+    const normalized = Array.from(
+      new Set(
+        (sidebarPermissions || []).filter(permissionId => validIds.has(permissionId))
+      )
+    );
+
+    for (const defaultPermission of this.SUB_ADMIN_DEFAULT_PERMISSIONS) {
+      if (!normalized.includes(defaultPermission)) {
+        normalized.push(defaultPermission);
+      }
+    }
+
+    return normalized;
+  }
+
+  canSubAdminAccessRoute(route: string, sidebarPermissions: string[] = []): boolean {
+    const normalizedPermissions = this.normalizeSidebarPermissions(sidebarPermissions);
+    const allowedItems = this.getAllAdminNavItems().filter(item =>
+      normalizedPermissions.includes(item.id)
+    );
+
+    const normalizedRoute = this.normalizeRoute(route);
+    return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
+  }
+
+  private getSubAdminNav(sidebarPermissions: string[]): NavGroup[] {
+    const allowedPermissionIds = new Set(this.normalizeSidebarPermissions(sidebarPermissions));
+    return this.ADMIN_NAV
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => allowedPermissionIds.has(item.id))
+      }))
+      .filter(group => group.items.length > 0);
+  }
+
+  private routeMatches(allowedRoute: string, currentRoute: string): boolean {
+    const normalizedAllowed = this.normalizeRoute(allowedRoute);
+    return (
+      currentRoute === normalizedAllowed ||
+      currentRoute.startsWith(`${normalizedAllowed}/`)
+    );
+  }
+
+  private normalizeRoute(route: string): string {
+    const withoutQuery = (route || '').split('?')[0].split('#')[0];
+    return withoutQuery.replace(/\/+$/, '') || '/';
   }
 }

@@ -103,7 +103,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
 
         if (this.userRole === 'STUDENT' && profile.studentStatus === 'ONGOING') {
           this.loadTimeTablesforStudent(profile.batch!, profile.subscription!);
-        } else if (this.userRole === 'ADMIN') {
+        } else if (this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN') {
           this.loadTimeTables();
         } else if (this.userRole === 'TEACHER') {
           if (profile._id) {
@@ -135,7 +135,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
           this.meetingsLoaded = true;
         }
       });
-    } else if (this.userRole === 'TEACHER' || this.userRole === 'ADMIN') {
+    } else if (this.userRole === 'TEACHER' || this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN') {
       this.zoomService.getAllMeetings().subscribe({
         next: (response) => {
           this.zoomMeetings = response.meetings || [];

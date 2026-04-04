@@ -746,7 +746,7 @@ export class DigitalExerciseManagementComponent implements OnInit {
   ngOnInit(): void {
     this.authService.currentUser$.subscribe(user => {
       if (user) {
-        this.isAdminUser = user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN';
+        this.isAdminUser = user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN' || user.role === 'SUB_ADMIN';
       }
     });
     this.loadExercises();

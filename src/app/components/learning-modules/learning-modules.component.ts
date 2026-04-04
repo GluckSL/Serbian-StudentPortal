@@ -390,7 +390,7 @@ Languages:
   }
 
   isTeacherOrAdmin(): boolean {
-    return this.currentUser?.role === 'TEACHER' || this.currentUser?.role === 'ADMIN';
+    return this.currentUser?.role === 'TEACHER' || this.currentUser?.role === 'ADMIN' || this.currentUser?.role === 'SUB_ADMIN';
   }
 
   createNewModule(): void {
@@ -542,7 +542,7 @@ Languages:
     if (!this.currentUser) return false;
     
     // Admins can delete any module
-    if (this.currentUser.role === 'ADMIN') return true;
+    if (this.currentUser.role === 'ADMIN' || this.currentUser.role === 'SUB_ADMIN') return true;
     
     // Teachers can delete modules they created
     if (this.currentUser.role === 'TEACHER') {

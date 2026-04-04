@@ -318,6 +318,28 @@
               </tbody>
             </table>
           </div>
+
+          <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" *ngIf="totalPages > 1">
+            <small class="text-muted">
+              Showing {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }}
+            </small>
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-secondary" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">
+                Prev
+              </button>
+              <button
+                class="btn"
+                *ngFor="let page of getPaginationPages()"
+                [ngClass]="page === currentPage ? 'btn-primary' : 'btn-outline-secondary'"
+                (click)="changePage(page)"
+              >
+                {{ page }}
+              </button>
+              <button class="btn btn-outline-secondary" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

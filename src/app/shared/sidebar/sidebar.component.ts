@@ -20,6 +20,7 @@ export class SidebarComponent implements OnInit {
   userRole: string = '';
   userName: string = '';
   userEmail: string = '';
+  sidebarPermissions: string[] = [];
 
   constructor(
     private authService: AuthService,
@@ -34,7 +35,8 @@ export class SidebarComponent implements OnInit {
         this.userRole = user.role || '';
         this.userName = user.name || '';
         this.userEmail = user.email || '';
-        this.navGroups = this.navService.getNavForRole(this.userRole);
+        this.sidebarPermissions = user.sidebarPermissions || [];
+        this.navGroups = this.navService.getNavForRole(this.userRole, this.sidebarPermissions);
       }
     });
   }
@@ -80,6 +82,7 @@ export class SidebarComponent implements OnInit {
     const map: Record<string, string> = {
       ADMIN: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)',
       TEACHER_ADMIN: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)',
+      SUB_ADMIN: 'linear-gradient(135deg,#334155,#475569)',
       TEACHER: 'linear-gradient(135deg,#065f46,#059669)',
       STUDENT: 'linear-gradient(135deg,#7c2d12,#b45309)'
     };
@@ -89,6 +92,7 @@ export class SidebarComponent implements OnInit {
   get badgeColor(): string {
     const map: Record<string, string> = {
       ADMIN: '#7c3aed', TEACHER_ADMIN: '#7c3aed',
+      SUB_ADMIN: '#334155',
       TEACHER: '#0891b2', STUDENT: '#d97706'
     };
     return map[this.userRole] || '#7c3aed';

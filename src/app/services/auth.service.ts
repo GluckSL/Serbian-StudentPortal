@@ -17,7 +17,8 @@ interface User {
   _id?: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT';
+  role: 'ADMIN' | 'TEACHER' | 'TEACHER_ADMIN' | 'SUB_ADMIN' | 'STUDENT';
+  sidebarPermissions?: string[];
   batch?: string;
   medium?: string;
   subscription?: string;

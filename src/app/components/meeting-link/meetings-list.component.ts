@@ -172,7 +172,7 @@ export class MeetingsListComponent implements OnInit {
   }
 
   isAdmin(): boolean {
-    return this.userRole === 'ADMIN';
+    return this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN';
   }
 
   getTeacherName(meeting: any): string {
