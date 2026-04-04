@@ -115,6 +115,7 @@
           </span>
         </div>
         <div class="review-q-body">
+          <div class="review-q-text" *ngIf="pq.data.context">{{ pq.data.context }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'mcq'">{{ pq.data.question }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
@@ -356,6 +357,7 @@
                     <span class="material-icons vp-stage-kicker-mic">mic</span>
                   </div>
                   <div class="vp-stage-overlay-text vp-stage-overlay-text--in-frame">
+                    <p class="vp-stage-sub" *ngIf="currentQuestion.data.context">{{ currentQuestion.data.context }}</p>
                     <h2 class="vp-stage-phrase">{{ currentQuestion.data.caption }}</h2>
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.acceptedVariants?.length">
                       Also accepted: {{ currentQuestion.data.acceptedVariants.join(', ') }}
@@ -561,6 +563,9 @@
 
       <!-- MIDDLE: Question + Answer area -->
       <div class="question-area">
+      <div class="q-context-box" *ngIf="currentQuestion.data.context">
+        <div class="q-context-text">{{ currentQuestion.data.context }}</div>
+      </div>
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
         <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
@@ -581,7 +586,10 @@
 
         <!-- ── MCQ ── -->
         <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
-          <p class="q-text">{{ currentQuestion.data.question }}</p>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <p class="q-text">{{ currentQuestion.data.question }}</p>
+          </div>
           <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
             <img [src]="currentQuestion.data.imageUrl" alt="Question image" class="q-image" />
           </div>
@@ -614,7 +622,10 @@
 
         <!-- ── MATCHING ── -->
         <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
-          <p class="q-text">{{ currentQuestion.data.instruction }}</p>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <p class="q-text">{{ currentQuestion.data.instruction }}</p>
+          </div>
           <div class="matching-container">
             <div class="matching-col left-col">
               <div class="matching-col-label">Match these...</div>
@@ -678,29 +689,32 @@
 
         <!-- ── FILL IN THE BLANKS ── -->
         <div class="q-body fill-blank-body" *ngIf="currentQuestion.data.type === 'fill-blank'">
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <div class="sentence-container">
+              <ng-container *ngFor="let part of getSentenceParts(currentQuestion.data.sentence); let pi = index">
+                <span class="sentence-part">{{ part }}</span>
+                <span class="blank-wrap" *ngIf="pi < getSentenceParts(currentQuestion.data.sentence).length - 1">
+                  <input
+                    type="text"
+                    class="blank-input"
+                    [(ngModel)]="currentQuestion.fillAnswers![pi]"
+                    (ngModelChange)="markAttempted(currentQuestion)"
+                    [placeholder]="'blank ' + (pi + 1)"
+                    [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
+                    [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
+                    [disabled]="hasCurrentSubmitted"
+                  />
+                  <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)">
+                    → {{ getCorrectFillAnswer(currentQuestion, pi) }}
+                  </span>
+                </span>
+              </ng-container>
+            </div>
+          </div>
           <div class="hint-label" *ngIf="currentQuestion.data.hint">
             <span class="material-icons">lightbulb</span>
             Hint: {{ currentQuestion.data.hint }}
-          </div>
-          <div class="sentence-container">
-            <ng-container *ngFor="let part of getSentenceParts(currentQuestion.data.sentence); let pi = index">
-              <span class="sentence-part">{{ part }}</span>
-              <span class="blank-wrap" *ngIf="pi < getSentenceParts(currentQuestion.data.sentence).length - 1">
-                <input
-                  type="text"
-                  class="blank-input"
-                  [(ngModel)]="currentQuestion.fillAnswers![pi]"
-                  (ngModelChange)="markAttempted(currentQuestion)"
-                  [placeholder]="'blank ' + (pi + 1)"
-                  [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
-                  [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
-                  [disabled]="hasCurrentSubmitted"
-                />
-                <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)">
-                  → {{ getCorrectFillAnswer(currentQuestion, pi) }}
-                </span>
-              </span>
-            </ng-container>
           </div>
           <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
@@ -754,7 +768,10 @@
 
         <!-- Listening body -->
         <div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and answer the question.' }}</div>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and answer the question.' }}</div>
+          </div>
           <div class="listening-audio-wrap" *ngIf="currentQuestion.data.mediaUrl">
             <audio [src]="getMediaFullUrl(currentQuestion.data.mediaUrl)" controls></audio>
           </div>
@@ -791,6 +808,9 @@
 
               <div class="vp-mobile-top">
                 <span class="vp-mobile-kicker">Say this phrase</span>
+                <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.context">
+                  {{ currentQuestion.data.context }}
+                </div>
                 <div class="vp-caption vp-caption--mobile">{{ currentQuestion.data.caption }}</div>
                 <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.acceptedVariants?.length > 0">
                   Also ok: {{ currentQuestion.data.acceptedVariants.join(', ') }}
@@ -872,15 +892,18 @@
 
         <!-- Question / Answer body -->
         <div class="q-body qa-body" *ngIf="currentQuestion.data.type === 'question-answer'">
-          <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else normalPrompt">
-            <div class="tf-story-paragraph" *ngIf="currentQuestion.data.storyParagraph">
-              {{ currentQuestion.data.storyParagraph }}
-            </div>
-            <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
-          </ng-container>
-          <ng-template #normalPrompt>
-            <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
-          </ng-template>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else normalPrompt">
+              <div class="tf-story-paragraph" *ngIf="currentQuestion.data.storyParagraph">
+                {{ currentQuestion.data.storyParagraph }}
+              </div>
+              <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+            </ng-container>
+            <ng-template #normalPrompt>
+              <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+            </ng-template>
+          </div>
 
           <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
             <div class="tf-answers" role="group" aria-label="Richtig oder Falsch">

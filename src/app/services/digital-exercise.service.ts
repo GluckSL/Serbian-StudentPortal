@@ -7,7 +7,12 @@ import { environment } from '../../environments/environment';
 
 export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
 
-export interface MCQQuestion {
+export interface QuestionCommonFields {
+  /** Optional context shown above a question in the player. */
+  context?: string;
+}
+
+export interface MCQQuestion extends QuestionCommonFields {
   type: 'mcq';
   _id?: string;
   question: string;
@@ -18,7 +23,7 @@ export interface MCQQuestion {
   points: number;
 }
 
-export interface MatchingQuestion {
+export interface MatchingQuestion extends QuestionCommonFields {
   type: 'matching';
   _id?: string;
   instruction: string;
@@ -27,7 +32,7 @@ export interface MatchingQuestion {
   points: number;
 }
 
-export interface FillBlankQuestion {
+export interface FillBlankQuestion extends QuestionCommonFields {
   type: 'fill-blank';
   _id?: string;
   sentence: string;
@@ -37,7 +42,7 @@ export interface FillBlankQuestion {
   points: number;
 }
 
-export interface PronunciationQuestion {
+export interface PronunciationQuestion extends QuestionCommonFields {
   type: 'pronunciation';
   _id?: string;
   word: string;
@@ -48,7 +53,7 @@ export interface PronunciationQuestion {
   points: number;
 }
 
-export interface QuestionAnswerQuestion {
+export interface QuestionAnswerQuestion extends QuestionCommonFields {
   type: 'question-answer';
   _id?: string;
   prompt: string;
@@ -58,7 +63,7 @@ export interface QuestionAnswerQuestion {
   points: number;
 }
 
-export interface ListeningQuestion {
+export interface ListeningQuestion extends QuestionCommonFields {
   type: 'listening';
   _id?: string;
   prompt?: string;
@@ -68,7 +73,7 @@ export interface ListeningQuestion {
   points: number;
 }
 
-export interface VideoPronunciationQuestion {
+export interface VideoPronunciationQuestion extends QuestionCommonFields {
   type: 'video-pronunciation';
   _id?: string;
   videoUrl: string;

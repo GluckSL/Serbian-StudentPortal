@@ -81,6 +81,8 @@ const DigitalExerciseSchema = new mongoose.Schema({
   // Array of mixed question types using discriminator-like approach
   questions: [{
     type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation'], required: true },
+    // Common optional context shown above the question to students.
+    context: { type: String, default: '' },
     // MCQ fields
     question: String,
     imageUrl: String,

@@ -294,6 +294,16 @@
             <input type="number" [(ngModel)]="q.points" min="1" max="10" class="points-input" />
           </div>
 
+          <div class="field-group full">
+            <label class="field-label">Context <span class="label-optional">(optional)</span></label>
+            <textarea
+              [(ngModel)]="q.context"
+              class="field-input"
+              rows="3"
+              placeholder="Add optional context shown to students above this question..."
+            ></textarea>
+          </div>
+
           <!-- MCQ Editor -->
           <ng-container *ngIf="q.type === 'mcq'">
             <div class="field-group full">
@@ -782,6 +792,16 @@
             </div>
 
             <div class="field-group">
+              <label class="field-label">Context <span class="label-optional">opt.</span></label>
+              <textarea
+                [(ngModel)]="vq.context"
+                class="field-input field-input--sm"
+                rows="2"
+                placeholder="Optional context shown above this clip for students"
+              ></textarea>
+            </div>
+
+            <div class="field-group">
               <label class="field-label">Accepted Variants <span class="label-optional">opt.</span></label>
               <div class="variants-list">
                 <div class="variant-row" *ngFor="let v of vq.acceptedVariants; let ai = index">
@@ -852,6 +872,7 @@
 
           <!-- MCQ Preview -->
           <div *ngIf="q.type === 'mcq'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.question }}</p>
             <img *ngIf="q.imageUrl" [src]="q.imageUrl" class="pq-image" />
             <div class="pq-options">
@@ -865,6 +886,7 @@
 
           <!-- Matching Preview -->
           <div *ngIf="q.type === 'matching'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.instruction }}</p>
             <div class="pq-pairs">
               <div *ngFor="let pair of q.pairs; let pi = index" class="pq-pair">
@@ -877,6 +899,7 @@
 
           <!-- Fill-blank Preview -->
           <div *ngIf="q.type === 'fill-blank'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text pq-sentence">{{ q.sentence }}</p>
             <div *ngIf="q.hint" class="pq-hint">💡 Hint: {{ q.hint }}</div>
             <div class="pq-answers">
@@ -888,6 +911,7 @@
 
           <!-- Pronunciation Preview -->
           <div *ngIf="q.type === 'pronunciation'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <div class="pq-word">{{ q.word }}</div>
             <div *ngIf="q.phonetic" class="pq-phonetic">{{ q.phonetic }}</div>
             <div *ngIf="q.translation" class="pq-translation">= {{ q.translation }}</div>
@@ -895,6 +919,7 @@
 
           <!-- Listening Preview -->
           <div *ngIf="q.type === 'listening'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
             <div *ngIf="q.mediaUrl" class="pq-audio">
               <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
@@ -904,6 +929,7 @@
 
           <!-- Question / Answer Preview -->
           <div *ngIf="q.type === 'question-answer'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
             <div class="pq-qa-answer-box">Student types their answer here...</div>
             <div *ngIf="q.sampleAnswers && q.sampleAnswers[0]" class="pq-answers">
@@ -915,6 +941,7 @@
 
           <!-- Video Pronunciation Preview -->
           <div *ngIf="q.type === 'video-pronunciation'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <div *ngIf="q.videoUrl" class="pq-video-wrap">
               <video [src]="getMediaFullUrl(q.videoUrl)" controls class="pq-video"></video>
             </div>

@@ -28,6 +28,14 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'visibleToStudents'
 ];
 
+function normalizeQuestionContexts(rawQuestions) {
+  if (!Array.isArray(rawQuestions)) return rawQuestions;
+  return rawQuestions.map((q) => ({
+    ...q,
+    context: String(q?.context || '').trim()
+  }));
+}
+
 // ─── AI answer grader ─────────────────────────────────────────────────────────
 // Returns { score: 0-100 } representing how correct the student's answer is.
 async function aiGradeAnswer(question, sampleAnswers, studentAnswer) {
@@ -497,8 +505,13 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
 // POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
+    const normalizedBody = { ...req.body };
+    if (Object.prototype.hasOwnProperty.call(normalizedBody, 'questions')) {
+      normalizedBody.questions = normalizeQuestionContexts(normalizedBody.questions);
+    }
+
     const exerciseData = {
-      ...req.body,
+      ...normalizedBody,
       createdBy: req.user.id
     };
     const exercise = new DigitalExercise(exerciseData);
@@ -561,7 +574,9 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
 
     for (const key of DIGITAL_EXERCISE_ASSIGNABLE_KEYS) {
       if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-        exercise[key] = req.body[key];
+        exercise[key] = key === 'questions'
+          ? normalizeQuestionContexts(req.body[key])
+          : req.body[key];
       }
     }
     exercise.lastUpdatedBy = req.user.id;

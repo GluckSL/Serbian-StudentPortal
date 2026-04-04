@@ -12,6 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 interface BuilderQuestion {
   type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
   worksheetKind?: string | null;
+  context?: string;
   // MCQ
   question?: string;
   imageUrl?: string;
@@ -178,7 +179,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   private mapQuestionFromApi(q: any): BuilderQuestion {
-    const base: BuilderQuestion = { type: q.type, points: q.points || 1 };
+    const base: BuilderQuestion = { type: q.type, points: q.points || 1, context: q.context || '' };
     if (q.type === 'mcq') {
       Object.assign(base, {
         question: q.question || '',
@@ -263,6 +264,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     const q: BuilderQuestion = {
       type: qType as any,
       points: 1,
+      context: '',
       worksheetKind: isWorksheetKind ? type : null
     };
 
@@ -446,6 +448,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   addVideoQuestion(): void {
     const q: BuilderQuestion = {
       type: 'video-pronunciation',
+      context: '',
       videoUrl: '',
       caption: '',
       acceptedVariants: [],
@@ -652,6 +655,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
 
     this.saving = true;
+    const normalizedQuestions = this.questions.map((q) => ({
+      ...q,
+      context: String(q.context || '').trim()
+    }));
+
     const payload: Partial<DigitalExercise> = {
       title: this.title.trim(),
       description: this.description.trim(),
@@ -664,7 +672,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
       courseDay,
       visibleToStudents: this.visibleToStudents,
-      questions: this.questions as any,
+      questions: normalizedQuestions as any,
       videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
       videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows)
     };
