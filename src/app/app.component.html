@@ -4,10 +4,10 @@
   <!-- Public pages (home/login): no sidebar, show header -->
   <ng-container *ngIf="!showSidebar">
     <app-header *ngIf="showHeader"></app-header>
-    <main class="main-content" [class.login-route]="isLoginRoute">
+    <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
       <router-outlet></router-outlet>
     </main>
-    <app-footer *ngIf="!isLoginRoute"></app-footer>
+    <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
   </ng-container>
 
   <!-- Logged-in pages: sidebar + content -->

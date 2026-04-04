@@ -23,6 +23,8 @@ export class AppComponent implements OnInit {
   authChecked = false;
   /** Full-bleed login: no public footer, main fills viewport */
   isLoginRoute = false;
+  /** Marketing home includes its own footer — hide global app-footer */
+  isHomeRoute = false;
 
   constructor(
     private router: Router,
@@ -32,16 +34,18 @@ export class AppComponent implements OnInit {
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: NavigationEnd) => {
       const path = event.urlAfterRedirects.split('?')[0];
-      const isHomeOrLogin = path === '/home' || path === '/login';
+      const isHomeOrLogin = path === '/home' || path === '/login' || path === '/' || path === '';
       this.showHeader = !isHomeOrLogin;
       this.isLoginRoute = path === '/login';
+      this.isHomeRoute = path === '/home' || path === '/' || path === '';
     });
   }
 
   ngOnInit() {
     const initialPath = this.router.url.split('?')[0];
     this.isLoginRoute = initialPath === '/login';
-    if (initialPath === '/home' || initialPath === '/login') {
+    this.isHomeRoute = initialPath === '/home' || initialPath === '/' || initialPath === '';
+    if (initialPath === '/home' || initialPath === '/login' || initialPath === '/' || initialPath === '') {
       this.showHeader = false;
     }
 

@@ -30,6 +30,11 @@ app-header {
   flex: 1 1 auto;
 }
 
+.main-content.home-route {
+  padding: 0;
+  background: #f7f9fb;
+}
+
 app-footer {
   margin-top: auto;
 }
