@@ -49,6 +49,7 @@ const digitalExercisesRoutes = require('./routes/digitalExercises');
 const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
+const invoiceManagementRoutes = require('./routes/invoiceManagement');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -150,8 +151,7 @@ app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);
 
-// const invoiceManagementRoutes = require('./routes/invoiceManagement');
-// app.use('/api/invoices', invoiceManagementRoutes);
+app.use('/api/invoices', invoiceManagementRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);

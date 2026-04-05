@@ -1,14 +1,17 @@
 :host { display: block; min-height: calc(100vh - 80px); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .ap {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 14px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 /* Header */
 .ap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #b3cde0; color: #011f4b; padding: 14px 18px; border-radius: 14px; }
 .ap-header__title { font-size: 15px; font-weight: 700; color: #011f4b; margin: 0; }
 .ap-header__sub { font-size: 11px; color: #011f4b; opacity: 0.65; margin: 2px 0 0; }
+.ap-header__actions { display: flex; align-items: center; gap: 8px; }
 
 /* Summary stat cards */
 .ap-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
@@ -43,10 +46,15 @@
 .ap-btn { padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
 .ap-btn--sm { padding: 5px 10px; font-size: 12px; background: #f1f5f9; color: #475569; }
 .ap-btn--sm:hover { background: #e2e8f0; }
+.ap-btn--outline { background: #fff; color: #0f172a; border: 1px solid #cbd5e1; }
+.ap-btn--outline:hover { background: #f8fafc; }
+.ap-btn--primary { background: #1d4ed8; color: #fff; }
+.ap-btn--primary:hover { background: #1e40af; }
+.ap-btn--primary:disabled { background: #93c5fd; cursor: not-allowed; }
 
 /* Table */
 .ap-table-wrap { overflow-x: auto; background: #fff; border-radius: 12px; border: 1px solid #e8ecf4; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-.ap-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+.ap-table { width: 100%; border-collapse: collapse; min-width: 1200px; }
 .ap-table thead { background: #03396c; }
 .ap-table th {
   padding: 8px 10px; font-size: 10px; text-transform: uppercase;
@@ -93,6 +101,7 @@
 .ap-status--completed { background: #dcfce7; color: #16a34a; }
 .ap-status--withdrew { background: #fef3c7; color: #b45309; }
 .ap-status--uncertain { background: #f3f4f6; color: #6b7280; }
+.ap-row-actions { display: flex; align-items: center; gap: 6px; }
 
 /* Expanded detail row */
 .ap-detail-row td { padding: 0; background: #f8fafc; }
@@ -122,6 +131,14 @@
   .ap-stats { grid-template-columns: 1fr 1fr; }
   .ap-filters { flex-direction: column; }
   .ap-detail { grid-template-columns: 1fr; }
+  .ap { padding: 10px; }
+  .ap-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .ap-header__actions { width: 100%; }
+  .ap-header__actions .ap-btn { flex: 1; }
 }
 
 /* ═══ View button ═══ */
@@ -130,6 +147,20 @@
   background: #dbeafe; color: #005b96; border: none; cursor: pointer; white-space: nowrap;
 }
 .ap-btn--view:hover { background: #bfdbfe; }
+.ap-btn--export {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: #ecfccb;
+  color: #3f6212;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ap-btn--export:hover { background: #d9f99d; }
+.ap-checkbox { display: inline-flex; align-items: center; justify-content: center; }
+.ap-checkbox input { width: 14px; height: 14px; cursor: pointer; }
 
 /* ═══ Journey Modal ═══ */
 .jm-overlay {

@@ -177,6 +177,21 @@ router.put("/:id", async (req, res) => {
 });
 
 // ==========================
+// ✅ DELETE TIMETABLE BY ID
+// ==========================
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const deleted = await TimeTable.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Time table not found." });
+    }
+    return res.status(200).json({ message: "Time table deleted successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// ==========================
 // ✅ WEEKLY EMAIL CRON (SUNDAY 5PM)
 // ==========================
 cron.schedule("0 17 * * 0", async () => {

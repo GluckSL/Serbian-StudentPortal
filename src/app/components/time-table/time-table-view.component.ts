@@ -59,6 +59,8 @@ interface ZoomMeeting {
 })
 export class TimeTableViewComponent implements OnInit, OnDestroy {
   timeTables: TimeTable[] = [];
+  hiddenTimeTableIds = new Set<string>();
+  showPreviousWeeksModal = false;
   teachersCache: { [key: string]: string } = {}; // cache id => name
   userRole: string = '';
   userProfile?: UserProfile;
@@ -153,20 +155,8 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
   private loadTimeTables(): void {
     this.timeTableService.getTimeTables().subscribe(
       (data: TimeTable[]) => {
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-
-        // ✅ Filter timetables for current month only
-        this.timeTables = data.filter((tt: any) => {
-          const startDate = new Date(tt.weekStartDate);
-          const endDate = new Date(tt.weekEndDate);
-          return (
-            (startDate.getMonth() === currentMonth && startDate.getFullYear() === currentYear) ||
-            (endDate.getMonth() === currentMonth && endDate.getFullYear() === currentYear)
-          );
-        });
-
+        // For admin view, show full history so current/upcoming and past can be separated in UI.
+        this.timeTables = data || [];
         this.preloadTeacherNames(this.timeTables); // ✅ preload teacher names
       },
       (error) => console.error('Error fetching timetables', error)
@@ -242,6 +232,80 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
 
   findTeacherByID(assignedTeacher: string): string {
     return this.teachersCache[assignedTeacher] || 'Loading...';
+  }
+
+  private startOfToday(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  private toDate(value: Date | string): Date {
+    return new Date(value);
+  }
+
+  get visibleTimeTables(): TimeTable[] {
+    return this.timeTables.filter((tt) => !tt._id || !this.hiddenTimeTableIds.has(tt._id));
+  }
+
+  get currentWeekTimeTable(): TimeTable | null {
+    const today = this.startOfToday();
+    const current = this.visibleTimeTables
+      .filter((tt) =>
+        this.toDate(tt.weekStartDate).getTime() <= today.getTime() &&
+        this.toDate(tt.weekEndDate).getTime() >= today.getTime()
+      )
+      .sort((a, b) => this.toDate(a.weekStartDate).getTime() - this.toDate(b.weekStartDate).getTime());
+
+    if (current.length) return current[0];
+
+    // Fallback: nearest upcoming week if current week is missing.
+    const upcoming = this.visibleTimeTables
+      .filter((tt) => this.toDate(tt.weekStartDate).getTime() > today.getTime())
+      .sort((a, b) => this.toDate(a.weekStartDate).getTime() - this.toDate(b.weekStartDate).getTime());
+    return upcoming[0] || null;
+  }
+
+  get pastTimeTables(): TimeTable[] {
+    const today = this.startOfToday();
+    return this.visibleTimeTables
+      .filter((tt) => this.toDate(tt.weekEndDate).getTime() < today.getTime())
+      .sort((a, b) => this.toDate(b.weekStartDate).getTime() - this.toDate(a.weekStartDate).getTime());
+  }
+
+  openPreviousWeeksModal(): void {
+    this.showPreviousWeeksModal = true;
+  }
+
+  closePreviousWeeksModal(): void {
+    this.showPreviousWeeksModal = false;
+  }
+
+  hideTimeTable(tt: TimeTable, event: Event): void {
+    event.stopPropagation();
+    if (!tt._id) return;
+    this.hiddenTimeTableIds.add(tt._id);
+  }
+
+  clearHiddenWeeks(): void {
+    this.hiddenTimeTableIds.clear();
+  }
+
+  deleteTimeTable(tt: TimeTable, event: Event): void {
+    event.stopPropagation();
+    if (!tt._id) return;
+    const ok = window.confirm('Delete this timetable week permanently?');
+    if (!ok) return;
+
+    this.timeTableService.deleteTimeTable(tt._id).subscribe({
+      next: () => {
+        this.hiddenTimeTableIds.delete(tt._id!);
+        this.timeTables = this.timeTables.filter((item) => item._id !== tt._id);
+      },
+      error: (error) => {
+        console.error('Error deleting timetable:', error);
+        window.alert('Failed to delete timetable. Please try again.');
+      }
+    });
   }
 
   groupByWeek(timeTables: TimeTable[], forStudent: boolean = false): { week: string; items: TimeTable[] }[] {

@@ -20,18 +20,6 @@ interface ManagedUser {
   permissionsDirty: boolean;
 }
 
-interface GeneratedCredentials {
-  regNo: string;
-  password: string;
-}
-
-interface CreateSubAdminForm {
-  name: string;
-  email: string;
-  sendCredentialsEmail: boolean;
-  sidebarPermissions: string[];
-}
-
 @Component({
   selector: 'app-user-roles',
   standalone: true,
@@ -62,93 +50,6 @@ interface CreateSubAdminForm {
 
       <div class="page-content">
         <div class="container-fluid">
-          <div class="data-table-card">
-            <div class="card">
-              <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 class="mb-0">Create Sub-Admin</h5>
-                <div class="permissions-toolbar">
-                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="selectAllCreatePermissions()">
-                    Select All
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearCreatePermissions()">
-                    Clear (Keep Required)
-                  </button>
-                </div>
-              </div>
-              <div class="card-body create-sub-admin-body">
-                <div class="row g-3 mb-3">
-                  <div class="col-md-4">
-                    <label class="form-label">Full Name</label>
-                    <input
-                      class="form-control form-control-sm"
-                      [(ngModel)]="createSubAdmin.name"
-                      placeholder="Enter sub-admin name"
-                    />
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Email</label>
-                    <input
-                      class="form-control form-control-sm"
-                      [(ngModel)]="createSubAdmin.email"
-                      placeholder="Enter sub-admin email"
-                    />
-                  </div>
-                  <div class="col-md-4 d-flex align-items-end">
-                    <div class="form-check">
-                      <input class="form-check-input" type="checkbox" id="sendCredentialsEmail" [(ngModel)]="createSubAdmin.sendCredentialsEmail" />
-                      <label class="form-check-label" for="sendCredentialsEmail">
-                        Send credentials email automatically
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="permission-matrix">
-                  <div class="permission-group-card" *ngFor="let group of subAdminPermissionGroups">
-                    <div class="group-top">
-                      <h6>{{ group.group }}</h6>
-                      <button type="button" class="btn btn-sm btn-light" (click)="toggleCreatePermissionGroup(group.group)">
-                        {{ isCreatePermissionGroupFullySelected(group.group) ? 'Unselect Group' : 'Select Group' }}
-                      </button>
-                    </div>
-                    <div class="permissions-grid">
-                      <label class="permission-item" *ngFor="let option of group.items">
-                        <input
-                          type="checkbox"
-                          [checked]="createSubAdmin.sidebarPermissions.includes(option.id)"
-                          [disabled]="isPermissionMandatory(option.id)"
-                          (change)="toggleCreatePermission(option.id, $event)"
-                        />
-                        <span>{{ option.label }}</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="required-hint">
-                  Required permissions: <strong>Dashboard</strong> and <strong>Profile</strong> (always enabled)
-                </div>
-
-                <div class="create-actions">
-                  <button class="btn btn-success btn-sm" (click)="createNewSubAdmin()" [disabled]="creatingSubAdmin">
-                    {{ creatingSubAdmin ? 'Creating...' : 'Create Sub-Admin' }}
-                  </button>
-                </div>
-
-                <div class="credentials-box" *ngIf="lastCreatedSubAdminCredentials">
-                  <div class="credentials-title">New Sub-Admin Credentials</div>
-                  <div class="credentials-row"><strong>ID (Reg No):</strong> {{ lastCreatedSubAdminCredentials.regNo }}</div>
-                  <div class="credentials-row"><strong>Password:</strong> {{ lastCreatedSubAdminCredentials.password }}</div>
-                  <div class="credentials-actions">
-                    <button class="btn btn-sm btn-primary" type="button" (click)="copyCreatedCredentials()">
-                      Copy Credentials
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
           <!-- Users Table -->
           <div class="data-table-card">
             <div class="card">
@@ -197,7 +98,20 @@ interface CreateSubAdminForm {
                       </td>
                       <td>
                         <div *ngIf="isSubAdminRole(user); else noSidebarConfig" class="permissions-wrap">
-                          <div class="permissions-grid">
+                          <div class="permissions-toggle-row">
+                            <span class="permission-count">
+                              {{ user.sidebarPermissions.length }} selected
+                            </span>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-secondary permissions-toggle-btn"
+                              (click)="toggleSubAdminDetails(user)"
+                            >
+                              {{ isSubAdminDetailsOpen(user) ? 'Hide Details' : 'Show Details' }}
+                              <i class="fas" [ngClass]="isSubAdminDetailsOpen(user) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                            </button>
+                          </div>
+                          <div class="permissions-grid details-panel" *ngIf="isSubAdminDetailsOpen(user)">
                             <label class="permission-item" *ngFor="let option of subAdminPermissionOptions">
                               <input
                                 type="checkbox"
@@ -441,6 +355,30 @@ interface CreateSubAdminForm {
     .badge.bg-secondary { background: #f1f5f9 !important; color: #64748b !important; }
 
     .permissions-wrap { min-width: 260px; max-width: 340px; }
+    .permissions-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .permission-count {
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .permissions-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .details-panel {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px;
+      background: #f8fafc;
+    }
     .permissions-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -499,17 +437,10 @@ interface CreateSubAdminForm {
 })
 export class UserRolesComponent implements OnInit {
   private readonly requiredSubAdminPermissions = ['dashboard', 'profile'];
+  expandedSubAdminRows = new Set<string>();
   allTeachersAndAdmins: ManagedUser[] = [];
   subAdminPermissionGroups: { group: string; items: { id: string; label: string }[] }[] = [];
   subAdminPermissionOptions: { id: string; label: string }[] = [];
-  createSubAdmin: CreateSubAdminForm = {
-    name: '',
-    email: '',
-    sendCredentialsEmail: false,
-    sidebarPermissions: [...this.requiredSubAdminPermissions]
-  };
-  creatingSubAdmin = false;
-  lastCreatedSubAdminCredentials: GeneratedCredentials | null = null;
 
   constructor(private http: HttpClient, private navService: NavService) {
     this.subAdminPermissionGroups = this.navService.getAdminNavGroups().map((group) => ({
@@ -530,109 +461,6 @@ export class UserRolesComponent implements OnInit {
     return this.requiredSubAdminPermissions.includes(permissionId);
   }
 
-  toggleCreatePermission(permissionId: string, event: Event): void {
-    if (this.isPermissionMandatory(permissionId)) {
-      return;
-    }
-    const input = event.target as HTMLInputElement;
-    const current = new Set(this.createSubAdmin.sidebarPermissions);
-    if (input.checked) {
-      current.add(permissionId);
-    } else {
-      current.delete(permissionId);
-    }
-    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions(Array.from(current));
-  }
-
-  isCreatePermissionGroupFullySelected(groupName: string): boolean {
-    const group = this.subAdminPermissionGroups.find((g) => g.group === groupName);
-    if (!group) return false;
-    return group.items.every((item) => this.createSubAdmin.sidebarPermissions.includes(item.id));
-  }
-
-  toggleCreatePermissionGroup(groupName: string): void {
-    const group = this.subAdminPermissionGroups.find((g) => g.group === groupName);
-    if (!group) return;
-
-    const current = new Set(this.createSubAdmin.sidebarPermissions);
-    const isFullySelected = group.items.every((item) => current.has(item.id));
-
-    if (isFullySelected) {
-      group.items.forEach((item) => {
-        if (!this.isPermissionMandatory(item.id)) current.delete(item.id);
-      });
-    } else {
-      group.items.forEach((item) => current.add(item.id));
-    }
-
-    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions(Array.from(current));
-  }
-
-  selectAllCreatePermissions(): void {
-    const allIds = this.subAdminPermissionOptions.map((option) => option.id);
-    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions(allIds);
-  }
-
-  clearCreatePermissions(): void {
-    this.createSubAdmin.sidebarPermissions = this.navService.normalizeSidebarPermissions([]);
-  }
-
-  createNewSubAdmin(): void {
-    const name = this.createSubAdmin.name.trim();
-    const email = this.createSubAdmin.email.trim().toLowerCase();
-
-    if (!name || !email) {
-      alert('Name and email are required to create a sub-admin.');
-      return;
-    }
-
-    this.creatingSubAdmin = true;
-    this.lastCreatedSubAdminCredentials = null;
-
-    const payload = {
-      name,
-      email,
-      role: 'SUB_ADMIN',
-      sidebarPermissions: this.navService.normalizeSidebarPermissions(this.createSubAdmin.sidebarPermissions),
-      sendCredentialsEmail: this.createSubAdmin.sendCredentialsEmail
-    };
-
-    this.http.post<any>(`${apiUrl}/auth/signup`, payload, { withCredentials: true }).subscribe({
-      next: (response) => {
-        this.creatingSubAdmin = false;
-        const generated = response?.generatedCredentials;
-        if (generated?.regNo && generated?.password) {
-          this.lastCreatedSubAdminCredentials = {
-            regNo: generated.regNo,
-            password: generated.password
-          };
-        }
-        this.createSubAdmin = {
-          name: '',
-          email: '',
-          sendCredentialsEmail: false,
-          sidebarPermissions: [...this.requiredSubAdminPermissions]
-        };
-        this.fetchTeachersAndAdmins();
-        alert('Sub-admin created successfully. Share the generated ID and password with the user.');
-      },
-      error: (err) => {
-        this.creatingSubAdmin = false;
-        console.error('Failed to create sub-admin:', err);
-        alert(err?.error?.msg || err?.error?.message || 'Failed to create sub-admin');
-      }
-    });
-  }
-
-  copyCreatedCredentials(): void {
-    if (!this.lastCreatedSubAdminCredentials) return;
-    const text = `Sub-Admin Login Credentials\nID: ${this.lastCreatedSubAdminCredentials.regNo}\nPassword: ${this.lastCreatedSubAdminCredentials.password}`;
-    navigator.clipboard.writeText(text).then(
-      () => alert('Credentials copied. You can now send them to the sub-admin.'),
-      () => alert('Unable to copy automatically. Please copy the credentials manually.')
-    );
-  }
-
   fetchTeachersAndAdmins(): void {
     this.http.get<any>(`${apiUrl}/auth/teachers-and-admins`, { withCredentials: true }).subscribe({
       next: (response) => {
@@ -642,6 +470,7 @@ export class UserRolesComponent implements OnInit {
           sidebarPermissions: this.normalizePermissionsForRole(user.role, user.sidebarPermissions || []),
           permissionsDirty: false
         }));
+        this.expandedSubAdminRows.clear();
       },
       error: (err) => {
         console.error('Failed to fetch teachers and admins:', err);
@@ -661,6 +490,18 @@ export class UserRolesComponent implements OnInit {
 
   isSubAdminRole(user: ManagedUser): boolean {
     return user.newRole === 'SUB_ADMIN' || user.role === 'SUB_ADMIN';
+  }
+
+  isSubAdminDetailsOpen(user: ManagedUser): boolean {
+    return this.expandedSubAdminRows.has(user._id);
+  }
+
+  toggleSubAdminDetails(user: ManagedUser): void {
+    if (this.isSubAdminDetailsOpen(user)) {
+      this.expandedSubAdminRows.delete(user._id);
+    } else {
+      this.expandedSubAdminRows.add(user._id);
+    }
   }
 
   toggleSubAdminPermission(user: ManagedUser, permissionId: string, event: Event): void {
