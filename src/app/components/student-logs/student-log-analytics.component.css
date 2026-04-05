@@ -1,0 +1,136 @@
+.student-analytics {
+  min-height: calc(100vh - 80px);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  padding: 14px;
+}
+
+.analytics-header {
+  background: #b3cde0;
+  color: #011f4b;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.analytics-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.analytics-header p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.summary-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kpi {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.kpi span {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.kpi strong {
+  display: block;
+  margin-top: 2px;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.panel {
+  border: 1px solid #e8ecf4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+  padding: 10px;
+}
+
+.panel h5 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #011f4b;
+  font-weight: 700;
+}
+
+.last-update {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  font-size: 12px;
+}
+
+.last-update span {
+  font-weight: 700;
+  color: #475569;
+}
+
+.table thead th {
+  background: #03396c;
+  color: #fff;
+  font-size: 10px;
+  text-transform: uppercase;
+  border: none;
+}
+
+.table tbody td {
+  font-size: 12px;
+}
+
+.state-box {
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 12px;
+}
+
+.state-box.error {
+  background: #fff1f2;
+  color: #b91c1c;
+  border-color: #fecdd3;
+}
+
+.btn-outline-secondary {
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.btn-outline-secondary:hover {
+  background: #475569;
+  border-color: #475569;
+  color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .last-update {
+    grid-template-columns: 1fr;
+  }
+}

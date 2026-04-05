@@ -1,15 +1,12 @@
 //src/app/components/admin-dashboard/admin-dashboard.component.ts
 
-import { Component, OnInit, TrackByFunction } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
 import { HttpClient, HttpClientModule} from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { FeedbackService } from '../../services/feedback.service';
-import { NgChartsModule } from 'ng2-charts';
 import { MaterialModule } from '../../shared/material.module';
-import { MatDialog } from '@angular/material/dialog';
 import { environment } from '../../../environments/environment';
 
 const apiUrl = environment.apiUrl;  // Base API URL
@@ -28,8 +25,8 @@ interface Teacher {
   assignedCourses: Course[];
   assignedBatches: string[];
   medium: string;
+  studentCount?: number;
 }
-
 
 @Component({
   selector: '',
@@ -39,7 +36,6 @@ interface Teacher {
     CommonModule,
     FormsModule,
     MaterialModule,
-    NgChartsModule,
     RouterModule
   ],
   templateUrl: './teachers.component.html',
@@ -57,13 +53,10 @@ export class TeachersComponent implements OnInit {
   medium: string[] = ['Sinhala', 'Tamil'];
   course: string[] = ['A1', 'A2', 'B1', 'B2'];
 
-  selectedTeacherName?: string;
-
   constructor(
     private authService: AuthService,
     private router: Router,
     private http: HttpClient,
-    private dialog: MatDialog,
   ) {}
 
   ngOnInit(): void {
@@ -140,6 +133,13 @@ fetchTeachers(): void {
         }
       });
     }
+  }
+
+  openTeacherAnalytics(teacher: Teacher): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/teachers', teacher._id, 'analytics'])
+    );
+    window.open(url, '_blank');
   }
 
 

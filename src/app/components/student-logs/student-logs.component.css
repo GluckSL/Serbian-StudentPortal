@@ -82,6 +82,10 @@
 
 .btn-secondary { background: #6497b1; border-color: #6497b1; color: #fff; }
 .btn-secondary:hover { background: #005b96; border-color: #005b96; }
+.btn-outline-info { color: #0284c7; border-color: #0284c7; background: transparent; }
+.btn-outline-info:hover { background: #0284c7; color: #fff; }
+.btn-outline-danger { color: #e11d48; border-color: #e11d48; background: transparent; }
+.btn-outline-danger:hover { background: #e11d48; color: #fff; }
 
 /* ── Table ── */
 .table-section {
@@ -114,6 +118,7 @@
 }
 
 .table tbody tr:hover { background: #f8fafc; }
+.action-buttons { display: flex; gap: 6px; justify-content: center; }
 
 /* ── Loading / Empty ── */
 .spinner-border { color: #005b96; }

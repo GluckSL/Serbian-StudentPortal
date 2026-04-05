@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StudentLogService, StudentLog } from '../../services/student-log.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-student-logs',
@@ -40,7 +41,10 @@ export class StudentLogsComponent implements OnInit {
   pageSize = 10;
   totalPages = 0;
 
-  constructor(private studentLogService: StudentLogService) {}
+  constructor(
+    private studentLogService: StudentLogService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
     this.loadLogs();
@@ -79,7 +83,8 @@ export class StudentLogsComponent implements OnInit {
 
   applyFilters(): void {
     this.filteredLogs = this.studentLogs.filter(log => {
-      return (!this.filters.levelAtUpdate || log.levelAtUpdate === this.filters.levelAtUpdate) &&
+      return (!this.filters.regNo || log.studentId.regNo === this.filters.regNo) &&
+             (!this.filters.levelAtUpdate || log.levelAtUpdate === this.filters.levelAtUpdate) &&
              (!this.filters.batchAtUpdate || log.batchAtUpdate === this.filters.batchAtUpdate) &&
              (!this.filters.subscriptionAtUpdate || log.subscriptionAtUpdate === this.filters.subscriptionAtUpdate) &&
              (!this.filters.mediumAtUpdate ||
@@ -115,5 +120,31 @@ export class StudentLogsComponent implements OnInit {
 
   formatDateTime(dateStr: string): string {
     return new Date(dateStr).toLocaleString();
+  }
+
+  openAnalytics(log: StudentLog): void {
+    const studentId = log.studentId?._id;
+    if (!studentId) return;
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/student-logs', studentId, 'analytics'])
+    );
+    window.open(url, '_blank');
+  }
+
+  deleteLog(log: StudentLog): void {
+    if (!log._id) return;
+    const ok = confirm(`Delete this log for ${log.studentId?.name || 'student'}?`);
+    if (!ok) return;
+
+    this.studentLogService.deleteStudentLog(log._id).subscribe({
+      next: () => {
+        this.studentLogs = this.studentLogs.filter((x) => x._id !== log._id);
+        this.applyFilters();
+      },
+      error: (err) => {
+        console.error(err);
+        alert(err?.error?.message || 'Failed to delete log');
+      }
+    });
   }
 }

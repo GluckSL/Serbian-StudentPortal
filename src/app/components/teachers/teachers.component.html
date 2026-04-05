@@ -170,6 +170,13 @@
                   </td>
                   <td class="text-center">
                     <div class="action-buttons">
+                      <button
+                        class="btn btn-sm btn-outline-info me-1"
+                        (click)="openTeacherAnalytics(teacher)"
+                        title="View Teacher Report"
+                      >
+                        <i class="fas fa-chart-line"></i>
+                      </button>
                       <button 
                         class="btn btn-sm btn-outline-primary me-1"
                         [routerLink]="['/signup', teacher._id]"

@@ -588,7 +588,7 @@ router.post("/signup", async (req, res) => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: user.email,
-        subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
+        subject: "Welcome to Gluck Global Student Portal ðŸŽ‰",
         html: `
           <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
             <p>Hello ${user.name},</p>

@@ -95,6 +95,7 @@
             <th>Medium At Update</th>
             <th>Assigned Teacher At Update</th>
             <th>Last Updated Date</th>
+            <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -107,6 +108,16 @@
             <td>{{ log.mediumAtUpdate }}</td>
             <td>{{ log.assignedTeacherAtUpdate?.name}}</td>
             <td>{{ formatDateTime(log.updatedAt ? log.updatedAt.toString() : '') }}</td>
+            <td class="text-center">
+              <div class="action-buttons">
+                <button class="btn btn-sm btn-outline-info" (click)="openAnalytics(log)" title="Student Analytics">
+                  <i class="fas fa-chart-line"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" (click)="deleteLog(log)" title="Delete Log">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>

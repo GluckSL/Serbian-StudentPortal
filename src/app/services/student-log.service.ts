@@ -30,6 +30,29 @@ export interface StudentLog {
     };
 }
 
+export interface StudentAnalyticsResponse {
+    student: any;
+    summary: {
+        totalProfileUpdates: number;
+        totalClasses: number;
+        attendedClasses: number;
+        attendanceRate: number;
+        totalDigitalExerciseAttempts: number;
+        completedDigitalExercises: number;
+        totalModulesTracked: number;
+        completedModules: number;
+        totalSessions: number;
+        totalAssignments: number;
+    };
+    lastProfileUpdate: any;
+    profileUpdateHistory: any[];
+    classAttendanceHistory: any[];
+    digitalExerciseHistory: any[];
+    moduleHistory: any[];
+    sessionHistory: any[];
+    marksHistory: any[];
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -47,7 +70,15 @@ export class StudentLogService {
 
     // Fetch logs for a specific student
     getLogsByStudentId(studentId: string): Observable<{ success: boolean; data: StudentLog[] }> {
-        return this.http.get<{ success: boolean; data: StudentLog[] }>(`${this.apiUrl}/studentLog/student/${studentId}`);
+        return this.http.get<{ success: boolean; data: StudentLog[] }>(`${this.apiUrl}/studentLog/${studentId}`);
+    }
+
+    getStudentAnalytics(studentId: string): Observable<{ success: boolean; data: StudentAnalyticsResponse }> {
+        return this.http.get<{ success: boolean; data: StudentAnalyticsResponse }>(`${this.apiUrl}/studentLog/analytics/${studentId}`);
+    }
+
+    deleteStudentLog(logId: string): Observable<{ success: boolean; message: string }> {
+        return this.http.delete<{ success: boolean; message: string }>(`${this.apiUrl}/studentLog/${logId}`);
     }
 }
 
