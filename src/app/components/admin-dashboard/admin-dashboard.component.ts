@@ -294,6 +294,12 @@ export class AdminDashboardComponent implements OnInit {
     this.fetchStudents(1);
   }
 
+  applySearchFilters(): void {
+    this.filters.studentName = (this.studentNameControl.value || '').toString().trim();
+    this.filters.teacherName = (this.teacherNameControl.value || '').toString().trim();
+    this.applyFilters();
+  }
+
   clearFilters() {
     this.filters = { level: '', plan: '', batch: '', assignedTeacher: '', studentStatus: '', studentName: '', teacherName: '' };
     this.studentNameControl.setValue('');
@@ -351,12 +357,10 @@ export class AdminDashboardComponent implements OnInit {
   
   onStudentNameSelected(studentName: string): void {
     this.filters.studentName = studentName;
-    this.applyFilters();
   }
   
   onTeacherNameSelected(teacherName: string): void {
     this.filters.teacherName = teacherName;
-    this.applyFilters();
   }
 
   toggleStudentSelection(studentId: string): void {
