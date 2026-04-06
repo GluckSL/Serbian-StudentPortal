@@ -1053,7 +1053,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'question-answer') {
       if (this.isTrueFalseQuestion(pq.data)) {
         const samples: string[] = pq.data.sampleAnswers || [];
-        const parsed = samples.map(s => this.parseTrueFalse(s)).find(v => v === true || v === false);
+        const parsed = samples.map(s => this.parseTrueFalseStrictSample(s)).find(v => v === true || v === false);
         if (parsed === true) return 'Richtig';
         if (parsed === false) return 'Falsch';
         return samples.length ? samples.join('; ') : '—';
@@ -1076,12 +1076,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  /**
+   * True/false **sample answer** only: whole string must be a single canonical token.
+   * Avoids treating free-text German answers like "Nein, sie ist …" as T/F because of `\bnein\b`.
+   */
+  parseTrueFalseStrictSample(raw: any): boolean | null {
+    const s = String(raw ?? '').trim().toLowerCase();
+    if (!s) return null;
+    if (/^(true|richtig|wahr|ja|yes|j|t|1)\.?$/i.test(s)) return true;
+    if (/^(false|falsch|unwahr|nein|no|n|f|0)\.?$/i.test(s)) return false;
+    return null;
+  }
+
   /** Detect True/False worksheet even if worksheetKind is missing (old exercises). */
   isTrueFalseQuestion(data: any): boolean {
     if (!data || data.type !== 'question-answer') return false;
     if (data.worksheetKind === 'true-false') return true;
+    // Any explicit non–true/false worksheet kind (e.g. free-writing) must stay typed Q&A.
+    if (data.worksheetKind && data.worksheetKind !== 'true-false') return false;
     const samples: any[] = Array.isArray(data.sampleAnswers) ? data.sampleAnswers : [];
-    return samples.some(s => this.parseTrueFalse(s) !== null);
+    return samples.some(s => this.parseTrueFalseStrictSample(s) !== null);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────

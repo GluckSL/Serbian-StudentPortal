@@ -22,6 +22,15 @@ const BatchConfigSchema = new mongoose.Schema({
     min: 1,
     max: 200
   },
+  /**
+   * When set, the batch's current day is automatically computed as:
+   *   currentDay = daysSinceStart + 1   (capped to journeyLength)
+   * batchCurrentDay is then ignored for display purposes.
+   */
+  batchStartDate: {
+    type: Date,
+    default: null
+  },
   notes: {
     type: String,
     default: ''
