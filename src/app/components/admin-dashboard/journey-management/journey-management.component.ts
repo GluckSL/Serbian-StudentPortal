@@ -14,7 +14,8 @@ interface BatchSummary {
   autoDay: boolean;
   notes: string;
   studentCount: number;
-  studentDays: { avg: number; min: number; max: number };
+  /** Resolved from students' assignedTeacher (most common per batch). */
+  teacherName: string | null;
 }
 
 interface IncompleteTaskItem {
@@ -107,7 +108,7 @@ interface TimelineDay {
               type="search"
               class="j-search-input"
               [(ngModel)]="batchSearch"
-              placeholder="Search by batch name…"
+              placeholder="Search by batch or teacher…"
               autocomplete="off"
             />
           </div>
@@ -122,23 +123,25 @@ interface TimelineDay {
               <option value="length">Journey length (longest first)</option>
             </select>
           </div>
-          <button
-            type="button"
-            class="j-btn j-btn-filter-toggle"
-            [class.j-btn-filter-toggle--open]="filtersExpanded"
-            (click)="filtersExpanded = !filtersExpanded"
-          >
-            <i class="fas fa-sliders-h"></i>
-            {{ filtersExpanded ? 'Hide filters' : 'More filters' }}
-          </button>
-          <button
-            type="button"
-            class="j-btn j-btn-outline j-btn-clear"
-            *ngIf="hasActiveBatchFilters()"
-            (click)="clearBatchFilters()"
-          >
-            <i class="fas fa-times"></i> Clear
-          </button>
+          <div class="j-filter-toolbar-end">
+            <button
+              type="button"
+              class="j-btn j-btn-filter-toggle"
+              [class.j-btn-filter-toggle--open]="filtersExpanded"
+              (click)="filtersExpanded = !filtersExpanded"
+            >
+              <i class="fas fa-sliders-h"></i>
+              {{ filtersExpanded ? 'Hide filters' : 'More filters' }}
+            </button>
+            <button
+              type="button"
+              class="j-btn j-btn-outline j-btn-clear"
+              *ngIf="hasActiveBatchFilters()"
+              (click)="clearBatchFilters()"
+            >
+              <i class="fas fa-times"></i> Clear
+            </button>
+          </div>
         </div>
 
         <div class="j-filter-panel" *ngIf="filtersExpanded">
@@ -181,11 +184,9 @@ interface TimelineDay {
                 <th>Batch</th>
                 <th>Current day</th>
                 <th>Students</th>
+                <th>Teacher</th>
                 <th>Journey</th>
                 <th>Progress</th>
-                <th class="j-th-narrow">Min</th>
-                <th class="j-th-narrow">Avg</th>
-                <th class="j-th-narrow">Max</th>
                 <th class="j-th-actions">Actions</th>
               </tr>
             </thead>
@@ -198,6 +199,7 @@ interface TimelineDay {
                   <span class="j-day-pill j-day-pill--table">Day {{ b.batchCurrentDay }}</span>
                 </td>
                 <td>{{ b.studentCount }}</td>
+                <td class="j-td-teacher" [title]="b.teacherName || ''">{{ b.teacherName || '—' }}</td>
                 <td>{{ b.journeyLength }} days</td>
                 <td>
                   <div class="j-progress-cell">
@@ -208,9 +210,6 @@ interface TimelineDay {
                     <span class="j-progress-label j-progress-label--table">{{ b.batchCurrentDay }} / {{ b.journeyLength }}</span>
                   </div>
                 </td>
-                <td class="j-td-mono">{{ b.studentDays.min }}</td>
-                <td class="j-td-mono">{{ b.studentDays.avg }}</td>
-                <td class="j-td-mono">{{ b.studentDays.max }}</td>
                 <td>
                   <button class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
                     <i class="fas fa-pen"></i> Manage
@@ -644,8 +643,15 @@ interface TimelineDay {
     .j-filter-row--main {
       display: flex;
       flex-wrap: wrap;
-      align-items: flex-end;
+      align-items: center;
       gap: 10px 12px;
+    }
+    .j-filter-toolbar-end {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
     }
     .j-search-wrap {
       flex: 1 1 220px;
@@ -721,8 +727,6 @@ interface TimelineDay {
       border-color: #93c5fd;
       color: #005b96;
     }
-    .j-btn-clear { margin-left: auto; }
-
     .j-filter-panel {
       margin-top: 14px;
       padding-top: 14px;
@@ -769,11 +773,20 @@ interface TimelineDay {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
-    .j-table--batches { min-width: 720px; }
+    .j-table--batches { min-width: 880px; }
     .j-table--batches .j-batch-name-cell {
       font-size: 14px;
       font-weight: 700;
       color: #03396c;
+    }
+    .j-td-teacher {
+      font-size: 12px;
+      font-weight: 500;
+      color: #0f172a;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .j-day-pill {
       background: #dbeafe; color: #005b96;
@@ -795,7 +808,7 @@ interface TimelineDay {
     .j-progress-label--table { text-align: left; }
 
     .j-th-narrow { text-align: center; width: 52px; }
-    .j-th-actions { text-align: right; min-width: 110px; }
+    .j-th-actions { min-width: 110px; }
     .j-td-mono { text-align: center; font-variant-numeric: tabular-nums; color: #334155; }
     .j-table--batches tbody td:last-child { text-align: right; }
     .j-btn-manage { white-space: nowrap; }
@@ -891,6 +904,9 @@ interface TimelineDay {
       background: #03396c; color: #fff; padding: 9px 12px;
       font-weight: 600; text-align: left; font-size: 10px;
       text-transform: uppercase; letter-spacing: .04em;
+    }
+    .j-table thead th.j-th-actions {
+      text-align: right;
     }
     .j-table tbody td {
       padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;
@@ -1091,7 +1107,7 @@ interface TimelineDay {
     @media (max-width: 768px) {
       .j-content { padding: 14px; }
       .j-filter-row--main { flex-direction: column; align-items: stretch; }
-      .j-btn-clear { margin-left: 0; }
+      .j-filter-toolbar-end { margin-left: 0; }
       .j-filter-sort { min-width: 0; }
       .j-config-row { flex-direction: column; }
     }
@@ -1140,7 +1156,11 @@ export class JourneyManagementComponent implements OnInit {
     let list = [...this.batches];
     const q = this.batchSearch.trim().toLowerCase();
     if (q) {
-      list = list.filter(b => String(b.batchName).toLowerCase().includes(q));
+      list = list.filter(b => {
+        const batch = String(b.batchName).toLowerCase().includes(q);
+        const teacher = String(b.teacherName || '').toLowerCase().includes(q);
+        return batch || teacher;
+      });
     }
     if (this.filterDayMin != null && !isNaN(this.filterDayMin)) {
       list = list.filter(b => b.batchCurrentDay >= this.filterDayMin!);

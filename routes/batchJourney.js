@@ -133,12 +133,28 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
     const countMap = {};
     counts.forEach(c => { countMap[c._id] = c.count; });
 
-    const dayAggs = await User.aggregate([
-      { $match: { role: 'STUDENT', batch: { $in: batchNames } } },
-      { $group: { _id: '$batch', avgDay: { $avg: '$currentCourseDay' }, minDay: { $min: '$currentCourseDay' }, maxDay: { $max: '$currentCourseDay' } } }
-    ]);
-    const dayMap = {};
-    dayAggs.forEach(d => { dayMap[d._id] = { avg: Math.round(d.avgDay || 1), min: d.minDay || 1, max: d.maxDay || 1 }; });
+    // Most common assigned teacher per batch (from students' assignedTeacher)
+    const teacherNameByBatch = {};
+    if (batchNames.length) {
+      const teacherAgg = await User.aggregate([
+        { $match: { role: 'STUDENT', batch: { $in: batchNames }, assignedTeacher: { $ne: null } } },
+        { $group: { _id: { batch: '$batch', tid: '$assignedTeacher' }, count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $group: { _id: '$_id.batch', teacherId: { $first: '$_id.tid' } } }
+      ]);
+      const teacherIds = [...new Set(teacherAgg.map(r => r.teacherId).filter(Boolean))];
+      const teacherDocs = teacherIds.length
+        ? await User.find({ _id: { $in: teacherIds } }).select('name').lean()
+        : [];
+      const nameById = {};
+      teacherDocs.forEach(t => {
+        nameById[String(t._id)] = (t.name && String(t.name).trim()) || '';
+      });
+      teacherAgg.forEach(row => {
+        const nm = nameById[String(row.teacherId)];
+        teacherNameByBatch[row._id] = nm || null;
+      });
+    }
 
     const configs = await BatchConfig.find({ batchName: { $in: batchNames } }).lean();
     const configMap = {};
@@ -146,7 +162,6 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
 
     const batches = batchNames.map(name => {
       const cfg = configMap[name] || { batchName: name, journeyLength: 200, batchCurrentDay: 1, notes: '', batchStartDate: null };
-      const days = dayMap[name] || { avg: 1, min: 1, max: 1 };
       const activeBatchDay = computeBatchDay(cfg);
       return {
         batchName: name,
@@ -156,7 +171,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
         studentCount: countMap[name] || 0,
-        studentDays: days
+        teacherName: teacherNameByBatch[name] ?? null
       };
     });
 
