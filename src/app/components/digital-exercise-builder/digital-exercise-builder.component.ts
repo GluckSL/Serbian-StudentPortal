@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise, VideoExerciseFeedbackItem } from '../../services/digital-exercise.service';
 import { resolveMediaUrl } from '../../utils/media-url';
+import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 
@@ -112,7 +113,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   questionTypes: Array<{ value: string; label: string; icon: string; description: string }> = [
     { value: 'mcq',             label: 'Multiple Choice',   icon: 'quiz',              description: 'Options with one correct answer. Supports images.' },
     { value: 'matching',        label: 'Matching Exercise',  icon: 'compare_arrows',    description: 'Match left items with right items.' },
-    { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with ___ blanks to fill in.' },
+    { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with _ or ___ blanks to fill in.' },
     { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
     { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
     { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types the correct answer.' },
@@ -346,14 +347,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   // Fill-blank helpers
   onSentenceChange(q: BuilderQuestion): void {
-    const count = (q.sentence!.match(/___/g) || []).length;
+    const count = countFillBlankRuns(q.sentence || '');
     while ((q.answers!.length) < count) q.answers!.push('');
     while ((q.answers!.length) > count) q.answers!.pop();
   }
 
-  /** Insert ___ at cursor (if sentence field was focused) or at end. Click button with sentence focused to insert at cursor. */
+  /** Insert _ at cursor (if sentence field was focused) or at end. Click button with sentence focused to insert at cursor. */
   insertBlank(q: BuilderQuestion): void {
-    const blank = '___';
+    const blank = '_';
     const el = document.activeElement as HTMLTextAreaElement | null;
     if (el?.tagName === 'TEXTAREA' && typeof el.selectionStart === 'number') {
       const start = el.selectionStart;
@@ -572,7 +573,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   getBlankCount(q: BuilderQuestion): number {
-    return (q.sentence?.match(/___/g) || []).length;
+    return countFillBlankRuns(q.sentence || '');
   }
 
   getTypeLabel(type: string): string {

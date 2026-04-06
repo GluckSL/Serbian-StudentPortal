@@ -533,7 +533,13 @@
       <div class="review-header">
         <h3>Questions <span class="q-count">{{ reviewQuestions.length }}</span></h3>
         <div class="review-stats">
-          <span class="valid-count" [class.all-good]="validCount === reviewQuestions.length">
+          <span
+            class="valid-count"
+            [class.all-good]="validCount === reviewQuestions.length"
+            [matTooltip]="getInvalidSummaryTooltip()"
+            [matTooltipDisabled]="validCount === reviewQuestions.length"
+            matTooltipShowDelay="200"
+          >
             <span class="material-icons">{{ validCount === reviewQuestions.length ? 'check_circle' : 'warning' }}</span>
             {{ validCount }}/{{ reviewQuestions.length }} valid
           </span>
@@ -574,7 +580,15 @@
             </span>
           </div>
           <div class="rq-right">
-            <span class="q-valid-indicator" [class.valid]="isQuestionValid(q)" [class.invalid]="!isQuestionValid(q)">
+            <span
+              class="q-valid-indicator"
+              [class.valid]="isQuestionValid(q)"
+              [class.invalid]="!isQuestionValid(q)"
+              [matTooltip]="getQuestionValidationHint(q)"
+              [matTooltipDisabled]="isQuestionValid(q)"
+              matTooltipShowDelay="150"
+              matTooltipClass="pdf-gen-validation-tooltip"
+            >
               <span class="material-icons">{{ isQuestionValid(q) ? 'check_circle' : 'warning' }}</span>
             </span>
             <button class="btn-move-sm" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i === 0">
@@ -650,9 +664,9 @@
           <ng-container *ngIf="q.type === 'fill-blank'">
             <div class="ed-field">
               <div class="sentence-label-row">
-                <label>Sentence <span class="hint-label">(use ___ for blanks)</span></label>
+                <label>Sentence <span class="hint-label">(use _ or ___ for blanks)</span></label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"
-                  matTooltip="Insert ___ at cursor or at end">
+                  matTooltip="Insert _ at cursor or at end">
                   <span class="material-icons">add_box</span> Insert blank
                 </button>
               </div>

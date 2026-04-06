@@ -104,7 +104,7 @@ IMPORTANT:
      - "correctAnswerIndex": 0-based index into options for the correct option
      - "explanation": brief explanation if available, else ""
    - fill-blank:
-     - "sentence": sentence using exactly three underscores ___ for each blank
+     - "sentence": sentence using underscore(s) for each blank (each gap is a run of _ or ___)
      - "answers": array of correct answers in the same order as blanks
      - "hint": optional hint or "".
    - question-answer:
@@ -178,8 +178,7 @@ function sanitizeListeningQuestion(q) {
 
   if (type === 'fill-blank') {
     const sentence = String(q.sentence || '').trim();
-    // Count ___ blanks (strictly the required pattern).
-    const blanks = (sentence.match(/___/g) || []).length;
+    const blanks = (sentence.match(/_+/g) || []).length;
     const answersRaw = Array.isArray(q.answers) ? q.answers : [];
     const answers = answersRaw.map(a => String(a).trim()).filter(a => a !== '');
 

@@ -1,11 +1,14 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+
+declare var Razorpay: any;
 
 @Component({
   selector: 'app-student-payments',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './student-payments.component.html',
   styleUrls: ['./student-payments.component.css']
 })
@@ -14,10 +17,31 @@ export class StudentPaymentsComponent implements OnInit {
   ledger: any = null;
   invoices: any[] = [];
   liveTotals: any = null;
+  submissions: any[] = [];
+
+  // UI state
+  payActionLoading: { [invoiceId: string]: boolean } = {};
+  toast: { msg: string; type: 'success' | 'error' } | null = null;
+
+  // Manual payment form modal
+  showManualModal = false;
+  selectedInvoice: any = null;
+  manualForm = {
+    amount: '',
+    timeOfPayment: '',
+    note: '',
+    proofFile: null as File | null
+  };
+  manualSubmitting = false;
 
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
+    this.loadPaymentData();
+    this.loadSubmissions();
+  }
+
+  loadPaymentData(): void {
     this.http.get<any>('/api/student-payments/my').subscribe({
       next: (res) => {
         this.ledger = res.ledger;
@@ -27,6 +51,182 @@ export class StudentPaymentsComponent implements OnInit {
       },
       error: () => { this.isLoading = false; }
     });
+  }
+
+  loadSubmissions(): void {
+    this.http.get<any>('/api/payment-submissions/my').subscribe({
+      next: (res) => { this.submissions = res.submissions || []; },
+      error: () => {}
+    });
+  }
+
+  // ── Razorpay Payment ──────────────────────────────────────────────────────
+
+  payWithRazorpay(invoice: any): void {
+    this.payActionLoading[invoice._id] = true;
+
+    // Dynamically load Razorpay script if not already loaded
+    this.loadRazorpayScript().then(() => {
+      this.http.post<any>('/api/payment-submissions/razorpay/create-order', { invoiceId: invoice._id }).subscribe({
+        next: (order) => {
+          const options = {
+            key: order.keyId,
+            amount: order.amount,
+            currency: order.currency,
+            name: 'Glück Global',
+            description: `Invoice ${order.invoiceNumber}`,
+            image: '/assets/gluck-logo.png',
+            order_id: order.orderId,
+            prefill: {
+              name: order.studentName,
+              email: order.studentEmail
+            },
+            theme: { color: '#03396c' },
+            handler: (response: any) => {
+              this.verifyRazorpayPayment(invoice, response);
+            },
+            modal: {
+              ondismiss: () => {
+                this.payActionLoading[invoice._id] = false;
+              }
+            }
+          };
+
+          const rzp = new Razorpay(options);
+          rzp.on('payment.failed', () => {
+            this.payActionLoading[invoice._id] = false;
+            this.showToast('Payment failed. Please try again.', 'error');
+          });
+          rzp.open();
+        },
+        error: (err) => {
+          this.payActionLoading[invoice._id] = false;
+          this.showToast(err?.error?.message || 'Could not initiate payment. Please try again.', 'error');
+        }
+      });
+    }).catch(() => {
+      this.payActionLoading[invoice._id] = false;
+      this.showToast('Failed to load payment gateway. Check your internet connection.', 'error');
+    });
+  }
+
+  private verifyRazorpayPayment(invoice: any, response: any): void {
+    this.http.post<any>('/api/payment-submissions/razorpay/verify', {
+      invoiceId: invoice._id,
+      razorpayOrderId: response.razorpay_order_id,
+      razorpayPaymentId: response.razorpay_payment_id,
+      razorpaySignature: response.razorpay_signature
+    }).subscribe({
+      next: () => {
+        this.payActionLoading[invoice._id] = false;
+        this.showToast('Payment received! Awaiting admin confirmation.', 'success');
+        this.loadSubmissions();
+        this.loadPaymentData();
+      },
+      error: (err) => {
+        this.payActionLoading[invoice._id] = false;
+        this.showToast(err?.error?.message || 'Payment verification failed. Contact support.', 'error');
+      }
+    });
+  }
+
+  private loadRazorpayScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (typeof Razorpay !== 'undefined') { resolve(); return; }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject();
+      document.body.appendChild(script);
+    });
+  }
+
+  // ── Manual Payment Modal ──────────────────────────────────────────────────
+
+  openManualModal(invoice: any): void {
+    this.selectedInvoice = invoice;
+    this.manualForm = {
+      amount: (invoice.total_payable || '').toString(),
+      timeOfPayment: '',
+      note: '',
+      proofFile: null
+    };
+    this.showManualModal = true;
+  }
+
+  closeManualModal(): void {
+    this.showManualModal = false;
+    this.selectedInvoice = null;
+    this.manualSubmitting = false;
+  }
+
+  onProofFileChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.manualForm.proofFile = input.files[0];
+    }
+  }
+
+  submitManualPayment(): void {
+    if (!this.selectedInvoice || !this.manualForm.amount) return;
+
+    this.manualSubmitting = true;
+    const formData = new FormData();
+    formData.append('invoiceId', this.selectedInvoice._id);
+    formData.append('amount', this.manualForm.amount);
+    formData.append('timeOfPayment', this.manualForm.timeOfPayment);
+    formData.append('note', this.manualForm.note);
+    if (this.manualForm.proofFile) {
+      formData.append('proof', this.manualForm.proofFile);
+    }
+
+    this.http.post<any>('/api/payment-submissions/manual', formData).subscribe({
+      next: () => {
+        this.manualSubmitting = false;
+        this.closeManualModal();
+        this.showToast('Payment proof submitted! Awaiting admin confirmation.', 'success');
+        this.loadSubmissions();
+      },
+      error: (err) => {
+        this.manualSubmitting = false;
+        this.showToast(err?.error?.message || 'Failed to submit. Please try again.', 'error');
+      }
+    });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  hasActiveSubmission(invoiceId: string): boolean {
+    return this.submissions.some(s =>
+      s.invoiceId === invoiceId && (s.status === 'pending' || s.status === 'processing')
+    );
+  }
+
+  getSubmissionForInvoice(invoiceId: string): any | null {
+    return this.submissions.find(s => s.invoiceId === invoiceId) || null;
+  }
+
+  submissionStatusClass(status: string): string {
+    switch (status) {
+      case 'confirmed': return 'sp-sub-badge sp-sub-badge--confirmed';
+      case 'processing': return 'sp-sub-badge sp-sub-badge--processing';
+      case 'rejected': return 'sp-sub-badge sp-sub-badge--rejected';
+      default: return 'sp-sub-badge sp-sub-badge--pending';
+    }
+  }
+
+  submissionStatusLabel(status: string): string {
+    switch (status) {
+      case 'confirmed': return '✓ Payment Confirmed';
+      case 'processing': return '⏳ Awaiting Confirmation (Razorpay)';
+      case 'rejected': return '✗ Submission Rejected';
+      default: return '🕐 Under Review';
+    }
+  }
+
+  showToast(msg: string, type: 'success' | 'error'): void {
+    this.toast = { msg, type };
+    setTimeout(() => { this.toast = null; }, 5000);
   }
 
   get currency(): string {

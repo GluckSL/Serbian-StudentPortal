@@ -1034,55 +1034,44 @@
 }
 .tf-btn {
   flex: 0 0 auto;
-  padding: 5px 12px;
+  padding: 8px 18px;
   border-radius: 8px;
   border: 1px solid #c7d2fe;
   background: #ffffff;
   color: #1e293b;
+  font: inherit;
   font-weight: 700;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  min-height: 32px;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  min-height: 38px;
   line-height: 1.2;
   box-sizing: border-box;
 }
-.tf-btn input {
-  margin: 0;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid #a5b4fc;
-  appearance: none;
-  -webkit-appearance: none;
-  background: #fff;
-  display: inline-block;
-  position: relative;
-  cursor: pointer;
-  flex-shrink: 0;
+.tf-btn:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: 2px;
 }
-.tf-btn input:checked {
-  border-color: #4f46e5;
-  background: #dbeafe;
+.tf-btn:hover:not(:disabled):not(.active) {
+  border-color: #94a3b8;
+  background: #f8fafc;
 }
-.tf-btn input:checked::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: #4f46e5;
+.tf-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
-.tf-btn:hover:not(:disabled) { border-color: #6366f1; background: #eef2ff; }
-.tf-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .tf-btn.active {
-  border-color: #4f46e5;
-  background: #dbeafe;
-  color: #3730a3;
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12);
+  border-color: #16a34a;
+  background: #22c55e;
+  color: #fff;
+}
+.tf-btn.active:hover:not(:disabled) {
+  border-color: #15803d;
+  background: #16a34a;
+  color: #fff;
 }
 
 /* Listening body */

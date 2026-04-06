@@ -372,13 +372,13 @@
               <div class="sentence-label-row">
                 <label class="field-label required">Sentence</label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"
-                  matTooltip="Insert ___ at cursor (focus sentence first) or at end">
+                  matTooltip="Insert _ at cursor (focus sentence first) or at end">
                   <span class="material-icons">add_box</span> Insert blank
                 </button>
               </div>
-              <p class="hint-text">Use <code>___</code> (three underscores) for each blank, or click the button above.</p>
+              <p class="hint-text">Use <code>_</code> or <code>___</code> for each blank (each gap is a run of underscores), or click the button above.</p>
               <textarea [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" class="field-input" rows="2"
-                placeholder="The cat ___ on the mat. She ___ happy."></textarea>
+                placeholder="The cat _ on the mat. She _ happy."></textarea>
               <div class="blank-count">{{ getBlankCount(q) }} blank(s) detected</div>
             </div>
             <div class="answers-section" *ngIf="getBlankCount(q) > 0">

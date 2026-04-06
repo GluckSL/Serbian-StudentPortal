@@ -907,35 +907,26 @@
 
           <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
             <div class="tf-answers" role="group" aria-label="Richtig oder Falsch">
-              <label
+              <button
+                type="button"
                 class="tf-btn"
                 [class.active]="parseTrueFalse(currentQuestion.qaResponse) === true"
-                [style.opacity]="hasCurrentSubmitted ? 0.55 : 1"
-                [style.cursor]="hasCurrentSubmitted ? 'not-allowed' : 'pointer'"
+                [disabled]="hasCurrentSubmitted"
+                [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                (click)="selectTrueFalse(currentQuestion, true)"
               >
-                <input
-                  type="checkbox"
-                  [checked]="parseTrueFalse(currentQuestion.qaResponse) === true"
-                  [disabled]="hasCurrentSubmitted"
-                  (click)="$event.preventDefault(); selectTrueFalse(currentQuestion, true)"
-                />
                 Richtig
-              </label>
-
-              <label
+              </button>
+              <button
+                type="button"
                 class="tf-btn"
                 [class.active]="parseTrueFalse(currentQuestion.qaResponse) === false"
-                [style.opacity]="hasCurrentSubmitted ? 0.55 : 1"
-                [style.cursor]="hasCurrentSubmitted ? 'not-allowed' : 'pointer'"
+                [disabled]="hasCurrentSubmitted"
+                [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                (click)="selectTrueFalse(currentQuestion, false)"
               >
-                <input
-                  type="checkbox"
-                  [checked]="parseTrueFalse(currentQuestion.qaResponse) === false"
-                  [disabled]="hasCurrentSubmitted"
-                  (click)="$event.preventDefault(); selectTrueFalse(currentQuestion, false)"
-                />
                 Falsch
-              </label>
+              </button>
             </div>
           </ng-container>
 

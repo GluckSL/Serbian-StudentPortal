@@ -2,6 +2,7 @@
 
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
 import { resolveMediaUrl } from '../../utils/media-url';
+import { countFillBlankRuns } from '../../utils/fill-blank';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -133,7 +134,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   readonly questionTypes = [
     { value: 'mcq',             label: 'Multiple Choice',  desc: '4 options, 1 correct answer',      icon: 'quiz',              color: '#1976d2', bg: '#e8f4fd' },
     { value: 'matching',        label: 'Matching',          desc: 'Match word / phrase pairs',         icon: 'compare_arrows',    color: '#7b1fa2', bg: '#f3e5f5' },
-    { value: 'fill-blank',      label: 'Fill in the Blanks',desc: 'Sentence with ___ gaps',            icon: 'text_fields',       color: '#388e3c', bg: '#e8f5e9' },
+    { value: 'fill-blank',      label: 'Fill in the Blanks',desc: 'Sentence with _ or ___ gaps',        icon: 'text_fields',       color: '#388e3c', bg: '#e8f5e9' },
     { value: 'pronunciation',   label: 'Pronunciation',     desc: 'Speak a word aloud',               icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' },
     { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' },
     { value: 'true-false', label: 'Richtig / Falsch', desc: 'Entscheiden, ob eine Aussage richtig oder falsch ist', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
@@ -579,14 +580,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   // Fill-blank
   onSentenceChange(q: ReviewQuestion): void {
-    const count = (q.sentence!.match(/___/g) || []).length;
+    const count = countFillBlankRuns(q.sentence || '');
     while (q.answers!.length < count) q.answers!.push('');
     while (q.answers!.length > count) q.answers!.pop();
   }
 
-  /** Insert ___ at cursor (if sentence field was focused) or at end. */
+  /** Insert a blank marker (_) at cursor (if sentence field was focused) or at end. */
   insertBlank(q: ReviewQuestion): void {
-    const blank = '___';
+    const blank = '_';
     const el = document.activeElement as HTMLTextAreaElement | null;
     if (el?.tagName === 'TEXTAREA' && typeof el.selectionStart === 'number') {
       const start = el.selectionStart;
@@ -603,7 +604,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   getBlankCount(q: ReviewQuestion): number {
-    return (q.sentence?.match(/___/g) || []).length;
+    return countFillBlankRuns(q.sentence || '');
   }
 
   /** Stable trackBy so option/answer/pair rows are not recreated when text changes; keeps radio selection. */
@@ -684,6 +685,58 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
     if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     return false;
+  }
+
+  /** Human-readable reasons why a question is invalid (for tooltips). */
+  getQuestionValidationHint(q: ReviewQuestion): string {
+    if (this.isQuestionValid(q)) return '';
+
+    const parts: string[] = [];
+
+    if (q.type === 'mcq') {
+      if (!q.question?.trim()) parts.push('Add the question text.');
+      const filled = q.options?.filter(o => o?.trim()).length ?? 0;
+      if (filled < 2) parts.push(`Need at least 2 filled answer options (currently ${filled}).`);
+    } else if (q.type === 'matching') {
+      const good = q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0;
+      if (good < 2) parts.push(`Need at least 2 complete pairs with left and right text (currently ${good}).`);
+    } else if (q.type === 'fill-blank') {
+      if (!q.sentence?.trim()) {
+        parts.push('Sentence is empty.');
+      } else {
+        const blanks = this.getBlankCount(q);
+        if (blanks === 0) {
+          parts.push('No blanks detected. Use underscore(s) for each gap: one _ per gap, or ___ for a wider gap. You can also click “Insert blank”.');
+        } else {
+          const answers = q.answers || [];
+          const missing: number[] = [];
+          for (let i = 0; i < blanks; i++) {
+            if (!answers[i]?.trim()) missing.push(i + 1);
+          }
+          if (missing.length) {
+            parts.push(`Fill in answer(s) for blank(s): ${missing.join(', ')}.`);
+          }
+        }
+      }
+    } else if (q.type === 'pronunciation') {
+      if (!q.word?.trim()) parts.push('Add the word or phrase to pronounce.');
+    } else if (q.type === 'question-answer') {
+      if (!q.prompt?.trim()) parts.push('Add the question or instruction text.');
+    } else if (q.type === 'listening') {
+      if (!q.mediaUrl?.trim()) parts.push('Add audio (upload or URL).');
+      if (!q.expectedTranscript?.trim()) parts.push('Add the expected transcript.');
+    } else {
+      parts.push('This question type is incomplete.');
+    }
+
+    return parts.join(' ');
+  }
+
+  /** Short hint for the “X/Y valid” summary in the header. */
+  getInvalidSummaryTooltip(): string {
+    const invalid = this.reviewQuestions.length - this.validCount;
+    if (invalid <= 0) return '';
+    return `${invalid} question(s) need fixes. Hover the warning icon on each row for details.`;
   }
 
   get validCount(): number { return this.reviewQuestions.filter(q => this.isQuestionValid(q)).length; }

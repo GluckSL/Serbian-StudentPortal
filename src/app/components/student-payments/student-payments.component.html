@@ -1,5 +1,10 @@
 <div class="sp" *ngIf="!isLoading; else loadingTpl">
 
+  <!-- Toast -->
+  <div class="sp-toast" *ngIf="toast" [class.sp-toast--error]="toast.type === 'error'">
+    {{ toast.msg }}
+  </div>
+
   <!-- Payment Summary Card -->
   <div class="sp-card" *ngIf="ledger">
     <div class="sp-card__head">
@@ -27,7 +32,6 @@
     </div>
     <div class="sp-bar-label">{{ payPct }}% paid</div>
 
-    <!-- Extra details -->
     <div class="sp-details" *ngIf="ledger.serviceOpted || ledger.batchNumber">
       <div class="sp-kv-row" *ngIf="ledger.serviceOpted"><span>Service</span><span class="sp-kv-val">{{ ledger.serviceOpted }}</span></div>
       <div class="sp-kv-row" *ngIf="ledger.batchNumber"><span>Batch</span><span class="sp-kv-val">{{ ledger.batchNumber }}</span></div>
@@ -45,6 +49,121 @@
       <div class="sp-empty-state__text">No payment records found yet.</div>
       <div class="sp-empty-state__sub">Contact the admin team if you believe this is an error.</div>
     </div>
+  </div>
+
+  <!-- Invoices -->
+  <div class="sp-card">
+    <div class="sp-card__head">
+      <span class="sp-card__title">📄 Invoices</span>
+      <span class="sp-card__meta">{{ invoices.length }} invoice(s)</span>
+    </div>
+
+    <div *ngIf="invoices.length; else noInvoices">
+      <div class="sp-invoice-list">
+        <div class="sp-invoice-item" *ngFor="let inv of invoices">
+          <!-- Invoice Info Row -->
+          <div class="sp-invoice-info">
+            <div class="sp-invoice-left">
+              <div class="sp-invoice-num sp-mono">{{ inv.invoice_number }}</div>
+              <div class="sp-invoice-desc">{{ inv.items?.length ? inv.items[0].description || inv.items[0].service : '—' }}</div>
+              <div class="sp-invoice-dates">
+                <span>Issued: {{ inv.invoice_date || '—' }}</span>
+                <span *ngIf="inv.due_date"
+                  [class.sp-overdue-text]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)">
+                  &nbsp;· Due: {{ inv.due_date }}
+                </span>
+              </div>
+            </div>
+            <div class="sp-invoice-right">
+              <div class="sp-invoice-amount">₹ {{ formatCurrency(inv.total_payable) }}</div>
+              <span class="sp-status-badge"
+                [class.sp-status-badge--paid]="inv.payment_status === 'paid'"
+                [class.sp-status-badge--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)"
+                [class.sp-status-badge--unpaid]="inv.payment_status !== 'paid' && !isOverdue(inv.due_date)">
+                {{ inv.payment_status === 'paid' ? '✓ Paid' : (isOverdue(inv.due_date) ? 'Overdue' : 'Unpaid') }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Submission status if exists -->
+          <div class="sp-sub-status" *ngIf="getSubmissionForInvoice(inv._id) as sub">
+            <span [class]="submissionStatusClass(sub.status)">{{ submissionStatusLabel(sub.status) }}</span>
+            <span *ngIf="sub.status === 'rejected' && sub.rejectionReason" class="sp-rejection-note">
+              — {{ sub.rejectionReason }}
+            </span>
+          </div>
+
+          <!-- Action Buttons (only for unpaid invoices without active submission) -->
+          <div class="sp-invoice-actions" *ngIf="inv.payment_status !== 'paid' && !hasActiveSubmission(inv._id)">
+            <button
+              class="sp-btn sp-btn--pay"
+              [disabled]="payActionLoading[inv._id]"
+              (click)="payWithRazorpay(inv)">
+              <span *ngIf="!payActionLoading[inv._id]">💳 Pay via Razorpay</span>
+              <span *ngIf="payActionLoading[inv._id]">Loading payment...</span>
+            </button>
+            <button
+              class="sp-btn sp-btn--manual"
+              [disabled]="payActionLoading[inv._id]"
+              (click)="openManualModal(inv)">
+              📤 Submit Payment Proof
+            </button>
+          </div>
+
+          <!-- Already has active submission -->
+          <div class="sp-pending-note" *ngIf="inv.payment_status !== 'paid' && hasActiveSubmission(inv._id)">
+            Your payment submission is under review. We'll notify you by email once confirmed.
+          </div>
+        </div>
+      </div>
+
+      <!-- Table totals -->
+      <div class="sp-invoice-totals">
+        <span>Total: <strong>{{ formatCurrency(invoiceTotal) }}</strong></span>
+        <span class="sp-status-badge sp-status-badge--paid" style="margin-left:10px;">Paid: {{ formatCurrency(invoicePaid) }}</span>
+      </div>
+    </div>
+
+    <ng-template #noInvoices>
+      <div class="sp-empty-msg">No invoices found yet.</div>
+    </ng-template>
+  </div>
+
+  <!-- My Payment Submissions -->
+  <div class="sp-card" *ngIf="submissions.length">
+    <div class="sp-card__head">
+      <span class="sp-card__title">📬 My Payment Submissions</span>
+      <span class="sp-card__meta">{{ submissions.length }} submission(s)</span>
+    </div>
+    <table class="sp-table-full">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Amount</th>
+          <th>Type</th>
+          <th>Submitted</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let sub of submissions">
+          <td class="sp-mono">{{ sub.invoiceNumber || '—' }}</td>
+          <td class="sp-bold">₹ {{ formatCurrency(sub.amount) }}</td>
+          <td>
+            <span class="sp-type-pill" [class.sp-type-pill--rzp]="sub.paymentType === 'razorpay'">
+              {{ sub.paymentType === 'razorpay' ? '💳 Razorpay' : '📤 Manual' }}
+            </span>
+          </td>
+          <td>{{ formatDate(sub.createdAt) }}</td>
+          <td>
+            <span [class]="submissionStatusClass(sub.status)">{{ submissionStatusLabel(sub.status) }}</span>
+            <div *ngIf="sub.status === 'rejected' && sub.rejectionReason" class="sp-rejection-note">
+              {{ sub.rejectionReason }}
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <!-- Payment History (from ledger) -->
@@ -75,59 +194,9 @@
     </table>
   </div>
 
-  <!-- Invoices -->
-  <div class="sp-card">
-    <div class="sp-card__head">
-      <span class="sp-card__title">📄 Invoices</span>
-      <span class="sp-card__meta">{{ invoices.length }} invoice(s)</span>
-    </div>
-    <table class="sp-table-full" *ngIf="invoices.length">
-      <thead>
-        <tr>
-          <th>Invoice #</th>
-          <th>Date</th>
-          <th>Due Date</th>
-          <th>Description</th>
-          <th>Subtotal</th>
-          <th>Tax</th>
-          <th>Total</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let inv of invoices">
-          <td class="sp-mono">{{ inv.invoice_number }}</td>
-          <td>{{ inv.invoice_date || '—' }}</td>
-          <td [class.sp-overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)">{{ inv.due_date || '—' }}</td>
-          <td>{{ inv.items?.length ? inv.items[0].description : '—' }}</td>
-          <td>{{ formatCurrency(inv.subtotal) }}</td>
-          <td>{{ formatCurrency(inv.total_tax) }}</td>
-          <td class="sp-bold">{{ formatCurrency(inv.total_payable) }}</td>
-          <td>
-            <span class="sp-status-badge"
-                  [class.sp-status-badge--paid]="inv.payment_status === 'paid'"
-                  [class.sp-status-badge--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)"
-                  [class.sp-status-badge--unpaid]="inv.payment_status !== 'paid' && !isOverdue(inv.due_date)">
-              {{ inv.payment_status === 'paid' ? '✓ Paid' : (isOverdue(inv.due_date) ? 'Overdue' : 'Unpaid') }}
-            </span>
-          </td>
-        </tr>
-      </tbody>
-      <tfoot>
-        <tr class="sp-table-total">
-          <td colspan="6">Total</td>
-          <td class="sp-bold">{{ formatCurrency(invoiceTotal) }}</td>
-          <td>
-            <span class="sp-status-badge sp-status-badge--paid">Paid: {{ formatCurrency(invoicePaid) }}</span>
-          </td>
-        </tr>
-      </tfoot>
-    </table>
-    <div class="sp-empty-msg" *ngIf="!invoices.length">No invoices found yet.</div>
-  </div>
-
 </div>
 
+<!-- Loading -->
 <ng-template #loadingTpl>
   <div class="sp" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
     <div style="text-align:center;">
@@ -136,3 +205,70 @@
     </div>
   </div>
 </ng-template>
+
+<!-- Manual Payment Modal -->
+<div class="sp-modal-overlay" *ngIf="showManualModal" (click)="closeManualModal()">
+  <div class="sp-modal" (click)="$event.stopPropagation()">
+    <div class="sp-modal__head">
+      <h3 class="sp-modal__title">📤 Submit Payment Proof</h3>
+      <button class="sp-modal__close" (click)="closeManualModal()">✕</button>
+    </div>
+
+    <div class="sp-modal__invoice-info" *ngIf="selectedInvoice">
+      <span>Invoice: <strong>{{ selectedInvoice.invoice_number }}</strong></span>
+      <span>Amount: <strong>₹ {{ formatCurrency(selectedInvoice.total_payable) }}</strong></span>
+    </div>
+
+    <p class="sp-modal__hint">If you've already paid via bank transfer, UPI, or any other method, fill in the details below and upload a screenshot as proof.</p>
+
+    <div class="sp-form">
+      <div class="sp-form-group">
+        <label class="sp-label">Amount Paid <span class="sp-required">*</span></label>
+        <input
+          class="sp-input"
+          type="number"
+          [(ngModel)]="manualForm.amount"
+          placeholder="Enter amount"
+          min="1"
+          required>
+      </div>
+
+      <div class="sp-form-group">
+        <label class="sp-label">Time of Payment</label>
+        <input
+          class="sp-input"
+          type="datetime-local"
+          [(ngModel)]="manualForm.timeOfPayment">
+      </div>
+
+      <div class="sp-form-group">
+        <label class="sp-label">Payment Screenshot <span class="sp-hint-text">(JPG, PNG, PDF — max 5MB)</span></label>
+        <div class="sp-file-upload" (click)="fileInput.click()">
+          <input #fileInput type="file" accept="image/*,.pdf" style="display:none" (change)="onProofFileChange($event)">
+          <span *ngIf="!manualForm.proofFile">📎 Click to upload screenshot</span>
+          <span *ngIf="manualForm.proofFile" class="sp-file-name">✓ {{ manualForm.proofFile.name }}</span>
+        </div>
+      </div>
+
+      <div class="sp-form-group">
+        <label class="sp-label">Note / Reference ID <span class="sp-hint-text">(optional)</span></label>
+        <textarea
+          class="sp-input sp-textarea"
+          [(ngModel)]="manualForm.note"
+          rows="2"
+          placeholder="e.g. UPI transaction ID, bank reference...">
+        </textarea>
+      </div>
+
+      <div class="sp-modal__actions">
+        <button
+          class="sp-btn sp-btn--submit"
+          [disabled]="manualSubmitting || !manualForm.amount"
+          (click)="submitManualPayment()">
+          {{ manualSubmitting ? 'Submitting...' : 'Submit for Review' }}
+        </button>
+        <button class="sp-btn sp-btn--cancel" (click)="closeManualModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>

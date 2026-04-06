@@ -9,6 +9,7 @@ import {
   QuestionResponse, SubmitResult
 } from '../../services/digital-exercise.service';
 import { resolveMediaUrl } from '../../utils/media-url';
+import { countFillBlankRuns, splitFillBlankSentence } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
@@ -173,7 +174,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.matchingRight = rightItems;
         pq.selectedLeftIndex = null;
       } else if (q.type === 'fill-blank') {
-        const count = (q.sentence?.match(/___/g) || []).length;
+        const count = countFillBlankRuns(q.sentence || '');
         pq.fillAnswers = new Array(count).fill('');
       } else if (q.type === 'pronunciation') {
         pq.spokenText = '';
@@ -1106,7 +1107,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getSentenceParts(sentence: string): string[] {
-    return sentence.split('___');
+    return splitFillBlankSentence(sentence || '');
   }
 
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {

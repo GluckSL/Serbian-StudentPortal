@@ -27,7 +27,7 @@ const MatchingQuestionSchema = new mongoose.Schema({
 // Fill in the Blanks Schema
 const FillBlankQuestionSchema = new mongoose.Schema({
   type: { type: String, enum: ['fill-blank'], default: 'fill-blank' },
-  sentence: { type: String, required: true }, // Use ___ for each blank
+  sentence: { type: String, required: true }, // Use _ or ___ (each run = one blank)
   answers: [{ type: String, required: true }],  // Correct answers for each blank in order
   hint: { type: String, default: '' },
   caseSensitive: { type: Boolean, default: false },

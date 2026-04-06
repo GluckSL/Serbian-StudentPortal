@@ -50,6 +50,7 @@ const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
 const invoiceManagementRoutes = require('./routes/invoiceManagement');
+const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -152,6 +153,7 @@ app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);
 
 app.use('/api/invoices', invoiceManagementRoutes);
+app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
