@@ -11,6 +11,7 @@ import { SubscriptionGuardService } from '../../services/subscription-guard.serv
 import { Subscription } from 'rxjs';
 import { timeout, take } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 // Speech Recognition interface
 declare global {
@@ -120,13 +121,14 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
-    public router: Router, // Make router public for template access
+    public router: Router,
     private location: Location,
     private http: HttpClient,
     private aiTutorService: AiTutorService,
     private learningModulesService: LearningModulesService,
     private subscriptionGuard: SubscriptionGuardService,
-    private cdr: ChangeDetectorRef // Add ChangeDetectorRef for manual change detection
+    private cdr: ChangeDetectorRef,
+    private notify: NotificationService
   ) {
     // Initialize speech synthesis
     this.speechSynthesis = window.speechSynthesis;
@@ -169,13 +171,13 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
               // User doesn't have PLATINUM access, show upgrade option
               const upgradeMessage = `🤖 AI Tutoring - Premium Feature\n\n${status.message}\n\nWould you like to request an upgrade to PLATINUM?\nOur sales team will contact you within 24 hours.`;
               
-              if (confirm(upgradeMessage)) {
-                // Send upgrade request
-                this.requestUpgrade();
-              } else {
-                // Redirect to learning modules
-                this.router.navigate(['/learning-modules']);
-              }
+              this.notify.confirm('Upgrade to PLATINUM', status.message + '\n\nRequest an upgrade? Our sales team will contact you within 24 hours.', 'Request Upgrade', 'Not Now').subscribe(ok => {
+                if (ok) {
+                  this.requestUpgrade();
+                } else {
+                  this.router.navigate(['/learning-modules']);
+                }
+              });
               return;
             }
             
@@ -367,7 +369,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
         this.moduleFetchSettled = true;
         this.sessionStartSettled = true;
         this.isLoading = false;
-        alert('Failed to load module');
+        this.notify.error('Failed to load module');
         
         // Redirect based on user role and test mode
         if (this.isTeacherTestMode) {
@@ -524,7 +526,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           errorMessage = `Failed to start session: ${error.error.message}`;
         }
         
-        alert(errorMessage);
+        this.notify.error(errorMessage);
       }
     });
     
@@ -710,7 +712,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           this.autoRefreshMessages();
         }, 100);
         
-        alert('Failed to send message');
+        this.notify.error('Failed to send message');
       }
     });
   }
@@ -768,7 +770,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('Error submitting answer:', error);
         this.isSending = false;
-        alert('Failed to submit answer');
+        this.notify.error('Failed to submit answer');
       }
     });
   }
@@ -3251,12 +3253,12 @@ You can now move on to the next challenge or review your progress in the perform
       message: 'Student requested PLATINUM upgrade for AI Tutoring access'
     }, { withCredentials: true }).subscribe({
       next: (response: any) => {
-        alert(`✅ Upgrade Request Submitted!\n\n${response.message}\n\nOur sales team will contact you soon to discuss pricing and payment options.`);
+        this.notify.success('Upgrade request submitted! Our sales team will contact you soon.');
         this.router.navigate(['/learning-modules']);
       },
       error: (error) => {
         console.error('Error submitting upgrade request:', error);
-        alert('❌ Failed to submit upgrade request. Please contact support directly.');
+        this.notify.error('Failed to submit upgrade request. Please contact support directly.');
         this.router.navigate(['/learning-modules']);
       }
     });

@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { PageEvent } from '@angular/material/paginator';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { StudentDocumentsService } from '../../../services/student-documents.service';
+import { NotificationService } from '../../../services/notification.service';
 import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
@@ -227,7 +228,8 @@ export class DocumentVerificationComponent implements OnInit {
     private documentService: StudentDocumentsService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -528,32 +530,32 @@ export class DocumentVerificationComponent implements OnInit {
   }
 
   unlockDocument(doc: StudentDocument): void {
-    const confirmUnlock = confirm(
-      `Unlock "${doc.documentName}" for ${doc.studentName}?\n\n` +
-      `This will change the status to PENDING, allowing the student to delete and re-upload this document.`
-    );
-    
-    if (!confirmUnlock) return;
-    
-    this.documentService.verifyDocument(
-      doc._id,
-      'REJECTED',
-      'Document unlocked by admin for student to update. Please upload a new version if needed.'
-    ).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.snackBar.open(
-            'Document unlocked successfully. Student can now update it.',
-            'Close',
-            { duration: 4000 }
-          );
-          this.loadDocuments();
+    this.notify.confirm(
+      'Unlock Document',
+      `Unlock "${doc.documentName}" for ${doc.studentName}? This will change the status to PENDING, allowing the student to delete and re-upload this document.`,
+      'Yes, Unlock', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.documentService.verifyDocument(
+        doc._id,
+        'REJECTED',
+        'Document unlocked by admin for student to update. Please upload a new version if needed.'
+      ).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.snackBar.open(
+              'Document unlocked successfully. Student can now update it.',
+              'Close',
+              { duration: 4000 }
+            );
+            this.loadDocuments();
+          }
+        },
+        error: (error) => {
+          console.error('Error unlocking document:', error);
+          this.snackBar.open('Error unlocking document', 'Close', { duration: 3000 });
         }
-      },
-      error: (error) => {
-        console.error('Error unlocking document:', error);
-        this.snackBar.open('Error unlocking document', 'Close', { duration: 3000 });
-      }
+      });
     });
   }
 
@@ -620,30 +622,29 @@ export class DocumentVerificationComponent implements OnInit {
   
   bulkVerifySelected(): void {
     if (this.selectedDocuments.length === 0) return;
-    
-    const confirmVerify = confirm(
-      `Verify ${this.selectedDocuments.length} selected documents?\n\nAll selected documents will be marked as VERIFIED.`
-    );
-    
-    if (!confirmVerify) return;
-    
-    let completed = 0;
-    let failed = 0;
-    
-    this.selectedDocuments.forEach(docId => {
-      this.documentService.verifyDocument(docId, 'VERIFIED', 'Bulk verified by admin').subscribe({
-        next: () => {
-          completed++;
-          if (completed + failed === this.selectedDocuments.length) {
-            this.finishBulkVerification(completed, failed);
+    this.notify.confirm(
+      'Bulk Verify',
+      `Verify ${this.selectedDocuments.length} selected documents? All selected documents will be marked as VERIFIED.`,
+      'Yes, Verify All', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      let completed = 0;
+      let failed = 0;
+      this.selectedDocuments.forEach(docId => {
+        this.documentService.verifyDocument(docId, 'VERIFIED', 'Bulk verified by admin').subscribe({
+          next: () => {
+            completed++;
+            if (completed + failed === this.selectedDocuments.length) {
+              this.finishBulkVerification(completed, failed);
+            }
+          },
+          error: () => {
+            failed++;
+            if (completed + failed === this.selectedDocuments.length) {
+              this.finishBulkVerification(completed, failed);
+            }
           }
-        },
-        error: () => {
-          failed++;
-          if (completed + failed === this.selectedDocuments.length) {
-            this.finishBulkVerification(completed, failed);
-          }
-        }
+        });
       });
     });
   }
@@ -916,23 +917,24 @@ export class DocumentVerificationComponent implements OnInit {
   }
   
   deleteRequirement(requirement: any): void {
-    const confirmDelete = confirm(
-      `Delete "${requirement.label}"?\n\nThis will hide it from students but won't delete existing uploaded documents of this type.`
-    );
-    
-    if (!confirmDelete) return;
-    
-    this.documentService.deleteDocumentRequirement(requirement._id).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.snackBar.open('Requirement deleted successfully', 'Close', { duration: 3000 });
-          this.loadRequirements();
+    this.notify.confirm(
+      'Delete Requirement',
+      `Delete "${requirement.label}"? This will hide it from students but won't delete existing uploaded documents of this type.`,
+      'Yes, Delete', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.documentService.deleteDocumentRequirement(requirement._id).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.snackBar.open('Requirement deleted successfully', 'Close', { duration: 3000 });
+            this.loadRequirements();
+          }
+        },
+        error: (error) => {
+          console.error('Error deleting requirement:', error);
+          this.snackBar.open('Error deleting requirement', 'Close', { duration: 3000 });
         }
-      },
-      error: (error) => {
-        console.error('Error deleting requirement:', error);
-        this.snackBar.open('Error deleting requirement', 'Close', { duration: 3000 });
-      }
+      });
     });
   }
 

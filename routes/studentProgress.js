@@ -212,8 +212,19 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     const ExerciseAttempt = require('../models/ExerciseAttempt');
     const studentId = req.user.id;
 
-    const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
+    let student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    if (student.role === 'STUDENT') {
+      try {
+        const { recomputePendingForStudent } = require('../services/journeyDayAdvance.service');
+        await recomputePendingForStudent(studentId);
+        student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
+        if (!student) return res.status(404).json({ message: 'Student not found' });
+      } catch (e) {
+        console.warn('recomputePendingForStudent:', e.message);
+      }
+    }
 
     // Level progression
     const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -338,7 +349,12 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         examScores: student.examScores || {}, languageExamStatus: student.languageExamStatus || '',
         profilePic: student.profilePic || '',
         currentCourseDay: studentCourseDay,
-        subscription: student.subscription || ''
+        subscription: student.subscription || '',
+        pendingJourneyDayAdvance: !!student.pendingJourneyDayAdvance,
+        pendingJourneyDayAdvanceForDay:
+          student.pendingJourneyDayAdvanceForDay != null
+            ? Math.min(200, Math.max(1, Math.floor(Number(student.pendingJourneyDayAdvanceForDay))))
+            : null
       },
       nextLockedDigitalExercise,
       levelProgression, lessonsByLevel,

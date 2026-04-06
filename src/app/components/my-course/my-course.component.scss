@@ -6,12 +6,16 @@
 
 .mc {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
   margin: 0;
   padding: 12px 10px 32px;
   box-sizing: border-box;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   color: #0f172a;
+  overflow-x: clip;
+  min-width: 0;
+  /* Hero row height ≈ avatar (112px) + vertical padding; compact tab card uses 60% */
+  --mc-hero-visual-height: 154px;
 }
 
 @media (min-width: 480px) {
@@ -60,6 +64,8 @@
   line-height: 1.2;
   color: #1e1b4b;
   letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
 }
 
 .mc-hero__wave {
@@ -72,6 +78,8 @@
   line-height: 1.55;
   color: #475569;
   max-width: 36rem;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
 }
 
 .mc-hero__badges {
@@ -93,6 +101,10 @@
   border: 1px solid rgba(199, 210, 254, 0.9);
   border-radius: 999px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  max-width: 100%;
+  text-align: left;
+  flex-wrap: wrap;
+  white-space: normal;
 }
 
 .mc-hero__pill strong {
@@ -168,24 +180,50 @@
   }
 }
 
+/* ── Compact profile strip (Exercises / Modules / Journey) — above tabs, like hero width ── */
+.mc-tab-profile-strip {
+  width: 100%;
+  margin-bottom: 18px;
+  box-sizing: border-box;
+}
+
 /* ── Tabs — white rail, blue active ───────────────────────── */
 .mc-tabs-wrap {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 14px;
   padding: 0 2px;
+  min-width: 0;
 }
 
 .mc-tabs {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
   padding: 4px;
-  border-radius: 999px;
+  border-radius: 14px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.mc-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.mc-tabs::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 .mc-tab {
@@ -193,12 +231,16 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  padding: 8px 16px;
+  padding: 10px 14px;
   border-radius: 999px;
   background: transparent;
   color: #64748b;
   font-family: inherit;
   transition: background 0.15s, color 0.15s;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .mc-tab:hover {
@@ -211,31 +253,133 @@
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
-.mc-tabs-meta {
+/* Compact profile card — full width; ~60% height of My class hero; same card language as .mc-hero */
+.mc-tab-profile {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px 24px;
+  width: 100%;
+  min-height: calc(var(--mc-hero-visual-height) * 0.6);
+  max-height: calc(var(--mc-hero-visual-height) * 0.6);
+  padding: 10px 20px 10px 22px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 35%, #f0f4ff 70%, #f8fafc 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 20px;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 12px 40px rgba(99, 102, 241, 0.1);
+  overflow: hidden;
+}
+
+.mc-tab-profile__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.mc-tab-profile__name {
+  margin: 0;
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  font-weight: 800;
+  line-height: 1.2;
+  color: #1e1b4b;
+  letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.mc-tab-profile__quote {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mc-tab-profile__level {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.mc-tab-profile__level strong {
+  color: #312e81;
+  font-weight: 800;
+}
+
+.mc-tab-profile__photo {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.mc-tab-profile__avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 3px solid #fff;
+  box-shadow:
+    0 4px 14px rgba(67, 56, 202, 0.2),
+    0 0 0 1px rgba(199, 210, 254, 0.8);
+  display: block;
+}
+
+.mc-tab-profile__avatar--fallback {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  justify-content: center;
+  background: linear-gradient(145deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 800;
 }
 
-.mc-schedule-link {
-  font-size: 13px;
-  font-weight: 600;
-  color: #4f46e5;
-  text-decoration: none;
-}
+@media (max-width: 640px) {
+  .mc {
+    --mc-hero-visual-height: 140px;
+  }
 
-.mc-schedule-link:hover {
-  text-decoration: underline;
-}
+  .mc-tab-profile {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 12px 16px;
+    max-height: none;
+    min-height: calc(var(--mc-hero-visual-height) * 0.6);
+  }
 
-.mc-schedule-link--muted {
-  color: #64748b;
-  font-weight: 500;
-}
+  .mc-tab-profile__photo {
+    order: -1;
+  }
 
-.mc-schedule-link--muted:hover {
-  color: #0f172a;
+  .mc-tab-profile__main {
+    align-items: center;
+  }
+
+  .mc-tab-profile__avatar,
+  .mc-tab-profile__avatar--fallback {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+  }
+
+  .mc-tab-profile__avatar--fallback {
+    font-size: 1.35rem;
+  }
 }
 
 /* ── Content panel — white ───────────────────────────────── */
@@ -245,6 +389,10 @@
   border-radius: 14px;
   padding: 12px 10px 20px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  box-sizing: border-box;
 }
 
 @media (min-width: 480px) {
@@ -485,6 +633,23 @@
   color: #15803d;
 }
 
+.mc-update__icon--celebrate {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #b45309;
+}
+
+.mc-update--journey-ready {
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 12px 10px;
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, #faf5ff 0%, #eef2ff 100%);
+}
+
+.mc-update--journey-ready .mc-update__title {
+  color: #5b21b6;
+}
+
 .mc-update__title {
   margin: 0 0 4px;
   font-size: 11px;
@@ -570,6 +735,8 @@
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .mc-journey-head h3 { margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a; line-height: 1.25; }
 .mc-journey-head p { margin: 2px 0 0; color: #64748b; font-size: 0.8125rem; line-height: 1.35; }
@@ -578,6 +745,21 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+@media (max-width: 520px) {
+  .mc-journey-head__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mc-journey-meta {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 /* Primary CTA — open report */
@@ -1321,4 +1503,22 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: #475569;
+}
+
+@media (max-width: 560px) {
+  .mc-day-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .mc-day-item__status,
+  .mc-day-item__btn {
+    justify-self: stretch;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .mc-day-item__btn {
+    min-height: 44px;
+  }
 }

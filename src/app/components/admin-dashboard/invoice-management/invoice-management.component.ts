@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   selector: 'app-invoice-management',
@@ -34,7 +35,7 @@ export class InvoiceManagementComponent implements OnInit {
   showHistoryModal = false;
   historyInvoice: any = null;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private notify: NotificationService) {}
   ngOnInit(): void { this.load(); }
 
   load(): void {
@@ -97,7 +98,7 @@ export class InvoiceManagementComponent implements OnInit {
     if (this.payProofFile) formData.append('proof', this.payProofFile);
     this.http.post<any>(`/api/invoices/${this.selectedInvoice._id}/record-payment`, formData, { withCredentials: true }).subscribe({
       next: () => { this.processing = false; this.closeModal(); this.load(); },
-      error: (err: any) => { this.processing = false; alert(err.error?.message || 'Failed'); }
+      error: (err: any) => { this.processing = false; this.notify.error(err.error?.message || 'Failed'); }
     });
   }
 
@@ -109,10 +110,12 @@ export class InvoiceManagementComponent implements OnInit {
   openHistory(inv: any): void { this.historyInvoice = inv; this.showHistoryModal = true; }
 
   deleteInvoice(inv: any): void {
-    if (!confirm('Delete invoice ' + (inv.invoice_number || '') + '? This cannot be undone.')) return;
-    this.http.delete<any>(`/api/invoices/${inv._id}`, { withCredentials: true }).subscribe({
-      next: () => this.load(),
-      error: (err: any) => alert(err.error?.message || 'Failed to delete')
+    this.notify.confirm('Delete Invoice', `Delete invoice ${inv.invoice_number || ''}? This cannot be undone.`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.http.delete<any>(`/api/invoices/${inv._id}`, { withCredentials: true }).subscribe({
+        next: () => this.load(),
+        error: (err: any) => this.notify.error(err.error?.message || 'Failed to delete')
+      });
     });
   }
   closeHistory(): void { this.showHistoryModal = false; this.historyInvoice = null; }

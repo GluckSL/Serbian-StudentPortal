@@ -60,6 +60,7 @@ const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
 
 // Import and schedule auto-fetch Zoom attendance job
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
+const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -221,6 +222,7 @@ app.listen(PORT, () => {
   // Initialize cron jobs
   scheduleMetaToMondaySync();
   scheduleAutoFetchAttendance();
+  scheduleJourneyDayRollover();
 });
 
 

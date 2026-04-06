@@ -6,6 +6,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Va
 import { Router, ActivatedRoute } from '@angular/router';
 import { LearningModulesService, LearningModule } from '../../services/learning-modules.service';
 import { ModuleDataTransferService } from '../../services/module-data-transfer.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-module-form',
@@ -394,7 +395,8 @@ export class ModuleFormComponent implements OnInit {
     private learningModulesService: LearningModulesService,
     private moduleDataTransferService: ModuleDataTransferService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private notify: NotificationService
   ) {
     this.moduleForm = this.createForm();
   }
@@ -520,7 +522,7 @@ export class ModuleFormComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error loading module:', error);
-        alert('Failed to load module');
+        this.notify.error('Failed to load module');
         this.goBack();
       }
     });
@@ -742,13 +744,13 @@ export class ModuleFormComponent implements OnInit {
     operation.subscribe({
       next: (response) => {
         const action = this.isEditMode ? 'updated' : 'created';
-        alert(`Module ${action} successfully!`);
+        this.notify.success(`Module ${action} successfully!`);
         this.goBack();
       },
       error: (error) => {
         console.error('Error saving module:', error);
         const action = this.isEditMode ? 'updating' : 'creating';
-        alert(`Failed to ${action} module. Please try again.`);
+        this.notify.error(`Failed to ${action} module. Please try again.`);
         this.isSubmitting = false;
       }
     });

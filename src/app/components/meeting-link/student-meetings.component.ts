@@ -4,6 +4,7 @@ import { Component, OnInit, OnDestroy, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
+import { NotificationService } from '../../services/notification.service';
 
 interface StudentMeeting {
   _id: string;
@@ -54,7 +55,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   error = '';
   private meetingsRefreshId: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private zoomService: ZoomService) {}
+  constructor(private zoomService: ZoomService, private notify: NotificationService) {}
 
   ngOnInit(): void {
     this.loadMeetings();
@@ -181,7 +182,7 @@ Password: ${meeting.password}
     `.trim();
 
     navigator.clipboard.writeText(info).then(() => {
-      alert('Meeting information copied to clipboard!');
+      this.notify.success('Meeting information copied to clipboard!');
     });
   }
 

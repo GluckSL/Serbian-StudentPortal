@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StudentLogService, StudentLog } from '../../services/student-log.service';
 import { Router } from '@angular/router';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-student-logs',
@@ -43,7 +44,8 @@ export class StudentLogsComponent implements OnInit {
 
   constructor(
     private studentLogService: StudentLogService,
-    private router: Router
+    private router: Router,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -133,18 +135,12 @@ export class StudentLogsComponent implements OnInit {
 
   deleteLog(log: StudentLog): void {
     if (!log._id) return;
-    const ok = confirm(`Delete this log for ${log.studentId?.name || 'student'}?`);
-    if (!ok) return;
-
-    this.studentLogService.deleteStudentLog(log._id).subscribe({
-      next: () => {
-        this.studentLogs = this.studentLogs.filter((x) => x._id !== log._id);
-        this.applyFilters();
-      },
-      error: (err) => {
-        console.error(err);
-        alert(err?.error?.message || 'Failed to delete log');
-      }
+    this.notify.confirm('Delete Log', `Delete this log for ${log.studentId?.name || 'student'}?`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.studentLogService.deleteStudentLog(log._id!).subscribe({
+        next: () => { this.studentLogs = this.studentLogs.filter((x) => x._id !== log._id); this.applyFilters(); },
+        error: (err) => { console.error(err); this.notify.error(err?.error?.message || 'Failed to delete log'); }
+      });
     });
   }
 }

@@ -14,6 +14,11 @@ import { DigitalExercisesComponent } from '../digital-exercises/digital-exercise
 import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import {
+  JourneyPendingCelebrationDialogComponent,
+  JourneyPendingCelebrationData
+} from './journey-pending-celebration-dialog.component';
 
 type MyCourseTab = 'classes' | 'exercises' | 'modules' | 'journey';
 type JourneyFilter = 'all' | 'completed' | 'pending';
@@ -37,6 +42,8 @@ type ProgressRange = 'weekly' | 'overall';
 export class MyCourseComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
+  /** Prevents opening two celebration dialogs from overlapping refresh + init timers. */
+  private journeyCongratsDialogRef: MatDialogRef<JourneyPendingCelebrationDialogComponent> | null = null;
 
   journey: any = null;
   loading = true;
@@ -72,6 +79,37 @@ export class MyCourseComponent implements OnInit {
     'Your future self will thank you for today’s effort.'
   ];
 
+  /** Shown on Exercises / Modules / Journey tab row; new random line on each page load. */
+  tabHeaderQuote = '';
+
+  private readonly tabHeaderQuotes = [
+    "You're doing great — keep showing up!",
+    'Every bit of practice moves you forward. Stay with it!',
+    'Learning a language is a marathon, not a sprint. You’ve got this.',
+    'Small steps today become fluent tomorrows.',
+    'Mistakes mean you’re learning. Keep going!',
+    'Your effort today is building your future self.',
+    'Consistency beats intensity. Proud of you for sticking with it.',
+    'Curiosity + practice = progress. You’re on the right path.',
+    'One lesson at a time — you’re stronger than you think.',
+    'Show up, try again, celebrate small wins. That’s how winners learn.',
+    'The best time to practice was yesterday; the second best is now.',
+    'You don’t have to be perfect to make real progress.',
+    'Every word you learn opens another door. Keep opening them!',
+    'Stay patient with yourself — fluency is built brick by brick.',
+    'Discipline today, confidence tomorrow.',
+    'You chose growth. That already says something amazing about you.',
+    'Breathe, focus, and take the next small step. That’s enough.',
+    'Hard things get easier when you don’t quit. Keep pushing!',
+    'Your dedication is visible, even on the days it feels invisible.',
+    'Believe in the version of you who finishes what you start.'
+  ];
+
+  private pickTabHeaderQuote(): void {
+    const list = this.tabHeaderQuotes;
+    this.tabHeaderQuote = list[Math.floor(Math.random() * list.length)] || list[0];
+  }
+
   constructor(
     private progressService: StudentProgressService,
     private route: ActivatedRoute,
@@ -79,7 +117,8 @@ export class MyCourseComponent implements OnInit {
     private authService: AuthService,
     private zoomService: ZoomService,
     private exerciseService: DigitalExerciseService,
-    private learningModulesService: LearningModulesService
+    private learningModulesService: LearningModulesService,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -103,7 +142,9 @@ export class MyCourseComponent implements OnInit {
         this.journey = journey;
         this.applyMeetingsPreview(meetings);
         this.loadQuickAccess();
+        this.pickTabHeaderQuote();
         this.loading = false;
+        setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
         // Start tour for first-time students
         if (!this._tourChecked) {
           this._tourChecked = true;
@@ -116,6 +157,7 @@ export class MyCourseComponent implements OnInit {
         }
       },
       error: () => {
+        this.pickTabHeaderQuote();
         this.loading = false;
       }
     });
@@ -223,6 +265,58 @@ export class MyCourseComponent implements OnInit {
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+    if (tab === 'classes') {
+      this.refreshJourneyForPendingCelebration();
+    }
+  }
+
+  /** Refetch journey so attendance → pending flags show in Updates + dialog. */
+  refreshJourneyForPendingCelebration(): void {
+    this.progressService
+      .getStudentJourney()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (j) => {
+          this.journey = j;
+          this.loadQuickAccess();
+          setTimeout(() => this.maybeShowJourneyCongratulations(), 350);
+        },
+        error: () => {}
+      });
+  }
+
+  get nextJourneyPreviewDay(): number {
+    return Math.min(200, this.journeyCourseDay + 1);
+  }
+
+  get showJourneyPendingCelebration(): boolean {
+    return !!this.profile?.pendingJourneyDayAdvance;
+  }
+
+  private maybeShowJourneyCongratulations(): void {
+    if (this.destroyed || !this.showJourneyPendingCelebration || this.activeTab !== 'classes') return;
+    if (this.journeyCongratsDialogRef) return;
+    const reg = (this.profile?.regNo || this.profile?.name || 'student').toString();
+    const forDay = this.profile?.pendingJourneyDayAdvanceForDay ?? this.journeyCourseDay;
+    const key = `journeyCongratsDlg_${reg}_${forDay}`;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key)) return;
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(key, '1');
+
+    const data: JourneyPendingCelebrationData = {
+      currentDay: this.journeyCourseDay,
+      nextDay: this.nextJourneyPreviewDay
+    };
+    const ref = this.dialog.open(JourneyPendingCelebrationDialogComponent, {
+      width: '400px',
+      maxWidth: '92vw',
+      disableClose: false,
+      autoFocus: 'first-tabbable',
+      data
+    });
+    this.journeyCongratsDialogRef = ref;
+    ref.afterClosed().subscribe(() => {
+      this.journeyCongratsDialogRef = null;
+    });
   }
 
   get levelProgression(): any[] {
@@ -237,6 +331,14 @@ export class MyCourseComponent implements OnInit {
     const name = (this.profile?.name || '').trim();
     if (!name) return 'there';
     return name.split(/\s+/)[0];
+  }
+
+  /** Full display name for compact tab header card. */
+  get studentDisplayName(): string {
+    const name = (this.profile?.name || '').trim();
+    if (name) return name;
+    const auth = (this.authService.getSnapshotUser()?.name || '').trim();
+    return auth || 'Student';
   }
 
   get studentInitial(): string {

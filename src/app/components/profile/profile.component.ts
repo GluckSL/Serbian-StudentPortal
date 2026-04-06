@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClientModule, HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -23,7 +24,8 @@ export class ProfileComponent implements OnInit {
   constructor(
     private authService: AuthService,
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -77,7 +79,7 @@ export class ProfileComponent implements OnInit {
     this.authService.uploadProfilePhoto(this.selectedFile).subscribe({
       next: (res: any) => {
         this.uploading = false;
-        alert('Profile photo uploaded successfully!');
+        this.notify.success('Profile photo uploaded successfully!');
 
         if (res.profilePhoto) {
           this.userProfile.profilePhoto = this.getFullPhotoUrl(res.profilePhoto);
@@ -116,17 +118,18 @@ export class ProfileComponent implements OnInit {
   }
 
   deleteAccount(userId: string) {
-    if (confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
+    this.notify.confirm('Delete Account', 'Are you sure you want to delete this account? This action cannot be undone.', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.authService.deleteUser(userId).subscribe({
         next: () => {
-          alert('Account deleted successfully.');
+          this.notify.success('Account deleted successfully.');
           this.router.navigate(['/login']);
         },
         error: (err) => {
           console.error('Error deleting account:', err);
-          alert('Failed to delete account. Please try again.');
+          this.notify.error('Failed to delete account. Please try again.');
         }
       });
-    }
+    });
   }
 }

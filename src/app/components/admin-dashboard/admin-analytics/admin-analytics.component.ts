@@ -19,6 +19,7 @@ import {
 import { LearningModulesService } from '../../../services/learning-modules.service';
 import { TeacherService } from '../../../services/teacher.service';
 import { AuthService } from '../../../services/auth.service';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   selector: 'app-admin-analytics',
@@ -146,7 +147,8 @@ export class AdminAnalyticsComponent implements OnInit {
     private adminAnalyticsService: AdminAnalyticsService,
     private learningModulesService: LearningModulesService,
     private teacherService: TeacherService,
-    private authService: AuthService
+    private authService: AuthService,
+    private notify: NotificationService
   ) {
     this.initializeChartOptions();
   }
@@ -924,7 +926,7 @@ export class AdminAnalyticsComponent implements OnInit {
       }
     } catch (error) {
       console.error('❌ Error loading student details:', error);
-      alert('Error loading student details. Check console for details.');
+      this.notify.error('Error loading student details. Check console for details.');
     } finally {
       this.isLoadingAIDetails = false;
     }
@@ -961,7 +963,7 @@ export class AdminAnalyticsComponent implements OnInit {
       
       if (!teacherEmail) {
         console.error('❌ No teacher email found in object');
-        alert('Cannot load teacher details: Email not found');
+        this.notify.error('Cannot load teacher details: Email not found');
         this.isLoadingTeacherDetails = false;
         return;
       }
@@ -985,7 +987,7 @@ export class AdminAnalyticsComponent implements OnInit {
       
     } catch (error) {
       console.error('❌ Error loading teacher details:', error);
-      alert('Error loading teacher details. Check console for details.');
+      this.notify.error('Error loading teacher details. Check console for details.');
     } finally {
       this.isLoadingTeacherDetails = false;
     }

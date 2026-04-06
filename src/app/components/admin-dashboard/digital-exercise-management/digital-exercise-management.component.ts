@@ -11,6 +11,7 @@ import {
 } from '../../../services/digital-exercise.service';
 import { AuthService } from '../../../services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from '../../../services/notification.service';
 import { MaterialModule } from '../../../shared/material.module';
 
 @Component({
@@ -740,7 +741,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
     private exerciseService: DigitalExerciseService,
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -923,17 +925,19 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   bulkDelete(): void {
     if (!this.isAdminUser || this.selectedIds.length === 0) return;
-    if (!confirm(`Delete ${this.selectedIds.length} exercise(s)? This cannot be undone.`)) return;
-    this.exerciseService.bulkDeleteExercises(this.selectedIds).subscribe({
-      next: (res) => {
-        this.showSuccess(`Deleted ${res.modifiedCount} exercise(s)`);
-        this.clearSelection();
-        this.loadExercises();
-      },
-      error: (err) => {
-        const msg = err?.error?.error || err?.error?.message || err?.message || 'Bulk delete failed';
-        this.showError(msg);
-      }
+    this.notify.confirm('Bulk Delete', `Delete ${this.selectedIds.length} exercise(s)? This cannot be undone.`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.exerciseService.bulkDeleteExercises(this.selectedIds).subscribe({
+        next: (res) => {
+          this.showSuccess(`Deleted ${res.modifiedCount} exercise(s)`);
+          this.clearSelection();
+          this.loadExercises();
+        },
+        error: (err) => {
+          const msg = err?.error?.error || err?.error?.message || err?.message || 'Bulk delete failed';
+          this.showError(msg);
+        }
+      });
     });
   }
 
@@ -958,14 +962,16 @@ export class DigitalExerciseManagementComponent implements OnInit {
   }
 
   deleteExercise(exercise: DigitalExercise): void {
-    if (!confirm(`Delete "${exercise.title}"? This action cannot be undone.`)) return;
-    this.exerciseService.deleteExercise(exercise._id!).subscribe({
-      next: () => {
-        this.exercises = this.exercises.filter(e => e._id !== exercise._id);
-        this.totalExercises--;
-        this.showSuccess('Exercise deleted');
-      },
-      error: () => this.showError('Failed to delete exercise')
+    this.notify.confirm('Delete Exercise', `Delete "${exercise.title}"? This action cannot be undone.`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.exerciseService.deleteExercise(exercise._id!).subscribe({
+        next: () => {
+          this.exercises = this.exercises.filter(e => e._id !== exercise._id);
+          this.totalExercises--;
+          this.showSuccess('Exercise deleted');
+        },
+        error: () => this.showError('Failed to delete exercise')
+      });
     });
   }
 

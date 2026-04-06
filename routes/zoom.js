@@ -1722,6 +1722,13 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
 
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual attendance):', e.message);
+    }
+
     res.status(200).json({
       success: true,
       data: {

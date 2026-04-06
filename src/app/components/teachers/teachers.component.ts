@@ -8,6 +8,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -57,6 +58,7 @@ export class TeachersComponent implements OnInit {
     private authService: AuthService,
     private router: Router,
     private http: HttpClient,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
@@ -120,19 +122,18 @@ fetchTeachers(): void {
   }
 
   deleteUser(id: string): void {
-    if (confirm('Are you sure you want to delete this user?')) {
+    this.notify.confirm('Delete User', 'Are you sure you want to delete this user?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.authService.deleteUser(id).subscribe({
-        next: (response) => {
-          alert('User deleted successfully!');
-          //console.log('Deleted:', response);
-          this.fetchTeachers(); // Refresh your user list after deletion
+        next: () => {
+          this.notify.success('User deleted successfully!');
+          this.fetchTeachers();
         },
         error: (error) => {
-          alert('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
-          //console.error('Delete failed:', error);
+          this.notify.error('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
         }
       });
-    }
+    });
   }
 
   openTeacherAnalytics(teacher: Teacher): void {

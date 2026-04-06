@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { NavService } from '../../shared/services/nav.service';
+import { NotificationService } from '../../services/notification.service';
 
 const apiUrl = environment.apiUrl;
 
@@ -442,7 +443,7 @@ export class UserRolesComponent implements OnInit {
   subAdminPermissionGroups: { group: string; items: { id: string; label: string }[] }[] = [];
   subAdminPermissionOptions: { id: string; label: string }[] = [];
 
-  constructor(private http: HttpClient, private navService: NavService) {
+  constructor(private http: HttpClient, private navService: NavService, private notify: NotificationService) {
     this.subAdminPermissionGroups = this.navService.getAdminNavGroups().map((group) => ({
       group: group.group,
       items: group.items.map((item) => ({ id: item.id, label: item.label }))
@@ -474,7 +475,7 @@ export class UserRolesComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to fetch teachers and admins:', err);
-        alert('Failed to load users');
+        this.notify.error('Failed to load users');
       }
     });
   }
@@ -537,33 +538,35 @@ export class UserRolesComponent implements OnInit {
       ? `update sidebar access for ${user.name}`
       : `change ${user.name}'s role from ${user.role} to ${user.newRole}`;
 
-    if (!confirm(`Are you sure you want to ${actionText}?`)) {
-      user.newRole = user.role;
-      user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
-      user.permissionsDirty = false;
-      return;
-    }
-
-    const payload: any = { role: user.newRole };
-    payload.sidebarPermissions = user.newRole === 'SUB_ADMIN'
-      ? this.navService.normalizeSidebarPermissions(user.sidebarPermissions || [])
-      : [];
-
-    this.http.put(`${apiUrl}/auth/${user._id}`, payload, { withCredentials: true }).subscribe({
-      next: () => {
-        alert(`Successfully updated access for ${user.name}`);
-        user.role = user.newRole;
-        user.sidebarPermissions = this.normalizePermissionsForRole(user.role, payload.sidebarPermissions || []);
-        user.permissionsDirty = false;
-        this.fetchTeachersAndAdmins();
-      },
-      error: (err) => {
-        console.error('Failed to update role/access:', err);
-        alert('Failed to update role/access. Please try again.');
+    this.notify.confirm('Update Access', `Are you sure you want to ${actionText}?`).subscribe(ok => {
+      if (!ok) {
         user.newRole = user.role;
         user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
         user.permissionsDirty = false;
+        return;
       }
+
+      const payload: any = { role: user.newRole };
+      payload.sidebarPermissions = user.newRole === 'SUB_ADMIN'
+        ? this.navService.normalizeSidebarPermissions(user.sidebarPermissions || [])
+        : [];
+
+      this.http.put(`${apiUrl}/auth/${user._id}`, payload, { withCredentials: true }).subscribe({
+        next: () => {
+          this.notify.success(`Successfully updated access for ${user.name}`);
+          user.role = user.newRole;
+          user.sidebarPermissions = this.normalizePermissionsForRole(user.role, payload.sidebarPermissions || []);
+          user.permissionsDirty = false;
+          this.fetchTeachersAndAdmins();
+        },
+        error: (err) => {
+          console.error('Failed to update role/access:', err);
+          this.notify.error('Failed to update role/access. Please try again.');
+          user.newRole = user.role;
+          user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
+          user.permissionsDirty = false;
+        }
+      });
     });
   }
 }

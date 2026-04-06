@@ -8,6 +8,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { Course } from '../../services/courses.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-course-create',
@@ -24,7 +25,8 @@ export class CreateCourseComponent implements OnInit, OnDestroy {
   constructor(
     private coursesService: CoursesService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -67,9 +69,7 @@ export class CreateCourseComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         //console.error('Error loading course:', err);
-        alert('Failed to load course details.');
-        // optionally navigate back
-        // this.router.navigate(['/courses']);
+        this.notify.error('Failed to load course details.');
       }
     });
   }
@@ -78,12 +78,12 @@ export class CreateCourseComponent implements OnInit, OnDestroy {
     const payload = { title: this.course.title, description: this.course.description };
     this.coursesService.addCourse(payload).subscribe({
       next: () => {
-        alert('Course created successfully!');
+        this.notify.success('Course created successfully!');
         this.router.navigate(['/courses']);
       },
       error: (error) => {
         //console.error('Error creating course', error);
-        alert('Failed to create course. Please try again.');
+        this.notify.error('Failed to create course. Please try again.');
       }
     });
   }
@@ -99,19 +99,19 @@ export class CreateCourseComponent implements OnInit, OnDestroy {
       description: this.course.description
     }).subscribe({
       next: () => {
-        alert('Course updated successfully!');
+        this.notify.success('Course updated successfully!');
         this.router.navigate(['/courses']);
       },
       error: (error) => {
         //console.error('Error updating course', error);
-        alert('Failed to update course. Please try again.');
+        this.notify.error('Failed to update course. Please try again.');
       }
     });
   }
 
   onSubmit(): void {
     if (!this.course.title || !this.course.description) {
-      alert('Please fill out both title and description.');
+      this.notify.warning('Please fill out both title and description.');
       return;
     }
     if (this.isEditMode) {

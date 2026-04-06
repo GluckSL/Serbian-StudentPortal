@@ -483,15 +483,29 @@
   .action-bar .row { text-align: center; }
   .action-bar .col-md-6:last-child { margin-top: 8px; }
   .filters-card .compact-select { max-width: 100%; }
+  /* Make student cards single column */
+  .students-grid { grid-template-columns: 1fr !important; }
+  /* Stack stat items */
+  .stats-row { flex-wrap: wrap; gap: 8px; }
+  .stat-item { flex: 1 1 calc(50% - 8px); min-width: 80px; }
+  /* Scrollable table wrapper */
+  .table-wrapper, .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 @media (max-width: 576px) {
-  .admin-content { padding: 10px; }
+  .admin-content { padding: 8px; }
   .action-bar-row { flex-direction: column; align-items: stretch; }
   .action-group-left, .action-group-right { flex-wrap: wrap; }
   .action-divider { display: none; }
-  .action-bar .btn { flex: 1; min-width: 0; }
+  .action-bar .btn { flex: 1; min-width: 0; font-size: 12px; padding: 6px 10px; }
   .action-buttons { flex-direction: column; }
+  /* Stats full-width on very small screens */
+  .stat-item { flex: 1 1 100%; }
+  /* Smaller font in table cells */
+  td, th { font-size: 12px !important; padding: 6px 8px !important; }
+  /* Compact header */
+  .admin-title { font-size: 13px; }
+  .admin-subtitle { font-size: 10px; }
 }
 
 /* ── Loading Spinner ── */

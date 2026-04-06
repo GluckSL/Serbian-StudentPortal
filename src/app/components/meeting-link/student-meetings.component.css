@@ -98,30 +98,34 @@
   filter: brightness(1.06);
 }
 
-.student-meetings--embedded .student-meetings-container {
+.student-meetings-container.student-meetings--embedded {
   padding: 0;
   max-width: none;
+  min-width: 0;
 }
-.student-meetings--embedded .table-wrap {
+.student-meetings-container.student-meetings--embedded .table-wrap {
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  overflow: visible;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
-.student-meetings--embedded .tab-row {
+.student-meetings-container.student-meetings--embedded .tab-row {
   border-radius: 0;
   padding: 8px 10px;
+  flex-wrap: wrap;
 }
-.student-meetings--embedded .classes-table {
+.student-meetings-container.student-meetings--embedded .classes-table {
   width: 100%;
 }
-.student-meetings--embedded .classes-table th:first-child,
-.student-meetings--embedded .classes-table td:first-child {
+.student-meetings-container.student-meetings--embedded .classes-table th:first-child,
+.student-meetings-container.student-meetings--embedded .classes-table td:first-child {
   padding-left: 10px;
 }
-.student-meetings--embedded .classes-table th:last-child,
-.student-meetings--embedded .classes-table td:last-child {
+.student-meetings-container.student-meetings--embedded .classes-table th:last-child,
+.student-meetings-container.student-meetings--embedded .classes-table td:last-child {
   padding-right: 10px;
 }
 

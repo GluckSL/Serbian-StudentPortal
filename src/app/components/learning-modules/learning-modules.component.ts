@@ -11,6 +11,7 @@ import { SubscriptionGuardService, SubscriptionStatus } from '../../services/sub
 import { LevelAccessService } from '../../services/level-access.service';
 import { StudentProgressService } from '../../services/student-progress.service';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-learning-modules',
@@ -62,10 +63,11 @@ export class LearningModulesComponent implements OnInit {
     private learningModulesService: LearningModulesService,
     private authService: AuthService,
     private subscriptionGuard: SubscriptionGuardService,
-    public levelAccessService: LevelAccessService, // Make public for template access
+    public levelAccessService: LevelAccessService,
     private studentProgressService: StudentProgressService,
     private router: Router,
-    private http: HttpClient
+    private http: HttpClient,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -133,7 +135,7 @@ export class LearningModulesComponent implements OnInit {
         error: (error) => {
           console.error('❌ Error loading accessible modules:', error);
           this.isLoading = false;
-          alert('Failed to load learning modules');
+          this.notify.error('Failed to load learning modules');
         }
       });
     } else {
@@ -148,7 +150,7 @@ export class LearningModulesComponent implements OnInit {
         error: (error) => {
           console.error('Error loading modules:', error);
           this.isLoading = false;
-          alert('Failed to load learning modules');
+          this.notify.error('Failed to load learning modules');
         }
       });
     }
@@ -183,16 +185,15 @@ export class LearningModulesComponent implements OnInit {
     
     this.learningModulesService.enrollInModule(module._id).subscribe({
       next: (response) => {
-        alert('Successfully enrolled in module!');
-        // Reload modules to update enrollment status
+        this.notify.success('Successfully enrolled in module!');
         this.loadModules();
       },
       error: (error) => {
         console.error('Error enrolling in module:', error);
         if (error.status === 400) {
-          alert('You are already enrolled in this module');
+          this.notify.info('You are already enrolled in this module');
         } else {
-          alert('Failed to enroll in module');
+          this.notify.error('Failed to enroll in module');
         }
       }
     });
@@ -247,10 +248,9 @@ export class LearningModulesComponent implements OnInit {
       `Would you like to request an upgrade to PLATINUM?\n` +
       `Our sales team will contact you within 24 hours.`;
 
-    if (confirm(upgradeMessage)) {
-      // Send upgrade request email to sales team
-      this.requestUpgrade();
-    }
+    this.notify.confirm('Upgrade to PLATINUM', status.message + '\n\nWould you like to request an upgrade? Our sales team will contact you within 24 hours.', 'Request Upgrade', 'Cancel').subscribe(ok => {
+      if (ok) this.requestUpgrade();
+    });
   }
 
   // Request subscription upgrade
@@ -260,11 +260,11 @@ export class LearningModulesComponent implements OnInit {
       message: 'Student requested PLATINUM upgrade for AI Tutoring access'
     }, { withCredentials: true }).subscribe({
       next: (response: any) => {
-        alert(`✅ Upgrade Request Submitted!\n\n${response.message}\n\nOur sales team will contact you soon to discuss pricing and payment options.`);
+        this.notify.success('Upgrade request submitted! Our sales team will contact you soon.');
       },
       error: (error: any) => {
         console.error('Error submitting upgrade request:', error);
-        alert('❌ Failed to submit upgrade request. Please contact support directly.');
+        this.notify.error('Failed to submit upgrade request. Please contact support directly.');
       }
     });
   }
@@ -288,38 +288,20 @@ export class LearningModulesComponent implements OnInit {
   viewModuleDetails(module: LearningModule): void {
     if (!module._id) return;
     
-    // Determine module type
-    const moduleType = module.content.rolePlayScenario ? '🎭 Role-Play' : '📚 Practice';
+    const moduleType = module.content.rolePlayScenario ? 'Role-Play' : 'Practice';
     const minTime = module.minimumCompletionTime || 15;
-    
-    // Build role-play specific details
     let rolePlayInfo = '';
     if (module.content.rolePlayScenario) {
-      const scenario = module.content.rolePlayScenario;
-      rolePlayInfo = `\n\n🎭 Role-Play Details:
-• Situation: ${scenario.situation || 'N/A'}
-• Student Role: ${scenario.studentRole || 'N/A'}
-• AI Role: ${scenario.aiRole || 'N/A'}
-• Setting: ${scenario.setting || 'N/A'}`;
+      const s = module.content.rolePlayScenario;
+      rolePlayInfo = `\nSituation: ${s.situation || 'N/A'} | Student: ${s.studentRole || 'N/A'} | AI: ${s.aiRole || 'N/A'}`;
     }
     
-    alert(`📋 Module Details
-
-Title: ${module.title}
-Type: ${moduleType}
-Level: ${module.level}
-Category: ${module.category}
-Difficulty: ${module.difficulty}
-⏱️ Minimum Time: ${minTime} minutes
-
-Description: ${module.description}${rolePlayInfo}
-
-Languages:
-• Target: ${module.targetLanguage || 'N/A'}
-• Native: ${module.nativeLanguage || 'N/A'}
-
-📊 Estimated Duration: ${module.estimatedDuration || 30} minutes
-✅ Completion Requirement: Complete objectives AND spend at least ${minTime} minutes`);
+    this.notify.info(
+      `${module.title} (${moduleType}, ${module.level})\n` +
+      `Category: ${module.category} | Difficulty: ${module.difficulty}\n` +
+      `Min time: ${minTime} min | Est. duration: ${module.estimatedDuration || 30} min\n` +
+      `${module.description}${rolePlayInfo}`
+    );
   }
 
   getProgressPercentage(module: LearningModule): number {
@@ -417,125 +399,73 @@ Languages:
       idLength: module._id?.toString().length 
     });
     
-    // Show confirmation dialog
-    const confirmTest = confirm(
-      `🧪 Test Module: "${module.title}"\n\n` +
-      `Module ID: ${module._id}\n\n` +
-      `This will start the AI tutoring session for this module, allowing you to experience it as a student would.\n\n` +
-      `Continue with testing?`
-    );
-    
-    if (confirmTest) {
-      console.log('🚀 Navigating to AI tutor with params:', {
-        moduleId: module._id,
-        sessionType: 'teacher-test',
-        testMode: 'true'
-      });
-      
-      // Navigate to AI tutor with test mode
+    this.notify.confirm(
+      'Test Module',
+      `Test "${module.title}" as a student? This will start an AI tutoring session.`,
+      'Start Test', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
       this.router.navigate(['/ai-tutor-chat'], {
-        queryParams: {
-          moduleId: module._id,
-          sessionType: 'teacher-test',
-          testMode: 'true'
-        }
+        queryParams: { moduleId: module._id, sessionType: 'teacher-test', testMode: 'true' }
       });
-    }
+    });
   }
 
   deleteModule(module: LearningModule): void {
-    if (!module._id) return;
-    
-    // Show confirmation dialog
-    const confirmDelete = confirm(
-      `🗑️ Delete Module: "${module.title}"\n\n` +
-      `Are you sure you want to delete this module?\n\n` +
-      `This action cannot be undone. The module will be permanently removed from the system.\n\n` +
-      `Click OK to confirm deletion.`
-    );
-    
-    if (confirmDelete) {
-      console.log('🗑️ Deleting module:', { 
-        id: module._id, 
-        title: module.title 
-      });
-      
-      this.learningModulesService.deleteModule(module._id).subscribe({
+    const moduleId = module._id;
+    if (!moduleId) return;
+
+    this.notify.confirm(
+      'Delete Module',
+      `Delete "${module.title}"? This action cannot be undone.`,
+      'Yes, Delete', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.learningModulesService.deleteModule(moduleId).subscribe({
         next: (response) => {
-          console.log('✅ Module deleted successfully:', response);
-          
-          // Show success message
-          alert(`✅ Module "${module.title}" has been deleted successfully.`);
-          
-          // Refresh the modules list
+          this.notify.success(`Module "${module.title}" deleted successfully.`);
           this.loadModules();
         },
         error: (error) => {
-          console.error('❌ Error deleting module:', error);
-          
           let errorMessage = 'Failed to delete module.';
-          if (error.status === 403) {
-            errorMessage = 'You can only delete modules you created.';
-          } else if (error.status === 404) {
-            errorMessage = 'Module not found.';
-          } else if (error.error?.message) {
-            errorMessage = error.error.message;
-          }
-          
-          alert(`❌ Error: ${errorMessage}`);
+          if (error.status === 403) errorMessage = 'You can only delete modules you created.';
+          else if (error.status === 404) errorMessage = 'Module not found.';
+          else if (error.error?.message) errorMessage = error.error.message;
+          this.notify.error(errorMessage);
         }
       });
-    }
+    });
   }
 
   // ✅ NEW: Toggle module visibility for students
   toggleVisibility(module: LearningModule): void {
-    if (!module._id) return;
-    
+    const moduleId = module._id;
+    if (!moduleId) return;
+
     const newVisibility = !module.visibleToStudents;
-    const action = newVisibility ? 'publish to' : 'hide from';
-    
-    const confirmToggle = confirm(
-      `${newVisibility ? '👁️ Publish' : '🔒 Hide'} Module: "${module.title}"\n\n` +
-      `Are you sure you want to ${action} students?\n\n` +
-      `${newVisibility ? 'Students will be able to see and access this module.' : 'Students will no longer see this module in their list.'}\n\n` +
-      `Click OK to confirm.`
-    );
-    
-    if (confirmToggle) {
-      console.log('🔄 Toggling visibility:', { 
-        id: module._id, 
-        title: module.title,
-        newVisibility 
-      });
-      
-      this.learningModulesService.toggleModuleVisibility(module._id, newVisibility).subscribe({
+
+    this.notify.confirm(
+      newVisibility ? 'Publish Module' : 'Hide Module',
+      `${newVisibility ? 'Students will be able to see and access' : 'Students will no longer see'} "${module.title}". Continue?`,
+      'Confirm', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.learningModulesService.toggleModuleVisibility(moduleId, newVisibility).subscribe({
         next: (response) => {
-          console.log('✅ Visibility updated:', response);
-          
-          // Update the module in the list
           module.visibleToStudents = newVisibility;
           if (newVisibility && response.module?.publishedAt) {
             module.publishedAt = response.module.publishedAt;
           }
-          
-          // Show success message
-          alert(`✅ Module "${module.title}" is now ${newVisibility ? 'visible to' : 'hidden from'} students.`);
+          this.notify.success(`Module "${module.title}" is now ${newVisibility ? 'visible to' : 'hidden from'} students.`);
         },
         error: (error) => {
-          console.error('❌ Error toggling visibility:', error);
-          
           let errorMessage = 'Failed to update module visibility.';
-          if (error.status === 403) {
-            errorMessage = 'You can only modify modules you created.';
-          } else if (error.error?.message) {
-            errorMessage = error.error.message;
-          }
-          
-          alert(`❌ Error: ${errorMessage}`);
+          if (error.status === 403) errorMessage = 'You can only modify modules you created.';
+          else if (error.error?.message) errorMessage = error.error.message;
+          this.notify.error(errorMessage);
         }
       });
-    }
+    });
   }
 
   canDeleteModule(module: LearningModule): boolean {

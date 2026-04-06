@@ -10,6 +10,7 @@ import {
   StudentDocument,
   DocumentStats 
 } from '../../../services/student-documents.service';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   selector: 'app-student-documents',
@@ -46,7 +47,7 @@ export class StudentDocumentsComponent implements OnInit {
   successMessage: string = '';
   errorMessage: string = '';
 
-  constructor(private documentService: StudentDocumentsService) {}
+  constructor(private documentService: StudentDocumentsService, private notify: NotificationService) {}
 
   ngOnInit(): void {
     this.loadData();
@@ -177,23 +178,21 @@ export class StudentDocumentsComponent implements OnInit {
   }
 
   // Delete document
-  async deleteDocument(documentId: string): Promise<void> {
-    if (!confirm('Are you sure you want to delete this document?')) {
-      return;
-    }
-    
-    try {
-      const response = await this.documentService.deleteDocument(documentId).toPromise();
-      
-      if (response && response.success) {
-        this.showSuccess('Document deleted successfully');
-        await this.loadDocuments();
-        await this.loadStats();
+  deleteDocument(documentId: string): void {
+    this.notify.confirm('Delete Document', 'Are you sure you want to delete this document?', 'Yes, Delete', 'Cancel').subscribe(async ok => {
+      if (!ok) return;
+      try {
+        const response = await this.documentService.deleteDocument(documentId).toPromise();
+        if (response && response.success) {
+          this.showSuccess('Document deleted successfully');
+          await this.loadDocuments();
+          await this.loadStats();
+        }
+      } catch (error: any) {
+        console.error('Error deleting document:', error);
+        this.showError(error.error?.message || 'Error deleting document');
       }
-    } catch (error: any) {
-      console.error('Error deleting document:', error);
-      this.showError(error.error?.message || 'Error deleting document');
-    }
+    });
   }
 
   // Download document

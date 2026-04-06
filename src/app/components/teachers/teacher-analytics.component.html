@@ -58,7 +58,7 @@
           <h5><i class="fas fa-user"></i> Teacher Details</h5>
           <div class="details-line"><span>Email</span><strong>{{ report.teacher.email }}</strong></div>
           <div class="details-line"><span>Role</span><strong>{{ report.teacher.role }}</strong></div>
-          <div class="details-line"><span>Medium</span><strong>{{ report.teacher.medium?.join(', ') || 'N/A' }}</strong></div>
+          <div class="details-line"><span>Medium</span><strong>{{ report.teacher.medium.join(', ') || 'N/A' }}</strong></div>
           <div class="chips mt-2">
             <span class="chip course" *ngFor="let c of report.teacher.assignedCourses">{{ c.title }}</span>
             <span class="chip batch" *ngFor="let b of report.teacher.assignedBatches">Batch {{ b }}</span>

@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
+import { NotificationService } from '../../../services/notification.service';
 
 interface BatchSummary {
   batchName: string;
@@ -1149,7 +1150,10 @@ export class JourneyManagementComponent implements OnInit {
   /** Centered card: task check results */
   taskModal: TaskCheckModal | null = null;
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private notify: NotificationService
+  ) {}
 
   /** Filtered & sorted batch overview rows */
   get filteredBatches(): BatchSummary[] {
@@ -1302,26 +1306,28 @@ export class JourneyManagementComponent implements OnInit {
         this.selectedBatch!.autoDay = !!r.config.batchStartDate;
         this.selectedBatch!.notes = r.config.notes;
         this.savingConfig = false;
-        alert('Batch config saved.');
+        this.notify.success('Batch config saved.');
       },
-      error: e => { console.error(e); this.savingConfig = false; alert('Failed to save config.'); }
+      error: e => { console.error(e); this.savingConfig = false; this.notify.error('Failed to save config.'); }
     });
   }
 
   applyDayToAllStudents(): void {
     if (!this.selectedBatch) return;
     const day = this.editBatchDay;
-    if (!confirm(`Set ALL students in "${this.selectedBatch.batchName}" to Day ${day}?`)) return;
-    this.applyingDay = true;
-    this.http.post<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}/set-day`,
-      { day }, { withCredentials: true }).subscribe({
-      next: r => {
-        this.selectedBatch!.batchCurrentDay = day;
-        alert(`${r.message} (${r.studentsUpdated} student(s) updated)`);
-        this.applyingDay = false;
-        this.loadStudents(this.selectedBatch!.batchName);
-      },
-      error: e => { console.error(e); this.applyingDay = false; alert('Failed to apply day.'); }
+    this.notify.confirm('Apply Day', `Set ALL students in "${this.selectedBatch.batchName}" to Day ${day}?`).subscribe(ok => {
+      if (!ok) return;
+      this.applyingDay = true;
+      this.http.post<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch!.batchName)}/set-day`,
+        { day }, { withCredentials: true }).subscribe({
+        next: r => {
+          this.selectedBatch!.batchCurrentDay = day;
+          this.notify.success(`${r.message} (${r.studentsUpdated} student(s) updated)`);
+          this.applyingDay = false;
+          this.loadStudents(this.selectedBatch!.batchName);
+        },
+        error: e => { console.error(e); this.applyingDay = false; this.notify.error('Failed to apply day.'); }
+      });
     });
   }
 
@@ -1335,7 +1341,7 @@ export class JourneyManagementComponent implements OnInit {
         s.saving = false;
         s.taskStatus = null;
       },
-      error: e => { console.error(e); s.saving = false; alert('Failed to update student day.'); }
+      error: e => { console.error(e); s.saving = false; this.notify.error('Failed to update student day.'); }
     });
   }
 
@@ -1356,7 +1362,7 @@ export class JourneyManagementComponent implements OnInit {
       error: e => {
         console.error(e);
         s.checkingTasks = false;
-        alert('Failed to check task status.');
+        this.notify.error('Failed to check task status.');
       }
     });
   }
@@ -1401,7 +1407,16 @@ export class JourneyManagementComponent implements OnInit {
   advanceStudentDay(s: StudentRow, force = false): void {
     if (!this.selectedBatch) return;
     if (s.currentCourseDay >= this.selectedBatch.journeyLength) return;
-    if (force && !confirm(`Force-advance ${s.name} to Day ${s.currentCourseDay + 1} even though tasks are not completed?`)) return;
+    if (force) {
+      this.notify.confirm('Force Advance', `Force-advance ${s.name} to Day ${s.currentCourseDay + 1} even though tasks are not completed?`, 'Yes, Force', 'Cancel').subscribe(ok => {
+        if (ok) this._doAdvanceStudentDay(s, true);
+      });
+      return;
+    }
+    this._doAdvanceStudentDay(s, false);
+  }
+
+  _doAdvanceStudentDay(s: StudentRow, force: boolean): void {
     s.advancing = true;
     this.http.post<any>(`${this.apiUrl}/student/${s._id}/advance-day`, { force }, { withCredentials: true }).subscribe({
       next: r => {
@@ -1413,24 +1428,14 @@ export class JourneyManagementComponent implements OnInit {
           this.closeTaskModal();
         } else {
           const incomplete = (r.incompleteTasks || []) as IncompleteTaskItem[];
-          s.taskStatus = {
-            complete: false,
-            breakdown: r.breakdown,
-            incompleteTasks: incomplete
-          };
-          this.openTaskModalFromResponse(
-            s._id,
-            s.name,
-            r.currentDay ?? s.currentCourseDay,
-            false,
-            incomplete
-          );
+          s.taskStatus = { complete: false, breakdown: r.breakdown, incompleteTasks: incomplete };
+          this.openTaskModalFromResponse(s._id, s.name, r.currentDay ?? s.currentCourseDay, false, incomplete);
         }
       },
       error: e => {
         s.advancing = false;
         console.error(e);
-        alert(e?.error?.message || 'Failed to advance student day.');
+        this.notify.error(e?.error?.message || 'Failed to advance student day.');
       }
     });
   }
@@ -1449,6 +1454,6 @@ export class JourneyManagementComponent implements OnInit {
     if (!day) return;
     const el = document.getElementById(`day-${day}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else alert(`No content found for Day ${day}.`);
+    else this.notify.info(`No content found for Day ${day}.`);
   }
 }

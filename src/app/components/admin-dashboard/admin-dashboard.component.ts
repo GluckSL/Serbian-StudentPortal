@@ -18,6 +18,7 @@ import { environment } from '../../../environments/environment';
 import { BulkStudentUploadComponent } from './bulk-student-upload.component';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
+import { NotificationService } from '../../services/notification.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -174,6 +175,7 @@ export class AdminDashboardComponent implements OnInit {
     private feedbackService: FeedbackService,
     private dialog: MatDialog,
     private teacherService: TeacherService,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
@@ -275,7 +277,7 @@ export class AdminDashboardComponent implements OnInit {
                 map(value => this._filterTeacherNames(value || ''))
               );
             } else {
-              alert('Failed to load teachers');
+              this.notify.error('Failed to load teachers');
             }
           },
           error: (err) => {
@@ -400,7 +402,7 @@ export class AdminDashboardComponent implements OnInit {
 
   openBulkEditPanel(): void {
     if (this.selectedStudentIds.size === 0) {
-      alert('Please select at least one student');
+      this.notify.warning('Please select at least one student');
       return;
     }
     this.showBulkEditPanel = true;
@@ -419,42 +421,42 @@ export class AdminDashboardComponent implements OnInit {
 
   bulkDeleteStudents(): void {
     if (this.selectedStudentIds.size === 0) {
-      alert('Please select at least one student to delete');
+      this.notify.warning('Please select at least one student to delete');
       return;
     }
 
     const studentIds = Array.from(this.selectedStudentIds);
     const count = studentIds.length;
 
-    const confirmMessage = `⚠️ WARNING: You are about to permanently delete ${count} student(s).\n\nThis action cannot be undone and will remove:\n- Student account\n- All progress data\n- All session records\n- All associated data\n\nAre you absolutely sure you want to continue?`;
-    
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    this.notify.confirm(
+      'Delete Students',
+      `WARNING: You are about to permanently delete ${count} student(s). This action cannot be undone and will remove all student data, progress, and session records.`,
+      'Yes, Delete', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
 
-    // Double confirmation for safety
-    const doubleConfirm = confirm(`Final confirmation: Delete ${count} student(s)?`);
-    if (!doubleConfirm) {
-      return;
-    }
+      this.notify.confirm('Final Confirmation', `Delete ${count} student(s) permanently?`, 'Yes, Delete', 'Cancel').subscribe(ok2 => {
+        if (!ok2) return;
 
-    console.log('🗑️ [BULK DELETE] Deleting students:', studentIds);
+        console.log('🗑️ [BULK DELETE] Deleting students:', studentIds);
 
-    this.http.post(`${apiUrl}/admin/bulk-delete`, { studentIds }, { withCredentials: true })
-      .subscribe({
-        next: (res: any) => {
-          console.log('✅ [BULK DELETE] SUCCESS:', res);
-          alert(`✅ Successfully deleted ${count} student(s)`);
-          this.selectedStudentIds.clear();
-          this.selectAll = false;
-          this.fetchStudents();
-        },
-        error: (err: any) => {
-          console.error('❌ [BULK DELETE] FAILED:', err);
-          const errorMessage = err.error?.message || err.message || 'Bulk delete failed';
-          alert(`❌ Bulk Delete Failed:\n\n${errorMessage}`);
-        }
+        this.http.post(`${apiUrl}/admin/bulk-delete`, { studentIds }, { withCredentials: true })
+          .subscribe({
+            next: (res: any) => {
+              console.log('✅ [BULK DELETE] SUCCESS:', res);
+              this.notify.success(`Successfully deleted ${count} student(s)`);
+              this.selectedStudentIds.clear();
+              this.selectAll = false;
+              this.fetchStudents();
+            },
+            error: (err: any) => {
+              console.error('❌ [BULK DELETE] FAILED:', err);
+              const errorMessage = err.error?.message || err.message || 'Bulk delete failed';
+              this.notify.error(`Bulk Delete Failed: ${errorMessage}`);
+            }
+          });
       });
+    });
   }
 
   applyBulkUpdate(): void {
@@ -475,42 +477,37 @@ export class AdminDashboardComponent implements OnInit {
     console.log('🔍 [BULK UPDATE] API URL:', `${apiUrl}/admin/bulk-update`);
 
     if (Object.keys(updates).length === 0) {
-      alert('Please select at least one field to update');
+      this.notify.warning('Please select at least one field to update');
       return;
     }
 
-    const confirmMessage = `Are you sure you want to update ${studentIds.length} student(s)?`;
-    if (!confirm(confirmMessage)) return;
+    this.notify.confirm('Bulk Update', `Update ${studentIds.length} student(s)?`).subscribe(ok => {
+      if (!ok) return;
 
-    console.log('🔍 [BULK UPDATE] Sending request to backend...');
+      console.log('🔍 [BULK UPDATE] Sending request to backend...');
 
-    this.http.post(`${apiUrl}/admin/bulk-update`, { studentIds, updates }, { withCredentials: true })
-      .subscribe({
-        next: (res: any) => {
-          console.log('✅ [BULK UPDATE] SUCCESS:', res);
-          alert(res.message || 'Bulk update successful');
-          this.selectedStudentIds.clear();
-          this.selectAll = false;
-          this.closeBulkEditPanel();
-          this.fetchStudents();
-        },
-        error: err => {
-          console.error('❌ [BULK UPDATE] FAILED:', err);
-          console.error('❌ [BULK UPDATE] Status:', err.status);
-          console.error('❌ [BULK UPDATE] Status Text:', err.statusText);
-          console.error('❌ [BULK UPDATE] Error Body:', err.error);
-          console.error('❌ [BULK UPDATE] Full Error Object:', JSON.stringify(err, null, 2));
-          
-          // Show detailed error message
-          const errorMessage = err.error?.message || err.message || 'Bulk update failed';
-          alert(`Bulk Update Failed:\n\n${errorMessage}\n\nCheck browser console for details (F12)`);
-        }
-      });
+      this.http.post(`${apiUrl}/admin/bulk-update`, { studentIds, updates }, { withCredentials: true })
+        .subscribe({
+          next: (res: any) => {
+            console.log('✅ [BULK UPDATE] SUCCESS:', res);
+            this.notify.success(res.message || 'Bulk update successful');
+            this.selectedStudentIds.clear();
+            this.selectAll = false;
+            this.closeBulkEditPanel();
+            this.fetchStudents();
+          },
+          error: err => {
+            console.error('❌ [BULK UPDATE] FAILED:', err);
+            const errorMessage = err.error?.message || err.message || 'Bulk update failed';
+            this.notify.error(`Bulk Update Failed: ${errorMessage}`);
+          }
+        });
+    });
   }
 
   bulkAssign(): void {
     if (!this.bulkCourseName || !this.bulkAssistantId || !this.bulkApiKey) {
-      alert('All fields are required for bulk assignment.');
+      this.notify.warning('All fields are required for bulk assignment.');
       return;
     }
     const studentIds = Array.from(this.selectedStudentIds);
@@ -522,13 +519,12 @@ export class AdminDashboardComponent implements OnInit {
     };
     this.http.post('/api/admin/bulk-assign', body).subscribe({
       next: () => {
-        alert('Bulk assignment successful');
+        this.notify.success('Bulk assignment successful');
         this.selectedStudentIds.clear();
         this.fetchStudents();
       },
       error: err => {
-        //console.error('Bulk assignment failed', err);
-        alert('Bulk assignment failed');
+        this.notify.error('Bulk assignment failed');
       }
     });
   }
@@ -544,11 +540,11 @@ export class AdminDashboardComponent implements OnInit {
     };
     this.http.post('/api/admin/assign-course', body).subscribe({
       next: () => {
-        alert(`Course and VAPI key assigned to ${student.name}`);
+        this.notify.success(`Course assigned to ${student.name}`);
         this.fetchStudents();
       },
       error: err => {
-        alert('Failed to assign course');
+        this.notify.error('Failed to assign course');
       }
     });
   }
@@ -592,7 +588,7 @@ export class AdminDashboardComponent implements OnInit {
   exportFeedbackAsCSV(studentId: string): void {
     const feedbackList = this.feedbackMap[studentId] || [];
     if (feedbackList.length === 0) {
-      alert('No feedback to export.');
+      this.notify.warning('No feedback to export.');
       return;
     }
     const headers = [
@@ -640,40 +636,43 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   resetMonthlyUsage(): void {
-    if (!confirm('Are you sure you want to reset monthly usage for all students?')) return;
-    this.http.post('/api/admin/reset-monthly-usage', {}).subscribe({
-      next: (res: any) => {
-        alert(res.message || 'Monthly usage reset.');
-        this.fetchStudents();
-      },
-      error: err => {
-        alert('Failed to reset usage.');
-      }
+    this.notify.confirm('Reset Monthly Usage', 'Are you sure you want to reset monthly usage for all students?', 'Yes, Reset', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.http.post('/api/admin/reset-monthly-usage', {}).subscribe({
+        next: (res: any) => {
+          this.notify.success(res.message || 'Monthly usage reset.');
+          this.fetchStudents();
+        },
+        error: err => {
+          this.notify.error('Failed to reset usage.');
+        }
+      });
     });
   }
 
   deleteUser(id: string): void {
-    if (confirm('Are you sure you want to delete this user?')) {
+    this.notify.confirm('Delete User', 'Are you sure you want to delete this user?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.authService.deleteUser(id).subscribe({
         next: (response) => {
-          alert('User deleted successfully!');
-          this.fetchStudents(); // Refresh your user list after deletion
+          this.notify.success('User deleted successfully!');
+          this.fetchStudents();
         },
         error: (error) => {
-          alert('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
+          this.notify.error('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
         }
       });
-    }
+    });
   }
 
   updateAssignedTeacherByBatchNo(batchNo: string, teacherId: string): void {
     this.authService.updateAssignedTeacherByBatchNo(batchNo, teacherId).subscribe({
       next: (response) => {
-        alert('Assigned teacher updated successfully for batch ' + batchNo);
-        this.fetchStudents(); // Refresh your user list after update
+        this.notify.success('Assigned teacher updated successfully for batch ' + batchNo);
+        this.fetchStudents();
       },
       error: (error) => {
-        alert('Failed to update assigned teacher: ' + (error.error?.message || 'Please try again.'));
+        this.notify.error('Failed to update assigned teacher: ' + (error.error?.message || 'Please try again.'));
       }
     });
   }
@@ -706,35 +705,35 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   resendCredentials(student: Student): void {
-    if (!confirm(`Are you sure you want to resend credentials to ${student.name}?\n\nThis will generate a new password and send it to ${student.email}`)) {
-      return;
-    }
+    this.notify.confirm(
+      'Resend Credentials',
+      `Resend login credentials to ${student.name} (${student.email})? A new password will be generated.`,
+      'Yes, Send', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
 
-    this.resendingCredentials[student._id] = true;
+      this.resendingCredentials[student._id] = true;
 
-    this.authService.resendCredentials(student._id).subscribe({
-      next: (response: any) => {
-        alert(`✅ Credentials email sent successfully to ${student.name}!\n\nThe student will receive their new login details at ${student.email}`);
-        
-        // Update the student's lastCredentialsEmailSent in the local array
-        const studentIndex = this.students.findIndex(s => s._id === student._id);
-        if (studentIndex !== -1) {
-          this.students[studentIndex].lastCredentialsEmailSent = response.lastSent;
+      this.authService.resendCredentials(student._id).subscribe({
+        next: (response: any) => {
+          this.notify.success(`Credentials sent to ${student.name} at ${student.email}`);
+          
+          const studentIndex = this.students.findIndex(s => s._id === student._id);
+          if (studentIndex !== -1) {
+            this.students[studentIndex].lastCredentialsEmailSent = response.lastSent;
+          }
+          const filteredIndex = this.filteredStudents.findIndex(s => s._id === student._id);
+          if (filteredIndex !== -1) {
+            this.filteredStudents[filteredIndex].lastCredentialsEmailSent = response.lastSent;
+          }
+          this.resendingCredentials[student._id] = false;
+        },
+        error: (error: any) => {
+          console.error('Error resending credentials:', error);
+          this.notify.error(`Failed to send credentials: ${error.error?.msg || error.message || 'Unknown error'}`);
+          this.resendingCredentials[student._id] = false;
         }
-        
-        // Also update in filtered students
-        const filteredIndex = this.filteredStudents.findIndex(s => s._id === student._id);
-        if (filteredIndex !== -1) {
-          this.filteredStudents[filteredIndex].lastCredentialsEmailSent = response.lastSent;
-        }
-        
-        this.resendingCredentials[student._id] = false;
-      },
-      error: (error: any) => {
-        console.error('Error resending credentials:', error);
-        alert(`❌ Failed to send credentials email.\n\nError: ${error.error?.msg || error.message || 'Unknown error'}\n\nPlease try again.`);
-        this.resendingCredentials[student._id] = false;
-      }
+      });
     });
   }
 
@@ -759,7 +758,7 @@ export class AdminDashboardComponent implements OnInit {
 
   exportSelectedStudents(): void {
     if (this.selectedStudentIds.size === 0) {
-      alert('Please select at least one student to export');
+      this.notify.warning('Please select at least one student to export');
       return;
     }
 
@@ -833,6 +832,6 @@ export class AdminDashboardComponent implements OnInit {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    alert(`✅ Successfully exported ${selectedStudents.length} student(s) to CSV`);
+    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
   }
 }

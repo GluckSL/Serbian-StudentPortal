@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { VisaTrackingService } from '../../../services/visa-tracking.service';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   selector: 'app-visa-tracking',
@@ -32,7 +33,7 @@ export class VisaTrackingComponent implements OnInit {
   studentSearch = '';
   studentDropdownOpen = false;
 
-  constructor(private visaSvc: VisaTrackingService, private http: HttpClient) {}
+  constructor(private visaSvc: VisaTrackingService, private http: HttpClient, private notify: NotificationService) {}
 
   ngOnInit(): void { this.loadData(); }
 
@@ -189,19 +190,21 @@ export class VisaTrackingComponent implements OnInit {
     if (this.editingRecord) {
       this.visaSvc.update(this.editingRecord._id, payload).subscribe({
         next: () => { this.showForm = false; this.loadData(); },
-        error: (err: any) => { console.error('Save error:', err); alert('Save failed: ' + (err.error?.message || err.message)); }
+        error: (err: any) => { console.error('Save error:', err); this.notify.error('Save failed: ' + (err.error?.message || err.message)); }
       });
     } else {
       this.visaSvc.create(payload).subscribe({
         next: () => { this.showForm = false; this.loadData(); },
-        error: (err: any) => { console.error('Create error:', err); alert('Create failed: ' + (err.error?.message || err.message)); }
+        error: (err: any) => { console.error('Create error:', err); this.notify.error('Create failed: ' + (err.error?.message || err.message)); }
       });
     }
   }
 
   deleteRecord(record: any): void {
-    if (!confirm('Delete visa record for ' + (record.studentId?.name || 'this student') + '?')) return;
-    this.visaSvc.delete(record._id).subscribe(() => this.loadData());
+    this.notify.confirm('Delete Record', 'Delete visa record for ' + (record.studentId?.name || 'this student') + '?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.visaSvc.delete(record._id).subscribe(() => this.loadData());
+    });
   }
 
   cancel(): void { this.showForm = false; }

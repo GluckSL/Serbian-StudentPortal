@@ -73,6 +73,13 @@ const UserSchema = new mongoose.Schema({
   /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
   currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
 
+  /**
+   * Set when student attended the live class for currentCourseDay (meeting.courseDay matches).
+   * Cleared after midnight rollover when currentCourseDay increments, or when admin changes day.
+   */
+  pendingJourneyDayAdvance: { type: Boolean, default: false },
+  pendingJourneyDayAdvanceForDay: { type: Number, default: null, min: 1, max: 200, required: false },
+
   // ✅ move these inside schema
   courseProgress: [{
     courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },

@@ -342,7 +342,13 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     const result = await User.updateMany(
       { role: 'STUDENT', batch: batchName },
-      { $set: { currentCourseDay: targetDay } }
+      {
+        $set: {
+          currentCourseDay: targetDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        }
+      }
     );
 
     res.json({
@@ -409,7 +415,13 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
     }
 
     const nextDay = currentDay + 1;
-    await User.findByIdAndUpdate(student._id, { $set: { currentCourseDay: nextDay } });
+    await User.findByIdAndUpdate(student._id, {
+      $set: {
+        currentCourseDay: nextDay,
+        pendingJourneyDayAdvance: false,
+        pendingJourneyDayAdvanceForDay: null
+      }
+    });
 
     console.log(`✅ Student ${student.name} advanced from Day ${currentDay} → Day ${nextDay}${force ? ' (forced by admin)' : ''}`);
     res.json({
@@ -436,7 +448,13 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
     const targetDay = clampDay(day);
     const student = await User.findOneAndUpdate(
       { _id: studentId, role: 'STUDENT' },
-      { $set: { currentCourseDay: targetDay } },
+      {
+        $set: {
+          currentCourseDay: targetDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        }
+      },
       { new: true, select: 'name regNo batch currentCourseDay' }
     );
     if (!student) return res.status(404).json({ message: 'Student not found' });

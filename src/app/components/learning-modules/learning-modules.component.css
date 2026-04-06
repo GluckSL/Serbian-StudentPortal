@@ -5,6 +5,12 @@
   max-width: none;
   margin: 0;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.learning-modules-container.lm-embedded {
+  max-width: 100%;
 }
 
 /* ═══ Header card ═══ */
@@ -787,8 +793,12 @@
   box-shadow: 0 2px 6px rgba(40, 167, 69, 0.3);
 }
 @media (max-width: 768px) {
-  .learning-modules-container {
+  .learning-modules-container:not(.lm-embedded) {
     padding: 10px;
+  }
+
+  .learning-modules-container.lm-embedded {
+    padding: 0;
   }
 
   .lm-header-top {
@@ -833,6 +843,21 @@
   
   .module-actions {
     justify-content: center;
+  }
+
+  .lm-header-card {
+    padding: 12px 12px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .lm-filter-input,
+  .lm-filter-select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+    min-height: 44px;
   }
 }
 

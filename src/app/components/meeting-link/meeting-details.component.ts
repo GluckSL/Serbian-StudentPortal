@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-meeting-details',
@@ -29,7 +30,8 @@ export class MeetingDetailsComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private zoomService: ZoomService
+    private zoomService: ZoomService,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -73,7 +75,7 @@ export class MeetingDetailsComponent implements OnInit {
   copyJoinUrl(): void {
     if (this.meeting?.joinUrl) {
       navigator.clipboard.writeText(this.meeting.joinUrl).then(() => {
-        alert('Join URL copied to clipboard!');
+        this.notify.success('Join URL copied to clipboard!');
       });
     }
   }
@@ -81,7 +83,7 @@ export class MeetingDetailsComponent implements OnInit {
   copyMeetingId(): void {
     if (this.meeting?.zoomMeetingId) {
       navigator.clipboard.writeText(this.meeting.zoomMeetingId).then(() => {
-        alert('Meeting ID copied to clipboard!');
+        this.notify.success('Meeting ID copied to clipboard!');
       });
     }
   }
@@ -89,7 +91,7 @@ export class MeetingDetailsComponent implements OnInit {
   copyPassword(): void {
     if (this.meeting?.zoomPassword) {
       navigator.clipboard.writeText(this.meeting.zoomPassword).then(() => {
-        alert('Password copied to clipboard!');
+        this.notify.success('Password copied to clipboard!');
       });
     }
   }
@@ -107,20 +109,21 @@ export class MeetingDetailsComponent implements OnInit {
   }
 
   deleteMeeting(): void {
-    if (confirm('Are you sure you want to delete this meeting?')) {
+    this.notify.confirm('Delete Meeting', 'Are you sure you want to delete this meeting?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.zoomService.deleteMeeting(this.meetingId).subscribe({
         next: (response) => {
           if (response.success) {
-            alert('Meeting deleted successfully');
+            this.notify.success('Meeting deleted successfully');
             this.router.navigate(['/teacher/meetings']);
           }
         },
         error: (err) => {
           console.error('Error deleting meeting:', err);
-          alert('Failed to delete meeting');
+          this.notify.error('Failed to delete meeting');
         }
       });
-    }
+    });
   }
 
   goBack(): void {

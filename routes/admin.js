@@ -506,6 +506,8 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
         });
       }
       updateData.currentCourseDay = d;
+      updateData.pendingJourneyDayAdvance = false;
+      updateData.pendingJourneyDayAdvanceForDay = null;
     }
 
     // Update all selected students

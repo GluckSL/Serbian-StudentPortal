@@ -5,6 +5,7 @@
 const cron = require('node-cron');
 const MeetingLink = require('../models/MeetingLink');
 const zoomService = require('../services/zoomService');
+const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
 
 // Full matching algorithm (same as routes/zoom.js)
 function levenshteinDistance(str1, str2) {
@@ -145,6 +146,12 @@ async function fetchAttendanceForMeeting(meeting) {
     meeting.attendanceRecorded = true;
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
+
+    try {
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('  ⚠️ journey pending sync:', e.message);
+    }
 
     const attended = attendanceData.filter(a => a.attended).length;
     console.log(`  ✅ ${meeting.topic} — ${attended}/${attendanceData.length} attended`);

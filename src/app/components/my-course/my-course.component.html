@@ -1,11 +1,7 @@
 <div class="mc" *ngIf="!loading; else mcLoading">
-  <header class="mc-hero" aria-label="Welcome">
+  <header class="mc-hero" *ngIf="activeTab === 'classes'" aria-label="Course overview">
     <div class="mc-hero__content">
-      <p class="mc-hero__kicker">Your course</p>
-      <h1 class="mc-hero__title">
-        Welcome back, {{ studentFirstName }}
-        <span class="mc-hero__wave" aria-hidden="true">👋</span>
-      </h1>
+      <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
       <p class="mc-hero__sub">
         Join live classes, practice with exercises, and work through modules—all in one place.
       </p>
@@ -40,6 +36,41 @@
       </div>
     </div>
   </header>
+
+  <!-- Same vertical position as My class hero: full-width strip above tabs -->
+  <section
+    class="mc-tab-profile-strip"
+    *ngIf="activeTab !== 'classes'"
+    aria-label="Your profile">
+    <div class="mc-tab-profile">
+      <div class="mc-tab-profile__main">
+        <p class="mc-tab-profile__name">{{ studentDisplayName }}</p>
+        <p class="mc-tab-profile__quote">{{ tabHeaderQuote }}</p>
+        <p class="mc-tab-profile__level">
+          Level <strong>{{ levelShortLabel }}</strong>
+        </p>
+      </div>
+      <div class="mc-tab-profile__photo">
+        <img
+          *ngIf="profilePhotoUrl as url"
+          class="mc-tab-profile__avatar"
+          [src]="url"
+          [alt]="'Profile photo — ' + studentDisplayName"
+          width="64"
+          height="64"
+          loading="lazy"
+        />
+        <div
+          *ngIf="!profilePhotoUrl"
+          class="mc-tab-profile__avatar mc-tab-profile__avatar--fallback"
+          role="img"
+          [attr.aria-label]="'No photo — ' + studentInitial"
+        >
+          {{ studentInitial }}
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Tabs -->
   <div class="mc-tabs-wrap">
@@ -77,10 +108,6 @@
         Journey to Germany
       </button>
     </div>
-    <div class="mc-tabs-meta">
-      <a routerLink="/time-table-view-student" class="mc-schedule-link">View schedule →</a>
-      <a routerLink="/student-payments" class="mc-schedule-link mc-schedule-link--muted">Payments</a>
-    </div>
   </div>
 
   <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
@@ -113,6 +140,19 @@
 
       <div class="mc-side-card mc-side-card--updates">
         <p class="mc-side-card__eyebrow">Updates</p>
+
+        <div class="mc-update mc-update--journey-ready" *ngIf="showJourneyPendingCelebration">
+          <span class="mc-update__icon mc-update__icon--celebrate" aria-hidden="true">
+            <span class="material-icons">celebration</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">Ready for the next journey day</p>
+            <p class="mc-update__text">
+              You completed attendance for <strong>Day {{ journeyCourseDay }}</strong>. At midnight, your journey advances to
+              <strong>Day {{ nextJourneyPreviewDay }}</strong>. Keep going!
+            </p>
+          </div>
+        </div>
 
         <div class="mc-update" *ngIf="nextMeetingPreview as mtg">
           <span class="mc-update__icon mc-update__icon--live" aria-hidden="true">

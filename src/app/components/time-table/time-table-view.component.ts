@@ -8,6 +8,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClientModule } from '@angular/common/http';
+import { NotificationService } from '../../services/notification.service';
 
 interface TimeTable {
   _id?: string;
@@ -79,6 +80,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     private studentService: StudentService,
     private teacherService: TeacherService,
     private zoomService: ZoomService,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
@@ -293,18 +295,18 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
   deleteTimeTable(tt: TimeTable, event: Event): void {
     event.stopPropagation();
     if (!tt._id) return;
-    const ok = window.confirm('Delete this timetable week permanently?');
-    if (!ok) return;
-
-    this.timeTableService.deleteTimeTable(tt._id).subscribe({
-      next: () => {
-        this.hiddenTimeTableIds.delete(tt._id!);
-        this.timeTables = this.timeTables.filter((item) => item._id !== tt._id);
-      },
-      error: (error) => {
-        console.error('Error deleting timetable:', error);
-        window.alert('Failed to delete timetable. Please try again.');
-      }
+    this.notify.confirm('Delete Timetable', 'Delete this timetable week permanently?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.timeTableService.deleteTimeTable(tt._id!).subscribe({
+        next: () => {
+          this.hiddenTimeTableIds.delete(tt._id!);
+          this.timeTables = this.timeTables.filter((item) => item._id !== tt._id);
+        },
+        error: (error) => {
+          console.error('Error deleting timetable:', error);
+          this.notify.error('Failed to delete timetable. Please try again.');
+        }
+      });
     });
   }
 
