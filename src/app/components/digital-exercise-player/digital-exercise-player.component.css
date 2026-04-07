@@ -3225,6 +3225,21 @@
   display: none !important;
 }
 
+/* Mobile web: ensure the user can see/play the clip (don’t hide native controls). */
+@media (max-width: 900px) {
+  .vp-stage-video::-webkit-media-controls,
+  .vp-stage-video::-webkit-media-controls-enclosure,
+  .vp-video::-webkit-media-controls,
+  .vp-video::-webkit-media-controls-enclosure {
+    display: unset !important;
+  }
+
+  .vp-stage-video,
+  .vp-video--mobile {
+    background: #000;
+  }
+}
+
 .vp-no-video--mobile {
   margin: 0 10px;
   border-radius: 16px;

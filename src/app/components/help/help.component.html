@@ -1,0 +1,225 @@
+<div class="help-page">
+
+  <!-- Hero Banner -->
+  <div class="help-hero">
+    <div class="hero-inner">
+      <div class="hero-icon"><i class="fas fa-headset"></i></div>
+      <h1>Help &amp; Support</h1>
+      <p>Having trouble? Raise a ticket and our team will respond within 24 hours.</p>
+      <div class="hero-contact">
+        <a href="mailto:support@gluckglobal.com"><i class="fas fa-envelope"></i> support&#64;gluckglobal.com</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="help-tabs">
+    <button class="help-tab" [class.active]="activeTab === 'submit'" (click)="setTab('submit')">
+      <i class="fas fa-ticket-alt"></i> Raise a Ticket
+    </button>
+    <button class="help-tab" [class.active]="activeTab === 'faq'" (click)="setTab('faq')">
+      <i class="fas fa-question-circle"></i> FAQ
+    </button>
+    <button *ngIf="isLoggedIn" class="help-tab" [class.active]="activeTab === 'tickets'" (click)="setTab('tickets')">
+      <i class="fas fa-list-alt"></i> My Tickets
+      <span *ngIf="tickets.length > 0" class="tab-badge">{{ tickets.length }}</span>
+    </button>
+  </div>
+
+  <div class="help-content">
+
+    <!-- ══ SUBMIT TICKET TAB ══ -->
+    <div *ngIf="activeTab === 'submit'">
+
+      <!-- Success State -->
+      <div *ngIf="submitSuccess && submittedTicket" class="success-card">
+        <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+        <h3>Ticket Submitted Successfully!</h3>
+        <p>Your support request has been received. We'll get back to you at <strong>{{ submittedTicket.email }}</strong>.</p>
+        <div class="ticket-ref" *ngIf="submittedTicket.ticketNumber">
+          Ticket #: <strong>{{ submittedTicket.ticketNumber }}</strong>
+        </div>
+        <div class="success-actions">
+          <button class="btn-primary" (click)="submitSuccess = false; submittedTicket = null">
+            <i class="fas fa-plus"></i> Submit Another
+          </button>
+          <button *ngIf="isLoggedIn" class="btn-outline" (click)="setTab('tickets')">
+            <i class="fas fa-list-alt"></i> View My Tickets
+          </button>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <div *ngIf="!submitSuccess" class="form-card">
+        <div class="form-header">
+          <h2><i class="fas fa-ticket-alt"></i> New Support Ticket</h2>
+          <p>Please describe your issue in detail so we can help you quickly.</p>
+        </div>
+
+        <div *ngIf="submitError" class="alert-error">
+          <i class="fas fa-exclamation-circle"></i> {{ submitError }}
+        </div>
+
+        <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" novalidate>
+
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>Your Name <span class="req">*</span></label>
+              <input type="text" formControlName="name" placeholder="Full name" autocomplete="name">
+              <span class="field-error" *ngIf="ticketForm.get('name')?.invalid && ticketForm.get('name')?.touched">
+                Name is required (min 2 characters).
+              </span>
+            </div>
+            <div class="form-group">
+              <label>Email Address <span class="req">*</span></label>
+              <input type="email" formControlName="email" placeholder="you@example.com" autocomplete="email">
+              <span class="field-error" *ngIf="ticketForm.get('email')?.invalid && ticketForm.get('email')?.touched">
+                Please enter a valid email address.
+              </span>
+            </div>
+          </div>
+
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label>Issue Category <span class="req">*</span></label>
+              <select formControlName="category">
+                <option value="" disabled>Select a category…</option>
+                <option *ngFor="let cat of categories" [value]="cat.value">{{ cat.label }}</option>
+              </select>
+              <span class="field-error" *ngIf="ticketForm.get('category')?.invalid && ticketForm.get('category')?.touched">
+                Please select a category.
+              </span>
+            </div>
+            <div class="form-group">
+              <label>Priority <span class="req">*</span></label>
+              <select formControlName="priority">
+                <option *ngFor="let p of priorities" [value]="p.value">{{ p.label }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Subject <span class="req">*</span></label>
+            <input type="text" formControlName="subject" placeholder="Brief summary of your issue (max 100 chars)">
+            <span class="field-error" *ngIf="ticketForm.get('subject')?.invalid && ticketForm.get('subject')?.touched">
+              Subject is required (5–100 characters).
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label>
+              Description <span class="req">*</span>
+              <span class="char-count">{{ descriptionLen }}/1000</span>
+            </label>
+            <textarea formControlName="description" rows="6"
+              placeholder="Describe the issue in detail: what happened, what you were trying to do, any error messages you saw…"></textarea>
+            <span class="field-error" *ngIf="ticketForm.get('description')?.invalid && ticketForm.get('description')?.touched">
+              Description is required (min 20 characters).
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label>Screenshot <span class="req">*</span></label>
+            <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
+            <span class="field-error" *ngIf="ticketForm.get('screenshot')?.invalid && ticketForm.get('screenshot')?.touched">
+              Screenshot is required (PNG/JPG/WEBP, max 6MB).
+            </span>
+          </div>
+
+          <div class="form-footer">
+            <div class="privacy-note">
+              <i class="fas fa-lock"></i> Your information is secure and will only be used to resolve your ticket.
+            </div>
+            <button type="submit" class="btn-primary btn-submit" [disabled]="submitting">
+              <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Submit Ticket</span>
+              <span *ngIf="submitting"><i class="fas fa-spinner fa-spin"></i> Submitting…</span>
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+    <!-- ══ FAQ TAB ══ -->
+    <div *ngIf="activeTab === 'faq'" class="faq-section">
+      <div class="section-header">
+        <h2><i class="fas fa-question-circle"></i> Frequently Asked Questions</h2>
+        <p>Find quick answers to common issues below.</p>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item" *ngFor="let faq of faqs; let i = index" [class.open]="openFaqIndex === i">
+          <button class="faq-question" (click)="toggleFaq(i)">
+            <span>{{ faq.q }}</span>
+            <i class="fas" [class.fa-chevron-down]="openFaqIndex !== i" [class.fa-chevron-up]="openFaqIndex === i"></i>
+          </button>
+          <div class="faq-answer" *ngIf="openFaqIndex === i">
+            <p>{{ faq.a }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="faq-cta">
+        <p>Didn't find your answer?</p>
+        <button class="btn-primary" (click)="setTab('submit')">
+          <i class="fas fa-ticket-alt"></i> Raise a Support Ticket
+        </button>
+      </div>
+    </div>
+
+    <!-- ══ MY TICKETS TAB ══ -->
+    <div *ngIf="activeTab === 'tickets' && isLoggedIn">
+      <div class="section-header">
+        <h2><i class="fas fa-list-alt"></i> My Support Tickets</h2>
+        <p>Track the status of your previously submitted tickets.</p>
+        <button class="btn-outline btn-sm" (click)="loadMyTickets()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+
+      <div *ngIf="loadingTickets" class="state-msg">
+        <i class="fas fa-spinner fa-spin"></i> Loading your tickets…
+      </div>
+
+      <div *ngIf="!loadingTickets && tickets.length === 0" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-inbox"></i></div>
+        <h3>No tickets yet</h3>
+        <p>You haven't raised any support tickets. If you're facing an issue, submit one now.</p>
+        <button class="btn-primary" (click)="setTab('submit')">
+          <i class="fas fa-ticket-alt"></i> Submit Your First Ticket
+        </button>
+      </div>
+
+      <div *ngIf="!loadingTickets && tickets.length > 0" class="tickets-list">
+        <div class="ticket-card" *ngFor="let ticket of tickets">
+          <div class="ticket-card-header">
+            <div class="ticket-meta">
+              <span class="ticket-number" *ngIf="ticket.ticketNumber">#{{ ticket.ticketNumber }}</span>
+              <span class="ticket-category">{{ getCategoryLabel(ticket.category) }}</span>
+            </div>
+            <div class="ticket-badges">
+              <span class="priority-badge" [class]="getPriorityClass(ticket.priority)">{{ ticket.priority | titlecase }}</span>
+              <span class="status-badge" [class]="getStatusClass(ticket.status)">
+                {{ (ticket.status || 'open') | titlecase }}
+              </span>
+            </div>
+          </div>
+          <h4 class="ticket-subject">{{ ticket.subject }}</h4>
+          <p class="ticket-desc">{{ ticket.description }}</p>
+          <div class="ticket-card-footer">
+            <span class="ticket-date" *ngIf="ticket.createdAt">
+              <i class="fas fa-clock"></i> {{ ticket.createdAt | date:'mediumDate' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom contact strip -->
+  <div class="help-footer-strip">
+    <span><i class="fas fa-envelope"></i> support&#64;gluckglobal.com</span>
+    <span class="strip-sep">|</span>
+    <span><i class="fas fa-clock"></i> Response within 24 hours</span>
+  </div>
+
+</div>

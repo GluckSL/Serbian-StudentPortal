@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../services/auth.service';
 
 const apiUrl = environment.apiUrl;
 
@@ -24,6 +25,9 @@ interface MeetingRow {
   absent: number;
   total: number;
   attendanceRate: number;
+  meetingDurationMinutes?: number;
+  avgAttendedMinutes?: number;
+  totalAttendedMinutes?: number;
 }
 
 interface TeacherReportData {
@@ -96,18 +100,37 @@ export class TeacherAnalyticsComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private http: HttpClient
+    private router: Router,
+    private http: HttpClient,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const teacherId = params.get('id');
-      if (!teacherId) {
-        this.error = 'Teacher ID is missing.';
-        this.loading = false;
+      if (teacherId && teacherId !== 'me') {
+        this.fetchTeacherReport(teacherId);
         return;
       }
-      this.fetchTeacherReport(teacherId);
+      const currentUser = this.authService.getSnapshotUser();
+      if (currentUser?._id) {
+        this.router.navigate(['/teachers', currentUser._id, 'analytics'], { replaceUrl: true });
+      } else {
+        this.authService.getUserProfile().subscribe({
+          next: (user: any) => {
+            if (user?._id) {
+              this.router.navigate(['/teachers', user._id, 'analytics'], { replaceUrl: true });
+            } else {
+              this.error = 'Unable to determine teacher ID.';
+              this.loading = false;
+            }
+          },
+          error: () => {
+            this.error = 'Teacher ID is missing.';
+            this.loading = false;
+          }
+        });
+      }
     });
   }
 
@@ -195,6 +218,36 @@ export class TeacherAnalyticsComponent implements OnInit {
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  getTeachingHours(): string {
+    if (!this.report) return '0 hrs';
+    const sessions = this.report.attendance.attendedCount + this.report.attendance.lateCount;
+    if (sessions === 0) return '0 hrs';
+    const hrs = Math.floor(sessions);
+    return `${hrs} hr${hrs !== 1 ? 's' : ''}`;
+  }
+
+  getTeachingHoursFromMeetings(): string {
+    if (!this.report) return '0 hrs';
+    const meetings = this.report.meetings.pastMeetings || [];
+    if (meetings.length === 0) {
+      const sessions = this.report.attendance.attendedCount + this.report.attendance.lateCount;
+      return `${sessions} hr${sessions !== 1 ? 's' : ''}`;
+    }
+    const totalMins = meetings.reduce((sum: number, m: MeetingRow) => sum + (m.present > 0 ? 60 : 0), 0);
+    const hrs = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hrs === 0) return `${mins} min`;
+    return mins > 0 ? `${hrs} hrs ${mins} min` : `${hrs} hrs`;
+  }
+
+  getAttendancePercent(): number {
+    if (!this.report) return 0;
+    const total = this.report.summary.totalMeetings;
+    if (!total) return 0;
+    const present = this.report.attendance.attendedCount + this.report.attendance.lateCount;
+    return Math.round((present / total) * 100);
   }
 
   private toMetrics(source: Record<string, number>, keys: string[]): ReportMetric[] {

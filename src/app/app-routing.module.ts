@@ -18,6 +18,17 @@ export const routes: Routes = [
   // Home route
   { path: 'home', loadComponent: () => import('./components/home/home.component').then(m => m.HomeComponent) },
 
+  // Help & Support — accessible without login (and after login)
+  { path: 'help', loadComponent: () => import('./components/help/help.component').then(m => m.HelpComponent) },
+
+  // Admin: manage all support tickets
+  {
+    path: 'admin/support-tickets',
+    loadComponent: () => import('./components/help/help-admin.component').then(m => m.HelpAdminComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+
   // Login and Signup routes
   { path: 'login', loadComponent: () => import('./components/login/login.component').then(m => m.LoginComponent) },
   { path: 'signup', loadComponent: () => import('./components/signup/signup.component').then(m => m.SignupComponent) },
@@ -102,7 +113,13 @@ export const routes: Routes = [
     path: 'teachers/:id/analytics',
     loadComponent: () => import('./components/teachers/teacher-analytics.component').then(m => m.TeacherAnalyticsComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
+  },
+  {
+    path: 'my-analytics',
+    loadComponent: () => import('./components/teachers/teacher-analytics.component').then(m => m.TeacherAnalyticsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['TEACHER', 'TEACHER_ADMIN'] }
   },
 
   { path: 'courses', loadComponent: () => import('./components/courses/courses.component').then(m => m.CoursesComponent), canActivate: [AuthGuard] },

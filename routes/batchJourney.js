@@ -20,11 +20,18 @@ function clampDay(d, max = 200) {
   return n;
 }
 
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Upsert a BatchConfig row and return it */
 async function getOrCreateConfig(batchName) {
-  let cfg = await BatchConfig.findOne({ batchName });
+  const bn = String(batchName || '').trim();
+  if (!bn) return null;
+  // Match case-insensitively so admins can't create duplicates like "Batch 1" vs "batch 1".
+  let cfg = await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(bn)}$`, 'i') });
   if (!cfg) {
-    cfg = await BatchConfig.create({ batchName });
+    cfg = await BatchConfig.create({ batchName: bn });
   }
   return cfg;
 }
@@ -124,20 +131,25 @@ async function checkDayCompletion(studentId, batchName, day) {
 // List every distinct batch from the User collection + joined BatchConfig data
 router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const batchNames = await User.distinct('batch', { role: 'STUDENT', batch: { $ne: null, $ne: '' } });
+    // Batches can exist either because students are assigned to them (User.batch),
+    // or because an admin created a BatchConfig before any students exist.
+    const studentBatchNames = await User.distinct('batch', { role: 'STUDENT', batch: { $ne: null, $ne: '' } });
+    const configBatchNames = await BatchConfig.distinct('batchName', { batchName: { $ne: null, $ne: '' } });
+
+    const allBatchNames = Array.from(new Set([...(studentBatchNames || []), ...(configBatchNames || [])]));
 
     const counts = await User.aggregate([
-      { $match: { role: 'STUDENT', batch: { $in: batchNames } } },
+      { $match: { role: 'STUDENT', batch: { $in: allBatchNames } } },
       { $group: { _id: '$batch', count: { $sum: 1 } } }
     ]);
     const countMap = {};
     counts.forEach(c => { countMap[c._id] = c.count; });
 
     // Most common assigned teacher per batch (from students' assignedTeacher)
-    const teacherNameByBatch = {};
-    if (batchNames.length) {
+    const teacherByBatch = {};
+    if (studentBatchNames.length) {
       const teacherAgg = await User.aggregate([
-        { $match: { role: 'STUDENT', batch: { $in: batchNames }, assignedTeacher: { $ne: null } } },
+        { $match: { role: 'STUDENT', batch: { $in: studentBatchNames }, assignedTeacher: { $ne: null } } },
         { $group: { _id: { batch: '$batch', tid: '$assignedTeacher' }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $group: { _id: '$_id.batch', teacherId: { $first: '$_id.tid' } } }
@@ -152,15 +164,15 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
       });
       teacherAgg.forEach(row => {
         const nm = nameById[String(row.teacherId)];
-        teacherNameByBatch[row._id] = nm || null;
+        teacherByBatch[row._id] = { teacherId: row.teacherId, teacherName: nm || null };
       });
     }
 
-    const configs = await BatchConfig.find({ batchName: { $in: batchNames } }).lean();
+    const configs = await BatchConfig.find({ batchName: { $in: allBatchNames } }).lean();
     const configMap = {};
     configs.forEach(c => { configMap[c.batchName] = c; });
 
-    const batches = batchNames.map(name => {
+    const batches = allBatchNames.map(name => {
       const cfg = configMap[name] || { batchName: name, journeyLength: 200, batchCurrentDay: 1, notes: '', batchStartDate: null };
       const activeBatchDay = computeBatchDay(cfg);
       return {
@@ -171,7 +183,8 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
         studentCount: countMap[name] || 0,
-        teacherName: teacherNameByBatch[name] ?? null
+        teacherId: teacherByBatch[name]?.teacherId ?? null,
+        teacherName: teacherByBatch[name]?.teacherName ?? null
       };
     });
 
@@ -192,6 +205,20 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       .sort({ name: 1 })
       .lean();
 
+    // most common assigned teacher for this batch
+    const teacherAgg = await User.aggregate([
+      { $match: { role: 'STUDENT', batch: batchName, assignedTeacher: { $ne: null } } },
+      { $group: { _id: '$assignedTeacher', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 1 }
+    ]);
+    let teacherId = teacherAgg?.[0]?._id || null;
+    let teacherName = null;
+    if (teacherId) {
+      const t = await User.findById(teacherId).select('name').lean();
+      teacherName = t?.name || null;
+    }
+
     const cfg = await getOrCreateConfig(batchName);
     const activeBatchDay = computeBatchDay(cfg);
 
@@ -204,6 +231,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes
       },
+      teacher: { teacherId, teacherName },
       students: students.map(s => ({
         _id: s._id,
         name: s.name,
@@ -276,9 +304,28 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { batchName } = req.params;
-    const { journeyLength, batchCurrentDay, batchStartDate, notes } = req.body;
+    const {
+      journeyLength,
+      batchCurrentDay,
+      batchStartDate,
+      notes,
+      createOnly
+    } = req.body || {};
 
-    let cfg = await getOrCreateConfig(batchName);
+    const bn = String(batchName || '').trim();
+    if (!bn) return res.status(400).json({ message: 'batchName is required' });
+
+    if (createOnly) {
+      const rx = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
+      const existsCfg = await BatchConfig.findOne({ batchName: rx }).select('_id batchName').lean();
+      const existsStudents = await User.exists({ role: 'STUDENT', batch: rx });
+      if (existsCfg || existsStudents) {
+        return res.status(409).json({ message: `Batch "${bn}" already exists` });
+      }
+    }
+
+    let cfg = await getOrCreateConfig(bn);
+    if (!cfg) return res.status(500).json({ message: 'Failed to create batch config' });
 
     if (journeyLength !== undefined) {
       cfg.journeyLength = Math.min(200, Math.max(1, clampDay(journeyLength)));
@@ -308,7 +355,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
 
     const activeBatchDay = computeBatchDay(cfg);
     res.json({
-      message: 'Batch config updated',
+      message: createOnly ? 'Batch created' : 'Batch config updated',
       config: {
         ...cfg.toObject(),
         batchCurrentDay: activeBatchDay,
@@ -359,6 +406,39 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   } catch (err) {
     console.error('batch-journey POST /:batch/set-day', err);
     res.status(500).json({ message: 'Failed to set batch day', error: err.message });
+  }
+});
+
+// ─── POST /api/batch-journey/:batchName/assign-teacher ───────────────────────
+// Assign a teacher to ALL students in a batch (sets User.assignedTeacher)
+router.post('/:batchName/assign-teacher', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { batchName } = req.params;
+    const { teacherId } = req.body || {};
+
+    const bn = String(batchName || '').trim();
+    if (!bn) return res.status(400).json({ message: 'batchName is required' });
+    if (!teacherId) return res.status(400).json({ message: 'teacherId is required' });
+
+    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
+      .select('name email')
+      .lean();
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+
+    const result = await User.updateMany(
+      { role: 'STUDENT', batch: bn },
+      { $set: { assignedTeacher: teacherId } }
+    );
+
+    res.json({
+      message: `Assigned ${teacher.name} to batch "${bn}"`,
+      batchName: bn,
+      teacher: { _id: teacher._id, name: teacher.name, email: teacher.email },
+      studentsUpdated: result.modifiedCount
+    });
+  } catch (err) {
+    console.error('batch-journey POST /:batch/assign-teacher', err);
+    res.status(500).json({ message: 'Failed to assign teacher', error: err.message });
   }
 });
 

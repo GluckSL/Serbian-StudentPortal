@@ -87,7 +87,7 @@
       <tbody>
         <ng-container *ngFor="let s of filtered">
           <tr class="ap-row" [class.ap-row--selected]="selectedStudent?._id === s._id"
-              [class.ap-row--warn]="s.attendance.total > 0 && s.attendance.rate < 70"
+              [class.ap-row--warn]="s.attendance.total > 0 && s.attendance.rate < 75"
               (click)="selectStudent(s)">
             <td>
               <label class="ap-checkbox">
@@ -118,7 +118,7 @@
               </div>
             </td>
             <td>
-              <span [class.ap-text-red]="s.attendance.total > 0 && s.attendance.rate < 70">
+              <span [class.ap-text-red]="s.attendance.total > 0 && s.attendance.rate < 75">
                 {{ s.attendance.rate }}% <span class="ap-sub">({{ s.attendance.attended }}/{{ s.attendance.total }})</span>
               </span>
             </td>
@@ -162,7 +162,7 @@
                 <div class="ap-detail__section">
                   <div class="ap-detail__title">Attendance</div>
                   <div class="ap-detail__kv"><span>Sessions</span><span>{{ s.attendance.attended }}/{{ s.attendance.total }}</span></div>
-                  <div class="ap-detail__kv"><span>Rate</span><span [class.ap-text-red]="s.attendance.rate < 70">{{ s.attendance.rate }}%</span></div>
+                  <div class="ap-detail__kv"><span>Rate</span><span [class.ap-text-red]="s.attendance.rate < 75">{{ s.attendance.rate }}%</span></div>
                 </div>
                 <div class="ap-detail__section">
                   <div class="ap-detail__title">Documents</div>

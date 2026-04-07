@@ -60,6 +60,13 @@
   color: #0f172a;
 }
 
+.kpi-sub {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
 .panel {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -135,6 +142,13 @@
 .att-card strong {
   display: block;
   font-size: 18px;
+}
+
+.att-hrs {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
 }
 
 .present {

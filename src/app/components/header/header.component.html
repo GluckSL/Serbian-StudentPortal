@@ -68,6 +68,13 @@
         </a>
       </li>
 
+      <li *ngIf="isLoggedIn() && (userRole === 'TEACHER' || userRole === 'TEACHER_ADMIN')">
+        <a (click)="navigateTo('/my-analytics'); closeMenu()"
+           [class.active]="isCurrentRoute('/my-analytics')">
+          <i class="fas fa-chart-bar"></i> My Analytics
+        </a>
+      </li>
+
       <!-- Admin Navigation -->
       <li *ngIf="isLoggedIn() && (userRole === 'ADMIN' || userRole === 'TEACHER_ADMIN')">
         <a (click)="navigateTo('/admin-dashboard'); closeMenu()" 
@@ -172,6 +179,15 @@
           <i class="fas fa-user"></i> Profile
         </a>
       </li>
+
+      <!-- Help & Support — visible to all (logged in and out) -->
+      <li>
+        <a (click)="navigateTo('/help'); closeMenu()"
+           [class.active]="isCurrentRoute('/help')">
+          <i class="fas fa-headset"></i> Help
+        </a>
+      </li>
+
       <li *ngIf="isLoggedIn() && isAuthenticated">
         <a class="logout-button" href="#" (click)="logOut(); closeMenu()">
           <i class="fas fa-sign-out-alt"></i> Logout

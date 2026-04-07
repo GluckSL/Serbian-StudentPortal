@@ -62,7 +62,7 @@ export class AdminProgressComponent implements OnInit {
     return Math.round(this.filtered.reduce((s, st) => s + st.learningPct, 0) / this.filtered.length);
   }
   get lowAttendanceCount(): number {
-    return this.filtered.filter(s => s.attendance.total > 0 && s.attendance.rate < 70).length;
+    return this.filtered.filter(s => s.attendance.total > 0 && s.attendance.rate < 75).length;
   }
 
   applyFilters(): void {

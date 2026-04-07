@@ -217,7 +217,7 @@ Password: ${meeting.password}
 
   getAttendanceStatus(meeting: StudentMeeting): 'Attended' | 'Not Attended' | 'Missed' {
     const pct = this.getAttendancePercent(meeting);
-    if (pct >= 70) return 'Attended';
+    if (pct >= 75) return 'Attended';
     if (meeting.hasEnded && pct > 0) return 'Not Attended';
     return 'Missed';
   }

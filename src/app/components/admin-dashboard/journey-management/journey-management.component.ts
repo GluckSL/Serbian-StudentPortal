@@ -15,8 +15,17 @@ interface BatchSummary {
   autoDay: boolean;
   notes: string;
   studentCount: number;
+  teacherId?: string | null;
   /** Resolved from students' assignedTeacher (most common per batch). */
   teacherName: string | null;
+}
+
+interface TeacherPick {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  studentCount?: number;
 }
 
 interface IncompleteTaskItem {
@@ -79,9 +88,104 @@ interface TimelineDay {
           Configure batch journey lengths, advance course days, and see all content scheduled per day.
         </p>
       </div>
-      <button class="j-btn j-btn-outline" (click)="loadBatches()">
-        <i class="fas fa-sync-alt"></i> Refresh
-      </button>
+      <div class="j-header-actions">
+        <button class="j-btn j-btn-outline" (click)="showCreateBatch = true">
+          <i class="fas fa-plus"></i> Create batch
+        </button>
+        <button class="j-btn j-btn-outline" (click)="loadBatches()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Create Batch (admin) ══════════════════════════════════════════ -->
+  <div class="j-modal-backdrop" *ngIf="showCreateBatch" (click)="closeCreateBatch()">
+    <div class="j-modal-card" role="dialog" aria-label="Create batch" (click)="$event.stopPropagation()">
+      <div class="j-modal-header">
+        <h3>Create batch</h3>
+        <button type="button" class="j-modal-close" (click)="closeCreateBatch()" aria-label="Close">×</button>
+      </div>
+
+      <p class="j-modal-sub" style="margin:10px 20px 0">
+        This creates a batch config in the portal. Students will appear once they’re assigned to this batch (e.g. via Monday sync).
+      </p>
+
+      <div style="padding: 14px 20px 0; display:grid; gap:12px;">
+        <div class="j-filter-field">
+          <label>Batch name</label>
+          <input class="j-input" [(ngModel)]="newBatchName" placeholder="e.g. Batch 13" autocomplete="off" />
+        </div>
+        <div class="j-filter-field">
+          <label>Journey length (days)</label>
+          <input class="j-input" type="number" [(ngModel)]="newJourneyLength" min="1" max="200" />
+        </div>
+      </div>
+
+      <div class="j-modal-footer">
+        <button type="button" class="j-btn j-btn-outline" (click)="closeCreateBatch()">Cancel</button>
+        <button type="button" class="j-btn j-btn-primary" [disabled]="creatingBatch" (click)="createBatch()">
+          <i class="fas" [class.fa-spinner]="creatingBatch" [class.fa-plus]="!creatingBatch"></i>
+          {{ creatingBatch ? 'Creating…' : 'Create' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Assign Teacher (admin) ══════════════════════════════════════════ -->
+  <div class="j-modal-backdrop" *ngIf="showAssignTeacher" (click)="closeAssignTeacher()">
+    <div class="j-modal-card" role="dialog" aria-label="Assign teacher" (click)="$event.stopPropagation()">
+      <div class="j-modal-header">
+        <h3>Assign Teacher</h3>
+        <button type="button" class="j-modal-close" (click)="closeAssignTeacher()" aria-label="Close">×</button>
+      </div>
+      <p class="j-modal-sub">
+        Batch <strong>{{ assignBatchName }}</strong>.
+        This will set <strong>assigned teacher</strong> for all students in this batch.
+      </p>
+
+      <div style="padding: 14px 20px 0; display:grid; gap:10px;">
+        <div class="j-search-wrap" style="flex:unset;">
+          <i class="fas fa-search j-search-icon"></i>
+          <input type="search" class="j-search-input" [(ngModel)]="teacherSearch"
+                 placeholder="Search teachers by name or email…" autocomplete="off" />
+        </div>
+
+        <div *ngIf="teachersLoading" class="j-loading-inline">
+          <div class="spinner-border spinner-border-sm text-primary"></div> Loading teachers…
+        </div>
+
+        <div *ngIf="!teachersLoading && filteredTeachers.length === 0" class="j-empty-inline" style="padding:14px;">
+          No teachers found.
+        </div>
+
+        <div *ngIf="!teachersLoading && filteredTeachers.length > 0" class="j-teacher-list">
+          <button type="button"
+                  class="j-teacher-row"
+                  *ngFor="let t of filteredTeachers"
+                  [class.active]="selectedTeacherId === t._id"
+                  (click)="selectedTeacherId = t._id">
+            <div class="j-teacher-main">
+              <strong>{{ t.name }}</strong>
+              <small>{{ t.email }}</small>
+            </div>
+            <div class="j-teacher-meta">
+              <span class="j-badge j-badge-secondary">{{ t.role }}</span>
+              <span class="j-badge j-badge-primary">{{ t.studentCount || 0 }} students</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="j-modal-footer">
+        <button type="button" class="j-btn j-btn-outline" (click)="closeAssignTeacher()">Cancel</button>
+        <button type="button" class="j-btn j-btn-primary"
+                [disabled]="assigningTeacher || !selectedTeacherId"
+                (click)="assignTeacherToBatch()">
+          <i class="fas" [class.fa-spinner]="assigningTeacher" [class.fa-user-check]="!assigningTeacher"></i>
+          {{ assigningTeacher ? 'Assigning…' : 'Assign Teacher' }}
+        </button>
+      </div>
     </div>
   </div>
 
@@ -163,6 +267,14 @@ interface TimelineDay {
               <label>Journey length ≥ (days)</label>
               <input type="number" class="j-input" [(ngModel)]="filterJourneyMin" min="1" placeholder="Any">
             </div>
+            <div class="j-filter-field">
+              <label>Batch type</label>
+              <select class="j-select" [(ngModel)]="filterBatchType">
+                <option value="all">All</option>
+                <option value="new">New batches (no students yet)</option>
+                <option value="existing">Existing batches (has students)</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -200,7 +312,18 @@ interface TimelineDay {
                   <span class="j-day-pill j-day-pill--table">Day {{ b.batchCurrentDay }}</span>
                 </td>
                 <td>{{ b.studentCount }}</td>
-                <td class="j-td-teacher" [title]="b.teacherName || ''">{{ b.teacherName || '—' }}</td>
+                <td class="j-td-teacher" [title]="b.teacherName || ''">
+                  <div class="j-teacher-cell">
+                    <span>{{ b.teacherName || '—' }}</span>
+                    <button *ngIf="!b.teacherName"
+                            type="button"
+                            class="j-btn j-btn-outline j-btn-sm"
+                            style="margin-left:10px;"
+                            (click)="openAssignTeacher(b)">
+                      <i class="fas fa-user-plus"></i> Assign teacher
+                    </button>
+                  </div>
+                </td>
                 <td>{{ b.journeyLength }} days</td>
                 <td>
                   <div class="j-progress-cell">
@@ -245,6 +368,21 @@ interface TimelineDay {
     <div class="j-config-card">
       <h4 class="j-card-title">Batch Settings</h4>
       <div class="j-config-row">
+        <div class="j-config-field" style="min-width: 220px;">
+          <label>Teacher</label>
+          <div class="j-teacher-inline">
+            <span class="j-teacher-pill">
+              <i class="fas fa-chalkboard-teacher"></i>
+              {{ selectedBatch.teacherName || 'Not assigned' }}
+            </span>
+            <button type="button"
+                    class="j-btn j-btn-outline j-btn-sm"
+                    (click)="openAssignTeacher(selectedBatch!)">
+              <i class="fas" [class.fa-user-plus]="!selectedBatch.teacherName" [class.fa-user-edit]="!!selectedBatch.teacherName"></i>
+              {{ selectedBatch.teacherName ? 'Change teacher' : 'Assign teacher' }}
+            </button>
+          </div>
+        </div>
         <div class="j-config-field">
           <label>Journey Length (days)</label>
           <input type="number" [(ngModel)]="editJourneyLength" min="1" max="200" class="j-input">
@@ -592,6 +730,13 @@ interface TimelineDay {
       justify-content: space-between;
       gap: 16px;
     }
+    .j-header-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
     .j-icon { margin-right: 6px; }
     .j-title {
       font-size: 20px;
@@ -621,7 +766,38 @@ interface TimelineDay {
     .j-btn-primary:hover:not(:disabled) { background: #03396c; }
     .j-btn-outline { background: transparent; color: #005b96; border: 1.5px solid #005b96; }
     .j-btn-outline:hover:not(:disabled) { background: #e8f4fc; }
+    /* Header uses a dark gradient; make outline buttons readable there */
+    .j-header .j-btn-outline {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .j-header .j-btn-outline:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.95);
+    }
     .j-btn-sm { padding: 4px 10px; font-size: 11px; }
+
+    .j-teacher-cell { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+
+    .j-teacher-list { display:flex; flex-direction:column; gap:8px; max-height: 340px; overflow:auto; }
+    .j-teacher-row {
+      text-align: left;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .j-teacher-row:hover { background: #f8fafc; }
+    .j-teacher-row.active { border-color: #005b96; box-shadow: 0 0 0 3px rgba(0,91,150,.12); }
+    .j-teacher-main strong { display:block; font-size: 13px; color:#0f172a; }
+    .j-teacher-main small { display:block; font-size: 11px; color:#94a3b8; }
+    .j-teacher-meta { display:flex; gap:6px; flex-wrap: wrap; justify-content: flex-end; }
 
     /* ── Loading ── */
     .j-loading { text-align: center; padding: 60px 20px; color: #64748b; }
@@ -865,6 +1041,13 @@ interface TimelineDay {
     .j-card-title { font-size: 13px; font-weight: 700; color: #03396c; margin-bottom: 12px; }
     .j-config-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
     .j-config-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+    .j-teacher-inline { display:flex; align-items:center; gap:10px; flex-wrap: wrap; }
+    .j-teacher-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      background:#f1f5f9; border:1px solid #e2e8f0;
+      color:#0f172a; border-radius: 999px;
+      padding: 6px 10px; font-size: 12px; font-weight: 700;
+    }
     .j-config-field label { font-size: 11px; font-weight: 600; color: #475569; }
     .j-config-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 
@@ -1117,9 +1300,25 @@ interface TimelineDay {
 export class JourneyManagementComponent implements OnInit {
 
   private apiUrl = `${environment.apiUrl}/batch-journey`;
+  private adminUrl = `${environment.apiUrl}/admin`;
 
   batches: BatchSummary[] = [];
   loading = false;
+
+  /** Create batch modal */
+  showCreateBatch = false;
+  creatingBatch = false;
+  newBatchName = '';
+  newJourneyLength = 200;
+
+  /** Assign teacher modal */
+  showAssignTeacher = false;
+  assigningTeacher = false;
+  assignBatchName = '';
+  teachers: TeacherPick[] = [];
+  teachersLoading = false;
+  teacherSearch = '';
+  selectedTeacherId: string = '';
 
   /** Batch list (level 1) filters */
   batchSearch = '';
@@ -1129,6 +1328,7 @@ export class JourneyManagementComponent implements OnInit {
   filterDayMax: number | null = null;
   filterStudentsMin: number | null = null;
   filterJourneyMin: number | null = null;
+  filterBatchType: 'all' | 'new' | 'existing' = 'all';
 
   selectedBatch: BatchSummary | null = null;
   batchStudents: StudentRow[] = [];
@@ -1155,6 +1355,126 @@ export class JourneyManagementComponent implements OnInit {
     private notify: NotificationService
   ) {}
 
+  get filteredTeachers(): TeacherPick[] {
+    const q = String(this.teacherSearch || '').trim().toLowerCase();
+    const list = [...(this.teachers || [])];
+    if (!q) return list;
+    return list.filter(t =>
+      String(t.name || '').toLowerCase().includes(q) ||
+      String(t.email || '').toLowerCase().includes(q)
+    );
+  }
+
+  closeCreateBatch(): void {
+    this.showCreateBatch = false;
+    this.creatingBatch = false;
+    this.newBatchName = '';
+    this.newJourneyLength = 200;
+  }
+
+  openAssignTeacher(b: BatchSummary): void {
+    this.assignBatchName = b.batchName;
+    this.selectedTeacherId = '';
+    this.teacherSearch = '';
+    this.showAssignTeacher = true;
+    this.loadTeachers();
+  }
+
+  closeAssignTeacher(): void {
+    this.showAssignTeacher = false;
+    this.assigningTeacher = false;
+    this.assignBatchName = '';
+    this.selectedTeacherId = '';
+  }
+
+  private loadTeachers(): void {
+    this.teachersLoading = true;
+    this.http.get<any>(`${this.adminUrl}/teachers`, { withCredentials: true }).subscribe({
+      next: (r) => {
+        this.teachers = (r?.data || []).map((t: any) => ({
+          _id: t._id,
+          name: t.name,
+          email: t.email,
+          role: t.role,
+          studentCount: t.studentCount || 0
+        }));
+        this.teachersLoading = false;
+      },
+      error: (e) => {
+        console.error(e);
+        this.teachersLoading = false;
+        this.notify.error('Failed to load teachers.');
+      }
+    });
+  }
+
+  assignTeacherToBatch(): void {
+    if (!this.assignBatchName || !this.selectedTeacherId) return;
+    this.assigningTeacher = true;
+    this.http.post<any>(
+      `${this.apiUrl}/${encodeURIComponent(this.assignBatchName)}/assign-teacher`,
+      { teacherId: this.selectedTeacherId },
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        const teacherName = r?.teacher?.name || null;
+        const teacherId = r?.teacher?._id || this.selectedTeacherId;
+        const idx = this.batches.findIndex(x => x.batchName === this.assignBatchName);
+        if (idx >= 0) {
+          this.batches[idx].teacherName = teacherName;
+          this.batches[idx].teacherId = teacherId;
+        }
+        if (this.selectedBatch?.batchName === this.assignBatchName) {
+          this.selectedBatch.teacherName = teacherName;
+          this.selectedBatch.teacherId = teacherId;
+        }
+        this.assigningTeacher = false;
+        this.notify.success(r?.message || 'Teacher assigned.');
+        this.closeAssignTeacher();
+      },
+      error: (e) => {
+        console.error(e);
+        this.assigningTeacher = false;
+        this.notify.error(e?.error?.message || 'Failed to assign teacher.');
+      }
+    });
+  }
+
+  createBatch(): void {
+    const name = String(this.newBatchName || '').trim();
+    if (!name) {
+      this.notify.error('Please enter a batch name.');
+      return;
+    }
+    const existsLocal = this.batches.some(b => String(b.batchName || '').trim().toLowerCase() === name.toLowerCase());
+    if (existsLocal) {
+      this.notify.error(`Batch "${name}" already exists.`);
+      return;
+    }
+    const len = Math.max(1, Math.min(200, Number(this.newJourneyLength || 200)));
+    this.creatingBatch = true;
+    this.http.put<any>(
+      `${this.apiUrl}/${encodeURIComponent(name)}`,
+      { journeyLength: len, batchCurrentDay: 1, createOnly: true },
+      { withCredentials: true }
+    ).subscribe({
+      next: () => {
+        this.notify.success(`Batch "${name}" created.`);
+        this.closeCreateBatch();
+        this.loadBatches();
+      },
+      error: (err) => {
+        console.error('Create batch failed', err);
+        this.creatingBatch = false;
+        if (err?.status === 409) {
+          this.notify.error(`Batch "${name}" already exists.`);
+        } else {
+          this.notify.error('Failed to create batch.');
+        }
+      }
+    });
+  }
+
   /** Filtered & sorted batch overview rows */
   get filteredBatches(): BatchSummary[] {
     let list = [...this.batches];
@@ -1177,6 +1497,11 @@ export class JourneyManagementComponent implements OnInit {
     }
     if (this.filterJourneyMin != null && !isNaN(this.filterJourneyMin)) {
       list = list.filter(b => b.journeyLength >= this.filterJourneyMin!);
+    }
+    if (this.filterBatchType === 'new') {
+      list = list.filter(b => (b.studentCount || 0) === 0);
+    } else if (this.filterBatchType === 'existing') {
+      list = list.filter(b => (b.studentCount || 0) > 0);
     }
 
     list.sort((a, b) => {
@@ -1206,7 +1531,8 @@ export class JourneyManagementComponent implements OnInit {
       (this.filterDayMin != null && !isNaN(this.filterDayMin)) ||
       (this.filterDayMax != null && !isNaN(this.filterDayMax)) ||
       (this.filterStudentsMin != null && !isNaN(this.filterStudentsMin)) ||
-      (this.filterJourneyMin != null && !isNaN(this.filterJourneyMin))
+      (this.filterJourneyMin != null && !isNaN(this.filterJourneyMin)) ||
+      this.filterBatchType !== 'all'
     );
   }
 
@@ -1216,6 +1542,7 @@ export class JourneyManagementComponent implements OnInit {
     this.filterDayMax = null;
     this.filterStudentsMin = null;
     this.filterJourneyMin = null;
+    this.filterBatchType = 'all';
   }
 
   trackBatch(_index: number, b: BatchSummary): string {
@@ -1276,6 +1603,10 @@ export class JourneyManagementComponent implements OnInit {
     this.loadingStudents = true;
     this.http.get<any>(`${this.apiUrl}/${encodeURIComponent(batchName)}/students`, { withCredentials: true }).subscribe({
       next: r => {
+        if (this.selectedBatch && this.selectedBatch.batchName === batchName && r?.teacher) {
+          this.selectedBatch.teacherName = r.teacher.teacherName ?? this.selectedBatch.teacherName ?? null;
+          this.selectedBatch.teacherId = r.teacher.teacherId ?? this.selectedBatch.teacherId ?? null;
+        }
         this.batchStudents = (r.students || []).map((s: any) => ({
           ...s,
           editDay: s.currentCourseDay,

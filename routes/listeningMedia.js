@@ -13,13 +13,39 @@ const s3Client = require('../config/s3');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // ─── Multer-S3 for audio/video uploads ───────────────────────────────────────
+function inferExtension(file) {
+  const extFromName = path.extname(file.originalname || '');
+  if (extFromName) return extFromName;
+
+  // Some clients (notably mobile) upload with a generic filename/no extension.
+  // Infer a reasonable extension from mimetype so S3 objects have a usable suffix.
+  const mt = String(file.mimetype || '').toLowerCase();
+  const map = {
+    'audio/mpeg': '.mp3',
+    'audio/mp3': '.mp3',
+    'audio/mp4': '.m4a',
+    'audio/x-m4a': '.m4a',
+    'audio/aac': '.aac',
+    'audio/x-aac': '.aac',
+    'audio/wav': '.wav',
+    'audio/x-wav': '.wav',
+    'audio/webm': '.webm',
+    'audio/ogg': '.ogg',
+    'audio/flac': '.flac',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/quicktime': '.mov',
+  };
+  return map[mt] || '.bin';
+}
+
 const audioFilter = (req, file, cb) => {
-  const allowed = [
-    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg',
-    'audio/m4a', 'audio/x-m4a', 'video/mp4', 'video/webm'
-  ];
-  if (allowed.includes(file.mimetype)) cb(null, true);
-  else cb(new Error('Only audio/video files allowed'), false);
+  const mt = String(file.mimetype || '').toLowerCase();
+  // Be permissive for audio/* (real-world browsers vary), but keep video restricted.
+  const isAudio = mt.startsWith('audio/');
+  const isAllowedVideo = mt === 'video/mp4' || mt === 'video/webm' || mt === 'video/quicktime';
+  if (isAudio || isAllowedVideo) return cb(null, true);
+  return cb(new Error(`Only audio files (audio/*) or MP4/WebM/MOV video are allowed. Received: ${mt || 'unknown'}`), false);
 };
 
 const upload = multer({
@@ -29,7 +55,7 @@ const upload = multer({
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const prefix = process.env.S3_PREFIX || 'uploads';
-      const ext = path.extname(file.originalname) || '.mp3';
+      const ext = inferExtension(file);
       const key = `${prefix}/listening-media/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
       cb(null, key);
     },
@@ -40,10 +66,20 @@ const upload = multer({
 
 // ─── POST /upload ────────────────────────────────────────────────────────────
 // Upload audio file from computer → streams directly to S3
+const uploadSingleMedia = (req, res, next) => {
+  upload.single('media')(req, res, (err) => {
+    if (err) {
+      console.error('Listening media upload error (multer):', err);
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    next();
+  });
+};
+
 router.post('/upload',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
-  upload.single('media'),
+  uploadSingleMedia,
   (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No media file uploaded' });

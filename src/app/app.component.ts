@@ -7,11 +7,12 @@ import { SidebarComponent } from "./shared/sidebar/sidebar.component";
 import { CommonModule } from '@angular/common'; 
 import { filter } from 'rxjs/operators';
 import { AuthService } from './services/auth.service';
+import { SupportFabComponent } from './components/support-fab/support-fab.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, FooterComponent, SidebarComponent, RouterModule, CommonModule],
+  imports: [RouterOutlet, HeaderComponent, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })

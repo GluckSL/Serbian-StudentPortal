@@ -150,8 +150,8 @@ export class StudentProgressComponent implements OnInit {
       }
     });
     // Attendance alert
-    if (this.attendanceRate < 70 && this.attendance.total > 0) {
-      this.alerts.push('Attendance dropped below 70% (' + this.attendanceRate + '%).');
+    if (this.attendanceRate < 75 && this.attendance.total > 0) {
+      this.alerts.push('Attendance dropped below 75% (' + this.attendanceRate + '%). Minimum requirement is 75%.');
     }
   }
 

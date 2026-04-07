@@ -152,7 +152,7 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
       .lean();
 
     const meetings = await MeetingLink.find({ assignedTeacher: teacherId })
-      .select('topic batch startTime attendance attendanceRecorded status')
+      .select('topic batch startTime duration attendance attendanceRecorded status')
       .sort({ startTime: -1 })
       .lean();
 
@@ -249,6 +249,20 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
       const total = attendance.length;
       const attendanceRate = total ? Math.round(((present + late) / total) * 100) : 0;
 
+      const meetingDurationMinutes = Number(meeting.duration || 0);
+      const attendedEntries = attendance.filter((entry) => entry?.attended === true || entry?.status === 'attended' || entry?.status === 'late');
+      const attendedMinutesList = attendedEntries
+        .map((entry) => {
+          const mins = entry?.durationMinutes;
+          if (typeof mins === 'number' && Number.isFinite(mins)) return mins;
+          const secs = entry?.duration;
+          if (typeof secs === 'number' && Number.isFinite(secs)) return Math.round(secs / 60);
+          return 0;
+        })
+        .filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+      const totalAttendedMinutes = attendedMinutesList.reduce((sum, v) => sum + v, 0);
+      const avgAttendedMinutes = attendedMinutesList.length ? Math.round(totalAttendedMinutes / attendedMinutesList.length) : 0;
+
       return {
         _id: meeting._id,
         topic: meeting.topic || 'Class Meeting',
@@ -260,7 +274,10 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
         late,
         absent,
         total,
-        attendanceRate
+        attendanceRate,
+        meetingDurationMinutes,
+        avgAttendedMinutes,
+        totalAttendedMinutes
       };
     };
 

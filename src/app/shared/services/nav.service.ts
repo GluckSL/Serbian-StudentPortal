@@ -96,6 +96,13 @@ export class NavService {
       ]
     },
     {
+      group: 'Support',
+      items: [
+        { id: 'support-tickets', label: 'Support Tickets', icon: '🎫', route: '/admin/support-tickets', subGroup: null },
+        { id: 'help', label: 'Help & Support', icon: '❓', route: '/help', subGroup: null }
+      ]
+    },
+    {
       group: 'Profile',
       items: [
         { id: 'profile', label: 'Profile', icon: '👤', route: '/profile', subGroup: null }
@@ -131,6 +138,18 @@ export class NavService {
       group: 'AI Bot Report',
       items: [
         { id: 'ai-bot-report', label: 'AI Bot Report', icon: '📈', route: '/admin-analytics', subGroup: null }
+      ]
+    },
+    {
+      group: 'My Analytics',
+      items: [
+        { id: 'my-analytics', label: 'My Analytics', icon: '📊', route: '/my-analytics', subGroup: null }
+      ]
+    },
+    {
+      group: 'Help',
+      items: [
+        { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
       ]
     },
     {
@@ -190,6 +209,12 @@ export class NavService {
       group: 'Timetable',
       items: [
         { id: 'timetable', label: 'Timetable', icon: '📅', route: '/time-table-view-student', subGroup: null }
+      ]
+    },
+    {
+      group: 'Help',
+      items: [
+        { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
       ]
     }
   ];
