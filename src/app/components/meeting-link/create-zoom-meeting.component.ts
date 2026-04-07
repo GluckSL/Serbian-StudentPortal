@@ -173,7 +173,10 @@ export class CreateZoomMeetingComponent implements OnInit {
       return;
     }
 
-    this.meetingForm.patchValue({ startTime: this.formatDateTimeLocal(selected) });
+    const local = this.formatDateTimeLocal(selected);
+    console.log('[StartTime Modal] Selected Date object:', selected);
+    console.log('[StartTime Modal] Local wall-clock stored in form (YYYY-MM-DDTHH:mm):', local);
+    this.meetingForm.patchValue({ startTime: local });
     this.meetingForm.get('startTime')?.markAsTouched();
     this.errorMessage = '';
     this.isStartTimeModalOpen = false;
@@ -224,8 +227,12 @@ export class CreateZoomMeetingComponent implements OnInit {
   onTimeChange(): void {
     const startTime = this.meetingForm.get('startTime')?.value;
     const duration = this.meetingForm.get('duration')?.value;
+    const timeZone = this.meetingForm.get('timezone')?.value || 'Asia/Colombo';
     if (startTime && duration) {
-      this.zoomService.getAvailableZoomHosts(new Date(startTime).toISOString(), duration).subscribe({
+      const startTimeUtc = this.zonedLocalToUtcIso(startTime, timeZone);
+      console.log('[Availability Check] form.startTime (wall-clock):', startTime, '| tz:', timeZone);
+      console.log('[Availability Check] sent UTC ISO:', startTimeUtc, '| duration:', duration);
+      this.zoomService.getAvailableZoomHosts(startTimeUtc, duration).subscribe({
         next: (response) => {
           if (response.success) {
             this.zoomAccounts = response.data;
@@ -309,7 +316,38 @@ export class CreateZoomMeetingComponent implements OnInit {
     this.errorMessage = '';
 
     const formValue = this.meetingForm.value;
-    const startTime = new Date(formValue.startTime).toISOString();
+    const tz = formValue.timezone || 'Asia/Colombo';
+    const startTime = this.zonedLocalToUtcIso(formValue.startTime, tz);
+
+    const scheduledInstant = new Date(startTime);
+    const wallInMeetingTz = Number.isNaN(scheduledInstant.getTime())
+      ? '(invalid)'
+      : new Intl.DateTimeFormat('en-GB', {
+          timeZone: tz,
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }).format(scheduledInstant);
+    const wallInBrowserTz = Number.isNaN(scheduledInstant.getTime())
+      ? '(invalid)'
+      : new Intl.DateTimeFormat('en-GB', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }).format(scheduledInstant);
+
+    console.log('[Create Meeting] Form wall-clock (picker):', formValue.startTime, '| IANA timezone:', tz);
+    console.log('[Create Meeting] Sent to API as UTC ISO:', startTime);
+    console.log('[Create Meeting] Same instant shown in meeting timezone:', wallInMeetingTz);
+    console.log('[Create Meeting] Same instant shown in browser timezone:', wallInBrowserTz);
 
     const meetingData = {
       batch: formValue.batch,

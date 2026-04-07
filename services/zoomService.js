@@ -3,6 +3,46 @@
 const axios = require('axios');
 const zoomConfig = require('../config/zoomConfig');
 
+/**
+ * Zoom scheduled meetings: if `timezone` is a non-UTC IANA zone, `start_time` must be
+ * wall-clock local time `yyyy-MM-ddTHH:mm:ss` (no `Z`). Passing a UTC `...Z` while also
+ * passing `timezone` can lead to unexpected scheduled times.
+ */
+function formatZoomStartTime(startTimeInput, ianaTimezone) {
+  const d = startTimeInput instanceof Date ? startTimeInput : new Date(startTimeInput);
+  if (Number.isNaN(d.getTime())) {
+    throw new Error('Invalid startTime for Zoom');
+  }
+
+  const tz = ianaTimezone || 'UTC';
+  if (tz === 'UTC' || tz === 'Etc/UTC' || tz === 'Etc/GMT' || tz === 'Greenwich') {
+    return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  }
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const parts = dtf.formatToParts(d);
+  const g = (t) => parts.find((p) => p.type === t)?.value;
+  const y = g('year');
+  const mo = g('month');
+  const day = g('day');
+  let h = g('hour');
+  const mi = g('minute');
+  let s = g('second') || '00';
+  // Some environments can return hour "24"
+  if (h === '24') h = '00';
+  s = String(s).padStart(2, '0');
+  return `${y}-${mo}-${day}T${h}:${mi}:${s}`;
+}
+
 class ZoomService {
   constructor() {
     this.accessToken = null;
@@ -59,10 +99,15 @@ class ZoomService {
         settings = {}
       } = meetingData;
 
+      const zoomStartTime = formatZoomStartTime(startTime, timezone);
+      console.log('📌 [Zoom create] Incoming startTime (ISO instant):', startTime);
+      console.log('📌 [Zoom create] timezone:', timezone);
+      console.log('📌 [Zoom create] start_time sent to Zoom (local, no Z):', zoomStartTime);
+
       const payload = {
         topic: topic || 'German Language Class',
         type: zoomConfig.meetingTypes.SCHEDULED,
-        start_time: startTime,
+        start_time: zoomStartTime,
         duration: duration || 60,
         timezone: timezone,
         agenda: agenda || 'German language learning session',
@@ -99,6 +144,7 @@ class ZoomService {
 
       const meeting = response.data;
       console.log('✅ Zoom meeting created:', meeting.id);
+      console.log('📌 [Zoom create] Zoom returned start_time:', meeting.start_time, '| timezone:', meeting.timezone);
 
       return {
         success: true,
@@ -142,6 +188,18 @@ class ZoomService {
     const token = await this.getAccessToken();
     if (!updateData.settings) updateData.settings = {};
     updateData.settings.registrants_email_notification = false;
+
+    if (updateData.start_time && updateData.timezone) {
+      const raw = String(updateData.start_time);
+      const isUtcOrOffset = raw.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(raw);
+      if (isUtcOrOffset) {
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.getTime())) {
+          updateData.start_time = formatZoomStartTime(parsed, updateData.timezone);
+          console.log('📌 [Zoom update] Normalized start_time:', updateData.start_time, '| timezone:', updateData.timezone);
+        }
+      }
+    }
 
     await axios.patch(`${zoomConfig.apiBaseUrl}/meetings/${meetingId}`, updateData, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }

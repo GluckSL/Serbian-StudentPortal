@@ -289,6 +289,8 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     }
 
     const meeting = zoomResult.meeting;
+    console.log('📌 [API create-meeting] Zoom returned meeting.startTime:', meeting.startTime, '| meeting.timezone:', meeting.timezone);
+    console.log('📌 [API create-meeting] DB will save startTime as Date(meeting.startTime):', new Date(meeting.startTime).toISOString());
 
     console.log('✅ Zoom meeting created on account:', zoomHostEmail, meeting.id);
 
