@@ -58,7 +58,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 8px;
 }
 
@@ -134,7 +134,142 @@
 .error-card mat-icon { font-size: 28px; width: 28px; height: 28px; color: #e11d48; }
 .error-card p { font-size: 12px; color: #64748b; margin: 0; }
 
-/* ── Meetings Grid ── */
+/* ── Tabs (content lives below tab strip; hide empty MDC tab bodies) ── */
+.meetings-tabs {
+  margin-bottom: 10px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.meetings-tabs ::ng-deep .mat-mdc-tab-body-wrapper {
+  display: none;
+}
+
+.meetings-tabs ::ng-deep .mat-mdc-tab-labels {
+  border-bottom: 1px solid #e8ecf4;
+}
+
+.tab-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.tab-count {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.meetings-content {
+  margin-top: 0;
+}
+
+/* ── Desktop: table ── */
+.meetings-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+}
+
+.meetings-table {
+  width: 100%;
+  background: #fff;
+  border-radius: 14px;
+}
+
+.meetings-table ::ng-deep .mat-mdc-header-cell {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.meetings-table ::ng-deep .mat-mdc-cell {
+  font-size: 12px;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.meeting-row {
+  cursor: pointer;
+}
+
+.meeting-row:hover {
+  background: #f8fafc;
+}
+
+.status-chip ::ng-deep .mdc-evolution-chip__text-label {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cell-topic {
+  font-weight: 600;
+  color: #011f4b;
+}
+
+.batch-pill {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.col-actions {
+  white-space: nowrap;
+  min-width: 180px;
+  text-align: right;
+}
+
+/* Join — light blue fill, black text, rounded (table + mobile) */
+.join-action-btn.mat-mdc-unelevated-button {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1.25;
+  min-height: 32px;
+  padding: 0 12px;
+  margin-right: 4px;
+  white-space: nowrap;
+  border-radius: 10px;
+  background-color: #dbeafe !important;
+  color: #0f172a !important;
+  border: 1px solid #93c5fd !important;
+  box-shadow: none !important;
+  letter-spacing: normal;
+}
+
+.join-action-btn.mat-mdc-unelevated-button:hover:not([disabled]) {
+  background-color: #bfdbfe !important;
+  border-color: #60a5fa !important;
+}
+
+.join-action-btn.mat-mdc-unelevated-button[disabled] {
+  background-color: #e2e8f0 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+}
+
+.join-action-btn ::ng-deep .mdc-button__label {
+  color: inherit;
+}
+
+.meeting-card mat-card-actions button.join-action-btn.mat-mdc-unelevated-button {
+  padding: 8px 14px;
+  min-height: 36px;
+}
+
+/* ── Mobile: cards (hidden on large screens) ── */
+.meetings-cards-wrap {
+  display: none;
+}
+
+/* ── Meetings Grid (legacy) ── */
 .meetings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -312,6 +447,12 @@
   .header button { width: 100%; }
   .filters { grid-template-columns: 1fr; }
   .meetings-grid { grid-template-columns: 1fr; }
+  .meetings-table-wrap { display: none; }
+  .meetings-cards-wrap {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
   .meeting-card mat-card-actions { flex-direction: column; }
   .meeting-card mat-card-actions button { width: 100%; }
 }

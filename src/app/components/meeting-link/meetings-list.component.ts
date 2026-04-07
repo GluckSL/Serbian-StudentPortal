@@ -1,6 +1,6 @@
 // src/app/components/meeting-link/meetings-list.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -18,25 +18,46 @@ import { ZoomService } from '../../services/zoom.service';
   templateUrl: './meetings-list.component.html',
   styleUrls: ['./meetings-list.component.css']
 })
-export class MeetingsListComponent implements OnInit {
+export class MeetingsListComponent implements OnInit, OnDestroy {
   meetings: any[] = [];
   filteredMeetings: any[] = [];
   loading: boolean = true;
   error: string = '';
   userRole: string = ''; // Track user role
 
-  // Filters
-  statusFilter: string = 'all';
+  /** Tab: scheduled | ongoing | ended (default: scheduled) */
+  statusTab: 'scheduled' | 'ongoing' | 'ended' = 'scheduled';
   batchFilter: string = 'all';
   searchQuery: string = '';
 
+  /** mat-tab-group index ↔ statusTab */
+  tabIndex = 0;
+
+  displayedColumnsAdmin: string[] = [
+    'status', 'topic', 'teacher', 'dateTime', 'duration', 'participants', 'batch', 'actions'
+  ];
+  displayedColumnsTeacher: string[] = [
+    'status', 'topic', 'dateTime', 'duration', 'participants', 'batch', 'actions'
+  ];
+
+  /** Refresh “Join in …” labels periodically */
+  private joinLabelTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     private router: Router,
-    private zoomService: ZoomService
+    private zoomService: ZoomService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     this.loadMeetings();
+    this.joinLabelTimer = setInterval(() => this.cdr.markForCheck(), 30000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.joinLabelTimer) {
+      clearInterval(this.joinLabelTimer);
+    }
   }
 
   loadMeetings(): void {
@@ -64,17 +85,14 @@ export class MeetingsListComponent implements OnInit {
 
   applyFilters(): void {
     this.filteredMeetings = this.meetings.filter(meeting => {
-      // Status filter
-      if (this.statusFilter !== 'all' && meeting.status !== this.statusFilter) {
+      if (this.effectiveTabStatus(meeting) !== this.statusTab) {
         return false;
       }
 
-      // Batch filter
       if (this.batchFilter !== 'all' && meeting.batch !== this.batchFilter) {
         return false;
       }
 
-      // Search query
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         return (
@@ -86,6 +104,44 @@ export class MeetingsListComponent implements OnInit {
 
       return true;
     });
+  }
+
+  /** Map DB row + time window → which of the three tabs this meeting belongs to */
+  effectiveTabStatus(meeting: any): 'scheduled' | 'ongoing' | 'ended' {
+    if (meeting.status === 'cancelled') {
+      return 'ended';
+    }
+    const s = this.getMeetingStatus(meeting);
+    if (s === 'ongoing' || s === 'ended' || s === 'scheduled') {
+      return s;
+    }
+    return 'ended';
+  }
+
+  onTabIndexChange(index: number): void {
+    this.tabIndex = index;
+    const map: Array<'scheduled' | 'ongoing' | 'ended'> = ['scheduled', 'ongoing', 'ended'];
+    this.statusTab = map[index] ?? 'scheduled';
+    this.applyFilters();
+  }
+
+  tabCount(tab: 'scheduled' | 'ongoing' | 'ended'): number {
+    return this.meetings.filter((m) => {
+      if (this.batchFilter !== 'all' && m.batch !== this.batchFilter) return false;
+      if (this.searchQuery) {
+        const q = this.searchQuery.toLowerCase();
+        return (
+          m.topic?.toLowerCase().includes(q) ||
+          m.batch?.toLowerCase().includes(q) ||
+          m.agenda?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    }).filter((m) => this.effectiveTabStatus(m) === tab).length;
+  }
+
+  tableColumns(): string[] {
+    return this.isAdmin() ? this.displayedColumnsAdmin : this.displayedColumnsTeacher;
   }
 
   onFilterChange(): void {
@@ -108,13 +164,55 @@ export class MeetingsListComponent implements OnInit {
     }
   }
 
-  formatDate(date: string | Date): string {
+  /** Hide join for ended (and cancelled) meetings; table/cards use this. */
+  showJoinButton(meeting: any): boolean {
+    return this.effectiveTabStatus(meeting) !== 'ended';
+  }
+
+  /**
+   * Ongoing → “Join”. Scheduled before join window → “Join in …”.
+   * Scheduled inside join window → “Join”.
+   */
+  joinButtonLabel(meeting: any): string {
+    if (this.getMeetingStatus(meeting) === 'ongoing') {
+      return 'Join';
+    }
+    if (this.canJoinMeeting(meeting)) {
+      return 'Join';
+    }
+    return 'Join in ' + this.formatTimeUntilJoinOpens(meeting);
+  }
+
+  /** Time until the 10‑minute-before window opens (same rule as canJoinMeeting). */
+  formatTimeUntilJoinOpens(meeting: any): string {
+    const start = new Date(meeting.startTime);
+    const joinOpens = new Date(start.getTime() - 10 * 60000);
+    const ms = joinOpens.getTime() - Date.now();
+    if (ms <= 0) {
+      return '0 min';
+    }
+    const totalMins = Math.floor(ms / 60000);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hours > 0) {
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    if (totalMins >= 1) {
+      return `${totalMins} min`;
+    }
+    const secs = Math.max(1, Math.ceil(ms / 1000));
+    return `${secs} sec`;
+  }
+
+  formatDate(date: string | Date, timeZone?: string): string {
+    const tz = timeZone || 'Asia/Colombo';
     return new Date(date).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: tz
     });
   }
 

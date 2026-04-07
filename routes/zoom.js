@@ -289,8 +289,6 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     }
 
     const meeting = zoomResult.meeting;
-    console.log('📌 [API create-meeting] Zoom returned meeting.startTime:', meeting.startTime, '| meeting.timezone:', meeting.timezone);
-    console.log('📌 [API create-meeting] DB will save startTime as Date(meeting.startTime):', new Date(meeting.startTime).toISOString());
 
     console.log('✅ Zoom meeting created on account:', zoomHostEmail, meeting.id);
 
@@ -306,7 +304,6 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       duration: meeting.duration,
       timezone: meeting.timezone,
       zoomMeetingId: meeting.id,
-      zoomMeetingUuid: meeting.uuid,
       zoomPassword: meeting.password,
       hostEmail: meeting.hostEmail,
       startUrl: meeting.startUrl,
@@ -1646,9 +1643,8 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     // Fetch attendance from Zoom
     let zoomReport;
     try {
-      const zoomLookupId = meeting.zoomMeetingUuid || meeting.zoomMeetingId;
-      console.log('🔍 Fetching Zoom report for meeting:', zoomLookupId, '(uuid preferred)');
-      zoomReport = await zoomService.getMeetingReport(zoomLookupId);
+      console.log('🔍 Fetching Zoom report for meeting:', meeting.zoomMeetingId);
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
       console.log('✅ Zoom report received:', {
         success: zoomReport.success,
         participantCount: zoomReport.participants?.length || 0,

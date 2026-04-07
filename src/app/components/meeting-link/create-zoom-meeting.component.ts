@@ -111,61 +111,6 @@ export class CreateZoomMeetingComponent implements OnInit {
     return new Date(year, month - 1, day, hours, minutes, 0, 0);
   }
 
-  private getZonedParts(date: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number } | null {
-    try {
-      const dtf = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-      const parts = dtf.formatToParts(date);
-      const get = (type: string) => parts.find(p => p.type === type)?.value;
-      const year = Number(get('year'));
-      const month = Number(get('month'));
-      const day = Number(get('day'));
-      const hourStr = get('hour');
-      const hour = hourStr === '24' ? 0 : Number(hourStr);
-      const minute = Number(get('minute'));
-      if (![year, month, day, hour, minute].every(Number.isFinite)) return null;
-      return { year, month, day, hour, minute };
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Convert a "YYYY-MM-DDTHH:mm" wall-clock time (picked by user) in a given IANA timezone
-   * into a UTC ISO string (RFC3339) for API.
-   */
-  private zonedLocalToUtcIso(localDateTime: string, timeZone: string): string {
-    const [datePart, timePart] = (localDateTime || '').split('T');
-    const [year, month, day] = (datePart || '').split('-').map(Number);
-    const [hour, minute] = (timePart || '').split(':').map(Number);
-    if (![year, month, day, hour, minute].every(Number.isFinite)) {
-      return new Date(localDateTime).toISOString();
-    }
-
-    // Start with a UTC guess for the intended wall-clock components.
-    let guessUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
-    for (let i = 0; i < 3; i++) {
-      const guessDate = new Date(guessUtcMs);
-      const zoned = this.getZonedParts(guessDate, timeZone);
-      if (!zoned) break;
-
-      const intendedAsUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
-      const zonedAsUtcMs = Date.UTC(zoned.year, zoned.month - 1, zoned.day, zoned.hour, zoned.minute, 0, 0);
-      const diff = intendedAsUtcMs - zonedAsUtcMs;
-      if (diff === 0) break;
-      guessUtcMs += diff;
-    }
-
-    return new Date(guessUtcMs).toISOString();
-  }
-
   private to12HourParts(date: Date): { date: string; hour: string; minute: string; period: 'AM' | 'PM' } {
     let hour = date.getHours();
     const period: 'AM' | 'PM' = hour >= 12 ? 'PM' : 'AM';
@@ -228,10 +173,7 @@ export class CreateZoomMeetingComponent implements OnInit {
       return;
     }
 
-    const local = this.formatDateTimeLocal(selected);
-    console.log('[StartTime Modal] Selected Date object:', selected);
-    console.log('[StartTime Modal] Local wall-clock stored in form (YYYY-MM-DDTHH:mm):', local);
-    this.meetingForm.patchValue({ startTime: local });
+    this.meetingForm.patchValue({ startTime: this.formatDateTimeLocal(selected) });
     this.meetingForm.get('startTime')?.markAsTouched();
     this.errorMessage = '';
     this.isStartTimeModalOpen = false;
@@ -282,12 +224,8 @@ export class CreateZoomMeetingComponent implements OnInit {
   onTimeChange(): void {
     const startTime = this.meetingForm.get('startTime')?.value;
     const duration = this.meetingForm.get('duration')?.value;
-    const timeZone = this.meetingForm.get('timezone')?.value || 'Asia/Colombo';
     if (startTime && duration) {
-      const startTimeUtc = this.zonedLocalToUtcIso(startTime, timeZone);
-      console.log('[Availability Check] form.startTime (wall-clock):', startTime, '| tz:', timeZone);
-      console.log('[Availability Check] sent UTC ISO:', startTimeUtc, '| duration:', duration);
-      this.zoomService.getAvailableZoomHosts(startTimeUtc, duration).subscribe({
+      this.zoomService.getAvailableZoomHosts(new Date(startTime).toISOString(), duration).subscribe({
         next: (response) => {
           if (response.success) {
             this.zoomAccounts = response.data;
@@ -371,38 +309,7 @@ export class CreateZoomMeetingComponent implements OnInit {
     this.errorMessage = '';
 
     const formValue = this.meetingForm.value;
-    const tz = formValue.timezone || 'Asia/Colombo';
-    const startTime = this.zonedLocalToUtcIso(formValue.startTime, tz);
-
-    const scheduledInstant = new Date(startTime);
-    const wallInMeetingTz = Number.isNaN(scheduledInstant.getTime())
-      ? '(invalid)'
-      : new Intl.DateTimeFormat('en-GB', {
-          timeZone: tz,
-          weekday: 'short',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        }).format(scheduledInstant);
-    const wallInBrowserTz = Number.isNaN(scheduledInstant.getTime())
-      ? '(invalid)'
-      : new Intl.DateTimeFormat('en-GB', {
-          weekday: 'short',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        }).format(scheduledInstant);
-
-    console.log('[Create Meeting] Form wall-clock (picker):', formValue.startTime, '| IANA timezone:', tz);
-    console.log('[Create Meeting] Sent to API as UTC ISO:', startTime);
-    console.log('[Create Meeting] Same instant shown in meeting timezone:', wallInMeetingTz);
-    console.log('[Create Meeting] Same instant shown in browser timezone:', wallInBrowserTz);
+    const startTime = new Date(formValue.startTime).toISOString();
 
     const meetingData = {
       batch: formValue.batch,
