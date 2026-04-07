@@ -3,6 +3,12 @@
 const axios = require('axios');
 const zoomConfig = require('../config/zoomConfig');
 
+function encodeZoomUuid(uuid) {
+  // Zoom requires UUIDs to be URL-encoded; if UUID contains '/' it must be double-encoded.
+  const once = encodeURIComponent(String(uuid));
+  return once.includes('%2F') ? encodeURIComponent(once) : once;
+}
+
 /**
  * Zoom scheduled meetings: if `timezone` is a non-UTC IANA zone, `start_time` must be
  * wall-clock local time `yyyy-MM-ddTHH:mm:ss` (no `Z`). Passing a UTC `...Z` while also
@@ -151,6 +157,7 @@ class ZoomService {
         meeting: {
           id: meeting.id,
           meetingId: meeting.id,
+          uuid: meeting.uuid,
           topic: meeting.topic,
           startTime: meeting.start_time,
           duration: meeting.duration,
@@ -227,8 +234,9 @@ class ZoomService {
   async getMeetingParticipants(meetingId) {
     try {
       const token = await this.getAccessToken();
+      const id = encodeZoomUuid(meetingId);
       const response = await axios.get(
-        `${zoomConfig.apiBaseUrl}/past_meetings/${meetingId}/participants`,
+        `${zoomConfig.apiBaseUrl}/past_meetings/${id}/participants`,
         { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 300 } }
       );
 
@@ -272,8 +280,9 @@ class ZoomService {
   async getMeetingReport(meetingId) {
     try {
       const token = await this.getAccessToken();
+      const id = encodeZoomUuid(meetingId);
       const meetingResponse = await axios.get(
-        `${zoomConfig.apiBaseUrl}/past_meetings/${meetingId}`,
+        `${zoomConfig.apiBaseUrl}/past_meetings/${id}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const meeting = meetingResponse.data;

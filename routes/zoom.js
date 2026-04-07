@@ -306,6 +306,7 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       duration: meeting.duration,
       timezone: meeting.timezone,
       zoomMeetingId: meeting.id,
+      zoomMeetingUuid: meeting.uuid,
       zoomPassword: meeting.password,
       hostEmail: meeting.hostEmail,
       startUrl: meeting.startUrl,
@@ -1645,8 +1646,9 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     // Fetch attendance from Zoom
     let zoomReport;
     try {
-      console.log('🔍 Fetching Zoom report for meeting:', meeting.zoomMeetingId);
-      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+      const zoomLookupId = meeting.zoomMeetingUuid || meeting.zoomMeetingId;
+      console.log('🔍 Fetching Zoom report for meeting:', zoomLookupId, '(uuid preferred)');
+      zoomReport = await zoomService.getMeetingReport(zoomLookupId);
       console.log('✅ Zoom report received:', {
         success: zoomReport.success,
         participantCount: zoomReport.participants?.length || 0,

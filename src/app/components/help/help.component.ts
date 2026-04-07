@@ -49,6 +49,7 @@ export class HelpComponent implements OnInit {
   currentUser: any = null;
   submittedTicket: SupportTicket | null = null;
   screenshotFile: File | null = null;
+  expandedTicketId: string | null = null;
 
   readonly categories = [
     { value: 'login', label: 'Login / Access Issue' },
@@ -132,6 +133,15 @@ export class HelpComponent implements OnInit {
     if (tab === 'tickets' && this.isLoggedIn && this.tickets.length === 0) {
       this.loadMyTickets();
     }
+  }
+
+  toggleTicket(ticketId?: string): void {
+    if (!ticketId) return;
+    this.expandedTicketId = this.expandedTicketId === ticketId ? null : ticketId;
+  }
+
+  repliesCount(ticket: SupportTicket): number {
+    return (ticket.replies || []).length;
   }
 
   toggleFaq(index: number): void {

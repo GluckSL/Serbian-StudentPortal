@@ -20,6 +20,7 @@ const meetingLinkSchema = new mongoose.Schema({
   
   // Zoom-specific fields
   zoomMeetingId: { type: String }, // Zoom meeting ID
+  zoomMeetingUuid: { type: String }, // Zoom meeting UUID (needed for past meeting reports)
   zoomPassword: { type: String },
   hostEmail: { type: String },
   startUrl: { type: String }, // For host to start meeting

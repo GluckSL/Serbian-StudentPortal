@@ -204,6 +204,26 @@
           </div>
           <h4 class="ticket-subject">{{ ticket.subject }}</h4>
           <p class="ticket-desc">{{ ticket.description }}</p>
+
+          <div class="ticket-replies-toggle" *ngIf="repliesCount(ticket) > 0">
+            <button class="btn-outline btn-sm" type="button" (click)="toggleTicket(ticket._id)">
+              <i class="fas" [class.fa-chevron-down]="expandedTicketId !== ticket._id" [class.fa-chevron-up]="expandedTicketId === ticket._id"></i>
+              View Replies ({{ repliesCount(ticket) }})
+            </button>
+          </div>
+
+          <div class="ticket-replies" *ngIf="expandedTicketId === ticket._id">
+            <div class="reply-item" *ngFor="let r of (ticket.replies || [])">
+              <div class="reply-head">
+                <span class="reply-role">{{ (r.authorRole || 'ADMIN') | titlecase }}</span>
+                <span class="reply-date" *ngIf="r.createdAt">
+                  {{ r.createdAt | date:'medium' }}
+                </span>
+              </div>
+              <div class="reply-body">{{ r.message }}</div>
+            </div>
+          </div>
+
           <div class="ticket-card-footer">
             <span class="ticket-date" *ngIf="ticket.createdAt">
               <i class="fas fa-clock"></i> {{ ticket.createdAt | date:'mediumDate' }}

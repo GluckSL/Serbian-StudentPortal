@@ -557,6 +557,62 @@ form {
   gap: 4px;
 }
 
+/* ── Ticket replies ── */
+.ticket-replies-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 6px 0 10px;
+}
+
+.ticket-replies {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reply-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.reply-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.reply-role {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: #0f172a;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.reply-date {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.reply-body {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── State messages ── */
 .state-msg {
   text-align: center;
