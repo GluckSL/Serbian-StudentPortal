@@ -70,6 +70,11 @@ const uploadSingleMedia = (req, res, next) => {
   upload.single('media')(req, res, (err) => {
     if (err) {
       console.error('Listening media upload error (multer):', err);
+      // Surface S3 bucket misconfiguration clearly
+      if (err.message && err.message.includes('bucket')) {
+        console.error(`S3 config: bucket="${process.env.S3_BUCKET}" region="${process.env.AWS_REGION}"`);
+        return res.status(400).json({ error: `S3 upload failed: ${err.message}. Bucket="${process.env.S3_BUCKET || 'undefined'}" Region="${process.env.AWS_REGION || 'undefined'}"` });
+      }
       return res.status(400).json({ error: err.message || 'Upload failed' });
     }
     next();
