@@ -112,6 +112,23 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Splits titles like "Day 6: OLC (A1) - Lesson 1 – …" into a day/level line and the lesson topic below
+   * so narrow screens show full text without shrinking or truncating.
+   */
+  splitClassTopic(topic: string | null | undefined): { head: string; rest: string | null } {
+    const t = (topic ?? '').trim();
+    if (!t) {
+      return { head: '', rest: null };
+    }
+    const m = t.match(/^(Day\s+\d+:\s*.+?\([^)]+\))\s*(.*)$/i);
+    if (m) {
+      const rest = m[2]?.trim();
+      return { head: m[1].trim(), rest: rest || null };
+    }
+    return { head: t, rest: null };
+  }
+
   formatDate(date: Date): string {
     return new Date(date).toLocaleDateString('en-US', {
       weekday: 'short',

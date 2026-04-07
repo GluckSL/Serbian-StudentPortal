@@ -755,10 +755,12 @@
     font-size: 16px; /* iOS: avoid zoom on focus */
   }
 
+  /* Mobile web: 2 + 2 layout for filters (like reference), no overflow */
   .filter-chips {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    align-items: stretch;
   }
 
   .filter-select {
@@ -766,6 +768,7 @@
     box-sizing: border-box;
     min-height: 44px;
     font-size: 16px;
+    min-width: 0;
   }
 
   .today-only-inline {
@@ -773,10 +776,12 @@
     box-sizing: border-box;
     justify-content: flex-start;
     min-height: 44px;
-    white-space: normal;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .clear-filters-btn {
+    grid-column: 1 / -1;
     width: 100%;
     justify-content: center;
     box-sizing: border-box;

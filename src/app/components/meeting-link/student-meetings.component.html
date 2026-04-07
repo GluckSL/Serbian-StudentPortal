@@ -38,7 +38,7 @@
         </button>
       </div>
 
-      <table class="classes-table" *ngIf="activeTab === 'upcoming'">
+      <table class="classes-table classes-table--7" *ngIf="activeTab === 'upcoming'">
         <thead>
           <tr>
             <th>Class Title</th>
@@ -52,7 +52,12 @@
         </thead>
         <tbody>
           <tr *ngFor="let meeting of upcomingMeetings">
-            <td>{{ meeting.topic }}</td>
+            <td class="col-topic">
+              <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
+                <span class="topic-line topic-line--head">{{ tpc.head }}</span>
+                <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
+              </ng-container>
+            </td>
             <td>{{ meeting.teacher.name || '—' }}</td>
             <td>{{ formatDate(meeting.startTime) }}</td>
             <td>{{ formatTime(meeting.startTime) }}</td>
@@ -74,7 +79,7 @@
         </tbody>
       </table>
 
-      <table class="classes-table" *ngIf="activeTab === 'live'">
+      <table class="classes-table classes-table--7" *ngIf="activeTab === 'live'">
         <thead>
           <tr>
             <th>Class Title</th>
@@ -88,7 +93,12 @@
         </thead>
         <tbody>
           <tr *ngFor="let meeting of ongoingMeetings">
-            <td>{{ meeting.topic }}</td>
+            <td class="col-topic">
+              <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
+                <span class="topic-line topic-line--head">{{ tpc.head }}</span>
+                <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
+              </ng-container>
+            </td>
             <td>{{ meeting.teacher.name || '—' }}</td>
             <td>{{ formatDate(meeting.startTime) }}</td>
             <td>{{ formatTime(meeting.startTime) }}</td>
@@ -102,7 +112,7 @@
         </tbody>
       </table>
 
-      <table class="classes-table" *ngIf="activeTab === 'attempted'">
+      <table class="classes-table classes-table--6" *ngIf="activeTab === 'attempted'">
         <thead>
           <tr>
             <th>Class Title</th>
@@ -115,7 +125,12 @@
         </thead>
         <tbody>
           <tr *ngFor="let meeting of attemptedMeetings">
-            <td>{{ meeting.topic }}</td>
+            <td class="col-topic">
+              <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
+                <span class="topic-line topic-line--head">{{ tpc.head }}</span>
+                <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
+              </ng-container>
+            </td>
             <td>{{ meeting.teacher.name || '—' }}</td>
             <td>{{ formatDate(meeting.startTime) }}</td>
             <td>{{ formatTime(meeting.startTime) }}</td>

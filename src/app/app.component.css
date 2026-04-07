@@ -52,6 +52,7 @@ app-footer {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
 }
 
 /* Mobile hamburger */
@@ -127,6 +128,9 @@ app-footer {
 
   .main-content {
     min-height: calc(100dvh - 52px);
+    /* Avoid horizontal scroll from wide tables/grids shifting the viewport sideways on small screens */
+    overflow-x: clip;
+    max-width: 100%;
   }
 }
 
