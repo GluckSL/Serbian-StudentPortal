@@ -28,6 +28,9 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'visibleToStudents'
 ];
 
+/** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
+const VIDEO_PRONUNCIATION_PASS_SCORE = 20;
+
 function normalizeQuestionContexts(rawQuestions) {
   if (!Array.isArray(rawQuestions)) return rawQuestions;
   return rawQuestions.map((q) => ({
@@ -728,7 +731,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'video-pronunciation') {
       const score = resp.pronunciationScore || 0;
-      isCorrect = score >= 70;
+      isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
       pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
       correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'question-answer') {
@@ -921,7 +924,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'video-pronunciation') {
         const score = resp.pronunciationScore || 0;
-        isCorrect = score >= 70;
+        isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
         pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
         correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'question-answer') {

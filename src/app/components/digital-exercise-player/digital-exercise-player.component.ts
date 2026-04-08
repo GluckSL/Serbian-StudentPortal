@@ -1217,6 +1217,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   // ─── Video Pronunciation Interaction ──────────────────────────────────────────
 
+  /** Min match score (0–100) to treat a clip as passed and advance (practice-partner / video clips). */
+  private static readonly VP_PASS_SCORE = 20;
+
   onVpLoadStart(): void {
     this.vpVideoElement = null;
   }
@@ -1326,7 +1329,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       pq.pronunciationScore = score;
 
-      const isCorrect = score >= 70;
+      const isCorrect = score >= DigitalExercisePlayerComponent.VP_PASS_SCORE;
       pq.vpResult = isCorrect ? 'correct' : 'incorrect';
       this.markAttempted(pq);
 
