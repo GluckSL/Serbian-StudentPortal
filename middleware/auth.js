@@ -31,6 +31,18 @@ function isAdmin(req, res, next) {
   next();
 }
 
+/** Destructive / privileged actions: ADMIN and TEACHER_ADMIN only (not SUB_ADMIN). */
+function requireFullAdmin(req, res, next) {
+  const role = req.user?.role;
+  if (role === 'ADMIN' || role === 'TEACHER_ADMIN') {
+    return next();
+  }
+  return res.status(403).json({
+    msg: 'Access denied. Only primary administrators can perform this action.',
+    message: 'Access denied. Only primary administrators can perform this action.'
+  });
+}
+
 // General role-based access control middleware
 const checkRole = (roles) => {
   return (req, res, next) => {
@@ -71,6 +83,7 @@ const checkRole = (roles) => {
 module.exports = {
   verifyToken,
   isAdmin,
+  requireFullAdmin,
   checkRole,
 };
 

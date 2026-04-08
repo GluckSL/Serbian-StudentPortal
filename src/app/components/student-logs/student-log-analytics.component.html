@@ -1,239 +1,392 @@
-<div class="student-analytics">
-  <div class="analytics-header">
-    <div>
-      <h2><i class="fas fa-chart-line"></i> Student Analytics</h2>
-      <p *ngIf="analytics">
-        {{ analytics.student.name }} ({{ analytics.student.regNo }}) - full activity tracking
-      </p>
+<div class="student-analytics-v2">
+  <header class="sa-header">
+    <div class="sa-header__text">
+      <h1><i class="fas fa-chart-line"></i> Student Analytics</h1>
+      <p *ngIf="analytics">{{ analytics.student.name }} · {{ analytics.student.regNo }}</p>
     </div>
-    <a class="btn btn-outline-secondary btn-sm" routerLink="/student-logs">
-      <i class="fas fa-arrow-left me-1"></i>Back to Logs
+    <a class="btn btn-outline-light btn-sm sa-back" routerLink="/student-logs">
+      <i class="fas fa-arrow-left me-1"></i>Back to logs
     </a>
-  </div>
+  </header>
 
   <div class="state-box" *ngIf="loading">
-    <i class="fas fa-spinner fa-spin me-2"></i> Loading student analytics...
+    <i class="fas fa-spinner fa-spin me-2"></i> Loading student analytics…
   </div>
 
-  <div class="state-box error" *ngIf="error && !loading">{{ error }}</div>
+  <div class="state-box state-box--error" *ngIf="error && !loading">{{ error }}</div>
 
   <ng-container *ngIf="analytics && !loading">
-    <div class="summary-grid">
-      <div class="kpi"><span>Profile Updates</span><strong>{{ analytics.summary.totalProfileUpdates }}</strong></div>
-      <div class="kpi"><span>Class Attendance</span><strong>{{ analytics.summary.attendanceRate }}%</strong></div>
-      <div class="kpi"><span>Exercise Attempts</span><strong>{{ analytics.summary.totalDigitalExerciseAttempts }}</strong></div>
-      <div class="kpi"><span>Modules Completed</span><strong>{{ analytics.summary.completedModules }}</strong></div>
-      <div class="kpi"><span>Total Sessions</span><strong>{{ analytics.summary.totalSessions }}</strong></div>
-      <div class="kpi"><span>Assignments</span><strong>{{ analytics.summary.totalAssignments }}</strong></div>
-    </div>
+    <section class="sa-kpis" aria-label="Summary">
+      <div class="sa-kpi"><span>Profile updates</span><strong>{{ analytics.summary.totalProfileUpdates }}</strong></div>
+      <div class="sa-kpi"><span>Attendance rate</span><strong>{{ analytics.summary.attendanceRate }}%</strong></div>
+      <div class="sa-kpi"><span>Exercise attempts</span><strong>{{ analytics.summary.totalDigitalExerciseAttempts }}</strong></div>
+      <div class="sa-kpi"><span>Modules completed</span><strong>{{ analytics.summary.completedModules }}</strong></div>
+      <div class="sa-kpi"><span>AI sessions</span><strong>{{ analytics.summary.totalSessions }}</strong></div>
+      <div class="sa-kpi"><span>Assignments</span><strong>{{ analytics.summary.totalAssignments }}</strong></div>
+    </section>
 
-    <div class="panel mt-3">
-      <h5><i class="fas fa-history"></i> Last Update Activity</h5>
-      <div *ngIf="analytics.lastProfileUpdate; else noLastUpdate" class="last-update">
-        <div><span>Action:</span> {{ analytics.lastProfileUpdate.action }}</div>
-        <div><span>Updated At:</span> {{ fmt(analytics.lastProfileUpdate.updatedAt) }}</div>
-        <div><span>Level / Batch:</span> {{ analytics.lastProfileUpdate.levelAtUpdate }} / {{ analytics.lastProfileUpdate.batchAtUpdate }}</div>
-        <div><span>Teacher At Update:</span> {{ analytics.lastProfileUpdate.assignedTeacherAtUpdate?.name || '-' }}</div>
+    <!-- Activity filters sit above the tab bar (only on Activity tab) -->
+    <section class="sa-filter-rail" *ngIf="activeTab === 'activity'" aria-label="Activity timeline filters">
+      <div class="sa-filter-rail__head">
+        <div class="sa-filter-rail__title">
+          <i class="fas fa-filter"></i>
+          <span>Timeline filters</span>
+        </div>
+        <p class="sa-filter-rail__desc">Narrow the unified activity feed by date and event categories.</p>
       </div>
-      <ng-template #noLastUpdate>
-        <p class="text-muted mb-0">No profile updates found.</p>
-      </ng-template>
-    </div>
 
-    <div class="panel mt-3">
-      <h5><i class="fas fa-clipboard-list"></i> Profile Update Timeline</h5>
-      <div class="table-responsive">
-        <table class="table table-sm mb-0">
-          <thead>
-            <tr>
-              <th>Updated At</th>
-              <th>Action</th>
-              <th>Level</th>
-              <th>Batch</th>
-              <th>Subscription</th>
-              <th>Teacher</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let row of analytics.profileUpdateHistory">
-              <td>{{ fmt(row.updatedAt) }}</td>
-              <td>{{ row.action }}</td>
-              <td>{{ row.levelAtUpdate }}</td>
-              <td>{{ row.batchAtUpdate }}</td>
-              <td>{{ row.subscriptionAtUpdate }}</td>
-              <td>{{ row.assignedTeacherAtUpdate?.name || '-' }}</td>
-            </tr>
-            <tr *ngIf="!analytics.profileUpdateHistory?.length">
-              <td colspan="6" class="text-center text-muted">No update timeline found.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <div class="sa-filter-rail__body">
+        <div class="sa-filter-toolbar">
+          <div class="sa-filter-slot sa-filter-slot--from">
+            <label class="sa-filter-slot__label" for="sa-from">From</label>
+            <div class="sa-filter-slot__input-wrap">
+              <i class="far fa-calendar-alt sa-filter-slot__icon" aria-hidden="true"></i>
+              <input
+                id="sa-from"
+                type="datetime-local"
+                class="form-control sa-filter-input"
+                [(ngModel)]="fromDate"
+                placeholder="Start date & time"
+              />
+            </div>
+          </div>
 
-    <div class="panel mt-3">
-      <h5><i class="fas fa-chalkboard-teacher"></i> Class Attendance and Duration</h5>
-      <div class="table-responsive">
-        <table class="table table-sm mb-0">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Class / Topic</th>
-              <th>Batch</th>
-              <th>Status</th>
-              <th class="text-center">Duration (min)</th>
-              <th class="text-center">Join</th>
-              <th class="text-center">Leave</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let row of analytics.classAttendanceHistory">
-              <td>{{ fmt(row.startTime) }}</td>
-              <td>{{ row.topic }}</td>
-              <td>{{ row.batch }}</td>
-              <td>
-                <span class="badge" [ngClass]="{
-                  'bg-success': row.attendanceStatus === 'attended',
-                  'bg-warning': row.attendanceStatus === 'late',
-                  'bg-danger': row.attendanceStatus === 'absent'
-                }">{{ row.attendanceStatus || 'absent' }}</span>
-              </td>
-              <td class="text-center">{{ row.attendedMinutes ?? '-' }}</td>
-              <td class="text-center">{{ row.joinTime ? fmt(row.joinTime) : '-' }}</td>
-              <td class="text-center">{{ row.leaveTime ? fmt(row.leaveTime) : '-' }}</td>
-            </tr>
-            <tr *ngIf="!analytics.classAttendanceHistory?.length">
-              <td colspan="7" class="text-center text-muted">No class attendance data found.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+          <div class="sa-filter-slot sa-filter-slot--to">
+            <label class="sa-filter-slot__label" for="sa-to">To</label>
+            <div class="sa-filter-slot__input-wrap">
+              <i class="far fa-calendar-alt sa-filter-slot__icon" aria-hidden="true"></i>
+              <input
+                id="sa-to"
+                type="datetime-local"
+                class="form-control sa-filter-input"
+                [(ngModel)]="toDate"
+                placeholder="End date & time"
+              />
+            </div>
+          </div>
 
-    <div class="row g-3 mt-1">
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-laptop-code"></i> Digital Exercises</h5>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead>
-                <tr>
-                  <th>Completed At</th>
-                  <th>Exercise</th>
-                  <th>Status</th>
-                  <th class="text-center">Marks %</th>
-                  <th class="text-center">Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of analytics.digitalExerciseHistory">
-                  <td>{{ fmt(row.completedAt || row.startedAt) }}</td>
-                  <td>{{ row.exerciseTitle }}</td>
-                  <td>{{ row.status }}</td>
-                  <td class="text-center">{{ row.scorePercentage ?? 0 }}</td>
-                  <td class="text-center">{{ mins(row.timeSpentSeconds) }} min</td>
-                </tr>
-                <tr *ngIf="!analytics.digitalExerciseHistory?.length">
-                  <td colspan="5" class="text-center text-muted">No digital exercise data found.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="sa-filter-slot sa-filter-slot--types">
+            <span class="sa-filter-slot__label">Categories</span>
+            <button
+              type="button"
+              class="sa-types-btn"
+              (click)="openTypesModal()"
+              aria-haspopup="dialog"
+              [attr.aria-expanded]="typesModalOpen"
+            >
+              <span class="sa-types-btn__main">Types</span>
+              <span class="sa-types-btn__meta">{{ typesSelectionSummary() }}</span>
+              <i class="fas fa-chevron-down sa-types-btn__caret" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <div class="sa-filter-slot sa-filter-slot--action">
+            <span class="sa-filter-slot__label sa-filter-slot__label--action">Filter</span>
+            <button
+              *ngIf="!filterApplied"
+              type="button"
+              class="btn btn-primary sa-action-btn"
+              (click)="applyFilters()"
+              [disabled]="activityLoading"
+            >
+              <i class="fas fa-check me-2" *ngIf="!activityLoading"></i>
+              <i class="fas fa-spinner fa-spin me-2" *ngIf="activityLoading"></i>
+              Apply filter
+            </button>
+            <button
+              *ngIf="filterApplied"
+              type="button"
+              class="btn btn-outline-danger sa-action-btn"
+              (click)="removeFilters()"
+              [disabled]="activityLoading"
+            >
+              <i class="fas fa-times me-2"></i>
+              Remove filter
+            </button>
           </div>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-book-open"></i> Modules Completed / Progress</h5>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead>
-                <tr>
-                  <th>Updated At</th>
-                  <th>Module</th>
-                  <th>Status</th>
-                  <th class="text-center">Progress %</th>
-                  <th class="text-center">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of analytics.moduleHistory">
-                  <td>{{ fmt(row.updatedAt) }}</td>
-                  <td>{{ row.moduleTitle }}</td>
-                  <td>{{ row.status }}</td>
-                  <td class="text-center">{{ row.progressPercentage ?? 0 }}</td>
-                  <td class="text-center">{{ row.totalScore ?? 0 }}/{{ row.maxPossibleScore ?? 0 }}</td>
-                </tr>
-                <tr *ngIf="!analytics.moduleHistory?.length">
-                  <td colspan="5" class="text-center text-muted">No module progress data found.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+    </section>
+
+    <!-- Types modal -->
+    <div
+      class="sa-modal-backdrop"
+      *ngIf="typesModalOpen"
+      role="presentation"
+      (click)="closeTypesModal(false)"
+    >
+      <div
+        class="sa-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sa-types-modal-title"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="sa-modal__header">
+          <h2 id="sa-types-modal-title">Event types</h2>
+          <button type="button" class="sa-modal__close" (click)="closeTypesModal(false)" aria-label="Close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <p class="sa-modal__hint">Uncheck categories you want to hide from the timeline.</p>
+        <div class="sa-modal__quick">
+          <button type="button" class="sa-link-btn" (click)="selectAllDraftTypes()">Select all</button>
+          <span class="sa-filter-rail__dot">·</span>
+          <button type="button" class="sa-link-btn" (click)="clearAllDraftTypes()">Clear all</button>
+        </div>
+        <ul class="sa-modal__list list-unstyled">
+          <li *ngFor="let t of typeOptions" class="sa-modal__row">
+            <label class="sa-modal__check">
+              <input
+                type="checkbox"
+                [checked]="isDraftTypeChecked(t.id)"
+                (change)="toggleDraftType(t.id, $any($event.target).checked)"
+              />
+              <span>{{ t.label }}</span>
+            </label>
+          </li>
+        </ul>
+        <div class="sa-modal__footer">
+          <button type="button" class="btn btn-outline-secondary" (click)="closeTypesModal(false)">Cancel</button>
+          <button type="button" class="btn btn-primary" (click)="closeTypesModal(true)">Done</button>
         </div>
       </div>
     </div>
 
-    <div class="row g-3 mt-1">
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-microphone-alt"></i> Session Records</h5>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead>
-                <tr>
-                  <th>Start</th>
-                  <th>Module</th>
-                  <th>Type</th>
-                  <th class="text-center">Duration</th>
-                  <th class="text-center">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of analytics.sessionHistory">
-                  <td>{{ fmt(row.startTime) }}</td>
-                  <td>{{ row.moduleTitle }}</td>
-                  <td>{{ row.sessionType }}</td>
-                  <td class="text-center">{{ row.durationMinutes ?? 0 }} min</td>
-                  <td class="text-center">{{ row.totalScore ?? 0 }}</td>
-                </tr>
-                <tr *ngIf="!analytics.sessionHistory?.length">
-                  <td colspan="5" class="text-center text-muted">No session records found.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+    <section class="sa-main-card">
+      <nav class="sa-tabs" role="tablist" aria-label="Data categories">
+        <button
+          type="button"
+          role="tab"
+          class="sa-tab"
+          *ngFor="let t of tabs"
+          [class.sa-tab--active]="activeTab === t.id"
+          [attr.aria-selected]="activeTab === t.id"
+          (click)="setTab(t.id)"
+        >
+          <i class="fas {{ t.icon }} me-1"></i>{{ t.label }}
+          <span class="sa-tab__count">{{ tabCount(t.id) }}</span>
+        </button>
+      </nav>
+
+      <!-- Activity -->
+      <div class="sa-panel" *ngIf="activeTab === 'activity'" role="tabpanel">
+        <p class="sa-panel__hint sa-panel__hint--compact">Showing filtered activity. Change filters above the tabs.</p>
+        <div class="sa-loading" *ngIf="activityLoading"><i class="fas fa-spinner fa-spin me-2"></i> Loading…</div>
+        <div class="sa-loading sa-loading--error" *ngIf="activityError && !activityLoading">{{ activityError }}</div>
+        <div class="table-responsive sa-table-wrap" *ngIf="!activityLoading && activityEvents.length">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Summary</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ev of activityEvents">
+                <td class="text-nowrap">{{ fmt(ev.occurredAt) }}</td>
+                <td><span class="sa-badge">{{ ev.type }}</span></td>
+                <td>{{ ev.title }}</td>
+                <td class="sa-details">{{ formatActivityDetails(ev) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted small mb-0" *ngIf="!activityLoading && !activityEvents.length && !activityError">No activity for these filters.</p>
+      </div>
+
+      <!-- Profile -->
+      <div class="sa-panel" *ngIf="activeTab === 'profile'" role="tabpanel">
+        <div class="table-responsive sa-table-wrap">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Updated at</th>
+                <th>Action</th>
+                <th>Level</th>
+                <th>Batch</th>
+                <th>Subscription</th>
+                <th>Teacher</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of analytics.profileUpdateHistory">
+                <td>{{ fmt(row.updatedAt) }}</td>
+                <td>{{ row.action }}</td>
+                <td>{{ row.levelAtUpdate }}</td>
+                <td>{{ row.batchAtUpdate }}</td>
+                <td>{{ row.subscriptionAtUpdate }}</td>
+                <td>{{ row.assignedTeacherAtUpdate?.name || '—' }}</td>
+              </tr>
+              <tr *ngIf="!analytics.profileUpdateHistory?.length">
+                <td colspan="6" class="text-center text-muted py-4">No profile history.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-award"></i> Marks and Assignment Results</h5>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead>
-                <tr>
-                  <th>Submitted</th>
-                  <th>Assignment</th>
-                  <th>Status</th>
-                  <th class="text-center">Teacher Marks</th>
-                  <th class="text-center">AI Marks</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of analytics.marksHistory">
-                  <td>{{ fmt(row.submittedAt) }}</td>
-                  <td>{{ row.title }}</td>
-                  <td>{{ row.status }}</td>
-                  <td class="text-center">{{ row.marks ?? '-' }}</td>
-                  <td class="text-center">{{ row.aiGradingTotalScore ?? '-' }}</td>
-                </tr>
-                <tr *ngIf="!analytics.marksHistory?.length">
-                  <td colspan="5" class="text-center text-muted">No assignment marks found.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+
+      <!-- Attendance -->
+      <div class="sa-panel" *ngIf="activeTab === 'attendance'" role="tabpanel">
+        <div class="table-responsive sa-table-wrap">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Class / topic</th>
+                <th>Batch</th>
+                <th>Status</th>
+                <th class="text-center">Duration (min)</th>
+                <th class="text-center">Join</th>
+                <th class="text-center">Leave</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of analytics.classAttendanceHistory">
+                <td>{{ fmt(row.startTime) }}</td>
+                <td>{{ row.topic }}</td>
+                <td>{{ row.batch }}</td>
+                <td>
+                  <span
+                    class="badge sa-status"
+                    [ngClass]="{
+                      'bg-success': row.attendanceStatus === 'attended',
+                      'bg-warning text-dark': row.attendanceStatus === 'late',
+                      'bg-danger': row.attendanceStatus === 'absent'
+                    }"
+                  >
+                    {{ row.attendanceStatus || 'absent' }}
+                  </span>
+                </td>
+                <td class="text-center">{{ row.attendedMinutes ?? '—' }}</td>
+                <td class="text-center">{{ row.joinTime ? fmt(row.joinTime) : '—' }}</td>
+                <td class="text-center">{{ row.leaveTime ? fmt(row.leaveTime) : '—' }}</td>
+              </tr>
+              <tr *ngIf="!analytics.classAttendanceHistory?.length">
+                <td colspan="7" class="text-center text-muted py-4">No attendance records.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </div>
+
+      <!-- Exercises -->
+      <div class="sa-panel" *ngIf="activeTab === 'exercises'" role="tabpanel">
+        <div class="table-responsive sa-table-wrap">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Exercise</th>
+                <th>Status</th>
+                <th class="text-center">Marks %</th>
+                <th class="text-center">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of analytics.digitalExerciseHistory">
+                <td>{{ fmt(row.completedAt || row.startedAt) }}</td>
+                <td>{{ row.exerciseTitle }}</td>
+                <td>{{ row.status }}</td>
+                <td class="text-center">{{ row.scorePercentage ?? 0 }}</td>
+                <td class="text-center">{{ mins(row.timeSpentSeconds) }} min</td>
+              </tr>
+              <tr *ngIf="!analytics.digitalExerciseHistory?.length">
+                <td colspan="5" class="text-center text-muted py-4">No exercise attempts.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modules -->
+      <div class="sa-panel" *ngIf="activeTab === 'modules'" role="tabpanel">
+        <div class="table-responsive sa-table-wrap">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Updated</th>
+                <th>Module</th>
+                <th>Status</th>
+                <th class="text-center">Progress %</th>
+                <th class="text-center">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of analytics.moduleHistory">
+                <td>{{ fmt(row.updatedAt) }}</td>
+                <td>{{ row.moduleTitle }}</td>
+                <td>{{ row.status }}</td>
+                <td class="text-center">{{ row.progressPercentage ?? 0 }}</td>
+                <td class="text-center">{{ row.totalScore ?? 0 }} / {{ row.maxPossibleScore ?? 0 }}</td>
+              </tr>
+              <tr *ngIf="!analytics.moduleHistory?.length">
+                <td colspan="5" class="text-center text-muted py-4">No module progress.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sessions -->
+      <div class="sa-panel" *ngIf="activeTab === 'sessions'" role="tabpanel">
+        <div class="table-responsive sa-table-wrap">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Start</th>
+                <th>Module</th>
+                <th>Type</th>
+                <th class="text-center">Duration</th>
+                <th class="text-center">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of analytics.sessionHistory">
+                <td>{{ fmt(row.startTime) }}</td>
+                <td>{{ row.moduleTitle }}</td>
+                <td>{{ row.sessionType }}</td>
+                <td class="text-center">{{ row.durationMinutes ?? 0 }} min</td>
+                <td class="text-center">{{ row.totalScore ?? 0 }}</td>
+              </tr>
+              <tr *ngIf="!analytics.sessionHistory?.length">
+                <td colspan="5" class="text-center text-muted py-4">No session records.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Assignments -->
+      <div class="sa-panel" *ngIf="activeTab === 'assignments'" role="tabpanel">
+        <div class="table-responsive sa-table-wrap">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Submitted</th>
+                <th>Assignment</th>
+                <th>Status</th>
+                <th class="text-center">Teacher marks</th>
+                <th class="text-center">AI marks</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of analytics.marksHistory">
+                <td>{{ fmt(row.submittedAt) }}</td>
+                <td>{{ row.title }}</td>
+                <td>{{ row.status }}</td>
+                <td class="text-center">{{ row.marks ?? '—' }}</td>
+                <td class="text-center">{{ row.aiGradingTotalScore ?? '—' }}</td>
+              </tr>
+              <tr *ngIf="!analytics.marksHistory?.length">
+                <td colspan="5" class="text-center text-muted py-4">No assignments.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </ng-container>
 </div>

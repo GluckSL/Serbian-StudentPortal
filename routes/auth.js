@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Course = require("../models/Course");
 const StudentLogs = require("../models/StudentLogs");
+const UserActivityLog = require("../models/UserActivityLog");
 const router = express.Router();
 const transporter = require("../config/emailConfig");
 
@@ -655,6 +656,21 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
+    // ✅ track last login + keep login history (best effort)
+    try {
+      user.lastLogin = new Date();
+      await user.save();
+      await UserActivityLog.create({
+        userId: user._id,
+        role: user.role,
+        type: "LOGIN",
+        ip: req.headers["x-forwarded-for"]?.toString()?.split(",")?.[0]?.trim() || req.ip || "",
+        userAgent: req.headers["user-agent"] || ""
+      });
+    } catch (e) {
+      console.warn("Failed to record login activity:", e?.message || e);
+    }
+
     const token = jwt.sign(
       {
         id: user._id,
@@ -693,6 +709,23 @@ router.post("/login", async (req, res) => {
 
 // âœ… Logout
 router.post("/logout", (req, res) => {
+  // ✅ best-effort: record logout activity when token present
+  try {
+    const token = req.cookies?.authToken;
+    if (token) {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload?.id) {
+        UserActivityLog.create({
+          userId: payload.id,
+          role: payload.role || "",
+          type: "LOGOUT",
+          ip: req.headers["x-forwarded-for"]?.toString()?.split(",")?.[0]?.trim() || req.ip || "",
+          userAgent: req.headers["user-agent"] || ""
+        }).catch(() => {});
+      }
+    }
+  } catch (_) {}
+
   res.clearCookie("authToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // âœ… true in production with HTTPS
