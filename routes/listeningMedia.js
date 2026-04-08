@@ -4,21 +4,25 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const multerS3 = require('multer-s3');
 const path = require('path');
+const fs = require('fs');
 const https = require('https');
 const http = require('http');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const s3Client = require('../config/s3');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
-// ─── Multer-S3 for audio/video uploads ───────────────────────────────────────
+const LISTENING_MEDIA_DIR = path.join(__dirname, '..', 'uploads', 'listening-media');
+
+function ensureListeningMediaDir() {
+  if (!fs.existsSync(LISTENING_MEDIA_DIR)) {
+    fs.mkdirSync(LISTENING_MEDIA_DIR, { recursive: true });
+  }
+}
+
+// ─── Multer disk storage (same pattern as pdf-exercises; served via app.use('/uploads', ...)) ─
 function inferExtension(file) {
   const extFromName = path.extname(file.originalname || '');
   if (extFromName) return extFromName;
 
-  // Some clients (notably mobile) upload with a generic filename/no extension.
-  // Infer a reasonable extension from mimetype so S3 objects have a usable suffix.
   const mt = String(file.mimetype || '').toLowerCase();
   const map = {
     'audio/mpeg': '.mp3',
@@ -41,40 +45,35 @@ function inferExtension(file) {
 
 const audioFilter = (req, file, cb) => {
   const mt = String(file.mimetype || '').toLowerCase();
-  // Be permissive for audio/* (real-world browsers vary), but keep video restricted.
   const isAudio = mt.startsWith('audio/');
   const isAllowedVideo = mt === 'video/mp4' || mt === 'video/webm' || mt === 'video/quicktime';
   if (isAudio || isAllowedVideo) return cb(null, true);
   return cb(new Error(`Only audio files (audio/*) or MP4/WebM/MOV video are allowed. Received: ${mt || 'unknown'}`), false);
 };
 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    ensureListeningMediaDir();
+    cb(null, LISTENING_MEDIA_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = inferExtension(file);
+    const name = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+    cb(null, name);
+  },
+});
+
 const upload = multer({
-  storage: multerS3({
-    s3: s3Client,
-    bucket: process.env.S3_BUCKET,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: (req, file, cb) => {
-      const prefix = process.env.S3_PREFIX || 'uploads';
-      const ext = inferExtension(file);
-      const key = `${prefix}/listening-media/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
-      cb(null, key);
-    },
-  }),
+  storage,
   fileFilter: audioFilter,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB (matches admin video upload cap)
 });
 
 // ─── POST /upload ────────────────────────────────────────────────────────────
-// Upload audio file from computer → streams directly to S3
 const uploadSingleMedia = (req, res, next) => {
   upload.single('media')(req, res, (err) => {
     if (err) {
       console.error('Listening media upload error (multer):', err);
-      // Surface S3 bucket misconfiguration clearly
-      if (err.message && err.message.includes('bucket')) {
-        console.error(`S3 config: bucket="${process.env.S3_BUCKET}" region="${process.env.AWS_REGION}"`);
-        return res.status(400).json({ error: `S3 upload failed: ${err.message}. Bucket="${process.env.S3_BUCKET || 'undefined'}" Region="${process.env.AWS_REGION || 'undefined'}"` });
-      }
       return res.status(400).json({ error: err.message || 'Upload failed' });
     }
     next();
@@ -88,8 +87,8 @@ router.post('/upload',
   (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No media file uploaded' });
-      // req.file.location is the full S3 URL provided by multer-s3
-      res.json({ success: true, url: req.file.location });
+      const url = `/uploads/listening-media/${req.file.filename}`;
+      res.json({ success: true, url });
     } catch (err) {
       console.error('Listening media upload error:', err);
       res.status(500).json({ error: err.message || 'Upload failed' });
@@ -98,7 +97,6 @@ router.post('/upload',
 );
 
 // ─── POST /fetch-from-url ────────────────────────────────────────────────────
-// Fetch audio from an external URL and store it in S3
 router.post('/fetch-from-url',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
@@ -114,7 +112,6 @@ router.post('/fetch-from-url',
         return res.status(400).json({ error: 'Invalid URL protocol' });
       }
 
-      // Download the remote file into a buffer, then upload to S3
       const buffer = await new Promise((resolve, reject) => {
         const client = parsed.protocol === 'https:' ? https : http;
         const chunks = [];
@@ -129,21 +126,13 @@ router.post('/fetch-from-url',
       });
 
       const ext = path.extname(parsed.pathname) || '.mp3';
-      const prefix = process.env.S3_PREFIX || 'uploads';
-      const key = `${prefix}/listening-media/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+      ensureListeningMediaDir();
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+      const filePath = path.join(LISTENING_MEDIA_DIR, filename);
+      fs.writeFileSync(filePath, buffer);
 
-      await s3Client.send(new PutObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: key,
-        Body: buffer,
-        ContentLength: buffer.length,
-      }));
-
-      const region = process.env.AWS_REGION;
-      const bucket = process.env.S3_BUCKET;
-      const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
-
-      res.json({ success: true, url: s3Url });
+      const relativeUrl = `/uploads/listening-media/${filename}`;
+      res.json({ success: true, url: relativeUrl });
     } catch (err) {
       console.error('Fetch from URL error:', err);
       res.status(500).json({ error: err.message || 'Failed to fetch audio from URL' });
@@ -151,9 +140,19 @@ router.post('/fetch-from-url',
   }
 );
 
+/** Resolve stored media path to absolute file under project uploads/ (for transcribe). */
+function resolveUploadsFilePath(mediaUrl) {
+  const s = String(mediaUrl || '').trim();
+  if (!s.startsWith('/uploads/')) return null;
+  const rel = s.replace(/^\//, '');
+  const filePath = path.join(__dirname, '..', rel);
+  const uploadsRoot = path.resolve(path.join(__dirname, '..', 'uploads'));
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(uploadsRoot)) return null;
+  return resolved;
+}
+
 // ─── POST /transcribe ─────────────────────────────────────────────────────────
-// Transcribe audio using OpenAI Whisper
-// mediaUrl must be a publicly accessible URL (e.g., S3 URL)
 router.post('/transcribe',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
@@ -168,30 +167,35 @@ router.post('/transcribe',
     }
 
     try {
-      // Download the audio from the URL (works for both S3 URLs and any public URL)
-      if (!mediaUrl.startsWith('http')) {
-        return res.status(400).json({ error: 'mediaUrl must be a full HTTP/HTTPS URL' });
-      }
+      let audioBuffer;
 
-      const parsed = new URL(mediaUrl);
-      const audioBuffer = await new Promise((resolve, reject) => {
-        const client = parsed.protocol === 'https:' ? https : http;
-        const chunks = [];
-        client.get(mediaUrl, { timeout: 60000 }, (response) => {
-          if (response.statusCode !== 200) {
-            return reject(new Error(`Failed to fetch audio: ${response.statusCode}`));
-          }
-          response.on('data', (chunk) => chunks.push(chunk));
-          response.on('end', () => resolve(Buffer.concat(chunks)));
-          response.on('error', reject);
-        }).on('error', reject);
-      });
+      const localPath = resolveUploadsFilePath(mediaUrl);
+      if (localPath && fs.existsSync(localPath)) {
+        audioBuffer = fs.readFileSync(localPath);
+      } else if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+        const parsed = new URL(mediaUrl);
+        audioBuffer = await new Promise((resolve, reject) => {
+          const client = parsed.protocol === 'https:' ? https : http;
+          const chunks = [];
+          client.get(mediaUrl, { timeout: 60000 }, (response) => {
+            if (response.statusCode !== 200) {
+              return reject(new Error(`Failed to fetch audio: ${response.statusCode}`));
+            }
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => resolve(Buffer.concat(chunks)));
+            response.on('error', reject);
+          }).on('error', reject);
+        });
+      } else {
+        return res.status(400).json({
+          error: 'mediaUrl must be a /uploads/... path on this server or a full HTTP/HTTPS URL',
+        });
+      }
 
       const OpenAI = require('openai');
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      // OpenAI SDK needs a File-like object — use a Buffer wrapped as a Blob
-      const ext = path.extname(parsed.pathname) || '.mp3';
+      const ext = path.extname(mediaUrl.split('?')[0]) || '.mp3';
       const filename = `audio${ext}`;
       const blob = new Blob([audioBuffer]);
       const file = new File([blob], filename);
