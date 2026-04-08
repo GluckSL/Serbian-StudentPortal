@@ -77,7 +77,7 @@ const meetingLinkSchema = new mongoose.Schema({
     confidence: { type: Number, default: 0 }, // 0-100
     matchMethod: { 
       type: String, 
-      enum: ['email', 'exact_name', 'partial_name', 'fuzzy_name', 'no_match'], 
+      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match'], 
       default: 'no_match' 
     },
     zoomName: String, // Name displayed in Zoom

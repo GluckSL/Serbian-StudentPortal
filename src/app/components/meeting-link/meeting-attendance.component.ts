@@ -577,9 +577,12 @@ export class MeetingAttendanceComponent implements OnInit {
   getMatchMethodLabel(method: string): string {
     const labels: { [key: string]: string } = {
       'email': 'Email Match',
+      'email_local': 'Email + Zoom name',
       'exact_name': 'Exact Name',
       'partial_name': 'Partial Name',
       'fuzzy_name': 'Similar Name',
+      'containment': 'Name Match (partial)',
+      'single_participant': 'Single participant (review)',
       'no_match': 'No Match'
     };
     return labels[method] || method;

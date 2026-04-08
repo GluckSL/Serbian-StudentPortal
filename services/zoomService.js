@@ -188,7 +188,10 @@ class ZoomService {
           existing.sessionCount = (existing.sessionCount || 1) + 1;
         } else {
           participantMap.set(key, {
-            id: p.id, userId: p.user_id, name: p.name, email: p.user_email,
+            id: p.id,
+            userId: p.user_id,
+            name: p.name || p.user_name || '',
+            email: (p.user_email || p.email || '').trim(),
             joinTime: p.join_time, leaveTime: p.leave_time,
             duration: p.duration, durationMinutes: Math.round(p.duration / 60),
             attentiveness_score: p.attentiveness_score, status: p.status,

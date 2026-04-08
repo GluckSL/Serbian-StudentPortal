@@ -39,7 +39,7 @@ export class LearningModulesComponent implements OnInit {
     nativeLanguage: '',
     search: '',
     page: 1,
-    limit: 12
+    limit: 80
   };
   
   // Pagination
@@ -170,7 +170,7 @@ export class LearningModulesComponent implements OnInit {
       nativeLanguage: '',
       search: '',
       page: 1,
-      limit: 12
+      limit: 80
     };
     this.loadModules();
   }
@@ -506,8 +506,7 @@ export class LearningModulesComponent implements OnInit {
     }
     
     const canAccessByLevel = this.levelAccessService.canAccessModule(this.currentUser.level, module.level);
-    const canAccessByJourneyDay = this.canAccessModuleByJourneyDay(module);
-    const canAccess = canAccessByLevel && canAccessByJourneyDay;
+    const canAccess = canAccessByLevel && !this.isJourneyDayLocked(module);
     
     // Debug logging
     if (!canAccess) {
@@ -527,7 +526,7 @@ export class LearningModulesComponent implements OnInit {
       return { canAccess: true, reason: 'Full access', levelDifference: 0 };
     }
 
-    if (!this.canAccessModuleByJourneyDay(module)) {
+    if (this.isJourneyDayLocked(module)) {
       return {
         canAccess: false,
         reason: `Unlocks on journey day ${module.courseDay}`,
@@ -622,20 +621,36 @@ export class LearningModulesComponent implements OnInit {
     });
   }
 
+  /** Keep modules visible for the current journey week (day … day+6); lock state is UI + server. */
   private filterByJourneyDay(modules: LearningModule[]): LearningModule[] {
     if (!this.currentUser || this.currentUser.role !== 'STUDENT') {
       return modules;
     }
-    return modules.filter((m) => this.canAccessModuleByJourneyDay(m));
+    const maxDay = this.studentJourneyDay + 6;
+    return modules.filter((m) => {
+      const d = m.courseDay;
+      if (d == null) return true;
+      const day = Number(d);
+      return Number.isFinite(day) && day <= maxDay;
+    });
   }
 
-  private canAccessModuleByJourneyDay(module: LearningModule): boolean {
+  /** True when courseDay is set and still in the future relative to the student's journey day. */
+  isJourneyDayLocked(module: LearningModule): boolean {
     if (!this.currentUser || this.currentUser.role !== 'STUDENT') {
-      return true;
+      return false;
     }
     const moduleDay = module?.courseDay;
     if (moduleDay == null) return false;
-    return Number(moduleDay) <= this.studentJourneyDay;
+    return Number(moduleDay) > this.studentJourneyDay;
+  }
+
+  /** Primary label when module is blocked for the student (journey vs level). */
+  studentLockedModuleButtonLabel(module: LearningModule): string {
+    if (this.isJourneyDayLocked(module) && module.courseDay != null) {
+      return `Unlock on day ${module.courseDay}`;
+    }
+    return 'Locked';
   }
 
   private getFallbackJourneyDayFromUser(user: any): number {

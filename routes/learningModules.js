@@ -36,14 +36,16 @@ router.get('/', verifyToken, async (req, res) => {
       const studentDay = (student && student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay)))
         ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
         : 1;
+      const weekEndDay = Math.min(200, studentDay + 6);
 
-      // Modules without a courseDay are always visible; those with one must be <= student's day
+      // No courseDay = general pool; with courseDay: show unlocked + next 6 journey days (locked in UI until reached).
       filter.$and = filter.$and || [];
       filter.$and.push({
         $or: [
           { courseDay: null },
           { courseDay: { $exists: false } },
-          { courseDay: { $lte: studentDay } }
+          { courseDay: { $lte: studentDay } },
+          { courseDay: { $gt: studentDay, $lte: weekEndDay } }
         ]
       });
     }
@@ -395,6 +397,22 @@ router.post('/:id/enroll', verifyToken, checkRole(['STUDENT', 'TEACHER']), async
         moduleId
       });
       return res.status(404).json({ message: 'Module not found or inactive' });
+    }
+
+    if (req.user.role === 'STUDENT') {
+      const stu = await User.findById(studentId).select('currentCourseDay').lean();
+      const studentDay = (stu && stu.currentCourseDay != null && Number.isFinite(Number(stu.currentCourseDay)))
+        ? Math.min(200, Math.max(1, Math.floor(Number(stu.currentCourseDay))))
+        : 1;
+      const cd = module.courseDay;
+      if (cd != null && Number.isFinite(Number(cd)) && Number(cd) > studentDay) {
+        return res.status(403).json({
+          message: `This module unlocks on journey day ${cd}.`,
+          code: 'JOURNEY_DAY_LOCKED',
+          courseDay: Number(cd),
+          studentCourseDay: studentDay
+        });
+      }
     }
     
     // Check if already enrolled

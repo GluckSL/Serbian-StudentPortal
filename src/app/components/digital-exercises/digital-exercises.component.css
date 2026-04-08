@@ -47,6 +47,48 @@
   accent-color: #6366f1;
 }
 
+.journey-week-hint {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4338ca;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.35;
+  max-width: 280px;
+}
+
+.journey-day-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.journey-day-pill--any {
+  background: #f1f5f9;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.row-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exercise-list--student .list-headers,
+.exercise-list--student .exercise-row {
+  grid-template-columns: 36px minmax(0, 1.5fr) 86px 96px 44px 64px 68px 72px 92px;
+}
+
 .day-badge {
   font-size: 0.72rem;
   font-weight: 700;
@@ -554,6 +596,20 @@
 .status-ring.completed .ring-text {
   color: #15803d;
   font-size: 0.7rem;
+}
+
+.row-action .btn-start--locked {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px dashed #cbd5e1 !important;
+  cursor: not-allowed !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  padding: 8px 10px !important;
+  line-height: 1.25;
+  white-space: normal;
+  max-width: 120px;
+  box-shadow: none !important;
 }
 
 .row-action .btn-start {

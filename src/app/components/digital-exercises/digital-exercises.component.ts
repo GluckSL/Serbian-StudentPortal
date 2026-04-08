@@ -34,8 +34,11 @@ export class DigitalExercisesComponent implements OnInit {
   selectedCategory = '';
   selectedDifficulty = '';
 
-  /** Students: show only exercises tagged for the current journey day. */
+  /** @deprecated Server now returns the current journey week by default; kept for API compatibility. */
   todayOnly = false;
+
+  /** Set from GET /digital-exercises for students. */
+  studentCourseDay = 1;
 
   // Pagination
   currentPage = 1;
@@ -85,6 +88,10 @@ export class DigitalExercisesComponent implements OnInit {
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
+        const d = Number(res?.studentCourseDay);
+        if (role === 'STUDENT' && Number.isFinite(d) && d >= 1) {
+          this.studentCourseDay = Math.min(200, Math.floor(d));
+        }
         this.applyTabFilter();
         this.loading = false;
       },
@@ -160,6 +167,9 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   startExercise(exercise: DigitalExercise): void {
+    if (this.isExerciseJourneyLocked(exercise)) {
+      return;
+    }
     this.router.navigate(['/digital-exercises', exercise._id, 'play']);
   }
 
@@ -209,6 +219,29 @@ export class DigitalExercisesComponent implements OnInit {
 
   hasActiveFilters(): boolean {
     return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty || this.todayOnly);
+  }
+
+  isExerciseJourneyLocked(ex: DigitalExercise): boolean {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role !== 'STUDENT') {
+      return false;
+    }
+    const cd = ex.courseDay;
+    if (cd == null || cd === undefined) return false;
+    const n = Number(cd);
+    if (!Number.isFinite(n)) return false;
+    return n > this.studentCourseDay;
+  }
+
+  journeyUnlockButtonLabel(ex: DigitalExercise): string {
+    const cd = ex.courseDay;
+    return cd != null ? `Unlock on day ${cd}` : 'Locked';
+  }
+
+  get journeyWeekHint(): string {
+    const a = this.studentCourseDay;
+    const b = Math.min(200, a + 6);
+    return `Showing journey days ${a}–${b} (unlock each item on its day)`;
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {

@@ -67,11 +67,12 @@
               <button
                 type="button"
                 class="sm-action"
-                [class.sm-action--join]="meeting.canJoin"
-                [disabled]="!meeting.canJoin"
+                [class.sm-action--join]="meeting.canJoin && !meeting.journeyLocked"
+                [class.sm-action--locked]="meeting.journeyLocked"
+                [disabled]="upcomingActionDisabled(meeting)"
                 (click)="joinMeeting(meeting)"
               >
-                {{ meeting.canJoin ? 'Join' : getTimeUntilStart(meeting) }}
+                {{ upcomingActionLabel(meeting) }}
               </button>
             </td>
           </tr>
@@ -105,7 +106,15 @@
             <td>{{ formatDuration(meeting.duration) }}</td>
             <td><span class="status-pill status-live">Live</span></td>
             <td>
-              <button type="button" class="sm-action sm-action--live-cta" (click)="joinMeeting(meeting)">Join now</button>
+              <button
+                type="button"
+                class="sm-action sm-action--live-cta"
+                [class.sm-action--locked]="meeting.journeyLocked"
+                [disabled]="meeting.journeyLocked || !meeting.joinUrl"
+                (click)="joinMeeting(meeting)"
+              >
+                {{ meeting.journeyLocked && meeting.courseDay != null ? ('Unlock on day ' + meeting.courseDay) : 'Join now' }}
+              </button>
             </td>
           </tr>
           <tr *ngIf="ongoingMeetings.length === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>

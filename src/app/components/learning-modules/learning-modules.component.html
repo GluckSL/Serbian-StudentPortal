@@ -170,7 +170,7 @@
               <span *ngIf="currentUser?.role === 'STUDENT' && !canAccessModule(module)" 
                     class="badge badge-warning ms-1"
                     [title]="getModuleAccessStatus(module).reason">
-                <i class="fas fa-lock"></i> Locked
+                <i class="fas fa-lock"></i> {{ isJourneyDayLocked(module) ? ('Day ' + module.courseDay) : 'Locked' }}
               </span>
               
               <!-- Recommended Badge -->
@@ -205,6 +205,10 @@
               <div class="detail-item" *ngIf="module.minimumCompletionTime">
                 <i class="fas fa-clock"></i>
                 <span>{{ module.minimumCompletionTime }} min required</span>
+              </div>
+              <div class="detail-item" *ngIf="module.courseDay != null && currentUser?.role === 'STUDENT'">
+                <i class="fas fa-calendar-day"></i>
+                <span>Journey day {{ module.courseDay }}</span>
               </div>
             </div>
             
@@ -255,7 +259,7 @@
                 <!-- Level Access Blocked Message -->
                 <div *ngIf="!canAccessModule(module)" class="access-blocked">
                   <button class="btn btn-secondary btn-sm" disabled>
-                    <i class="fas fa-lock"></i> Locked
+                    <i class="fas fa-lock"></i> {{ studentLockedModuleButtonLabel(module) }}
                   </button>
                   <small class="text-muted d-block mt-1">
                     {{ getModuleAccessStatus(module).reason }}
@@ -363,7 +367,7 @@
               <span *ngIf="currentUser?.role === 'STUDENT' && !canAccessModule(module)" 
                     class="badge badge-warning ms-1"
                     [title]="getModuleAccessStatus(module).reason">
-                <i class="fas fa-lock"></i> Locked
+                <i class="fas fa-lock"></i> {{ isJourneyDayLocked(module) ? ('Day ' + module.courseDay) : 'Locked' }}
               </span>
               
               <!-- Recommended Badge -->
@@ -431,7 +435,7 @@
             *ngIf="!canAccessModule(module)"
             disabled
             [title]="getModuleAccessStatus(module).reason">
-            <i class="fas fa-lock"></i> Locked
+            <i class="fas fa-lock"></i> {{ studentLockedModuleButtonLabel(module) }}
           </button>
           
           <!-- AI Tutoring Button - PLATINUM ONLY -->

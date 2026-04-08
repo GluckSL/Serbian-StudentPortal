@@ -168,14 +168,17 @@ router.get('/', verifyToken, async (req, res) => {
       studentExerciseAccess = await getStudentExerciseAccess(req.user.id);
       const studentCourseDay = studentExerciseAccess.courseDay;
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
+      const weekEndDay = Math.min(200, studentCourseDay + 6);
       if (todayOnly) {
         andClauses.push({ courseDay: studentCourseDay });
       } else {
+        // Current day + next 6 journey days: show unlocked items plus upcoming week for visibility (locked in UI until day).
         andClauses.push({
           $or: [
             { courseDay: null },
             { courseDay: { $exists: false } },
-            { courseDay: { $lte: studentCourseDay } }
+            { courseDay: { $lte: studentCourseDay } },
+            { courseDay: { $gt: studentCourseDay, $lte: weekEndDay } }
           ]
         });
       }

@@ -15,7 +15,7 @@ import { environment } from '../../../environments/environment';
 export class SupportFabComponent implements OnInit {
   open = false; // small launcher panel
   modalOpen = false; // full modal
-  activeTab: 'submit' | 'faq' | 'tickets' = 'submit';
+  activeTab: 'submit' | 'tickets' = 'submit';
 
   ticketForm!: FormGroup;
   submitting = false;
@@ -27,8 +27,6 @@ export class SupportFabComponent implements OnInit {
   currentUser: any = null;
   tickets: any[] = [];
   loadingTickets = false;
-
-  openFaqIndex: number | null = null;
 
   readonly categories = [
     { value: 'login', label: 'Login / Access Issue' },
@@ -45,21 +43,6 @@ export class SupportFabComponent implements OnInit {
     { value: 'low', label: 'Low – General query' },
     { value: 'medium', label: 'Medium – Impacting work' },
     { value: 'high', label: 'High – Urgent issue' }
-  ];
-
-  readonly faqs = [
-    {
-      q: 'I cannot log in to my account.',
-      a: 'Make sure you are using the correct email and password. If you have forgotten your password, use the “Forgot Password” link or email support@gluckglobal.com.'
-    },
-    {
-      q: 'My video or audio is not working during class.',
-      a: 'Use the Audio Test page to verify microphone and speakers. Ensure browser permissions are allowed. If the issue persists, raise a ticket.'
-    },
-    {
-      q: 'I cannot join my Zoom class.',
-      a: 'Ensure Zoom is installed and the class has started. If the issue persists, raise a ticket.'
-    }
   ];
 
   constructor(
@@ -91,7 +74,7 @@ export class SupportFabComponent implements OnInit {
     this.open = false;
   }
 
-  openModal(tab: 'submit' | 'faq' | 'tickets' = 'submit'): void {
+  openModal(tab: 'submit' | 'tickets' = 'submit'): void {
     this.activeTab = tab;
     this.modalOpen = true;
     this.open = false;
@@ -104,13 +87,9 @@ export class SupportFabComponent implements OnInit {
     this.modalOpen = false;
   }
 
-  setTab(tab: 'submit' | 'faq' | 'tickets'): void {
+  setTab(tab: 'submit' | 'tickets'): void {
     this.activeTab = tab;
     if (tab === 'tickets') this.loadMyTickets();
-  }
-
-  toggleFaq(i: number): void {
-    this.openFaqIndex = this.openFaqIndex === i ? null : i;
   }
 
   onScreenshotSelected(event: Event): void {

@@ -15,10 +15,6 @@
         <i class="fas fa-ticket-alt"></i>
         Raise Ticket
       </button>
-      <button class="sf-action" type="button" (click)="openModal('faq')">
-        <i class="fas fa-question-circle"></i>
-        View FAQ
-      </button>
       <button class="sf-action" type="button" [disabled]="!isLoggedIn" (click)="openModal('tickets')">
         <i class="fas fa-list-alt"></i>
         My Tickets
@@ -49,7 +45,6 @@
 
   <div class="sf-modal__tabs">
     <button class="sf-tab" [class.active]="activeTab==='submit'" (click)="setTab('submit')">Raise Ticket</button>
-    <button class="sf-tab" [class.active]="activeTab==='faq'" (click)="setTab('faq')">FAQ</button>
     <button class="sf-tab" [class.active]="activeTab==='tickets'" (click)="setTab('tickets')" [disabled]="!isLoggedIn">My Tickets</button>
   </div>
 
@@ -115,19 +110,6 @@
           </button>
         </div>
       </form>
-    </div>
-
-    <!-- FAQ -->
-    <div *ngIf="activeTab==='faq'">
-      <div class="sf-faq">
-        <div class="sf-faqItem" *ngFor="let f of faqs; let i=index" [class.open]="openFaqIndex===i">
-          <button class="sf-faqQ" type="button" (click)="toggleFaq(i)">
-            <span>{{ f.q }}</span>
-            <i class="fas" [class.fa-chevron-down]="openFaqIndex!==i" [class.fa-chevron-up]="openFaqIndex===i"></i>
-          </button>
-          <div class="sf-faqA" *ngIf="openFaqIndex===i">{{ f.a }}</div>
-        </div>
-      </div>
     </div>
 
     <!-- Tickets -->

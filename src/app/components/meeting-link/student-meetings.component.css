@@ -98,6 +98,14 @@
   filter: brightness(1.06);
 }
 
+.sm-action--locked {
+  border-style: dashed !important;
+  white-space: normal;
+  max-width: 120px;
+  line-height: 1.25;
+  text-align: center;
+}
+
 .student-meetings-container.student-meetings--embedded {
   padding: 0;
   max-width: none;

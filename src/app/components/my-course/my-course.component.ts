@@ -760,12 +760,16 @@ export class MyCourseComponent implements OnInit {
   getMeetingAttendancePercent(meeting: any): number {
     const total = Number(meeting?.duration || 0);
     if (!meeting?.hasEnded || total <= 0) return 0;
-    const attended = Number(meeting?.attendedDurationMinutes ?? meeting?.durationMinutes ?? 0);
-    const pct = Math.round((attended / total) * 100);
+    const attendedMin = Number(meeting?.attendedDurationMinutes ?? meeting?.durationMinutes ?? 0);
+    if (meeting?.attended === true && attendedMin <= 0) {
+      return 100;
+    }
+    const pct = Math.round((attendedMin / total) * 100);
     return Math.max(0, Math.min(100, pct));
   }
 
   getMeetingAttendanceStatus(meeting: any): 'Attended' | 'Not Attended' | 'Missed' {
+    if (meeting?.attended === true) return 'Attended';
     const pct = this.getMeetingAttendancePercent(meeting);
     if (pct >= 75) return 'Attended';
     if (meeting?.hasEnded && pct > 0) return 'Not Attended';

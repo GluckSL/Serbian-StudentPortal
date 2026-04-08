@@ -28,6 +28,12 @@ interface StudentMeeting {
   attended?: boolean;
   durationMinutes?: number;
   attendedDurationMinutes?: number;
+  /** Journey day assigned to this class (if any). */
+  courseDay?: number | null;
+  /** True when the student's current journey day is before `courseDay`. */
+  journeyLocked?: boolean;
+  /** From saved meeting attendance (same source as teacher report). */
+  attendanceStatus?: string | null;
 }
 
 @Component({
@@ -107,9 +113,28 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   joinMeeting(meeting: StudentMeeting): void {
+    if (meeting.journeyLocked && meeting.courseDay != null) {
+      this.notify.info(`This class unlocks on journey day ${meeting.courseDay}.`);
+      return;
+    }
     if (meeting.canJoin && meeting.joinUrl) {
       window.open(meeting.joinUrl, '_blank');
     }
+  }
+
+  /** Upcoming tab: join, countdown, or journey lock. */
+  upcomingActionLabel(meeting: StudentMeeting): string {
+    if (meeting.journeyLocked && meeting.courseDay != null) {
+      return `Unlock on day ${meeting.courseDay}`;
+    }
+    if (meeting.canJoin) return 'Join';
+    return this.getTimeUntilStart(meeting);
+  }
+
+  /** Whether the upcoming join control should be disabled. */
+  upcomingActionDisabled(meeting: StudentMeeting): boolean {
+    if (meeting.journeyLocked) return true;
+    return !meeting.canJoin;
   }
 
   /**
@@ -206,16 +231,20 @@ Password: ${meeting.password}
   getAttendancePercent(meeting: StudentMeeting): number {
     const total = Number(meeting.duration || 0);
     if (!meeting.hasEnded || total <= 0) return 0;
-    const attended = Number(
+    const attendedMin = Number(
       meeting.attendedDurationMinutes ??
       meeting.durationMinutes ??
       0
     );
-    const pct = Math.round((attended / total) * 100);
+    if (meeting.attended === true && attendedMin <= 0) {
+      return 100;
+    }
+    const pct = Math.round((attendedMin / total) * 100);
     return Math.max(0, Math.min(100, pct));
   }
 
   getAttendanceStatus(meeting: StudentMeeting): 'Attended' | 'Not Attended' | 'Missed' {
+    if (meeting.attended === true) return 'Attended';
     const pct = this.getAttendancePercent(meeting);
     if (pct >= 75) return 'Attended';
     if (meeting.hasEnded && pct > 0) return 'Not Attended';

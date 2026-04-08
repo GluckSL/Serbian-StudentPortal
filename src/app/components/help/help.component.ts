@@ -38,7 +38,7 @@ export interface SupportTicket {
   styleUrls: ['./help.component.css']
 })
 export class HelpComponent implements OnInit {
-  activeTab: 'submit' | 'tickets' | 'faq' = 'submit';
+  activeTab: 'submit' | 'tickets' = 'submit';
   ticketForm!: FormGroup;
   submitting = false;
   submitSuccess = false;
@@ -68,35 +68,6 @@ export class HelpComponent implements OnInit {
     { value: 'high', label: 'High – Urgent issue' }
   ];
 
-  readonly faqs = [
-    {
-      q: 'I cannot log in to my account.',
-      a: 'Make sure you are using the correct email and password. If you have forgotten your password, use the "Forgot Password" link on the login page or email support@gluckglobal.com.'
-    },
-    {
-      q: 'My video or audio is not working during class.',
-      a: 'Please use the Audio Test page (/audio-test) to verify your microphone and speakers are working. Ensure your browser has camera/microphone permissions enabled. If the issue persists, raise a ticket.'
-    },
-    {
-      q: 'I cannot join my Zoom class.',
-      a: 'Check that you have Zoom installed and that the meeting link is correct. Ensure the meeting has started. Contact your teacher or raise a support ticket if the problem continues.'
-    },
-    {
-      q: 'My payment is not reflecting.',
-      a: 'Payments can take up to 24 hours to process. If it has been longer, please raise a ticket with your payment reference number and we will investigate.'
-    },
-    {
-      q: 'How do I access my course materials?',
-      a: 'Log in and navigate to "My Course" from the menu. All your assigned modules, recordings and materials are available there.'
-    },
-    {
-      q: 'I am getting a "session expired" error.',
-      a: 'This means your login session has timed out. Please log out and log back in to continue. If this keeps happening, clear your browser cookies and try again.'
-    }
-  ];
-
-  openFaqIndex: number | null = null;
-
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
@@ -106,7 +77,7 @@ export class HelpComponent implements OnInit {
 
   ngOnInit(): void {
     const tab = this.route.snapshot.queryParamMap.get('tab');
-    if (tab === 'faq' || tab === 'tickets' || tab === 'submit') {
+    if (tab === 'tickets' || tab === 'submit') {
       this.activeTab = tab;
     }
 
@@ -128,7 +99,7 @@ export class HelpComponent implements OnInit {
     }
   }
 
-  setTab(tab: 'submit' | 'tickets' | 'faq'): void {
+  setTab(tab: 'submit' | 'tickets'): void {
     this.activeTab = tab;
     if (tab === 'tickets' && this.isLoggedIn && this.tickets.length === 0) {
       this.loadMyTickets();
@@ -142,10 +113,6 @@ export class HelpComponent implements OnInit {
 
   repliesCount(ticket: SupportTicket): number {
     return (ticket.replies || []).length;
-  }
-
-  toggleFaq(index: number): void {
-    this.openFaqIndex = this.openFaqIndex === index ? null : index;
   }
 
   onSubmit(): void {
@@ -257,5 +224,9 @@ export class HelpComponent implements OnInit {
 
   get descriptionLen(): number {
     return this.ticketForm.get('description')?.value?.length || 0;
+  }
+
+  get screenshotLabel(): string {
+    return this.screenshotFile?.name || '';
   }
 }

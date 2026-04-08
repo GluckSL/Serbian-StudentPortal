@@ -17,9 +17,6 @@
     <button class="help-tab" [class.active]="activeTab === 'submit'" (click)="setTab('submit')">
       <i class="fas fa-ticket-alt"></i> Raise a Ticket
     </button>
-    <button class="help-tab" [class.active]="activeTab === 'faq'" (click)="setTab('faq')">
-      <i class="fas fa-question-circle"></i> FAQ
-    </button>
     <button *ngIf="isLoggedIn" class="help-tab" [class.active]="activeTab === 'tickets'" (click)="setTab('tickets')">
       <i class="fas fa-list-alt"></i> My Tickets
       <span *ngIf="tickets.length > 0" class="tab-badge">{{ tickets.length }}</span>
@@ -52,116 +49,134 @@
       <!-- Form -->
       <div *ngIf="!submitSuccess" class="form-card">
         <div class="form-header">
-          <h2><i class="fas fa-ticket-alt"></i> New Support Ticket</h2>
-          <p>Please describe your issue in detail so we can help you quickly.</p>
+          <div class="form-header-icon"><i class="fas fa-headset"></i></div>
+          <div class="form-header-text">
+            <h2>New Support Ticket</h2>
+            <p>Tell us what went wrong and we will reply within <strong>24 hours</strong>. The more detail you add, the faster we can help.</p>
+          </div>
         </div>
 
         <div *ngIf="submitError" class="alert-error">
           <i class="fas fa-exclamation-circle"></i> {{ submitError }}
         </div>
 
-        <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" novalidate>
+        <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" novalidate class="ticket-form">
 
-          <div class="form-row two-col">
+          <section class="form-section" aria-labelledby="sec-contact">
+            <h3 id="sec-contact" class="form-section-title">
+              <span class="form-section-icon"><i class="fas fa-id-card"></i></span>
+              Your contact details
+            </h3>
+            <div class="form-row two-col">
+              <div class="form-group">
+                <label for="ticket-name">Your Name <span class="req">*</span></label>
+                <div class="input-wrap">
+                  <span class="input-affix" aria-hidden="true"><i class="fas fa-user"></i></span>
+                  <input id="ticket-name" type="text" formControlName="name" placeholder="Full name" autocomplete="name">
+                </div>
+                <span class="field-error" *ngIf="ticketForm.get('name')?.invalid && ticketForm.get('name')?.touched">
+                  Name is required (min 2 characters).
+                </span>
+              </div>
+              <div class="form-group">
+                <label for="ticket-email">Email Address <span class="req">*</span></label>
+                <div class="input-wrap">
+                  <span class="input-affix" aria-hidden="true"><i class="fas fa-envelope"></i></span>
+                  <input id="ticket-email" type="email" formControlName="email" placeholder="you@example.com" autocomplete="email">
+                </div>
+                <span class="field-error" *ngIf="ticketForm.get('email')?.invalid && ticketForm.get('email')?.touched">
+                  Please enter a valid email address.
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section" aria-labelledby="sec-issue">
+            <h3 id="sec-issue" class="form-section-title">
+              <span class="form-section-icon"><i class="fas fa-bullseye"></i></span>
+              About the issue
+            </h3>
+            <div class="form-row two-col">
+              <div class="form-group">
+                <label for="ticket-cat">Issue Category <span class="req">*</span></label>
+                <div class="input-wrap input-wrap--select">
+                  <span class="input-affix" aria-hidden="true"><i class="fas fa-folder-open"></i></span>
+                  <select id="ticket-cat" formControlName="category">
+                    <option value="" disabled>Select a category…</option>
+                    <option *ngFor="let cat of categories" [value]="cat.value">{{ cat.label }}</option>
+                  </select>
+                </div>
+                <span class="field-error" *ngIf="ticketForm.get('category')?.invalid && ticketForm.get('category')?.touched">
+                  Please select a category.
+                </span>
+              </div>
+              <div class="form-group">
+                <label for="ticket-pri">Priority <span class="req">*</span></label>
+                <div class="input-wrap input-wrap--select">
+                  <span class="input-affix" aria-hidden="true"><i class="fas fa-flag"></i></span>
+                  <select id="ticket-pri" formControlName="priority">
+                    <option *ngFor="let p of priorities" [value]="p.value">{{ p.label }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div class="form-group">
-              <label>Your Name <span class="req">*</span></label>
-              <input type="text" formControlName="name" placeholder="Full name" autocomplete="name">
-              <span class="field-error" *ngIf="ticketForm.get('name')?.invalid && ticketForm.get('name')?.touched">
-                Name is required (min 2 characters).
+              <label for="ticket-subject">Subject <span class="req">*</span></label>
+              <div class="input-wrap">
+                <span class="input-affix" aria-hidden="true"><i class="fas fa-heading"></i></span>
+                <input id="ticket-subject" type="text" formControlName="subject" placeholder="Brief summary (5–100 characters)">
+              </div>
+              <span class="field-error" *ngIf="ticketForm.get('subject')?.invalid && ticketForm.get('subject')?.touched">
+                Subject is required (5–100 characters).
               </span>
             </div>
-            <div class="form-group">
-              <label>Email Address <span class="req">*</span></label>
-              <input type="email" formControlName="email" placeholder="you@example.com" autocomplete="email">
-              <span class="field-error" *ngIf="ticketForm.get('email')?.invalid && ticketForm.get('email')?.touched">
-                Please enter a valid email address.
+
+            <div class="form-group form-group--description">
+              <label for="ticket-desc">
+                Description <span class="req">*</span>
+                <span class="char-count" [class.char-count--warn]="descriptionLen > 900">{{ descriptionLen }}/1000</span>
+              </label>
+              <textarea id="ticket-desc" formControlName="description" rows="6"
+                placeholder="What were you trying to do? What happened instead? Include any error messages or steps to reproduce."></textarea>
+              <span class="field-error" *ngIf="ticketForm.get('description')?.invalid && ticketForm.get('description')?.touched">
+                Description is required (min 20 characters).
               </span>
             </div>
-          </div>
+          </section>
 
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label>Issue Category <span class="req">*</span></label>
-              <select formControlName="category">
-                <option value="" disabled>Select a category…</option>
-                <option *ngFor="let cat of categories" [value]="cat.value">{{ cat.label }}</option>
-              </select>
-              <span class="field-error" *ngIf="ticketForm.get('category')?.invalid && ticketForm.get('category')?.touched">
-                Please select a category.
+          <section class="form-section" aria-labelledby="sec-file">
+            <h3 id="sec-file" class="form-section-title">
+              <span class="form-section-icon"><i class="fas fa-image"></i></span>
+              Screenshot
+            </h3>
+            <p class="form-section-hint">A screenshot helps us see what you see. PNG, JPG, or WEBP, up to 6&nbsp;MB.</p>
+            <label class="file-drop" [class.file-drop--has-file]="!!screenshotLabel">
+              <input type="file" class="file-drop-input" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
+              <span class="file-drop-inner">
+                <i class="fas fa-cloud-upload-alt file-drop-ico"></i>
+                <span class="file-drop-title" *ngIf="!screenshotLabel">Choose a file or drag it here</span>
+                <span class="file-drop-name" *ngIf="screenshotLabel"><i class="fas fa-check-circle"></i> {{ screenshotLabel }}</span>
+                <span class="file-drop-sub" *ngIf="!screenshotLabel">Required for your ticket</span>
               </span>
-            </div>
-            <div class="form-group">
-              <label>Priority <span class="req">*</span></label>
-              <select formControlName="priority">
-                <option *ngFor="let p of priorities" [value]="p.value">{{ p.label }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Subject <span class="req">*</span></label>
-            <input type="text" formControlName="subject" placeholder="Brief summary of your issue (max 100 chars)">
-            <span class="field-error" *ngIf="ticketForm.get('subject')?.invalid && ticketForm.get('subject')?.touched">
-              Subject is required (5–100 characters).
-            </span>
-          </div>
-
-          <div class="form-group">
-            <label>
-              Description <span class="req">*</span>
-              <span class="char-count">{{ descriptionLen }}/1000</span>
             </label>
-            <textarea formControlName="description" rows="6"
-              placeholder="Describe the issue in detail: what happened, what you were trying to do, any error messages you saw…"></textarea>
-            <span class="field-error" *ngIf="ticketForm.get('description')?.invalid && ticketForm.get('description')?.touched">
-              Description is required (min 20 characters).
-            </span>
-          </div>
-
-          <div class="form-group">
-            <label>Screenshot <span class="req">*</span></label>
-            <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
             <span class="field-error" *ngIf="ticketForm.get('screenshot')?.invalid && ticketForm.get('screenshot')?.touched">
               Screenshot is required (PNG/JPG/WEBP, max 6MB).
             </span>
-          </div>
+          </section>
 
           <div class="form-footer">
             <div class="privacy-note">
-              <i class="fas fa-lock"></i> Your information is secure and will only be used to resolve your ticket.
+              <i class="fas fa-shield-alt"></i>
+              <span>Your details are encrypted in transit and used only to resolve this ticket.</span>
             </div>
             <button type="submit" class="btn-primary btn-submit" [disabled]="submitting">
-              <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Submit Ticket</span>
+              <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Submit ticket</span>
               <span *ngIf="submitting"><i class="fas fa-spinner fa-spin"></i> Submitting…</span>
             </button>
           </div>
 
         </form>
-      </div>
-    </div>
-
-    <!-- ══ FAQ TAB ══ -->
-    <div *ngIf="activeTab === 'faq'" class="faq-section">
-      <div class="section-header">
-        <h2><i class="fas fa-question-circle"></i> Frequently Asked Questions</h2>
-        <p>Find quick answers to common issues below.</p>
-      </div>
-      <div class="faq-list">
-        <div class="faq-item" *ngFor="let faq of faqs; let i = index" [class.open]="openFaqIndex === i">
-          <button class="faq-question" (click)="toggleFaq(i)">
-            <span>{{ faq.q }}</span>
-            <i class="fas" [class.fa-chevron-down]="openFaqIndex !== i" [class.fa-chevron-up]="openFaqIndex === i"></i>
-          </button>
-          <div class="faq-answer" *ngIf="openFaqIndex === i">
-            <p>{{ faq.a }}</p>
-          </div>
-        </div>
-      </div>
-      <div class="faq-cta">
-        <p>Didn't find your answer?</p>
-        <button class="btn-primary" (click)="setTab('submit')">
-          <i class="fas fa-ticket-alt"></i> Raise a Support Ticket
-        </button>
       </div>
     </div>
 
