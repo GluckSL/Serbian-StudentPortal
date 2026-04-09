@@ -21,6 +21,17 @@ interface ManagedUser {
   permissionsDirty: boolean;
 }
 
+interface PwModal {
+  open: boolean;
+  user: ManagedUser | null;
+  newPassword: string;
+  confirmPassword: string;
+  showPass: boolean;
+  saving: boolean;
+  generatedPreview: string;
+  error: string;
+}
+
 @Component({
   selector: 'app-user-roles',
   standalone: true,
@@ -129,11 +140,24 @@ interface ManagedUser {
                         </ng-template>
                       </td>
                       <td>
-                        <button class="btn btn-sm btn-success" 
-                                (click)="updateUserRole(user)"
-                                [disabled]="!hasPendingChanges(user)">
-                          <i class="fas fa-save"></i> Update
-                        </button>
+                        <div class="action-btns">
+                          <button class="btn btn-sm btn-success"
+                                  (click)="updateUserRole(user)"
+                                  [disabled]="!hasPendingChanges(user)"
+                                  title="Save role changes">
+                            <i class="fas fa-save"></i> Update
+                          </button>
+                          <button class="btn btn-sm btn-key"
+                                  (click)="openPasswordModal(user)"
+                                  title="Change / View Password">
+                            <i class="fas fa-key"></i>
+                          </button>
+                          <button class="btn btn-sm btn-del"
+                                  (click)="deleteUser(user)"
+                                  title="Delete user">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   </tbody>
@@ -144,6 +168,85 @@ interface ManagedUser {
           
         </div>
       </div>
+
+      <!-- ===== Password Modal ===== -->
+      <div class="pw-overlay" *ngIf="pwModal.open" (click)="closePasswordModal()">
+        <div class="pw-box" (click)="$event.stopPropagation()">
+
+          <div class="pw-header">
+            <span class="pw-header-title"><i class="fas fa-key"></i>&nbsp; Manage Password</span>
+            <button class="pw-close" (click)="closePasswordModal()">&#x2715;</button>
+          </div>
+
+          <div class="pw-body">
+            <div class="pw-user-pill">
+              <i class="fas fa-user-circle"></i>
+              <span>{{ pwModal.user?.name }}</span>
+              <span class="pw-role-badge">{{ pwModal.user?.role }}</span>
+            </div>
+            <p class="pw-email-line">{{ pwModal.user?.email }}</p>
+
+            <div class="pw-field">
+              <label>New Password</label>
+              <div class="pw-input-row">
+                <input
+                  [type]="pwModal.showPass ? 'text' : 'password'"
+                  [(ngModel)]="pwModal.newPassword"
+                  class="form-control form-control-sm"
+                  placeholder="Enter new password (min 6 chars)"
+                />
+                <button class="pw-eye-btn" type="button" (click)="pwModal.showPass = !pwModal.showPass">
+                  <i class="fas" [ngClass]="pwModal.showPass ? 'fa-eye-slash' : 'fa-eye'"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="pw-field">
+              <label>Confirm Password</label>
+              <input
+                [type]="pwModal.showPass ? 'text' : 'password'"
+                [(ngModel)]="pwModal.confirmPassword"
+                class="form-control form-control-sm"
+                placeholder="Re-enter the new password"
+              />
+            </div>
+
+            <div class="pw-divider"></div>
+
+            <button class="btn btn-sm btn-gen" type="button" (click)="generateRandomPassword()">
+              <i class="fas fa-random"></i>&nbsp; Generate Random Password
+            </button>
+
+            <div class="pw-generated-box" *ngIf="pwModal.generatedPreview">
+              <div class="pw-gen-row">
+                <span class="pw-gen-label">Generated:</span>
+                <span class="pw-gen-value">{{ pwModal.generatedPreview }}</span>
+                <button class="btn btn-sm btn-link pw-copy-btn" type="button" (click)="copyPassword()">
+                  <i class="fas fa-copy"></i> Copy
+                </button>
+              </div>
+              <p class="pw-gen-note">This password is already filled above. Save to apply it.</p>
+            </div>
+
+            <p class="pw-error-msg" *ngIf="pwModal.error">
+              <i class="fas fa-exclamation-circle"></i> {{ pwModal.error }}
+            </p>
+          </div>
+
+          <div class="pw-footer">
+            <button class="btn btn-sm btn-light pw-cancel-btn" (click)="closePasswordModal()">Cancel</button>
+            <button class="btn btn-sm btn-mail" (click)="savePassword(true)" [disabled]="pwModal.saving">
+              <i class="fas fa-envelope"></i>&nbsp;{{ pwModal.saving ? 'Sending...' : 'Save & Mail' }}
+            </button>
+            <button class="btn btn-sm btn-save-pw" (click)="savePassword(false)" [disabled]="pwModal.saving">
+              <i class="fas fa-save"></i>&nbsp;{{ pwModal.saving ? 'Saving...' : 'Save Only' }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+      <!-- ===== /Password Modal ===== -->
+
     </div>
   `,
   styles: [`
@@ -412,7 +515,14 @@ interface ManagedUser {
       background: #fff;
     }
 
-    /* ── Buttons ── */
+    /* ── Action Buttons ── */
+    .action-btns {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
     .btn-sm {
       padding: 4px 10px;
       font-size: 11px;
@@ -424,6 +534,32 @@ interface ManagedUser {
     .btn-success:hover { background: #1e7e34; border-color: #1e7e34; }
     .btn-success:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .btn-key {
+      background: #f59e0b;
+      border: none;
+      color: #fff;
+      padding: 4px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-key:hover { background: #d97706; }
+
+    .btn-del {
+      background: #ef4444;
+      border: none;
+      color: #fff;
+      padding: 4px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-del:hover { background: #dc2626; }
+
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .page-header { margin: 10px; padding: 12px 14px; }
@@ -434,6 +570,237 @@ interface ManagedUser {
     @media (max-width: 576px) {
       .page-content { padding: 10px; }
     }
+
+    /* ══════════════════════════════
+       Password Modal
+    ══════════════════════════════ */
+    .pw-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .pw-box {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      width: 100%;
+      max-width: 440px;
+      overflow: hidden;
+      animation: pwSlideIn 0.2s ease;
+    }
+
+    @keyframes pwSlideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to   { transform: translateY(0);     opacity: 1; }
+    }
+
+    .pw-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: #03396c;
+      color: #fff;
+    }
+    .pw-header-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .pw-close {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.75);
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 2px;
+      transition: color 0.15s;
+    }
+    .pw-close:hover { color: #fff; }
+
+    .pw-body {
+      padding: 18px 20px 10px;
+    }
+
+    .pw-user-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: #f1f5f9;
+      border-radius: 999px;
+      padding: 4px 12px 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .pw-user-pill i { color: #03396c; font-size: 14px; }
+    .pw-role-badge {
+      background: #dbeafe;
+      color: #1e40af;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 999px;
+    }
+
+    .pw-email-line {
+      font-size: 11px;
+      color: #64748b;
+      margin: 0 0 14px;
+      padding-left: 2px;
+    }
+
+    .pw-field {
+      margin-bottom: 12px;
+    }
+    .pw-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 4px;
+    }
+    .pw-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pw-input-row .form-control { flex: 1; }
+    .pw-eye-btn {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 4px 9px;
+      cursor: pointer;
+      color: #64748b;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    .pw-eye-btn:hover { background: #e2e8f0; }
+
+    .pw-divider {
+      height: 1px;
+      background: #f1f5f9;
+      margin: 12px 0;
+    }
+
+    .btn-gen {
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      color: #0369a1;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-gen:hover { background: #bae6fd; }
+
+    .pw-generated-box {
+      margin-top: 10px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .pw-gen-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pw-gen-label {
+      font-size: 11px;
+      color: #166534;
+      font-weight: 600;
+    }
+    .pw-gen-value {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #15803d;
+      background: #dcfce7;
+      padding: 2px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+    .pw-copy-btn {
+      font-size: 11px;
+      color: #0369a1;
+      text-decoration: none;
+      padding: 2px 6px;
+      font-weight: 600;
+    }
+    .pw-copy-btn:hover { text-decoration: underline; }
+    .pw-gen-note {
+      font-size: 10px;
+      color: #166534;
+      margin: 6px 0 0;
+      opacity: 0.8;
+    }
+
+    .pw-error-msg {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #dc2626;
+      font-weight: 600;
+    }
+
+    .pw-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 20px 14px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .pw-cancel-btn {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 8px;
+    }
+    .pw-cancel-btn:hover { background: #e2e8f0; }
+
+    .btn-save-pw {
+      background: #03396c;
+      border: none;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 5px 16px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-save-pw:hover:not(:disabled) { background: #022952; }
+    .btn-save-pw:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .btn-mail {
+      background: #16a34a;
+      border: none;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 5px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-mail:hover:not(:disabled) { background: #15803d; }
+    .btn-mail:disabled { opacity: 0.55; cursor: not-allowed; }
   `]
 })
 export class UserRolesComponent implements OnInit {
@@ -442,6 +809,17 @@ export class UserRolesComponent implements OnInit {
   allTeachersAndAdmins: ManagedUser[] = [];
   subAdminPermissionGroups: { group: string; items: { id: string; label: string }[] }[] = [];
   subAdminPermissionOptions: { id: string; label: string }[] = [];
+
+  pwModal: PwModal = {
+    open: false,
+    user: null,
+    newPassword: '',
+    confirmPassword: '',
+    showPass: false,
+    saving: false,
+    generatedPreview: '',
+    error: ''
+  };
 
   constructor(private http: HttpClient, private navService: NavService, private notify: NotificationService) {
     this.subAdminPermissionGroups = this.navService.getAdminNavGroups().map((group) => ({
@@ -567,6 +945,103 @@ export class UserRolesComponent implements OnInit {
           user.permissionsDirty = false;
         }
       });
+    });
+  }
+
+  /* ── Delete user ── */
+  deleteUser(user: ManagedUser): void {
+    this.notify.confirm(
+      'Delete User',
+      `Are you sure you want to permanently delete ${user.name} (${user.email})? This cannot be undone.`
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.http.delete(`${apiUrl}/auth/${user._id}`, { withCredentials: true }).subscribe({
+        next: () => {
+          this.notify.success(`${user.name} has been deleted.`);
+          this.fetchTeachersAndAdmins();
+        },
+        error: (err) => {
+          console.error('Failed to delete user:', err);
+          this.notify.error('Failed to delete user. Please try again.');
+        }
+      });
+    });
+  }
+
+  /* ── Password modal ── */
+  openPasswordModal(user: ManagedUser): void {
+    this.pwModal = {
+      open: true,
+      user,
+      newPassword: '',
+      confirmPassword: '',
+      showPass: false,
+      saving: false,
+      generatedPreview: '',
+      error: ''
+    };
+  }
+
+  closePasswordModal(): void {
+    this.pwModal.open = false;
+  }
+
+  generateRandomPassword(): void {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+    let pwd = '';
+    for (let i = 0; i < 12; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    this.pwModal.generatedPreview = pwd;
+    this.pwModal.newPassword = pwd;
+    this.pwModal.confirmPassword = pwd;
+    this.pwModal.error = '';
+  }
+
+  copyPassword(): void {
+    if (this.pwModal.generatedPreview) {
+      navigator.clipboard.writeText(this.pwModal.generatedPreview).then(() => {
+        this.notify.success('Password copied to clipboard!');
+      });
+    }
+  }
+
+  savePassword(andEmail: boolean): void {
+    const { newPassword, confirmPassword, user } = this.pwModal;
+
+    if (!newPassword || newPassword.trim().length < 6) {
+      this.pwModal.error = 'Password must be at least 6 characters.';
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      this.pwModal.error = 'Passwords do not match.';
+      return;
+    }
+    if (!user) return;
+
+    this.pwModal.error = '';
+    this.pwModal.saving = true;
+
+    const endpoint = andEmail ? 'admin-set-password-and-email' : 'admin-set-password';
+    this.http.put(
+      `${apiUrl}/auth/${endpoint}/${user._id}`,
+      { newPassword: newPassword.trim() },
+      { withCredentials: true }
+    ).subscribe({
+      next: () => {
+        this.pwModal.saving = false;
+        if (andEmail) {
+          this.notify.success(`Password updated and emailed to ${user.email}.`);
+        } else {
+          this.notify.success(`Password updated successfully for ${user.name}.`);
+        }
+        this.closePasswordModal();
+      },
+      error: (err) => {
+        this.pwModal.saving = false;
+        this.pwModal.error = err?.error?.message || 'Failed to update password. Please try again.';
+        console.error('Password update error:', err);
+      }
     });
   }
 }

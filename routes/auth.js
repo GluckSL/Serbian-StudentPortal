@@ -859,6 +859,86 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   }
 });
 
+// Admin set/change password for any user (ADMIN only)
+router.put("/admin-set-password/:id", verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.trim().length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword.trim(), salt);
+    await user.save();
+    res.status(200).json({ success: true, message: "Password updated successfully." });
+  } catch (error) {
+    console.error("Error changing password (admin):", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Admin set/change password AND email credentials (ADMIN only)
+router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.trim().length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const plainPassword = newPassword.trim();
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(plainPassword, salt);
+    await user.save();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸ”",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
+          <p>Hello ${user.name},</p>
+
+          <p>Your password has been updated. Here are your login credentials for the <strong>GlÃ¼ck Global Portal</strong>:</p>
+
+          <ul>
+            <li><strong>Email ID:</strong> ${user.email}</li>
+            <li><strong>Password:</strong> ${plainPassword}</li>
+          </ul>
+
+          <p>Please keep this information safe and do not share it with anyone.</p>
+
+          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
+
+          <p>Best regards,<br>
+          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+        </div>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      res.status(200).json({ success: true, message: "Password updated and credentials emailed successfully." });
+    } catch (emailErr) {
+      console.error("Email sending failed:", emailErr);
+      res.status(500).json({
+        success: false,
+        message: "Password updated, but email failed to send. Please try again."
+      });
+    }
+  } catch (error) {
+    console.error("Error changing password + email (admin):", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
 // âœ… Get a user by ID
 router.get("/:id", async (req, res) => {
   try {
