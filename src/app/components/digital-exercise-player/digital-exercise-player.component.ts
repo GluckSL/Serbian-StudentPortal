@@ -53,6 +53,8 @@ interface PlayerQuestion {
   vpAdvanceSeq?: number;
   /** True after the clip fires `ended` — then Replay + Speak are shown */
   vpPlaybackEnded?: boolean;
+  /** Number of failed pronunciation attempts (incorrect result or speech error) for this clip. */
+  vpFailCount?: number;
   // Result state
   isAnswered?: boolean;
   isCorrect?: boolean | null;
@@ -205,6 +207,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.hasRecorded = false;
         pq.vpPlaybackEnded = false;
         pq.vpAdvanceSeq = 0;
+        pq.vpFailCount = 0;
       }
       return pq;
     });
@@ -479,12 +482,21 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
-  /** After incorrect: retry audio → short pause → reset attempt → replay same clip (video-only). */
+  /** After incorrect: retry audio → short pause → reset attempt → replay same clip (video-only).
+   *  On the LAST clip we skip the auto-reset so the student can choose: Try again, Replay, or
+   *  Submit the exercise — preventing an infinite stuck loop. */
   private async runVpIncorrectFeedbackSequence(pq: PlayerQuestion): Promise<void> {
     if (!this.isVideoOnlyExercise) return;
     const seq = (pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1);
+    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
+
     await this.playVideoExerciseFeedbackAudioPromise(false);
     if (pq.vpAdvanceSeq !== seq) return;
+
+    // On the last clip: leave state as-is (vpResult = 'incorrect') so the
+    // "Submit Exercise" button stays visible. The student is never forced to retry.
+    if (isLastClip) return;
+
     await this.delay(500);
     if (pq.vpAdvanceSeq !== seq) return;
     pq.vpSpokenText = '';
@@ -493,6 +505,27 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.pronunciationScore = 0;
     pq.isAnswered = false;
     this.replayVpVideo();
+  }
+
+  /** Submit the video exercise immediately (used when student is stuck on the last clip). */
+  finishVideoExercise(): void {
+    if (this.finishingAll || this.submitting) return;
+    this.finishingAll = true;
+    this.stopTimer();
+    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+    const responses = this.buildAllResponses();
+    this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
+      next: (result) => {
+        this.result = result;
+        this.finishingAll = false;
+        this.applyResultFeedback(result);
+        this.state = 'submitted';
+      },
+      error: (e) => {
+        this.finishingAll = false;
+        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
+      }
+    });
   }
 
   startExercise(): void {
@@ -1423,6 +1456,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
       const isCorrect = score >= DigitalExercisePlayerComponent.VP_PASS_SCORE;
       pq.vpResult = isCorrect ? 'correct' : 'incorrect';
+      if (!isCorrect) {
+        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+      }
       this.markAttempted(pq);
 
       if (this.isVideoOnlyExercise) {
@@ -1441,8 +1477,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     rec.onerror = (event: any) => {
       pq.isRecording = false;
       if (event.error === 'not-allowed') {
+        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
         this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
       } else if (event.error === 'no-speech') {
+        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
         this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
       }
     };
@@ -1461,6 +1499,55 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.pronunciationScore = 0;
     pq.isAnswered = false;
     this.replayVpVideo();
+  }
+
+  /**
+   * True when the Skip button should be visible for the current clip:
+   * - video-only exercise
+   * - student has had ≥ 2 failed attempts (incorrect result OR speech errors)
+   * - clip is not already graded correct
+   * - not currently recording
+   */
+  get showVpSkipButton(): boolean {
+    if (!this.isVideoOnlyExercise || this.state !== 'playing') return false;
+    const pq = this.currentQuestion;
+    if (!pq || pq.data?.type !== 'video-pronunciation') return false;
+    if (pq.isCorrect === true) return false;
+    if (pq.isRecording) return false;
+    return (pq.vpFailCount || 0) >= 2;
+  }
+
+  /**
+   * Skip the current clip: submit it as-is (score 0 / incorrect) then advance.
+   * The clip is counted as "attempted" so the exercise can still complete.
+   */
+  skipVpClip(): void {
+    if (this.submitting || this.finishingAll) return;
+    const pq = this.currentQuestion;
+    if (!pq) return;
+
+    // Mark as attempted with 0 score so the backend grades it as incorrect
+    pq.vpSpokenText = pq.vpSpokenText || '';
+    pq.pronunciationScore = pq.pronunciationScore || 0;
+    pq.vpResult = 'idle';
+    pq.isAnswered = true;
+    pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
+    this.clearVpFeedbackUi();
+
+    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
+
+    if (isLastClip) {
+      // Last clip — bulk-submit everything and show result
+      this.finishVideoExercise();
+    } else {
+      // Submit this clip individually then advance
+      this.submitCurrentQuestion();
+      setTimeout(() => this.nextQuestion(), 300);
+    }
+
+    if (this.isVideoOnlyExercise) {
+      this.pushVpChat('tutor', 'Skipping to the next clip — you can always come back and practise more!');
+    }
   }
 
   markAttempted(pq: PlayerQuestion): void {

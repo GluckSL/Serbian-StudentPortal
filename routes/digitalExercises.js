@@ -808,7 +808,10 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
 
     const totalPoints = exercise.questions.reduce((sum, qq) => sum + (qq.points || 1), 0);
     const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
-    const allSubmitted = gradedResponses.length >= exercise.questions.length;
+    // Mark the attempt as fully submitted once the student has answered ≥ 80 % of questions.
+    // This prevents a stuck state on the last clip while still capturing meaningful progress.
+    const completionThreshold = Math.ceil(exercise.questions.length * 0.8);
+    const allSubmitted = gradedResponses.length >= completionThreshold;
 
     attempt.responses = gradedResponses;
     attempt.earnedPoints = earnedPoints;

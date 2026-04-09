@@ -2675,6 +2675,20 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+.vp-stage-pill--finish {
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  font-weight: 700;
+}
+.vp-stage-pill--finish:hover:not(:disabled) {
+  background: #16a34a;
+}
+.vp-stage-pill--finish:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .vp-stage-foot {
   padding: 0 20px 12px;
   z-index: 2;
@@ -2776,6 +2790,66 @@
   padding: 18px 20px 16px;
   background: #ffffff;
   border-bottom: 1px solid #ece7df;
+}
+
+/* ── Skip bar (shown after 2 failed attempts) ── */
+.vp-skip-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  animation: vp-skip-bar-in 0.3s ease;
+}
+
+@keyframes vp-skip-bar-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.vp-skip-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #92400e;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+}
+
+.vp-skip-hint .material-icons {
+  font-size: 14px;
+  flex-shrink: 0;
+  color: #d97706;
+}
+
+.vp-skip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: 1.5px solid #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.vp-skip-btn .material-icons { font-size: 14px; }
+.vp-skip-btn:hover:not(:disabled) {
+  background: #fde68a;
+  border-color: #d97706;
+}
+.vp-skip-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .vp-chat-brand {
@@ -3456,6 +3530,22 @@
 
 .vp-mob-btn--retry:hover {
   background: #fef2f2;
+}
+
+.vp-mob-btn--finish {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  background: #22c55e;
+  border: 2px solid #16a34a;
+  color: #fff;
+  font-weight: 700;
+}
+.vp-mob-btn--finish:hover:not(:disabled) {
+  background: #16a34a;
+}
+.vp-mob-btn--finish:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .vp-mob-listening {
