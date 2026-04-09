@@ -31,8 +31,11 @@
           </div>
           <p class="result-exercise-label">{{ exercise?.title }}</p>
           <h1 class="result-heading">Your Result</h1>
-          <p class="result-video-kicker" *ngIf="isVideoOnlyResult">
+          <p class="result-video-kicker" *ngIf="isVideoOnlyResult && answeredCount === playerQuestions.length">
             You completed all <strong>{{ playerQuestions.length }}</strong> clip{{ playerQuestions.length === 1 ? '' : 's' }} — great work.
+          </p>
+          <p class="result-video-kicker" *ngIf="isVideoOnlyResult && answeredCount < playerQuestions.length">
+            You attempted <strong>{{ answeredCount }}</strong> of <strong>{{ playerQuestions.length }}</strong> clip{{ playerQuestions.length === 1 ? '' : 's' }} (e.g. time ran out or the exercise was submitted early).
           </p>
           <div class="result-score-block">
             <div class="result-points-big">
