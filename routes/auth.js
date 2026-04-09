@@ -360,6 +360,10 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
 // âœ… Reg No generation for different roles
 async function generateRegNo(role) {
+  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
+  if (!roleKey) {
+    throw new Error("Role is required to generate regNo");
+  }
   // map roles to prefixes
   const prefixMap = {
     STUDENT: "STUD",
@@ -368,13 +372,14 @@ async function generateRegNo(role) {
     SUB_ADMIN: "SAD"
   };
 
-  const prefix = prefixMap[role] || role.substring(0, 2).toUpperCase(); // fallback
+  const prefix = prefixMap[roleKey] || roleKey.substring(0, 2).toUpperCase(); // fallback
 
   const lastUser = await User.findOne({
-    role: role,
+    role: roleKey,
     regNo: { $regex: `^${prefix}\\d+$` }
   })
-    .sort({ createdAt: -1 })
+    // Sort by regNo so padding keeps correct order (e.g., SAD003 < SAD010)
+    .sort({ regNo: -1 })
     .exec();
 
   let nextNumber = 1;
@@ -389,6 +394,34 @@ async function generateRegNo(role) {
   return prefix + String(nextNumber).padStart(3, "0");
 }
 
+async function getRegNoSeed(role) {
+  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
+  if (!roleKey) throw new Error("Role is required to generate regNo");
+
+  const prefixMap = {
+    STUDENT: "STUD",
+    TEACHER: "T",
+    ADMIN: "AD",
+    SUB_ADMIN: "SAD"
+  };
+  const prefix = prefixMap[roleKey] || roleKey.substring(0, 2).toUpperCase();
+
+  const lastUser = await User.findOne({
+    role: roleKey,
+    regNo: { $regex: `^${prefix}\\d+$` }
+  })
+    .sort({ regNo: -1 })
+    .lean();
+
+  let nextNumber = 1;
+  if (lastUser?.regNo) {
+    const match = lastUser.regNo.match(new RegExp(`^${prefix}(\\d+)$`));
+    if (match) nextNumber = parseInt(match[1], 10) + 1;
+  }
+
+  return { prefix, nextNumber, roleKey };
+}
+
 //Password generation
 async function generatePassword(role, regNo) {
   // map roles to prefixes
@@ -399,7 +432,11 @@ async function generatePassword(role, regNo) {
     SUB_ADMIN: "SubAdmin"
   };
 
-  const prefix = prefixMap[role.toUpperCase()] || role;
+  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
+  if (!roleKey) {
+    throw new Error("Role is required to generate password");
+  }
+  const prefix = prefixMap[roleKey] || roleKey;
 
   // get last 3 characters of regNo
   const lastThreeDigits = regNo.slice(-3);
@@ -502,83 +539,129 @@ router.post("/signup", async (req, res) => {
       sendCredentialsEmail
      } = req.body;
 
-    const regNo = await generateRegNo(role);
-    const password = await generatePassword(role, regNo); // generate random password
+    const normalizedRole = typeof role === "string" ? role.trim().toUpperCase() : "";
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedName = typeof name === "string" ? name.trim() : "";
 
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ msg: "User already exists" });
+    if (!normalizedName) {
+      return res.status(400).json({ msg: "Name is required" });
+    }
+    if (!normalizedEmail) {
+      return res.status(400).json({ msg: "Email is required" });
+    }
+    if (!normalizedRole) {
+      return res.status(400).json({ msg: "Role is required" });
+    }
+    if (!["STUDENT", "TEACHER", "ADMIN", "SUB_ADMIN", "TEACHER_ADMIN"].includes(normalizedRole)) {
+      return res.status(400).json({ msg: "Invalid role" });
+    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Fast pre-check for duplicate email (still handle race via E11000 below)
+    let existingByEmail = await User.findOne({ email: normalizedEmail });
+    if (existingByEmail) return res.status(400).json({ msg: "User already exists" });
 
-    user = new User({
-      regNo,   // <-- assign here
-      name,
-      email,
-      password: hashedPassword,
-      role,
-    });
+    // regNo is unique; collisions can happen (race conditions / existing data).
+    // Try sequential candidates (e.g., SAD003, SAD004...) to guarantee progress.
+    const MAX_REGNO_CANDIDATES = 25;
+    let user;
+    let password;
 
-    if (user.role === "STUDENT") {
-      user.subscription = subscription;
-      user.level = level;
-      user.batch = batch;
-      user.medium = medium;
-      user.studentStatus = studentStatus;
-      user.phoneNumber = phoneNumber;
-      user.address = address;
-      user.age = age;
-      user.servicesOpted = servicesOpted;
-      user.leadSource = leadSource;
-      user.languageLevelOpted = languageLevelOpted;
-      user.dateWithdrew = dateWithdrew;
-      user.reasonForWithdrawing = reasonForWithdrewing;
-      user.courseCompletionDates = courseCompletionDates;
-      user.courseStartDates = courseStartDates;
-      user.qualifications = qualifications;
+    const { prefix: regPrefix, nextNumber: regStart } = await getRegNoSeed(normalizedRole);
 
-      // âœ… Auto-set start date for current level if not provided
-      if (!user.courseStartDates) {
-        user.courseStartDates = {};
-      }
-      const levelStartField = `${level}StartDate`;
-      if (!user.courseStartDates[levelStartField]) {
-        user.courseStartDates[levelStartField] = new Date();
-      }
+    for (let offset = 0; offset < MAX_REGNO_CANDIDATES; offset++) {
+      const regNo = regPrefix + String(regStart + offset).padStart(3, "0");
+      password = await generatePassword(normalizedRole, regNo);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      // ðŸ” Teacher assignment
-      if (assignedTeacher) {
-        // case 1: frontend provided teacher id
-        user.assignedTeacher = assignedTeacher;
-      } else {
-        // case 2: backend finds one automatically
-        const course = await Course.findOne({ level });
-        if (!course) {
-          return res.status(400).json({ msg: "No course found for this level" });
+      user = new User({
+        regNo,
+        name: normalizedName,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: normalizedRole
+      });
+
+      if (user.role === "STUDENT") {
+        user.subscription = subscription;
+        user.level = level;
+        user.batch = batch;
+        user.medium = medium;
+        user.studentStatus = studentStatus;
+        user.phoneNumber = phoneNumber;
+        user.address = address;
+        user.age = age;
+        user.servicesOpted = servicesOpted;
+        user.leadSource = leadSource;
+        user.languageLevelOpted = languageLevelOpted;
+        user.dateWithdrew = dateWithdrew;
+        user.reasonForWithdrawing = reasonForWithdrewing;
+        user.courseCompletionDates = courseCompletionDates;
+        user.courseStartDates = courseStartDates;
+        user.qualifications = qualifications;
+
+        // ✅ Auto-set start date for current level if not provided
+        if (!user.courseStartDates) {
+          user.courseStartDates = {};
+        }
+        const levelStartField = `${level}StartDate`;
+        if (!user.courseStartDates[levelStartField]) {
+          user.courseStartDates[levelStartField] = new Date();
         }
 
-        const teacher = await User.findOne({
-          role: "TEACHER",
-          medium: { $in: [medium] },
-          assignedCourses: course._id
-        });
-
-        if (teacher) {
-          user.assignedTeacher = teacher._id;
+        // 🔍 Teacher assignment
+        if (assignedTeacher) {
+          // case 1: frontend provided teacher id
+          user.assignedTeacher = assignedTeacher;
         } else {
-          return res.status(400).json({ msg: "No teacher found for this level and medium" });
+          // case 2: backend finds one automatically
+          const course = await Course.findOne({ level });
+          if (!course) {
+            return res.status(400).json({ msg: "No course found for this level" });
+          }
+
+          const teacher = await User.findOne({
+            role: "TEACHER",
+            medium: { $in: [medium] },
+            assignedCourses: course._id
+          });
+
+          if (teacher) {
+            user.assignedTeacher = teacher._id;
+          } else {
+            return res.status(400).json({ msg: "No teacher found for this level and medium" });
+          }
         }
+      } else if (user.role === "TEACHER") {
+        user.assignedBatches = assignedBatches;
+        user.medium = medium;
+        user.assignedCourses = assignedCourses; // Assign courses if provided
+      } else if (user.role === "SUB_ADMIN") {
+        user.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
+      }
+
+      try {
+        await user.save();
+        break; // success
+      } catch (saveErr) {
+        // Duplicate key (email/regNo). Retry only for regNo collisions.
+        if (saveErr?.code === 11000) {
+          const dupField = Object.keys(saveErr?.keyPattern || saveErr?.keyValue || {})[0];
+          if (dupField === "regNo") {
+            // try next candidate
+            continue;
+          }
+          if (dupField === "email") {
+            return res.status(400).json({ msg: "User already exists" });
+          }
+          return res.status(400).json({ error: `${dupField} already exists` });
+        }
+        throw saveErr;
       }
     }
 
-    else if (user.role === "TEACHER") {
-      user.assignedBatches = assignedBatches;
-      user.medium = medium;
-      user.assignedCourses = assignedCourses; // Assign courses if provided
-    } else if (user.role === "SUB_ADMIN") {
-      user.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
+    if (!user?._id) {
+      return res.status(500).json({ error: "Failed to allocate unique regNo. Please try again." });
     }
-
-    await user.save();
 
     const shouldSendCredentialsEmail =
       user.role === "SUB_ADMIN" ? !!sendCredentialsEmail : true;
@@ -589,12 +672,12 @@ router.post("/signup", async (req, res) => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: user.email,
-        subject: "Welcome to Gluck Global Student Portal ðŸŽ‰",
+        subject: "Welcome to Gluck Global Student Portal ",
         html: `
           <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
             <p>Hello ${user.name},</p>
 
-            <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
+            <p>You have successfully registered to the <strong>GlUck Global Student Portal</strong>. Here are your login credentials:</p>
 
             <ul>
               <li><strong>Web App ID:</strong> ${user.regNo}</li>
@@ -606,7 +689,7 @@ router.post("/signup", async (req, res) => {
             <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
             <p>Best regards,<br>
-            <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+            <strong>GlUck Global Pvt Ltd</strong></p>
           </div>
         `
       };
@@ -633,6 +716,7 @@ router.post("/signup", async (req, res) => {
 
     res.status(201).json(responsePayload);
   } catch (err) {
+    console.error("Signup error:", err);
     res.status(500).json({ error: err.message });
   }
 });

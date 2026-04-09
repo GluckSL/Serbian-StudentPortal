@@ -20,10 +20,20 @@
   <!-- ─── RESULT (full-page; replaces question view completely after submit) ── -->
   <div class="result-screen" *ngIf="state === 'submitted' && result">
     <div class="result-page">
-      <div class="result-card-new">
+      <div class="result-card-new" [class.result-card-new--video]="isVideoOnlyResult">
+        <div class="result-sync-strip" *ngIf="submitting" role="status" aria-live="polite">
+          <span class="result-sync-strip__label">Saving your result…</span>
+          <span class="result-sync-strip__bar" aria-hidden="true"></span>
+        </div>
         <div class="result-card-inner">
+          <div class="result-hero-badge" *ngIf="isVideoOnlyResult" aria-hidden="true">
+            <span class="material-icons">verified</span>
+          </div>
           <p class="result-exercise-label">{{ exercise?.title }}</p>
           <h1 class="result-heading">Your Result</h1>
+          <p class="result-video-kicker" *ngIf="isVideoOnlyResult">
+            You completed all <strong>{{ playerQuestions.length }}</strong> clip{{ playerQuestions.length === 1 ? '' : 's' }} — great work.
+          </p>
           <div class="result-score-block">
             <div class="result-points-big">
               <span class="points-earned">{{ result.earnedPoints }}</span>
@@ -65,11 +75,11 @@
           </div>
           <p class="result-message-sm">{{ getScoreMessage(result.scorePercentage) }}</p>
           <div class="result-actions-new">
-            <button class="btn-review" (click)="showReviewAnswers()">
+            <button class="btn-review" type="button" (click)="showReviewAnswers()" [disabled]="submitting">
               <span class="material-icons">rate_review</span>
               Review answers
             </button>
-            <button class="btn-reattempt" (click)="tryAgain()">
+            <button class="btn-reattempt" type="button" (click)="tryAgain()" [disabled]="submitting">
               <span class="material-icons">replay</span>
               Re-attempt
             </button>

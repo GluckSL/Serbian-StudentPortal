@@ -8,6 +8,7 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
+const { resignExercise, resignExercises } = require('../config/presign');
 
 /** Fields the admin/teacher client may send on PUT; avoids stripping nested arrays or applying unsafe full-document spreads. */
 const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
@@ -247,6 +248,8 @@ router.get('/', verifyToken, async (req, res) => {
       });
     }
 
+    await resignExercises(exercises);
+
     const payload = {
       exercises,
       total,
@@ -331,6 +334,7 @@ router.get('/:id', verifyToken, async (req, res) => {
       exercise.studentAttempt = bestAttempt;
     }
 
+    await resignExercise(exercise);
     res.json(exercise);
   } catch (err) {
     console.error('GET /digital-exercises/:id error:', err);
@@ -403,6 +407,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       ex.stats = statsMap[ex._id.toString()] || { completions: 0, avgScore: 0, uniqueStudents: 0 };
     });
 
+    await resignExercises(exercises);
     res.json({ exercises, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
   } catch (err) {
     console.error('GET /digital-exercises/admin/all error:', err);

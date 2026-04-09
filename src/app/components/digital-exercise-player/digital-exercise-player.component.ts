@@ -84,12 +84,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Video-only: avoid firing auto-submit more than once when time runs out */
   private vpTimeUpHandled = false;
 
+  /**
+   * Video-only last clip: result screen is shown immediately; final POST may still be in flight.
+   * If that POST fails, we roll back to the playing state.
+   */
+  private vpOptimisticCompletion = false;
+
   result: SubmitResult | null = null;
 
   /** True when current question has been submitted (for per-question feedback). */
   get hasCurrentSubmitted(): boolean {
     const pq = this.currentQuestion;
     return pq ? (pq.isCorrect === true || pq.isCorrect === false) : false;
+  }
+
+  /** Result view after a practice-partner (video-only) exercise — for tailored copy / styling. */
+  get isVideoOnlyResult(): boolean {
+    const qs = this.exercise?.questions;
+    return !!qs?.length && qs.every((q: { type?: string }) => q.type === 'video-pronunciation');
   }
 
   // Speech recognition
@@ -160,6 +172,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   private initPlayerQuestions(): void {
     if (!this.exercise) return;
+    this.vpOptimisticCompletion = false;
     this.playerQuestions = this.exercise.questions.map((q: any, i: number) => {
       const pq: PlayerQuestion = { data: q, index: i, isAnswered: false };
 
@@ -396,6 +409,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     const seq = (pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1);
+    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
+
+    // Last clip: show results immediately (no waiting on praise audio + delay).
+    if (isLastClip) {
+      void this.playVideoExerciseFeedbackAudioPromise(true);
+      if (pq.vpAdvanceSeq !== seq) return;
+      pq.vpAutoAdvanceTimer = undefined;
+      this.clearVpFeedbackUi();
+      this.vpOptimisticCompletion = true;
+      pq.isCorrect = true;
+      this.result = this.buildProvisionalVideoOnlyResult();
+      this.stopTimer();
+      this.state = 'submitted';
+      this.submitCurrentQuestion();
+      return;
+    }
+
     await this.playVideoExerciseFeedbackAudioPromise(true);
     if (pq.vpAdvanceSeq !== seq) return;
     await this.delay(1000);
@@ -406,6 +436,47 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.currentIndex < this.playerQuestions.length - 1) {
       setTimeout(() => this.nextQuestion(), 300);
     }
+  }
+
+  /** Local totals for instant result screen (last clip just passed; server will confirm). */
+  private buildProvisionalVideoOnlyResult(): SubmitResult {
+    const totalPoints = this.playerQuestions.reduce((s, p) => s + (p.data.points || 1), 0);
+    let earnedPoints = 0;
+    this.playerQuestions.forEach((p, i) => {
+      const pts = p.data.points || 1;
+      const passed = i === this.currentIndex ? true : p.isCorrect === true;
+      if (passed) earnedPoints += pts;
+    });
+    const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+    return {
+      scorePercentage,
+      earnedPoints,
+      totalPoints,
+      passed: scorePercentage >= 60,
+      answerDetails: this.playerQuestions.map((p, i) => {
+        const pts = p.data.points || 1;
+        const ok = i === this.currentIndex ? true : p.isCorrect === true;
+        return {
+          questionIndex: i,
+          type: p.data.type,
+          isCorrect: ok,
+          pointsEarned: ok ? pts : 0,
+          correctAnswer: null
+        };
+      })
+    };
+  }
+
+  private resumeVpTimer(): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+    this.startTime = Date.now() - this.elapsedSeconds * 1000;
+    this.timerInterval = setInterval(() => {
+      this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+      this.maybeAutoSubmitVideoOnlyOnDeadline();
+    }, 1000);
   }
 
   /** After incorrect: retry audio → short pause → reset attempt → replay same clip (video-only). */
@@ -763,6 +834,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.submitting = false;
 
         if (res.allSubmitted) {
+          this.vpOptimisticCompletion = false;
           this.result = {
             scorePercentage: res.scorePercentage,
             earnedPoints: res.earnedPoints,
@@ -776,15 +848,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
               correctAnswer: null
             }))
           };
-          this.stopTimer();
-          this.state = 'submitted';
+          if (this.state !== 'submitted') {
+            this.stopTimer();
+            this.state = 'submitted';
+          }
         }
       },
       error: (err) => {
         this.submitting = false;
+        const hadOptimistic = this.vpOptimisticCompletion;
+        if (hadOptimistic) {
+          this.vpOptimisticCompletion = false;
+          this.result = null;
+          this.state = 'playing';
+          const pq = this.currentQuestion;
+          if (pq && pq.data?.type === 'video-pronunciation') {
+            pq.isCorrect = undefined;
+            pq.vpSpokenText = '';
+            pq.vpResult = 'idle';
+            pq.hasRecorded = false;
+            pq.pronunciationScore = 0;
+            pq.isAnswered = false;
+            this.replayVpVideo();
+          }
+          this.resumeVpTimer();
+        }
         const msg = err?.error?.error || err?.message || 'Failed to submit. Please try again.';
         this.snackBar.open(msg, 'Close', { duration: 5000 });
-        if (err?.status === 404 || err?.status === 500) {
+        if (!hadOptimistic && (err?.status === 404 || err?.status === 500)) {
           this.fallbackToFullSubmit();
         }
       }
@@ -956,6 +1047,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private stopTimer(): void {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
+      this.timerInterval = null;
       this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
     }
   }
