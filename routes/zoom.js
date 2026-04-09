@@ -1606,6 +1606,27 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       console.warn('journey pending sync (manual attendance):', e.message);
     }
 
+    const allParticipants = (zoomReport.participants || []).map(p => ({
+      name: p.name || '',
+      email: p.email || '',
+      joinTime: p.joinTime || null,
+      leaveTime: p.leaveTime || null,
+      duration: p.duration || 0,
+      durationMinutes: p.durationMinutes || 0,
+      sessionCount: p.sessionCount || 1,
+      isMapped: attendanceData.some(a => 
+        a.zoomEmail && p.email && a.zoomEmail.toLowerCase() === p.email.toLowerCase() ||
+        a.zoomName && p.name && a.zoomName.toLowerCase() === p.name.toLowerCase()
+      ),
+      mappedTo: (() => {
+        const mapped = attendanceData.find(a => 
+          a.zoomEmail && p.email && a.zoomEmail.toLowerCase() === p.email.toLowerCase() ||
+          a.zoomName && p.name && a.zoomName.toLowerCase() === p.name.toLowerCase()
+        );
+        return mapped ? { name: mapped.name, email: mapped.email } : null;
+      })()
+    }));
+
     res.status(200).json({
       success: true,
       data: {
@@ -1618,6 +1639,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         attendedCount: attendanceData.filter(a => a.attended).length,
         absentCount: attendanceData.filter(a => !a.attended).length,
         attendance: attendanceData,
+        allParticipants: allParticipants,
         matchingStats: matchingStats,
         summary: zoomReport.summary
       }
@@ -1629,6 +1651,100 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       success: false,
       message: 'Failed to fetch attendance data'
     });
+  }
+});
+
+/**
+ * Manually map a Zoom participant to a batch student
+ * POST /api/zoom/meeting/:id/attendance/map-participant
+ */
+router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { participantName, participantEmail, studentEmail } = req.body;
+
+    if (!studentEmail) {
+      return res.status(400).json({ success: false, message: 'Student email is required' });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const attendee = meeting.attendees.find(a => a.email.toLowerCase() === studentEmail.toLowerCase());
+    if (!attendee) {
+      return res.status(404).json({ success: false, message: 'Student not found in this batch/meeting. Check the email and try again.' });
+    }
+
+    let zoomReport;
+    try {
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: 'Could not fetch Zoom data' });
+    }
+
+    const participant = (zoomReport.participants || []).find(p =>
+      (participantEmail && p.email && p.email.toLowerCase() === participantEmail.toLowerCase()) ||
+      (participantName && p.name && p.name.toLowerCase() === participantName.toLowerCase())
+    );
+
+    if (!participant) {
+      return res.status(404).json({ success: false, message: 'Zoom participant not found' });
+    }
+
+    const meetingDuration = meeting.duration || 60;
+    const participantDuration = participant.durationMinutes || 0;
+    const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
+    const meetsThreshold = attendancePercent >= 70;
+
+    const existingIdx = meeting.attendance.findIndex(
+      a => a.studentId && a.studentId.toString() === attendee.studentId.toString()
+    );
+
+    const mappedRecord = {
+      studentId: attendee.studentId,
+      name: attendee.name,
+      email: attendee.email,
+      attended: meetsThreshold,
+      confidence: 100,
+      matchMethod: 'email',
+      zoomName: participant.name,
+      zoomEmail: participant.email,
+      joinTime: participant.joinTime || null,
+      leaveTime: participant.leaveTime || null,
+      duration: participant.duration || 0,
+      durationMinutes: participantDuration,
+      attendancePercent: Math.round(attendancePercent),
+      status: meetsThreshold ? 'attended' : 'late',
+      needsReview: false
+    };
+
+    if (existingIdx >= 0) {
+      meeting.attendance[existingIdx] = mappedRecord;
+    } else {
+      meeting.attendance.push(mappedRecord);
+    }
+
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (map-participant):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully mapped "${participant.name}" to student "${attendee.name}" (${attendee.email})`,
+      data: mappedRecord
+    });
+
+  } catch (error) {
+    console.error('Error mapping participant:', error);
+    res.status(500).json({ success: false, message: 'Failed to map participant' });
   }
 });
 

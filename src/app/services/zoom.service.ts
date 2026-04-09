@@ -249,4 +249,13 @@ export class ZoomService {
       withCredentials: true
     });
   }
+
+  /**
+   * Map a Zoom participant to a batch student
+   */
+  mapParticipantToStudent(meetingId: string, data: { participantName: string; participantEmail: string; studentEmail: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/map-participant`, data, {
+      withCredentials: true
+    });
+  }
 }

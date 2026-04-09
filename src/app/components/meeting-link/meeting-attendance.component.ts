@@ -3,6 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 
@@ -11,6 +12,7 @@ import { ZoomService } from '../../services/zoom.service';
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MaterialModule
   ],
   template: `
@@ -100,125 +102,235 @@ import { ZoomService } from '../../services/zoom.service';
           </mat-card>
         </div>
 
-        <!-- Matching Statistics -->
-        <mat-card class="stats-card" *ngIf="attendanceData.matchingStats">
-          <h3>Matching Quality</h3>
-          <div class="matching-stats">
-            <div class="stat-item">
-              <mat-icon class="icon-success">email</mat-icon>
-              <span>{{ attendanceData.matchingStats.emailMatches }} Email Matches</span>
-            </div>
-            <div class="stat-item">
-              <mat-icon class="icon-info">person</mat-icon>
-              <span>{{ attendanceData.matchingStats.exactNameMatches }} Exact Name</span>
-            </div>
-            <div class="stat-item">
-              <mat-icon class="icon-warn">person_outline</mat-icon>
-              <span>{{ attendanceData.matchingStats.partialNameMatches }} Partial Name</span>
-            </div>
-            <div class="stat-item" *ngIf="attendanceData.matchingStats.manualReviewRequired > 0">
-              <mat-icon class="icon-error">warning</mat-icon>
-              <span>{{ attendanceData.matchingStats.manualReviewRequired }} Need Review</span>
-            </div>
-          </div>
-        </mat-card>
+        <!-- Tabs: Matched Students / All Zoom Participants -->
+        <mat-tab-group class="attendance-tabs" [(selectedIndex)]="selectedTab" animationDuration="200ms">
 
-        <!-- Attendance Table -->
-        <mat-card class="table-card">
-          <h3>Detailed Attendance</h3>
-          <table mat-table [dataSource]="attendanceData.attendance" class="attendance-table">
-            <!-- Name Column -->
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>Student Name</th>
-              <td mat-cell *matCellDef="let record">{{ record.name }}</td>
-            </ng-container>
+          <!-- TAB 1: Matched Students (existing) -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <mat-icon class="tab-icon">how_to_reg</mat-icon>
+              Matched Students ({{ attendanceData.attendance?.length || 0 }})
+            </ng-template>
 
-            <!-- Email Column -->
-            <ng-container matColumnDef="email">
-              <th mat-header-cell *matHeaderCellDef>Email</th>
-              <td mat-cell *matCellDef="let record">{{ record.email }}</td>
-            </ng-container>
-
-            <!-- Status Column -->
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Status</th>
-              <td mat-cell *matCellDef="let record">
-                <mat-chip [class]="getAttendanceChipClass(record)">
-                  <mat-icon>{{ isAttendedByDuration(record) ? 'check_circle' : 'cancel' }}</mat-icon>
-                  {{ isAttendedByDuration(record) ? 'Attended' : 'Absent' }}
-                  <mat-icon *ngIf="record.needsReview" class="warning-icon">warning</mat-icon>
-                </mat-chip>
-              </td>
-            </ng-container>
-
-            <!-- Confidence Column -->
-            <ng-container matColumnDef="confidence">
-              <th mat-header-cell *matHeaderCellDef>Match Quality</th>
-              <td mat-cell *matCellDef="let record">
-                <div class="confidence-cell">
-                  <mat-chip [class]="getConfidenceClass(record.confidence)" *ngIf="record.attended">
-                    {{ record.confidence }}%
-                  </mat-chip>
-                  <span class="match-method" *ngIf="record.attended">{{ getMatchMethodLabel(record.matchMethod) }}</span>
-                  <span *ngIf="!record.attended" class="no-match">-</span>
+            <!-- Matching Statistics -->
+            <mat-card class="stats-card" *ngIf="attendanceData.matchingStats">
+              <h3>Matching Quality</h3>
+              <div class="matching-stats">
+                <div class="stat-item">
+                  <mat-icon class="icon-success">email</mat-icon>
+                  <span>{{ attendanceData.matchingStats.emailMatches }} Email Matches</span>
                 </div>
-              </td>
-            </ng-container>
-
-            <!-- Zoom Name Column -->
-            <ng-container matColumnDef="zoomName">
-              <th mat-header-cell *matHeaderCellDef>Zoom Display Name</th>
-              <td mat-cell *matCellDef="let record">
-                <div class="name-comparison" *ngIf="record.attended">
-                  <span class="zoom-name">{{ record.zoomName }}</span>
-                  <mat-icon *ngIf="record.name !== record.zoomName" class="name-diff-icon" 
-                           matTooltip="Display name differs from registered name">
-                    info
-                  </mat-icon>
+                <div class="stat-item">
+                  <mat-icon class="icon-info">person</mat-icon>
+                  <span>{{ attendanceData.matchingStats.exactNameMatches }} Exact Name</span>
                 </div>
-                <span *ngIf="!record.attended" class="no-data">-</span>
-              </td>
-            </ng-container>
-
-            <!-- Join Time Column -->
-            <ng-container matColumnDef="joinTime">
-              <th mat-header-cell *matHeaderCellDef>Join Time</th>
-              <td mat-cell *matCellDef="let record">
-                {{ record.joinTime ? formatTime(record.joinTime) : '-' }}
-              </td>
-            </ng-container>
-
-            <!-- Leave Time Column -->
-            <ng-container matColumnDef="leaveTime">
-              <th mat-header-cell *matHeaderCellDef>Leave Time</th>
-              <td mat-cell *matCellDef="let record">
-                {{ record.leaveTime ? formatTime(record.leaveTime) : '-' }}
-              </td>
-            </ng-container>
-
-            <!-- Duration Column -->
-            <ng-container matColumnDef="duration">
-              <th mat-header-cell *matHeaderCellDef>Duration / Attendance</th>
-              <td mat-cell *matCellDef="let record">
-                <div class="duration-cell">
-                  <div class="ring-wrap">
-                    <svg viewBox="0 0 36 36" class="progress-ring">
-                      <path class="ring-bg" d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"/>
-                      <path class="ring-fg" [class.ring-good]="isAttendedByDuration(record)" [class.ring-bad]="!isAttendedByDuration(record)"
-                        d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
-                        [style.strokeDasharray]="getCircleDash(record)"/>
-                    </svg>
-                    <span class="ring-text">{{ getAttendancePercent(record) }}%</span>
-                  </div>
-                  <span>{{ record.durationMinutes || 0 }} / {{ attendanceData.duration || 0 }} min</span>
+                <div class="stat-item">
+                  <mat-icon class="icon-warn">person_outline</mat-icon>
+                  <span>{{ attendanceData.matchingStats.partialNameMatches }} Partial Name</span>
                 </div>
-              </td>
-            </ng-container>
+                <div class="stat-item" *ngIf="attendanceData.matchingStats.manualReviewRequired > 0">
+                  <mat-icon class="icon-error">warning</mat-icon>
+                  <span>{{ attendanceData.matchingStats.manualReviewRequired }} Need Review</span>
+                </div>
+              </div>
+            </mat-card>
 
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
-        </mat-card>
+            <!-- Attendance Table -->
+            <mat-card class="table-card">
+              <h3>Detailed Attendance</h3>
+              <table mat-table [dataSource]="attendanceData.attendance" class="attendance-table">
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Student Name</th>
+                  <td mat-cell *matCellDef="let record">{{ record.name }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="email">
+                  <th mat-header-cell *matHeaderCellDef>Email</th>
+                  <td mat-cell *matCellDef="let record">{{ record.email }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let record">
+                    <mat-chip [class]="getAttendanceChipClass(record)">
+                      <mat-icon>{{ isAttendedByDuration(record) ? 'check_circle' : 'cancel' }}</mat-icon>
+                      {{ isAttendedByDuration(record) ? 'Attended' : 'Absent' }}
+                      <mat-icon *ngIf="record.needsReview" class="warning-icon">warning</mat-icon>
+                    </mat-chip>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="confidence">
+                  <th mat-header-cell *matHeaderCellDef>Match Quality</th>
+                  <td mat-cell *matCellDef="let record">
+                    <div class="confidence-cell">
+                      <mat-chip [class]="getConfidenceClass(record.confidence)" *ngIf="record.attended">
+                        {{ record.confidence }}%
+                      </mat-chip>
+                      <span class="match-method" *ngIf="record.attended">{{ getMatchMethodLabel(record.matchMethod) }}</span>
+                      <span *ngIf="!record.attended" class="no-match">-</span>
+                    </div>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="zoomName">
+                  <th mat-header-cell *matHeaderCellDef>Zoom Display Name</th>
+                  <td mat-cell *matCellDef="let record">
+                    <div class="name-comparison" *ngIf="record.attended">
+                      <span class="zoom-name">{{ record.zoomName }}</span>
+                      <mat-icon *ngIf="record.name !== record.zoomName" class="name-diff-icon" 
+                               matTooltip="Display name differs from registered name">
+                        info
+                      </mat-icon>
+                    </div>
+                    <span *ngIf="!record.attended" class="no-data">-</span>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="joinTime">
+                  <th mat-header-cell *matHeaderCellDef>Join Time</th>
+                  <td mat-cell *matCellDef="let record">
+                    {{ record.joinTime ? formatTime(record.joinTime) : '-' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="leaveTime">
+                  <th mat-header-cell *matHeaderCellDef>Leave Time</th>
+                  <td mat-cell *matCellDef="let record">
+                    {{ record.leaveTime ? formatTime(record.leaveTime) : '-' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="duration">
+                  <th mat-header-cell *matHeaderCellDef>Duration / Attendance</th>
+                  <td mat-cell *matCellDef="let record">
+                    <div class="duration-cell">
+                      <div class="ring-wrap">
+                        <svg viewBox="0 0 36 36" class="progress-ring">
+                          <path class="ring-bg" d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"/>
+                          <path class="ring-fg" [class.ring-good]="isAttendedByDuration(record)" [class.ring-bad]="!isAttendedByDuration(record)"
+                            d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                            [style.strokeDasharray]="getCircleDash(record)"/>
+                        </svg>
+                        <span class="ring-text">{{ getAttendancePercent(record) }}%</span>
+                      </div>
+                      <span>{{ record.durationMinutes || 0 }} / {{ attendanceData.duration || 0 }} min</span>
+                    </div>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+              </table>
+            </mat-card>
+          </mat-tab>
+
+          <!-- TAB 2: All Zoom Participants -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <mat-icon class="tab-icon">groups</mat-icon>
+              All Zoom Participants ({{ attendanceData.allParticipants?.length || 0 }})
+            </ng-template>
+
+            <mat-card class="table-card">
+              <div class="all-participants-header">
+                <h3>All Zoom Participants</h3>
+                <p class="subtitle">Everyone who joined this Zoom meeting, including unmatched participants. Use the "Mark Student" button to manually link a participant to a batch student.</p>
+              </div>
+
+              <!-- Success/Error message -->
+              <div *ngIf="mapMessage" class="map-message" [class.map-success]="mapSuccess" [class.map-error]="!mapSuccess">
+                <mat-icon>{{ mapSuccess ? 'check_circle' : 'error' }}</mat-icon>
+                <span>{{ mapMessage }}</span>
+                <button mat-icon-button (click)="mapMessage = ''"><mat-icon>close</mat-icon></button>
+              </div>
+
+              <table mat-table [dataSource]="attendanceData.allParticipants" class="attendance-table">
+                <ng-container matColumnDef="pName">
+                  <th mat-header-cell *matHeaderCellDef>Zoom Display Name</th>
+                  <td mat-cell *matCellDef="let p">
+                    <span class="zoom-name">{{ p.name || '-' }}</span>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="pEmail">
+                  <th mat-header-cell *matHeaderCellDef>Zoom Email</th>
+                  <td mat-cell *matCellDef="let p">{{ p.email || '-' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pJoinTime">
+                  <th mat-header-cell *matHeaderCellDef>Join Time</th>
+                  <td mat-cell *matCellDef="let p">{{ p.joinTime ? formatTime(p.joinTime) : '-' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pLeaveTime">
+                  <th mat-header-cell *matHeaderCellDef>Leave Time</th>
+                  <td mat-cell *matCellDef="let p">{{ p.leaveTime ? formatTime(p.leaveTime) : '-' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pDuration">
+                  <th mat-header-cell *matHeaderCellDef>Duration</th>
+                  <td mat-cell *matCellDef="let p">
+                    <div class="duration-cell">
+                      <div class="ring-wrap">
+                        <svg viewBox="0 0 36 36" class="progress-ring">
+                          <path class="ring-bg" d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"/>
+                          <path class="ring-fg" [class.ring-good]="getParticipantPercent(p) >= 70" [class.ring-bad]="getParticipantPercent(p) < 70"
+                            d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                            [style.strokeDasharray]="getParticipantPercent(p) + ', 100'"/>
+                        </svg>
+                        <span class="ring-text">{{ getParticipantPercent(p) }}%</span>
+                      </div>
+                      <span>{{ p.durationMinutes || 0 }} / {{ attendanceData.duration || 0 }} min</span>
+                    </div>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="pMapped">
+                  <th mat-header-cell *matHeaderCellDef>Mapped Status</th>
+                  <td mat-cell *matCellDef="let p">
+                    <mat-chip *ngIf="p.isMapped" class="status-attended">
+                      <mat-icon>link</mat-icon>
+                      {{ p.mappedTo?.name }}
+                    </mat-chip>
+                    <mat-chip *ngIf="!p.isMapped" class="chip-unmapped">
+                      <mat-icon>link_off</mat-icon>
+                      Unmapped
+                    </mat-chip>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="pAction">
+                  <th mat-header-cell *matHeaderCellDef>Action</th>
+                  <td mat-cell *matCellDef="let p; let i = index">
+                    <!-- Show mapping form inline -->
+                    <div *ngIf="mappingIndex === i" class="map-inline-form">
+                      <mat-form-field appearance="outline" class="map-input">
+                        <mat-label>Student Email</mat-label>
+                        <input matInput [(ngModel)]="mapStudentEmail" placeholder="student@email.com"
+                               (keyup.enter)="confirmMap(p)" (keyup.escape)="cancelMap()">
+                      </mat-form-field>
+                      <button mat-mini-fab color="primary" (click)="confirmMap(p)" [disabled]="mappingLoading"
+                              matTooltip="Confirm mapping">
+                        <mat-icon>{{ mappingLoading ? 'hourglass_empty' : 'check' }}</mat-icon>
+                      </button>
+                      <button mat-mini-fab color="warn" (click)="cancelMap()" matTooltip="Cancel">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </div>
+                    <button *ngIf="mappingIndex !== i" mat-stroked-button color="primary" (click)="startMap(i, p)">
+                      <mat-icon>person_add</mat-icon>
+                      {{ p.isMapped ? 'Re-map' : 'Mark Student' }}
+                    </button>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="participantColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: participantColumns;"></tr>
+              </table>
+            </mat-card>
+          </mat-tab>
+        </mat-tab-group>
 
         <!-- Actions -->
         <div class="actions">
@@ -353,9 +465,21 @@ import { ZoomService } from '../../services/zoom.service';
       color: #666;
     }
 
+    .attendance-tabs {
+      margin-bottom: 20px;
+    }
+
+    .tab-icon {
+      margin-right: 6px;
+      font-size: 20px;
+      height: 20px;
+      width: 20px;
+    }
+
     .table-card {
       padding: 20px;
       margin-bottom: 20px;
+      margin-top: 16px;
     }
 
     .table-card h3 {
@@ -376,6 +500,11 @@ import { ZoomService } from '../../services/zoom.service';
       color: #c62828;
     }
 
+    .chip-unmapped {
+      background-color: #fff3e0;
+      color: #e65100;
+    }
+
     mat-chip mat-icon {
       font-size: 18px;
       width: 18px;
@@ -392,6 +521,7 @@ import { ZoomService } from '../../services/zoom.service';
     .stats-card {
       padding: 20px;
       margin-bottom: 20px;
+      margin-top: 16px;
     }
 
     .stats-card h3 {
@@ -514,6 +644,55 @@ import { ZoomService } from '../../services/zoom.service';
       font-weight: 700;
       color: #334155;
     }
+
+    .all-participants-header h3 {
+      margin: 0 0 4px 0;
+    }
+
+    .all-participants-header .subtitle {
+      color: #666;
+      font-size: 13px;
+      margin: 0 0 16px 0;
+    }
+
+    .map-inline-form {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .map-input {
+      width: 220px;
+      font-size: 13px;
+    }
+
+    .map-input .mat-mdc-form-field-subscript-wrapper {
+      display: none;
+    }
+
+    .map-message {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .map-success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .map-error {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .map-message button {
+      margin-left: auto;
+    }
   `]
 })
 export class MeetingAttendanceComponent implements OnInit {
@@ -521,8 +700,17 @@ export class MeetingAttendanceComponent implements OnInit {
   attendanceData: any = null;
   loading: boolean = true;
   error: string = '';
+  selectedTab: number = 0;
   
   displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration'];
+  participantColumns: string[] = ['pName', 'pEmail', 'pJoinTime', 'pLeaveTime', 'pDuration', 'pMapped', 'pAction'];
+
+  // Mapping state
+  mappingIndex: number = -1;
+  mapStudentEmail: string = '';
+  mappingLoading: boolean = false;
+  mapMessage: string = '';
+  mapSuccess: boolean = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -558,6 +746,55 @@ export class MeetingAttendanceComponent implements OnInit {
       }
     });
   }
+
+  // --- Mapping methods ---
+
+  startMap(index: number, participant: any): void {
+    this.mappingIndex = index;
+    this.mapStudentEmail = '';
+    this.mapMessage = '';
+  }
+
+  cancelMap(): void {
+    this.mappingIndex = -1;
+    this.mapStudentEmail = '';
+  }
+
+  confirmMap(participant: any): void {
+    if (!this.mapStudentEmail.trim()) return;
+
+    this.mappingLoading = true;
+    this.mapMessage = '';
+
+    this.zoomService.mapParticipantToStudent(this.meetingId, {
+      participantName: participant.name,
+      participantEmail: participant.email,
+      studentEmail: this.mapStudentEmail.trim()
+    }).subscribe({
+      next: (res) => {
+        this.mapSuccess = true;
+        this.mapMessage = res.message || 'Participant mapped successfully!';
+        this.mappingLoading = false;
+        this.mappingIndex = -1;
+        this.mapStudentEmail = '';
+        this.loadAttendance();
+      },
+      error: (err) => {
+        this.mapSuccess = false;
+        this.mapMessage = err.error?.message || 'Failed to map participant. Check the student email.';
+        this.mappingLoading = false;
+      }
+    });
+  }
+
+  getParticipantPercent(p: any): number {
+    const totalMinutes = Number(this.attendanceData?.duration || 0);
+    const pMinutes = Number(p?.durationMinutes || 0);
+    if (totalMinutes <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((pMinutes / totalMinutes) * 100)));
+  }
+
+  // --- Existing methods ---
 
   getAttendanceRate(): number {
     if (!this.attendanceData || this.attendanceData.totalStudents === 0) {
