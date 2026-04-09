@@ -396,8 +396,8 @@
                     <button
                       type="button"
                       class="vp-stage-mic-btn vp-stage-mic-btn--glass"
-                      [disabled]="!speechSupported"
-                      (click)="startVideoPronunciation(currentQuestion)"
+                      [disabled]="!isVideoOnlyExercise && !speechSupported"
+                      (click)="isVideoOnlyExercise ? handleVideoOnlyTapToSpeak(currentQuestion) : startVideoPronunciation(currentQuestion)"
                       title="Speak"
                     >
                       <span class="material-icons">mic</span>
@@ -413,7 +413,8 @@
                   <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
                     <div class="vp-stage-feedback" [class.ok]="currentQuestion.vpResult === 'correct'" [class.bad]="currentQuestion.vpResult === 'incorrect'">
                       <span class="material-icons">{{ currentQuestion.vpResult === 'correct' ? 'check_circle' : 'cancel' }}</span>
-                      <span>{{ currentQuestion.vpResult === 'correct' ? 'Correct!' : 'Try again' }}</span>
+                      <!-- Video-only: "Got it!" for any attempt; mixed exercises: "Correct!" / "Try again" -->
+                      <span>{{ currentQuestion.vpResult === 'correct' ? (isVideoOnlyExercise ? 'Got it!' : 'Correct!') : 'Try again' }}</span>
                     </div>
                     <p class="vp-stage-feedback-caption" *ngIf="vpFeedbackCaption">{{ vpFeedbackCaption }}</p>
                     <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'incorrect'">
@@ -887,7 +888,7 @@
                     <span class="material-icons">replay</span>
                     <span>Replay</span>
                   </button>
-                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="startVideoPronunciation(currentQuestion)" [disabled]="!speechSupported">
+                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="isVideoOnlyExercise ? handleVideoOnlyTapToSpeak(currentQuestion) : startVideoPronunciation(currentQuestion)" [disabled]="!isVideoOnlyExercise && !speechSupported">
                     <span class="material-icons">mic</span>
                     <span>Speak</span>
                   </button>
@@ -907,11 +908,11 @@
                 <ng-container *ngIf="currentQuestion.vpResult === 'correct'">
                   <div class="vp-feedback vp-feedback--correct vp-feedback--mobile">
                     <span class="material-icons">check_circle</span>
-                    <strong>Correct!</strong>
+                    <strong>{{ isVideoOnlyExercise ? 'Got it!' : 'Correct!' }}</strong>
                     <span class="vp-spoken">"{{ currentQuestion.vpSpokenText }}"</span>
-                    <span class="vp-score">{{ currentQuestion.pronunciationScore }}%</span>
+                    <span class="vp-score" *ngIf="!isVideoOnlyExercise">{{ currentQuestion.pronunciationScore }}%</span>
                   </div>
-                  <p class="vp-auto-advance">Next clip…</p>
+                  <p class="vp-auto-advance">{{ isVideoOnlyExercise ? 'Moving to next clip…' : 'Next clip…' }}</p>
                 </ng-container>
 
                 <ng-container *ngIf="currentQuestion.vpResult === 'incorrect'">

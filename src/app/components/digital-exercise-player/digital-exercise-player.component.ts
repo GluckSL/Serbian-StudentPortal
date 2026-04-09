@@ -1413,11 +1413,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.snackBar.open('Finish watching the clip first, then tap Speak.', 'Close', { duration: 3000 });
       return;
     }
+    if (pq.isRecording) return;
+
+    // Video-only flow: simulate listening (no real mic capture/checking).
+    if (this.isVideoOnlyExercise) {
+      this.handleVideoOnlyTapToSpeak(pq);
+      return;
+    }
+
     if (!this.speechSupported) {
       this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
       return;
     }
-    if (pq.isRecording) return;
 
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     const rec = new SpeechRecognition();
@@ -1429,41 +1436,32 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.isRecording = true;
     pq.vpResult = 'idle';
     this.clearVpFeedbackUi();
-    if (this.isVideoOnlyExercise) {
-      setTimeout(() => this.scrollVpChatToBottom(), 0);
-    }
 
+    // ── Helper: compute pronunciation score (kept for teacher analytics) ──
+    const computeScore = (transcript: string): number => {
+      const best = transcript.toLowerCase().trim();
+      const target = (pq.data.caption || '').toLowerCase().trim();
+      const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
+      if ([target, ...variants].some(a => a === best)) return 100;
+      let s = Math.round(this.calculateStringSimilarity(best, target) * 100);
+      for (const alt of variants) {
+        s = Math.max(s, Math.round(this.calculateStringSimilarity(best, alt) * 100));
+      }
+      return s;
+    };
+
+    // ── Mixed / non-video-only exercise: keep correct/incorrect evaluation ──
     rec.onresult = (event: any) => {
       const best = event.results[0][0].transcript.toLowerCase().trim();
       pq.vpSpokenText = event.results[0][0].transcript;
       pq.isRecording = false;
       pq.hasRecorded = true;
+      pq.pronunciationScore = computeScore(pq.vpSpokenText || '');
 
-      const target = (pq.data.caption || '').toLowerCase().trim();
-      const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
-      const allAccepted = [target, ...variants];
-
-      let score = 0;
-      if (allAccepted.some(a => a === best)) {
-        score = 100;
-      } else {
-        score = Math.round(this.calculateStringSimilarity(best, target) * 100);
-        for (const alt of variants) {
-          score = Math.max(score, Math.round(this.calculateStringSimilarity(best, alt) * 100));
-        }
-      }
-      pq.pronunciationScore = score;
-
-      const isCorrect = score >= DigitalExercisePlayerComponent.VP_PASS_SCORE;
+      const isCorrect = pq.pronunciationScore >= DigitalExercisePlayerComponent.VP_PASS_SCORE;
       pq.vpResult = isCorrect ? 'correct' : 'incorrect';
-      if (!isCorrect) {
-        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
-      }
+      if (!isCorrect) pq.vpFailCount = (pq.vpFailCount || 0) + 1;
       this.markAttempted(pq);
-
-      if (this.isVideoOnlyExercise) {
-        this.pushVpChat('user', pq.vpSpokenText || best, { isCorrect, score });
-      }
 
       if (isCorrect) {
         if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
@@ -1486,7 +1484,62 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     };
 
     rec.onend = () => { pq.isRecording = false; };
+
     rec.start();
+  }
+
+  /** Video-only flow: tapping Speak simulates listening, then accepts attempt as correct. */
+  handleVideoOnlyTapToSpeak(pq: PlayerQuestion): void {
+    if (!this.isVideoOnlyExercise || this.state === 'submitted' || this.finishingAll || this.submitting) return;
+    if (pq.data?.type !== 'video-pronunciation' || !pq.vpPlaybackEnded) return;
+    if (pq.vpAutoAdvanceTimer) return; // already queued
+
+    // Show "listening" UI for 3s (center + chat thread)
+    pq.isRecording = true;
+    pq.vpResult = 'idle';
+    this.clearVpFeedbackUi();
+    setTimeout(() => this.scrollVpChatToBottom(), 0);
+
+    pq.vpAutoAdvanceTimer = setTimeout(() => {
+      pq.vpAutoAdvanceTimer = undefined;
+      pq.isRecording = false;
+      pq.vpResult = 'correct';
+      pq.hasRecorded = true;
+      // Student gets full mark for tap-to-speak attempt in video-only flow.
+      pq.pronunciationScore = 100;
+      // Store the prompted phrase as what was spoken for review/chat consistency.
+      pq.vpSpokenText = (pq.data?.caption || '').trim() || 'Attempted';
+      this.markAttempted(pq);
+      this.pushVpChat('user', pq.vpSpokenText || '', { isCorrect: true, score: 100 });
+      this.advanceClipAfterAttempt(pq);
+    }, 3000);
+  }
+
+  /**
+   * Advance to the next clip after an attempt (video-only, attempt-based flow).
+   * Called automatically after the simulated listening delay.
+   * The clip is submitted as-is and the exercise proceeds regardless of score.
+   */
+  private advanceClipAfterAttempt(pq: PlayerQuestion): void {
+    if (this.state === 'submitted') return;
+    pq.vpAutoAdvanceTimer = undefined;
+    this.clearVpFeedbackUi();
+
+    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
+
+    if (isLastClip) {
+      // Bulk-submit everything and show the result screen
+      this.vpOptimisticCompletion = true;
+      pq.isCorrect = true;
+      this.result = this.buildProvisionalVideoOnlyResult();
+      this.stopTimer();
+      this.state = 'submitted';
+      this.submitCurrentQuestion();
+    } else {
+      // Submit this clip then move on
+      this.submitCurrentQuestion();
+      setTimeout(() => this.nextQuestion(), 300);
+    }
   }
 
   retryVideoPronunciation(pq: PlayerQuestion): void {
