@@ -38,122 +38,148 @@
         </button>
       </div>
 
+      <!-- ── Upcoming ── -->
       <table class="classes-table classes-table--7" *ngIf="activeTab === 'upcoming'">
         <thead>
           <tr>
             <th>Class Title</th>
             <th>Teacher</th>
-            <th>Date</th>
-            <th>Timing</th>
+            <th>Date &amp; time</th>
             <th>Duration</th>
             <th>Status</th>
             <th>Action</th>
+            <th class="th-center th-nowrap">Resources / Doubts</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let meeting of upcomingMeetings">
+          <tr *ngFor="let meeting of upcomingMeetings" class="sm-class-card-row">
             <td class="col-topic">
               <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
                 <span class="topic-line topic-line--head">{{ tpc.head }}</span>
                 <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
               </ng-container>
             </td>
-            <td>{{ meeting.teacher.name || '—' }}</td>
-            <td>{{ formatDate(meeting.startTime) }}</td>
-            <td>{{ formatTime(meeting.startTime) }}</td>
+            <td class="col-teacher">
+              <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher?.name) as tn">
+                <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
+                <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
+              </ng-container>
+            </td>
+            <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
             <td>{{ formatDuration(meeting.duration) }}</td>
             <td><span class="status-pill status-upcoming">{{ getStatusText(meeting) }}</span></td>
             <td>
-              <button
-                type="button"
-                class="sm-action"
+              <button type="button" class="sm-action"
                 [class.sm-action--join]="meeting.canJoin && !meeting.journeyLocked"
                 [class.sm-action--locked]="meeting.journeyLocked"
-                [disabled]="upcomingActionDisabled(meeting)"
-                (click)="joinMeeting(meeting)"
-              >
+                [disabled]="upcomingActionDisabled(meeting)" (click)="joinMeeting(meeting)">
                 {{ upcomingActionLabel(meeting) }}
               </button>
+            </td>
+            <td>
+              <div class="sm-btn-group">
+                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
+                <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
+              </div>
             </td>
           </tr>
           <tr *ngIf="upcomingMeetings.length === 0"><td colspan="7" class="empty-row">No upcoming classes</td></tr>
         </tbody>
       </table>
 
+      <!-- ── Live ── -->
       <table class="classes-table classes-table--7" *ngIf="activeTab === 'live'">
         <thead>
           <tr>
             <th>Class Title</th>
             <th>Teacher</th>
-            <th>Date</th>
-            <th>Timing</th>
+            <th>Date &amp; time</th>
             <th>Duration</th>
             <th>Status</th>
             <th>Action</th>
+            <th class="th-center th-nowrap">Resources / Doubts</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let meeting of ongoingMeetings">
+          <tr *ngFor="let meeting of ongoingMeetings" class="sm-class-card-row">
             <td class="col-topic">
               <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
                 <span class="topic-line topic-line--head">{{ tpc.head }}</span>
                 <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
               </ng-container>
             </td>
-            <td>{{ meeting.teacher.name || '—' }}</td>
-            <td>{{ formatDate(meeting.startTime) }}</td>
-            <td>{{ formatTime(meeting.startTime) }}</td>
+            <td class="col-teacher">
+              <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher?.name) as tn">
+                <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
+                <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
+              </ng-container>
+            </td>
+            <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
             <td>{{ formatDuration(meeting.duration) }}</td>
             <td><span class="status-pill status-live">Live</span></td>
             <td>
-              <button
-                type="button"
-                class="sm-action sm-action--live-cta"
+              <button type="button" class="sm-action sm-action--live-cta"
                 [class.sm-action--locked]="meeting.journeyLocked"
-                [disabled]="meeting.journeyLocked || !meeting.joinUrl"
-                (click)="joinMeeting(meeting)"
-              >
+                [disabled]="meeting.journeyLocked || !meeting.joinUrl" (click)="joinMeeting(meeting)">
                 {{ meeting.journeyLocked && meeting.courseDay != null ? ('Unlock on day ' + meeting.courseDay) : 'Join now' }}
               </button>
+            </td>
+            <td>
+              <div class="sm-btn-group">
+                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
+                <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
+              </div>
             </td>
           </tr>
           <tr *ngIf="ongoingMeetings.length === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>
         </tbody>
       </table>
 
-      <table class="classes-table classes-table--6" *ngIf="activeTab === 'attempted'">
+      <!-- ── Attempted ── -->
+      <table class="classes-table classes-table--attempted" *ngIf="activeTab === 'attempted'">
         <thead>
           <tr>
             <th>Class Title</th>
             <th>Teacher</th>
-            <th>Date</th>
-            <th>Timing</th>
-            <th>Attendance</th>
-            <th>Progress</th>
+            <th>Date &amp; time</th>
+            <th>Attendance &amp; progress</th>
+            <th class="th-center th-nowrap">Resources / Doubts</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let meeting of attemptedMeetings">
+          <tr *ngFor="let meeting of attemptedMeetings" class="sm-class-card-row">
             <td class="col-topic">
               <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
                 <span class="topic-line topic-line--head">{{ tpc.head }}</span>
                 <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
               </ng-container>
             </td>
-            <td>{{ meeting.teacher.name || '—' }}</td>
-            <td>{{ formatDate(meeting.startTime) }}</td>
-            <td>{{ formatTime(meeting.startTime) }}</td>
-            <td><span class="status-pill" [ngClass]="getAttendanceBadgeClass(meeting)">{{ getAttendanceStatus(meeting) }}</span></td>
-            <td>
-              <div class="progress-cell">
-                <div class="progress-track">
-                  <div class="progress-fill" [style.width.%]="getAttendancePercent(meeting)"></div>
+            <td class="col-teacher">
+              <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher?.name) as tn">
+                <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
+                <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
+              </ng-container>
+            </td>
+            <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
+            <td class="col-attend-prog">
+              <span class="status-pill sm-card-header-status" [ngClass]="getAttendanceBadgeClass(meeting)">{{ getAttendanceStatus(meeting) }}</span>
+              <div class="sm-card-attend-only">
+                <div class="attend-progress attend-progress--compact" [attr.title]="'Minutes in class: ' + getProgressMinutesLabel(meeting)">
+                  <div class="attend-progress__track">
+                    <div class="attend-progress__fill" [style.width.%]="getAttendancePercent(meeting)"></div>
+                    <span class="attend-progress__label">{{ getProgressMinutesLabel(meeting) }}</span>
+                  </div>
                 </div>
-                <span>{{ getAttendancePercent(meeting) }}%</span>
+              </div>
+            </td>
+            <td>
+              <div class="sm-btn-group">
+                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
+                <button type="button" class="sm-pill sm-pill--doubt" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
               </div>
             </td>
           </tr>
-          <tr *ngIf="attemptedMeetings.length === 0"><td colspan="6" class="empty-row">No attempted classes yet</td></tr>
+          <tr *ngIf="attemptedMeetings.length === 0"><td colspan="5" class="empty-row">No attempted classes yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -165,6 +191,129 @@
       <p>You don't have any Zoom classes scheduled yet.</p>
       <p class="help-text">Your teacher will schedule classes and you'll receive email invitations.</p>
     </div>
+  </div>
+</div>
 
+<!-- ── Resources Modal ── -->
+<div class="sm-modal-overlay" *ngIf="showResourceModal" (click)="closeResourceModal()">
+  <div class="sm-modal sm-modal--md" (click)="$event.stopPropagation()">
+    <div class="sm-modal__head">
+      <h3><i class="fas fa-folder-open"></i> Resources</h3>
+      <span class="sm-modal__sub" *ngIf="resourceMeeting">{{ resourceMeeting.topic }}</span>
+      <button type="button" class="sm-modal__close" (click)="closeResourceModal()">&times;</button>
+    </div>
+    <div class="sm-modal__body">
+      <div class="text-center text-muted py-3" *ngIf="loadingResources" style="font-size:12px;">Loading…</div>
+      <div *ngIf="!loadingResources">
+        <div class="sm-modal__empty" *ngIf="resources.length === 0">No resources shared for this class yet.</div>
+        <div class="res-row" *ngFor="let r of resources">
+          <div class="res-info">
+            <i class="fas fa-file"></i>
+            <div>
+              <div class="res-name">{{ r.originalName }}</div>
+              <div class="res-meta">{{ formatFileSize(r.fileSize) }} · {{ formatDateShort(r.uploadedAt) }}</div>
+            </div>
+          </div>
+          <a class="sm-pill sm-pill--res" [href]="r.fileUrl" target="_blank" rel="noopener" title="Download"><i class="fas fa-download"></i></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Doubts Modal ── -->
+<div class="sm-modal-overlay" *ngIf="showDoubtModal" (click)="closeDoubtModal()">
+  <div class="sm-modal" [class.sm-modal--lg]="!showAskForm" [class.sm-modal--ask-full]="showAskForm" (click)="$event.stopPropagation()">
+    <!-- List view header -->
+    <div class="sm-modal__head sm-modal__head--list" *ngIf="!showAskForm">
+      <div class="sm-modal__head-row">
+        <h3><i class="fas fa-question-circle"></i> Doubts</h3>
+        <button type="button" class="sm-modal__close" (click)="closeDoubtModal()" aria-label="Close">&times;</button>
+      </div>
+      <p class="sm-modal__sub sm-modal__sub--below" *ngIf="doubtMeeting">{{ doubtMeeting.topic }}</p>
+    </div>
+    <!-- Full-screen ask form header -->
+    <div class="sm-modal__head sm-modal__head--ask" *ngIf="showAskForm">
+      <button type="button" class="ask-back-btn" (click)="toggleAskForm()" aria-label="Back to doubts">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <div class="sm-modal__head-ask-text">
+        <h3>Ask a Doubt</h3>
+        <span class="sm-modal__sub" *ngIf="doubtMeeting">{{ doubtMeeting.topic }}</span>
+      </div>
+      <button type="button" class="sm-modal__close" (click)="closeDoubtModal()" aria-label="Close">&times;</button>
+    </div>
+
+    <!-- List of doubts (full width) -->
+    <div class="sm-modal__body doubts-list-body" *ngIf="!showAskForm">
+      <div class="doubts-toolbar">
+        <button type="button" class="ask-btn ask-btn--toolbar" (click)="toggleAskForm()">
+          <i class="fas fa-plus"></i> Ask Doubt
+        </button>
+      </div>
+      <div class="text-center text-muted py-3" *ngIf="loadingDoubts" style="font-size:12px;">Loading…</div>
+      <div *ngIf="!loadingDoubts">
+        <div class="sm-modal__empty" *ngIf="doubts.length === 0">No doubts yet. Be the first to ask!</div>
+        <div class="dbt-card" *ngFor="let d of doubts">
+          <div class="dbt-top">
+            <span class="dbt-title">{{ d.title }}</span>
+            <span class="dbt-vis" [class.dbt-vis--private]="d.visibility === 'private'">
+              <i class="fas" [ngClass]="d.visibility==='private' ? 'fa-lock' : 'fa-globe'"></i> {{ d.visibility }}
+            </span>
+          </div>
+          <span class="dbt-author">{{ d.askedBy?.name || 'Student' }} · {{ formatDateFull(d.createdAt) }}</span>
+          <p class="dbt-explain" *ngIf="d.explanation">{{ d.explanation }}</p>
+          <div class="dbt-replies" *ngIf="d.replies?.length">
+            <div class="dbt-reply" *ngFor="let rp of d.replies">
+              <span class="dbt-reply-author">{{ rp.repliedBy?.name || 'Teacher' }}</span>
+              <span class="dbt-reply-time">{{ formatDateFull(rp.repliedAt) }}</span>
+              <p class="dbt-reply-text">{{ rp.text }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full modal body: ask form only -->
+    <div class="sm-modal__body sm-modal__body--ask-full" *ngIf="showAskForm">
+      <form class="ask-form-full" (ngSubmit)="submitDoubt()">
+        <label class="ask-label" for="doubt-title-input">Title <span class="req">*</span></label>
+        <input
+          id="doubt-title-input"
+          type="text"
+          class="form-control ask-input-title"
+          [(ngModel)]="newDoubt.title"
+          name="doubtTitle"
+          placeholder="Short question title"
+          maxlength="200"
+          autocomplete="off"
+        />
+        <label class="ask-label" for="doubt-explain-input">Explanation</label>
+        <textarea
+          id="doubt-explain-input"
+          class="form-control ask-input-explain"
+          rows="8"
+          [(ngModel)]="newDoubt.explanation"
+          name="doubtExplain"
+          placeholder="Describe your doubt in detail…"
+          maxlength="2000"
+        ></textarea>
+        <label class="ask-label">Visibility</label>
+        <div class="vis-toggle vis-toggle--large">
+          <button type="button" class="vis-opt" [class.vis-opt--on]="newDoubt.visibility==='public'" (click)="newDoubt.visibility='public'">
+            <i class="fas fa-globe"></i> Public <span class="vis-hint">Everyone in the class can see</span>
+          </button>
+          <button type="button" class="vis-opt" [class.vis-opt--on]="newDoubt.visibility==='private'" (click)="newDoubt.visibility='private'">
+            <i class="fas fa-lock"></i> Private <span class="vis-hint">Only you and your teacher</span>
+          </button>
+        </div>
+        <div class="ask-actions ask-actions--footer">
+          <button type="button" class="ask-cancel ask-cancel--wide" (click)="toggleAskForm()">Cancel</button>
+          <button type="submit" class="ask-submit ask-submit--wide" [disabled]="submittingDoubt || !newDoubt.title.trim()">
+            {{ submittingDoubt ? 'Submitting…' : 'Submit doubt' }}
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>

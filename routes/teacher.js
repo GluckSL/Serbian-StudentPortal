@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // Get current teacher profile (GET /api/teacher/profile)
@@ -83,6 +84,24 @@ router.get('/students', verifyToken, async (req, res) => {
   }
 });
 
+// Distinct batch names from meetings this teacher created or was assigned (for My Classes filters)
+router.get('/class-batches', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const batches = await MeetingLink.distinct('batch', {
+      $or: [{ createdBy: teacherId }, { assignedTeacher: teacherId }],
+      batch: { $exists: true, $nin: [null, ''] }
+    });
+    const sorted = batches
+      .filter(Boolean)
+      .map(String)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    res.json({ success: true, data: sorted });
+  } catch (err) {
+    console.error('class-batches error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch batch list', error: err.message });
+  }
+});
 
 // GET /api/teacher/:teacherId  →  Fetch teacher details by ID
 router.get('/:teacherId', verifyToken, async (req, res) => {

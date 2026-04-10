@@ -4,7 +4,6 @@ import { NgModule, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TeacherDashboardComponent } from './teacher-dashboard.component';
 import { TeacherRoutingModule } from './teacher-routing.module';
-import { RouterModule, Routes } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
 import { NgChartsModule } from 'ng2-charts';
@@ -12,10 +11,7 @@ import { TeacherAssignmentsComponent } from '../teacher-assignments/teacher-assi
 import { HttpClientModule } from '@angular/common/http';  
 import { TeacherNotificationsComponent } from '../teacher-notifications/teacher-notifications.component';
 import { TeacherAssignmentTemplatesComponent } from '../teacher-assignment-templates/teacher-assignment-templates.component';
-
-const routes: Routes = [
-  { path: '', component: TeacherDashboardComponent }
-];
+import { TeacherMyClassesComponent } from './teacher-my-classes.component';
 
 @NgModule({
   declarations: [
@@ -24,13 +20,13 @@ const routes: Routes = [
   imports: [
     CommonModule,
     FormsModule,
-    RouterModule.forChild(routes),
     MaterialModule,
     NgChartsModule,
     TeacherRoutingModule,
     HttpClientModule,
     TeacherAssignmentsComponent,
     TeacherDashboardComponent,
+    TeacherMyClassesComponent,
     TeacherAssignmentTemplatesComponent,
     TeacherNotificationsComponent
     ],

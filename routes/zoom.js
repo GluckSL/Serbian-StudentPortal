@@ -135,169 +135,21 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
         email: student.email,
         joinUrl: meeting.joinUrl // Same URL for all students
       })),
-      status: 'scheduled'
+      status: 'scheduled',
+      reminderEmailSent: false,
+      emailNotificationStatus: {
+        attempted: 0,
+        successful: 0,
+        failed: 0,
+        allSent: false,
+        failedStudents: [],
+        lastAttempt: null
+      }
     });
 
     await meetingLink.save();
 
-    console.log('✅ Meeting saved to database');
-
-    // ✅ SEND EMAIL INVITATIONS TO STUDENTS using your email system
-    // Track email sending status
-    const emailResults = {
-      attempted: 0,
-      successful: 0,
-      failed: 0,
-      errors: [],
-      failedStudents: []
-    };
-
-    try {
-      const transporter = require('../config/emailConfig');
-      
-      console.log(`📧 Sending meeting invitations to ${students.length} students...`);
-      
-      for (const student of students) {
-        emailResults.attempted++;
-        
-        try {
-          // All students share the same join URL (teacher is host)
-          const studentJoinUrl = meeting.joinUrl;
-          
-          console.log(`📧 Sending email to ${student.name} with URL: ${studentJoinUrl.substring(0, 50)}...`);
-          
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: student.email,
-            subject: '🎓 Zoom Meeting Invitation - Glück Global',
-            html: `
-              <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
-                <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
-                  
-                  <div style="background:#000e89; border-radius:8px; padding:20px;">
-                    <h2 style="color:white; margin:0;">Glück Global - Meeting Invitation</h2>
-                  </div>
-
-                  <p style="margin-top:20px;">Hello <strong>${student.name}</strong>,</p>
-                  
-                  <p>You have been invited to join a Zoom meeting:</p>
-
-                  <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0;">
-                    <h3 style="color:#000e89; margin:0 0 10px 0;">${meeting.topic}</h3>
-                    <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric',
-                      timeZone: 'Asia/Colombo'
-                    })}</p>
-                    <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
-                      hour: '2-digit', 
-                      minute: '2-digit',
-                      timeZone: 'Asia/Colombo'
-                    })}</p>
-                    <p style="margin:5px 0;"><strong>⏱️ Duration:</strong> ${meeting.duration} minutes</p>
-                    <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${batch} - ${plan}</p>
-                  </div>
-
-                  ${agenda ? `<p style="color:#666; font-style:italic;">${agenda}</p>` : ''}
-
-                  <div style="margin:30px 0;">
-                    <a href="${studentJoinUrl}" target="_blank" 
-                      style="display:inline-block; background-color:#000e89; color:#fff; 
-                            text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                      🎥 Join Zoom Meeting
-                    </a>
-                  </div>
-
-                  ${meeting.password ? `
-                    <div style="background:#fff3cd; border:1px solid #ffc107; padding:10px; border-radius:6px; margin:20px 0;">
-                      <p style="margin:0; color:#856404;">
-                        <strong>🔒 Meeting Password:</strong> <code style="background:#fff; padding:5px 10px; border-radius:4px; font-size:16px;">${meeting.password}</code>
-                      </p>
-                    </div>
-                  ` : ''}
-
-                  <div style="background:#e7f3ff; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold; color:#000e89;">📝 Meeting Details:</p>
-                    <p style="margin:5px 0; font-size:14px;"><strong>Meeting ID:</strong> ${meeting.id}</p>
-                    <p style="margin:5px 0; font-size:14px;"><strong>Your Personal Join URL:</strong> <a href="${studentJoinUrl}" style="color:#000e89; word-break:break-all;">${studentJoinUrl}</a></p>
-                  </div>
-
-                  <div style="background:#d4edda; border:1px solid #c3e6cb; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold; color:#155724;">✅ Important - Personal Registration:</p>
-                    <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#155724;">
-                      <li>This is your <strong>personal registration link</strong> - it's unique to you</li>
-                      <li>Using this link helps us track your attendance accurately</li>
-                      <li>Please don't share this link with other students</li>
-                      <li>If you use the teacher's generic link, your attendance may not be recorded properly</li>
-                    </ul>
-                  </div>
-
-                  <div style="background:#f8f9fa; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold;">💡 Tips for joining:</p>
-                    <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#666;">
-                      <li>Click the "Join Zoom Meeting" button above</li>
-                      <li>You can join 10 minutes before the scheduled time</li>
-                      <li>Make sure your camera and microphone are working</li>
-                      <li>Join from a quiet place with good internet connection</li>
-                      <li>Keep this email for future reference</li>
-                    </ul>
-                  </div>
-
-                  <p style="margin-top:30px; color:#666; font-size:13px;">
-                    If you have any questions, please contact your teacher.
-                  </p>
-
-                  <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                  <p style="font-size:13px; color:#888;">
-                    Best regards,<br>
-                    <strong>Glück Global Pvt Ltd</strong><br>
-                    German Language Learning Platform
-                  </p>
-                </div>
-              </div>
-            `
-          };
-
-          await transporter.sendMail(mailOptions);
-          emailResults.successful++;
-          console.log(`✅ Invitation email sent to ${student.name} (${student.email})`);
-        } catch (emailError) {
-          emailResults.failed++;
-          emailResults.failedStudents.push({
-            name: student.name,
-            email: student.email,
-            error: emailError.message
-          });
-          console.error(`❌ Failed to send email to ${student.email}:`, emailError.message);
-          // Continue with other students even if one fails
-        }
-      }
-
-      if (emailResults.successful > 0) {
-        console.log(`✅ Meeting invitation emails sent to ${emailResults.successful}/${students.length} students`);
-      }
-      if (emailResults.failed > 0) {
-        console.log(`⚠️ Failed to send ${emailResults.failed}/${students.length} emails`);
-      }
-    } catch (emailError) {
-      console.error('⚠️ Error sending invitation emails (non-critical):', emailError.message);
-      emailResults.errors.push(emailError.message);
-      // Don't fail the meeting creation if email sending fails
-    }
-
-    // Save email status to database
-    meetingLink.emailNotificationStatus = {
-      attempted: emailResults.attempted,
-      successful: emailResults.successful,
-      failed: emailResults.failed,
-      allSent: emailResults.failed === 0 && emailResults.successful === students.length,
-      failedStudents: emailResults.failedStudents,
-      lastAttempt: new Date()
-    };
-    await meetingLink.save();
+    console.log('✅ Meeting saved to database (invitation emails deferred to ~10 min before start)');
 
     // ✅ AUTO-LINK TO TIMETABLE: Find or create timetable slot
     try {
@@ -457,14 +309,16 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
         attendees: students.map(s => ({ name: s.name, email: s.email }))
       },
       emailStatus: {
-        attempted: emailResults.attempted,
-        successful: emailResults.successful,
-        failed: emailResults.failed,
-        allSent: emailResults.failed === 0 && emailResults.successful === students.length,
-        partialFailure: emailResults.failed > 0 && emailResults.successful > 0,
-        totalFailure: emailResults.failed === students.length,
-        failedStudents: emailResults.failedStudents,
-        errors: emailResults.errors
+        deferred: true,
+        message: 'Invitation emails are sent about 10 minutes before the class starts.',
+        attempted: 0,
+        successful: 0,
+        failed: 0,
+        allSent: false,
+        partialFailure: false,
+        totalFailure: false,
+        failedStudents: [],
+        errors: []
       }
     });
 
@@ -491,33 +345,62 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
  */
 router.get('/meetings', verifyToken, async (req, res) => {
   try {
-    const { status, batch } = req.query;
-    
+    const { status, batch, date } = req.query;
+    const userId = req.user.id || req.user.userId || req.user._id;
+
     // Get user to check role
-    const user = await User.findById(req.user.id).select('role');
-    
-    const query = {};
-    
-    // If user is TEACHER or TEACHER_ADMIN, only show their meetings
-    // If user is ADMIN, show all meetings
-    if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      query.$or = [
-        { createdBy: req.user.id },
-        { assignedTeacher: req.user.id }
-      ];
+    const user = await User.findById(userId).select('role');
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found' });
     }
-    // For ADMIN, no filter - show all meetings
 
-    if (status) query.status = status;
-    if (batch) query.batch = batch;
-    if (req.query.plan) query.plan = req.query.plan;
+    // Build with $and so batch / date clauses never break the teacher $or scope
+    const andClauses = [];
 
+    if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
+      andClauses.push({
+        $or: [
+          { createdBy: userId },
+          { assignedTeacher: userId }
+        ]
+      });
+    }
+
+    if (status) andClauses.push({ status });
+
+    // Batch: match string or number (legacy / CRM data sometimes stores numeric batch)
+    if (batch !== undefined && batch !== null && String(batch).trim() !== '') {
+      const b = String(batch).trim();
+      const asNum = Number(b);
+      if (Number.isFinite(asNum) && String(asNum) === b) {
+        andClauses.push({ $or: [{ batch: b }, { batch: asNum }] });
+      } else {
+        andClauses.push({ batch: b });
+      }
+    }
+
+    if (req.query.plan) andClauses.push({ plan: req.query.plan });
+
+    // Calendar day in Asia/Colombo — [dayStart, nextDayStart) avoids end-of-day ms bugs
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
+      const ymd = String(date).trim();
+      const dayStartColombo = new Date(`${ymd}T00:00:00.000+05:30`);
+      const nextDayStart = new Date(dayStartColombo.getTime() + 24 * 60 * 60 * 1000);
+      andClauses.push({
+        startTime: { $gte: dayStartColombo, $lt: nextDayStart }
+      });
+    }
+
+    const query = andClauses.length ? { $and: andClauses } : {};
+
+    const sortOrder = date ? 1 : -1;
     const meetings = await MeetingLink.find(query)
       .populate('createdBy', 'name email role')
       .populate('assignedTeacher', 'name email')
       .populate('attendees.studentId', 'name email batch level subscription')
-      .sort({ startTime: -1 });
+      .sort({ startTime: sortOrder });
 
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.status(200).json({
       success: true,
       count: meetings.length,
@@ -861,108 +744,26 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
         });
       });
 
-      // ✅ SEND EMAIL INVITATIONS TO NEW STUDENTS with unique URLs
-      try {
-        const transporter = require('../config/emailConfig');
-        
-        console.log(`📧 Sending meeting invitations to ${newStudents.length} new students...`);
-        
-        for (const student of newStudents) {
-          try {
-            // Get unique registrant URL for this student
-            const studentJoinUrl = meeting.joinUrl;
-            
-            const mailOptions = {
-              from: process.env.EMAIL_USER,
-              to: student.email,
-              subject: '🎓 Zoom Meeting Invitation - Glück Global',
-              html: `
-                <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
-                  <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
-                    
-                    <div style="background:#000e89; border-radius:8px; padding:20px;">
-                      <h2 style="color:white; margin:0;">Glück Global - Meeting Invitation</h2>
-                    </div>
-
-                    <p style="margin-top:20px;">Hello <strong>${student.name}</strong>,</p>
-                    
-                    <p>You have been added to a Zoom meeting:</p>
-
-                    <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0;">
-                      <h3 style="color:#000e89; margin:0 0 10px 0;">${meeting.topic}</h3>
-                      <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric',
-                        timeZone: 'Asia/Colombo'
-                      })}</p>
-                      <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        timeZone: 'Asia/Colombo'
-                      })}</p>
-                      <p style="margin:5px 0;"><strong>⏱️ Duration:</strong> ${meeting.duration} minutes</p>
-                      <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${meeting.batch}</p>
-                    </div>
-
-                    <div style="margin:30px 0;">
-                      <a href="${studentJoinUrl}" target="_blank" 
-                        style="display:inline-block; background-color:#000e89; color:#fff; 
-                              text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                        🎥 Join Zoom Meeting
-                      </a>
-                    </div>
-
-                    ${meeting.zoomPassword ? `
-                      <div style="background:#fff3cd; border:1px solid #ffc107; padding:10px; border-radius:6px; margin:20px 0;">
-                        <p style="margin:0; color:#856404;">
-                          <strong>🔒 Meeting Password:</strong> <code style="background:#fff; padding:5px 10px; border-radius:4px; font-size:16px;">${meeting.zoomPassword}</code>
-                        </p>
-                      </div>
-                    ` : ''}
-
-                    <div style="background:#e7f3ff; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                      <p style="margin:0 0 10px 0; font-weight:bold; color:#000e89;">📝 Meeting Details:</p>
-                      <p style="margin:5px 0; font-size:14px;"><strong>Meeting ID:</strong> ${meeting.zoomMeetingId}</p>
-                      <p style="margin:5px 0; font-size:14px;"><strong>Your Personal Join URL:</strong> <a href="${studentJoinUrl}" style="color:#000e89; word-break:break-all;">${studentJoinUrl}</a></p>
-                    </div>
-
-                    <div style="background:#d4edda; border:1px solid #c3e6cb; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                      <p style="margin:0 0 10px 0; font-weight:bold; color:#155724;">✅ Important - Personal Registration:</p>
-                      <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#155724;">
-                        <li>This is your <strong>personal registration link</strong> - it's unique to you</li>
-                        <li>Using this link helps us track your attendance accurately</li>
-                        <li>Please don't share this link with other students</li>
-                      </ul>
-                    </div>
-
-                    <p style="margin-top:30px; color:#666; font-size:13px;">
-                      If you have any questions, please contact your teacher.
-                    </p>
-
-                    <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                    <p style="font-size:13px; color:#888;">
-                      Best regards,<br>
-                      <strong>Glück Global Pvt Ltd</strong><br>
-                      German Language Learning Platform
-                    </p>
-                  </div>
-                </div>
-              `
-            };
-
-            await transporter.sendMail(mailOptions);
-            console.log(`✅ Invitation email sent to ${student.name} (${student.email})`);
-          } catch (emailError) {
-            console.error(`❌ Failed to send email to ${student.email}:`, emailError.message);
-          }
+      // If the ~10 min reminder already went out, notify new students immediately; otherwise cron includes them
+      if (meeting.reminderEmailSent) {
+        try {
+          const transporter = require('../config/emailConfig');
+          const { sendInvitationEmailsToAttendees } = require('../services/zoomInvitationEmail');
+          const onlyAttendees = newStudents.map((s) => ({
+            name: s.name,
+            email: s.email,
+            joinUrl: meeting.joinUrl
+          }));
+          console.log(`📧 Sending join links to ${newStudents.length} newly added students (reminder already sent)...`);
+          await sendInvitationEmailsToAttendees(meeting, transporter, {
+            onlyAttendees,
+            subject: '🎓 Zoom class — join link (Glück Global)',
+            introParagraph:
+              'You have been added to this class. It is starting soon — please join using the link below:'
+          });
+        } catch (emailError) {
+          console.error('⚠️ Error sending emails to new attendees (non-critical):', emailError.message);
         }
-
-        console.log(`✅ Meeting invitation emails sent to ${newStudents.length} new students`);
-      } catch (emailError) {
-        console.error('⚠️ Error sending invitation emails (non-critical):', emailError.message);
       }
     }
 
@@ -1027,6 +828,8 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
       });
     }
 
+    const prevStartMs = meeting.startTime ? new Date(meeting.startTime).getTime() : null;
+
     // Prepare update data for Zoom
     const zoomUpdateData = {};
     
@@ -1053,7 +856,14 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 
     // Update meeting in database
     if (topic) meeting.topic = topic;
-    if (startTime) meeting.startTime = new Date(startTime);
+    if (startTime) {
+      const nextStartMs = new Date(startTime).getTime();
+      meeting.startTime = new Date(startTime);
+      if (prevStartMs !== nextStartMs) {
+        meeting.reminderEmailSent = false;
+        meeting.reminderEmailSentAt = undefined;
+      }
+    }
     if (duration) meeting.duration = duration;
     if (timezone) meeting.timezone = timezone;
     if (agenda) meeting.agenda = agenda;
@@ -1139,109 +949,6 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
         }
       } catch (timetableError) {
         console.error('⚠️ Error updating timetable (non-critical):', timetableError.message);
-      }
-    }
-
-    // ✅ SEND UPDATE NOTIFICATION EMAILS TO ATTENDEES
-    if (topic || startTime || duration || agenda) {
-      try {
-        const transporter = require('../config/emailConfig');
-        
-        // Get attendees with populated student data
-        const meetingWithStudents = await MeetingLink.findById(id)
-          .populate('attendees.studentId', 'name email');
-        
-        const students = meetingWithStudents.attendees
-          .filter(a => a.studentId)
-          .map(a => ({
-            name: a.studentId.name || a.name,
-            email: a.studentId.email || a.email,
-            joinUrl: a.joinUrl || meeting.joinUrl
-          }));
-
-        if (students.length > 0) {
-          console.log(`📧 Sending meeting update notifications to ${students.length} students...`);
-          
-          for (const student of students) {
-            try {
-              const mailOptions = {
-                from: process.env.EMAIL_USER,
-                to: student.email,
-                subject: '📝 Meeting Updated - Glück Global',
-                html: `
-                  <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
-                    <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
-                      
-                      <div style="background:#ffc107; border-radius:8px; padding:20px;">
-                        <h2 style="color:#000; margin:0;">📝 Meeting Updated</h2>
-                      </div>
-
-                      <p style="margin-top:20px;">Hello <strong>${student.name}</strong>,</p>
-                      
-                      <p>The following Zoom meeting has been <strong>updated</strong>:</p>
-
-                      <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0; border-left:4px solid #ffc107;">
-                        <h3 style="color:#000e89; margin:0 0 10px 0;">${meeting.topic}</h3>
-                        <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric',
-                          timeZone: 'Asia/Colombo'
-                        })}</p>
-                        <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          timeZone: 'Asia/Colombo'
-                        })}</p>
-                        <p style="margin:5px 0;"><strong>⏱️ Duration:</strong> ${meeting.duration} minutes</p>
-                        <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${meeting.batch}</p>
-                      </div>
-
-                      ${agenda ? `<p style="color:#666; font-style:italic; margin:20px 0;">${agenda}</p>` : ''}
-
-                      <div style="margin:30px 0;">
-                        <a href="${student.joinUrl}" target="_blank" 
-                          style="display:inline-block; background-color:#000e89; color:#fff; 
-                                text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                          🎥 Join Updated Meeting
-                        </a>
-                      </div>
-
-                      <div style="background:#fff3cd; border:1px solid #ffc107; padding:15px; border-radius:6px; margin:20px 0;">
-                        <p style="margin:0; color:#856404;">
-                          <strong>📢 Important:</strong> Please note the updated meeting details above. 
-                          Make sure to join at the new time if it has changed.
-                        </p>
-                      </div>
-
-                      <p style="margin-top:30px; color:#666; font-size:13px;">
-                        If you have any questions about the changes, please contact your teacher.
-                      </p>
-
-                      <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                      <p style="font-size:13px; color:#888;">
-                        Best regards,<br>
-                        <strong>Glück Global Pvt Ltd</strong><br>
-                        German Language Learning Platform
-                      </p>
-                    </div>
-                  </div>
-                `
-              };
-
-              await transporter.sendMail(mailOptions);
-              console.log(`✅ Update notification sent to ${student.name} (${student.email})`);
-            } catch (emailError) {
-              console.error(`❌ Failed to send update notification to ${student.email}:`, emailError.message);
-            }
-          }
-
-          console.log(`✅ Meeting update notifications sent to ${students.length} students`);
-        }
-      } catch (emailError) {
-        console.error('⚠️ Error sending update notifications (non-critical):', emailError.message);
       }
     }
 
