@@ -762,7 +762,7 @@ router.post("/login", async (req, res) => {
         name: user.name
       },
       JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     // âœ… Set cookie instead of sending token
@@ -771,7 +771,7 @@ router.post("/login", async (req, res) => {
       secure: false,   // âœ… FIXED: false in development
       sameSite: 'Lax', // âœ… FIXED: 'Lax' for localhost
       path: '/',
-      maxAge: 60 * 60 * 1000 // 1 hour
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
     // âœ… Send user info only (no token in response)

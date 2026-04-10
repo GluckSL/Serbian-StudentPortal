@@ -10,6 +10,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
+import { EMPTY, expand, reduce } from 'rxjs';
 
 interface StudentDocument {
   _id: string;
@@ -233,6 +234,8 @@ export class DocumentVerificationComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // Load all students so list + stats include everyone (even without uploads)
+    this.loadStudents();
     this.loadDocuments(); // This will also call loadStats() after documents are loaded
     this.loadRequirements();
     
@@ -255,11 +258,43 @@ export class DocumentVerificationComponent implements OnInit {
   
   private _filterStudents(value: string): any[] {
     const filterValue = value.toLowerCase();
-    return this.students.filter(student => 
-      student.name.toLowerCase().includes(filterValue) ||
-      student.email.toLowerCase().includes(filterValue) ||
-      (student.regNo && student.regNo.toLowerCase().includes(filterValue))
+    return this.students.filter(student => {
+      const name = this.getStudentName(student).toLowerCase();
+      const email = this.getStudentEmail(student).toLowerCase();
+      const regNo = this.getStudentRegNo(student).toLowerCase();
+      return name.includes(filterValue) || email.includes(filterValue) || regNo.includes(filterValue);
+    });
+  }
+
+  private getStudentId(student: any): string {
+    return String(
+      student?._id ??
+      student?.id ??
+      student?.studentId ??
+      student?.userId ??
+      student?.uid ??
+      ''
     );
+  }
+
+  private getStudentName(student: any): string {
+    const name =
+      student?.name ??
+      student?.studentName ??
+      student?.fullName ??
+      (student?.firstName && student?.lastName ? `${student.firstName} ${student.lastName}` : null) ??
+      student?.firstName ??
+      student?.lastName ??
+      '';
+    return String(name).trim();
+  }
+
+  private getStudentEmail(student: any): string {
+    return String(student?.email ?? student?.studentEmail ?? student?.mail ?? '').trim();
+  }
+
+  private getStudentRegNo(student: any): string {
+    return String(student?.regNo ?? student?.registrationNumber ?? student?.registrationNo ?? '').trim();
   }
 
   loadDocuments(): void {
@@ -293,14 +328,22 @@ export class DocumentVerificationComponent implements OnInit {
     this.stats.pendingDocuments = this.documents.filter(d => d.status === 'PENDING').length;
     this.stats.verifiedDocuments = this.documents.filter(d => d.status === 'VERIFIED').length;
     this.stats.rejectedDocuments = this.documents.filter(d => d.status === 'REJECTED').length;
-    
-    // Count unique students (studentId may be a populated object)
-    const uniqueStudents = new Set(this.documents.map(d => {
-      const id = typeof d.studentId === 'object' && d.studentId !== null
-        ? (d.studentId as any)._id
-        : d.studentId;
-      return String(id);
-    }));
+
+    // Prefer real student list count when available (shows students even without uploads)
+    if (Array.isArray(this.students) && this.students.length > 0) {
+      this.stats.totalStudents = this.students.length;
+      return;
+    }
+
+    // Fallback: count unique students from documents
+    const uniqueStudents = new Set(
+      this.documents.map(d => {
+        const id = typeof d.studentId === 'object' && d.studentId !== null
+          ? (d.studentId as any)._id
+          : d.studentId;
+        return String(id);
+      })
+    );
     this.stats.totalStudents = uniqueStudents.size;
   }
 
@@ -360,37 +403,108 @@ export class DocumentVerificationComponent implements OnInit {
   }
 
   buildStudentGroups(): void {
-    const groupMap = new Map<string, any>();
-    
-    this.filteredDocuments.forEach(doc => {
-      // studentId may be a populated object or a plain string
+    const docsByStudent = new Map<string, StudentDocument[]>();
+    for (const doc of this.documents) {
       const id = typeof doc.studentId === 'object' && doc.studentId !== null
         ? (doc.studentId as any)._id
         : doc.studentId;
       const idStr = String(id);
-      
-      if (!groupMap.has(idStr)) {
-        groupMap.set(idStr, {
-          studentId: idStr,
-          studentName: doc.studentName,
-          studentEmail: doc.studentEmail,
-          documents: [],
-          totalDocs: 0,
-          pendingDocs: 0,
-          verifiedDocs: 0,
-          rejectedDocs: 0
+      if (!docsByStudent.has(idStr)) docsByStudent.set(idStr, []);
+      docsByStudent.get(idStr)!.push(doc);
+    }
+
+    const visibleDocsByStudent = new Map<string, StudentDocument[]>();
+    for (const doc of this.filteredDocuments) {
+      const id = typeof doc.studentId === 'object' && doc.studentId !== null
+        ? (doc.studentId as any)._id
+        : doc.studentId;
+      const idStr = String(id);
+      if (!visibleDocsByStudent.has(idStr)) visibleDocsByStudent.set(idStr, []);
+      visibleDocsByStudent.get(idStr)!.push(doc);
+    }
+
+    const query = this.searchQuery.trim().toLowerCase();
+    const studentMatchesQuery = (student: any): boolean => {
+      if (!query) return true;
+      const name = this.getStudentName(student).toLowerCase();
+      const email = this.getStudentEmail(student).toLowerCase();
+      const regNo = this.getStudentRegNo(student).toLowerCase();
+      return name.includes(query) || email.includes(query) || regNo.includes(query);
+    };
+
+    const groups: any[] = [];
+
+    if (Array.isArray(this.students) && this.students.length > 0) {
+      // Build from full student list so everyone is visible (even with 0 docs)
+      for (const student of this.students) {
+        const studentId = this.getStudentId(student);
+        if (!studentId) continue;
+
+        const allDocs = docsByStudent.get(studentId) || [];
+        const visibleDocs = visibleDocsByStudent.get(studentId) || [];
+
+        if (query) {
+          const docMatch = allDocs.some(d => String(d.documentName || '').toLowerCase().includes(query));
+          if (!studentMatchesQuery(student) && !docMatch) continue;
+        }
+
+        const pending = allDocs.filter(d => d.status === 'PENDING').length;
+        const verified = allDocs.filter(d => d.status === 'VERIFIED').length;
+        const rejected = allDocs.filter(d => d.status === 'REJECTED').length;
+
+        groups.push({
+          studentId,
+          studentName: this.getStudentName(student),
+          studentEmail: this.getStudentEmail(student),
+          studentRegNo: this.getStudentRegNo(student),
+          studentObj: student,
+          documents: visibleDocs,
+          totalDocs: allDocs.length,
+          pendingDocs: pending,
+          verifiedDocs: verified,
+          rejectedDocs: rejected
         });
       }
-      const group = groupMap.get(idStr);
-      group.documents.push(doc);
-      group.totalDocs++;
-      if (doc.status === 'PENDING') group.pendingDocs++;
-      else if (doc.status === 'VERIFIED') group.verifiedDocs++;
-      else if (doc.status === 'REJECTED') group.rejectedDocs++;
+    } else {
+      // Fallback to documents only if student list isn't loaded yet
+      const groupMap = new Map<string, any>();
+      this.filteredDocuments.forEach(doc => {
+        const id = typeof doc.studentId === 'object' && doc.studentId !== null
+          ? (doc.studentId as any)._id
+          : doc.studentId;
+        const idStr = String(id);
+
+        if (!groupMap.has(idStr)) {
+          groupMap.set(idStr, {
+            studentId: idStr,
+            studentName: doc.studentName,
+            studentEmail: doc.studentEmail,
+            studentRegNo: '',
+            studentObj: null,
+            documents: [],
+            totalDocs: 0,
+            pendingDocs: 0,
+            verifiedDocs: 0,
+            rejectedDocs: 0
+          });
+        }
+        const group = groupMap.get(idStr);
+        group.documents.push(doc);
+        group.totalDocs++;
+        if (doc.status === 'PENDING') group.pendingDocs++;
+        else if (doc.status === 'VERIFIED') group.verifiedDocs++;
+        else if (doc.status === 'REJECTED') group.rejectedDocs++;
+      });
+      groups.push(...Array.from(groupMap.values()));
+    }
+
+    // Sort: pending first, then alphabetical
+    this.studentGroups = groups.sort((a, b) => {
+      const pendingDiff = (b.pendingDocs || 0) - (a.pendingDocs || 0);
+      if (pendingDiff !== 0) return pendingDiff;
+      return String(a.studentName || '').localeCompare(String(b.studentName || ''), undefined, { sensitivity: 'base' });
     });
-    
-    this.studentGroups = Array.from(groupMap.values())
-      .sort((a, b) => b.pendingDocs - a.pendingDocs);
+
     this.filteredStudentGroups = this.studentGroups;
   }
 
@@ -686,27 +800,45 @@ export class DocumentVerificationComponent implements OnInit {
   }
   
   selectStudent(student: any): void {
-    this.bulkUploadForm.studentEmail = student.email;
-    this.studentSearchControl.setValue(student.name + ' (' + student.email + ')');
+    this.bulkUploadForm.studentEmail = this.getStudentEmail(student);
+    this.studentSearchControl.setValue(this.getStudentName(student) + ' (' + this.getStudentEmail(student) + ')');
   }
   
   displayStudentFn(student: any): string {
-    return student ? `${student.name} (${student.email})` : '';
+    return student ? `${this.getStudentName(student)} (${this.getStudentEmail(student)})` : '';
   }
   
   loadStudents(): void {
-    console.log('🔍 Loading students...');
-    this.documentService.getAllStudents().subscribe({
-      next: (response: any) => {
-        console.log('✅ Students loaded:', response);
-        if (response.success) {
-          this.students = response.data || response.students || [];
-          this.filteredStudents = this.students;
-          this.markVerifiedFilteredStudents = this.students;
-          console.log('📋 Total students:', this.students.length);
-        } else {
-          console.error('❌ Response not successful:', response);
+    const pageSize = 100; // backend caps at 100
+    let totalFromServer: number | null = null;
+
+    this.documentService.getAllStudents({ page: 1, limit: pageSize }).pipe(
+      expand((resp: any) => {
+        if (!resp?.success) return EMPTY;
+        const pagination = resp?.pagination;
+        const page = Number(pagination?.page || 1);
+        const pages = Number(pagination?.pages || 1);
+        if (totalFromServer === null && Number.isFinite(Number(pagination?.total))) {
+          totalFromServer = Number(pagination.total);
         }
+        if (page >= pages) return EMPTY;
+        return this.documentService.getAllStudents({ page: page + 1, limit: pageSize });
+      }),
+      reduce((all: any[], resp: any) => {
+        const batch = (resp?.data ?? []) as any[];
+        return all.concat(batch);
+      }, [])
+    ).subscribe({
+      next: (allStudents: any[]) => {
+        this.students = allStudents;
+        this.filteredStudents = this.students;
+        this.markVerifiedFilteredStudents = this.students;
+        if (totalFromServer !== null) {
+          this.stats.totalStudents = totalFromServer;
+        } else {
+          this.loadStats();
+        }
+        this.buildStudentGroups();
       },
       error: (error) => {
         console.error('❌ Error loading students:', error);
@@ -795,8 +927,8 @@ export class DocumentVerificationComponent implements OnInit {
   }
   
   selectMarkVerifiedStudent(student: any): void {
-    this.markVerifiedForm.studentEmail = student.email;
-    this.markVerifiedStudentControl.setValue(student.name + ' (' + student.email + ')');
+    this.markVerifiedForm.studentEmail = this.getStudentEmail(student);
+    this.markVerifiedStudentControl.setValue(this.getStudentName(student) + ' (' + this.getStudentEmail(student) + ')');
   }
   
   markAsVerifiedWithoutUpload(): void {
