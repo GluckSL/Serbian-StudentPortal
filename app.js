@@ -1,6 +1,15 @@
 //app.js
 
 require("dotenv").config();
+
+// Validate critical S3 env vars at startup so issues are visible immediately
+const REQUIRED_S3_VARS = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'S3_BUCKET'];
+const missingS3Vars = REQUIRED_S3_VARS.filter(v => !process.env[v]);
+if (missingS3Vars.length > 0) {
+  console.error('❌ Missing S3 environment variables:', missingS3Vars.join(', '));
+} else {
+  console.log(`✅ S3 configured: bucket="${process.env.S3_BUCKET}" region="${process.env.AWS_REGION}"`);
+}
 const express = require("express");
 const app = express();
 const path = require('path');
@@ -48,6 +57,10 @@ const metaLeadsRoutes = require('./routes/metaLeads');
 const digitalExercisesRoutes = require('./routes/digitalExercises');
 const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
+const batchJourneyRoutes = require('./routes/batchJourney');
+const invoiceManagementRoutes = require('./routes/invoiceManagement');
+const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
+const supportTicketRoutes = require('./routes/supportTickets');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -57,6 +70,7 @@ const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
 
 // Import and schedule auto-fetch Zoom attendance job
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
+const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -147,9 +161,11 @@ app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
+app.use('/api/batch-journey', batchJourneyRoutes);
 
-const invoiceManagementRoutes = require('./routes/invoiceManagement');
 app.use('/api/invoices', invoiceManagementRoutes);
+app.use('/api/payment-submissions', paymentSubmissionsRoutes);
+app.use('/api/support', supportTicketRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -217,6 +233,7 @@ app.listen(PORT, () => {
   // Initialize cron jobs
   scheduleMetaToMondaySync();
   scheduleAutoFetchAttendance();
+  scheduleJourneyDayRollover();
 });
 
 

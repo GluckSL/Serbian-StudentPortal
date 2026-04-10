@@ -4,13 +4,15 @@ const mongoose = require('mongoose');
 
 const QuestionResponseSchema = new mongoose.Schema({
   questionIndex: { type: Number, required: true },
-  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening'] },
+  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation'] },
   // MCQ response
   selectedOptionIndex: Number,
   // Matching response: array of { leftIndex, rightIndex }
   matchingResponse: [{
     leftIndex: Number,
-    rightIndex: Number
+    rightIndex: Number,
+    // Optional: submitted right value so grading can work even when the UI shuffles.
+    rightValue: String
   }],
   // Fill-blank response: array of answers per blank
   fillBlankResponses: [String],

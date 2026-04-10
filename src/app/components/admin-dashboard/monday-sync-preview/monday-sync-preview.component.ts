@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { MaterialModule } from '../../../shared/material.module';
 import { environment } from '../../../../environments/environment';
+import { NotificationService } from '../../../services/notification.service';
 
 interface SyncChange {
   field: string;
@@ -68,7 +69,7 @@ export class MondaySyncPreviewComponent implements OnInit {
   syncing = false;
   syncResult: any = null;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private notify: NotificationService) {}
 
   ngOnInit(): void {
     this.loadSyncStatus();
@@ -86,21 +87,23 @@ export class MondaySyncPreviewComponent implements OnInit {
   }
 
   forceSync(): void {
-    if (!confirm('Are you sure you want to run the Monday.com sync now? This will create new students and update existing ones.')) return;
-    this.syncing = true;
-    this.syncResult = null;
-    this.http.post<any>(`${environment.apiUrl}/auth/monday-sync-run`, {}, { withCredentials: true })
-      .subscribe({
-        next: (res) => {
-          this.syncResult = res.result;
-          this.syncing = false;
-          this.loadSyncStatus();
-        },
-        error: (err) => {
-          this.error = err.error?.message || 'Sync failed';
-          this.syncing = false;
-        }
-      });
+    this.notify.confirm('Run Monday Sync', 'Are you sure you want to run the Monday.com sync now? This will create new students and update existing ones.', 'Yes, Run Sync', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.syncing = true;
+      this.syncResult = null;
+      this.http.post<any>(`${environment.apiUrl}/auth/monday-sync-run`, {}, { withCredentials: true })
+        .subscribe({
+          next: (res) => {
+            this.syncResult = res.result;
+            this.syncing = false;
+            this.loadSyncStatus();
+          },
+          error: (err) => {
+            this.error = err.error?.message || 'Sync failed';
+            this.syncing = false;
+          }
+        });
+    });
   }
 
   formatSyncDate(d: string | null): string {

@@ -1,6 +1,6 @@
 <!-- src/app/components/meeting-link/student-meetings.component.html -->
 
-<div class="student-meetings-container">
+<div class="student-meetings-container" [class.student-meetings--embedded]="embedded">
   <!-- Header -->
   <div class="header" *ngIf="!embedded">
     <h1>My Zoom Classes</h1>
@@ -25,142 +25,137 @@
 
   <!-- Meetings Content -->
   <div *ngIf="!loading && !error">
-    
-    <!-- Ongoing Meetings (Priority) -->
-    <div *ngIf="ongoingMeetings.length > 0" class="ongoing-section">
-      <h2 class="section-title">
-        <mat-icon class="pulse">videocam</mat-icon>
-        Classes Happening Now
-      </h2>
-      <div class="meetings-grid">
-        <mat-card *ngFor="let meeting of ongoingMeetings" class="meeting-card ongoing">
-          <div class="meeting-status-badge ongoing">
-            <mat-icon>fiber_manual_record</mat-icon>
-            LIVE NOW
-          </div>
-          
-          <mat-card-header>
-            <mat-card-title>{{ meeting.topic }}</mat-card-title>
-            <mat-card-subtitle>
-              <mat-icon>person</mat-icon>
-              {{ meeting.teacher.name }}
-            </mat-card-subtitle>
-          </mat-card-header>
-
-          <mat-card-content>
-            <div class="meeting-details">
-              <div class="detail-item">
-                <mat-icon>event</mat-icon>
-                <span>{{ formatDate(meeting.startTime) }}</span>
-              </div>
-              <div class="detail-item">
-                <mat-icon>schedule</mat-icon>
-                <span>{{ formatTime(meeting.startTime) }} ({{ formatDuration(meeting.duration) }})</span>
-              </div>
-              <div class="detail-item">
-                <mat-icon>class</mat-icon>
-                <span>{{ meeting.batch }}</span>
-              </div>
-            </div>
-          </mat-card-content>
-
-          <mat-card-actions>
-            <button mat-raised-button color="warn" class="join-button pulse" (click)="joinMeeting(meeting)">
-              <mat-icon>videocam</mat-icon>
-              Join Now
-            </button>
-            <button mat-icon-button (click)="copyMeetingInfo(meeting)" matTooltip="Copy meeting info">
-              <mat-icon>content_copy</mat-icon>
-            </button>
-          </mat-card-actions>
-        </mat-card>
+    <div class="table-wrap" *ngIf="allMeetings.length > 0">
+      <div class="tab-row">
+        <button type="button" class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
+          Upcoming Classes ({{ upcomingMeetings.length }})
+        </button>
+        <button type="button" class="tab-btn" [class.active]="activeTab === 'live'" (click)="setTab('live')">
+          Live Classes ({{ ongoingMeetings.length }})
+        </button>
+        <button type="button" class="tab-btn" [class.active]="activeTab === 'attempted'" (click)="setTab('attempted')">
+          Attempted Classes ({{ attemptedMeetings.length }})
+        </button>
       </div>
-    </div>
 
-    <!-- Upcoming Meetings -->
-    <div *ngIf="upcomingMeetings.length > 0" class="upcoming-section">
-      <h2 class="section-title">
-        <mat-icon>event_available</mat-icon>
-        Upcoming Classes
-      </h2>
-      <div class="meetings-grid">
-        <mat-card *ngFor="let meeting of upcomingMeetings" class="meeting-card" 
-                  [class.ready]="meeting.canJoin">
-          <div class="meeting-status-badge" [ngClass]="getStatusColor(meeting)">
-            {{ getStatusText(meeting) }}
-          </div>
-          
-          <mat-card-header>
-            <mat-card-title>{{ meeting.topic }}</mat-card-title>
-            <mat-card-subtitle>
-              <mat-icon>person</mat-icon>
-              {{ meeting.teacher.name }}
-            </mat-card-subtitle>
-          </mat-card-header>
+      <table class="classes-table classes-table--7" *ngIf="activeTab === 'upcoming'">
+        <thead>
+          <tr>
+            <th>Class Title</th>
+            <th>Teacher</th>
+            <th>Date</th>
+            <th>Timing</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let meeting of upcomingMeetings">
+            <td class="col-topic">
+              <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
+                <span class="topic-line topic-line--head">{{ tpc.head }}</span>
+                <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
+              </ng-container>
+            </td>
+            <td>{{ meeting.teacher.name || '—' }}</td>
+            <td>{{ formatDate(meeting.startTime) }}</td>
+            <td>{{ formatTime(meeting.startTime) }}</td>
+            <td>{{ formatDuration(meeting.duration) }}</td>
+            <td><span class="status-pill status-upcoming">{{ getStatusText(meeting) }}</span></td>
+            <td>
+              <button
+                type="button"
+                class="sm-action"
+                [class.sm-action--join]="meeting.canJoin && !meeting.journeyLocked"
+                [class.sm-action--locked]="meeting.journeyLocked"
+                [disabled]="upcomingActionDisabled(meeting)"
+                (click)="joinMeeting(meeting)"
+              >
+                {{ upcomingActionLabel(meeting) }}
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="upcomingMeetings.length === 0"><td colspan="7" class="empty-row">No upcoming classes</td></tr>
+        </tbody>
+      </table>
 
-          <mat-card-content>
-            <div class="meeting-details">
-              <div class="detail-item">
-                <mat-icon>event</mat-icon>
-                <span>{{ formatDate(meeting.startTime) }}</span>
-              </div>
-              <div class="detail-item">
-                <mat-icon>schedule</mat-icon>
-                <span>{{ formatTime(meeting.startTime) }} ({{ formatDuration(meeting.duration) }})</span>
-              </div>
-              <div class="detail-item">
-                <mat-icon>class</mat-icon>
-                <span>{{ meeting.batch }}</span>
-              </div>
-              <div class="detail-item time-until" *ngIf="!meeting.canJoin">
-                <mat-icon>timer</mat-icon>
-                <span>{{ getTimeUntilStart(meeting) }}</span>
-              </div>
-            </div>
+      <table class="classes-table classes-table--7" *ngIf="activeTab === 'live'">
+        <thead>
+          <tr>
+            <th>Class Title</th>
+            <th>Teacher</th>
+            <th>Date</th>
+            <th>Timing</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let meeting of ongoingMeetings">
+            <td class="col-topic">
+              <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
+                <span class="topic-line topic-line--head">{{ tpc.head }}</span>
+                <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
+              </ng-container>
+            </td>
+            <td>{{ meeting.teacher.name || '—' }}</td>
+            <td>{{ formatDate(meeting.startTime) }}</td>
+            <td>{{ formatTime(meeting.startTime) }}</td>
+            <td>{{ formatDuration(meeting.duration) }}</td>
+            <td><span class="status-pill status-live">Live</span></td>
+            <td>
+              <button
+                type="button"
+                class="sm-action sm-action--live-cta"
+                [class.sm-action--locked]="meeting.journeyLocked"
+                [disabled]="meeting.journeyLocked || !meeting.joinUrl"
+                (click)="joinMeeting(meeting)"
+              >
+                {{ meeting.journeyLocked && meeting.courseDay != null ? ('Unlock on day ' + meeting.courseDay) : 'Join now' }}
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="ongoingMeetings.length === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>
+        </tbody>
+      </table>
 
-            <div *ngIf="meeting.agenda" class="meeting-agenda">
-              <strong>Agenda:</strong> {{ meeting.agenda }}
-            </div>
-          </mat-card-content>
-
-          <mat-card-actions>
-            <button mat-raised-button color="primary" 
-                    [disabled]="!meeting.canJoin"
-                    (click)="joinMeeting(meeting)">
-              <mat-icon>videocam</mat-icon>
-              {{ meeting.canJoin ? 'Join Class' : 'Not Yet Available' }}
-            </button>
-            <button mat-icon-button (click)="copyMeetingInfo(meeting)" matTooltip="Copy meeting info">
-              <mat-icon>content_copy</mat-icon>
-            </button>
-          </mat-card-actions>
-        </mat-card>
-      </div>
-    </div>
-
-    <!-- Past Meetings -->
-    <div *ngIf="pastMeetings.length > 0" class="past-section">
-      <h2 class="section-title">
-        <mat-icon>history</mat-icon>
-        Past Classes
-      </h2>
-      <div class="meetings-list">
-        <mat-card *ngFor="let meeting of pastMeetings" class="meeting-card-compact ended">
-          <div class="compact-content">
-            <div class="compact-info">
-              <h3>{{ meeting.topic }}</h3>
-              <div class="compact-details">
-                <span><mat-icon>event</mat-icon> {{ formatDate(meeting.startTime) }}</span>
-                <span><mat-icon>schedule</mat-icon> {{ formatTime(meeting.startTime) }}</span>
-                <span><mat-icon>person</mat-icon> {{ meeting.teacher.name }}</span>
+      <table class="classes-table classes-table--6" *ngIf="activeTab === 'attempted'">
+        <thead>
+          <tr>
+            <th>Class Title</th>
+            <th>Teacher</th>
+            <th>Date</th>
+            <th>Timing</th>
+            <th>Attendance</th>
+            <th>Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let meeting of attemptedMeetings">
+            <td class="col-topic">
+              <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
+                <span class="topic-line topic-line--head">{{ tpc.head }}</span>
+                <span class="topic-line topic-line--rest" *ngIf="tpc.rest">{{ tpc.rest }}</span>
+              </ng-container>
+            </td>
+            <td>{{ meeting.teacher.name || '—' }}</td>
+            <td>{{ formatDate(meeting.startTime) }}</td>
+            <td>{{ formatTime(meeting.startTime) }}</td>
+            <td><span class="status-pill" [ngClass]="getAttendanceBadgeClass(meeting)">{{ getAttendanceStatus(meeting) }}</span></td>
+            <td>
+              <div class="progress-cell">
+                <div class="progress-track">
+                  <div class="progress-fill" [style.width.%]="getAttendancePercent(meeting)"></div>
+                </div>
+                <span>{{ getAttendancePercent(meeting) }}%</span>
               </div>
-            </div>
-            <div class="compact-status">
-              <mat-chip class="ended-chip">Completed</mat-chip>
-            </div>
-          </div>
-        </mat-card>
-      </div>
+            </td>
+          </tr>
+          <tr *ngIf="attemptedMeetings.length === 0"><td colspan="6" class="empty-row">No attempted classes yet</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Empty State -->

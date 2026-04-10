@@ -4,10 +4,10 @@
   <!-- Public pages (home/login): no sidebar, show header -->
   <ng-container *ngIf="!showSidebar">
     <app-header *ngIf="showHeader"></app-header>
-    <main class="main-content">
+    <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
       <router-outlet></router-outlet>
     </main>
-    <app-footer></app-footer>
+    <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
   </ng-container>
 
   <!-- Logged-in pages: sidebar + content -->
@@ -31,6 +31,9 @@
       </div>
     </div>
   </ng-container>
+
+  <!-- Floating Help button (all pages) -->
+  <app-support-fab></app-support-fab>
 
 </ng-container>
 

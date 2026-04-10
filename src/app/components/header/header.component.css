@@ -19,10 +19,12 @@ header {
 }
 
 .company-logo {
-  height: 45px;
-  width: auto;
+  height: 40px;
+  width: 40px;
   margin-right: 12px;
-  border-radius: 4px;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .logo-text {

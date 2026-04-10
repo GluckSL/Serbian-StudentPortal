@@ -95,7 +95,18 @@
             <div class="row">
               <div class="col-6 mb-3">
                 <label class="form-label">Start Time *</label>
-                <input type="datetime-local" class="form-control" formControlName="startTime" (change)="onTimeChange()">
+                <div class="start-time-trigger" (click)="openStartTimeModal()">
+                  <input
+                    type="text"
+                    class="form-control"
+                    [value]="formattedStartTime"
+                    placeholder="Select start time"
+                    readonly
+                  >
+                  <button type="button" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-calendar-alt me-1"></i>Select
+                  </button>
+                </div>
               </div>
               <div class="col-6 mb-3">
                 <label class="form-label">Duration (min) *</label>
@@ -242,4 +253,53 @@
       </div>
     </div>
   </form>
+</div>
+
+<!-- Start time modal -->
+<div class="dt-modal-backdrop" *ngIf="isStartTimeModalOpen">
+  <div class="dt-modal-card">
+    <div class="dt-modal-header">
+      <h5><i class="fas fa-calendar-alt me-1"></i> Select Start Time</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeStartTimeModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="dt-modal-body">
+      <div class="mb-3">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-control" [(ngModel)]="draftDate" [min]="todayDate">
+        <small class="text-muted">Only today and upcoming dates are available.</small>
+      </div>
+
+      <div class="row g-2">
+        <div class="col-4">
+          <label class="form-label">Hour</label>
+          <select class="form-select" [(ngModel)]="draftHour">
+            <option *ngFor="let h of hourOptions" [value]="h">{{ h }}</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label class="form-label">Minute</label>
+          <select class="form-select" [(ngModel)]="draftMinute">
+            <option *ngFor="let m of minuteOptions" [value]="m">{{ m }}</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label class="form-label">AM / PM</label>
+          <select class="form-select" [(ngModel)]="draftPeriod">
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="dt-modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeStartTimeModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" (click)="setStartTimeFromModal()">
+        <i class="fas fa-check me-1"></i>Set Start Time
+      </button>
+    </div>
+  </div>
 </div>

@@ -109,6 +109,20 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .pf-layout { grid-template-columns: 1fr; }
-  .pf-photo-card { max-width: 360px; margin: 0 auto; }
+  .pf { padding: 12px; }
+  .pf-layout { grid-template-columns: 1fr; gap: 12px; }
+  .pf-photo-card { max-width: 420px; margin: 0 auto; }
+  .pf-field { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pf-field__value { text-align: left; }
+}
+
+@media (max-width: 480px) {
+  .pf { padding: 8px; }
+  .pf-page-title { font-size: 17px; }
+  .pf-photo { width: 100px; height: 100px; }
+  .pf-photo--initials { font-size: 30px; }
+  .pf-name { font-size: 17px; }
+  .pf-card { padding: 14px 16px; }
+  .pf-stats { gap: 0; }
+  .pf-stat__val { font-size: 16px; }
 }

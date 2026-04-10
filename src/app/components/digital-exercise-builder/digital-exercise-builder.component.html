@@ -1,6 +1,8 @@
 <!-- digital-exercise-builder.component.html -->
 <div class="builder-container">
   <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #videoFileInput accept="video/*" (change)="onVideoFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
 
   <!-- AI Generator Banner (create mode only) -->
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
@@ -63,6 +65,10 @@
     <button class="tab-btn" [class.active]="activeTab === 'questions'" (click)="activeTab = 'questions'">
       <span class="material-icons">quiz</span> Questions
       <span class="questions-count" *ngIf="questions.length > 0">{{ questions.length }}</span>
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'video'" (click)="activeTab = 'video'">
+      <span class="material-icons">videocam</span> Use Video
+      <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span>
     </button>
     <button class="tab-btn" [class.active]="activeTab === 'preview'" (click)="activeTab = 'preview'">
       <span class="material-icons">preview</span> Preview
@@ -246,8 +252,10 @@
           <div class="question-header-left">
             <span class="q-number">Q{{ i + 1 }}</span>
             <span class="q-type-badge" [class]="'badge-' + q.type">
-              <span class="material-icons">{{ getTypeIcon(q.type) }}</span>
-              {{ getTypeLabel(q.type) }}
+              <span class="material-icons">
+                {{ getTypeIcon(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
+              </span>
+              {{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
             </span>
             <span class="q-summary">
               <ng-container [ngSwitch]="q.type">
@@ -256,7 +264,8 @@
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
-                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen and type' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
+                <span *ngSwitchCase="'video-pronunciation'">{{ q.caption || 'No caption' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})</span>
               </ng-container>
             </span>
           </div>
@@ -283,6 +292,16 @@
           <div class="points-row">
             <label>Points:</label>
             <input type="number" [(ngModel)]="q.points" min="1" max="10" class="points-input" />
+          </div>
+
+          <div class="field-group full">
+            <label class="field-label">Context <span class="label-optional">(optional)</span></label>
+            <textarea
+              [(ngModel)]="q.context"
+              class="field-input"
+              rows="3"
+              placeholder="Add optional context shown to students above this question..."
+            ></textarea>
           </div>
 
           <!-- MCQ Editor -->
@@ -353,13 +372,13 @@
               <div class="sentence-label-row">
                 <label class="field-label required">Sentence</label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"
-                  matTooltip="Insert ___ at cursor (focus sentence first) or at end">
+                  matTooltip="Insert _ at cursor (focus sentence first) or at end">
                   <span class="material-icons">add_box</span> Insert blank
                 </button>
               </div>
-              <p class="hint-text">Use <code>___</code> (three underscores) for each blank, or click the button above.</p>
+              <p class="hint-text">Use <code>_</code> or <code>___</code> for each blank (each gap is a run of underscores), or click the button above.</p>
               <textarea [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" class="field-input" rows="2"
-                placeholder="The cat ___ on the mat. She ___ happy."></textarea>
+                placeholder="The cat _ on the mat. She _ happy."></textarea>
               <div class="blank-count">{{ getBlankCount(q) }} blank(s) detected</div>
             </div>
             <div class="answers-section" *ngIf="getBlankCount(q) > 0">
@@ -388,11 +407,11 @@
           <ng-container *ngIf="q.type === 'listening'">
             <div class="info-banner">
               <span class="material-icons">headphones</span>
-              Upload audio (or paste a link). AI will extract the text for you to verify before publishing. Students listen and type (or speak) what they hear.
+              Add a question, upload audio, and set the correct answer. Students listen and type the answer.
             </div>
             <div class="field-group full">
-              <label class="field-label required">Instruction</label>
-              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. Listen and type what you hear." />
+              <label class="field-label required">Question</label>
+              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. What is the name of the person?" />
             </div>
             <div class="field-group full">
               <label class="field-label required">Audio</label>
@@ -414,36 +433,8 @@
               </div>
             </div>
             <div class="field-group full">
-              <div class="sentence-label-row">
-                <label class="field-label required">Expected transcript</label>
-                <button type="button" class="btn-insert-blank" (click)="generateTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
-                  <span class="material-icons">auto_awesome</span>
-                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
-                </button>
-              </div>
-              <p class="hint-text">AI extracts text from the audio. Verify it's correct before publishing.</p>
-              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="4" placeholder="Transcript will appear here after AI extraction..."></textarea>
-            </div>
-            <div class="field-group full">
-              <label class="field-label">Student attempt mode</label>
-              <div class="scoring-mode-opts" style="margin-top:6px">
-                <label class="scoring-opt" [class.active]="(q.attemptMode || 'typing') === 'typing'" (click)="q.attemptMode = 'typing'">
-                  <input type="radio" [name]="'am-'+i" value="typing" [(ngModel)]="q.attemptMode" />
-                  <div class="scoring-opt-icon"><span class="material-icons">keyboard</span></div>
-                  <div class="scoring-opt-text">
-                    <span class="scoring-opt-name">Typing only</span>
-                    <span class="scoring-opt-desc">Student must type what they hear</span>
-                  </div>
-                </label>
-                <label class="scoring-opt" [class.active]="q.attemptMode === 'typing-or-speech'" (click)="q.attemptMode = 'typing-or-speech'">
-                  <input type="radio" [name]="'am-'+i" value="typing-or-speech" [(ngModel)]="q.attemptMode" />
-                  <div class="scoring-opt-icon"><span class="material-icons">mic</span></div>
-                  <div class="scoring-opt-text">
-                    <span class="scoring-opt-name">Typing or speaking</span>
-                    <span class="scoring-opt-desc">Student can type or speak (speech → text)</span>
-                  </div>
-                </label>
-              </div>
+              <label class="field-label required">Answer</label>
+              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="3" placeholder="Enter the correct answer students should type..."></textarea>
             </div>
           </ng-container>
 
@@ -457,7 +448,49 @@
               <label class="field-label required">Question</label>
               <textarea [(ngModel)]="q.prompt" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
             </div>
-            <div class="field-group full">
+            <!-- True/False Story Paragraph -->
+            <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
+              <label class="field-label">Story paragraph (optional)</label>
+              <textarea
+                [(ngModel)]="q.storyParagraph"
+                class="field-input"
+                rows="4"
+                placeholder="Paste the paragraph/story here (optional)..."
+              ></textarea>
+              <button
+                type="button"
+                class="btn-add-opt"
+                (click)="addMoreTrueFalseForSameParagraph(q)"
+              >
+                <span class="material-icons">add</span> Weiteres Richtig/Falsch für denselben Absatz hinzufügen
+              </button>
+            </div>
+            <!-- True / False Editor (worksheetKind="true-false") -->
+            <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
+              <label class="field-label required">Answer</label>
+              <div class="tf-answers-admin" role="group" aria-label="Richtig oder Falsch">
+                <label class="tf-check">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === true"
+                    (click)="setTrueFalseAnswer(q, true)"
+                  />
+                  Richtig
+                </label>
+                <label class="tf-check">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === false"
+                    (click)="setTrueFalseAnswer(q, false)"
+                  />
+                  Falsch
+                </label>
+              </div>
+              <p class="hint-text" style="margin-top:8px">Wählen Sie die richtige Antwort.</p>
+            </div>
+
+            <!-- Sample Answers (all other question-answer worksheet kinds) -->
+            <div class="field-group full" *ngIf="q.worksheetKind !== 'true-false'">
               <label class="field-label">
                 Sample Answers
                 <span class="hint"> (optional — if none, AI grades automatically)</span>
@@ -478,8 +511,9 @@
                 <span class="material-icons">add</span> Add Sample Answer
               </button>
             </div>
+
             <!-- AI Grading Config -->
-            <div class="qa-grading-config">
+            <div class="qa-grading-config" *ngIf="q.worksheetKind !== 'true-false'">
               <div class="qa-grading-title">
                 <span class="material-icons">auto_awesome</span>
                 AI Grading Settings
@@ -609,6 +643,212 @@
     </div>
   </div>
 
+  <!-- Tab: Use Video -->
+  <div class="tab-content tab-content--video" *ngIf="activeTab === 'video' && !loading">
+
+    <!-- Compact exercise info reminder -->
+    <div class="video-info-panel">
+      <div class="video-info-row">
+        <div class="field-group field-group--sm">
+          <label class="field-label required">Title</label>
+          <input type="text" [(ngModel)]="title" class="field-input field-input--sm" placeholder="Exercise title" maxlength="120" autocomplete="off" />
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label">Journey Day</label>
+          <input type="number" class="field-input field-input--sm field-input--day" min="1" max="200" step="1"
+            [ngModel]="courseDayAsNumber" (ngModelChange)="onCourseDayNumberInput($event)" placeholder="Any" />
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label required">CEFR</label>
+          <select [(ngModel)]="level" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label required">Category</label>
+          <select [(ngModel)]="category" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label required">Difficulty</label>
+          <select [(ngModel)]="difficulty" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+          </select>
+        </div>
+      </div>
+      <p class="video-info-hint">
+        <span class="material-icons">info</span>
+        Students watch each video clip, then speak the caption aloud. Correct pronunciation advances to the next video.
+      </p>
+    </div>
+
+    <!-- Optional praise / retry sounds (whole exercise) -->
+    <div class="video-feedback-panel">
+      <div class="video-feedback-head">
+        <span class="material-icons">campaign</span>
+        <div>
+          <h3>Feedback sounds <span class="label-optional">optional</span></h3>
+          <p>After each spoken answer: one <strong>praise</strong> clip plays at random if correct, or one <strong>retry</strong> clip if not. Add captions for on-screen text (e.g. “Great!” / “Try again”).</p>
+        </div>
+      </div>
+      <div class="video-feedback-grid">
+        <div class="video-feedback-col">
+          <h4><span class="material-icons">emoji_events</span> Correct (max {{ maxVideoFeedbackClips }})</h4>
+          <div class="video-feedback-row" *ngFor="let row of videoSuccessFeedbackRows; let si = index">
+            <div class="video-feedback-row-top">
+              <button type="button" class="btn-video-feedback-upload" (click)="triggerVideoFeedbackUpload('success', si)" [disabled]="row.uploading">
+                <span class="material-icons">{{ row.uploading ? 'hourglass_empty' : (row.audioUrl ? 'graphic_eq' : 'upload_file') }}</span>
+                {{ row.uploading ? '…' : (row.audioUrl ? 'Replace' : 'Upload') }}
+              </button>
+              <input type="text" [(ngModel)]="row.caption" class="field-input field-input--sm" placeholder="Caption" maxlength="80" />
+              <button type="button" class="btn-icon-sm" (click)="removeVideoSuccessFeedbackRow(si)" title="Remove"><span class="material-icons">close</span></button>
+            </div>
+            <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="video-feedback-audio"></audio>
+          </div>
+          <button type="button" class="btn-add-video-feedback" (click)="addVideoSuccessFeedbackRow()" [disabled]="videoSuccessFeedbackRows.length >= maxVideoFeedbackClips">
+            <span class="material-icons">add</span> Add praise clip
+          </button>
+        </div>
+        <div class="video-feedback-col">
+          <h4><span class="material-icons">replay</span> Not quite (max {{ maxVideoFeedbackClips }})</h4>
+          <div class="video-feedback-row" *ngFor="let row of videoRetryFeedbackRows; let ri = index">
+            <div class="video-feedback-row-top">
+              <button type="button" class="btn-video-feedback-upload" (click)="triggerVideoFeedbackUpload('retry', ri)" [disabled]="row.uploading">
+                <span class="material-icons">{{ row.uploading ? 'hourglass_empty' : (row.audioUrl ? 'graphic_eq' : 'upload_file') }}</span>
+                {{ row.uploading ? '…' : (row.audioUrl ? 'Replace' : 'Upload') }}
+              </button>
+              <input type="text" [(ngModel)]="row.caption" class="field-input field-input--sm" placeholder="Caption" maxlength="80" />
+              <button type="button" class="btn-icon-sm" (click)="removeVideoRetryFeedbackRow(ri)" title="Remove"><span class="material-icons">close</span></button>
+            </div>
+            <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="video-feedback-audio"></audio>
+          </div>
+          <button type="button" class="btn-add-video-feedback" (click)="addVideoRetryFeedbackRow()" [disabled]="videoRetryFeedbackRows.length >= maxVideoFeedbackClips">
+            <span class="material-icons">add</span> Add retry clip
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Questions -->
+    <div class="video-questions-section">
+      <div class="video-questions-header">
+        <h3>Video Clips <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span></h3>
+        <span class="total-points">{{ videoQuestions.length }} clip{{ videoQuestions.length !== 1 ? 's' : '' }} · {{ getTotalPoints() }} pts</span>
+      </div>
+
+      <!-- Empty state -->
+      <div class="video-empty-state" *ngIf="videoQuestions.length === 0">
+        <span class="material-icons">videocam_off</span>
+        <p>No video clips yet. Click "+ Add Video Clip" below to get started.</p>
+      </div>
+
+      <!-- Video question cards -->
+      <div class="video-question-card" *ngFor="let vq of videoQuestions; let vi = index">
+        <div class="vqc-header">
+          <span class="vqc-number">Clip {{ vi + 1 }}</span>
+          <div class="vqc-actions">
+            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, -1)" [disabled]="vi === 0" title="Move up">
+              <span class="material-icons">arrow_upward</span>
+            </button>
+            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, 1)" [disabled]="vi === videoQuestions.length - 1" title="Move down">
+              <span class="material-icons">arrow_downward</span>
+            </button>
+            <button type="button" class="vqc-btn vqc-btn--delete" (click)="removeVideoQuestion(vi)" title="Remove clip">
+              <span class="material-icons">delete_outline</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="vqc-body">
+          <!-- Video upload area -->
+          <div class="video-upload-area" [class.has-video]="vq.videoUrl">
+            <ng-container *ngIf="!vq.videoUrl && !vq.videoUploading">
+              <span class="material-icons upload-icon">cloud_upload</span>
+              <p class="upload-label">Upload a video file</p>
+              <p class="upload-hint">MP4, WebM, MOV · any size</p>
+              <button type="button" class="btn-upload-video" (click)="triggerVideoFile(vq)">
+                <span class="material-icons">video_file</span> Choose Video
+              </button>
+            </ng-container>
+            <ng-container *ngIf="vq.videoUploading">
+              <span class="material-icons upload-icon spin">hourglass_empty</span>
+              <p class="upload-label">Uploading…</p>
+            </ng-container>
+            <ng-container *ngIf="vq.videoUrl && !vq.videoUploading">
+              <video [src]="getMediaFullUrl(vq.videoUrl)" controls class="video-preview"></video>
+              <button type="button" class="btn-replace-video" (click)="triggerVideoFile(vq)">
+                <span class="material-icons">swap_horiz</span> Replace Video
+              </button>
+            </ng-container>
+          </div>
+
+          <!-- Caption & pronunciation settings -->
+          <div class="vqc-fields">
+            <div class="field-group">
+              <label class="field-label required">Caption (word/phrase student must speak)</label>
+              <input type="text" [(ngModel)]="vq.caption" class="field-input video-caption-field"
+                placeholder="e.g. Guten Morgen" autocomplete="off" />
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Context <span class="label-optional">opt.</span></label>
+              <textarea
+                [(ngModel)]="vq.context"
+                class="field-input field-input--sm"
+                rows="2"
+                placeholder="Optional context shown above this clip for students"
+              ></textarea>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Accepted Variants <span class="label-optional">opt.</span></label>
+              <div class="variants-list">
+                <div class="variant-row" *ngFor="let v of vq.acceptedVariants; let ai = index">
+                  <input type="text" [(ngModel)]="vq.acceptedVariants![ai]" class="field-input field-input--sm"
+                    placeholder="Alternate accepted pronunciation" />
+                  <button type="button" class="btn-icon-sm" (click)="removeVariant(vq, ai)">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+                <button type="button" class="btn-add-variant" (click)="addVariant(vq)">
+                  <span class="material-icons">add</span> Add variant
+                </button>
+              </div>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Points</label>
+              <input type="number" [(ngModel)]="vq.points" class="field-input field-input--number field-input--sm" min="1" max="100" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add clip button -->
+      <button type="button" class="btn-add-video-clip" (click)="addVideoQuestion()">
+        <span class="material-icons">add_circle_outline</span>
+        Add Video Clip
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="tab-nav-footer">
+      <button class="btn-back-tab" (click)="activeTab = 'info'">
+        <span class="material-icons">arrow_back</span> Back to Info
+      </button>
+      <div class="footer-right">
+        <button class="btn-next" (click)="activeTab = 'preview'" [disabled]="!isInfoValid()">
+          Preview <span class="material-icons">arrow_forward</span>
+        </button>
+        <button class="btn-save" (click)="save()" [disabled]="saving || !isInfoValid() || !isVideoQuestionsValid()">
+          <span class="material-icons">save</span>
+          {{ saving ? 'Saving...' : (isEditMode ? 'Update Exercise' : 'Create Exercise') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tab: Preview -->
   <div class="tab-content preview-tab" *ngIf="activeTab === 'preview' && !loading">
     <div class="preview-card">
@@ -626,12 +866,13 @@
         <div *ngFor="let q of questions; let i = index" class="preview-question">
           <div class="pq-header">
             <span class="pq-number">{{ i + 1 }}</span>
-            <span class="pq-type">{{ getTypeLabel(q.type) }}</span>
+            <span class="pq-type">{{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}</span>
             <span class="pq-points">{{ q.points }} pt{{ q.points !== 1 ? 's' : '' }}</span>
           </div>
 
           <!-- MCQ Preview -->
           <div *ngIf="q.type === 'mcq'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.question }}</p>
             <img *ngIf="q.imageUrl" [src]="q.imageUrl" class="pq-image" />
             <div class="pq-options">
@@ -645,6 +886,7 @@
 
           <!-- Matching Preview -->
           <div *ngIf="q.type === 'matching'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.instruction }}</p>
             <div class="pq-pairs">
               <div *ngFor="let pair of q.pairs; let pi = index" class="pq-pair">
@@ -657,6 +899,7 @@
 
           <!-- Fill-blank Preview -->
           <div *ngIf="q.type === 'fill-blank'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text pq-sentence">{{ q.sentence }}</p>
             <div *ngIf="q.hint" class="pq-hint">💡 Hint: {{ q.hint }}</div>
             <div class="pq-answers">
@@ -668,6 +911,7 @@
 
           <!-- Pronunciation Preview -->
           <div *ngIf="q.type === 'pronunciation'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <div class="pq-word">{{ q.word }}</div>
             <div *ngIf="q.phonetic" class="pq-phonetic">{{ q.phonetic }}</div>
             <div *ngIf="q.translation" class="pq-translation">= {{ q.translation }}</div>
@@ -675,6 +919,7 @@
 
           <!-- Listening Preview -->
           <div *ngIf="q.type === 'listening'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
             <div *ngIf="q.mediaUrl" class="pq-audio">
               <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
@@ -684,12 +929,26 @@
 
           <!-- Question / Answer Preview -->
           <div *ngIf="q.type === 'question-answer'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
             <div class="pq-qa-answer-box">Student types their answer here...</div>
             <div *ngIf="q.sampleAnswers && q.sampleAnswers[0]" class="pq-answers">
               <span *ngFor="let sa of q.sampleAnswers; let si = index" class="pq-answer">
                 Answer {{ si + 1 }}: <strong>{{ sa }}</strong>
               </span>
+            </div>
+          </div>
+
+          <!-- Video Pronunciation Preview -->
+          <div *ngIf="q.type === 'video-pronunciation'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
+            <div *ngIf="q.videoUrl" class="pq-video-wrap">
+              <video [src]="getMediaFullUrl(q.videoUrl)" controls class="pq-video"></video>
+            </div>
+            <div *ngIf="!q.videoUrl" class="pq-no-video">No video uploaded</div>
+            <div class="pq-caption"><span class="material-icons">record_voice_over</span> Student speaks: <strong>{{ q.caption || '—' }}</strong></div>
+            <div *ngIf="q.acceptedVariants && q.acceptedVariants.length > 0" class="pq-variants">
+              Also accepted: {{ q.acceptedVariants.join(', ') }}
             </div>
           </div>
         </div>

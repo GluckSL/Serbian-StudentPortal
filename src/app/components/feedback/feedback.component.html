@@ -14,7 +14,7 @@
         <div class="col-md-4 text-end">
           <div class="admin-stats-quick">
             <div class="stat-item">
-              <span class="stat-number">{{ feedbackList?.length || 0 }}</span>
+              <span class="stat-number">{{ feedbackList.length || 0 }}</span>
               <span class="stat-label">Total Feedback</span>
             </div>
           </div>
@@ -80,7 +80,7 @@
       <div *ngIf="!loading && !errorMessage" class="results-summary">
         <div class="d-flex justify-content-between align-items-center">
           <div class="results-info">
-            <span class="results-count">{{ filteredFeedback?.length || 0 }}</span>
+            <span class="results-count">{{ filteredFeedback.length || 0 }}</span>
             <span class="results-text">feedback entries</span>
           </div>
           <div class="rating-summary" *ngIf="averageRating">

@@ -9,8 +9,7 @@ const StudentDocument = require('../models/StudentDocument');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const fs = require('fs');
-const path = require('path');
+const deleteFromS3 = require('../config/s3Delete');
 
 // Services that don't require any documents
 const NO_DOCS_SERVICES = ['German Language Only', 'Language only', 'Only for language', 'None', ''];
@@ -129,10 +128,8 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     const { documentType, documentName, description } = req.body;
     
     if (!documentType || !documentName) {
-      // Delete uploaded file if validation fails
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      // Delete uploaded file from S3 if validation fails
+      if (req.file) await deleteFromS3(req.file.key || req.file.location);
       return res.status(400).json({
         success: false,
         message: 'Document type and name are required'
@@ -142,35 +139,22 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     // Get student information
     const student = await User.findById(req.user.id);
     if (!student) {
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await deleteFromS3(req.file.key || req.file.location);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
     
-    // Move file to student-specific folder if it was uploaded to temp
-    let finalPath = req.file.path;
-    if (req.file.path.includes('temp')) {
-      const studentFolder = path.join('uploads/student-documents', req.user.id.toString());
-      if (!fs.existsSync(studentFolder)) {
-        fs.mkdirSync(studentFolder, { recursive: true });
-      }
-      finalPath = path.join(studentFolder, req.file.filename);
-      fs.renameSync(req.file.path, finalPath);
-    }
-    
-    // Create document record
+    // Create document record — filePath now stores the S3 URL
     const document = new StudentDocument({
       studentId: req.user.id,
       studentName: student.name,
       studentEmail: student.email,
       documentType,
       documentName,
-      fileName: req.file.filename,
-      filePath: finalPath,
+      fileName: req.file.originalname,
+      filePath: req.file.location,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
       description: description || '',
@@ -193,10 +177,8 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
   } catch (error) {
     console.error('❌ Error uploading document:', error);
     
-    // Clean up uploaded file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    // Clean up uploaded file from S3 on error
+    if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
     
     res.status(500).json({
       success: false,
@@ -233,9 +215,9 @@ router.delete('/:documentId', verifyToken, checkRole(['STUDENT']), async (req, r
       });
     }
     
-    // Delete physical file
-    if (fs.existsSync(document.filePath)) {
-      fs.unlinkSync(document.filePath);
+    // Delete file from S3 (filePath is now an S3 URL)
+    if (document.filePath && document.filePath !== 'NO_FILE_UPLOADED') {
+      await deleteFromS3(document.filePath);
     }
     
     // Delete database record
@@ -290,16 +272,11 @@ router.get('/download/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER'
       });
     }
     
-    // Check if file exists
-    if (!fs.existsSync(document.filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found on server'
-      });
+    // Redirect to S3 URL for download
+    if (!document.filePath) {
+      return res.status(404).json({ success: false, message: 'File not found' });
     }
-    
-    // Send file
-    res.download(document.filePath, document.fileName);
+    res.redirect(document.filePath);
   } catch (error) {
     console.error('❌ Error downloading document:', error);
     res.status(500).json({
@@ -331,16 +308,12 @@ router.get('/preview/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER',
       return res.status(404).json({ success: false, message: 'No file available' });
     }
     
-    if (!fs.existsSync(document.filePath)) {
-      return res.status(404).json({ success: false, message: 'File not found on server' });
+    if (!document.filePath) {
+      return res.status(404).json({ success: false, message: 'File not found' });
     }
     
-    // Set content type and serve inline
-    res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
-    
-    const fileStream = fs.createReadStream(document.filePath);
-    fileStream.pipe(res);
+    // Redirect to S3 URL for inline preview
+    res.redirect(document.filePath);
   } catch (error) {
     console.error('❌ Error previewing document:', error);
     res.status(500).json({ success: false, message: 'Error previewing document' });
@@ -447,9 +420,7 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
     const { studentEmail, documentType, documentName, description } = req.body;
     
     if (!studentEmail || !documentType || !documentName) {
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
       return res.status(400).json({
         success: false,
         message: 'Student email, document type, and name are required'
@@ -459,35 +430,22 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
     // Find student by email
     const student = await User.findOne({ email: studentEmail, role: 'STUDENT' });
     if (!student) {
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
       return res.status(404).json({
         success: false,
         message: 'Student not found with this email'
       });
     }
     
-    // Move file to student-specific folder
-    const studentFolder = path.join('uploads/student-documents', student._id.toString());
-    if (!fs.existsSync(studentFolder)) {
-      fs.mkdirSync(studentFolder, { recursive: true });
-    }
-    
-    const finalPath = path.join(studentFolder, req.file.filename);
-    if (req.file.path !== finalPath) {
-      fs.renameSync(req.file.path, finalPath);
-    }
-    
-    // Create document record
+    // Create document record — filePath is now the S3 URL
     const document = new StudentDocument({
       studentId: student._id,
       studentName: student.name,
       studentEmail: student.email,
       documentType,
       documentName,
-      fileName: req.file.filename,
-      filePath: finalPath,
+      fileName: req.file.originalname,
+      filePath: req.file.location,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
       description: description || 'Uploaded by admin',
@@ -510,9 +468,7 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
   } catch (error) {
     console.error('❌ Error in admin upload:', error);
     
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
     
     res.status(500).json({
       success: false,

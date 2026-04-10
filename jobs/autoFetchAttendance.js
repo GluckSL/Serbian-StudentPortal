@@ -5,111 +5,8 @@
 const cron = require('node-cron');
 const MeetingLink = require('../models/MeetingLink');
 const zoomService = require('../services/zoomService');
-
-// Full matching algorithm (same as routes/zoom.js)
-function levenshteinDistance(str1, str2) {
-  const matrix = [];
-  for (let i = 0; i <= str2.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= str1.length; j++) matrix[0][j] = j;
-  for (let i = 1; i <= str2.length; i++) {
-    for (let j = 1; j <= str1.length; j++) {
-      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  return matrix[str2.length][str1.length];
-}
-
-function calculateStringSimilarity(str1, str2) {
-  if (!str1 || !str2) return 0;
-  const s1 = str1.toLowerCase().trim();
-  const s2 = str2.toLowerCase().trim();
-  if (s1 === s2) return 1;
-  const longer = s1.length > s2.length ? s1 : s2;
-  const shorter = s1.length > s2.length ? s2 : s1;
-  if (longer.length === 0) return 1;
-  const distance = levenshteinDistance(longer, shorter);
-  return (longer.length - distance) / longer.length;
-}
-
-function calculatePartialNameMatch(registeredName, zoomName) {
-  const registered = registeredName.toLowerCase().trim().split(/\s+/);
-  const zoom = zoomName.toLowerCase().trim().split(/\s+/);
-  let matchedParts = 0;
-  const totalParts = registered.length;
-
-  for (const regPart of registered) {
-    for (const zoomPart of zoom) {
-      if (regPart === zoomPart) { matchedParts++; break; }
-      if (regPart.startsWith(zoomPart) || zoomPart.startsWith(regPart)) {
-        if (Math.min(regPart.length, zoomPart.length) >= 2) { matchedParts += 0.8; break; }
-      }
-      if ((regPart[0] === zoomPart[0]) && (regPart.length === 1 || zoomPart.length === 1)) {
-        matchedParts += 0.5; break;
-      }
-    }
-  }
-
-  const baseConfidence = (matchedParts / totalParts) * 80;
-  const lengthBonus = registered.length === zoom.length ? 5 : 0;
-  return Math.min(Math.round(baseConfidence + lengthBonus), 80);
-}
-
-function findBestParticipantMatch(attendee, participants) {
-  if (!participants || participants.length === 0) {
-    return { match: null, confidence: 0, method: 'no_match' };
-  }
-
-  let bestMatch = null;
-  let bestConfidence = 0;
-  let bestMethod = 'no_match';
-
-  for (const participant of participants) {
-    if (participant._matched) continue;
-
-    // Strategy 1: Exact email match (100%)
-    if (participant.email && attendee.email &&
-        participant.email.toLowerCase() === attendee.email.toLowerCase()) {
-      return { match: { ...participant, _matched: true }, confidence: 100, method: 'email' };
-    }
-
-    // Strategy 2: Exact name match (90%)
-    if (participant.name && attendee.name &&
-        participant.name.toLowerCase().trim() === attendee.name.toLowerCase().trim()) {
-      if (90 > bestConfidence) {
-        bestMatch = participant; bestConfidence = 90; bestMethod = 'exact_name';
-      }
-      continue;
-    }
-
-    // Strategy 3: Partial name match (60-80%)
-    if (participant.name && attendee.name) {
-      const confidence = calculatePartialNameMatch(attendee.name, participant.name);
-      if (confidence > bestConfidence && confidence >= 60) {
-        bestMatch = participant; bestConfidence = confidence; bestMethod = 'partial_name';
-      }
-    }
-
-    // Strategy 4: Fuzzy name match (40-70%)
-    if (participant.name && attendee.name) {
-      const similarity = calculateStringSimilarity(attendee.name, participant.name);
-      const confidence = Math.round(similarity * 70);
-      if (confidence > bestConfidence && confidence >= 40) {
-        bestMatch = participant; bestConfidence = confidence; bestMethod = 'fuzzy_name';
-      }
-    }
-  }
-
-  if (bestMatch) bestMatch._matched = true;
-  return { match: bestMatch, confidence: bestConfidence, method: bestMethod };
-}
+const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
 
 async function fetchAttendanceForMeeting(meeting) {
   try {
@@ -145,6 +42,12 @@ async function fetchAttendanceForMeeting(meeting) {
     meeting.attendanceRecorded = true;
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
+
+    try {
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('  ⚠️ journey pending sync:', e.message);
+    }
 
     const attended = attendanceData.filter(a => a.attended).length;
     console.log(`  ✅ ${meeting.topic} — ${attended}/${attendanceData.length} attended`);

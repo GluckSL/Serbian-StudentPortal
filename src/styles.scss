@@ -3,9 +3,6 @@
 @use '@angular/material' as mat;
 @use 'sass:map';
 
-/* Shepherd.js tour styles */
-@import 'shepherd.js/dist/css/shepherd.css';
-
 /* ============================= */
 /* Angular Material Theme Setup  */
 /* ============================= */
@@ -197,11 +194,13 @@ button:disabled,
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2) !important;
   border: 1px solid #e8ecf4 !important;
   padding: 0 !important;
+  overflow: hidden !important;
 }
 
 .gluck-tour-step .shepherd-text {
   padding: 18px 20px !important;
   font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  background: #fff !important;
 }
 
 .gluck-tour-step .shepherd-header {
@@ -209,11 +208,17 @@ button:disabled,
 }
 
 .gluck-tour-step .shepherd-footer {
-  padding: 0 20px 16px !important;
+  padding: 14px 20px !important;
   border-top: none !important;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+  min-height: 56px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #011f4b 0%, #03396c 100%);
+  border-bottom-left-radius: 13px !important;
+  border-bottom-right-radius: 13px !important;
 }
 
 .gluck-tour-step .shepherd-button {
@@ -259,5 +264,217 @@ button:disabled,
   .shepherd-element { max-width: 90vw !important; }
   .gluck-tour-step .shepherd-content { max-width: 90vw !important; }
   .gluck-tour-step .shepherd-text { padding: 14px 16px !important; }
-  .gluck-tour-step .shepherd-footer { padding: 0 16px 12px !important; }
+  .gluck-tour-step .shepherd-footer {
+    padding: 12px 16px !important;
+    min-height: 52px;
+  }
+}
+
+/* ============================= */
+/* Toast / Snackbar Styles       */
+/* ============================= */
+.snack-success .mdc-snackbar__surface,
+.snack-success.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #16a34a !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(22, 163, 74, 0.3) !important;
+}
+
+.snack-error .mdc-snackbar__surface,
+.snack-error.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3) !important;
+}
+
+.snack-info .mdc-snackbar__surface,
+.snack-info.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #2563eb !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3) !important;
+}
+
+.snack-warning .mdc-snackbar__surface,
+.snack-warning.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #d97706 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(217, 119, 6, 0.3) !important;
+}
+
+.snack-success .mat-mdc-snack-bar-label,
+.snack-error .mat-mdc-snack-bar-label,
+.snack-info .mat-mdc-snack-bar-label,
+.snack-warning .mat-mdc-snack-bar-label {
+  color: #fff !important;
+  font-weight: 500 !important;
+}
+
+.snack-success .mat-mdc-button,
+.snack-error .mat-mdc-button,
+.snack-info .mat-mdc-button,
+.snack-warning .mat-mdc-button {
+  color: rgba(255,255,255,0.85) !important;
+}
+
+/* Confirm dialog panel */
+.confirm-dialog-panel .mat-mdc-dialog-container .mdc-dialog__surface {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+/* ============================= */
+/* Global Responsive Utilities   */
+/* ============================= */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  /* Stacking Bootstrap grid columns */
+  .col-md-6, .col-md-4, .col-md-3, .col-md-2,
+  .col-lg-6, .col-lg-4, .col-lg-3, .col-lg-2 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  /* Card spacing */
+  .card, mat-card, .mat-card {
+    margin-bottom: 16px;
+  }
+  .row > [class*="col-"] {
+    margin-bottom: 8px;
+  }
+
+  /* Inputs full-width */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    max-width: 100% !important;
+    width: 100% !important;
+    font-size: 16px !important; /* prevents iOS zoom */
+  }
+
+  mat-form-field {
+    width: 100% !important;
+  }
+
+  /* Reduce container padding */
+  .container, .container-fluid {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Utility classes */
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: block !important; }
+
+  /* Responsive mat-dialog */
+  .mat-mdc-dialog-container,
+  .mat-dialog-container {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px !important;
+  }
+
+  /* Table cells ellipsis on tiny screens */
+  td, th {
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Mat tabs scroll on mobile */
+  .mat-mdc-tab-header {
+    overflow-x: auto !important;
+  }
+
+  /* Snackbar full width on phone */
+  .mat-mdc-snack-bar-container {
+    max-width: calc(100vw - 32px) !important;
+    min-width: unset !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small: single column everything */
+  .col-sm-6, .col-sm-4, .col-sm-3 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.25rem !important; }
+  h3 { font-size: 1.1rem !important; }
+}
+
+/* ============================= */
+/* Mobile touch & usability      */
+/* ============================= */
+
+/* Minimum 44px touch targets for interactive elements */
+@media (max-width: 768px) {
+  button:not(.cd-btn):not(.mobile-menu-btn),
+  .btn,
+  a[role="button"],
+  [mat-button],
+  [mat-raised-button],
+  [mat-flat-button],
+  [mat-stroked-button],
+  [mat-icon-button] {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Larger checkbox and radio hit areas */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 20px !important;
+    min-height: 20px !important;
+    cursor: pointer;
+  }
+
+  /* Scrollable select on iOS */
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Better tap state for mat-list-items */
+  .mat-mdc-list-item,
+  .mat-mdc-nav-list .mat-mdc-list-item {
+    min-height: 48px !important;
+  }
+
+  /* Remove default tap highlights */
+  * {
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+  }
+}
+
+/* Sidebar scrollable on phone */
+@media (max-width: 768px) {
+  app-sidebar {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Allow page-level horizontal scroll tables but not the page itself */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Ensure modals are scrollable on short phones */
+  .mat-mdc-dialog-content,
+  .mat-dialog-content {
+    max-height: 65vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }

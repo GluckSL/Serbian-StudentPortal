@@ -27,7 +27,7 @@ const MatchingQuestionSchema = new mongoose.Schema({
 // Fill in the Blanks Schema
 const FillBlankQuestionSchema = new mongoose.Schema({
   type: { type: String, enum: ['fill-blank'], default: 'fill-blank' },
-  sentence: { type: String, required: true }, // Use ___ for each blank
+  sentence: { type: String, required: true }, // Use _ or ___ (each run = one blank)
   answers: [{ type: String, required: true }],  // Correct answers for each blank in order
   hint: { type: String, default: '' },
   caseSensitive: { type: Boolean, default: false },
@@ -80,7 +80,9 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation'], required: true },
+    // Common optional context shown above the question to students.
+    context: { type: String, default: '' },
     // MCQ fields
     question: String,
     imageUrl: String,
@@ -107,19 +109,43 @@ const DigitalExerciseSchema = new mongoose.Schema({
     // Question / Answer fields
     prompt: String,
     sampleAnswers: [String],
+    // Story passage for worksheet-style questions (e.g. true/false reading).
+    storyParagraph: { type: String, default: '' },
     similarityThreshold: { type: Number, default: 70 },   // 0-100 — min AI score to pass
     scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
     // Listening fields (prompt reused for instruction)
     mediaUrl: String,  // URL to audio file (uploaded or external link)
     expectedTranscript: String,  // AI-extracted text, teacher-verified before publish
     attemptMode: { type: String, enum: ['typing', 'typing-or-speech'], default: 'typing' },
+    // Video pronunciation (watch clip, speak caption)
+    videoUrl: String,
+    caption: String,
     // Common
-    points: { type: Number, default: 1 }
+    points: { type: Number, default: 1 },
+    // Worksheet metadata: set by AI when generated from a structured worksheet
+    sectionTitle: { type: String, default: null },  // e.g. "STUFE 1 – LEICHT | Übung L1.1"
+    tier: { type: String, enum: ['easy', 'medium', 'hard', null], default: null }
+    ,
+    // Worksheet category label for question-answer style tasks.
+    // Example: "true-false", "sentence-transformation", "error-correction", etc.
+    worksheetKind: { type: String, default: null }
   }],
 
   // Optional shared audio for manual listening worksheets.
   // When present, the student can play this audio for all questions in the exercise.
   sharedAudioUrl: { type: String, default: null },
+
+  // Video pronunciation exercises: optional feedback sounds (exercise-wide).
+  // On correct / incorrect, the player picks one entry at random (if any) and plays audioUrl.
+  // caption is optional on-screen hint text (e.g. "Try again").
+  videoSuccessFeedback: [{
+    audioUrl: { type: String, required: true },
+    caption: { type: String, default: '' }
+  }],
+  videoRetryFeedback: [{
+    audioUrl: { type: String, required: true },
+    caption: { type: String, default: '' }
+  }],
 
   tags: [String],
 

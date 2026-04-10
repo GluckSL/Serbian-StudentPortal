@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
+const MeetingLink = require('../models/MeetingLink');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 
@@ -16,14 +17,64 @@ router.get("/admin-dashboard", verifyToken, checkRole("admin"), (req, res) => {
 // Get all students
 router.get('/students', verifyToken, isAdmin, async (req, res) => {
   try {
-    const students = await User.find({ role: 'STUDENT' })
+    const toPositiveInt = (value, fallback) => {
+      const parsed = parseInt(String(value), 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    };
+
+    const page = toPositiveInt(req.query.page, 1);
+    const limit = Math.min(toPositiveInt(req.query.limit, 20), 100);
+    const skip = (page - 1) * limit;
+
+    const {
+      level,
+      plan,
+      batch,
+      studentStatus,
+      studentName,
+      teacherName
+    } = req.query;
+
+    const query = { role: 'STUDENT' };
+
+    if (level) query.level = String(level).trim();
+    if (plan) query.subscription = String(plan).trim().toUpperCase();
+    if (batch) query.batch = String(batch).trim();
+    if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
+    if (studentName) query.name = { $regex: new RegExp(String(studentName).trim(), 'i') };
+
+    if (teacherName) {
+      const matchingTeachers = await User.find({
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+        name: { $regex: new RegExp(String(teacherName).trim(), 'i') }
+      }).select('_id');
+
+      const teacherIds = matchingTeachers.map((teacher) => teacher._id);
+      query.assignedTeacher = { $in: teacherIds };
+    }
+
+    const total = await User.countDocuments(query);
+    const students = await User.find(query)
       .select('-password') // exclude passwords
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate({
         path: 'assignedTeacher',   // the field in User schema
         select: 'name regNo email medium' // fetch only useful teacher info
       });
 
-    res.json({ success: true, data: students });
+    const pages = Math.max(1, Math.ceil(total / limit));
+    res.json({
+      success: true,
+      data: students,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages
+      }
+    });
   } catch (err) {
     res.status(500).json({
       success: false,
@@ -61,6 +112,264 @@ router.get('/teachers', verifyToken, isAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch teachers',
+      error: err.message
+    });
+  }
+});
+
+// Get detailed report for a single teacher
+router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid teacher ID'
+      });
+    }
+
+    const teacher = await User.findOne({
+      _id: teacherId,
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
+    })
+      .populate('assignedCourses', 'title')
+      .select('-password')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    const students = await User.find({
+      role: 'STUDENT',
+      assignedTeacher: teacherId
+    })
+      .select('name regNo email level batch studentStatus currentCourseDay examScores')
+      .lean();
+
+    const meetings = await MeetingLink.find({ assignedTeacher: teacherId })
+      .select('topic batch startTime duration attendance attendanceRecorded status')
+      .sort({ startTime: -1 })
+      .lean();
+
+    const statusTemplate = {
+      ONGOING: 0,
+      COMPLETED: 0,
+      WITHDREW: 0,
+      UNCERTAIN: 0
+    };
+
+    const levelTemplate = {
+      A1: 0,
+      A2: 0,
+      B1: 0,
+      B2: 0,
+      C1: 0,
+      C2: 0
+    };
+
+    const batchMap = new Map();
+    const allKnownBatches = new Set([...(teacher.assignedBatches || [])]);
+    let courseDaySum = 0;
+    let courseDayCount = 0;
+
+    students.forEach((student) => {
+      const status = String(student.studentStatus || '').toUpperCase();
+      const level = String(student.level || '').toUpperCase();
+      const batch = String(student.batch || '').trim();
+
+      if (statusTemplate[status] !== undefined) {
+        statusTemplate[status] += 1;
+      }
+
+      if (levelTemplate[level] !== undefined) {
+        levelTemplate[level] += 1;
+      }
+
+      if (batch) {
+        allKnownBatches.add(batch);
+        if (!batchMap.has(batch)) {
+          batchMap.set(batch, {
+            batch,
+            totalStudents: 0,
+            ongoing: 0,
+            completed: 0,
+            withdrew: 0,
+            uncertain: 0
+          });
+        }
+
+        const info = batchMap.get(batch);
+        info.totalStudents += 1;
+
+        if (status === 'ONGOING') info.ongoing += 1;
+        if (status === 'COMPLETED') info.completed += 1;
+        if (status === 'WITHDREW') info.withdrew += 1;
+        if (status === 'UNCERTAIN') info.uncertain += 1;
+      }
+
+      if (typeof student.currentCourseDay === 'number' && Number.isFinite(student.currentCourseDay)) {
+        courseDaySum += student.currentCourseDay;
+        courseDayCount += 1;
+      }
+    });
+
+    // Include assigned teacher batches even if no students are currently mapped.
+    allKnownBatches.forEach((batch) => {
+      if (!batchMap.has(batch)) {
+        batchMap.set(batch, {
+          batch,
+          totalStudents: 0,
+          ongoing: 0,
+          completed: 0,
+          withdrew: 0,
+          uncertain: 0
+        });
+      }
+    });
+
+    const batchBreakdown = Array.from(batchMap.values()).sort((a, b) =>
+      String(a.batch).localeCompare(String(b.batch))
+    );
+
+    let attendedCount = 0;
+    let absentCount = 0;
+    let lateCount = 0;
+    let totalAttendanceRecords = 0;
+
+    const formatMeeting = (meeting) => {
+      const attendance = Array.isArray(meeting.attendance) ? meeting.attendance : [];
+      const present = attendance.filter((entry) => entry?.attended === true || entry?.status === 'attended').length;
+      const late = attendance.filter((entry) => entry?.status === 'late').length;
+      const absent = Math.max(attendance.length - present - late, 0);
+      const total = attendance.length;
+      const attendanceRate = total ? Math.round(((present + late) / total) * 100) : 0;
+
+      const meetingDurationMinutes = Number(meeting.duration || 0);
+      const attendedEntries = attendance.filter((entry) => entry?.attended === true || entry?.status === 'attended' || entry?.status === 'late');
+      const attendedMinutesList = attendedEntries
+        .map((entry) => {
+          const mins = entry?.durationMinutes;
+          if (typeof mins === 'number' && Number.isFinite(mins)) return mins;
+          const secs = entry?.duration;
+          if (typeof secs === 'number' && Number.isFinite(secs)) return Math.round(secs / 60);
+          return 0;
+        })
+        .filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+      const totalAttendedMinutes = attendedMinutesList.reduce((sum, v) => sum + v, 0);
+      const avgAttendedMinutes = attendedMinutesList.length ? Math.round(totalAttendedMinutes / attendedMinutesList.length) : 0;
+
+      return {
+        _id: meeting._id,
+        topic: meeting.topic || 'Class Meeting',
+        batch: meeting.batch || 'N/A',
+        startTime: meeting.startTime,
+        status: meeting.status || 'scheduled',
+        attendanceRecorded: Boolean(meeting.attendanceRecorded),
+        present,
+        late,
+        absent,
+        total,
+        attendanceRate,
+        meetingDurationMinutes,
+        avgAttendedMinutes,
+        totalAttendedMinutes
+      };
+    };
+
+    const now = new Date();
+    const mappedMeetings = meetings.map((meeting) => {
+      const mapped = formatMeeting(meeting);
+      attendedCount += mapped.present;
+      lateCount += mapped.late;
+      absentCount += mapped.absent;
+      totalAttendanceRecords += mapped.total;
+      return mapped;
+    });
+
+    const recentMeetings = mappedMeetings.slice(0, 8);
+    const upcomingMeetings = mappedMeetings
+      .filter((meeting) => meeting.startTime && new Date(meeting.startTime) >= now)
+      .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+      .slice(0, 10);
+    const pastMeetings = mappedMeetings
+      .filter((meeting) => meeting.startTime && new Date(meeting.startTime) < now)
+      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
+      .slice(0, 15);
+
+    const overallAttendanceRate = totalAttendanceRecords
+      ? Math.round(((attendedCount + lateCount) / totalAttendanceRecords) * 100)
+      : 0;
+
+    const studentsWithExamAverage = students.map((student) => {
+      const examScores = student.examScores || {};
+      const scoreValues = [examScores.reading, examScores.listening, examScores.writing, examScores.speaking]
+        .filter((v) => typeof v === 'number' && Number.isFinite(v));
+      const averageExamScore = scoreValues.length
+        ? Math.round((scoreValues.reduce((sum, v) => sum + v, 0) / scoreValues.length) * 10) / 10
+        : null;
+
+      return {
+        _id: student._id,
+        name: student.name,
+        regNo: student.regNo,
+        email: student.email,
+        level: student.level || 'N/A',
+        batch: student.batch || 'N/A',
+        studentStatus: student.studentStatus || 'UNCERTAIN',
+        currentCourseDay: typeof student.currentCourseDay === 'number' ? student.currentCourseDay : null,
+        averageExamScore
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        teacher: {
+          _id: teacher._id,
+          name: teacher.name,
+          regNo: teacher.regNo,
+          email: teacher.email,
+          role: teacher.role,
+          medium: teacher.medium || [],
+          assignedCourses: teacher.assignedCourses || [],
+          assignedBatches: teacher.assignedBatches || []
+        },
+        summary: {
+          totalStudents: students.length,
+          totalAssignedBatches: allKnownBatches.size,
+          totalMeetings: meetings.length,
+          totalAttendanceRecords,
+          overallAttendanceRate,
+          averageCourseDay: courseDayCount ? Math.round(courseDaySum / courseDayCount) : 0
+        },
+        performance: {
+          statusBreakdown: statusTemplate,
+          levelBreakdown: levelTemplate
+        },
+        attendance: {
+          attendedCount,
+          lateCount,
+          absentCount,
+          recentMeetings
+        },
+        meetings: {
+          pastMeetings,
+          upcomingMeetings
+        },
+        batchBreakdown,
+        students: studentsWithExamAverage
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching teacher report:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch teacher report',
       error: err.message
     });
   }
@@ -214,6 +523,8 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
         });
       }
       updateData.currentCourseDay = d;
+      updateData.pendingJourneyDayAdvance = false;
+      updateData.pendingJourneyDayAdvanceForDay = null;
     }
 
     // Update all selected students

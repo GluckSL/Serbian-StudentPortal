@@ -50,10 +50,7 @@
         <option value="">All Difficulties</option>
         <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
       </select>
-      <label class="today-only-inline" *ngIf="userRole === 'STUDENT'">
-        <input type="checkbox" [(ngModel)]="todayOnly" (change)="onTodayOnlyChange()" />
-        <span>Today only</span>
-      </label>
+      <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
       <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
@@ -75,11 +72,12 @@
   </div>
 
   <!-- Exercise List (Card-based rows) -->
-  <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0">
+  <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0" [class.exercise-list--student]="userRole === 'STUDENT'">
     <div class="list-headers">
       <span class="col-details">EXERCISE DETAILS</span>
       <span class="col-level">LEVEL</span>
       <span class="col-cat">CATEGORY</span>
+      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAY</span>
       <span class="col-vol">VOLUME</span>
       <span class="col-dur">DURATION</span>
       <span class="col-priority">STATUS</span>
@@ -97,8 +95,12 @@
         <span class="level-badge" [style.background]="getLevelColor(ex.level)">LEVEL {{ ex.level }}</span>
       </div>
       <div class="row-category">{{ ex.category }}</div>
+      <div class="row-day" *ngIf="userRole === 'STUDENT'">
+        <span class="journey-day-pill" *ngIf="ex.courseDay != null">{{ ex.courseDay }}</span>
+        <span class="journey-day-pill journey-day-pill--any" *ngIf="ex.courseDay == null">Any</span>
+      </div>
       <div class="row-volume">
-        <span class="vol-num">{{ ex.questions?.length || 0 }}</span>
+        <span class="vol-num">{{ ex.questions.length || 0 }}</span>
         <span class="vol-label">ITEMS</span>
       </div>
       <div class="row-duration">
@@ -115,8 +117,16 @@
         </div>
       </div>
       <div class="row-action">
-        <button class="btn-start" (click)="startExercise(ex)">
+        <button
+          *ngIf="!isExerciseJourneyLocked(ex)"
+          type="button"
+          class="btn-start"
+          (click)="startExercise(ex)"
+        >
           {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+        </button>
+        <button *ngIf="isExerciseJourneyLocked(ex)" type="button" class="btn-start btn-start--locked" disabled>
+          {{ journeyUnlockButtonLabel(ex) }}
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 <!-- src/app/components/learning-modules/learning-modules.component.html -->
 
-<div class="learning-modules-container">
+<div class="learning-modules-container" [class.lm-embedded]="embedded">
   <!-- ═══ Header card ═══ -->
   <div class="lm-header-card">
     <div class="lm-header-top">
@@ -170,7 +170,7 @@
               <span *ngIf="currentUser?.role === 'STUDENT' && !canAccessModule(module)" 
                     class="badge badge-warning ms-1"
                     [title]="getModuleAccessStatus(module).reason">
-                <i class="fas fa-lock"></i> Locked
+                <i class="fas fa-lock"></i> {{ isJourneyDayLocked(module) ? ('Day ' + module.courseDay) : 'Locked' }}
               </span>
               
               <!-- Recommended Badge -->
@@ -198,13 +198,17 @@
               </div>
               <!-- NEW: Module Type -->
               <div class="detail-item">
-                <i class="fas" [class.fa-theater-masks]="module.content?.rolePlayScenario" [class.fa-book]="!module.content?.rolePlayScenario"></i>
-                <span>{{ module.content?.rolePlayScenario ? 'Role-Play' : 'Practice' }}</span>
+                <i class="fas" [class.fa-theater-masks]="module.content.rolePlayScenario" [class.fa-book]="!module.content.rolePlayScenario"></i>
+                <span>{{ module.content.rolePlayScenario ? 'Role-Play' : 'Practice' }}</span>
               </div>
               <!-- NEW: Minimum Completion Time -->
               <div class="detail-item" *ngIf="module.minimumCompletionTime">
                 <i class="fas fa-clock"></i>
                 <span>{{ module.minimumCompletionTime }} min required</span>
+              </div>
+              <div class="detail-item" *ngIf="module.courseDay != null && currentUser?.role === 'STUDENT'">
+                <i class="fas fa-calendar-day"></i>
+                <span>Journey day {{ module.courseDay }}</span>
               </div>
             </div>
             
@@ -255,36 +259,20 @@
                 <!-- Level Access Blocked Message -->
                 <div *ngIf="!canAccessModule(module)" class="access-blocked">
                   <button class="btn btn-secondary btn-sm" disabled>
-                    <i class="fas fa-lock"></i> Level {{ module.level }} Required
+                    <i class="fas fa-lock"></i> {{ studentLockedModuleButtonLabel(module) }}
                   </button>
                   <small class="text-muted d-block mt-1">
-                    Complete {{ getCurrentLevelInfo()?.code }} modules to unlock
+                    {{ getModuleAccessStatus(module).reason }}
                   </small>
                 </div>
                 
-                <!-- AI Tutoring Buttons - PLATINUM ONLY -->
-                <div class="dropdown" *ngIf="canStartTutoring(module) && canAccessAiTutoring() && canAccessModule(module)">
-                  <button class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown">
-                    <i class="fas fa-robot"></i> AI Tutor
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'practice')">
-                      <i class="fas fa-book"></i> Practice
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'conversation')">
-                      <i class="fas fa-comments"></i> Conversation
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'assessment')">
-                      <i class="fas fa-clipboard-check"></i> Assessment
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'help')">
-                      <i class="fas fa-question-circle"></i> Get Help
-                    </a></li>
-                    <li><a class="dropdown-item" (click)="startTutoring(module, 'review')">
-                      <i class="fas fa-redo"></i> Review
-                    </a></li>
-                  </ul>
-                </div>
+                <!-- AI Tutoring Button - PLATINUM ONLY -->
+                <button
+                  class="btn btn-success btn-sm"
+                  *ngIf="canStartTutoring(module) && canAccessAiTutoring() && canAccessModule(module)"
+                  (click)="startTutoring(module, 'practice')">
+                  <i class="fas fa-robot"></i> AI Tutor
+                </button>
                 
                 <!-- Subscription Upgrade Button for SILVER students -->
                 <div *ngIf="canStartTutoring(module) && !canAccessAiTutoring() && isStudent() && canAccessModule(module)" class="subscription-upgrade">
@@ -365,9 +353,9 @@
               <span class="difficulty">{{ module.difficulty }}</span>
               
               <!-- NEW: Module Type Badge -->
-              <span class="badge" [class.badge-success]="module.content?.rolePlayScenario" [class.badge-info]="!module.content?.rolePlayScenario">
-                <i class="fas" [class.fa-theater-masks]="module.content?.rolePlayScenario" [class.fa-book]="!module.content?.rolePlayScenario"></i>
-                {{ module.content?.rolePlayScenario ? 'Role-Play' : 'Practice' }}
+              <span class="badge" [class.badge-success]="module.content.rolePlayScenario" [class.badge-info]="!module.content.rolePlayScenario">
+                <i class="fas" [class.fa-theater-masks]="module.content.rolePlayScenario" [class.fa-book]="!module.content.rolePlayScenario"></i>
+                {{ module.content.rolePlayScenario ? 'Role-Play' : 'Practice' }}
               </span>
               
               <!-- NEW: Minimum Completion Time -->
@@ -379,7 +367,7 @@
               <span *ngIf="currentUser?.role === 'STUDENT' && !canAccessModule(module)" 
                     class="badge badge-warning ms-1"
                     [title]="getModuleAccessStatus(module).reason">
-                <i class="fas fa-lock"></i> Locked
+                <i class="fas fa-lock"></i> {{ isJourneyDayLocked(module) ? ('Day ' + module.courseDay) : 'Locked' }}
               </span>
               
               <!-- Recommended Badge -->
@@ -447,7 +435,7 @@
             *ngIf="!canAccessModule(module)"
             disabled
             [title]="getModuleAccessStatus(module).reason">
-            <i class="fas fa-lock"></i> Locked
+            <i class="fas fa-lock"></i> {{ studentLockedModuleButtonLabel(module) }}
           </button>
           
           <!-- AI Tutoring Button - PLATINUM ONLY -->

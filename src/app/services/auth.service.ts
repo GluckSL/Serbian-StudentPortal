@@ -17,7 +17,8 @@ interface User {
   _id?: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT';
+  role: 'ADMIN' | 'TEACHER' | 'TEACHER_ADMIN' | 'SUB_ADMIN' | 'STUDENT';
+  sidebarPermissions?: string[];
   batch?: string;
   medium?: string;
   subscription?: string;
@@ -156,6 +157,11 @@ export class AuthService {
   isLoggedIn(): boolean {
     const loggedIn = this.currentUserSubject.value !== null;
     return loggedIn;
+  }
+
+  /** Clear local user state when the session is invalid (no HTTP call — avoids loops on 401). */
+  clearClientSession(): void {
+    this.currentUserSubject.next(null);
   }
 
   /** Synchronous read of the last known user (e.g. before HTTP calls in the same tick). */

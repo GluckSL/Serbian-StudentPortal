@@ -5,9 +5,14 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
+export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
 
-export interface MCQQuestion {
+export interface QuestionCommonFields {
+  /** Optional context shown above a question in the player. */
+  context?: string;
+}
+
+export interface MCQQuestion extends QuestionCommonFields {
   type: 'mcq';
   _id?: string;
   question: string;
@@ -18,7 +23,7 @@ export interface MCQQuestion {
   points: number;
 }
 
-export interface MatchingQuestion {
+export interface MatchingQuestion extends QuestionCommonFields {
   type: 'matching';
   _id?: string;
   instruction: string;
@@ -27,7 +32,7 @@ export interface MatchingQuestion {
   points: number;
 }
 
-export interface FillBlankQuestion {
+export interface FillBlankQuestion extends QuestionCommonFields {
   type: 'fill-blank';
   _id?: string;
   sentence: string;
@@ -37,7 +42,7 @@ export interface FillBlankQuestion {
   points: number;
 }
 
-export interface PronunciationQuestion {
+export interface PronunciationQuestion extends QuestionCommonFields {
   type: 'pronunciation';
   _id?: string;
   word: string;
@@ -48,7 +53,7 @@ export interface PronunciationQuestion {
   points: number;
 }
 
-export interface QuestionAnswerQuestion {
+export interface QuestionAnswerQuestion extends QuestionCommonFields {
   type: 'question-answer';
   _id?: string;
   prompt: string;
@@ -58,7 +63,7 @@ export interface QuestionAnswerQuestion {
   points: number;
 }
 
-export interface ListeningQuestion {
+export interface ListeningQuestion extends QuestionCommonFields {
   type: 'listening';
   _id?: string;
   prompt?: string;
@@ -68,7 +73,41 @@ export interface ListeningQuestion {
   points: number;
 }
 
-export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion;
+export interface VideoPronunciationQuestion extends QuestionCommonFields {
+  type: 'video-pronunciation';
+  _id?: string;
+  videoUrl: string;
+  caption: string;
+  acceptedVariants?: string[];
+  points: number;
+}
+
+/** Fields added by the worksheet AI pipeline; present on any question type. */
+export interface WorksheetQuestionMeta {
+  /** STUFE label + Übung number emitted when the exercise was generated from a worksheet,
+   *  e.g. "STUFE 1 – LEICHT | Übung L1.1". Used by the player to render section headers. */
+  sectionTitle?: string | null;
+  /** Coarse difficulty tier: 'easy' | 'medium' | 'hard'. */
+  tier?: 'easy' | 'medium' | 'hard' | null;
+  /** Worksheet category label for question-answer style tasks. */
+  worksheetKind?:
+    | 'true-false'
+    | 'sentence-transformation'
+    | 'singular-plural'
+    | 'table-profile-fill'
+    | 'free-writing-own-sentences'
+    | 'free-writing-profile'
+    | 'error-correction'
+    | null;
+}
+
+export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion | VideoPronunciationQuestion) & WorksheetQuestionMeta;
+
+/** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
+export interface VideoExerciseFeedbackItem {
+  audioUrl: string;
+  caption?: string;
+}
 
 export interface DigitalExercise {
   _id?: string;
@@ -82,6 +121,8 @@ export interface DigitalExercise {
   estimatedDuration?: number;
   questions: ExerciseQuestion[];
   sharedAudioUrl?: string;
+  videoSuccessFeedback?: VideoExerciseFeedbackItem[];
+  videoRetryFeedback?: VideoExerciseFeedbackItem[];
   tags?: string[];
   isActive?: boolean;
   visibleToStudents?: boolean;
@@ -114,7 +155,7 @@ export interface ExerciseAttempt {
 export interface QuestionResponse {
   questionIndex: number;
   selectedOptionIndex?: number;
-  matchingResponse?: Array<{ leftIndex: number; rightIndex: number }>;
+  matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
   fillBlankResponses?: string[];
   spokenText?: string;
   pronunciationScore?: number;
@@ -148,6 +189,21 @@ export interface SubmitQuestionResult {
   allSubmitted: boolean;
   passed: boolean;
 }
+
+/** Fields allowed in PATCH /digital-exercises/admin/bulk-update */
+export type DigitalExerciseBulkMetadata = Partial<
+  Pick<
+    DigitalExercise,
+    | 'level'
+    | 'category'
+    | 'courseDay'
+    | 'difficulty'
+    | 'visibleToStudents'
+    | 'targetLanguage'
+    | 'nativeLanguage'
+    | 'estimatedDuration'
+  >
+>;
 
 export interface ExerciseFilters {
   level?: string;
@@ -185,8 +241,10 @@ export class DigitalExerciseService {
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }
 
-  getExercise(id: string): Observable<DigitalExercise> {
-    return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { withCredentials: true });
+  getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {
+    const params = new HttpParams();
+    if (opts.asStudent) params.set('asStudent', 'true');
+    return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { params, withCredentials: true });
   }
 
   // ─── Admin / Management ───────────────────────────────────────────────────
@@ -219,6 +277,22 @@ export class DigitalExerciseService {
 
   deleteExercise(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true });
+  }
+
+  bulkDeleteExercises(ids: string[]): Observable<{ success: boolean; modifiedCount: number }> {
+    return this.http.post<{ success: boolean; modifiedCount: number }>(
+      `${this.apiUrl}/admin/bulk-delete`,
+      { ids },
+      { withCredentials: true }
+    );
+  }
+
+  bulkUpdateExercises(ids: string[], updates: DigitalExerciseBulkMetadata): Observable<{ success: boolean; modifiedCount: number }> {
+    return this.http.patch<{ success: boolean; modifiedCount: number }>(
+      `${this.apiUrl}/admin/bulk-update`,
+      { ids, updates },
+      { withCredentials: true }
+    );
   }
 
   // ─── Student Attempt ──────────────────────────────────────────────────────
@@ -300,6 +374,7 @@ export class DigitalExerciseService {
     level: string;
     difficulty: string;
     maxQuestions: number;
+    worksheetMode?: boolean;
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
   }
@@ -307,6 +382,7 @@ export class DigitalExerciseService {
   generateFromText(options: {
     text: string;
     types: string[];
+    typeCounts?: Record<string, number>;
     targetLanguage: string;
     nativeLanguage: string;
     level: string;
@@ -358,7 +434,8 @@ export class DigitalExerciseService {
       'fill-blank': 'Fill in the Blanks',
       pronunciation: 'Pronunciation Check',
       'question-answer': 'Question / Answer',
-      listening: 'Listening'
+      listening: 'Listening',
+      'video-pronunciation': 'Video Pronunciation'
     };
     return labels[type] || type;
   }
@@ -370,9 +447,20 @@ export class DigitalExerciseService {
       'fill-blank': 'text_fields',
       pronunciation: 'record_voice_over',
       'question-answer': 'short_text',
-      listening: 'headphones'
+      listening: 'headphones',
+      'video-pronunciation': 'videocam'
     };
     return icons[type] || 'help';
+  }
+
+  uploadVideoMedia(file: File): Observable<{ success: boolean; url: string }> {
+    const formData = new FormData();
+    formData.append('media', file);
+    return this.http.post<{ success: boolean; url: string }>(
+      `${environment.apiUrl}/listening-media/upload`,
+      formData,
+      { withCredentials: true }
+    );
   }
 
   uploadListeningMedia(file: File): Observable<{ success: boolean; url: string }> {

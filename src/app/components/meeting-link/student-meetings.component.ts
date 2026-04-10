@@ -4,6 +4,7 @@ import { Component, OnInit, OnDestroy, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
+import { NotificationService } from '../../services/notification.service';
 
 interface StudentMeeting {
   _id: string;
@@ -24,6 +25,15 @@ interface StudentMeeting {
   hasEnded: boolean;
   timeUntilStart: number;
   agenda?: string;
+  attended?: boolean;
+  durationMinutes?: number;
+  attendedDurationMinutes?: number;
+  /** Journey day assigned to this class (if any). */
+  courseDay?: number | null;
+  /** True when the student's current journey day is before `courseDay`. */
+  journeyLocked?: boolean;
+  /** From saved meeting attendance (same source as teacher report). */
+  attendanceStatus?: string | null;
 }
 
 @Component({
@@ -44,12 +54,14 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   upcomingMeetings: StudentMeeting[] = [];
   ongoingMeetings: StudentMeeting[] = [];
   pastMeetings: StudentMeeting[] = [];
+  attemptedMeetings: StudentMeeting[] = [];
+  activeTab: 'upcoming' | 'live' | 'attempted' = 'upcoming';
   
   loading = false;
   error = '';
   private meetingsRefreshId: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private zoomService: ZoomService) {}
+  constructor(private zoomService: ZoomService, private notify: NotificationService) {}
 
   ngOnInit(): void {
     this.loadMeetings();
@@ -89,12 +101,57 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     this.ongoingMeetings = this.allMeetings.filter(m => m.isOngoing);
     this.upcomingMeetings = this.allMeetings.filter(m => !m.isOngoing && !m.hasEnded);
     this.pastMeetings = this.allMeetings.filter(m => m.hasEnded);
+    this.attemptedMeetings = this.pastMeetings;
+
+    if (this.ongoingMeetings.length > 0) {
+      this.activeTab = 'live';
+    } else if (this.upcomingMeetings.length > 0) {
+      this.activeTab = 'upcoming';
+    } else {
+      this.activeTab = 'attempted';
+    }
   }
 
   joinMeeting(meeting: StudentMeeting): void {
+    if (meeting.journeyLocked && meeting.courseDay != null) {
+      this.notify.info(`This class unlocks on journey day ${meeting.courseDay}.`);
+      return;
+    }
     if (meeting.canJoin && meeting.joinUrl) {
       window.open(meeting.joinUrl, '_blank');
     }
+  }
+
+  /** Upcoming tab: join, countdown, or journey lock. */
+  upcomingActionLabel(meeting: StudentMeeting): string {
+    if (meeting.journeyLocked && meeting.courseDay != null) {
+      return `Unlock on day ${meeting.courseDay}`;
+    }
+    if (meeting.canJoin) return 'Join';
+    return this.getTimeUntilStart(meeting);
+  }
+
+  /** Whether the upcoming join control should be disabled. */
+  upcomingActionDisabled(meeting: StudentMeeting): boolean {
+    if (meeting.journeyLocked) return true;
+    return !meeting.canJoin;
+  }
+
+  /**
+   * Splits titles like "Day 6: OLC (A1) - Lesson 1 – …" into a day/level line and the lesson topic below
+   * so narrow screens show full text without shrinking or truncating.
+   */
+  splitClassTopic(topic: string | null | undefined): { head: string; rest: string | null } {
+    const t = (topic ?? '').trim();
+    if (!t) {
+      return { head: '', rest: null };
+    }
+    const m = t.match(/^(Day\s+\d+:\s*.+?\([^)]+\))\s*(.*)$/i);
+    if (m) {
+      const rest = m[2]?.trim();
+      return { head: m[1].trim(), rest: rest || null };
+    }
+    return { head: t, rest: null };
   }
 
   formatDate(date: Date): string {
@@ -167,7 +224,41 @@ Password: ${meeting.password}
     `.trim();
 
     navigator.clipboard.writeText(info).then(() => {
-      alert('Meeting information copied to clipboard!');
+      this.notify.success('Meeting information copied to clipboard!');
     });
+  }
+
+  getAttendancePercent(meeting: StudentMeeting): number {
+    const total = Number(meeting.duration || 0);
+    if (!meeting.hasEnded || total <= 0) return 0;
+    const attendedMin = Number(
+      meeting.attendedDurationMinutes ??
+      meeting.durationMinutes ??
+      0
+    );
+    if (meeting.attended === true && attendedMin <= 0) {
+      return 100;
+    }
+    const pct = Math.round((attendedMin / total) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  getAttendanceStatus(meeting: StudentMeeting): 'Attended' | 'Not Attended' | 'Missed' {
+    if (meeting.attended === true) return 'Attended';
+    const pct = this.getAttendancePercent(meeting);
+    if (pct >= 75) return 'Attended';
+    if (meeting.hasEnded && pct > 0) return 'Not Attended';
+    return 'Missed';
+  }
+
+  getAttendanceBadgeClass(meeting: StudentMeeting): string {
+    const status = this.getAttendanceStatus(meeting);
+    if (status === 'Attended') return 'badge-attended';
+    if (status === 'Not Attended') return 'badge-not-attended';
+    return 'badge-missed';
+  }
+
+  setTab(tab: 'upcoming' | 'live' | 'attempted'): void {
+    this.activeTab = tab;
   }
 }

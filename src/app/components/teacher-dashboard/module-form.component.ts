@@ -6,6 +6,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Va
 import { Router, ActivatedRoute } from '@angular/router';
 import { LearningModulesService, LearningModule } from '../../services/learning-modules.service';
 import { ModuleDataTransferService } from '../../services/module-data-transfer.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-module-form',
@@ -394,7 +395,8 @@ export class ModuleFormComponent implements OnInit {
     private learningModulesService: LearningModulesService,
     private moduleDataTransferService: ModuleDataTransferService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private notify: NotificationService
   ) {
     this.moduleForm = this.createForm();
   }
@@ -520,7 +522,7 @@ export class ModuleFormComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error loading module:', error);
-        alert('Failed to load module');
+        this.notify.error('Failed to load module');
         this.goBack();
       }
     });
@@ -565,9 +567,8 @@ export class ModuleFormComponent implements OnInit {
     this.helpfulPhrases = [...(module.aiTutorConfig.helpfulPhrases || [])];
     this.tags = [...(module.tags || [])];
     
-    // Set courseDay if available
-    if (module.courseDay) {
-      this.moduleForm.patchValue({ courseDay: module.courseDay });
+    if (module.courseDay != null) {
+      this.moduleForm.patchValue({ courseDay: Number(module.courseDay) });
     }
     
     // Set selected languages
@@ -698,6 +699,15 @@ export class ModuleFormComponent implements OnInit {
     this.tags.splice(index, 1);
   }
 
+  private normalizeCourseDay(raw: unknown): number | null {
+    if (raw === '' || raw === null || raw === undefined) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    const r = Math.round(n);
+    if (r < 1 || r > 200) return null;
+    return r;
+  }
+
   onSubmit(): void {
     if (this.moduleForm.invalid) {
       this.moduleForm.markAllAsTouched();
@@ -706,10 +716,12 @@ export class ModuleFormComponent implements OnInit {
 
     this.isSubmitting = true;
     const formValue = this.moduleForm.value;
+    const courseDay = this.normalizeCourseDay(formValue.courseDay);
 
     // Prepare the module data
     const moduleData = {
       ...formValue,
+      courseDay,
       content: {
         ...formValue.content,
         keyTopics: this.keyTopics
@@ -732,13 +744,13 @@ export class ModuleFormComponent implements OnInit {
     operation.subscribe({
       next: (response) => {
         const action = this.isEditMode ? 'updated' : 'created';
-        alert(`Module ${action} successfully!`);
+        this.notify.success(`Module ${action} successfully!`);
         this.goBack();
       },
       error: (error) => {
         console.error('Error saving module:', error);
         const action = this.isEditMode ? 'updating' : 'creating';
-        alert(`Failed to ${action} module. Please try again.`);
+        this.notify.error(`Failed to ${action} module. Please try again.`);
         this.isSubmitting = false;
       }
     });

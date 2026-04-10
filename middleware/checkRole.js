@@ -10,8 +10,12 @@ module.exports = function (requiredRoles) {
       // Convert single role to array for consistent handling
       const rolesArray = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
       
+      const isSubAdminForAdminScope =
+        req.user.role === "SUB_ADMIN" &&
+        rolesArray.some((role) => role === "ADMIN" || role === "TEACHER_ADMIN");
+
       // Check if the user's role matches any of the required roles
-      if (!rolesArray.includes(req.user.role)) {
+      if (!rolesArray.includes(req.user.role) && !isSubAdminForAdminScope) {
         return res.status(403).json({ message: "Access denied. Insufficient permissions." });
       }
   

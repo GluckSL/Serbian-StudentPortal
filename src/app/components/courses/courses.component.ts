@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClientModule } from '@angular/common/http';
 import { Course } from '../../services/courses.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-courses',
@@ -17,7 +18,7 @@ export class CoursesComponent implements OnInit {
   courses: Course[] = [];
   viewMode: 'grid' | 'list' = 'grid';
 
-  constructor(private coursesService: CoursesService) {}
+  constructor(private coursesService: CoursesService, private notify: NotificationService) {}
 
   ngOnInit(): void {
     this.loadCourses();
@@ -37,19 +38,15 @@ export class CoursesComponent implements OnInit {
 
   // Delete a course
   deleteCourse(courseId: string): void {
-    const confirmed = confirm('Are you sure you want to delete this course?');
-
-    if (confirmed) {
+    this.notify.confirm('Delete Course', 'Are you sure you want to delete this course?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.coursesService.deleteCourse(courseId).subscribe({
         next: () => {
           this.courses = this.courses.filter(course => course._id !== courseId);
-          alert('Course deleted successfully.');
+          this.notify.success('Course deleted successfully.');
         },
-        error: (error) => {
-          //console.error('Error deleting course', error);
-          alert('Failed to delete the course. Please try again.');
-        }
+        error: () => this.notify.error('Failed to delete the course. Please try again.')
       });
-    }
+    });
   }
 }

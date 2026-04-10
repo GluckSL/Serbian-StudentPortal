@@ -7,6 +7,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
+import { NotificationService } from '../../services/notification.service';
 
 interface MeetingReport {
   _id: string;
@@ -51,7 +52,8 @@ export class ZoomReportsComponent implements OnInit {
   constructor(
     private zoomService: ZoomService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -188,14 +190,16 @@ export class ZoomReportsComponent implements OnInit {
   viewAttendance(id: string): void { this.router.navigate(['/teacher/meetings', id, 'attendance']); }
 
   deleteMeeting(id: string, topic: string): void {
-    if (!confirm(`Delete "${topic}"? This cannot be undone.`)) return;
-    this.zoomService.deleteMeeting(id).subscribe({
-      next: () => {
-        this.allMeetings = this.allMeetings.filter(m => m._id !== id);
-        this.completedMeetings = this.completedMeetings.filter(m => m._id !== id);
-        this.applyFilters();
-      },
-      error: () => alert('Failed to delete. Please try again.')
+    this.notify.confirm('Delete Meeting', `Delete "${topic}"? This cannot be undone.`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.zoomService.deleteMeeting(id).subscribe({
+        next: () => {
+          this.allMeetings = this.allMeetings.filter(m => m._id !== id);
+          this.completedMeetings = this.completedMeetings.filter(m => m._id !== id);
+          this.applyFilters();
+        },
+        error: () => this.notify.error('Failed to delete. Please try again.')
+      });
     });
   }
 
@@ -213,7 +217,7 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   exportToCSV(): void {
-    if (!this.filteredMeetings.length) { alert('No data to export'); return; }
+    if (!this.filteredMeetings.length) { this.notify.warning('No data to export'); return; }
     const headers = ['Date', 'Topic', 'Teacher', 'Batch', 'Duration (min)', 'Total', 'Attended', 'Absent', 'Rate (%)'];
     const rows = this.filteredMeetings.map(m => [
       this.formatDateShort(m.startTime), m.topic, m.teacher.name, m.batch,
@@ -227,7 +231,7 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   exportTeacherReport(): void {
-    if (!this.completedMeetings.length) { alert('No data to export'); return; }
+    if (!this.completedMeetings.length) { this.notify.warning('No data to export'); return; }
     const map: any = {};
     this.completedMeetings.forEach(m => {
       if (!map[m.teacher.name]) map[m.teacher.name] = { name: m.teacher.name, email: m.teacher.email, meetings: 0, duration: 0, students: 0, attended: 0 };

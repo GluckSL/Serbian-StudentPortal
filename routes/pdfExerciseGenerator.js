@@ -9,13 +9,23 @@ const fs = require('fs');
 const OpenAI = require('openai');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
-// pdf-parse v2 uses PDFParse class; CJS may wrap as { default: { PDFParse } } or { PDFParse }
+// Support both pdf-parse APIs:
+// - v1: module exports a function (pdf(buffer) -> { text, numpages, ... })
+// - v2: module exports PDFParse class with getText()
 let PDFParseClass = null;
+let parsePdfBuffer = null;
 try {
   const _pdfParseLib = require('pdf-parse');
-  PDFParseClass = _pdfParseLib.PDFParse || (_pdfParseLib.default && _pdfParseLib.default.PDFParse) || (_pdfParseLib.default && typeof _pdfParseLib.default === 'function' ? _pdfParseLib.default : null);
-  if (!PDFParseClass || typeof PDFParseClass !== 'function') {
-    console.warn('⚠️ pdf-parse: PDFParse class not found. PDF exercise generator will be disabled.');
+  PDFParseClass = _pdfParseLib.PDFParse || (_pdfParseLib.default && _pdfParseLib.default.PDFParse) || null;
+
+  if (typeof _pdfParseLib === 'function') {
+    parsePdfBuffer = _pdfParseLib;
+  } else if (_pdfParseLib && typeof _pdfParseLib.default === 'function') {
+    parsePdfBuffer = _pdfParseLib.default;
+  }
+
+  if (!parsePdfBuffer && (!PDFParseClass || typeof PDFParseClass !== 'function')) {
+    console.warn('⚠️ pdf-parse loaded, but no compatible parser export found. PDF exercise generator will be disabled.');
     PDFParseClass = null;
   }
 } catch (err) {
@@ -60,17 +70,40 @@ if (process.env.OPENAI_API_KEY) {
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
 async function extractPdfText(filePath) {
-  if (!PDFParseClass) {
+  if (!parsePdfBuffer && !PDFParseClass) {
     throw new Error('PDF parsing is not available on this server. Please install compatible pdf-parse dependencies.');
   }
-  let parser;
+
+  const buffer = fs.readFileSync(filePath);
+
+  // Prefer v1/v1-compatible function parser when available (most deployment-friendly path).
+  if (typeof parsePdfBuffer === 'function') {
+    try {
+      const result = await parsePdfBuffer(buffer);
+      const text = result && typeof result.text === 'string' ? result.text : '';
+      const pages = result && Number.isFinite(Number(result.numpages))
+        ? Number(result.numpages)
+        : (result && Number.isFinite(Number(result.total)) ? Number(result.total) : 1);
+      return {
+        text,
+        pages,
+        info: result && typeof result.info === 'object' ? result.info : {}
+      };
+    } catch (err) {
+      console.error('PDF parse error (function API):', err);
+      throw new Error('Failed to extract text from PDF: ' + err.message);
+    }
+  }
+
+  let parser = null;
   try {
-    const buffer = fs.readFileSync(filePath);
     parser = new PDFParseClass({ data: buffer });
     const result = await parser.getText();
     const text = result && typeof result.text === 'string' ? result.text : '';
     const pages = result && typeof result.total === 'number' ? result.total : 1;
-    await parser.destroy().catch(() => {});
+    if (typeof parser.destroy === 'function') {
+      await parser.destroy().catch(() => {});
+    }
     return {
       text,
       pages,
@@ -87,16 +120,48 @@ async function extractPdfText(filePath) {
 
 // ─── Question-type detector ───────────────────────────────────────────────────
 // Scans raw PDF text and returns estimated counts per exercise type.
+// Also returns a worksheetMode flag when structured worksheet markers are found.
 
 function detectQuestionTypes(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const counts = { mcq: 0, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
+  const counts = {
+    mcq: 0,
+    matching: 0,
+    'fill-blank': 0,
+    pronunciation: 0,
+    'question-answer': 0,
+    'true-false': 0,
+    'sentence-transformation': 0,
+    'singular-plural': 0,
+    'table-profile-fill': 0,
+    'free-writing-own-sentences': 0,
+    'free-writing-profile': 0,
+    'error-correction': 0
+  };
 
-  // Fill-in-the-blank: lines with ___
-  const fillBlankLines = lines.filter(l => /_{3,}/.test(l));
-  counts['fill-blank'] = Math.min(fillBlankLines.length, 50);
+  // ── Worksheet detection (German/English structured worksheets) ──────────────
+  // These keywords reliably signal a structured teacher-created worksheet that
+  // contains an answer key and numbered Übung blocks.
+  const worksheetSignals = [
+    /\bSTUFE\s*\d/i,
+    /\bLÖSUNGSSCHLÜSSEL\b/i,
+    /\bAnswer\s+Key\b/i,
+    /\bÜbung\s+L?\d/i,
+    /\b(LEICHT|MITTEL|SCHWER)\b/i,
+    /\bSelbstlernen\b/i,
+    /\bHinweis\s*\/\s*Note\b/i
+  ];
+  const isWorksheet = worksheetSignals.some(re => re.test(text));
 
-  // MCQ: groups of option-style lines a)/b)/c)...
+  // ── Fill-in-the-blank ───────────────────────────────────────────────────────
+  // Lines with blank markers: runs of underscores (_ or ___), or Lückentext headings
+  const fillBlankLines = lines.filter(l => /_+/.test(l));
+  const luckentextHeadings = lines.filter(l =>
+    /\b(Lückentext|Ergänzen\s+Sie|ergänze|fill\s+in|fill-in|Lücke)\b/i.test(l)
+  );
+  counts['fill-blank'] = Math.min(fillBlankLines.length || luckentextHeadings.length * 4, 50);
+
+  // ── MCQ: groups of option-style lines a)/b)/c)... ──────────────────────────
   let mcqCount = 0;
   let optionRunLen = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -112,7 +177,7 @@ function detectQuestionTypes(text) {
         optionRunLen = 0;
         while (
           i + 1 < lines.length &&
-          (/^[a-dA-D][.)]\s/.test(lines[i + 1]) || /^\([a-dA-D]\)\s/.test(lines[i + 1]))
+          (/^[a-dA-D][.)]\s/.test(lines[i + 1]) || /^\([a-dA-D]\)/.test(lines[i + 1]))
         ) i++;
       }
     } else {
@@ -121,19 +186,28 @@ function detectQuestionTypes(text) {
   }
   counts.mcq = Math.min(mcqCount, 50);
 
-  // Matching headings
-  const matchHeadingIdx = lines.findIndex(l =>
-    /\b(match|zuordnen|verbinde|ordne\s+zu|pair\s+up|connect)\b/i.test(l)
-  );
-  if (matchHeadingIdx !== -1) {
-    let numberedItems = 0;
-    for (let i = matchHeadingIdx + 1; i < Math.min(matchHeadingIdx + 31, lines.length); i++) {
-      if (/^\d+[.)]\s+\S/.test(lines[i])) numberedItems++;
+  // ── Matching ────────────────────────────────────────────────────────────────
+  // German worksheet matching: "Ordnen Sie zu", "Zuordnung", "Verbinden Sie", etc.
+  let matchHeadingCount = 0;
+  let matchItemsTotal = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const isMatchHeading =
+      /\b(match|zuordnen|verbinde|ordne\s+zu|pair\s+up|connect|Zuordnung|Ordnen\s+Sie\s+zu|Verbinden\s+Sie)\b/i.test(l);
+    if (isMatchHeading) {
+      matchHeadingCount++;
+      let items = 0;
+      for (let j = i + 1; j < Math.min(i + 25, lines.length); j++) {
+        if (/^\d+[.)]\s+\S/.test(lines[j]) || /^[a-fA-F][.)]\s+\S/.test(lines[j])) items++;
+      }
+      matchItemsTotal += items || 4; // default estimate 4 pairs per heading
     }
-    counts.matching = Math.min(numberedItems || 1, 20);
+  }
+  if (matchHeadingCount > 0) {
+    counts.matching = Math.min(matchHeadingCount, 10);
   }
 
-  // Pronunciation headings / phonetic markers
+  // ── Pronunciation ───────────────────────────────────────────────────────────
   const phoneticLines = lines.filter(l => /\/[^/\n]{1,30}\//.test(l));
   const pronunciationHeadings = lines.filter(l =>
     /\b(pronunciation|aussprache|phonetic|speak\s+aloud|pronounce)\b/i.test(l)
@@ -144,8 +218,18 @@ function detectQuestionTypes(text) {
     counts.pronunciation = Math.min(pronunciationHeadings.length * 3, 20);
   }
 
-  // Q&A: numbered questions ending in ? not followed by MCQ options
+  // ── Question / Answer (open ended) ─────────────────────────────────────────
+  // Covers: W-Fragen, Ja-Nein-Fragen transformation, Fehlerkorrektur, Steckbrief,
+  // Eigene Sätze, and any numbered question ending in ?
   let qaCount = 0;
+
+  // German worksheet open-answer headings
+  const qaHeadings = lines.filter(l =>
+    /\b(W-Frage|Ja[-–]Nein|Fragewort|Fehlerkorrektur|korrigieren\s+Sie|Eigene\s+Sätze|Steckbrief|Aussagesatz|bilden\s+Sie|Schreiben\s+Sie|Transformation|Umformen)\b/i.test(l)
+  );
+  qaCount += qaHeadings.length * 3; // rough estimate: ~3 items per heading
+
+  // Numbered questions ending in ?
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     if (/^\d+[.)]\s+.{5,}\?\s*$/.test(l)) {
@@ -153,10 +237,99 @@ function detectQuestionTypes(text) {
       const nextIsOption = /^[a-dA-D][.)]\s/.test(nextLine) || /^\([a-dA-D]\)/.test(nextLine);
       if (!nextIsOption) qaCount++;
     }
+    // Answer-line blanks like "→ ___..." signal transformation exercises
+    if (/^→\s*_{5,}/.test(l)) qaCount++;
   }
-  counts['question-answer'] = Math.min(qaCount, 30);
+  counts['question-answer'] = Math.min(qaCount, 40);
 
-  return counts;
+  // ── Worksheet category aliases (STUFE worksheet style) ─────────────────
+  // These are represented as `type: question-answer` internally, but
+  // labeled in the UI using `worksheetKind`.
+  const tfHeadings = lines.filter(l =>
+    /\b(Richtig|Falsch|True|False|Ja[-–]Nein)\b/i.test(l)
+  ).length;
+  counts['true-false'] = Math.min(tfHeadings * 2, 20);
+
+  const transformHeadings = lines.filter(l =>
+    /\b(W-Frage|Fragewort|Transformation|Umformen|Aussagesatz)\b/i.test(l) ||
+    /Aussagesatz\s*→\s*W/i.test(l)
+  ).length;
+  counts['sentence-transformation'] = Math.min(transformHeadings * 2, 20);
+
+  const spHeadings = lines.filter(l =>
+    /Singular\s*(?:→|->)\s*Plural|Singular.*Plural/i.test(l)
+  ).length;
+  counts['singular-plural'] = Math.min(spHeadings * 2, 20);
+
+  const tableHeadings = lines.filter(l =>
+    /\b(Tabelle|Table)\b/i.test(l) && !/\b(Steckbrief)\b/i.test(l)
+  ).length;
+  counts['table-profile-fill'] = Math.min(tableHeadings * 2, 20);
+
+  const ownSentHeadings = lines.filter(l =>
+    /\b(Eigene\s+Sätze|Schreiben\s+Sie\s+\d+\s+Sätze|Eigene\s+Sätze\s+bilden|Own\s+Sentences)\b/i.test(l)
+  ).length;
+  counts['free-writing-own-sentences'] = Math.min(ownSentHeadings * 2, 20);
+
+  const profileHeadings = lines.filter(l =>
+    /\b(Steckbrief|Profile|Profil)\b/i.test(l)
+  ).length;
+  counts['free-writing-profile'] = Math.min(profileHeadings * 2, 20);
+
+  const errHeadings = lines.filter(l =>
+    /\b(Fehlerkorrektur|korrigieren|Fehler)\b/i.test(l)
+  ).length;
+  counts['error-correction'] = Math.min(errHeadings * 2, 20);
+
+  const pseudoSum = Object.values({
+    'true-false': counts['true-false'],
+    'sentence-transformation': counts['sentence-transformation'],
+    'singular-plural': counts['singular-plural'],
+    'table-profile-fill': counts['table-profile-fill'],
+    'free-writing-own-sentences': counts['free-writing-own-sentences'],
+    'free-writing-profile': counts['free-writing-profile'],
+    'error-correction': counts['error-correction']
+  }).reduce((s, v) => s + v, 0);
+
+  // When we detect worksheet-style categories, suppress generic question-answer
+  // so admins get the worksheet-specific types in the UI.
+  if (isWorksheet && pseudoSum > 0) {
+    counts['question-answer'] = 0;
+  }
+
+  // ── For worksheets with STUFE tiers, apply sensible defaults ───────────────
+  // When a structured worksheet is detected and auto-detection yields very low
+  // counts (e.g. scanned or simple PDFs), set a useful minimum mix.
+  if (isWorksheet) {
+    if (counts.matching === 0 && matchHeadingCount === 0) counts.matching = 2;
+    if (counts['fill-blank'] === 0) counts['fill-blank'] = 3;
+    if (pseudoSum === 0 && counts['question-answer'] === 0) counts['question-answer'] = 3;
+  }
+
+  return { ...counts, _worksheetMode: isWorksheet };
+}
+
+/**
+ * Guess the primary written language of the extracted PDF/text so generated
+ * questions stay in the same language (avoids translating German PDFs to English).
+ */
+function detectContentLanguage(text, fallback = 'German') {
+  if (!text || typeof text !== 'string' || text.trim().length < 15) {
+    return fallback;
+  }
+  const sample = text.slice(0, 12000).toLowerCase();
+  const deUmlauts = (sample.match(/[äöüß]/g) || []).length;
+  const deWords = (sample.match(
+    /\b(der|die|das|und|nicht|ist|sind|ein|eine|einen|einem|oder|auch|mit|auf|zu|für|von|wird|werden|haben|sein|sie|ihr|ihnen|über|wie|was|warum|wenn|können|müssen|sollen|dass|denn|aber|nur|noch|schon|bei|nach|aus|dem|den|des|zum|zur|bitte|frage|antwort|übung|lösung)\b/g
+  ) || []).length;
+  const enWords = (sample.match(
+    /\b(the|and|is|are|you|not|this|that|with|from|for|have|has|was|were|can|will|would|should|could|what|when|where|why|how|which|their|there|they|them|answer|question|exercise|solution)\b/g
+  ) || []).length;
+  const germanScore = deUmlauts * 2 + deWords;
+  const englishScore = enWords;
+  if (germanScore >= englishScore * 1.1) return 'German';
+  if (englishScore >= germanScore * 1.1) return 'English';
+  return fallback;
 }
 
 // ─── AI generation prompt builder ────────────────────────────────────────────
@@ -164,121 +337,260 @@ function detectQuestionTypes(text) {
 function buildGenerationPrompt(pdfText, options) {
   const {
     types = ['mcq'],
+    typeCounts = {},        // e.g. { matching: 3, 'fill-blank': 4, 'question-answer': 3 }
     targetLanguage = 'German',
     nativeLanguage = 'English',
+    /** Language of the source document — all student-facing strings MUST use this */
+    contentLanguage = targetLanguage,
     level = 'A1',
     maxQuestions = 10,
     difficulty = 'Beginner',
     worksheetMode = false
   } = options;
 
+  // Build per-type count directives
+  const typeCountLines = types
+    .filter(t => typeCounts[t] > 0)
+    .map(t => `  - ${t}: exactly ${typeCounts[t]} question(s)`)
+    .join('\n');
+  const hasTypeCounts = typeCountLines.length > 0;
+
   const typeDescriptions = {
     mcq: 'Multiple Choice Questions (4 options, one correct answer)',
     matching: 'Matching exercises (pairs of left/right items to match)',
-    'fill-blank': 'Fill in the Blank sentences (use ___ for blanks)',
+    'fill-blank': 'Fill in the Blank sentences (use _ or ___ for each blank)',
     pronunciation: 'Pronunciation checks (single words or short phrases to speak aloud)',
-    'question-answer': 'Short Answer Questions — student reads the question and types a free-text answer'
+    'question-answer': 'Open-answer questions — student reads the question and types a free-text answer',
+    'true-false': 'True/False tasks — student decides if a statement is true or false',
+    'sentence-transformation': 'Sentence Transformation — transform a sentence as requested',
+    'singular-plural': 'Singular → Plural — write the correct plural form (with article if needed)',
+    'table-profile-fill': 'Table/Profile Fill-in — fill values from a table/profile',
+    'free-writing-own-sentences': 'Free Writing — Own Sentences (write your own sentences)',
+    'free-writing-profile': 'Free Writing — Profile (write a short profile/Steckbrief)',
+    'error-correction': 'Error Correction — correct mistakes and write the correct sentence'
   };
 
   const requestedTypes = types.map(t => `- ${typeDescriptions[t] || t}`).join('\n');
 
   const outputSchema = types.map(t => {
+    const sectionTitleNote = worksheetMode
+      ? `\n  "sectionTitle": "STUFE label or Übung heading from the worksheet (e.g. STUFE 1 – LEICHT, or Übung L1.6)",`
+      : '';
+
     if (t === 'mcq') return `{
-  "type": "mcq",
-  "question": "question text in ${nativeLanguage}",
+  "type": "mcq",${sectionTitleNote}
+  "question": "question text in ${contentLanguage}",
   "options": ["option1", "option2", "option3", "option4"],
   "correctAnswerIndex": 0,
-  "explanation": "why this is correct",
+  "explanation": "brief explanation in ${contentLanguage}",
   "points": 1
 }`;
     if (t === 'matching') return `{
-  "type": "matching",
+  "type": "matching",${sectionTitleNote}
   "instruction": "${worksheetMode
-    ? 'Match the left and right values exactly as shown in the worksheet.' 
-    : `Match the ${targetLanguage} words/phrases with their ${nativeLanguage} translations`}",
+    ? `Verbinden Sie / Match the items on the left with the correct items on the right — wording in ${contentLanguage}, copied from the worksheet where possible.`
+    : `Instruction in ${contentLanguage}. Match pairs taken from the document; both sides in ${contentLanguage} unless the PDF explicitly shows a bilingual list (then mirror that structure).`}",
   "pairs": [
-    {"left": "${worksheetMode ? 'left value as shown in the worksheet' : `word/phrase in ${targetLanguage}`}", "right": "${worksheetMode ? 'right value as shown in the worksheet' : `translation in ${nativeLanguage}`}"}
+    {"left": "${worksheetMode ? 'left value exactly as shown in the worksheet' : `left item in ${contentLanguage} (from the source)`}", "right": "${worksheetMode ? 'right value exactly as shown in the worksheet' : `right item in ${contentLanguage} (from the source)`}"}
   ],
   "points": 1
 }`;
     if (t === 'fill-blank') return `{
-  "type": "fill-blank",
-  "sentence": "sentence with ___ for each blank",
+  "type": "fill-blank",${sectionTitleNote}
+  "sentence": "${worksheetMode
+    ? 'sentence from the worksheet with _ or ___ for each blank'
+    : `sentence with _ or ___ for each blank (each gap is a run of underscores), entirely in ${contentLanguage}`}",
   "answers": ["correct answer for blank 1"],
-  "hint": "optional grammar or vocabulary hint",
+  "hint": "optional hint in ${contentLanguage}",
   "points": 1
 }`;
     if (t === 'pronunciation') return `{
-  "type": "pronunciation",
-  "word": "word or short phrase in ${targetLanguage}",
+  "type": "pronunciation",${sectionTitleNote}
+  "word": "word or short phrase in ${contentLanguage}",
   "phonetic": "/phonetic transcription/",
-  "translation": "translation in ${nativeLanguage}",
+  "translation": "short gloss or meaning in ${contentLanguage}",
   "acceptedVariants": [],
   "points": 1
 }`;
     if (t === 'question-answer') return `{
-  "type": "question-answer",
+  "type": "question-answer",${sectionTitleNote}
   "prompt": "${worksheetMode
-    ? 'question/instruction text in the worksheet language (student types a short answer)'
-    : `question text in ${nativeLanguage} (student types a short answer)`}",
-  "sampleAnswers": ["acceptable answer 1", "acceptable answer 2"],
+    ? 'instruction or question from the worksheet (keep original wording and language from the PDF)'
+    : `question or instruction in ${contentLanguage} — same language as the source document; do not translate`}",
+  "sampleAnswers": ["acceptable answer 1", "acceptable answer 2", "acceptable answer 3"],
+  "similarityThreshold": 65,
+  "scoringMode": "proportional",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+
+    // Worksheet-category aliases: all use the question-answer engine, but
+    // are labeled via worksheetKind for UI rendering.
+    if (t === 'true-false') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "true-false",
+  "prompt": "${worksheetMode
+    ? `True/False instruction from the worksheet in ${contentLanguage}. Include the statement to judge.`
+    : `True/False instruction in ${contentLanguage}. Include the statement to judge.`}",
+  "sampleAnswers": ["correct boolean answer in ${contentLanguage} (e.g. richtig/falsch or true/false as appropriate)"],
+  "similarityThreshold": 75,
+  "scoringMode": "full",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+    if (t === 'sentence-transformation') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "sentence-transformation",
+  "prompt": "${worksheetMode
+    ? `Sentence transformation instruction from the worksheet in ${contentLanguage}. Student writes the transformed sentence/question.`
+    : `Sentence transformation instruction in ${contentLanguage}. Student writes the transformed sentence/question.`}",
+  "sampleAnswers": ["correct transformation 1", "correct transformation 2", "correct transformation 3"],
+  "similarityThreshold": 70,
+  "scoringMode": "full",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+    if (t === 'singular-plural') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "singular-plural",
+  "prompt": "${worksheetMode
+    ? `Singular → Plural instruction from the worksheet in ${contentLanguage}. Student writes the plural form (with article if shown).`
+    : `Singular → Plural instruction in ${contentLanguage}. Student writes the plural form (with article if shown).`}",
+  "sampleAnswers": ["plural form 1", "plural form 2"],
+  "similarityThreshold": 70,
+  "scoringMode": "full",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+    if (t === 'table-profile-fill') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "table-profile-fill",
+  "prompt": "${worksheetMode
+    ? `Table/profile fill-in instruction from the worksheet in ${contentLanguage}. Student writes the missing values.`
+    : `Table/profile fill-in instruction in ${contentLanguage}. Student writes the missing values.`}",
+  "sampleAnswers": ["filled values 1", "filled values 2"],
+  "similarityThreshold": 60,
+  "scoringMode": "proportional",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+    if (t === 'free-writing-own-sentences') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "free-writing-own-sentences",
+  "prompt": "${worksheetMode
+    ? `Free writing / own sentences instruction from the worksheet in ${contentLanguage}. Write the required number of sentences.`
+    : `Free writing / own sentences instruction in ${contentLanguage}. Write the required number of sentences.`}",
+  "sampleAnswers": ["example sentences 1", "example sentences 2"],
+  "similarityThreshold": 60,
+  "scoringMode": "proportional",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+    if (t === 'free-writing-profile') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "free-writing-profile",
+  "prompt": "${worksheetMode
+    ? `Profile/Steckbrief writing instruction from the worksheet in ${contentLanguage}. Write a short profile.`
+    : `Profile/Steckbrief writing instruction in ${contentLanguage}. Write a short profile.`}",
+  "sampleAnswers": ["profile example 1", "profile example 2"],
+  "similarityThreshold": 60,
+  "scoringMode": "proportional",
+  "aiGradingEnabled": true,
+  "points": 1
+}`;
+    if (t === 'error-correction') return `{
+  "type": "question-answer",${sectionTitleNote}
+  "worksheetKind": "error-correction",
+  "prompt": "${worksheetMode
+    ? `Error correction instruction from the worksheet in ${contentLanguage}. Student writes the corrected sentence(s).`
+    : `Error correction instruction in ${contentLanguage}. Student writes the corrected sentence(s).`}",
+  "sampleAnswers": ["corrected sentence 1", "corrected sentence 2"],
+  "similarityThreshold": 70,
+  "scoringMode": "full",
   "aiGradingEnabled": true,
   "points": 1
 }`;
     return '';
   }).filter(Boolean).join(',\n');
 
+  // Include the tail of the document to capture answer keys that appear at the end
+  const headText = pdfText.substring(0, 6000);
+  const tailStart = Math.max(6000, pdfText.length - 3000);
+  const tailText = tailStart < pdfText.length ? pdfText.substring(tailStart) : '';
+  const fullContent = tailText
+    ? `${headText}\n\n[... middle section omitted for brevity ...]\n\n${tailText}`
+    : headText;
+
+  const worksheetInstructions = worksheetMode ? `
+WORKSHEET-SPECIFIC RULES (worksheetMode is ON — this is a structured language worksheet):
+- The document contains STUFE (difficulty tier) sections: STUFE 1 (easy), STUFE 2 (medium), STUFE 3 (hard/difficult).
+- There is a LÖSUNGSSCHLÜSSEL / Answer Key section — USE IT to set exact correct answers.
+- For every Übung (exercise) block in the document, extract the exercise type and create the appropriate question(s):
+  • "Zuordnung" / "Ordnen Sie zu" / "Verbinden Sie" → matching
+  • "Lückentext" / "Ergänzen Sie" → fill-blank (one _ or ___ per missing word, answers from the answer key)
+  • "Aussagesatz → W-Frage" / "W-Fragen" / "Fragewort" → sentence-transformation (question-answer task with worksheetKind="sentence-transformation")
+  • "Aussagesatz → Ja-Nein-Frage" / "Ja-Nein-Fragen" / "True/False" → true-false (question-answer task with worksheetKind="true-false")
+  • "Singular → Plural" / "Plural" → singular-plural (question-answer task with worksheetKind="singular-plural")
+  • "sein oder haben" / "S/H category" → fill-blank (answers: "S" or "H" or the verb form)
+  • "Fehlerkorrektur" / "korrigieren" / "Error Correction" → error-correction (question-answer task with worksheetKind="error-correction")
+  • "Eigene Sätze bilden" / "Schreiben Sie" / "Free Writing / Own Sentences" → free-writing-own-sentences (question-answer task with worksheetKind="free-writing-own-sentences")
+  • "Steckbrief" / "Profile" / "Free Writing – profile" → free-writing-profile (question-answer task with worksheetKind="free-writing-profile")
+  • "Tabelle" / "Profil" / "Table / Profile Fill-in" → table-profile-fill (question-answer task with worksheetKind="table-profile-fill")
+- Include "sectionTitle" on every question using the STUFE label and/or Übung number (e.g. "STUFE 1 – LEICHT | Übung L1.1").
+- For numbered-item exercises (e.g. Übung with 6 numbered lines), create ONE question per numbered item where feasible, or group them if they form a cohesive matching set.
+- Use the answer key to populate correct answers — do not guess.` : '';
+
+  const countDirective = hasTypeCounts
+    ? `\nEXACT QUESTION COUNTS REQUIRED:\n${typeCountLines}\n(Generate exactly these numbers — no more, no less for each type.)`
+    : `\nGenerate up to ${maxQuestions} questions total, distributing them across the requested types.`;
+
   return `You are an expert ${targetLanguage} language teacher and exercise creator.
 
-TASK: Analyze the following ${worksheetMode ? 'worksheet/document' : 'PDF'} content and generate interactive language exercises.
+TASK: Analyze the following ${worksheetMode ? 'structured language worksheet' : 'document'} and generate interactive digital language exercises.
 
-TARGET LANGUAGE: ${targetLanguage}
-NATIVE LANGUAGE: ${nativeLanguage}  
+TARGET LANGUAGE (learning focus): ${targetLanguage}
+SOURCE CONTENT LANGUAGE (language of the PDF — use for ALL student-facing text): ${contentLanguage}
+NATIVE LANGUAGE (for your own reasoning only; do NOT use for questions, prompts, options, or sentences shown to students): ${nativeLanguage}
 LEVEL: ${level} (CEFR)
 DIFFICULTY: ${difficulty}
-MAX QUESTIONS: ${maxQuestions}
+${countDirective}
 
 EXERCISE TYPES TO GENERATE:
 ${requestedTypes}
+${worksheetInstructions}
+GENERAL ANALYSIS INSTRUCTIONS:
+1. ${worksheetMode
+  ? 'Extract exercises directly from the worksheet. Use the answer key section (LÖSUNGSSCHLÜSSEL / Answer Key) to set all correct answers.'
+  : 'Detect if content already contains questions, then either extract or generate questions based on the vocabulary and grammar in the text.'}
+2. For MCQ: 4 options, exactly one correct. Question stem and ALL four options MUST be in ${contentLanguage} — the same language as the source document. Never translate stems or options into ${nativeLanguage}.
+3. For Matching: 4–6 pairs per question. ${worksheetMode ? 'Copy left/right values verbatim from the worksheet table.' : `Take pairs from the document; both columns in ${contentLanguage} unless the PDF explicitly shows a bilingual list (then mirror that). Do not convert everything into ${nativeLanguage}.`}
+4. For Fill-in-blank: use a run of underscores for each gap (e.g. _ or ___); each contiguous run counts as one blank. Answers array must have exactly one entry per blank. Sentence and answers in ${contentLanguage}.
+5. For Pronunciation: key words from the content in ${contentLanguage}.
+6. For Question/Answer (including worksheetKind variants): prompt, sampleAnswers, and every instruction MUST be in ${contentLanguage}. Provide 2–4 sampleAnswers covering acceptable phrasings. Set scoringMode "proportional" for open writing tasks, "full" for exact transformations. Use similarityThreshold 60–70 depending on strictness needed.
 
-ANALYSIS INSTRUCTIONS:
-1. DETECT if the PDF already contains questions/exercises (look for numbered questions, multiple-choice options, fill-in-blank gaps, tables, etc.)
-   ${worksheetMode
-     ? `   - Because worksheetMode is enabled, assume the document contains exercises plus an answer key section (e.g. "LÖSUNGSSCHLÜSSEL" / "Answer Key"). Use the answer key to set correct answers exactly.\n   - If there are multiple numbered items inside one Übung block, create multiple exercise questions (question-answer) so each item can be answered separately.`
-     : `   - If YES: Extract and convert them directly to the requested format\n   - If NO: Generate new questions from the content/vocabulary/grammar in the text`
-   }
-
-2. For MCQ: Create clear questions with 4 options, exactly one correct answer. Use ${nativeLanguage} for the question.
-3. For Matching: Create 4-6 pairs. ${worksheetMode ? 'Use the worksheet left/right values as-is.' : `Use ${targetLanguage} vocabulary on the left, ${nativeLanguage} translations on the right.`}
-4. For Fill-in-blank: Use real sentences from the content, replace key ${targetLanguage} words with ___ (three underscores).
-5. For Pronunciation: Pick important ${targetLanguage} words/phrases from the content.
-6. For Question/Answer: Write an open-ended question based on the content.${worksheetMode ? ` Use the worksheet prompt language (typically ${targetLanguage}) and sampleAnswers in ${targetLanguage}.` : ` Use ${nativeLanguage}.`} Provide 1-3 sample correct answers in sampleAnswers. Keep the question concise so a student can answer in 1-2 sentences.
-
-PDF CONTENT:
+DOCUMENT CONTENT:
 ---
-${pdfText.substring(0, 8000)}
+${fullContent}
 ---
 
 RESPONSE FORMAT — Return ONLY valid JSON, no markdown, no extra text:
 {
-  "suggestedTitle": "Short exercise title based on content",
-  "suggestedDescription": "One sentence describing what students will practice",
+  "suggestedTitle": "Short exercise title based on content (in ${contentLanguage})",
+  "suggestedDescription": "One sentence describing what students will practice (in ${contentLanguage})",
   "detectedLevel": "${level}",
-  "detectedLanguage": "${targetLanguage}",
+  "detectedLanguage": "${contentLanguage}",
   "contentType": "questions_found|content_only|mixed",
   "questions": [
     ${outputSchema}
   ]
 }
 
-RULES:
-- Generate up to ${maxQuestions} questions total
-- Distribute questions across the requested types
-- All questions must be relevant to the PDF content
-- Questions should be appropriate for ${level} level students
-- For MCQ options: make wrong answers plausible but clearly incorrect
-- For fill-blank: each ___ represents exactly one blank with one answer in the answers array
-- Return ONLY the JSON object, nothing else`;
+STRICT RULES:
+- Return ONLY the JSON object — no markdown fences, no commentary.
+- LANGUAGE LOCK: The document below is in ${contentLanguage}. Every question, prompt, instruction, MCQ stem and option, fill-blank sentence, matching item, pronunciation field, sampleAnswers entry, suggestedTitle, and suggestedDescription MUST be written in ${contentLanguage}. Do NOT translate the material into ${nativeLanguage} or English unless the source document itself is English.
+- Each blank (each run of underscores) in fill-blank sentences must have exactly one matching entry in the answers array.
+- sampleAnswers for question-answer must contain all plausible correct phrasings (in ${contentLanguage}) so AI grading succeeds.
+- For worksheetMode matching, copy the exact values from the document; do not translate.${worksheetMode ? '\n- Always include "sectionTitle" on every question.' : ''}`;
 }
 
 // ─── ROUTE: POST /api/pdf-exercises/upload ────────────────────────────────────
@@ -298,7 +610,8 @@ router.post('/upload',
 
       // Return preview (first 2000 chars of text) and file reference
       const previewText = result.text.substring(0, 2000);
-      const detectedTypes = detectQuestionTypes(result.text);
+      const rawDetected = detectQuestionTypes(result.text);
+      const { _worksheetMode, ...detectedTypes } = rawDetected;
 
       res.json({
         success: true,
@@ -308,7 +621,8 @@ router.post('/upload',
         totalChars: result.text.length,
         previewText,
         hasContent: result.text.trim().length > 50,
-        detectedTypes
+        detectedTypes,
+        worksheetMode: _worksheetMode
       });
     } catch (err) {
       // Clean up on error
@@ -331,11 +645,13 @@ router.post('/generate',
     const {
       uploadId,
       types,
+      typeCounts,
       targetLanguage,
       nativeLanguage,
       level,
       difficulty,
-      maxQuestions
+      maxQuestions,
+      worksheetMode: clientWorksheetMode
     } = req.body;
 
     if (!uploadId) {
@@ -362,14 +678,36 @@ router.post('/generate',
         });
       }
 
+      // Detect worksheet mode from the extracted text unless the client explicitly specifies
+      const rawDetected = detectQuestionTypes(pdfData.text);
+      const worksheetMode = clientWorksheetMode != null ? Boolean(clientWorksheetMode) : rawDetected._worksheetMode;
+
+      // Resolve effective typeCounts: client value → detected → empty
+      const resolvedTypeCounts = typeCounts && Object.keys(typeCounts).length
+        ? typeCounts
+        : (() => { const { _worksheetMode, ...rest } = rawDetected; return rest; })();
+
+      // Compute maxQuestions from typeCounts sum if available
+      const totalFromCounts = Object.values(resolvedTypeCounts).reduce((s, v) => s + (Number(v) || 0), 0);
+      const resolvedMax = totalFromCounts > 0
+        ? totalFromCounts
+        : Math.min(parseInt(maxQuestions) || 10, 100);
+
+      const resolvedTarget = targetLanguage || 'German';
+      const resolvedNative = nativeLanguage || 'English';
+      const contentLanguage = detectContentLanguage(pdfData.text, resolvedTarget);
+
       // Build prompt and call OpenAI
       const prompt = buildGenerationPrompt(pdfData.text, {
-        types: types || ['mcq'],
-        targetLanguage: targetLanguage || 'German',
-        nativeLanguage: nativeLanguage || 'English',
+        types: types || Object.keys(resolvedTypeCounts).filter(k => resolvedTypeCounts[k] > 0) || ['mcq'],
+        typeCounts: resolvedTypeCounts,
+        targetLanguage: resolvedTarget,
+        nativeLanguage: resolvedNative,
+        contentLanguage,
         level: level || 'A1',
         difficulty: difficulty || 'Beginner',
-        maxQuestions: Math.min(parseInt(maxQuestions) || 10, 100)
+        maxQuestions: Math.min(resolvedMax, 100),
+        worksheetMode
       });
 
       console.log(`🤖 Generating exercises from PDF: ${uploadId} (${pdfData.pages} pages, ${pdfData.text.length} chars)`);
@@ -379,7 +717,7 @@ router.post('/generate',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert language exercise creator. Always respond with valid JSON only, no markdown code blocks, no extra text.'
+            content: 'You are an expert language exercise creator. Always respond with valid JSON only, no markdown code blocks, no extra text. Follow the user message strictly: every student-facing string (questions, prompts, options, sentences, sampleAnswers, titles) must use the SOURCE CONTENT LANGUAGE named in the prompt — never translate the source into another language unless that source language is explicitly different.'
           },
           { role: 'user', content: prompt }
         ],
@@ -423,7 +761,9 @@ router.post('/generate',
         suggestedTitle: generated.suggestedTitle || 'Generated Exercise',
         suggestedDescription: generated.suggestedDescription || '',
         detectedLevel: generated.detectedLevel || level || 'A1',
+        contentLanguage,
         contentType: generated.contentType || 'content_only',
+        worksheetMode,
         questions,
         pdfInfo: {
           pages: pdfData.pages,
@@ -450,6 +790,7 @@ router.post('/text-generate',
     const {
       text,
       types,
+      typeCounts,
       targetLanguage,
       nativeLanguage,
       level,
@@ -466,16 +807,33 @@ router.post('/text-generate',
     }
 
     const cleanedText = text.trim();
-    const worksheetMode = /Übung|LÖSUNGSSCHLÜSSEL|Lösungsschlüssel|STUFE|LEKTION|Answer Key|Solution Key/i.test(cleanedText);
+    const rawDetectedText = detectQuestionTypes(cleanedText);
+    const worksheetMode = rawDetectedText._worksheetMode ||
+      /Übung|LÖSUNGSSCHLÜSSEL|Lösungsschlüssel|STUFE|LEKTION|Answer Key|Solution Key/i.test(cleanedText);
+
+    const resolvedTypeCounts = typeCounts && Object.keys(typeCounts).length
+      ? typeCounts
+      : (() => { const { _worksheetMode, ...rest } = rawDetectedText; return rest; })();
+
+    const totalFromCounts = Object.values(resolvedTypeCounts).reduce((s, v) => s + (Number(v) || 0), 0);
+    const resolvedMax = totalFromCounts > 0
+      ? totalFromCounts
+      : Math.min(parseInt(maxQuestions) || 10, 100);
 
     try {
+      const resolvedTarget = targetLanguage || 'German';
+      const resolvedNative = nativeLanguage || 'English';
+      const contentLanguage = detectContentLanguage(cleanedText, resolvedTarget);
+
       const prompt = buildGenerationPrompt(cleanedText, {
-        types: types || ['mcq'],
-        targetLanguage: targetLanguage || 'German',
-        nativeLanguage: nativeLanguage || 'English',
+        types: types || Object.keys(resolvedTypeCounts).filter(k => resolvedTypeCounts[k] > 0) || ['mcq'],
+        typeCounts: resolvedTypeCounts,
+        targetLanguage: resolvedTarget,
+        nativeLanguage: resolvedNative,
+        contentLanguage,
         level: level || 'A1',
         difficulty: difficulty || 'Beginner',
-        maxQuestions: Math.min(parseInt(maxQuestions) || 10, 100),
+        maxQuestions: Math.min(resolvedMax, 100),
         worksheetMode
       });
 
@@ -484,7 +842,7 @@ router.post('/text-generate',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert language exercise creator. Always respond with valid JSON only, no markdown code blocks, no extra text.'
+            content: 'You are an expert language exercise creator. Always respond with valid JSON only, no markdown code blocks, no extra text. Follow the user message strictly: every student-facing string (questions, prompts, options, sentences, sampleAnswers, titles) must use the SOURCE CONTENT LANGUAGE named in the prompt — never translate the source into another language unless that source language is explicitly different.'
           },
           { role: 'user', content: prompt }
         ],
@@ -525,7 +883,9 @@ router.post('/text-generate',
         suggestedTitle: generated.suggestedTitle || 'Generated Exercise',
         suggestedDescription: generated.suggestedDescription || '',
         detectedLevel: generated.detectedLevel || level || 'A1',
+        contentLanguage,
         contentType: generated.contentType || 'content_only',
+        worksheetMode,
         questions,
         textInfo: {
           charCount: cleanedText.length,
@@ -564,6 +924,17 @@ router.delete('/cleanup/:uploadId',
 function sanitizeQuestion(q) {
   const base = { type: q.type, points: parseInt(q.points) || 1 };
 
+  // Preserve optional worksheet metadata if present
+  if (q.sectionTitle && typeof q.sectionTitle === 'string') {
+    base.sectionTitle = q.sectionTitle.trim();
+  }
+  if (q.tier && typeof q.tier === 'string') {
+    base.tier = q.tier.trim();
+  }
+  if (q.worksheetKind && typeof q.worksheetKind === 'string') {
+    base.worksheetKind = q.worksheetKind.trim();
+  }
+
   if (q.type === 'mcq') {
     const options = Array.isArray(q.options) ? q.options.map(String) : ['Option A', 'Option B', 'Option C', 'Option D'];
     const cai = parseInt(q.correctAnswerIndex);
@@ -590,11 +961,10 @@ function sanitizeQuestion(q) {
 
   if (q.type === 'fill-blank') {
     const sentence = String(q.sentence || '');
-    const blanks = (sentence.match(/___/g) || []).length;
+    const blanks = (sentence.match(/_+/g) || []).length;
     const answers = Array.isArray(q.answers)
       ? q.answers.slice(0, blanks).map(String)
       : new Array(blanks).fill('');
-    // Pad answers if needed
     while (answers.length < blanks) answers.push('');
     return {
       ...base,
@@ -617,10 +987,14 @@ function sanitizeQuestion(q) {
   }
 
   if (q.type === 'question-answer') {
+    const threshold = parseInt(q.similarityThreshold);
+    const scoringMode = ['full', 'proportional'].includes(q.scoringMode) ? q.scoringMode : 'proportional';
     return {
       ...base,
       prompt: String(q.prompt || ''),
       sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers.map(String).filter(Boolean) : [],
+      similarityThreshold: (isNaN(threshold) || threshold < 0 || threshold > 100) ? 65 : threshold,
+      scoringMode,
       aiGradingEnabled: q.aiGradingEnabled !== false
     };
   }

@@ -21,6 +21,20 @@ app-header {
   overflow-y: auto;
 }
 
+.main-content.login-route {
+  padding: 0;
+  background: transparent;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.main-content.home-route {
+  padding: 0;
+  background: #f7f9fb;
+}
+
 app-footer {
   margin-top: auto;
 }
@@ -38,6 +52,7 @@ app-footer {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
 }
 
 /* Mobile hamburger */
@@ -51,11 +66,18 @@ app-footer {
   background: #03396c;
   color: #fff;
   border: none;
-  height: 48px;
-  font-size: 20px;
+  /* Minimum 44px touch target per WCAG */
+  height: 52px;
+  font-size: 22px;
   cursor: pointer;
   text-align: left;
   padding: 0 16px;
+  /* Safe area insets for notched phones */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* Mobile overlay */
@@ -65,12 +87,16 @@ app-footer {
 
 @media (max-width: 768px) {
   .mobile-menu-btn {
-    display: block;
+    display: flex;
+    align-items: center;
   }
 
   .shell-content {
     margin-left: 0;
-    padding-top: 48px;
+    /* Account for hamburger bar + safe area */
+    padding-top: calc(52px + env(safe-area-inset-top, 0px));
+    /* Safe area for bottom (e.g. iPhone home indicator) */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .sidebar-overlay {
@@ -79,6 +105,8 @@ app-footer {
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
     z-index: 1099;
+    /* Smooth fade in */
+    animation: overlayFadeIn 0.2s ease;
   }
 
   app-sidebar {
@@ -87,11 +115,34 @@ app-footer {
     top: 0;
     z-index: 1100;
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    width: 240px;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    width: min(280px, 80vw);
+    /* Full height including safe areas */
+    height: 100dvh;
+    overflow-y: auto;
   }
 
   app-sidebar.open {
     transform: translateX(0);
+  }
+
+  .main-content {
+    min-height: calc(100dvh - 52px);
+    /* Avoid horizontal scroll from wide tables/grids shifting the viewport sideways on small screens */
+    overflow-x: clip;
+    max-width: 100%;
+  }
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Extra small phones */
+@media (max-width: 375px) {
+  .mobile-menu-btn {
+    font-size: 20px;
+    height: 52px;
   }
 }

@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
-import { environment } from '../../../environments/environment';
+import { resolveMediaUrl } from '../../utils/media-url';
+import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
@@ -264,10 +265,7 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
   }
 
   getMediaFullUrl(relative: string): string {
-    if (!relative) return '';
-    if (relative.startsWith('http')) return relative;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return base ? base + relative : relative;
+    return resolveMediaUrl(relative);
   }
 
   // ───────────────────────────────────────────────────────────
@@ -390,7 +388,7 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
   }
 
   getBlankCount(q: ReviewQuestion): number {
-    return (q.sentence?.match(/___/g) || []).length;
+    return countFillBlankRuns(q.sentence || '');
   }
 
   onSentenceChange(q: ReviewQuestion): void {
@@ -401,7 +399,7 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
   }
 
   insertBlank(q: ReviewQuestion): void {
-    const blank = '___';
+    const blank = '_';
     const el = document.activeElement as HTMLTextAreaElement | null;
     if (el?.tagName === 'TEXTAREA' && typeof el.selectionStart === 'number') {
       const start = el.selectionStart;

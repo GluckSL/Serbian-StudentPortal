@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Course = require("../models/Course");
 const StudentLogs = require("../models/StudentLogs");
+const UserActivityLog = require("../models/UserActivityLog");
 const router = express.Router();
 const transporter = require("../config/emailConfig");
 
@@ -17,6 +18,51 @@ const transporter = require("../config/emailConfig");
 const { verifyToken, isAdmin } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
+const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
+const ALLOWED_SIDEBAR_PERMISSION_IDS = [
+  "dashboard",
+  "students",
+  "student-logs",
+  "teachers",
+  "user-roles",
+  "modules",
+  "exercises",
+  "journey",
+  "manage-classes",
+  "attendance",
+  "import-meeting",
+  "class-recordings",
+  "ai-bot-report",
+  "documents",
+  "visa-tracking",
+  "student-progress",
+  "payments",
+  "invoices",
+  "timetable",
+  "monday-sync",
+  "profile"
+];
+
+function normalizeSidebarPermissions(sidebarPermissions) {
+  if (!Array.isArray(sidebarPermissions)) {
+    return [...SUB_ADMIN_DEFAULT_PERMISSIONS];
+  }
+
+  const uniqueValid = Array.from(
+    new Set(
+      sidebarPermissions.filter(
+        (permissionId) =>
+          typeof permissionId === "string" &&
+          ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId)
+      )
+    )
+  );
+
+  if (!uniqueValid.includes("dashboard")) uniqueValid.unshift("dashboard");
+  if (!uniqueValid.includes("profile")) uniqueValid.push("profile");
+
+  return uniqueValid;
+}
 
 // Read CRM data from Monday.com â€” Full sync: update existing + create new (all packages, exclude WITHDREW)
 // Track last sync status
@@ -314,20 +360,26 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
 // âœ… Reg No generation for different roles
 async function generateRegNo(role) {
+  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
+  if (!roleKey) {
+    throw new Error("Role is required to generate regNo");
+  }
   // map roles to prefixes
   const prefixMap = {
     STUDENT: "STUD",
     TEACHER: "T",
-    ADMIN: "AD"
+    ADMIN: "AD",
+    SUB_ADMIN: "SAD"
   };
 
-  const prefix = prefixMap[role] || role.substring(0, 2).toUpperCase(); // fallback
+  const prefix = prefixMap[roleKey] || roleKey.substring(0, 2).toUpperCase(); // fallback
 
   const lastUser = await User.findOne({
-    role: role,
+    role: roleKey,
     regNo: { $regex: `^${prefix}\\d+$` }
   })
-    .sort({ createdAt: -1 })
+    // Sort by regNo so padding keeps correct order (e.g., SAD003 < SAD010)
+    .sort({ regNo: -1 })
     .exec();
 
   let nextNumber = 1;
@@ -342,16 +394,49 @@ async function generateRegNo(role) {
   return prefix + String(nextNumber).padStart(3, "0");
 }
 
+async function getRegNoSeed(role) {
+  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
+  if (!roleKey) throw new Error("Role is required to generate regNo");
+
+  const prefixMap = {
+    STUDENT: "STUD",
+    TEACHER: "T",
+    ADMIN: "AD",
+    SUB_ADMIN: "SAD"
+  };
+  const prefix = prefixMap[roleKey] || roleKey.substring(0, 2).toUpperCase();
+
+  const lastUser = await User.findOne({
+    role: roleKey,
+    regNo: { $regex: `^${prefix}\\d+$` }
+  })
+    .sort({ regNo: -1 })
+    .lean();
+
+  let nextNumber = 1;
+  if (lastUser?.regNo) {
+    const match = lastUser.regNo.match(new RegExp(`^${prefix}(\\d+)$`));
+    if (match) nextNumber = parseInt(match[1], 10) + 1;
+  }
+
+  return { prefix, nextNumber, roleKey };
+}
+
 //Password generation
 async function generatePassword(role, regNo) {
   // map roles to prefixes
   const prefixMap = {
     STUDENT: "Student",
     TEACHER: "Teacher",
-    ADMIN: "Admin"
+    ADMIN: "Admin",
+    SUB_ADMIN: "SubAdmin"
   };
 
-  const prefix = prefixMap[role.toUpperCase()] || role;
+  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
+  if (!roleKey) {
+    throw new Error("Role is required to generate password");
+  }
+  const prefix = prefixMap[roleKey] || roleKey;
 
   // get last 3 characters of regNo
   const lastThreeDigits = regNo.slice(-3);
@@ -449,128 +534,189 @@ router.post("/signup", async (req, res) => {
       reasonForWithdrewing,
       courseCompletionDates,
       courseStartDates,
-      qualifications
+      qualifications,
+      sidebarPermissions,
+      sendCredentialsEmail
      } = req.body;
 
-    const regNo = await generateRegNo(role);
-    const password = await generatePassword(role, regNo); // generate random password
+    const normalizedRole = typeof role === "string" ? role.trim().toUpperCase() : "";
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedName = typeof name === "string" ? name.trim() : "";
 
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ msg: "User already exists" });
+    if (!normalizedName) {
+      return res.status(400).json({ msg: "Name is required" });
+    }
+    if (!normalizedEmail) {
+      return res.status(400).json({ msg: "Email is required" });
+    }
+    if (!normalizedRole) {
+      return res.status(400).json({ msg: "Role is required" });
+    }
+    if (!["STUDENT", "TEACHER", "ADMIN", "SUB_ADMIN", "TEACHER_ADMIN"].includes(normalizedRole)) {
+      return res.status(400).json({ msg: "Invalid role" });
+    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Fast pre-check for duplicate email (still handle race via E11000 below)
+    let existingByEmail = await User.findOne({ email: normalizedEmail });
+    if (existingByEmail) return res.status(400).json({ msg: "User already exists" });
 
-    user = new User({
-      regNo,   // <-- assign here
-      name,
-      email,
-      password: hashedPassword,
-      role,
-    });
+    // regNo is unique; collisions can happen (race conditions / existing data).
+    // Try sequential candidates (e.g., SAD003, SAD004...) to guarantee progress.
+    const MAX_REGNO_CANDIDATES = 25;
+    let user;
+    let password;
 
-    if (user.role === "STUDENT") {
-      user.subscription = subscription;
-      user.level = level;
-      user.batch = batch;
-      user.medium = medium;
-      user.studentStatus = studentStatus;
-      user.phoneNumber = phoneNumber;
-      user.address = address;
-      user.age = age;
-      user.servicesOpted = servicesOpted;
-      user.leadSource = leadSource;
-      user.languageLevelOpted = languageLevelOpted;
-      user.dateWithdrew = dateWithdrew;
-      user.reasonForWithdrawing = reasonForWithdrewing;
-      user.courseCompletionDates = courseCompletionDates;
-      user.courseStartDates = courseStartDates;
-      user.qualifications = qualifications;
+    const { prefix: regPrefix, nextNumber: regStart } = await getRegNoSeed(normalizedRole);
 
-      // âœ… Auto-set start date for current level if not provided
-      if (!user.courseStartDates) {
-        user.courseStartDates = {};
-      }
-      const levelStartField = `${level}StartDate`;
-      if (!user.courseStartDates[levelStartField]) {
-        user.courseStartDates[levelStartField] = new Date();
-      }
+    for (let offset = 0; offset < MAX_REGNO_CANDIDATES; offset++) {
+      const regNo = regPrefix + String(regStart + offset).padStart(3, "0");
+      password = await generatePassword(normalizedRole, regNo);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      // ðŸ” Teacher assignment
-      if (assignedTeacher) {
-        // case 1: frontend provided teacher id
-        user.assignedTeacher = assignedTeacher;
-      } else {
-        // case 2: backend finds one automatically
-        const course = await Course.findOne({ level });
-        if (!course) {
-          return res.status(400).json({ msg: "No course found for this level" });
+      user = new User({
+        regNo,
+        name: normalizedName,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: normalizedRole
+      });
+
+      if (user.role === "STUDENT") {
+        user.subscription = subscription;
+        user.level = level;
+        user.batch = batch;
+        user.medium = medium;
+        user.studentStatus = studentStatus;
+        user.phoneNumber = phoneNumber;
+        user.address = address;
+        user.age = age;
+        user.servicesOpted = servicesOpted;
+        user.leadSource = leadSource;
+        user.languageLevelOpted = languageLevelOpted;
+        user.dateWithdrew = dateWithdrew;
+        user.reasonForWithdrawing = reasonForWithdrewing;
+        user.courseCompletionDates = courseCompletionDates;
+        user.courseStartDates = courseStartDates;
+        user.qualifications = qualifications;
+
+        // ✅ Auto-set start date for current level if not provided
+        if (!user.courseStartDates) {
+          user.courseStartDates = {};
+        }
+        const levelStartField = `${level}StartDate`;
+        if (!user.courseStartDates[levelStartField]) {
+          user.courseStartDates[levelStartField] = new Date();
         }
 
-        const teacher = await User.findOne({
-          role: "TEACHER",
-          medium: { $in: [medium] },
-          assignedCourses: course._id
-        });
-
-        if (teacher) {
-          user.assignedTeacher = teacher._id;
+        // 🔍 Teacher assignment
+        if (assignedTeacher) {
+          // case 1: frontend provided teacher id
+          user.assignedTeacher = assignedTeacher;
         } else {
-          return res.status(400).json({ msg: "No teacher found for this level and medium" });
+          // case 2: backend finds one automatically
+          const course = await Course.findOne({ level });
+          if (!course) {
+            return res.status(400).json({ msg: "No course found for this level" });
+          }
+
+          const teacher = await User.findOne({
+            role: "TEACHER",
+            medium: { $in: [medium] },
+            assignedCourses: course._id
+          });
+
+          if (teacher) {
+            user.assignedTeacher = teacher._id;
+          } else {
+            return res.status(400).json({ msg: "No teacher found for this level and medium" });
+          }
         }
+      } else if (user.role === "TEACHER") {
+        user.assignedBatches = assignedBatches;
+        user.medium = medium;
+        user.assignedCourses = assignedCourses; // Assign courses if provided
+      } else if (user.role === "SUB_ADMIN") {
+        user.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
+      }
+
+      try {
+        await user.save();
+        break; // success
+      } catch (saveErr) {
+        // Duplicate key (email/regNo). Retry only for regNo collisions.
+        if (saveErr?.code === 11000) {
+          const dupField = Object.keys(saveErr?.keyPattern || saveErr?.keyValue || {})[0];
+          if (dupField === "regNo") {
+            // try next candidate
+            continue;
+          }
+          if (dupField === "email") {
+            return res.status(400).json({ msg: "User already exists" });
+          }
+          return res.status(400).json({ error: `${dupField} already exists` });
+        }
+        throw saveErr;
       }
     }
 
-    else if (user.role === "TEACHER") {
-      user.assignedBatches = assignedBatches;
-      user.medium = medium;
-      user.assignedCourses = assignedCourses; // Assign courses if provided
+    if (!user?._id) {
+      return res.status(500).json({ error: "Failed to allocate unique regNo. Please try again." });
     }
 
-    await user.save();
+    const shouldSendCredentialsEmail =
+      user.role === "SUB_ADMIN" ? !!sendCredentialsEmail : true;
 
-    // âœ‰ï¸ Send email
-    const passwordPlain = password; // Store plain password temporarily for email
+    if (shouldSendCredentialsEmail) {
+      // âœ‰ï¸ Send email
+      const passwordPlain = password; // Store plain password temporarily for email
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Welcome to Gluck Global Student Portal ",
+        html: `
+          <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
+            <p>Hello ${user.name},</p>
 
+            <p>You have successfully registered to the <strong>GlUck Global Student Portal</strong>. Here are your login credentials:</p>
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
-      html: `
-        <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-          <p>Hello ${user.name},</p>
+            <ul>
+              <li><strong>Web App ID:</strong> ${user.regNo}</li>
+              <li><strong>Password:</strong> ${passwordPlain}</li>
+            </ul>
 
-          <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
+            <p>Please keep this information safe and do not share it with anyone.</p>
 
-          <ul>
-            <li><strong>Web App ID:</strong> ${user.regNo}</li>
-            <li><strong>Password:</strong> ${passwordPlain}</li>
-          </ul>
+            <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
-          <p>Please keep this information safe and do not share it with anyone.</p>
+            <p>Best regards,<br>
+            <strong>GlUck Global Pvt Ltd</strong></p>
+          </div>
+        `
+      };
 
-          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log("âœ… Email sent to", user.email);
 
-          <p>Best regards,<br>
-          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
-        </div>
-      `
-    };
+        // Update lastCredentialsEmailSent timestamp
+        user.lastCredentialsEmailSent = new Date();
+        await user.save();
+      } catch (err) {
+        console.error("âŒ Email sending failed:", err);
+      }
+    }
 
+    const responsePayload = { msg: "User created successfully", user };
+    if (user.role === "SUB_ADMIN") {
+      responsePayload.generatedCredentials = {
+        regNo: user.regNo,
+        password
+      };
+    }
 
-    try {
-      await transporter.sendMail(mailOptions);
-      console.log("âœ… Email sent to", user.email);
-
-      // Update lastCredentialsEmailSent timestamp
-      user.lastCredentialsEmailSent = new Date();
-      await user.save();
-    } catch (err) {
-      console.error("âŒ Email sending failed:", err);
-  }
-
-    res.status(201).json({ msg: "User created successfully", user });
+    res.status(201).json(responsePayload);
   } catch (err) {
+    console.error("Signup error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -594,6 +740,21 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
+    // ✅ track last login + keep login history (best effort)
+    try {
+      user.lastLogin = new Date();
+      await user.save();
+      await UserActivityLog.create({
+        userId: user._id,
+        role: user.role,
+        type: "LOGIN",
+        ip: req.headers["x-forwarded-for"]?.toString()?.split(",")?.[0]?.trim() || req.ip || "",
+        userAgent: req.headers["user-agent"] || ""
+      });
+    } catch (e) {
+      console.warn("Failed to record login activity:", e?.message || e);
+    }
+
     const token = jwt.sign(
       {
         id: user._id,
@@ -601,7 +762,7 @@ router.post("/login", async (req, res) => {
         name: user.name
       },
       JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     // âœ… Set cookie instead of sending token
@@ -610,7 +771,7 @@ router.post("/login", async (req, res) => {
       secure: false,   // âœ… FIXED: false in development
       sameSite: 'Lax', // âœ… FIXED: 'Lax' for localhost
       path: '/',
-      maxAge: 60 * 60 * 1000 // 1 hour
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
     // âœ… Send user info only (no token in response)
@@ -620,7 +781,8 @@ router.post("/login", async (req, res) => {
         email: user.email,
         role: user.role,
         subscription: user.subscription,
-        profilePhoto: user.profilePhoto || null
+        profilePhoto: user.profilePhoto || null,
+        sidebarPermissions: user.sidebarPermissions || []
       }
     });
   } catch (err) {
@@ -631,6 +793,23 @@ router.post("/login", async (req, res) => {
 
 // âœ… Logout
 router.post("/logout", (req, res) => {
+  // ✅ best-effort: record logout activity when token present
+  try {
+    const token = req.cookies?.authToken;
+    if (token) {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload?.id) {
+        UserActivityLog.create({
+          userId: payload.id,
+          role: payload.role || "",
+          type: "LOGOUT",
+          ip: req.headers["x-forwarded-for"]?.toString()?.split(",")?.[0]?.trim() || req.ip || "",
+          userAgent: req.headers["user-agent"] || ""
+        }).catch(() => {});
+      }
+    }
+  } catch (_) {}
+
   res.clearCookie("authToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // âœ… true in production with HTTPS
@@ -670,12 +849,92 @@ router.get("/profile", verifyToken, async (req, res) => {
 router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const users = await User.find({
-      role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN'] }
-    }).select("name email regNo role").sort({ role: 1, name: 1 });
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN'] }
+    }).select("name email regNo role sidebarPermissions").sort({ role: 1, name: 1 });
 
     res.status(200).json(users);
   } catch (error) {
     console.error("âŒ Error fetching teachers and admins:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Admin set/change password for any user (ADMIN only)
+router.put("/admin-set-password/:id", verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.trim().length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword.trim(), salt);
+    await user.save();
+    res.status(200).json({ success: true, message: "Password updated successfully." });
+  } catch (error) {
+    console.error("Error changing password (admin):", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Admin set/change password AND email credentials (ADMIN only)
+router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.trim().length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const plainPassword = newPassword.trim();
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(plainPassword, salt);
+    await user.save();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸ”",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
+          <p>Hello ${user.name},</p>
+
+          <p>Your password has been updated. Here are your login credentials for the <strong>GlÃ¼ck Global Portal</strong>:</p>
+
+          <ul>
+            <li><strong>Email ID:</strong> ${user.email}</li>
+            <li><strong>Password:</strong> ${plainPassword}</li>
+          </ul>
+
+          <p>Please keep this information safe and do not share it with anyone.</p>
+
+          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
+
+          <p>Best regards,<br>
+          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+        </div>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      res.status(200).json({ success: true, message: "Password updated and credentials emailed successfully." });
+    } catch (emailErr) {
+      console.error("Email sending failed:", emailErr);
+      res.status(500).json({
+        success: false,
+        message: "Password updated, but email failed to send. Please try again."
+      });
+    }
+  } catch (error) {
+    console.error("Error changing password + email (admin):", error);
     res.status(500).json({ message: "Internal server error." });
   }
 });
@@ -823,7 +1082,8 @@ router.put("/:id", async (req, res) => {
       courseCompletionDates,
       courseStartDates,
       reasonForWithdrawing,
-      qualifications
+      qualifications,
+      sidebarPermissions
     } = req.body;
 
     // 4ï¸âƒ£ Build update object
@@ -851,6 +1111,16 @@ router.put("/:id", async (req, res) => {
       courseStartDates,
       qualifications
     };
+
+    if (typeof sidebarPermissions !== "undefined") {
+      updateData.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
+    }
+
+    if (role === "SUB_ADMIN" && typeof sidebarPermissions === "undefined") {
+      updateData.sidebarPermissions = normalizeSidebarPermissions(existingUser.sidebarPermissions || []);
+    } else if (role && role !== "SUB_ADMIN") {
+      updateData.sidebarPermissions = [];
+    }
 
     // âœ… Auto-set start date for new level if level changed and start date not set
     if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
@@ -1009,7 +1279,7 @@ router.get("/users-by-role/:role", verifyToken, checkRole(['ADMIN']), async (req
     const { role } = req.params;
 
     // Validate role
-    if (!['ADMIN', 'TEACHER', 'STUDENT'].includes(role)) {
+    if (!['ADMIN', 'TEACHER', 'STUDENT', 'SUB_ADMIN'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role specified' });
     }
 

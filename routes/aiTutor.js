@@ -14,17 +14,39 @@ const OpenAIService = require('../services/openaiService');
 const openaiService = new OpenAIService();
 
 // Helper function to generate language-specific role-play welcome messages
-function generateRolePlayWelcome(targetLanguage, scenario) {
+async function generateRolePlayWelcome(targetLanguage, scenario) {
+  let studentRole = scenario.studentRole;
+  let aiRole = scenario.aiRole;
+
+  // Translate role descriptions to the target language so the intro is fully in that language
+  if (targetLanguage && targetLanguage !== 'English' && openaiService.isConfigured()) {
+    try {
+      const [translatedStudentRole, translatedAiRole] = await Promise.all([
+        openaiService.translateText(studentRole, 'English', targetLanguage),
+        openaiService.translateText(aiRole, 'English', targetLanguage)
+      ]);
+      // translateText returns { success: boolean, translatedText: string }
+      if (translatedStudentRole?.success && translatedStudentRole.translatedText) {
+        studentRole = translatedStudentRole.translatedText;
+      }
+      if (translatedAiRole?.success && translatedAiRole.translatedText) {
+        aiRole = translatedAiRole.translatedText;
+      }
+    } catch (err) {
+      console.error('⚠️ Role translation failed, using original English roles:', err.message);
+    }
+  }
+
   const messages = {
     'German': {
-      welcome: `Willkommen zur Rollenspiel-Sitzung! Du wirst der/die ${scenario.studentRole} sein, ich werde der/die ${scenario.aiRole} sein. Sage "Los geht's" um zu beginnen oder "Stopp" um die Sitzung zu beenden.`,
+      welcome: `Willkommen zur Rollenspiel-Sitzung! Du wirst der/die ${studentRole} sein, ich werde der/die ${aiRole} sein. Sage "Los geht's" um zu beginnen oder "Stopp" um die Sitzung zu beenden.`,
       triggers: {
         start: ["Los geht's", "Beginnen wir", "Anfangen", "Start"],
         stop: ["Stopp", "Ende", "Aufhören", "Beenden"]
       }
     },
     'English': {
-      welcome: `Welcome to the Role-Play Session! You will be the ${scenario.studentRole}, I will be the ${scenario.aiRole}. Say "Let's start" to begin or "stop" to end the session.`,
+      welcome: `Welcome to the Role-Play Session! You will be the ${studentRole}, I will be the ${aiRole}. Say "Let's start" to begin or "stop" to end the session.`,
       triggers: {
         start: ["Let's start", "Start", "Begin", "Go"],
         stop: ["Stop", "End", "Quit", "Finish"]
@@ -403,7 +425,7 @@ router.post('/start-teacher-test', verifyToken, checkRole(['TEACHER', 'ADMIN']),
       const scenario = module.content.rolePlayScenario;
       
       // Generate language-specific welcome message
-      const welcomeData = generateRolePlayWelcome(module.targetLanguage, scenario);
+      const welcomeData = await generateRolePlayWelcome(module.targetLanguage, scenario);
       
       welcomeResponse = {
         content: welcomeData.welcome,
@@ -543,7 +565,7 @@ router.post('/start-session', verifyToken, requirePlatinum, async (req, res) => 
       const scenario = module.content.rolePlayScenario;
       
       // Generate language-specific welcome message
-      const welcomeData = generateRolePlayWelcome(module.targetLanguage, scenario);
+      const welcomeData = await generateRolePlayWelcome(module.targetLanguage, scenario);
       
       welcomeResponse = {
         content: welcomeData.welcome,

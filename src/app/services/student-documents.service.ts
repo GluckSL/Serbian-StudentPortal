@@ -297,14 +297,20 @@ export class StudentDocumentsService {
   // ========== BULK OPERATIONS ==========
   
   // Get all students (Admin only)
-  getAllStudents(): Observable<{
+  getAllStudents(params?: { page?: number; limit?: number }): Observable<{
     success: boolean;
-    students: any[];
+    data: any[];
+    pagination?: { total: number; page: number; limit: number; pages: number };
   }> {
+    const q: string[] = [];
+    if (params?.page) q.push(`page=${encodeURIComponent(String(params.page))}`);
+    if (params?.limit) q.push(`limit=${encodeURIComponent(String(params.limit))}`);
+    const url = `${environment.apiUrl}/admin/students${q.length ? `?${q.join('&')}` : ''}`;
     return this.http.get<{
       success: boolean;
-      students: any[];
-    }>(`${environment.apiUrl}/admin/students`, { withCredentials: true });
+      data: any[];
+      pagination?: { total: number; page: number; limit: number; pages: number };
+    }>(url, { withCredentials: true });
   }
   
   // Admin upload document for student (Admin only)

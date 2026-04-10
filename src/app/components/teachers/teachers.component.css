@@ -92,6 +92,8 @@
 
 .btn-outline-danger { color: #e11d48; border-color: #e11d48; }
 .btn-outline-danger:hover { background: #e11d48; color: #fff; }
+.btn-outline-info { color: #0284c7; border-color: #0284c7; }
+.btn-outline-info:hover { background: #0284c7; color: #fff; }
 
 /* ── Filters ── */
 .filters-card { margin-bottom: 10px; }

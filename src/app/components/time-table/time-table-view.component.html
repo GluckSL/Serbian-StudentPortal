@@ -33,172 +33,97 @@
           <i class="fas fa-plus-circle"></i>
           Add New Timetable
         </button>
+        <button class="btn-prev-weeks" (click)="openPreviousWeeksModal()">
+          <i class="fas fa-table"></i>
+          Previous Weeks ({{ pastTimeTables.length }})
+        </button>
+        <button class="btn-clear-hidden" *ngIf="hiddenTimeTableIds.size" (click)="clearHiddenWeeks()">
+          <i class="fas fa-eye"></i>
+          Show Hidden ({{ hiddenTimeTableIds.size }})
+        </button>
       </div>
 
       <!-- Timetable Cards -->
       <div class="timetable-cards">
-        <ng-container *ngFor="let weekGroup of groupByWeek(timeTables, userRole === 'STUDENT')">
-          <ng-container *ngFor="let tt of weekGroup.items; let i = index">
-            
-            <!-- Week Card -->
-            <div class="week-card" *ngIf="i === 0">
-              <div class="week-header">
-                <div class="week-info">
-                  <h2 class="week-title">
-                    <i class="fas fa-calendar-week"></i>
-                    Week of {{ tt.weekStartDate | date:'MMMM d' }} - {{ tt.weekEndDate | date:'d, yyyy' }}
-                  </h2>
-                  <div class="week-meta">
-                    <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'">
-                      <i class="fas fa-users"></i>
-                      Batch {{ tt.batch }}
-                    </span>
-                    <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'">
-                      <i class="fas fa-language"></i>
-                      {{ tt.medium }}
-                    </span>
-                    <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'">
-                      <i class="fas fa-star"></i>
-                      {{ tt.plan }}
-                    </span>
-                    <span class="meta-item" *ngIf="userRole === 'ADMIN'">
-                      <i class="fas fa-chalkboard-teacher"></i>
-                      {{ teachersCache[tt.assignedTeacher] || 'Loading...' }}
-                    </span>
-                  </div>
-                </div>
-                <div class="week-actions" *ngIf="userRole === 'ADMIN'">
-                  <button class="btn-edit" [routerLink]="['/time-table', tt._id]" title="Edit Timetable">
-                    <i class="fas fa-edit"></i>
-                    Edit
-                  </button>
+        <div class="week-section-title" *ngIf="currentWeekTimeTable">Current Week</div>
+        <ng-container *ngIf="currentWeekTimeTable as tt">
+          <div class="week-card">
+            <div class="week-header">
+              <div class="week-info">
+                <h2 class="week-title">
+                  <i class="fas fa-calendar-week"></i>
+                  Week of {{ tt.weekStartDate | date:'MMMM d' }} - {{ tt.weekEndDate | date:'d, yyyy' }}
+                </h2>
+                <div class="week-meta">
+                  <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-users"></i>Batch {{ tt.batch }}</span>
+                  <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-language"></i>{{ tt.medium }}</span>
+                  <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-star"></i>{{ tt.plan }}</span>
+                  <span class="meta-item" *ngIf="userRole === 'ADMIN'"><i class="fas fa-chalkboard-teacher"></i>{{ teachersCache[tt.assignedTeacher] || 'Loading...' }}</span>
                 </div>
               </div>
+              <div class="week-actions" *ngIf="userRole === 'ADMIN'">
+                <button class="btn-edit" [routerLink]="['/time-table', tt._id]" title="Edit Timetable"><i class="fas fa-edit"></i>Edit</button>
+                <button class="btn-hide" (click)="hideTimeTable(tt, $event)" title="Hide week"><i class="fas fa-eye-slash"></i>Hide</button>
+                <button class="btn-delete" (click)="deleteTimeTable(tt, $event)" title="Delete week"><i class="fas fa-trash"></i>Delete</button>
+              </div>
+            </div>
 
-              <!-- Days Grid -->
-              <div class="days-grid">
-                <div class="day-card" *ngFor="let day of ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; let dayIndex = index">
-                  <div class="day-header">
-                    <div class="day-name">{{ day | titlecase }}</div>
-                    <div class="day-date">{{ getDateForDay(tt.weekStartDate, dayIndex) | date:'MMM d' }}</div>
-                  </div>
-                  <div class="day-content">
-                    <ng-container *ngIf="tt[day] && tt[day].length > 0; else noDayClass">
-                      <div class="class-slot" *ngFor="let slot of tt[day]" 
-                           [ngClass]="{'cancelled': slot.classStatus === 'Cancelled'}">
-                        
-                        <!-- Get meeting for this slot -->
-                        <ng-container *ngIf="slot.meetingLinked && slot.zoomJoinUrl; else checkZoomMeetings">
-                          
-                          <!-- Slot has linked Zoom meeting from timetable -->
-                          <div class="slot-with-meeting">
-                            <div class="slot-header">
-                              <div class="slot-icon">
-                                <i class="fas fa-video"></i>
-                              </div>
-                              <div class="slot-details">
-                                <div class="slot-time">
-                                  <i class="fas fa-clock"></i>
-                                  {{ slot.start }} - {{ slot.end }}
-                                </div>
-                                <div class="meeting-topic">Zoom Class</div>
-                              </div>
-                            </div>
-                            
-                            <!-- Meeting Status Badge -->
-                            <div class="meeting-status-badge upcoming">
-                              <span class="status-upcoming">
-                                <i class="fas fa-check-circle"></i> Meeting Linked
-                              </span>
-                            </div>
-                            
-                            <!-- Join Button -->
-                            <button 
-                              class="btn-join-meeting"
-                              (click)="joinZoomMeeting(slot.zoomJoinUrl)">
-                              <i class="fas fa-video"></i>
-                              <span>Join Class</span>
-                            </button>
-                            
-                            <!-- Password Display -->
-                            <div class="meeting-meta" *ngIf="slot.zoomPassword">
-                              <span class="meta-password">
-                                <i class="fas fa-lock"></i>
-                                Password: {{ slot.zoomPassword }}
-                              </span>
+            <div class="days-grid">
+              <div class="day-card" *ngFor="let day of ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; let dayIndex = index">
+                <div class="day-header">
+                  <div class="day-name">{{ day | titlecase }}</div>
+                  <div class="day-date">{{ getDateForDay(tt.weekStartDate, dayIndex) | date:'MMM d' }}</div>
+                </div>
+                <div class="day-content">
+                  <ng-container *ngIf="tt[day] && tt[day].length > 0; else noDayClass">
+                    <div class="class-slot" *ngFor="let slot of tt[day]" [ngClass]="{'cancelled': slot.classStatus === 'Cancelled'}">
+                      <ng-container *ngIf="slot.meetingLinked && slot.zoomJoinUrl; else checkZoomMeetings">
+                        <div class="slot-with-meeting">
+                          <div class="slot-header">
+                            <div class="slot-icon"><i class="fas fa-video"></i></div>
+                            <div class="slot-details">
+                              <div class="slot-time"><i class="fas fa-clock"></i>{{ slot.start }} - {{ slot.end }}</div>
+                              <div class="meeting-topic">Zoom Class</div>
                             </div>
                           </div>
-                          
-                        </ng-container>
-                        
-                        <!-- Check for separate Zoom meetings if not linked -->
-                        <ng-template #checkZoomMeetings>
-                          <ng-container *ngIf="getMeetingForSlot(getDateForDay(tt.weekStartDate, dayIndex), slot.start, tt.batch) as meeting; else noMeeting">
-                          
-                          <!-- Meeting exists -->
+                          <div class="meeting-status-badge upcoming"><span class="status-upcoming"><i class="fas fa-check-circle"></i> Meeting Linked</span></div>
+                          <button class="btn-join-meeting" (click)="joinZoomMeeting(slot.zoomJoinUrl)"><i class="fas fa-video"></i><span>Join Class</span></button>
+                          <div class="meeting-meta" *ngIf="slot.zoomPassword">
+                            <span class="meta-password"><i class="fas fa-lock"></i>Password: {{ slot.zoomPassword }}</span>
+                          </div>
+                        </div>
+                      </ng-container>
+                      <ng-template #checkZoomMeetings>
+                        <ng-container *ngIf="getMeetingForSlot(getDateForDay(tt.weekStartDate, dayIndex), slot.start, tt.batch) as meeting; else noMeeting">
                           <div class="slot-with-meeting">
                             <div class="slot-header">
-                              <div class="slot-icon">
-                                <i class="fas fa-video"></i>
-                              </div>
+                              <div class="slot-icon"><i class="fas fa-video"></i></div>
                               <div class="slot-details">
-                                <div class="slot-time">
-                                  <i class="fas fa-clock"></i>
-                                  {{ slot.start }} - {{ slot.end }}
-                                </div>
+                                <div class="slot-time"><i class="fas fa-clock"></i>{{ slot.start }} - {{ slot.end }}</div>
                                 <div class="meeting-topic">{{ meeting.topic }}</div>
                               </div>
                             </div>
-                            
-                            <!-- Meeting Status Badge -->
                             <div class="meeting-status-badge" [ngClass]="getMeetingStatus(meeting)">
-                              <span *ngIf="getMeetingStatus(meeting) === 'live'" class="status-live">
-                                <i class="fas fa-circle pulse"></i> LIVE NOW
-                              </span>
-                              <span *ngIf="getMeetingStatus(meeting) === 'upcoming'" class="status-upcoming">
-                                <i class="fas fa-clock"></i> {{ getCountdown(meeting) }}
-                              </span>
-                              <span *ngIf="getMeetingStatus(meeting) === 'ended'" class="status-ended">
-                                <i class="fas fa-check-circle"></i> Ended
-                              </span>
+                              <span *ngIf="getMeetingStatus(meeting) === 'live'" class="status-live"><i class="fas fa-circle pulse"></i> LIVE NOW</span>
+                              <span *ngIf="getMeetingStatus(meeting) === 'upcoming'" class="status-upcoming"><i class="fas fa-clock"></i> {{ getCountdown(meeting) }}</span>
+                              <span *ngIf="getMeetingStatus(meeting) === 'ended'" class="status-ended"><i class="fas fa-check-circle"></i> Ended</span>
                             </div>
-                            
-                            <!-- Join Button -->
-                            <button 
-                              *ngIf="canJoinMeeting(meeting)" 
-                              class="btn-join-meeting"
-                              (click)="joinMeeting(meeting)"
-                              [ngClass]="{'live': getMeetingStatus(meeting) === 'live'}">
+                            <button *ngIf="canJoinMeeting(meeting)" class="btn-join-meeting" (click)="joinMeeting(meeting)" [ngClass]="{'live': getMeetingStatus(meeting) === 'live'}">
                               <i class="fas fa-video"></i>
                               <span *ngIf="getMeetingStatus(meeting) === 'live'">Join Now</span>
                               <span *ngIf="getMeetingStatus(meeting) === 'upcoming'">Join Class</span>
                             </button>
-                            
-                            <!-- Attendees Count (for teachers/admins) -->
                             <div class="meeting-meta" *ngIf="userRole === 'TEACHER' || userRole === 'ADMIN'">
-                              <span class="meta-attendees">
-                                <i class="fas fa-users"></i>
-                                {{ meeting.attendees.length || 0 }} students
-                              </span>
+                              <span class="meta-attendees"><i class="fas fa-users"></i>{{ meeting.attendees.length || 0 }} students</span>
                             </div>
                           </div>
-                          
                         </ng-container>
-                        
-                        <!-- No meeting template -->
                         <ng-template #noMeeting>
                           <div class="slot-no-meeting">
-                            <div class="slot-icon">
-                              <i class="fas" [ngClass]="slot.classStatus === 'Scheduled' ? 'fa-check-circle' : 'fa-times-circle'"></i>
-                            </div>
+                            <div class="slot-icon"><i class="fas" [ngClass]="slot.classStatus === 'Scheduled' ? 'fa-check-circle' : 'fa-times-circle'"></i></div>
                             <div class="slot-details">
-                              <div class="slot-time">
-                                <i class="fas fa-clock"></i>
-                                {{ slot.start }} - {{ slot.end }}
-                              </div>
-                              <div class="slot-status" [ngClass]="slot.classStatus?.toLowerCase()">
-                                {{ slot.classStatus || 'Scheduled' }}
-                              </div>
+                              <div class="slot-time"><i class="fas fa-clock"></i>{{ slot.start }} - {{ slot.end }}</div>
+                              <div class="slot-status" [ngClass]="slot.classStatus?.toLowerCase()">{{ slot.classStatus || 'Scheduled' }}</div>
                               <div class="no-meeting-notice" *ngIf="slot.classStatus !== 'Cancelled'">
                                 <i class="fas fa-info-circle"></i>
                                 <span *ngIf="userRole === 'TEACHER' || userRole === 'ADMIN'">No Zoom meeting created</span>
@@ -207,24 +132,21 @@
                             </div>
                           </div>
                         </ng-template>
-                        
-                        </ng-template>
-                        
-                      </div>
-                    </ng-container>
-                    <ng-template #noDayClass>
-                      <div class="no-class-message">
-                        <i class="fas fa-calendar-times"></i>
-                        <span>No classes</span>
-                      </div>
-                    </ng-template>
-                  </div>
+                      </ng-template>
+                    </div>
+                  </ng-container>
+                  <ng-template #noDayClass>
+                    <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>No classes</span></div>
+                  </ng-template>
                 </div>
               </div>
             </div>
-
-          </ng-container>
+          </div>
         </ng-container>
+      </div>
+
+      <div class="current-week-empty" *ngIf="timeTables.length && !currentWeekTimeTable">
+        Current week timetable is not available yet.
       </div>
 
       <!-- Empty State -->
@@ -245,5 +167,69 @@
       </div>
 
     </div>
+  </div>
+</div>
+
+<!-- Previous Weeks Table Modal -->
+<div class="pw-overlay" *ngIf="showPreviousWeeksModal" (click)="closePreviousWeeksModal()">
+  <div class="pw-modal" (click)="$event.stopPropagation()">
+    <div class="pw-head">
+      <h3><i class="fas fa-table"></i> Previous Weeks Schedule</h3>
+      <button class="pw-close" (click)="closePreviousWeeksModal()">✕</button>
+    </div>
+
+    <div class="pw-body" *ngIf="pastTimeTables.length; else noPastWeeksTpl">
+      <div class="pw-cards">
+        <div class="week-card week-card--past" *ngFor="let tt of pastTimeTables">
+          <div class="week-header">
+            <div class="week-info">
+              <h2 class="week-title">
+                <i class="fas fa-history"></i>
+                Week of {{ tt.weekStartDate | date:'MMMM d' }} - {{ tt.weekEndDate | date:'d, yyyy' }}
+              </h2>
+              <div class="week-meta">
+                <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-users"></i>Batch {{ tt.batch }}</span>
+                <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-language"></i>{{ tt.medium }}</span>
+                <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-star"></i>{{ tt.plan }}</span>
+                <span class="meta-item" *ngIf="userRole === 'ADMIN'"><i class="fas fa-chalkboard-teacher"></i>{{ teachersCache[tt.assignedTeacher] || 'Loading...' }}</span>
+              </div>
+            </div>
+            <div class="week-actions" *ngIf="userRole === 'ADMIN'">
+              <button class="btn-edit" [routerLink]="['/time-table', tt._id]" title="Edit Timetable"><i class="fas fa-edit"></i>Edit</button>
+              <button class="btn-hide" (click)="hideTimeTable(tt, $event)" title="Hide week"><i class="fas fa-eye-slash"></i>Hide</button>
+              <button class="btn-delete" (click)="deleteTimeTable(tt, $event)" title="Delete week"><i class="fas fa-trash"></i>Delete</button>
+            </div>
+          </div>
+          <div class="days-grid">
+            <div class="day-card" *ngFor="let day of ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; let dayIndex = index">
+              <div class="day-header">
+                <div class="day-name">{{ day | titlecase }}</div>
+                <div class="day-date">{{ getDateForDay(tt.weekStartDate, dayIndex) | date:'MMM d' }}</div>
+              </div>
+              <div class="day-content">
+                <ng-container *ngIf="tt[day] && tt[day].length > 0; else noPastDayClassModal">
+                  <div class="class-slot" *ngFor="let slot of tt[day]" [ngClass]="{'cancelled': slot.classStatus === 'Cancelled'}">
+                    <div class="slot-no-meeting">
+                      <div class="slot-icon"><i class="fas fa-clock"></i></div>
+                      <div class="slot-details">
+                        <div class="slot-time">{{ slot.start }} - {{ slot.end }}</div>
+                        <div class="slot-status" [ngClass]="slot.classStatus?.toLowerCase()">{{ slot.classStatus || 'Scheduled' }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </ng-container>
+                <ng-template #noPastDayClassModal>
+                  <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>No classes</span></div>
+                </ng-template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #noPastWeeksTpl>
+      <div class="pw-empty">No previous weeks available.</div>
+    </ng-template>
   </div>
 </div>

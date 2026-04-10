@@ -20,10 +20,23 @@
   <!-- ─── RESULT (full-page; replaces question view completely after submit) ── -->
   <div class="result-screen" *ngIf="state === 'submitted' && result">
     <div class="result-page">
-      <div class="result-card-new">
+      <div class="result-card-new" [class.result-card-new--video]="isVideoOnlyResult">
+        <div class="result-sync-strip" *ngIf="submitting" role="status" aria-live="polite">
+          <span class="result-sync-strip__label">Saving your result…</span>
+          <span class="result-sync-strip__bar" aria-hidden="true"></span>
+        </div>
         <div class="result-card-inner">
+          <div class="result-hero-badge" *ngIf="isVideoOnlyResult" aria-hidden="true">
+            <span class="material-icons">verified</span>
+          </div>
           <p class="result-exercise-label">{{ exercise?.title }}</p>
           <h1 class="result-heading">Your Result</h1>
+          <p class="result-video-kicker" *ngIf="isVideoOnlyResult && answeredCount === playerQuestions.length">
+            You completed all <strong>{{ playerQuestions.length }}</strong> clip{{ playerQuestions.length === 1 ? '' : 's' }} — great work.
+          </p>
+          <p class="result-video-kicker" *ngIf="isVideoOnlyResult && answeredCount < playerQuestions.length">
+            You attempted <strong>{{ answeredCount }}</strong> of <strong>{{ playerQuestions.length }}</strong> clip{{ playerQuestions.length === 1 ? '' : 's' }} (e.g. time ran out or the exercise was submitted early).
+          </p>
           <div class="result-score-block">
             <div class="result-points-big">
               <span class="points-earned">{{ result.earnedPoints }}</span>
@@ -65,11 +78,11 @@
           </div>
           <p class="result-message-sm">{{ getScoreMessage(result.scorePercentage) }}</p>
           <div class="result-actions-new">
-            <button class="btn-review" (click)="showReviewAnswers()">
+            <button class="btn-review" type="button" (click)="showReviewAnswers()" [disabled]="submitting">
               <span class="material-icons">rate_review</span>
               Review answers
             </button>
-            <button class="btn-reattempt" (click)="tryAgain()">
+            <button class="btn-reattempt" type="button" (click)="tryAgain()" [disabled]="submitting">
               <span class="material-icons">replay</span>
               Re-attempt
             </button>
@@ -95,13 +108,18 @@
       </div>
     </div>
     <div class="review-list">
-      <div class="review-q-block" *ngFor="let pq of playerQuestions; let i = index"
+      <ng-container *ngFor="let pq of playerQuestions; let i = index">
+      <div class="q-section-header review-section-header" *ngIf="getSectionTitle(i) as sec">
+        <span class="q-section-icon material-icons">layers</span>
+        <span class="q-section-text">{{ sec }}</span>
+      </div>
+      <div class="review-q-block"
         [class.correct]="pq.isCorrect === true"
         [class.wrong]="pq.isCorrect === false">
         <div class="review-q-head">
           <span class="review-q-num">Question {{ i + 1 }}</span>
           <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
-            {{ getTypeLabel(pq.data.type) }}
+            {{ getQuestionTypeLabelForDisplay(pq.data) }}
           </span>
           <span class="review-q-pts">{{ pq.data.points || 1 }} pt</span>
           <span class="review-q-badge" [class.correct]="pq.isCorrect" [class.wrong]="!pq.isCorrect">
@@ -110,12 +128,20 @@
           </span>
         </div>
         <div class="review-q-body">
+          <div class="review-q-text" *ngIf="pq.data.context">{{ pq.data.context }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'mcq'">{{ pq.data.question }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data) && pq.data.storyParagraph">
+            {{ pq.data.storyParagraph }}
+          </div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'">{{ pq.data.prompt }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'listening'">{{ pq.data.prompt }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'video-pronunciation'">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">videocam</span>
+            Say: <strong>{{ pq.data.caption }}</strong>
+          </div>
           <div class="review-answer-row">
             <span class="review-label">Your answer:</span>
             <span class="review-value" [class.wrong]="!pq.isCorrect">{{ getReviewAnswerText(pq) }}</span>
@@ -126,6 +152,7 @@
           </div>
         </div>
       </div>
+      </ng-container>
     </div>
     <div class="review-actions">
       <button class="btn-secondary" (click)="backToResult()">
@@ -139,6 +166,12 @@
 
   <!-- ─── INTRO ───────────────────────────────────────────────────────────── -->
   <div class="intro-screen" *ngIf="state === 'intro' && exercise">
+    <div class="intro-back-row">
+      <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
+        <span class="material-icons">arrow_back</span>
+        <span class="btn-back-label">Back</span>
+      </button>
+    </div>
     <div class="intro-card">
       <div class="intro-badges">
         <span class="level-badge" [style.background]="exerciseService.getLevelColor(exercise.level)">{{ exercise.level }}</span>
@@ -187,12 +220,13 @@
   </div>
 
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
-  <div class="player-layout" *ngIf="state === 'playing'">
+  <div class="player-layout" *ngIf="state === 'playing'" [class.player-layout--vp-only]="isVideoOnlyExercise">
 
-    <!-- Player Header (compact) -->
-    <div class="player-header">
-      <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
-        <span class="material-icons">close</span>
+    <!-- Player Header (hidden for video-only — exit is on the video stage) -->
+    <div class="player-header" *ngIf="!isVideoOnlyExercise">
+      <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
+        <span class="material-icons">arrow_back</span>
+        <span class="btn-back-label">Back</span>
       </button>
       <div class="header-center">
         <div class="exercise-title-sm">{{ exercise?.title }}</div>
@@ -221,8 +255,321 @@
       <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
     </div>
 
+    <!-- Video-only: framed shell (85% × 88%) → three columns inside -->
+    <div class="player-vp-chat-frame" *ngIf="playerQuestions.length > 0 && isVideoOnlyExercise">
+      <div class="vp-back-bar">
+        <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
+          <span class="material-icons">arrow_back</span>
+          <span class="btn-back-label">Back</span>
+        </button>
+      </div>
+      <div class="player-vp-chat-layout">
+      <aside class="vp-details-col">
+        <div class="vp-details-cards">
+          <div class="vp-detail-card vp-detail-card--info vp-detail-card--rich">
+            <span class="vp-detail-card-label">Exercise</span>
+            <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
+            <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">{{ exercise?.description }}</p>
+            <dl class="vp-detail-specs">
+              <div class="vp-detail-row">
+                <dt>Journey</dt>
+                <dd>Journey to Germany</dd>
+              </div>
+              <div class="vp-detail-row" *ngIf="exercise?.category">
+                <dt>Category</dt>
+                <dd>{{ exercise?.category }}</dd>
+              </div>
+              <div class="vp-detail-row">
+                <dt>CEFR</dt>
+                <dd>
+                  <span class="vp-detail-pill level vp-detail-pill--inline" [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')">{{ exercise?.level }}</span>
+                </dd>
+              </div>
+              <div class="vp-detail-row">
+                <dt>Time</dt>
+                <dd>~{{ exercise?.estimatedDuration || 15 }} min</dd>
+              </div>
+            </dl>
+            <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
+              <span class="vp-detail-tags-label">Tags</span>
+              <span class="vp-detail-tag" *ngFor="let t of exercise?.tags || []">{{ t }}</span>
+            </div>
+          </div>
+          <div class="vp-detail-card vp-detail-card--clips">
+            <span class="vp-detail-card-label">Clips · {{ playerQuestions.length }} total</span>
+            <div class="vp-clip-cells">
+              <span
+                *ngFor="let _ of playerQuestions; let i = index"
+                class="{{ vpClipCellClass(i) }}"
+                [attr.title]="'Clip ' + (i + 1)"
+              >{{ i + 1 }}</span>
+            </div>
+          </div>
+          <div class="vp-detail-card vp-detail-card--ring">
+            <span class="vp-detail-card-label">Progress</span>
+            <div class="vp-ring-card-row">
+              <div
+                class="vp-countdown"
+                [class.vp-countdown--warn]="vpCountdownRemainingSeconds > 0 && vpCountdownRemainingSeconds <= 60"
+                [class.vp-countdown--done]="vpCountdownRemainingSeconds <= 0"
+              >
+                <span class="vp-countdown-label">Time left</span>
+                <span class="vp-countdown-digits">{{ formatTime(vpCountdownRemainingSeconds) }}</span>
+              </div>
+              <div class="vp-ring-wrap">
+                <svg class="vp-ring-svg" viewBox="0 0 36 36">
+                  <circle class="vp-ring-track" cx="18" cy="18" [attr.r]="vpRingR" fill="none" stroke-width="3" />
+                  <circle
+                    class="vp-ring-bar"
+                    cx="18"
+                    cy="18"
+                    [attr.r]="vpRingR"
+                    fill="none"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    transform="rotate(-90 18 18)"
+                    [attr.stroke-dasharray]="vpRingCircumference"
+                    [attr.stroke-dashoffset]="vpRingOffset"
+                  />
+                </svg>
+                <span class="vp-ring-label">{{ vpRingPercent }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="vp-video-col">
+        <div class="vp-stage-hero" *ngIf="currentQuestion.data.videoUrl">
+          <div class="vp-stage-gradient"></div>
+          <div class="vp-stage-video-column">
+            <div class="vp-stage-video-frame">
+              <div class="vp-stage-clip-badge" aria-label="Current clip">
+                <span class="material-icons">videocam</span>
+                <span>Clip {{ currentIndex + 1 }} · {{ currentIndex + 1 }}/{{ playerQuestions.length }}</span>
+              </div>
+              <video
+                class="vp-stage-video"
+                [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
+                controls
+                playsinline
+                webkit-playsinline
+                preload="auto"
+                disablePictureInPicture
+                (loadeddata)="onVpVideoReady($event)"
+                (loadstart)="onVpLoadStart()"
+                (ended)="onVpVideoEnded($event, currentQuestion)"
+              ></video>
+
+              <!-- Darken on top of the last frame (still visible underneath) -->
+              <div class="vp-stage-scrim" *ngIf="vpPostPlayScrimVisible" aria-hidden="true"></div>
+
+              <div class="vp-stage-frame-ui">
+                <div class="vp-stage-ui-head" *ngIf="vpPostPlayScrimVisible">
+                  <div class="vp-stage-turn-row" *ngIf="!showVpFinalSubmit">
+                    <span class="vp-stage-kicker">Your turn</span>
+                    <span class="material-icons vp-stage-kicker-mic">mic</span>
+                  </div>
+                  <div class="vp-stage-overlay-text vp-stage-overlay-text--in-frame">
+                    <p class="vp-stage-sub" *ngIf="currentQuestion.data.context">{{ currentQuestion.data.context }}</p>
+                    <h2 class="vp-stage-phrase">{{ currentQuestion.data.caption }}</h2>
+                    <p class="vp-stage-sub" *ngIf="currentQuestion.data.acceptedVariants?.length">
+                      Also accepted: {{ currentQuestion.data.acceptedVariants.join(', ') }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="vp-stage-ui-center">
+                  <div class="vp-stage-final-submit" *ngIf="showVpFinalSubmit">
+                    <button
+                      type="button"
+                      class="vp-stage-submit-cta"
+                      (click)="openFinishSummary()"
+                      [disabled]="finishingAll || submitting"
+                    >
+                      <span class="material-icons">send</span>
+                      Submit
+                    </button>
+                  </div>
+
+                  <div
+                    class="vp-stage-mic-block"
+                    *ngIf="!showVpFinalSubmit && currentQuestion.vpPlaybackEnded && (currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && !currentQuestion.isRecording && !hasCurrentSubmitted"
+                  >
+                    <button
+                      type="button"
+                      class="vp-stage-mic-btn vp-stage-mic-btn--glass"
+                      [disabled]="!isVideoOnlyExercise && !speechSupported"
+                      (click)="isVideoOnlyExercise ? handleVideoOnlyTapToSpeak(currentQuestion) : startVideoPronunciation(currentQuestion)"
+                      title="Speak"
+                    >
+                      <span class="material-icons">mic</span>
+                    </button>
+                    <span class="vp-stage-mic-hint">Tap to speak</span>
+                  </div>
+
+                  <div class="vp-stage-listening" *ngIf="currentQuestion.isRecording">
+                    <span class="material-icons vp-stage-listening-icon">mic</span>
+                    <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                  </div>
+
+                  <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
+                    <div class="vp-stage-feedback" [class.ok]="currentQuestion.vpResult === 'correct'" [class.bad]="currentQuestion.vpResult === 'incorrect'">
+                      <span class="material-icons">{{ currentQuestion.vpResult === 'correct' ? 'check_circle' : 'cancel' }}</span>
+                      <!-- Video-only: "Got it!" for any attempt; mixed exercises: "Correct!" / "Try again" -->
+                      <span>{{ currentQuestion.vpResult === 'correct' ? (isVideoOnlyExercise ? 'Got it!' : 'Correct!') : 'Try again' }}</span>
+                    </div>
+                    <p class="vp-stage-feedback-caption" *ngIf="vpFeedbackCaption">{{ vpFeedbackCaption }}</p>
+                    <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'incorrect'">
+                      <button type="button" class="vp-stage-pill vp-stage-pill--ghost" (click)="replayVpVideo()">
+                        <span class="material-icons">replay</span> Replay
+                      </button>
+                      <button type="button" class="vp-stage-retry-btn" (click)="retryVideoPronunciation(currentQuestion)">
+                        <span class="material-icons">refresh</span> Try again
+                      </button>
+                      <!-- Last clip: give the student a way out instead of an infinite retry loop -->
+                      <button
+                        *ngIf="isLastQuestion"
+                        type="button"
+                        class="vp-stage-pill vp-stage-pill--finish"
+                        (click)="finishVideoExercise()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">flag</span>
+                        {{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="vp-stage-ui-foot"
+                  *ngIf="!showVpFinalSubmit && currentQuestion.vpPlaybackEnded && (currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && !currentQuestion.isRecording && !hasCurrentSubmitted"
+                >
+                  <button type="button" class="vp-stage-foot-pill" (click)="replayVpVideo()">
+                    <span class="material-icons">replay</span>
+                    Replay
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside
+        class="vp-chat-panel--studio"
+        [attr.aria-busy]="currentQuestion.isRecording ? 'true' : null"
+      >
+        <header class="vp-chat-topbar">
+          <div class="vp-chat-brand">
+            <div class="vp-chat-brand-avatar vp-chat-brand-avatar--fox" aria-hidden="true">
+              <img src="assets/images/practice-partner-fox.svg" alt="" width="48" height="48" />
+            </div>
+            <div class="vp-chat-brand-text">
+              <div class="vp-chat-brand-name">Practice partner</div>
+              <div class="vp-chat-brand-tagline">{{ exercise?.targetLanguage || 'German' }} · your learning buddy</div>
+            </div>
+          </div>
+          <div class="vp-chat-live-pill">
+            <span class="vp-chat-live-dot" aria-hidden="true"></span>
+            Live
+          </div>
+        </header>
+
+        <!-- Skip button — appears after 2 failed attempts -->
+        <div class="vp-skip-bar" *ngIf="showVpSkipButton">
+          <div class="vp-skip-hint">
+            <span class="material-icons">info_outline</span>
+            Having trouble? You can skip this clip.
+          </div>
+          <button
+            type="button"
+            class="vp-skip-btn"
+            (click)="skipVpClip()"
+            [disabled]="submitting || finishingAll"
+          >
+            <span class="material-icons">skip_next</span>
+            {{ submitting || finishingAll ? 'Skipping…' : 'Skip clip' }}
+          </button>
+        </div>
+
+        <div class="vp-chat-lesson-pill" *ngIf="exercise?.category || exercise?.title">
+          <span class="material-icons">menu_book</span>
+          <span class="vp-chat-lesson-text">{{ exercise?.title || 'Lesson' }}<ng-container *ngIf="exercise?.category"> · {{ exercise?.category }}</ng-container></span>
+        </div>
+
+        <div
+          class="vp-chat-scroll-wrap"
+          [class.vp-chat-scroll-wrap--listening]="currentQuestion.isRecording"
+        >
+          <div class="vp-chat-scroll" #vpChatScroll>
+            <ng-container *ngFor="let m of vpChatMessages">
+              <!-- Tutor / bot -->
+              <div *ngIf="m.role === 'tutor'" class="vp-chat-msg vp-chat-msg--bot">
+                <div class="vp-chat-msg-avatar vp-chat-msg-avatar--fox" aria-hidden="true">
+                  <img src="assets/images/practice-partner-fox.svg" alt="" width="34" height="34" />
+                </div>
+                <div class="vp-chat-msg-stack">
+                  <span class="vp-chat-bot-label">Tutor</span>
+                  <div class="vp-chat-bubble vp-chat-bubble--cream">
+                    <p class="vp-chat-bubble-text">{{ m.text }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- User -->
+              <div *ngIf="m.role === 'user'" class="vp-chat-msg vp-chat-msg--user">
+                <div class="vp-chat-msg-stack vp-chat-msg-stack--end">
+                  <div class="vp-chat-bubble vp-chat-bubble--user">
+                    <p class="vp-chat-user-quote">"{{ m.text }}"</p>
+                    <p class="vp-chat-match-line" *ngIf="m.score != null">Match: {{ m.score }}%</p>
+                  </div>
+                  <div
+                    class="vp-chat-success-strip"
+                    *ngIf="m.isCorrect === true || m.isCorrect === false"
+                    [class.vp-chat-success-strip--ok]="m.isCorrect === true"
+                    [class.vp-chat-success-strip--retry]="m.isCorrect === false"
+                  >
+                    <span class="material-icons">{{ m.isCorrect ? 'check_circle' : 'tips_and_updates' }}</span>
+                    <span>{{ m.isCorrect ? 'Nice! Great pronunciation.' : 'Keep going — listen and try again.' }}</span>
+                  </div>
+                </div>
+                <div class="vp-chat-user-cap" aria-hidden="true">
+                  <span class="material-icons">school</span>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- In-thread “listening” row (same layout as tutor messages) -->
+            <div
+              *ngIf="currentQuestion.isRecording"
+              class="vp-chat-msg vp-chat-msg--bot vp-chat-msg--listening-thread"
+              role="status"
+              aria-live="polite"
+              aria-label="Listening for your speech"
+            >
+              <div class="vp-chat-msg-avatar vp-chat-msg-avatar--fox" aria-hidden="true">
+                <img src="assets/images/practice-partner-fox.svg" alt="" width="34" height="34" />
+              </div>
+              <div class="vp-chat-msg-stack">
+                <span class="vp-chat-bot-label">Tutor</span>
+                <div class="vp-chat-bubble vp-chat-bubble--cream vp-chat-bubble--listening-chat">
+                  <p class="vp-chat-bubble-text vp-chat-bubble-text--listening">
+                    Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                  </p>
+                  <p class="vp-chat-listening-inline-hint">Keep speaking — I’m capturing your voice.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+      </div>
+    </div>
+
     <!-- Three-column layout: Left info | Middle answer | Right nav -->
-    <div class="player-three-col" *ngIf="playerQuestions.length > 0">
+    <div class="player-three-col" *ngIf="playerQuestions.length > 0 && !isVideoOnlyExercise">
       <!-- LEFT: Exercise info -->
       <aside class="info-sidebar">
         <div class="info-badges">
@@ -259,21 +606,33 @@
 
       <!-- MIDDLE: Question + Answer area -->
       <div class="question-area">
+      <div class="q-context-box" *ngIf="currentQuestion.data.context">
+        <div class="q-context-text">{{ currentQuestion.data.context }}</div>
+      </div>
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
+
+        <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
+        <div class="q-section-header" *ngIf="getSectionTitle(currentIndex) as sec">
+          <span class="q-section-icon material-icons">layers</span>
+          <span class="q-section-text">{{ sec }}</span>
+        </div>
 
         <!-- Question Header -->
         <div class="q-header">
           <span class="q-num">QUESTION {{ currentIndex + 1 }}</span>
           <span class="q-type-label" [class]="'label-' + currentQuestion.data.type">
             <span class="material-icons">{{ getTypeIcon(currentQuestion.data.type) }}</span>
-            {{ getTypeLabel(currentQuestion.data.type) }}
+            {{ getQuestionTypeLabelForDisplay(currentQuestion.data) }}
           </span>
           <span class="q-points">{{ currentQuestion.data.points || 1 }} marks</span>
         </div>
 
         <!-- ── MCQ ── -->
         <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
-          <p class="q-text">{{ currentQuestion.data.question }}</p>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <p class="q-text">{{ currentQuestion.data.question }}</p>
+          </div>
           <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
             <img [src]="currentQuestion.data.imageUrl" alt="Question image" class="q-image" />
           </div>
@@ -306,7 +665,10 @@
 
         <!-- ── MATCHING ── -->
         <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
-          <p class="q-text">{{ currentQuestion.data.instruction }}</p>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <p class="q-text">{{ currentQuestion.data.instruction }}</p>
+          </div>
           <div class="matching-container">
             <div class="matching-col left-col">
               <div class="matching-col-label">Match these...</div>
@@ -370,29 +732,32 @@
 
         <!-- ── FILL IN THE BLANKS ── -->
         <div class="q-body fill-blank-body" *ngIf="currentQuestion.data.type === 'fill-blank'">
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <div class="sentence-container">
+              <ng-container *ngFor="let part of getSentenceParts(currentQuestion.data.sentence); let pi = index">
+                <span class="sentence-part">{{ part }}</span>
+                <span class="blank-wrap" *ngIf="pi < getSentenceParts(currentQuestion.data.sentence).length - 1">
+                  <input
+                    type="text"
+                    class="blank-input"
+                    [(ngModel)]="currentQuestion.fillAnswers![pi]"
+                    (ngModelChange)="markAttempted(currentQuestion)"
+                    [placeholder]="'blank ' + (pi + 1)"
+                    [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
+                    [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
+                    [disabled]="hasCurrentSubmitted"
+                  />
+                  <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)">
+                    → {{ getCorrectFillAnswer(currentQuestion, pi) }}
+                  </span>
+                </span>
+              </ng-container>
+            </div>
+          </div>
           <div class="hint-label" *ngIf="currentQuestion.data.hint">
             <span class="material-icons">lightbulb</span>
             Hint: {{ currentQuestion.data.hint }}
-          </div>
-          <div class="sentence-container">
-            <ng-container *ngFor="let part of getSentenceParts(currentQuestion.data.sentence); let pi = index">
-              <span class="sentence-part">{{ part }}</span>
-              <span class="blank-wrap" *ngIf="pi < getSentenceParts(currentQuestion.data.sentence).length - 1">
-                <input
-                  type="text"
-                  class="blank-input"
-                  [(ngModel)]="currentQuestion.fillAnswers![pi]"
-                  (ngModelChange)="markAttempted(currentQuestion)"
-                  [placeholder]="'blank ' + (pi + 1)"
-                  [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
-                  [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
-                  [disabled]="hasCurrentSubmitted"
-                />
-                <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)">
-                  → {{ getCorrectFillAnswer(currentQuestion, pi) }}
-                </span>
-              </span>
-            </ng-container>
           </div>
           <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
@@ -446,7 +811,10 @@
 
         <!-- Listening body -->
         <div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and type what you hear.' }}</div>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and answer the question.' }}</div>
+          </div>
           <div class="listening-audio-wrap" *ngIf="currentQuestion.data.mediaUrl">
             <audio [src]="getMediaFullUrl(currentQuestion.data.mediaUrl)" controls></audio>
           </div>
@@ -475,18 +843,160 @@
           </div>
         </div>
 
+        <!-- Video Pronunciation (mixed exercises only — video-only uses split layout above) -->
+        <div class="q-body vp-body" *ngIf="currentQuestion.data.type === 'video-pronunciation' && !isVideoOnlyExercise">
+          <div class="vp-mobile-outer">
+            <div class="vp-mobile-shell">
+              <div class="vp-mobile-notch" aria-hidden="true"></div>
+
+              <div class="vp-mobile-top">
+                <span class="vp-mobile-kicker">Say this phrase</span>
+                <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.context">
+                  {{ currentQuestion.data.context }}
+                </div>
+                <div class="vp-caption vp-caption--mobile">{{ currentQuestion.data.caption }}</div>
+                <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.acceptedVariants?.length > 0">
+                  Also ok: {{ currentQuestion.data.acceptedVariants.join(', ') }}
+                </div>
+              </div>
+
+              <div class="vp-video-stage vp-video-stage--mobile" *ngIf="currentQuestion.data.videoUrl">
+                <video
+                  class="vp-video vp-video--mobile"
+                  [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
+                  controls
+                  playsinline
+                  webkit-playsinline
+                  preload="auto"
+                  disablePictureInPicture
+                  (loadeddata)="onVpVideoReady($event)"
+                  (loadstart)="onVpLoadStart()"
+                  (ended)="onVpVideoEnded($event, currentQuestion)"
+                ></video>
+              </div>
+              <div class="vp-no-video vp-no-video--mobile" *ngIf="!currentQuestion.data.videoUrl">
+                <span class="material-icons">videocam_off</span> Video not available
+              </div>
+
+              <div class="vp-mobile-bottom" *ngIf="!hasCurrentSubmitted">
+                <!-- While video is playing -->
+                <p class="vp-mobile-wait" *ngIf="(currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && !currentQuestion.vpPlaybackEnded && !currentQuestion.isRecording">
+                  <span class="material-icons">play_circle_outline</span>
+                  Watch the clip — buttons appear when it finishes
+                </p>
+
+                <!-- After video ends: Replay + Speak -->
+                <div class="vp-mob-btn-row" *ngIf="(currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && currentQuestion.vpPlaybackEnded && !currentQuestion.isRecording">
+                  <button type="button" class="vp-mob-btn vp-mob-btn--secondary" (click)="replayVpVideo()">
+                    <span class="material-icons">replay</span>
+                    <span>Replay</span>
+                  </button>
+                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="isVideoOnlyExercise ? handleVideoOnlyTapToSpeak(currentQuestion) : startVideoPronunciation(currentQuestion)" [disabled]="!isVideoOnlyExercise && !speechSupported">
+                    <span class="material-icons">mic</span>
+                    <span>Speak</span>
+                  </button>
+                </div>
+
+                <p class="vp-mic-hint" *ngIf="!speechSupported && currentQuestion.vpPlaybackEnded">
+                  <span class="material-icons" style="font-size:1rem">warning</span>
+                  Speech not supported in this browser. Try Chrome or Edge.
+                </p>
+
+                <!-- Listening -->
+                <div class="vp-mob-listening" *ngIf="currentQuestion.isRecording">
+                  <span class="material-icons vp-mob-pulse">mic</span>
+                  <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span> — speak now</span>
+                </div>
+
+                <ng-container *ngIf="currentQuestion.vpResult === 'correct'">
+                  <div class="vp-feedback vp-feedback--correct vp-feedback--mobile">
+                    <span class="material-icons">check_circle</span>
+                    <strong>{{ isVideoOnlyExercise ? 'Got it!' : 'Correct!' }}</strong>
+                    <span class="vp-spoken">"{{ currentQuestion.vpSpokenText }}"</span>
+                    <span class="vp-score" *ngIf="!isVideoOnlyExercise">{{ currentQuestion.pronunciationScore }}%</span>
+                  </div>
+                  <p class="vp-auto-advance">{{ isVideoOnlyExercise ? 'Moving to next clip…' : 'Next clip…' }}</p>
+                </ng-container>
+
+                <ng-container *ngIf="currentQuestion.vpResult === 'incorrect'">
+                  <div class="vp-feedback vp-feedback--incorrect vp-feedback--mobile">
+                    <span class="material-icons">cancel</span>
+                    <strong>Try again</strong>
+                    <span class="vp-spoken">"{{ currentQuestion.vpSpokenText }}"</span>
+                  </div>
+                  <button type="button" class="vp-mob-btn vp-mob-btn--retry" (click)="retryVideoPronunciation(currentQuestion)">
+                    <span class="material-icons">refresh</span>
+                    <span>Try again</span>
+                  </button>
+                  <!-- Last clip: submit exercise even if incorrect -->
+                  <button
+                    *ngIf="isLastQuestion"
+                    type="button"
+                    class="vp-mob-btn vp-mob-btn--finish"
+                    (click)="finishVideoExercise()"
+                    [disabled]="finishingAll || submitting"
+                  >
+                    <span class="material-icons">flag</span>
+                    <span>{{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}</span>
+                  </button>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Question / Answer body -->
         <div class="q-body qa-body" *ngIf="currentQuestion.data.type === 'question-answer'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
-          <label class="qa-input-label">Your Answer</label>
-          <textarea
-            class="qa-textarea"
-            rows="4"
-            placeholder="Write your answer here..."
-            [(ngModel)]="currentQuestion.qaResponse"
-            (ngModelChange)="markAttempted(currentQuestion)"
-            [disabled]="hasCurrentSubmitted"
-          ></textarea>
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else normalPrompt">
+              <div class="tf-story-paragraph" *ngIf="currentQuestion.data.storyParagraph">
+                {{ currentQuestion.data.storyParagraph }}
+              </div>
+              <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+            </ng-container>
+            <ng-template #normalPrompt>
+              <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
+            </ng-template>
+          </div>
+
+          <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
+            <div class="tf-answers" role="group" aria-label="Richtig oder Falsch">
+              <button
+                type="button"
+                class="tf-btn"
+                [class.active]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                [disabled]="hasCurrentSubmitted"
+                [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                (click)="selectTrueFalse(currentQuestion, true)"
+              >
+                Richtig
+              </button>
+              <button
+                type="button"
+                class="tf-btn"
+                [class.active]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                [disabled]="hasCurrentSubmitted"
+                [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                (click)="selectTrueFalse(currentQuestion, false)"
+              >
+                Falsch
+              </button>
+            </div>
+          </ng-container>
+
+          <ng-template #qaTextInput>
+            <label class="qa-input-label">Your Answer</label>
+            <textarea
+              class="qa-textarea"
+              rows="4"
+              placeholder="Write your answer here..."
+              [(ngModel)]="currentQuestion.qaResponse"
+              (ngModelChange)="markAttempted(currentQuestion)"
+              [disabled]="hasCurrentSubmitted"
+            ></textarea>
+          </ng-template>
+
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
             <strong>Sample answers:</strong>
             <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
@@ -534,7 +1044,7 @@
             [class.correct]="pq.isCorrect === true"
             [class.wrong]="pq.isCorrect === false"
             (click)="goToQuestion(i)"
-            [title]="'Question ' + (i + 1) + ' - ' + getTypeLabel(pq.data.type)"
+            [title]="'Question ' + (i + 1) + ' - ' + getQuestionTypeLabelForDisplay(pq.data)"
           >{{ i + 1 }}</button>
         </div>
         <div class="status-legend">

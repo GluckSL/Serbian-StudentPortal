@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { HttpClientModule, HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { NotificationService } from '../../services/notification.service';
 
 interface Course {
   _id?: string;
@@ -34,7 +35,8 @@ export class UploadCourseMaterialComponent implements OnInit {
         private courseMaterialService: CourseMaterialService, 
         private coursesService: CoursesService,
         private router: Router, 
-        private http: HttpClient
+        private http: HttpClient,
+        private notify: NotificationService
     ) {}
 
     ngOnInit(): void {
@@ -88,7 +90,7 @@ export class UploadCourseMaterialComponent implements OnInit {
         .subscribe({
         next: (res: any) => {
             this.uploading = false;
-            alert('Course materials uploaded successfully!');
+            this.notify.success('Course materials uploaded successfully!');
             this.selectedFiles = [];
             this.courseMaterial.materials = [];
             this.courseMaterial.course = '';

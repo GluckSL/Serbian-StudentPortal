@@ -14,6 +14,7 @@ export class AdminProgressComponent implements OnInit {
   isLoading = true;
   students: any[] = [];
   filtered: any[] = [];
+  selectedIds = new Set<string>();
 
   searchTerm = '';
   filterBatch = '';
@@ -61,7 +62,7 @@ export class AdminProgressComponent implements OnInit {
     return Math.round(this.filtered.reduce((s, st) => s + st.learningPct, 0) / this.filtered.length);
   }
   get lowAttendanceCount(): number {
-    return this.filtered.filter(s => s.attendance.total > 0 && s.attendance.rate < 70).length;
+    return this.filtered.filter(s => s.attendance.total > 0 && s.attendance.rate < 75).length;
   }
 
   applyFilters(): void {
@@ -105,6 +106,115 @@ export class AdminProgressComponent implements OnInit {
     this.filterStatus = '';
     this.filterLevel = '';
     this.applyFilters();
+  }
+
+  isSelected(studentId: string): boolean {
+    return this.selectedIds.has(studentId);
+  }
+
+  toggleSelection(studentId: string, checked: boolean): void {
+    if (checked) this.selectedIds.add(studentId);
+    else this.selectedIds.delete(studentId);
+  }
+
+  get allFilteredSelected(): boolean {
+    return this.filtered.length > 0 && this.filtered.every((s) => this.selectedIds.has(s._id));
+  }
+
+  toggleSelectAllFiltered(checked: boolean): void {
+    if (checked) {
+      this.filtered.forEach((s) => this.selectedIds.add(s._id));
+    } else {
+      this.filtered.forEach((s) => this.selectedIds.delete(s._id));
+    }
+  }
+
+  get selectedStudents(): any[] {
+    return this.filtered.filter((s) => this.selectedIds.has(s._id));
+  }
+
+  private csvValue(value: unknown): string {
+    const safe = value == null ? '' : String(value);
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+
+  private toCsv(students: any[]): string {
+    const headers = [
+      'Student Name',
+      'Reg No',
+      'Email',
+      'Batch',
+      'Level',
+      'Overall %',
+      'Learning %',
+      'Attendance %',
+      'Attendance Sessions',
+      'Docs Verified',
+      'Docs Total',
+      'Payment %',
+      'Payment Currency',
+      'Visa %',
+      'Status',
+      'Teacher',
+      'Service'
+    ];
+
+    const rows = students.map((s) => [
+      s.name || '',
+      s.regNo || '',
+      s.email || '',
+      s.batch || '',
+      s.level || '',
+      s.overallPct ?? 0,
+      s.learningPct ?? 0,
+      s.attendance?.rate ?? 0,
+      `${s.attendance?.attended ?? 0}/${s.attendance?.total ?? 0}`,
+      s.docs?.verified ?? 0,
+      s.docs?.total ?? 0,
+      s.payment?.pct ?? '',
+      s.payment?.currency || '',
+      s.visa?.pct ?? '',
+      s.status || '',
+      s.teacher || '',
+      s.service || ''
+    ]);
+
+    return [headers, ...rows]
+      .map((row) => row.map((col) => this.csvValue(col)).join(','))
+      .join('\n');
+  }
+
+  private downloadCsv(filename: string, csv: string): void {
+    // BOM helps Excel open UTF-8 CSV correctly.
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  exportAllFiltered(): void {
+    if (!this.filtered.length) return;
+    const csv = this.toCsv(this.filtered);
+    this.downloadCsv(`student-progress-all-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  }
+
+  exportSelected(): void {
+    const selected = this.selectedStudents;
+    if (!selected.length) return;
+    const csv = this.toCsv(selected);
+    this.downloadCsv(`student-progress-selected-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  }
+
+  exportSingle(student: any, event?: Event): void {
+    event?.stopPropagation();
+    const safeName = (student?.name || 'student').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const csv = this.toCsv([student]);
+    this.downloadCsv(`student-progress-${safeName || 'student'}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
   }
 
   selectStudent(s: any): void {

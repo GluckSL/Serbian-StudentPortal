@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { ModuleTrashService } from '../../services/module-trash.service';
+import { NotificationService } from '../../services/notification.service';
 
 interface ModuleWithStats {
   _id: string;
@@ -36,6 +37,8 @@ interface ModuleWithStats {
   lastUpdateDate: Date;
   createdByTeacher: boolean;
   totalEnrollments: number;
+  /** 1–200 day in course journey; null = general pool */
+  courseDay?: number | null;
 }
 
 @Component({
@@ -159,7 +162,7 @@ interface ModuleWithStats {
           <div *ngIf="!loading" class="results-summary">
             <div class="d-flex justify-content-between align-items-center">
               <div class="results-info">
-                <span class="results-count">{{ modules?.length || 0 }}</span>
+                <span class="results-count">{{ modules.length || 0 }}</span>
                 <span class="results-text">modules found</span>
               </div>
             </div>
@@ -175,6 +178,7 @@ interface ModuleWithStats {
                       <tr>
                         <th>Module</th>
                         <th>Level/Category</th>
+                        <th>Journey day</th>
                         <th>Created By</th>
                         <th>Last Updated</th>
                         <th>Version</th>
@@ -196,6 +200,16 @@ interface ModuleWithStats {
                             <span class="badge bg-primary me-1">{{ module.level }}</span>
                             <br>
                             <small class="text-muted">{{ module.category }}</small>
+                          </div>
+                        </td>
+                        <td>
+                          <div class="journey-day-cell">
+                            <span class="badge journey-day-badge" *ngIf="module.courseDay != null">
+                              Day {{ module.courseDay }}
+                            </span>
+                            <span class="text-muted journey-day-pool" *ngIf="module.courseDay == null">
+                              —
+                            </span>
                           </div>
                         </td>
                         <td>
@@ -526,6 +540,14 @@ interface ModuleWithStats {
 
     .level-category small { font-size: 10px; }
 
+    .journey-day-cell { min-width: 72px; }
+    .journey-day-badge {
+      background: #e8f4fc !important;
+      color: #005b96 !important;
+      border: 1px solid #b8d4e8;
+    }
+    .journey-day-pool { font-size: 11px; }
+
     .creator-info .creator-name { font-weight: 600; color: #0f172a; font-size: 12px; }
 
     .update-info .update-date { font-size: 11px; color: #475569; }
@@ -672,7 +694,8 @@ export class ModuleManagementComponent implements OnInit {
   constructor(
     private learningModulesService: LearningModulesService,
     private moduleTrashService: ModuleTrashService,
-    private router: Router
+    private router: Router,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -744,7 +767,7 @@ export class ModuleManagementComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error loading module history:', error);
-        alert('Failed to load module history');
+        this.notify.error('Failed to load module history');
       }
     });
   }
@@ -752,90 +775,66 @@ export class ModuleManagementComponent implements OnInit {
   toggleStatus(module: ModuleWithStats): void {
     const newStatus = !module.isActive;
     const action = newStatus ? 'activate' : 'deactivate';
-    
-    if (confirm(`Are you sure you want to ${action} this module?`)) {
-      const updateData: any = { 
-        isActive: newStatus,
-        changeDescription: `Module ${action}d by admin`
-      };
-      
+    this.notify.confirm('Toggle Status', `${action.charAt(0).toUpperCase() + action.slice(1)} this module?`).subscribe(ok => {
+      if (!ok) return;
+      const updateData: any = { isActive: newStatus, changeDescription: `Module ${action}d by admin` };
       this.learningModulesService.updateModule(module._id, updateData).subscribe({
         next: () => {
           module.isActive = newStatus;
-          alert(`Module ${action}d successfully`);
+          this.notify.success(`Module ${action}d successfully`);
         },
         error: (error) => {
           console.error(`Error ${action}ing module:`, error);
-          alert(`Failed to ${action} module`);
+          this.notify.error(`Failed to ${action} module`);
         }
       });
-    }
+    });
   }
 
   // ✅ NEW: Toggle module visibility for students
   toggleVisibility(module: ModuleWithStats): void {
     const newVisibility = !module.visibleToStudents;
-    const action = newVisibility ? 'show to' : 'hide from';
-    
-    if (confirm(`Are you sure you want to ${action} students?\n\nModule: ${module.title}`)) {
+    this.notify.confirm(
+      newVisibility ? 'Publish Module' : 'Hide Module',
+      `${newVisibility ? 'Show' : 'Hide'} "${module.title}" ${newVisibility ? 'to' : 'from'} students?`
+    ).subscribe(ok => {
+      if (!ok) return;
       this.learningModulesService.toggleModuleVisibility(module._id, newVisibility).subscribe({
         next: (response) => {
           module.visibleToStudents = newVisibility;
-          if (newVisibility && response.module.publishedAt) {
-            module.publishedAt = response.module.publishedAt;
-          }
-          alert(`Module ${newVisibility ? 'published to' : 'hidden from'} students successfully`);
+          if (newVisibility && response.module.publishedAt) module.publishedAt = response.module.publishedAt;
+          this.notify.success(`Module ${newVisibility ? 'published to' : 'hidden from'} students successfully`);
         },
-        error: (error) => {
-          console.error(`Error toggling module visibility:`, error);
-          alert(`Failed to update module visibility`);
-        }
+        error: () => this.notify.error('Failed to update module visibility')
       });
-    }
+    });
   }
 
   // Test module directly via AI tutor chat
   testModule(module: ModuleWithStats): void {
-    const confirmTest = confirm(
-      `🧪 Test Module: "${module.title}"\n\n` +
-      `This will start the AI tutoring session for this module, allowing you to experience it as a student would.\n\n` +
-      `Continue with testing?`
-    );
-
-    if (confirmTest) {
+    this.notify.confirm('Test Module', `Test "${module.title}" as a student?`, 'Start Test', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.router.navigate(['/ai-tutor-chat'], {
-        queryParams: {
-          moduleId: module._id,
-          sessionType: 'teacher-test',
-          testMode: 'true'
-        }
+        queryParams: { moduleId: module._id, sessionType: 'teacher-test', testMode: 'true' }
       });
-    }
+    });
   }
 
   deleteModule(module: ModuleWithStats): void {
-    const confirmMessage = `⚠️ DELETE MODULE WARNING ⚠️
-
-This will move "${module.title}" to the trash.
-The module will be automatically deleted after 30 days.
-
-You can restore it from the Trash Management page if needed.
-
-Are you sure you want to delete this module?`;
-
-    if (confirm(confirmMessage)) {
+    this.notify.confirm(
+      'Delete Module',
+      `Move "${module.title}" to trash? It will be permanently deleted after 30 days (restorable from Trash).`,
+      'Move to Trash', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
       this.moduleTrashService.moveToTrash(module._id, 'Admin deleted module from management page').subscribe({
-        next: (response) => {
-          console.log('✅ Module moved to trash:', response);
-          alert('Module moved to trash successfully');
-          this.loadModules(); // Reload the modules list
+        next: () => {
+          this.notify.success('Module moved to trash successfully');
+          this.loadModules();
         },
-        error: (error) => {
-          console.error('❌ Error moving module to trash:', error);
-          alert('Failed to delete module');
-        }
+        error: () => this.notify.error('Failed to delete module')
       });
-    }
+    });
   }
 
   formatDate(date: Date | string): string {

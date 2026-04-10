@@ -28,8 +28,8 @@
       <div class="zr-stat__lbl">Total Students</div>
     </div>
     <div class="zr-stat"
-         [class.zr-stat--red]="stats.avgAttendance < 70 && stats.totalMeetings > 0"
-         [class.zr-stat--green]="stats.avgAttendance >= 70"
+         [class.zr-stat--red]="stats.avgAttendance < 75 && stats.totalMeetings > 0"
+         [class.zr-stat--green]="stats.avgAttendance >= 75"
          [class.zr-stat--gray]="stats.totalMeetings === 0">
       <div class="zr-stat__val">{{ stats.avgAttendance }}%</div>
       <div class="zr-stat__lbl">Avg Attendance</div>

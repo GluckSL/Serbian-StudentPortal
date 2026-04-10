@@ -5,6 +5,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { NotificationService } from './notification.service';
 
 export interface ModuleUsageData {
   _id: any;
@@ -114,7 +115,7 @@ export interface DetailedUsage {
 export class AdminAnalyticsService {
   private apiUrl = `${environment.apiUrl}/admin-analytics`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private notify: NotificationService) {}
 
   // Get module usage analytics
   getModuleUsage(filters: {
@@ -312,7 +313,7 @@ export class AdminAnalyticsService {
 
   exportToCSV(data: any[], filename: string): void {
     if (!data || data.length === 0) {
-      alert('No data to export');
+      this.notify.warning('No data to export');
       return;
     }
 

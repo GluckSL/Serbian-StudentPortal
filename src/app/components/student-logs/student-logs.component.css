@@ -1,9 +1,193 @@
 /* Student Logs — aligned with student progress design */
-.admin-analytics {
+.student-logs-page.admin-analytics {
   min-height: calc(100vh - 80px);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   padding: 14px;
   margin-bottom: 3rem;
+}
+
+.toolbar-actions .selected-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #03396c;
+  background: #e0f0ff;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.filters-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  margin-bottom: 16px;
+}
+
+.filters-card__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #03396c;
+  margin-bottom: 12px;
+  letter-spacing: 0.02em;
+}
+
+.search-student-wrap {
+  position: relative;
+}
+
+.search-dropdown {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.dropdown-item-like {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-item-like:hover {
+  background: #f0f7ff;
+  color: #03396c;
+}
+
+.dropdown-item-like:last-child {
+  border-bottom: none;
+}
+
+.selected-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: #e8f4fc;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #03396c;
+}
+
+.hint-text {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.type-chips__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  margin: 0;
+}
+
+.type-chip input {
+  margin: 0;
+}
+
+
+.btn-outline-secondary {
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.btn-outline-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.empty-state i {
+  color: #b3cde0;
+  opacity: 0.85;
+}
+
+.col-check {
+  width: 36px;
+}
+
+.col-actions {
+  width: 72px;
+}
+
+.details-cell {
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.type-badge {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.filters-card .form-label {
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filters-card .form-select,
+.filters-card .form-control {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  color: #1e293b;
+}
+
+.filters-card .form-select:focus,
+.filters-card .form-control:focus {
+  border-color: #005b96;
+  box-shadow: 0 0 0 3px rgba(0, 91, 150, 0.1);
 }
 
 /* ── Header ── */
@@ -82,6 +266,10 @@
 
 .btn-secondary { background: #6497b1; border-color: #6497b1; color: #fff; }
 .btn-secondary:hover { background: #005b96; border-color: #005b96; }
+.btn-outline-info { color: #0284c7; border-color: #0284c7; background: transparent; }
+.btn-outline-info:hover { background: #0284c7; color: #fff; }
+.btn-outline-danger { color: #e11d48; border-color: #e11d48; background: transparent; }
+.btn-outline-danger:hover { background: #e11d48; color: #fff; }
 
 /* ── Table ── */
 .table-section {
@@ -114,6 +302,7 @@
 }
 
 .table tbody tr:hover { background: #f8fafc; }
+.action-buttons { display: flex; gap: 6px; justify-content: center; }
 
 /* ── Loading / Empty ── */
 .spinner-border { color: #005b96; }

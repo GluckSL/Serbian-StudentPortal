@@ -175,6 +175,35 @@
   gap: 4px;
 }
 
+.filter-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.filter-total-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 91, 150, 0.08);
+}
+
+.filter-total-count .count-number {
+  font-size: 13px;
+  font-weight: 700;
+  color: #005b96;
+  line-height: 1;
+}
+
+.filter-total-count .count-label {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: lowercase;
+}
+
 .filters-card .card-body { padding: 10px 14px; }
 
 .filters-card .form-label {
@@ -195,6 +224,32 @@
   background: #f8fafc;
   color: #1e293b;
   transition: border-color 0.15s;
+}
+
+.filters-card .compact-select {
+  max-width: 130px;
+}
+
+.btn-search-filter {
+  height: 34px;
+  padding: 6px 10px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-clear-filter {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+}
+
+.btn-clear-filter:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #9f1239;
 }
 
 .filters-card .form-select:focus,
@@ -427,15 +482,30 @@
   .admin-stats-quick { justify-content: center; margin-top: 8px; }
   .action-bar .row { text-align: center; }
   .action-bar .col-md-6:last-child { margin-top: 8px; }
+  .filters-card .compact-select { max-width: 100%; }
+  /* Make student cards single column */
+  .students-grid { grid-template-columns: 1fr !important; }
+  /* Stack stat items */
+  .stats-row { flex-wrap: wrap; gap: 8px; }
+  .stat-item { flex: 1 1 calc(50% - 8px); min-width: 80px; }
+  /* Scrollable table wrapper */
+  .table-wrapper, .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 @media (max-width: 576px) {
-  .admin-content { padding: 10px; }
+  .admin-content { padding: 8px; }
   .action-bar-row { flex-direction: column; align-items: stretch; }
   .action-group-left, .action-group-right { flex-wrap: wrap; }
   .action-divider { display: none; }
-  .action-bar .btn { flex: 1; min-width: 0; }
+  .action-bar .btn { flex: 1; min-width: 0; font-size: 12px; padding: 6px 10px; }
   .action-buttons { flex-direction: column; }
+  /* Stats full-width on very small screens */
+  .stat-item { flex: 1 1 100%; }
+  /* Smaller font in table cells */
+  td, th { font-size: 12px !important; padding: 6px 8px !important; }
+  /* Compact header */
+  .admin-title { font-size: 13px; }
+  .admin-subtitle { font-size: 10px; }
 }
 
 /* ── Loading Spinner ── */

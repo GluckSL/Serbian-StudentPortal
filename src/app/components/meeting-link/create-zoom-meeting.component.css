@@ -147,6 +147,66 @@ textarea.form-control {
 
 .btn-sm { padding: 3px 8px; font-size: 10px; }
 
+/* ── Start time picker modal ── */
+.start-time-trigger {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.start-time-trigger .form-control {
+  cursor: pointer;
+}
+
+.dt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.dt-modal-card {
+  width: min(520px, 100%);
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 30px rgba(2, 6, 23, 0.2);
+  overflow: hidden;
+}
+
+.dt-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dt-modal-header h5 {
+  margin: 0;
+  font-size: 13px;
+  color: #011f4b;
+  font-weight: 700;
+}
+
+.dt-modal-body {
+  padding: 14px;
+}
+
+.dt-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
 /* ── Alerts ── */
 .alert {
   border-radius: 10px;

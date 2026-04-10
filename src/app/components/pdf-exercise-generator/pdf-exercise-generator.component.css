@@ -184,7 +184,9 @@
   margin-top: 10px;
   font-size: 0.82rem;
 }
+.adwawdwdw{
 
+}
 .text-help-muted {
   color: #9ca3af;
   font-weight: 700;
@@ -1046,6 +1048,14 @@
 .q-valid-indicator .material-icons { font-size: 17px; }
 .q-valid-indicator.valid { color: #22c55e; }
 .q-valid-indicator.invalid { color: #f59e0b; }
+
+/* Wider wrap for validation hints (tooltip is in overlay; ::ng-deep targets panel class from matTooltipClass) */
+:host ::ng-deep .pdf-gen-validation-tooltip {
+  max-width: min(360px, 92vw);
+  white-space: normal;
+  line-height: 1.4;
+  font-size: 0.8125rem;
+}
 
 .btn-move-sm, .btn-del-q {
   background: none;

@@ -95,15 +95,21 @@
       <div class="filters-card">
         <div class="card">
           <div class="card-header">
-            <h5 class="mb-0">
-              <i class="fas fa-filter"></i>
-              Filter Students
-            </h5>
+            <div class="filter-header-row">
+              <h5 class="mb-0">
+                <i class="fas fa-filter"></i>
+                Filter Students
+              </h5>
+              <div class="filter-total-count">
+                <span class="count-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
+                <span class="count-label">students</span>
+              </div>
+            </div>
           </div>
           <div class="card-body">
-            <div class="row g-2">
+            <div class="row g-1 align-items-end filter-row-full">
               <!-- Student Name Filter -->
-              <div class="col-md-2">
+              <div class="col-lg-2 col-md-4">
                 <label class="form-label">Student Name</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
@@ -112,7 +118,7 @@
                     [formControl]="studentNameControl"
                     [matAutocomplete]="autoStudentName"
                     placeholder="Search..."
-                    (input)="onStudentNameSelected(studentNameControl.value || '')"
+                    (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoStudentName="matAutocomplete" (optionSelected)="onStudentNameSelected($event.option.value)">
                     <mat-option *ngFor="let name of filteredStudentNames | async" [value]="name">
@@ -123,7 +129,7 @@
               </div>
               
               <!-- Teacher Name Filter -->
-              <div class="col-md-2">
+              <div class="col-lg-2 col-md-4">
                 <label class="form-label">Teacher</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
@@ -132,7 +138,7 @@
                     [formControl]="teacherNameControl"
                     [matAutocomplete]="autoTeacherName"
                     placeholder="Search..."
-                    (input)="onTeacherNameSelected(teacherNameControl.value || '')"
+                    (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoTeacherName="matAutocomplete" (optionSelected)="onTeacherNameSelected($event.option.value)">
                     <mat-option *ngFor="let name of filteredTeacherNames | async" [value]="name">
@@ -143,9 +149,9 @@
               </div>
               
               <!-- Level Filter -->
-              <div class="col-md-2">
+              <div class="col-lg-1 col-md-2">
                 <label class="form-label">Level</label>
-                <select class="form-select" [(ngModel)]="filters.level" (change)="applyFilters()">
+                <select class="form-select compact-select" [(ngModel)]="filters.level">
                   <option value="">All</option>
                   <option value="A1">A1</option>
                   <option value="A2">A2</option>
@@ -157,9 +163,9 @@
               </div>
               
               <!-- Plan Filter -->
-              <div class="col-md-2">
+              <div class="col-lg-1 col-md-2">
                 <label class="form-label">Plan</label>
-                <select class="form-select" [(ngModel)]="filters.plan" (change)="applyFilters()">
+                <select class="form-select compact-select" [(ngModel)]="filters.plan">
                   <option value="">All</option>
                   <option value="PLATINUM">Platinum</option>
                   <option value="SILVER">Silver</option>
@@ -167,9 +173,9 @@
               </div>
               
               <!-- Status Filter -->
-              <div class="col-md-2">
+              <div class="col-lg-1 col-md-2">
                 <label class="form-label">Status</label>
-                <select class="form-select" [(ngModel)]="filters.studentStatus" (change)="applyFilters()">
+                <select class="form-select compact-select" [(ngModel)]="filters.studentStatus">
                   <option value="">All</option>
                   <option value="UNCERTAIN">Uncertain</option>
                   <option value="ONGOING">Ongoing</option>
@@ -179,30 +185,30 @@
               </div>
               
               <!-- Batch Filter -->
-              <div class="col-md-2">
+              <div class="col-lg-1 col-md-2">
                 <label class="form-label">Batch</label>
-                <input type="number" class="form-control" [(ngModel)]="filters.batch" placeholder="Batch #" (input)="applyFilters()">
+                <input
+                  type="number"
+                  class="form-control compact-select"
+                  [(ngModel)]="filters.batch"
+                  placeholder="Batch #"
+                  (keyup.enter)="applySearchFilters()"
+                >
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Results Summary -->
-      <div class="results-summary">
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="results-info">
-            <span class="results-count">{{ filteredStudentCount || totalStudentsCount() }}</span>
-            <span class="results-text">students found</span>
-          </div>
-          <div class="view-options">
-            <div class="btn-group" role="group">
-              <button type="button" class="btn btn-outline-secondary btn-sm active">
-                <i class="fas fa-table"></i>
-              </button>
-              <button type="button" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-th-large"></i>
-              </button>
+              <!-- Search Action -->
+              <div class="col-lg-2 col-md-3">
+                <button class="btn btn-primary btn-search-filter w-100" (click)="applySearchFilters()">
+                  <i class="fas fa-search"></i> Search
+                </button>
+              </div>
+
+              <!-- Clear Action -->
+              <div class="col-lg-2 col-md-3">
+                <button class="btn btn-search-filter btn-clear-filter w-100" (click)="clearFilters()">
+                  <i class="fas fa-times"></i> Clear
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -317,6 +323,28 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" *ngIf="totalPages > 1">
+            <small class="text-muted">
+              Showing {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }}
+            </small>
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-secondary" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">
+                Prev
+              </button>
+              <button
+                class="btn"
+                *ngFor="let page of getPaginationPages()"
+                [ngClass]="page === currentPage ? 'btn-primary' : 'btn-outline-secondary'"
+                (click)="changePage(page)"
+              >
+                {{ page }}
+              </button>
+              <button class="btn btn-outline-secondary" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>

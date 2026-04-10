@@ -75,6 +75,7 @@
   margin-bottom: 12px;
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .btn-add {
@@ -95,6 +96,36 @@
 
 .btn-add:hover { background: #03396c; }
 
+.btn-prev-weeks {
+  background: #0f172a;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.btn-prev-weeks:hover { background: #1e293b; }
+
+.btn-clear-hidden {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.btn-clear-hidden:hover { background: #f8fafc; }
+
 /* ── Week Card ── */
 .timetable-cards {
   display: flex;
@@ -112,6 +143,27 @@
 }
 
 .week-card:hover { box-shadow: 0 4px 18px rgba(15,23,42,0.12); }
+.week-card--past { opacity: 0.95; }
+
+.week-section-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 2px;
+  margin-bottom: -4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.week-section-title--past { color: #475569; }
+
+.current-week-empty {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
 
 /* ── Week Header ── */
 .week-header {
@@ -173,6 +225,38 @@
 }
 
 .btn-edit:hover { background: #03396c; }
+
+.week-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-hide,
+.btn-delete {
+  border: none;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-hide {
+  background: #e2e8f0;
+  color: #334155;
+}
+.btn-hide:hover { background: #cbd5e1; }
+
+.btn-delete {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.btn-delete:hover { background: #fecaca; }
 
 /* ── Days Grid ── */
 .days-grid {
@@ -509,6 +593,7 @@
   .day-header { padding: 6px; }
   .day-content { padding: 6px; }
   .class-slot { padding: 6px; }
+  .action-bar { flex-wrap: wrap; }
 }
 
 /* ── Print ── */
@@ -516,4 +601,79 @@
   .timetable-header, .action-bar, .week-actions { display: none; }
   .week-card { box-shadow: none; border: 1px solid #ddd; }
   .days-grid { grid-template-columns: repeat(7, 1fr); }
+}
+
+/* ── Previous Weeks Modal ── */
+.pw-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pw-modal {
+  width: 95vw;
+  max-width: 1400px;
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.pw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.pw-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pw-close {
+  border: none;
+  background: #e2e8f0;
+  color: #334155;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+.pw-close:hover { background: #cbd5e1; }
+
+.pw-body {
+  padding: 12px;
+  overflow: auto;
+}
+
+.pw-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pw-cards .days-grid {
+  min-width: 980px;
+}
+
+.pw-empty {
+  padding: 28px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
 }

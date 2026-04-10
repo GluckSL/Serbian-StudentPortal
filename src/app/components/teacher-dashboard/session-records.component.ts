@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 interface SessionRecord {
   id: string;
@@ -387,7 +388,7 @@ export class SessionRecordsComponent implements OnInit {
   reviewNotes: string = '';
   isLoading: boolean = false;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private notify: NotificationService) {}
 
   ngOnInit(): void {
     this.loadAvailableModules();
@@ -475,7 +476,7 @@ export class SessionRecordsComponent implements OnInit {
 
   submitReview(sessionId: string): void {
     if (!this.reviewNotes.trim()) {
-      alert('Please enter review notes');
+      this.notify.warning('Please enter review notes');
       return;
     }
 
@@ -483,16 +484,15 @@ export class SessionRecordsComponent implements OnInit {
       teacherNotes: this.reviewNotes
     }, { withCredentials: true }).subscribe({
       next: (response: any) => {
-        alert('Review submitted successfully!');
+        this.notify.success('Review submitted successfully!');
         this.reviewNotes = '';
-        this.loadSessionRecords(); // Refresh the list
-        // Close modal
+        this.loadSessionRecords();
         const modal = (window as any).bootstrap.Modal.getInstance(document.getElementById('sessionDetailsModal'));
         modal?.hide();
       },
       error: (error) => {
         console.error('Error submitting review:', error);
-        alert('Error submitting review. Please try again.');
+        this.notify.error('Error submitting review. Please try again.');
       }
     });
   }

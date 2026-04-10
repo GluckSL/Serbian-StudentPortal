@@ -5,6 +5,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ClassRecordingsService, ClassRecording } from '../../../services/class-recordings.service';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   selector: 'app-manage-recordings',
@@ -46,7 +47,8 @@ export class ManageRecordingsComponent implements OnInit {
   constructor(
     private service: ClassRecordingsService,
     private snackBar: MatSnackBar,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -122,10 +124,12 @@ export class ManageRecordingsComponent implements OnInit {
   }
 
   deleteRecording(r: ClassRecording): void {
-    if (!confirm(`Delete "${r.title}"?`)) return;
-    this.service.delete(r._id).subscribe({
-      next: () => { this.snackBar.open('Recording deleted', 'Close', { duration: 3000 }); this.loadRecordings(); },
-      error: () => this.snackBar.open('Error deleting', 'Close', { duration: 3000 })
+    this.notify.confirm('Delete Recording', `Delete "${r.title}"?`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.service.delete(r._id).subscribe({
+        next: () => { this.snackBar.open('Recording deleted', 'Close', { duration: 3000 }); this.loadRecordings(); },
+        error: () => this.snackBar.open('Error deleting', 'Close', { duration: 3000 })
+      });
     });
   }
 

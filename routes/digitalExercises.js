@@ -8,6 +8,37 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
+const { resignExercise, resignExercises } = require('../config/presign');
+
+/** Fields the admin/teacher client may send on PUT; avoids stripping nested arrays or applying unsafe full-document spreads. */
+const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
+  'title',
+  'description',
+  'targetLanguage',
+  'nativeLanguage',
+  'level',
+  'category',
+  'difficulty',
+  'estimatedDuration',
+  'questions',
+  'sharedAudioUrl',
+  'videoSuccessFeedback',
+  'videoRetryFeedback',
+  'tags',
+  'courseDay',
+  'visibleToStudents'
+];
+
+/** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
+const VIDEO_PRONUNCIATION_PASS_SCORE = 20;
+
+function normalizeQuestionContexts(rawQuestions) {
+  if (!Array.isArray(rawQuestions)) return rawQuestions;
+  return rawQuestions.map((q) => ({
+    ...q,
+    context: String(q?.context || '').trim()
+  }));
+}
 
 // ─── AI answer grader ─────────────────────────────────────────────────────────
 // Returns { score: 0-100 } representing how correct the student's answer is.
@@ -61,21 +92,20 @@ Reply with ONLY this JSON: {"score": <number 0-100>}`;
 
 // ─── HELPER ──────────────────────────────────────────────────────────────────
 
-function levenshteinSimilarity(a, b) {
-  if (!a || !b) return 0;
-  const m = a.length, n = b.length;
-  if (m === 0 || n === 0) return 0;
-  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-    }
-  }
-  const maxLen = Math.max(m, n);
-  return 1 - dp[m][n] / maxLen;
+function normalizeListeningAnswer(raw) {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function parseTrueFalse(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  if (!s) return null;
+  // Accept values from UI, admin selection, and worksheet generator.
+  if (/\b(true|richtig|wahr|ja|yes)\b/.test(s)) return true;
+  if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+  return null;
 }
 
 function getAccessibleLevels(studentLevel) {
@@ -142,14 +172,17 @@ router.get('/', verifyToken, async (req, res) => {
       studentExerciseAccess = await getStudentExerciseAccess(req.user.id);
       const studentCourseDay = studentExerciseAccess.courseDay;
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
+      const weekEndDay = Math.min(200, studentCourseDay + 6);
       if (todayOnly) {
         andClauses.push({ courseDay: studentCourseDay });
       } else {
+        // Current day + next 6 journey days: show unlocked items plus upcoming week for visibility (locked in UI until day).
         andClauses.push({
           $or: [
             { courseDay: null },
             { courseDay: { $exists: false } },
-            { courseDay: { $lte: studentCourseDay } }
+            { courseDay: { $lte: studentCourseDay } },
+            { courseDay: { $gt: studentCourseDay, $lte: weekEndDay } }
           ]
         });
       }
@@ -215,6 +248,8 @@ router.get('/', verifyToken, async (req, res) => {
       });
     }
 
+    await resignExercises(exercises);
+
     const payload = {
       exercises,
       total,
@@ -248,6 +283,11 @@ router.get('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Exercise not available' });
     }
 
+    // "Student view" used by the player UI: it strips correct answers and
+    // shuffles matching right options so the exercise feels like it does for
+    // real students (even when staff are testing).
+    const studentView = req.user.role === 'STUDENT' || String(req.query.asStudent) === 'true';
+
     if (req.user.role === 'STUDENT') {
       const access = await getStudentExerciseAccess(req.user.id);
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
@@ -268,9 +308,9 @@ router.get('/:id', verifyToken, async (req, res) => {
       }
     }
 
-    // For students playing the exercise, keep answers but strip correct indices
-    // (client will verify against server on submit)
-    if (req.user.role === 'STUDENT') {
+    // For student view (real students + staff testing), keep answers but strip
+    // correct indices. (Client will verify against server on submit.)
+    if (studentView) {
       exercise.questions = exercise.questions.map(q => {
         const stripped = { ...q };
         delete stripped.correctAnswerIndex;
@@ -294,6 +334,7 @@ router.get('/:id', verifyToken, async (req, res) => {
       exercise.studentAttempt = bestAttempt;
     }
 
+    await resignExercise(exercise);
     res.json(exercise);
   } catch (err) {
     console.error('GET /digital-exercises/:id error:', err);
@@ -366,6 +407,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       ex.stats = statsMap[ex._id.toString()] || { completions: 0, avgScore: 0, uniqueStudents: 0 };
     });
 
+    await resignExercises(exercises);
     res.json({ exercises, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
   } catch (err) {
     console.error('GET /digital-exercises/admin/all error:', err);
@@ -373,11 +415,114 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
   }
 });
 
+/** Subset of fields safe for admin bulk metadata updates (no title/description/questions). */
+const BULK_METADATA_KEYS = [
+  'level',
+  'category',
+  'courseDay',
+  'difficulty',
+  'visibleToStudents',
+  'targetLanguage',
+  'nativeLanguage',
+  'estimatedDuration'
+];
+
+// POST /api/digital-exercises/admin/bulk-delete  — Soft-delete many (ADMIN / TEACHER_ADMIN only)
+router.post('/admin/bulk-delete', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+    const objectIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+    if (objectIds.length === 0) {
+      return res.status(400).json({ error: 'No valid exercise ids' });
+    }
+    const result = await DigitalExercise.updateMany(
+      {
+        _id: { $in: objectIds },
+        isDeleted: { $ne: true }
+      },
+      { $set: { isDeleted: true, deletedAt: new Date(), isActive: false, updatedAt: new Date() } }
+    );
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error('POST /digital-exercises/admin/bulk-delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/digital-exercises/admin/bulk-update  — Apply metadata to many exercises
+router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = req.body?.ids;
+    const updates = req.body?.updates;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'updates object required' });
+    }
+    const $set = {};
+    for (const key of BULK_METADATA_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        $set[key] = updates[key];
+      }
+    }
+    if (Object.keys($set).length === 0) {
+      return res.status(400).json({ error: 'No valid metadata fields to update' });
+    }
+
+    const objectIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+    if (objectIds.length === 0) {
+      return res.status(400).json({ error: 'No valid exercise ids' });
+    }
+
+    const filter = {
+      _id: { $in: objectIds },
+      isDeleted: { $ne: true }
+    };
+    if (req.user.role === 'TEACHER') {
+      filter.createdBy = req.user.id;
+    }
+
+    $set.updatedAt = new Date();
+    $set.lastUpdatedBy = req.user.id;
+
+    const result = await DigitalExercise.updateMany(filter, { $set });
+
+    if (Object.prototype.hasOwnProperty.call($set, 'visibleToStudents') && $set.visibleToStudents === true) {
+      await DigitalExercise.updateMany(
+        {
+          ...filter,
+          visibleToStudents: true,
+          $or: [{ publishedAt: null }, { publishedAt: { $exists: false } }]
+        },
+        { $set: { publishedAt: new Date() } }
+      );
+    }
+
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/admin/bulk-update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
+    const normalizedBody = { ...req.body };
+    if (Object.prototype.hasOwnProperty.call(normalizedBody, 'questions')) {
+      normalizedBody.questions = normalizeQuestionContexts(normalizedBody.questions);
+    }
+
     const exerciseData = {
-      ...req.body,
+      ...normalizedBody,
       createdBy: req.user.id
     };
     const exercise = new DigitalExercise(exerciseData);
@@ -438,11 +583,18 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
-    const updated = await DigitalExercise.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, lastUpdatedBy: req.user.id, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'name email');
+    for (const key of DIGITAL_EXERCISE_ASSIGNABLE_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+        exercise[key] = key === 'questions'
+          ? normalizeQuestionContexts(req.body[key])
+          : req.body[key];
+      }
+    }
+    exercise.lastUpdatedBy = req.user.id;
+    exercise.updatedAt = new Date();
+
+    await exercise.save();
+    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email');
 
     res.json(updated);
   } catch (err) {
@@ -556,10 +708,11 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       if (resp.matchingResponse && resp.matchingResponse.length === pairs.length) {
         let allCorrect = true;
         for (const match of resp.matchingResponse) {
-          if (pairs[match.leftIndex] && pairs[match.rightIndex]) {
-            const expectedRight = pairs[match.leftIndex].right;
-            const givenRight = pairs[match.rightIndex].right;
-            if (expectedRight !== givenRight) { allCorrect = false; break; }
+          const expectedRight = pairs[match.leftIndex]?.right;
+          const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
+          if (expectedRight === undefined || givenRight === undefined || String(expectedRight) !== String(givenRight)) {
+            allCorrect = false;
+            break;
           }
         }
         isCorrect = allCorrect;
@@ -581,9 +734,25 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       isCorrect = score >= 70;
       pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
       correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+    } else if (q.type === 'video-pronunciation') {
+      const score = resp.pronunciationScore || 0;
+      isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
+      pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+      correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'question-answer') {
       const studentAns = (resp.qaResponse || '').trim();
-      if (studentAns) {
+
+      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+      const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+
+      if (isTrueFalse) {
+        const expected = parseTrueFalse(expectedRaw);
+        const given = parseTrueFalse(studentAns);
+        isCorrect = expected !== null && given !== null && given === expected;
+        pointsEarned = isCorrect ? (q.points || 1) : 0;
+        correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
+      } else if (studentAns) {
         const aiResult = await aiGradeAnswer(q.prompt || '', Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [], studentAns);
         const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
         const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
@@ -596,18 +765,15 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
       }
     } else if (q.type === 'listening') {
-      const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
-      const expected = (q.expectedTranscript || '').trim().toLowerCase();
+      const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
+      const expected = normalizeListeningAnswer(q.expectedTranscript || '');
       if (expected && studentText) {
-        isCorrect = studentText === expected ||
-          expected.includes(studentText) ||
-          studentText.includes(expected) ||
-          levenshteinSimilarity(studentText, expected) >= 0.85;
+        isCorrect = studentText === expected;
       }
       correctAnswer = { expectedTranscript: q.expectedTranscript };
     }
 
-    if (q.type !== 'pronunciation' && q.type !== 'question-answer') {
+    if (q.type !== 'pronunciation' && q.type !== 'video-pronunciation' && q.type !== 'question-answer') {
       pointsEarned = isCorrect ? (q.points || 1) : 0;
     }
 
@@ -642,6 +808,8 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
 
     const totalPoints = exercise.questions.reduce((sum, qq) => sum + (qq.points || 1), 0);
     const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+    // Only treat the attempt as complete when every question has been submitted at least once.
+    // (An 80 % threshold caused multi-clip exercises — e.g. 14 clips — to finish after 12, skipping the rest.)
     const allSubmitted = gradedResponses.length >= exercise.questions.length;
 
     attempt.responses = gradedResponses;
@@ -705,6 +873,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     const qaScoreMap = {}; // questionIndex → { score }
     const qaPromises = exercise.questions.map((q, i) => {
       if (q.type !== 'question-answer') return Promise.resolve();
+      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+      const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+      if (isTrueFalse) return Promise.resolve();
       const resp = (responses || []).find(r => r.questionIndex === i) || {};
       const studentAns = (resp.qaResponse || '').trim();
       if (!studentAns) return Promise.resolve();
@@ -732,10 +904,11 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         if (resp.matchingResponse && resp.matchingResponse.length === q.pairs.length) {
           let allCorrect = true;
           for (const match of resp.matchingResponse) {
-            if (q.pairs[match.leftIndex] && q.pairs[match.leftIndex].right !== q.pairs[match.rightIndex]?.right) {
-              const expectedRight = q.pairs[match.leftIndex].right;
-              const givenRight = q.pairs[match.rightIndex]?.right;
-              if (expectedRight !== givenRight) { allCorrect = false; break; }
+            const expectedRight = q.pairs[match.leftIndex]?.right;
+            const givenRight = match.rightValue != null ? match.rightValue : q.pairs[match.rightIndex]?.right;
+            if (expectedRight === undefined || givenRight === undefined || String(expectedRight) !== String(givenRight)) {
+              allCorrect = false;
+              break;
             }
           }
           isCorrect = allCorrect;
@@ -756,33 +929,46 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         isCorrect = score >= 70;
         pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
         correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+      } else if (q.type === 'video-pronunciation') {
+        const score = resp.pronunciationScore || 0;
+        isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
+        pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+        correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'question-answer') {
-        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
-        const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
-        const scoringMode = q.scoringMode || 'full';
-        const aiResult = qaScoreMap[i];
+        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+        const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+        const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+        if (isTrueFalse) {
+          const expected = parseTrueFalse(expectedRaw);
+          const given = parseTrueFalse(resp.qaResponse);
+          isCorrect = expected !== null && given !== null && given === expected;
+          pointsEarned = isCorrect ? (q.points || 1) : 0;
+          correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
+        } else {
+          const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
+          const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
+          const scoringMode = q.scoringMode || 'full';
+          const aiResult = qaScoreMap[i];
 
-        if (aiResult) {
-          const { score } = aiResult;
-          isCorrect = score >= threshold;
-          pointsEarned = scoringMode === 'proportional'
-            ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
-            : (isCorrect ? (q.points || 1) : 0);
+          if (aiResult) {
+            const { score } = aiResult;
+            isCorrect = score >= threshold;
+            pointsEarned = scoringMode === 'proportional'
+              ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
+              : (isCorrect ? (q.points || 1) : 0);
+          }
+          correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
         }
-        correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
       } else if (q.type === 'listening') {
-        const studentText = (resp.listeningText || resp.qaResponse || '').trim().toLowerCase();
-        const expected = (q.expectedTranscript || '').trim().toLowerCase();
+        const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
+        const expected = normalizeListeningAnswer(q.expectedTranscript || '');
         if (expected && studentText) {
-          isCorrect = studentText === expected ||
-            expected.includes(studentText) ||
-            studentText.includes(expected) ||
-            levenshteinSimilarity(studentText, expected) >= 0.85;
+          isCorrect = studentText === expected;
         }
         correctAnswer = { expectedTranscript: q.expectedTranscript };
       }
 
-      if (q.type !== 'pronunciation' && q.type !== 'question-answer') {
+      if (q.type !== 'pronunciation' && q.type !== 'video-pronunciation' && q.type !== 'question-answer') {
         pointsEarned = isCorrect ? (q.points || 1) : 0;
       }
       earnedPoints += pointsEarned;

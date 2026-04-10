@@ -6,9 +6,7 @@ const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 const uploadProfile = require('../middleware/profileUpload');
-const { Subscription } = require('rxjs');
-const fs = require('fs');
-const path = require('path');
+const deleteFromS3 = require('../config/s3Delete');
 
 
 // GET /api/profile - Get logged-in user's profile
@@ -111,10 +109,6 @@ router.put('/update-password', verifyToken, async (req, res) => {
   }
 });
 
-// Serve uploads folder publicly
-router.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
-
-
 // POST /api/profile/upload-photo - Upload profile photo
 router.post('/upload-photo', verifyToken, uploadProfile.single('profilePhoto'), async (req, res) => {
   try {
@@ -125,35 +119,29 @@ router.post('/upload-photo', verifyToken, uploadProfile.single('profilePhoto'), 
       return res.status(400).json({ msg: 'No file uploaded' });
     }
 
-    const photoPath = `/uploads/profile-photos/${req.file.filename}`;
-    const protocol = req.get('x-forwarded-proto') || req.protocol;
-    const fullUrl = `${protocol}://${req.get('host')}${photoPath}`;
-    console.log("[UPLOAD PHOTO] File uploaded:", fullUrl);
+    // req.file.location is the full S3 URL from multer-s3
+    const s3Url = req.file.location;
+    console.log("[UPLOAD PHOTO] File uploaded to S3:", s3Url);
 
     const user = await User.findById(req.user.id);
     if (!user) {
-      console.log("[UPLOAD PHOTO] User not found in DB, deleting uploaded file");
-      fs.unlinkSync(path.join(__dirname, '..', 'uploads/profile-photos', req.file.filename));
+      console.log("[UPLOAD PHOTO] User not found in DB, deleting uploaded file from S3");
+      await deleteFromS3(req.file.key);
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    // Optional: delete old photo
-    if (user.profilePic) {
-      const oldFile = path.join(__dirname, '..', 'uploads/profile-photos', path.basename(user.profilePic));
-      if (fs.existsSync(oldFile)) {
-        console.log("[UPLOAD PHOTO] Deleting old profile photo:", oldFile);
-        fs.unlinkSync(oldFile);
-      }
+    // Delete old profile photo from S3 if it was previously stored there
+    if (user.profilePic && user.profilePic.startsWith('http')) {
+      await deleteFromS3(user.profilePic);
     }
 
-    // Update DB with new photo URL
-    user.profilePic = photoPath;
+    // Update DB with new S3 URL
+    user.profilePic = s3Url;
     user.updatedAt = new Date();
     await user.save();
-    
 
-    res.json({ msg: 'Profile photo uploaded successfully', profilePhoto: fullUrl });
-    
+    res.json({ msg: 'Profile photo uploaded successfully', profilePhoto: s3Url });
+
   } catch (err) {
     console.error('[UPLOAD PHOTO] Error uploading photo:', err);
     res.status(500).json({ msg: 'Error uploading photo', error: err.message });

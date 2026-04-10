@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" aria-hidden="true">
+  <defs>
+    <radialGradient id="fxFur" cx="42%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="45%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#9a3412"/>
+    </radialGradient>
+    <linearGradient id="fxEar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b45309"/>
+      <stop offset="70%" stop-color="#92400e"/>
+      <stop offset="100%" stop-color="#1c1917"/>
+    </linearGradient>
+    <linearGradient id="fxMuzzle" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+    <radialGradient id="fxEye" cx="40%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="55%" stop-color="#b45309"/>
+      <stop offset="100%" stop-color="#1c1917"/>
+    </radialGradient>
+  </defs>
+  <!-- Ears (red fox silhouette with dark tips) -->
+  <path d="M24 44 L14 8 L48 32 Z" fill="url(#fxEar)"/>
+  <path d="M96 44 L106 8 L72 32 Z" fill="url(#fxEar)"/>
+  <path d="M26 40 L22 18 L44 30 Z" fill="#78350f" opacity="0.85"/>
+  <path d="M94 40 L98 18 L76 30 Z" fill="#78350f" opacity="0.85"/>
+  <!-- Head / fur -->
+  <ellipse cx="60" cy="58" rx="40" ry="38" fill="url(#fxFur)"/>
+  <!-- Cheek fluff -->
+  <ellipse cx="32" cy="62" rx="14" ry="18" fill="#b45309" opacity="0.35"/>
+  <ellipse cx="88" cy="62" rx="14" ry="18" fill="#b45309" opacity="0.35"/>
+  <!-- White muzzle & chest -->
+  <path d="M60 48 C38 48 28 62 28 78 C28 92 42 104 60 104 C78 104 92 92 92 78 C92 62 82 48 60 48 Z" fill="url(#fxMuzzle)" opacity="0.96"/>
+  <ellipse cx="60" cy="72" rx="26" ry="22" fill="#fffbeb"/>
+  <!-- Eyes (amber, more lifelike) -->
+  <ellipse cx="44" cy="52" rx="7" ry="8" fill="#1c1917"/>
+  <ellipse cx="76" cy="52" rx="7" ry="8" fill="#1c1917"/>
+  <ellipse cx="44" cy="51" rx="5" ry="6" fill="url(#fxEye)"/>
+  <ellipse cx="76" cy="51" rx="5" ry="6" fill="url(#fxEye)"/>
+  <ellipse cx="45" cy="49" rx="2" ry="2.2" fill="#fffbeb" opacity="0.95"/>
+  <ellipse cx="77" cy="49" rx="2" ry="2.2" fill="#fffbeb" opacity="0.95"/>
+  <ellipse cx="43" cy="53" rx="1.2" ry="1.4" fill="#1c1917" opacity="0.5"/>
+  <ellipse cx="75" cy="53" rx="1.2" ry="1.4" fill="#1c1917" opacity="0.5"/>
+  <!-- Nose -->
+  <path d="M54 66 Q60 62 66 66 Q60 74 54 66" fill="#1c1917"/>
+  <!-- Whiskers -->
+  <g stroke="#78716c" stroke-width="0.6" fill="none" opacity="0.45" stroke-linecap="round">
+    <path d="M34 70 L18 68 M34 74 L16 74 M34 78 L18 80"/>
+    <path d="M86 70 L102 68 M86 74 L104 74 M86 78 L102 80"/>
+  </g>
+</svg>

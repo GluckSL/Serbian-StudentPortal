@@ -5,6 +5,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModuleTrashService, TrashItem, TrashStats } from '../../../services/module-trash.service';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   selector: 'app-module-trash',
@@ -35,7 +36,10 @@ export class ModuleTrashComponent implements OnInit {
   currentPage = 1;
   itemsPerPage = 10;
   
-  constructor(private trashService: ModuleTrashService) {}
+  constructor(
+    private trashService: ModuleTrashService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     this.loadTrashItems();
@@ -147,88 +151,63 @@ export class ModuleTrashComponent implements OnInit {
 
   // Actions
   restoreItem(item: TrashItem): void {
-    if (confirm(`Are you sure you want to restore "${item.title}"?`)) {
+    this.notify.confirm('Restore Module', `Restore "${item.title}"?`).subscribe(ok => {
+      if (!ok) return;
       this.trashService.restoreFromTrash(item._id).subscribe({
-        next: (response) => {
-          console.log('✅ Module restored:', response);
-          this.loadTrashItems();
-          this.loadStats();
-        },
-        error: (error) => {
-          console.error('❌ Error restoring module:', error);
-          alert('Failed to restore module');
-        }
+        next: () => { this.loadTrashItems(); this.loadStats(); },
+        error: () => this.notify.error('Failed to restore module')
       });
-    }
+    });
   }
 
   permanentlyDeleteItem(item: TrashItem): void {
-    const confirmMessage = `⚠️ PERMANENT DELETION WARNING ⚠️
-
-This will permanently delete "${item.title}" from the database.
-This action CANNOT be undone!
-
-Are you absolutely sure you want to proceed?`;
-
-    if (confirm(confirmMessage)) {
+    this.notify.confirm(
+      'Permanent Deletion',
+      `Permanently delete "${item.title}"? This CANNOT be undone!`,
+      'Yes, Delete Forever', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
       this.trashService.permanentlyDelete(item._id).subscribe({
-        next: (response) => {
-          console.log('✅ Module permanently deleted:', response);
-          this.loadTrashItems();
-          this.loadStats();
-        },
-        error: (error) => {
-          console.error('❌ Error permanently deleting module:', error);
-          alert('Failed to permanently delete module');
-        }
+        next: () => { this.loadTrashItems(); this.loadStats(); },
+        error: () => this.notify.error('Failed to permanently delete module')
       });
-    }
+    });
   }
 
   emptyTrash(): void {
-    const confirmMessage = `⚠️ EMPTY TRASH WARNING ⚠️
-
-This will permanently delete ALL ${this.trashItems.length} modules in the trash.
-This action CANNOT be undone!
-
-Are you absolutely sure you want to empty the entire trash?`;
-
-    if (confirm(confirmMessage)) {
+    this.notify.confirm(
+      'Empty Trash',
+      `Permanently delete ALL ${this.trashItems.length} modules in the trash? This CANNOT be undone!`,
+      'Yes, Empty Trash', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
       this.trashService.emptyTrash().subscribe({
         next: (response) => {
-          console.log('✅ Trash emptied:', response);
           this.loadTrashItems();
           this.loadStats();
-          alert(`Trash emptied successfully. ${response.deletedCount} modules permanently deleted.`);
+          this.notify.success(`Trash emptied. ${response.deletedCount} modules permanently deleted.`);
         },
-        error: (error) => {
-          console.error('❌ Error emptying trash:', error);
-          alert('Failed to empty trash');
-        }
+        error: () => this.notify.error('Failed to empty trash')
       });
-    }
+    });
   }
 
   runCleanup(): void {
-    if (confirm('Run cleanup job to permanently delete expired items?')) {
+    this.notify.confirm('Run Cleanup', 'Permanently delete all expired items?').subscribe(ok => {
+      if (!ok) return;
       this.trashService.runCleanup().subscribe({
         next: (response) => {
-          console.log('✅ Cleanup completed:', response);
           this.loadTrashItems();
           this.loadStats();
-          
           if (response.deletedCount > 0) {
-            alert(`Cleanup completed. ${response.deletedCount} expired modules permanently deleted.`);
+            this.notify.success(`Cleanup done. ${response.deletedCount} expired modules deleted.`);
           } else {
-            alert('Cleanup completed. No expired modules found.');
+            this.notify.info('Cleanup completed. No expired modules found.');
           }
         },
-        error: (error) => {
-          console.error('❌ Error running cleanup:', error);
-          alert('Failed to run cleanup');
-        }
+        error: () => this.notify.error('Failed to run cleanup')
       });
-    }
+    });
   }
 
   // Selection management
@@ -251,47 +230,28 @@ Are you absolutely sure you want to empty the entire trash?`;
   // Bulk actions
   bulkRestore(): void {
     if (this.selectedItems.size === 0) return;
-    
-    if (confirm(`Restore ${this.selectedItems.size} selected modules?`)) {
-      const promises = Array.from(this.selectedItems).map(id => 
-        this.trashService.restoreFromTrash(id).toPromise()
-      );
-      
+    this.notify.confirm('Bulk Restore', `Restore ${this.selectedItems.size} selected modules?`).subscribe(ok => {
+      if (!ok) return;
+      const promises = Array.from(this.selectedItems).map(id => this.trashService.restoreFromTrash(id).toPromise());
       Promise.all(promises).then(() => {
-        this.loadTrashItems();
-        this.loadStats();
-        this.selectedItems.clear();
-      }).catch(error => {
-        console.error('❌ Error in bulk restore:', error);
-        alert('Some modules failed to restore');
-      });
-    }
+        this.loadTrashItems(); this.loadStats(); this.selectedItems.clear();
+      }).catch(() => this.notify.error('Some modules failed to restore'));
+    });
   }
 
   bulkDelete(): void {
     if (this.selectedItems.size === 0) return;
-    
-    const confirmMessage = `⚠️ PERMANENT DELETION WARNING ⚠️
-
-This will permanently delete ${this.selectedItems.size} selected modules.
-This action CANNOT be undone!
-
-Are you absolutely sure?`;
-
-    if (confirm(confirmMessage)) {
-      const promises = Array.from(this.selectedItems).map(id => 
-        this.trashService.permanentlyDelete(id).toPromise()
-      );
-      
+    this.notify.confirm(
+      'Bulk Permanent Delete',
+      `Permanently delete ${this.selectedItems.size} selected modules? This CANNOT be undone!`,
+      'Yes, Delete All', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      const promises = Array.from(this.selectedItems).map(id => this.trashService.permanentlyDelete(id).toPromise());
       Promise.all(promises).then(() => {
-        this.loadTrashItems();
-        this.loadStats();
-        this.selectedItems.clear();
-      }).catch(error => {
-        console.error('❌ Error in bulk delete:', error);
-        alert('Some modules failed to delete');
-      });
-    }
+        this.loadTrashItems(); this.loadStats(); this.selectedItems.clear();
+      }).catch(() => this.notify.error('Some modules failed to delete'));
+    });
   }
 
   // Utility methods

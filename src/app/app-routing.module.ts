@@ -18,6 +18,17 @@ export const routes: Routes = [
   // Home route
   { path: 'home', loadComponent: () => import('./components/home/home.component').then(m => m.HomeComponent) },
 
+  // Help & Support — accessible without login (and after login)
+  { path: 'help', loadComponent: () => import('./components/help/help.component').then(m => m.HelpComponent) },
+
+  // Admin: manage all support tickets
+  {
+    path: 'admin/support-tickets',
+    loadComponent: () => import('./components/help/help-admin.component').then(m => m.HelpAdminComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+
   // Login and Signup routes
   { path: 'login', loadComponent: () => import('./components/login/login.component').then(m => m.LoginComponent) },
   { path: 'signup', loadComponent: () => import('./components/signup/signup.component').then(m => m.SignupComponent) },
@@ -98,6 +109,18 @@ export const routes: Routes = [
   },
 
   { path: 'teachers', loadComponent: () => import('./components/teachers/teachers.component').then(m => m.TeachersComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  {
+    path: 'teachers/:id/analytics',
+    loadComponent: () => import('./components/teachers/teacher-analytics.component').then(m => m.TeacherAnalyticsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
+  },
+  {
+    path: 'my-analytics',
+    loadComponent: () => import('./components/teachers/teacher-analytics.component').then(m => m.TeacherAnalyticsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['TEACHER', 'TEACHER_ADMIN'] }
+  },
 
   { path: 'courses', loadComponent: () => import('./components/courses/courses.component').then(m => m.CoursesComponent), canActivate: [AuthGuard] },
   { path: 'update-course/:id', loadComponent: () => import('./components/courses/course-create.component').then(m => m.CreateCourseComponent), canActivate: [AuthGuard] },
@@ -212,11 +235,17 @@ export const routes: Routes = [
   // Invoice Management
   { path: 'admin/invoices', loadComponent: () => import('./components/admin-dashboard/invoice-management/invoice-management.component').then(m => m.InvoiceManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
+  // Payment Approvals (student payment submissions)
+  { path: 'admin/payment-approvals', loadComponent: () => import('./components/admin-dashboard/payment-approvals/payment-approvals.component').then(m => m.PaymentApprovalsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
   // Admin Student Progress Overview
   { path: 'admin/student-progress', loadComponent: () => import('./components/admin-dashboard/admin-progress/admin-progress.component').then(m => m.AdminProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Journey Management
+  { path: 'admin/journey', loadComponent: () => import('./components/admin-dashboard/journey-management/journey-management.component').then(m => m.JourneyManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
@@ -224,6 +253,12 @@ export const routes: Routes = [
   { path: 'audio-test', loadComponent: () => import('./components/audio-test/audio-test.component').then(m => m.AudioTestComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'TEACHER_ADMIN'] } },
 
   { path: 'student-logs', loadComponent: () => import('./components/student-logs/student-logs.component').then(m => m.StudentLogsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  {
+    path: 'student-logs/:studentId/analytics',
+    loadComponent: () => import('./components/student-logs/student-log-analytics.component').then(m => m.StudentLogAnalyticsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
 
   // ── Digital Exercises (new feature) ──────────────────────────────────────
   // Student & all roles: browse and play exercises
@@ -248,6 +283,13 @@ export const routes: Routes = [
   {
     path: 'admin/digital-exercises/create',
     loadComponent: () => import('./components/digital-exercise-builder/digital-exercise-builder.component').then(m => m.DigitalExerciseBuilderComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Admin/Teacher: create video pronunciation exercise (wizard)
+  {
+    path: 'admin/digital-exercises/create-video',
+    loadComponent: () => import('./components/video-exercise-wizard/video-exercise-wizard.component').then(m => m.VideoExerciseWizardComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },

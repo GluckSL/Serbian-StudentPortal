@@ -4,9 +4,14 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
+import {
+  DigitalExerciseService,
+  DigitalExercise,
+  DigitalExerciseBulkMetadata
+} from '../../../services/digital-exercise.service';
 import { AuthService } from '../../../services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from '../../../services/notification.service';
 import { MaterialModule } from '../../../shared/material.module';
 
 @Component({
@@ -30,6 +35,9 @@ import { MaterialModule } from '../../../shared/material.module';
       </button>
       <button class="btn-create" (click)="navigateToCreate()">
         <span class="material-icons">add</span> Create Exercise
+      </button>
+      <button class="btn-video-exercise" (click)="navigateToVideoExercise()">
+        <span class="material-icons">videocam</span> + Video Exercise
       </button>
     </div>
   </div>
@@ -87,6 +95,72 @@ import { MaterialModule } from '../../../shared/material.module';
     />
   </div>
 
+  <!-- Bulk selection -->
+  <div class="bulk-actions-bar" *ngIf="!loading && selectedIds.length > 0">
+    <span class="bulk-count">{{ selectedIds.length }} selected</span>
+    <button type="button" class="btn-bulk btn-clear" (click)="clearSelection()">Clear</button>
+    <button
+      type="button"
+      class="btn-bulk btn-edit"
+      (click)="editSingleSelected()"
+      [disabled]="selectedIds.length !== 1"
+      matTooltip="Open the full editor (one exercise)"
+    >
+      <span class="material-icons">edit</span> Edit
+    </button>
+    <button type="button" class="btn-bulk" (click)="toggleBulkProperties()">
+      <span class="material-icons">tune</span> Bulk properties
+    </button>
+    <button type="button" class="btn-bulk btn-delete-bulk" (click)="bulkDelete()" *ngIf="isAdminUser">
+      <span class="material-icons">delete</span> Delete
+    </button>
+  </div>
+
+  <div class="bulk-properties-panel" *ngIf="bulkPropertiesOpen && !loading">
+    <p class="bulk-panel-hint">Only fields you set below are applied to every selected exercise.</p>
+    <div class="bulk-fields">
+      <select [(ngModel)]="bulkLevel" class="filter-select">
+        <option value="">Level — no change</option>
+        <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+      </select>
+      <select [(ngModel)]="bulkCategory" class="filter-select">
+        <option value="">Category — no change</option>
+        <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+      </select>
+      <select [(ngModel)]="bulkDifficulty" class="filter-select">
+        <option value="">Difficulty — no change</option>
+        <option value="Beginner">Beginner</option>
+        <option value="Intermediate">Intermediate</option>
+        <option value="Advanced">Advanced</option>
+      </select>
+      <select [(ngModel)]="bulkDayMode" class="filter-select">
+        <option value="unchanged">Schedule day — no change</option>
+        <option value="clear">General (no day)</option>
+        <option value="set">Specific day…</option>
+      </select>
+      <input
+        *ngIf="bulkDayMode === 'set'"
+        type="number"
+        min="1"
+        max="200"
+        [(ngModel)]="bulkDayNumber"
+        class="filter-input day-filter-input"
+        placeholder="Day 1–200"
+      />
+      <select [(ngModel)]="bulkVisibility" class="filter-select">
+        <option value="unchanged">Student visibility — no change</option>
+        <option value="show">Show to students</option>
+        <option value="hide">Hide from students</option>
+      </select>
+    </div>
+    <div class="bulk-panel-actions">
+      <button type="button" class="btn-create" (click)="applyBulkProperties()" [disabled]="bulkApplying">
+        {{ bulkApplying ? 'Applying…' : 'Apply to selected' }}
+      </button>
+      <button type="button" class="btn-bulk btn-clear" (click)="toggleBulkProperties()">Close</button>
+    </div>
+  </div>
+
   <!-- Loading State -->
   <div class="loading-state" *ngIf="loading">
     <div class="spinner"></div>
@@ -98,6 +172,14 @@ import { MaterialModule } from '../../../shared/material.module';
     <table class="exercise-table" *ngIf="exercises.length > 0">
       <thead>
         <tr>
+          <th class="checkbox-col">
+            <mat-checkbox
+              [checked]="allPageSelected"
+              [indeterminate]="somePageSelected"
+              (change)="toggleSelectAll($event.checked)"
+              matTooltip="Select all on this page"
+            ></mat-checkbox>
+          </th>
           <th>Exercise</th>
           <th>Type Mix</th>
           <th>Level</th>
@@ -112,6 +194,12 @@ import { MaterialModule } from '../../../shared/material.module';
       </thead>
       <tbody>
         <tr *ngFor="let ex of exercises">
+          <td class="checkbox-col" (click)="$event.stopPropagation()">
+            <mat-checkbox
+              [checked]="isRowSelected(exerciseRowId(ex))"
+              (change)="setRowSelection(exerciseRowId(ex), $event.checked)"
+            ></mat-checkbox>
+          </td>
           <td class="title-cell">
             <div class="exercise-title">{{ ex.title }}</div>
             <div class="exercise-meta">{{ ex.targetLanguage }} · {{ ex.difficulty }}</div>
@@ -131,13 +219,13 @@ import { MaterialModule } from '../../../shared/material.module';
             <span *ngIf="ex.courseDay != null" class="day-pill">Day {{ ex.courseDay }}</span>
             <span *ngIf="ex.courseDay == null" class="text-muted">—</span>
           </td>
-          <td class="center">{{ ex.questions?.length || 0 }}</td>
-          <td class="center">{{ ex.stats?.completions || 0 }}</td>
+          <td class="center">{{ ex.questions.length || 0 }}</td>
+          <td class="center">{{ ex.stats != null ? ex.stats.completions : 0 }}</td>
           <td class="center">
-            <span *ngIf="ex.stats?.avgScore" class="score-badge" [class.good]="ex.stats!.avgScore >= 70">
-              {{ ex.stats!.avgScore }}%
+            <span *ngIf="ex.stats != null && ex.stats.avgScore" class="score-badge" [class.good]="ex.stats.avgScore >= 70">
+              {{ ex.stats.avgScore }}%
             </span>
-            <span *ngIf="!ex.stats?.avgScore" class="text-muted">—</span>
+            <span *ngIf="ex.stats == null || !ex.stats.avgScore" class="text-muted">—</span>
           </td>
           <td>
             <button
@@ -279,6 +367,24 @@ import { MaterialModule } from '../../../shared/material.module';
     .btn-create:hover { background: #03396c; }
     .btn-create .material-icons { font-size: 14px; }
 
+    .btn-video-exercise {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #7c3aed;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-video-exercise:hover { background: #6d28d9; }
+    .btn-video-exercise .material-icons { font-size: 14px; }
+
     .empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 
     /* ── Stats Bar ── */
@@ -351,6 +457,80 @@ import { MaterialModule } from '../../../shared/material.module';
     }
 
     .filter-select:focus { border-color: #005b96; outline: none; box-shadow: 0 0 0 2px rgba(0,91,150,0.08); }
+
+    .bulk-actions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      background: #e0e7ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 14px;
+    }
+
+    .bulk-count { font-size: 12px; font-weight: 700; color: #312e81; margin-right: 6px; }
+
+    .btn-bulk {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #fff;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #3730a3;
+      font-family: inherit;
+    }
+
+    .btn-bulk .material-icons { font-size: 14px; }
+    .btn-bulk:hover:not(:disabled) { border-color: #005b96; color: #005b96; }
+    .btn-bulk:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-bulk.btn-clear { background: transparent; }
+    .btn-bulk.btn-delete-bulk:hover:not(:disabled) { border-color: #e11d48; color: #e11d48; }
+
+    .bulk-properties-panel {
+      background: #fff;
+      border: 1px solid #e8ecf4;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+    }
+
+    .bulk-panel-hint { margin: 0 0 10px; font-size: 11px; color: #64748b; }
+    .bulk-fields { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .bulk-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    .checkbox-col {
+      width: 32px;
+      max-width: 32px;
+      padding-left: 6px;
+      padding-right: 6px;
+      text-align: center;
+      vertical-align: middle;
+    }
+
+    .exercise-table th.checkbox-col { text-align: center; }
+
+    :host ::ng-deep .checkbox-col mat-checkbox.mat-mdc-checkbox {
+      display: inline-flex;
+      vertical-align: middle;
+    }
+
+    :host ::ng-deep .checkbox-col mat-checkbox.mat-mdc-checkbox .mdc-checkbox {
+      transform: scale(0.68);
+      transform-origin: center center;
+    }
+
+    :host ::ng-deep .checkbox-col .mat-mdc-checkbox-touch-target {
+      width: 28px;
+      height: 28px;
+    }
 
     .filter-input.day-filter-input {
       width: 100px;
@@ -532,6 +712,17 @@ export class DigitalExerciseManagementComponent implements OnInit {
   currentPage = 1;
   isAdminUser = false;
 
+  /** Multi-select on the current list page */
+  selectedIds: string[] = [];
+  bulkPropertiesOpen = false;
+  bulkApplying = false;
+  bulkLevel = '';
+  bulkCategory = '';
+  bulkDifficulty = '';
+  bulkDayMode: 'unchanged' | 'clear' | 'set' = 'unchanged';
+  bulkDayNumber: number | null = null;
+  bulkVisibility: 'unchanged' | 'show' | 'hide' = 'unchanged';
+
   filters: any = {
     search: '',
     level: '',
@@ -550,13 +741,14 @@ export class DigitalExerciseManagementComponent implements OnInit {
     private exerciseService: DigitalExerciseService,
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
     this.authService.currentUser$.subscribe(user => {
       if (user) {
-        this.isAdminUser = user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN';
+        this.isAdminUser = user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN' || user.role === 'SUB_ADMIN';
       }
     });
     this.loadExercises();
@@ -585,8 +777,9 @@ export class DigitalExerciseManagementComponent implements OnInit {
         this.totalExercises = res.total || 0;
         this.totalPages = res.pages || 1;
         this.publishedCount = this.exercises.filter(e => e.visibleToStudents).length;
-        this.totalCompletions = this.exercises.reduce((sum, e) => sum + (e.stats?.completions || 0), 0);
+        this.totalCompletions = this.exercises.reduce((sum, e) => sum + (e.stats != null ? e.stats.completions : 0), 0);
         this.loading = false;
+        this.clearSelection();
       },
       error: (err) => {
         this.loading = false;
@@ -611,6 +804,10 @@ export class DigitalExerciseManagementComponent implements OnInit {
     this.router.navigate(['/admin/digital-exercises/create']);
   }
 
+  navigateToVideoExercise(): void {
+    this.router.navigate(['/admin/digital-exercises/create-video']);
+  }
+
   navigateToAiGenerator(): void {
     this.router.navigate(['/admin/digital-exercises/generate-ai']);
   }
@@ -621,6 +818,127 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   navigateToEdit(id: string): void {
     this.router.navigate(['/admin/digital-exercises', id, 'edit']);
+  }
+
+  exerciseRowId(ex: DigitalExercise): string {
+    const id = ex._id ?? (ex as { id?: string }).id;
+    return id != null ? String(id) : '';
+  }
+
+  get exerciseIdsOnPage(): string[] {
+    return this.exercises.map(e => this.exerciseRowId(e)).filter(Boolean);
+  }
+
+  isRowSelected(id: string): boolean {
+    return !!id && this.selectedIds.includes(id);
+  }
+
+  setRowSelection(id: string, checked: boolean): void {
+    if (!id) return;
+    if (checked && !this.selectedIds.includes(id)) {
+      this.selectedIds = [...this.selectedIds, id];
+    } else if (!checked) {
+      this.selectedIds = this.selectedIds.filter(x => x !== id);
+    }
+  }
+
+  get allPageSelected(): boolean {
+    const ids = this.exerciseIdsOnPage;
+    return ids.length > 0 && ids.every(i => this.selectedIds.includes(i));
+  }
+
+  get somePageSelected(): boolean {
+    const ids = this.exerciseIdsOnPage;
+    return ids.some(i => this.selectedIds.includes(i)) && !this.allPageSelected;
+  }
+
+  toggleSelectAll(checked: boolean): void {
+    const pageIds = this.exerciseIdsOnPage;
+    if (checked) {
+      this.selectedIds = [...new Set([...this.selectedIds, ...pageIds])];
+    } else {
+      const drop = new Set(pageIds);
+      this.selectedIds = this.selectedIds.filter(id => !drop.has(id));
+    }
+  }
+
+  clearSelection(): void {
+    this.selectedIds = [];
+    this.bulkPropertiesOpen = false;
+  }
+
+  editSingleSelected(): void {
+    if (this.selectedIds.length !== 1) return;
+    this.navigateToEdit(this.selectedIds[0]);
+  }
+
+  toggleBulkProperties(): void {
+    this.bulkPropertiesOpen = !this.bulkPropertiesOpen;
+    if (this.bulkPropertiesOpen) this.resetBulkForm();
+  }
+
+  resetBulkForm(): void {
+    this.bulkLevel = '';
+    this.bulkCategory = '';
+    this.bulkDifficulty = '';
+    this.bulkDayMode = 'unchanged';
+    this.bulkDayNumber = null;
+    this.bulkVisibility = 'unchanged';
+  }
+
+  applyBulkProperties(): void {
+    const updates: DigitalExerciseBulkMetadata = {};
+    if (this.bulkLevel) updates.level = this.bulkLevel as DigitalExercise['level'];
+    if (this.bulkCategory) updates.category = this.bulkCategory;
+    if (this.bulkDifficulty) updates.difficulty = this.bulkDifficulty as DigitalExercise['difficulty'];
+    if (this.bulkDayMode === 'clear') updates.courseDay = null;
+    if (this.bulkDayMode === 'set') {
+      const d = parseInt(String(this.bulkDayNumber), 10);
+      if (!Number.isFinite(d) || d < 1 || d > 200) {
+        this.showError('Enter a valid schedule day between 1 and 200');
+        return;
+      }
+      updates.courseDay = d;
+    }
+    if (this.bulkVisibility === 'show') updates.visibleToStudents = true;
+    if (this.bulkVisibility === 'hide') updates.visibleToStudents = false;
+    if (Object.keys(updates).length === 0) {
+      this.showError('Choose at least one property to change');
+      return;
+    }
+    this.bulkApplying = true;
+    this.exerciseService.bulkUpdateExercises(this.selectedIds, updates).subscribe({
+      next: (res) => {
+        this.bulkApplying = false;
+        this.showSuccess(`Updated ${res.modifiedCount} exercise(s)`);
+        this.bulkPropertiesOpen = false;
+        this.clearSelection();
+        this.loadExercises();
+      },
+      error: (err) => {
+        this.bulkApplying = false;
+        const msg = err?.error?.error || err?.error?.message || err?.message || 'Bulk update failed';
+        this.showError(msg);
+      }
+    });
+  }
+
+  bulkDelete(): void {
+    if (!this.isAdminUser || this.selectedIds.length === 0) return;
+    this.notify.confirm('Bulk Delete', `Delete ${this.selectedIds.length} exercise(s)? This cannot be undone.`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.exerciseService.bulkDeleteExercises(this.selectedIds).subscribe({
+        next: (res) => {
+          this.showSuccess(`Deleted ${res.modifiedCount} exercise(s)`);
+          this.clearSelection();
+          this.loadExercises();
+        },
+        error: (err) => {
+          const msg = err?.error?.error || err?.error?.message || err?.message || 'Bulk delete failed';
+          this.showError(msg);
+        }
+      });
+    });
   }
 
   toggleVisibility(exercise: DigitalExercise): void {
@@ -644,14 +962,16 @@ export class DigitalExerciseManagementComponent implements OnInit {
   }
 
   deleteExercise(exercise: DigitalExercise): void {
-    if (!confirm(`Delete "${exercise.title}"? This action cannot be undone.`)) return;
-    this.exerciseService.deleteExercise(exercise._id!).subscribe({
-      next: () => {
-        this.exercises = this.exercises.filter(e => e._id !== exercise._id);
-        this.totalExercises--;
-        this.showSuccess('Exercise deleted');
-      },
-      error: () => this.showError('Failed to delete exercise')
+    this.notify.confirm('Delete Exercise', `Delete "${exercise.title}"? This action cannot be undone.`, 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.exerciseService.deleteExercise(exercise._id!).subscribe({
+        next: () => {
+          this.exercises = this.exercises.filter(e => e._id !== exercise._id);
+          this.totalExercises--;
+          this.showSuccess('Exercise deleted');
+        },
+        error: () => this.showError('Failed to delete exercise')
+      });
     });
   }
 
@@ -662,6 +982,7 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   changePage(page: number): void {
     this.currentPage = page;
+    this.clearSelection();
     this.loadExercises();
   }
 

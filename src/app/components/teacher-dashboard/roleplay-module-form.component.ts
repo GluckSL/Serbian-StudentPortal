@@ -10,6 +10,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { ModuleDataTransferService } from '../../services/module-data-transfer.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-roleplay-module-form',
@@ -624,7 +625,8 @@ export class RoleplayModuleFormComponent implements OnInit {
     private learningModulesService: LearningModulesService,
     private moduleDataTransferService: ModuleDataTransferService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private notify: NotificationService
   ) {
     this.moduleForm = this.createForm();
   }
@@ -740,9 +742,9 @@ export class RoleplayModuleFormComponent implements OnInit {
     });
     
     if (this.allowedVocabulary.length > 0) {
-      alert(`Copied ${this.allowedVocabulary.length} words to AI vocabulary. Now add additional support words the AI needs.`);
+      this.notify.success(`Copied ${this.allowedVocabulary.length} words to AI vocabulary.`);
     } else {
-      alert('No student vocabulary to copy. Add student vocabulary first.');
+      this.notify.warning('No student vocabulary to copy. Add student vocabulary first.');
     }
   }
 
@@ -806,9 +808,9 @@ export class RoleplayModuleFormComponent implements OnInit {
           });
           added++;
         });
-        alert(`Imported ${added} conversation flow stages from CSV.`);
+        this.notify.success(`Imported ${added} conversation flow stages from CSV.`);
       },
-      error: () => alert('Failed to parse CSV file')
+      error: () => this.notify.error('Failed to parse CSV file')
     });
     event.target.value = '';
   }
@@ -846,6 +848,16 @@ export class RoleplayModuleFormComponent implements OnInit {
     this.suggestedStudentResponses.splice(index, 1);
   }
 
+  /** Persist as number | null so the API always receives an explicit `courseDay` key */
+  private normalizeCourseDay(raw: unknown): number | null {
+    if (raw === '' || raw === null || raw === undefined) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    const r = Math.round(n);
+    if (r < 1 || r > 200) return null;
+    return r;
+  }
+
   onSubmit(): void {
     if (this.moduleForm.invalid) {
       this.moduleForm.markAllAsTouched();
@@ -854,10 +866,12 @@ export class RoleplayModuleFormComponent implements OnInit {
 
     this.isSubmitting = true;
     const formValue = this.moduleForm.value;
+    const courseDay = this.normalizeCourseDay(formValue.courseDay);
 
     // Prepare the role-play module data
     const moduleData = {
       ...formValue,
+      courseDay,
       estimatedDuration: 30, // Default value - actual time tracked per session
       minimumCompletionTime: formValue.minimumCompletionTime || 10, // Use form value or default to 10
       content: {
@@ -905,25 +919,24 @@ export class RoleplayModuleFormComponent implements OnInit {
       // Update existing module
       this.learningModulesService.updateModule(this.moduleId, moduleData).subscribe({
         next: (response) => {
-          alert('Role-play module updated successfully!');
+          this.notify.success('Role-play module updated successfully!');
           this.goBack();
         },
         error: (error) => {
           console.error('Error updating role-play module:', error);
-          alert('Failed to update role-play module. Please try again.');
+          this.notify.error('Failed to update role-play module. Please try again.');
           this.isSubmitting = false;
         }
       });
     } else {
-      // Create new module
       this.learningModulesService.createModule(moduleData).subscribe({
         next: (response) => {
-          alert('Role-play module created successfully!');
+          this.notify.success('Role-play module created successfully!');
           this.goBack();
         },
         error: (error) => {
           console.error('Error creating role-play module:', error);
-          alert('Failed to create role-play module. Please try again.');
+          this.notify.error('Failed to create role-play module. Please try again.');
           this.isSubmitting = false;
         }
       });
@@ -973,7 +986,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       },
       error: (error) => {
         console.error('❌ Error loading existing module:', error);
-        alert('Error loading module for editing. Please try again.');
+        this.notify.error('Error loading module for editing. Please try again.');
         this.router.navigate(['/learning-modules']);
       }
     });
@@ -992,7 +1005,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       category: module.category || 'Conversation',
       difficulty: module.difficulty || 'Beginner',
       minimumCompletionTime: Math.min(60, Math.max(5, module.minimumCompletionTime || 10)), // ✅ Clamp to valid range
-      courseDay: module.courseDay || null,
+      courseDay: module.courseDay != null ? Number(module.courseDay) : null,
       rolePlayScenario: {
         situation: module.content?.rolePlayScenario?.situation || '',
         studentRole: module.content?.rolePlayScenario?.studentRole || '',
@@ -1172,7 +1185,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       }
 
       this.isTranslating = false;
-      alert(`Imported ${imported} words to Student Vocabulary.`);
+      this.notify.success(`Imported ${imported} words to Student Vocabulary.`);
       (event.target as HTMLInputElement).value = '';
     };
     reader.readAsText(file);
@@ -1204,7 +1217,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       }
 
       this.isTranslating = false;
-      alert(`Imported ${imported} words to AI Tutor Vocabulary.`);
+      this.notify.success(`Imported ${imported} words to AI Tutor Vocabulary.`);
       (event.target as HTMLInputElement).value = '';
     };
     reader.readAsText(file);
@@ -1237,7 +1250,7 @@ export class RoleplayModuleFormComponent implements OnInit {
         }
       }
 
-      alert(`Imported ${imported} grammar structures.`);
+      this.notify.success(`Imported ${imported} grammar structures.`);
       (event.target as HTMLInputElement).value = '';
     };
     reader.readAsText(file);

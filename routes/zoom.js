@@ -7,189 +7,7 @@ const MeetingLink = require('../models/MeetingLink');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
-
-/**
- * Enhanced participant matching algorithm
- * Matches registered students with Zoom participants using multiple strategies
- */
-function findBestParticipantMatch(attendee, participants) {
-  console.log(`🔍 Finding match for: ${attendee.name} (${attendee.email})`);
-  
-  if (!participants || participants.length === 0) {
-    console.log('❌ No participants data available');
-    return { match: null, confidence: 0, method: 'no_participants' };
-  }
-
-  console.log(`📊 Available participants: ${participants.length}`);
-  participants.forEach((p, i) => {
-    console.log(`  ${i + 1}. ${p.name} (${p.email || 'no email'})`);
-  });
-
-  let bestMatch = null;
-  let bestConfidence = 0;
-  let bestMethod = 'no_match';
-
-  for (const participant of participants) {
-    // Skip if participant already matched (prevent double matching)
-    if (participant._matched) continue;
-
-    console.log(`🔍 Checking participant: ${participant.name} (${participant.email || 'no email'})`);
-
-    // Strategy 1: Exact Email Match (Highest Priority - 100% confidence)
-    if (participant.email && attendee.email && 
-        participant.email.toLowerCase() === attendee.email.toLowerCase()) {
-      console.log('✅ EXACT EMAIL MATCH found!');
-      return { 
-        match: { ...participant, _matched: true }, 
-        confidence: 100, 
-        method: 'email' 
-      };
-    }
-
-    // Strategy 2: Exact Name Match (90% confidence)
-    if (participant.name && attendee.name &&
-        participant.name.toLowerCase().trim() === attendee.name.toLowerCase().trim()) {
-      console.log('✅ EXACT NAME MATCH found!');
-      if (90 > bestConfidence) {
-        bestMatch = participant;
-        bestConfidence = 90;
-        bestMethod = 'exact_name';
-      }
-      continue;
-    }
-
-    // Strategy 3: Partial Name Match (60-80% confidence)
-    if (participant.name && attendee.name) {
-      const confidence = calculatePartialNameMatch(attendee.name, participant.name);
-      console.log(`🔍 Partial name match confidence: ${confidence}%`);
-      if (confidence > bestConfidence && confidence >= 60) {
-        bestMatch = participant;
-        bestConfidence = confidence;
-        bestMethod = 'partial_name';
-      }
-    }
-
-    // Strategy 4: Fuzzy Name Match (40-70% confidence)
-    if (participant.name && attendee.name) {
-      const similarity = calculateStringSimilarity(attendee.name, participant.name);
-      const confidence = Math.round(similarity * 70);
-      console.log(`🔍 Fuzzy name match confidence: ${confidence}%`);
-      if (confidence > bestConfidence && confidence >= 40) {
-        bestMatch = participant;
-        bestConfidence = confidence;
-        bestMethod = 'fuzzy_name';
-      }
-    }
-  }
-
-  // Mark the best match as used to prevent double matching
-  if (bestMatch) {
-    bestMatch._matched = true;
-    console.log(`✅ Best match found: ${bestMatch.name} (${bestConfidence}% confidence, ${bestMethod})`);
-  } else {
-    console.log('❌ No match found');
-  }
-
-  return { 
-    match: bestMatch, 
-    confidence: bestConfidence, 
-    method: bestMethod 
-  };
-}
-
-/**
- * Calculate partial name matching confidence
- * Handles cases like "John Smith" vs "John" or "J. Smith"
- */
-function calculatePartialNameMatch(registeredName, zoomName) {
-  const registered = registeredName.toLowerCase().trim().split(/\s+/);
-  const zoom = zoomName.toLowerCase().trim().split(/\s+/);
-  
-  let matchedParts = 0;
-  let totalParts = registered.length;
-
-  for (const regPart of registered) {
-    for (const zoomPart of zoom) {
-      // Exact part match
-      if (regPart === zoomPart) {
-        matchedParts++;
-        break;
-      }
-      // Partial match (for initials like "J." matching "John")
-      if (regPart.startsWith(zoomPart) || zoomPart.startsWith(regPart)) {
-        if (Math.min(regPart.length, zoomPart.length) >= 2) {
-          matchedParts += 0.8;
-          break;
-        }
-      }
-      // Initial match (like "J" matching "John")
-      if ((regPart[0] === zoomPart[0]) && (regPart.length === 1 || zoomPart.length === 1)) {
-        matchedParts += 0.5;
-        break;
-      }
-    }
-  }
-
-  // Calculate confidence based on matched parts
-  const baseConfidence = (matchedParts / totalParts) * 80;
-  
-  // Bonus for having same number of name parts
-  const lengthBonus = registered.length === zoom.length ? 5 : 0;
-  
-  return Math.min(Math.round(baseConfidence + lengthBonus), 80);
-}
-
-/**
- * Calculate string similarity using Levenshtein distance
- * Returns similarity score between 0 and 1
- */
-function calculateStringSimilarity(str1, str2) {
-  if (!str1 || !str2) return 0;
-  
-  const s1 = str1.toLowerCase().trim();
-  const s2 = str2.toLowerCase().trim();
-  
-  if (s1 === s2) return 1;
-  
-  const longer = s1.length > s2.length ? s1 : s2;
-  const shorter = s1.length > s2.length ? s2 : s1;
-  
-  if (longer.length === 0) return 1;
-  
-  const distance = levenshteinDistance(longer, shorter);
-  return (longer.length - distance) / longer.length;
-}
-
-/**
- * Calculate Levenshtein distance between two strings
- */
-function levenshteinDistance(str1, str2) {
-  const matrix = [];
-  
-  for (let i = 0; i <= str2.length; i++) {
-    matrix[i] = [i];
-  }
-  
-  for (let j = 0; j <= str1.length; j++) {
-    matrix[0][j] = j;
-  }
-  
-  for (let i = 1; i <= str2.length; i++) {
-    for (let j = 1; j <= str1.length; j++) {
-      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  
-  return matrix[str2.length][str1.length];
-}
+const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
 
 /**
  * Create a Zoom meeting with selected students
@@ -781,7 +599,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
     const studentId = req.user.id;
 
     const student = await User.findById(studentId)
-    .select('batch subscription');
+    .select('batch subscription currentCourseDay email');
 
     if(!student) {
       return res.status(404).json({
@@ -789,6 +607,10 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
         message: 'Student not found'
       });
     }
+
+    const studentDay = (student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay)))
+      ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+      : 1;
 
     // Find meetings for student's batch & plan
     const meetings = await MeetingLink.find({
@@ -801,11 +623,61 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       //.populate('attendees.studentId', 'name email batch level subscription')
       .sort({ startTime: -1 });
 
+    /** Pull saved attendance row for this student (same data as teacher/admin attendance report). */
+    function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
+      const list = Array.isArray(meetingDoc.attendance) ? meetingDoc.attendance : [];
+      const idStr = sid.toString();
+      let row = list.find(
+        (a) => a && a.studentId && a.studentId.toString() === idStr
+      );
+      if (!row && studentEmail) {
+        const em = String(studentEmail).toLowerCase().trim();
+        row = list.find(
+          (a) => a && a.email && String(a.email).toLowerCase().trim() === em
+        );
+      }
+      if (!row) {
+        return {
+          attended: false,
+          durationMinutes: 0,
+          attendanceRowStatus: null
+        };
+      }
+      let mins = row.durationMinutes;
+      if (mins == null && row.duration != null && Number.isFinite(Number(row.duration))) {
+        mins = Math.round(Number(row.duration) / 60);
+      }
+      mins = Number.isFinite(Number(mins)) ? Math.max(0, Number(mins)) : 0;
+      const attended =
+        row.attended === true ||
+        row.status === 'attended' ||
+        row.status === 'late';
+      return {
+        attended,
+        durationMinutes: mins,
+        attendanceRowStatus: row.status || null
+      };
+    }
+
+    const weekEndDay = Math.min(200, studentDay + 6);
+    // Show meetings with no day, already unlocked, or within the next 6 journey days (join blocked until day).
+    const gatedMeetings = meetings.filter((m) => {
+      if (m.courseDay == null || m.courseDay === undefined) return true;
+      const cd = Number(m.courseDay);
+      if (!Number.isFinite(cd)) return true;
+      return cd <= studentDay || (cd > studentDay && cd <= weekEndDay);
+    });
+
     // Calculate meeting status for each meeting
     const now = new Date();
-    const meetingsWithStatus = meetings.map(meeting => {
+    const meetingsWithStatus = gatedMeetings.map(meeting => {
       const meetingStart = new Date(meeting.startTime);
       const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
+      const rawCd = meeting.courseDay;
+      const journeyLocked =
+        rawCd != null &&
+        Number.isFinite(Number(rawCd)) &&
+        Number(rawCd) > studentDay;
 
       let currentStatus = meeting.status;
       let canJoin = false;
@@ -813,12 +685,16 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
 
       if (now >= meetingStart && now <= meetingEnd && meeting.status === 'scheduled') {
         currentStatus = 'ongoing';
-        canJoin = true;
       } else if (now > meetingEnd) {
         currentStatus = 'ended';
-      } else if (now >= new Date(meetingStart.getTime() - 10 * 60000)) {
-        // Can join 10 minutes before
-        canJoin = true;
+      }
+
+      if (!journeyLocked) {
+        if (currentStatus === 'ongoing') {
+          canJoin = true;
+        } else if (currentStatus !== 'ended' && now >= new Date(meetingStart.getTime() - 10 * 60000)) {
+          canJoin = true;
+        }
       }
 
       // Find student's personal join URL
@@ -831,6 +707,8 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       
       console.log(`🔗 Student ${studentId} join URL: ${personalJoinUrl ? 'Personal' : 'Generic'}`);
 
+      const att = studentAttendanceFromMeeting(meeting, studentId, student.email);
+
       return {
         _id: meeting._id,
         topic: meeting.topic,
@@ -838,6 +716,12 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
         plan: meeting.plan,
         startTime: meeting.startTime,
         duration: meeting.duration,
+        courseDay: meeting.courseDay != null ? meeting.courseDay : null,
+        journeyLocked,
+        attended: att.attended,
+        durationMinutes: att.durationMinutes,
+        attendedDurationMinutes: att.durationMinutes,
+        attendanceStatus: att.attendanceRowStatus,
         teacher: {
           name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
           email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
@@ -1715,6 +1599,34 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
 
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual attendance):', e.message);
+    }
+
+    const allParticipants = (zoomReport.participants || []).map(p => ({
+      name: p.name || '',
+      email: p.email || '',
+      joinTime: p.joinTime || null,
+      leaveTime: p.leaveTime || null,
+      duration: p.duration || 0,
+      durationMinutes: p.durationMinutes || 0,
+      sessionCount: p.sessionCount || 1,
+      isMapped: attendanceData.some(a => 
+        a.zoomEmail && p.email && a.zoomEmail.toLowerCase() === p.email.toLowerCase() ||
+        a.zoomName && p.name && a.zoomName.toLowerCase() === p.name.toLowerCase()
+      ),
+      mappedTo: (() => {
+        const mapped = attendanceData.find(a => 
+          a.zoomEmail && p.email && a.zoomEmail.toLowerCase() === p.email.toLowerCase() ||
+          a.zoomName && p.name && a.zoomName.toLowerCase() === p.name.toLowerCase()
+        );
+        return mapped ? { name: mapped.name, email: mapped.email } : null;
+      })()
+    }));
+
     res.status(200).json({
       success: true,
       data: {
@@ -1727,6 +1639,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         attendedCount: attendanceData.filter(a => a.attended).length,
         absentCount: attendanceData.filter(a => !a.attended).length,
         attendance: attendanceData,
+        allParticipants: allParticipants,
         matchingStats: matchingStats,
         summary: zoomReport.summary
       }
@@ -1738,6 +1651,100 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       success: false,
       message: 'Failed to fetch attendance data'
     });
+  }
+});
+
+/**
+ * Manually map a Zoom participant to a batch student
+ * POST /api/zoom/meeting/:id/attendance/map-participant
+ */
+router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { participantName, participantEmail, studentEmail } = req.body;
+
+    if (!studentEmail) {
+      return res.status(400).json({ success: false, message: 'Student email is required' });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const attendee = meeting.attendees.find(a => a.email.toLowerCase() === studentEmail.toLowerCase());
+    if (!attendee) {
+      return res.status(404).json({ success: false, message: 'Student not found in this batch/meeting. Check the email and try again.' });
+    }
+
+    let zoomReport;
+    try {
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: 'Could not fetch Zoom data' });
+    }
+
+    const participant = (zoomReport.participants || []).find(p =>
+      (participantEmail && p.email && p.email.toLowerCase() === participantEmail.toLowerCase()) ||
+      (participantName && p.name && p.name.toLowerCase() === participantName.toLowerCase())
+    );
+
+    if (!participant) {
+      return res.status(404).json({ success: false, message: 'Zoom participant not found' });
+    }
+
+    const meetingDuration = meeting.duration || 60;
+    const participantDuration = participant.durationMinutes || 0;
+    const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
+    const meetsThreshold = attendancePercent >= 70;
+
+    const existingIdx = meeting.attendance.findIndex(
+      a => a.studentId && a.studentId.toString() === attendee.studentId.toString()
+    );
+
+    const mappedRecord = {
+      studentId: attendee.studentId,
+      name: attendee.name,
+      email: attendee.email,
+      attended: meetsThreshold,
+      confidence: 100,
+      matchMethod: 'email',
+      zoomName: participant.name,
+      zoomEmail: participant.email,
+      joinTime: participant.joinTime || null,
+      leaveTime: participant.leaveTime || null,
+      duration: participant.duration || 0,
+      durationMinutes: participantDuration,
+      attendancePercent: Math.round(attendancePercent),
+      status: meetsThreshold ? 'attended' : 'late',
+      needsReview: false
+    };
+
+    if (existingIdx >= 0) {
+      meeting.attendance[existingIdx] = mappedRecord;
+    } else {
+      meeting.attendance.push(mappedRecord);
+    }
+
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (map-participant):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully mapped "${participant.name}" to student "${attendee.name}" (${attendee.email})`,
+      data: mappedRecord
+    });
+
+  } catch (error) {
+    console.error('Error mapping participant:', error);
+    res.status(500).json({ success: false, message: 'Failed to map participant' });
   }
 });
 

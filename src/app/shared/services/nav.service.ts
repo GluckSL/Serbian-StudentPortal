@@ -15,6 +15,7 @@ export interface NavGroup {
 
 @Injectable({ providedIn: 'root' })
 export class NavService {
+  private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['dashboard', 'profile'];
 
   // ── ADMIN ──────────────────────────────────────────────────────────────
   private readonly ADMIN_NAV: NavGroup[] = [
@@ -37,7 +38,8 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',          subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null }
+        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null },
+        { id: 'journey',   label: 'Journey',           icon: '📅', route: '/admin/journey',           subGroup: null }
       ]
     },
     {
@@ -77,7 +79,8 @@ export class NavService {
       group: 'Payments',
       items: [
         { id: 'payments', label: 'Payments', icon: '💳', route: '/admin/payments', subGroup: null },
-        { id: 'invoices', label: 'Invoices', icon: '🧾', route: '/admin/invoices', subGroup: null }
+        { id: 'invoices', label: 'Invoices', icon: '🧾', route: '/admin/invoices', subGroup: null },
+        { id: 'payment-approvals', label: 'Payment Approvals', icon: '✅', route: '/admin/payment-approvals', subGroup: null }
       ]
     },
     {
@@ -90,6 +93,13 @@ export class NavService {
       group: 'CRM Sync',
       items: [
         { id: 'monday-sync', label: 'Monday.com Preview', icon: '🔄', route: '/admin/monday-sync-preview', subGroup: null }
+      ]
+    },
+    {
+      group: 'Support',
+      items: [
+        { id: 'support-tickets', label: 'Support Tickets', icon: '🎫', route: '/admin/support-tickets', subGroup: null },
+        { id: 'help', label: 'Help & Support', icon: '❓', route: '/help', subGroup: null }
       ]
     },
     {
@@ -128,6 +138,18 @@ export class NavService {
       group: 'AI Bot Report',
       items: [
         { id: 'ai-bot-report', label: 'AI Bot Report', icon: '📈', route: '/admin-analytics', subGroup: null }
+      ]
+    },
+    {
+      group: 'My Analytics',
+      items: [
+        { id: 'my-analytics', label: 'My Analytics', icon: '📊', route: '/my-analytics', subGroup: null }
+      ]
+    },
+    {
+      group: 'Help',
+      items: [
+        { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
       ]
     },
     {
@@ -188,14 +210,22 @@ export class NavService {
       items: [
         { id: 'timetable', label: 'Timetable', icon: '📅', route: '/time-table-view-student', subGroup: null }
       ]
+    },
+    {
+      group: 'Help',
+      items: [
+        { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
+      ]
     }
   ];
 
-  getNavForRole(role: string): NavGroup[] {
+  getNavForRole(role: string, sidebarPermissions: string[] = []): NavGroup[] {
     switch (role) {
       case 'ADMIN':
       case 'TEACHER_ADMIN':
         return this.ADMIN_NAV;
+      case 'SUB_ADMIN':
+        return this.getSubAdminNav(sidebarPermissions);
       case 'TEACHER':
         return this.TEACHER_NAV;
       case 'STUDENT':
@@ -209,9 +239,71 @@ export class NavService {
     const map: Record<string, string> = {
       ADMIN: '/admin-dashboard',
       TEACHER_ADMIN: '/admin-dashboard',
+      SUB_ADMIN: '/admin-dashboard',
       TEACHER: '/teacher-dashboard',
       STUDENT: '/student-progress'
     };
     return map[role] || '/home';
+  }
+
+  getAllAdminNavItems(): NavItem[] {
+    return this.ADMIN_NAV.flatMap(group => group.items);
+  }
+
+  getAdminNavGroups(): NavGroup[] {
+    return this.ADMIN_NAV.map(group => ({
+      group: group.group,
+      items: group.items.map(item => ({ ...item }))
+    }));
+  }
+
+  normalizeSidebarPermissions(sidebarPermissions: string[] = []): string[] {
+    const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
+    const normalized = Array.from(
+      new Set(
+        (sidebarPermissions || []).filter(permissionId => validIds.has(permissionId))
+      )
+    );
+
+    for (const defaultPermission of this.SUB_ADMIN_DEFAULT_PERMISSIONS) {
+      if (!normalized.includes(defaultPermission)) {
+        normalized.push(defaultPermission);
+      }
+    }
+
+    return normalized;
+  }
+
+  canSubAdminAccessRoute(route: string, sidebarPermissions: string[] = []): boolean {
+    const normalizedPermissions = this.normalizeSidebarPermissions(sidebarPermissions);
+    const allowedItems = this.getAllAdminNavItems().filter(item =>
+      normalizedPermissions.includes(item.id)
+    );
+
+    const normalizedRoute = this.normalizeRoute(route);
+    return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
+  }
+
+  private getSubAdminNav(sidebarPermissions: string[]): NavGroup[] {
+    const allowedPermissionIds = new Set(this.normalizeSidebarPermissions(sidebarPermissions));
+    return this.ADMIN_NAV
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => allowedPermissionIds.has(item.id))
+      }))
+      .filter(group => group.items.length > 0);
+  }
+
+  private routeMatches(allowedRoute: string, currentRoute: string): boolean {
+    const normalizedAllowed = this.normalizeRoute(allowedRoute);
+    return (
+      currentRoute === normalizedAllowed ||
+      currentRoute.startsWith(`${normalizedAllowed}/`)
+    );
+  }
+
+  private normalizeRoute(route: string): string {
+    const withoutQuery = (route || '').split('?')[0].split('#')[0];
+    return withoutQuery.replace(/\/+$/, '') || '/';
   }
 }

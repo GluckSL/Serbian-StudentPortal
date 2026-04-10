@@ -1,7 +1,7 @@
 // src/app/components/meeting-link/create-zoom-meeting.component.ts
 
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.service';
@@ -11,7 +11,7 @@ import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.
   standalone: true,
   templateUrl: './create-zoom-meeting.component.html',
   styleUrls: ['./create-zoom-meeting.component.css'],
-  imports: [CommonModule, ReactiveFormsModule]
+  imports: [CommonModule, ReactiveFormsModule, FormsModule]
 })
 export class CreateZoomMeetingComponent implements OnInit {
   meetingForm!: FormGroup;
@@ -37,6 +37,15 @@ export class CreateZoomMeetingComponent implements OnInit {
   
   // Search
   searchTerm = '';
+  // Date-time modal state
+  isStartTimeModalOpen = false;
+  todayDate = this.getTodayDateString();
+  draftDate = this.todayDate;
+  draftHour = '10';
+  draftMinute = '00';
+  draftPeriod: 'AM' | 'PM' = 'AM';
+  readonly hourOptions = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+  readonly minuteOptions = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
   constructor(
     private fb: FormBuilder,
@@ -77,6 +86,98 @@ export class CreateZoomMeetingComponent implements OnInit {
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
+  private getTodayDateString(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private parseLocalDateTime(value: string | null | undefined): Date | null {
+    if (!value) return null;
+    const [datePart, timePart] = value.split('T');
+    if (!datePart || !timePart) return null;
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    if (
+      !Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day) ||
+      !Number.isFinite(hours) || !Number.isFinite(minutes)
+    ) {
+      return null;
+    }
+    return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  }
+
+  private to12HourParts(date: Date): { date: string; hour: string; minute: string; period: 'AM' | 'PM' } {
+    let hour = date.getHours();
+    const period: 'AM' | 'PM' = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    return {
+      date: this.getDateFromDate(date),
+      hour: String(hour).padStart(2, '0'),
+      minute: String(date.getMinutes()).padStart(2, '0'),
+      period
+    };
+  }
+
+  private getDateFromDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  get formattedStartTime(): string {
+    const value = this.meetingForm?.get('startTime')?.value;
+    const dt = this.parseLocalDateTime(value);
+    if (!dt) return '';
+    return `${String(dt.getDate()).padStart(2, '0')}-${String(dt.getMonth() + 1).padStart(2, '0')}-${dt.getFullYear()} ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+  }
+
+  openStartTimeModal(): void {
+    const current = this.parseLocalDateTime(this.meetingForm.get('startTime')?.value);
+    const initial = current || new Date();
+    if (!current) {
+      initial.setHours(10, 0, 0, 0);
+    }
+    const parts = this.to12HourParts(initial);
+    const today = new Date(this.todayDate);
+    const selectedDate = new Date(parts.date);
+    this.draftDate = selectedDate < today ? this.todayDate : parts.date;
+    this.draftHour = parts.hour;
+    this.draftMinute = parts.minute;
+    this.draftPeriod = parts.period;
+    this.isStartTimeModalOpen = true;
+  }
+
+  closeStartTimeModal(): void {
+    this.isStartTimeModalOpen = false;
+  }
+
+  setStartTimeFromModal(): void {
+    const [year, month, day] = this.draftDate.split('-').map(Number);
+    let hour24 = Number(this.draftHour) % 12;
+    if (this.draftPeriod === 'PM') hour24 += 12;
+    const minute = Number(this.draftMinute);
+
+    const selected = new Date(year, month - 1, day, hour24, minute, 0, 0);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (selected < todayStart) {
+      this.errorMessage = 'Please select today or a future date.';
+      return;
+    }
+
+    this.meetingForm.patchValue({ startTime: this.formatDateTimeLocal(selected) });
+    this.meetingForm.get('startTime')?.markAsTouched();
+    this.errorMessage = '';
+    this.isStartTimeModalOpen = false;
+    this.onTimeChange();
   }
 
   loadStudents(): void {

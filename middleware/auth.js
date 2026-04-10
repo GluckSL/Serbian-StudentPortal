@@ -24,10 +24,23 @@ function verifyToken(req, res, next) {
 
 // Optional middleware for explicit admin check
 function isAdmin(req, res, next) {
-  if (req.user?.role !== 'ADMIN') {
-    return res.status(403).json({ msg: 'Access denied. Admins only.' });
+  const allowedAdminRoles = ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'];
+  if (!allowedAdminRoles.includes(req.user?.role)) {
+    return res.status(403).json({ msg: 'Access denied. Admin roles only.' });
   }
   next();
+}
+
+/** Destructive / privileged actions: ADMIN and TEACHER_ADMIN only (not SUB_ADMIN). */
+function requireFullAdmin(req, res, next) {
+  const role = req.user?.role;
+  if (role === 'ADMIN' || role === 'TEACHER_ADMIN') {
+    return next();
+  }
+  return res.status(403).json({
+    msg: 'Access denied. Only primary administrators can perform this action.',
+    message: 'Access denied. Only primary administrators can perform this action.'
+  });
 }
 
 // General role-based access control middleware
@@ -48,7 +61,11 @@ const checkRole = (roles) => {
     // Handle both single role and array of roles
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
     
-    if (allowedRoles.includes(req.user.role)) {
+    const isSubAdminForAdminScope =
+      req.user.role === 'SUB_ADMIN' &&
+      allowedRoles.some((role) => role === 'ADMIN' || role === 'TEACHER_ADMIN');
+
+    if (allowedRoles.includes(req.user.role) || isSubAdminForAdminScope) {
       console.log('✅ Role check passed');
       next();
     } else {
@@ -66,6 +83,7 @@ const checkRole = (roles) => {
 module.exports = {
   verifyToken,
   isAdmin,
+  requireFullAdmin,
   checkRole,
 };
 

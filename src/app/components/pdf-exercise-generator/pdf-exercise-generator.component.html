@@ -160,7 +160,7 @@
         ></textarea>
         <div class="text-help-row">
           <span class="text-help-muted">Tip: paste at least 1-2 paragraphs + solution key</span>
-          <span class="text-help-counter">{{ (selectedText?.length || 0) }} chars</span>
+          <span class="text-help-counter">{{ (selectedText.length || 0) }} chars</span>
         </div>
       </div>
 
@@ -533,7 +533,13 @@
       <div class="review-header">
         <h3>Questions <span class="q-count">{{ reviewQuestions.length }}</span></h3>
         <div class="review-stats">
-          <span class="valid-count" [class.all-good]="validCount === reviewQuestions.length">
+          <span
+            class="valid-count"
+            [class.all-good]="validCount === reviewQuestions.length"
+            [matTooltip]="getInvalidSummaryTooltip()"
+            [matTooltipDisabled]="validCount === reviewQuestions.length"
+            matTooltipShowDelay="200"
+          >
             <span class="material-icons">{{ validCount === reviewQuestions.length ? 'check_circle' : 'warning' }}</span>
             {{ validCount }}/{{ reviewQuestions.length }} valid
           </span>
@@ -547,9 +553,19 @@
         <div class="rq-header" (click)="toggleQuestion(i)">
           <div class="rq-left">
             <span class="q-num">{{ i + 1 }}</span>
-            <span class="q-type-pill" [style.background]="getTypeInfo(q.type).bg" [style.color]="getTypeInfo(q.type).color">
-              <span class="material-icons">{{ getTypeInfo(q.type).icon }}</span>
-              {{ getTypeInfo(q.type).label }}
+            <span
+              class="q-type-pill"
+              [style.background]="q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).bg : getTypeInfo(q.type).bg"
+              [style.color]="q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).color : getTypeInfo(q.type).color"
+            >
+              <span class="material-icons">
+                {{
+                  q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).icon : getTypeInfo(q.type).icon
+                }}
+              </span>
+              {{
+                q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).label : getTypeInfo(q.type).label
+              }}
             </span>
             <span class="ai-badge" *ngIf="q.aiGenerated"><span class="material-icons">auto_awesome</span> AI</span>
             <span class="q-summary">
@@ -564,7 +580,15 @@
             </span>
           </div>
           <div class="rq-right">
-            <span class="q-valid-indicator" [class.valid]="isQuestionValid(q)" [class.invalid]="!isQuestionValid(q)">
+            <span
+              class="q-valid-indicator"
+              [class.valid]="isQuestionValid(q)"
+              [class.invalid]="!isQuestionValid(q)"
+              [matTooltip]="getQuestionValidationHint(q)"
+              [matTooltipDisabled]="isQuestionValid(q)"
+              matTooltipShowDelay="150"
+              matTooltipClass="pdf-gen-validation-tooltip"
+            >
               <span class="material-icons">{{ isQuestionValid(q) ? 'check_circle' : 'warning' }}</span>
             </span>
             <button class="btn-move-sm" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i === 0">
@@ -640,9 +664,9 @@
           <ng-container *ngIf="q.type === 'fill-blank'">
             <div class="ed-field">
               <div class="sentence-label-row">
-                <label>Sentence <span class="hint-label">(use ___ for blanks)</span></label>
+                <label>Sentence <span class="hint-label">(use _ or ___ for blanks)</span></label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"
-                  matTooltip="Insert ___ at cursor or at end">
+                  matTooltip="Insert _ at cursor or at end">
                   <span class="material-icons">add_box</span> Insert blank
                 </button>
               </div>

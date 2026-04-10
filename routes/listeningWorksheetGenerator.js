@@ -16,16 +16,24 @@ const OpenAI = require('openai');
 
 const { verifyToken, checkRole } = require('../middleware/auth');
 
-// pdf-parse v2 uses PDFParse class; CJS may wrap as { default: { PDFParse } } or { PDFParse }
+// Support both pdf-parse APIs:
+// - v1: module exports a function (pdf(buffer) -> { text, numpages, ... })
+// - v2: module exports PDFParse class with getText()
 let PDFParseClass = null;
+let parsePdfBuffer = null;
 try {
   const _pdfParseLib = require('pdf-parse');
-  PDFParseClass =
-    _pdfParseLib.PDFParse ||
-    (_pdfParseLib.default && _pdfParseLib.default.PDFParse) ||
-    (_pdfParseLib.default && typeof _pdfParseLib.default === 'function' ? _pdfParseLib.default : null);
-  if (!PDFParseClass || typeof PDFParseClass !== 'function') {
-    console.warn('⚠️ pdf-parse: PDFParse class not found. Listening worksheet generator will be disabled.');
+
+  PDFParseClass = _pdfParseLib.PDFParse || (_pdfParseLib.default && _pdfParseLib.default.PDFParse) || null;
+
+  if (typeof _pdfParseLib === 'function') {
+    parsePdfBuffer = _pdfParseLib;
+  } else if (_pdfParseLib && typeof _pdfParseLib.default === 'function') {
+    parsePdfBuffer = _pdfParseLib.default;
+  }
+
+  if (!parsePdfBuffer && (!PDFParseClass || typeof PDFParseClass !== 'function')) {
+    console.warn('⚠️ pdf-parse loaded, but no compatible parser export found. Listening worksheet generator will be disabled.');
     PDFParseClass = null;
   }
 } catch (err) {
@@ -33,12 +41,27 @@ try {
 }
 
 async function extractPdfText(filePath) {
-  if (!PDFParseClass) {
+  if (!parsePdfBuffer && !PDFParseClass) {
     throw new Error('pdf-parse is not available on this server. Listening worksheet generator is disabled.');
   }
-  let parser;
+  const buffer = fs.readFileSync(filePath);
+
+  if (typeof parsePdfBuffer === 'function') {
+    try {
+      const result = await parsePdfBuffer(buffer);
+      const text = result && typeof result.text === 'string' ? result.text : '';
+      const pages = result && Number.isFinite(Number(result.numpages))
+        ? Number(result.numpages)
+        : (result && Number.isFinite(Number(result.total)) ? Number(result.total) : 1);
+      return { text, pages };
+    } catch (err) {
+      console.error('PDF parse error (function API):', err);
+      throw new Error('Failed to extract text from PDF: ' + err.message);
+    }
+  }
+
+  let parser = null;
   try {
-    const buffer = fs.readFileSync(filePath);
     parser = new PDFParseClass({ data: buffer });
     const result = await parser.getText();
     const text = result && typeof result.text === 'string' ? result.text : '';
@@ -81,7 +104,7 @@ IMPORTANT:
      - "correctAnswerIndex": 0-based index into options for the correct option
      - "explanation": brief explanation if available, else ""
    - fill-blank:
-     - "sentence": sentence using exactly three underscores ___ for each blank
+     - "sentence": sentence using underscore(s) for each blank (each gap is a run of _ or ___)
      - "answers": array of correct answers in the same order as blanks
      - "hint": optional hint or "".
    - question-answer:
@@ -155,8 +178,7 @@ function sanitizeListeningQuestion(q) {
 
   if (type === 'fill-blank') {
     const sentence = String(q.sentence || '').trim();
-    // Count ___ blanks (strictly the required pattern).
-    const blanks = (sentence.match(/___/g) || []).length;
+    const blanks = (sentence.match(/_+/g) || []).length;
     const answersRaw = Array.isArray(q.answers) ? q.answers : [];
     const answers = answersRaw.map(a => String(a).trim()).filter(a => a !== '');
 
