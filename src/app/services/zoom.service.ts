@@ -207,19 +207,18 @@ export class ZoomService {
   /**
    * Get all meetings for teacher
    */
-  getAllMeetings(filters?: { status?: string; batch?: string }): Observable<any> {
+  getAllMeetings(filters?: { status?: string; batch?: string; plan?: string; date?: string }): Observable<any> {
     let url = `${this.apiUrl}/meetings`;
-    
-    if (filters) {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.batch) params.append('batch', filters.batch);
-      
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-    }
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.batch) params.append('batch', filters.batch);
+    if (filters?.plan) params.append('plan', filters.plan);
+    if (filters?.date) params.append('date', filters.date);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
 
+    // Do not add Cache-Control / Pragma on the request — that triggers a CORS preflight
+    // and allowedHeaders on the API only permits Content-Type and Authorization.
     return this.http.get(url, { withCredentials: true });
   }
 

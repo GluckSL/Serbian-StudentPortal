@@ -71,6 +71,7 @@ const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
 // Import and schedule auto-fetch Zoom attendance job
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
+const { scheduleZoomMeetingReminderEmails } = require('./jobs/zoomMeetingReminderEmails');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -179,6 +180,12 @@ app.use('/api/listening-worksheets', listeningWorksheetRoutes);
 const classRecordingRoutes = require('./routes/classRecordings');
 app.use('/api/class-recordings', classRecordingRoutes);
 
+const classResourceRoutes = require('./routes/classResources');
+app.use('/api/class-resources', classResourceRoutes);
+
+const classDoubtRoutes = require('./routes/classDoubts');
+app.use('/api/class-doubts', classDoubtRoutes);
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
   try {
@@ -234,6 +241,7 @@ app.listen(PORT, () => {
   scheduleMetaToMondaySync();
   scheduleAutoFetchAttendance();
   scheduleJourneyDayRollover();
+  scheduleZoomMeetingReminderEmails();
 });
 
 
