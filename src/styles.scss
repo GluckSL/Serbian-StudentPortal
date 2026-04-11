@@ -478,3 +478,44 @@ button:disabled,
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Digital exercises: themed select overlay (replaces native mobile picker) */
+.dex-select-panel.mat-mdc-select-panel {
+  border-radius: 12px !important;
+  box-shadow:
+    0 4px 6px -1px rgba(15, 23, 42, 0.08),
+    0 10px 24px -4px rgba(99, 102, 241, 0.15) !important;
+  border: 1px solid #e5e7eb !important;
+  margin-top: 6px;
+  padding: 6px 0;
+  max-width: min(100vw - 48px, 320px);
+}
+
+@media (max-width: 640px) {
+  .dex-select-panel.mat-mdc-select-panel {
+    max-width: calc(100vw - 32px) !important;
+    box-sizing: border-box;
+  }
+}
+
+.dex-select-panel .mat-mdc-option {
+  min-height: 44px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.dex-select-panel .mat-mdc-option .mdc-list-item__primary-text {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.dex-select-panel .mat-mdc-option:hover:not(.mdc-list-item--disabled),
+.dex-select-panel .mat-mdc-option.mat-mdc-option-active {
+  background: #f5f3ff !important;
+}
+
+.dex-select-panel .mat-mdc-option.mdc-list-item--selected:not(.mdc-list-item--disabled) {
+  background: #eef2ff !important;
+  color: #4338ca !important;
+}

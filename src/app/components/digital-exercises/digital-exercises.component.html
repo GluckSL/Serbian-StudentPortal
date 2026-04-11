@@ -29,7 +29,7 @@
       <input
         type="text"
         class="search-input"
-        placeholder="Search exercises by title or topic..."
+        [placeholder]="searchInputPlaceholder"
         [(ngModel)]="searchQuery"
         (input)="onSearchChange()"
       />
@@ -38,18 +38,39 @@
       </button>
     </div>
     <div class="filter-chips">
-      <select [(ngModel)]="selectedLevel" (change)="onFilterChange()" class="filter-select">
-        <option value="">All Levels</option>
-        <option *ngFor="let l of levelFilterOptions" [value]="l">{{ l }}</option>
-      </select>
-      <select [(ngModel)]="selectedCategory" (change)="onFilterChange()" class="filter-select">
-        <option value="">All Categories</option>
-        <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
-      </select>
-      <select [(ngModel)]="selectedDifficulty" (change)="onFilterChange()" class="filter-select">
-        <option value="">All Difficulties</option>
-        <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
-      </select>
+      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+        <mat-select
+          [(ngModel)]="selectedLevel"
+          (selectionChange)="onFilterChange()"
+          panelClass="dex-select-panel"
+          [attr.aria-label]="'Filter by level'"
+        >
+          <mat-option value="">All Levels</mat-option>
+          <mat-option *ngFor="let l of levelFilterOptions" [value]="l">{{ l }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+        <mat-select
+          [(ngModel)]="selectedCategory"
+          (selectionChange)="onFilterChange()"
+          panelClass="dex-select-panel"
+          [attr.aria-label]="'Filter by category'"
+        >
+          <mat-option value="">All Categories</mat-option>
+          <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+        <mat-select
+          [(ngModel)]="selectedDifficulty"
+          (selectionChange)="onFilterChange()"
+          panelClass="dex-select-panel"
+          [attr.aria-label]="'Filter by difficulty'"
+        >
+          <mat-option value="">All Difficulties</mat-option>
+          <mat-option *ngFor="let d of difficulties" [value]="d">{{ d }}</mat-option>
+        </mat-select>
+      </mat-form-field>
       <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
       <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
