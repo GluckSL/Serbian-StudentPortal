@@ -117,7 +117,8 @@ export class NavService {
     {
       group: 'Students',
       items: [
-        { id: 'students', label: 'Students', icon: '👥', route: '/teacher-dashboard', subGroup: null }
+        { id: 'students', label: 'Students', icon: '👥', route: '/teacher-dashboard', subGroup: null },
+        { id: 'my-classes', label: 'My Classes', icon: '📚', route: '/teacher-dashboard/my-classes', subGroup: null }
       ]
     },
     {

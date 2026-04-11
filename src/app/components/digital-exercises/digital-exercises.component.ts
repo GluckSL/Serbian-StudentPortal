@@ -105,28 +105,82 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   private applyTabFilter(): void {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    const isStudent = role === 'STUDENT';
+
+    let list: DigitalExercise[];
+    if (isStudent) {
+      list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+    } else {
+      list = this.applyTabFilterLegacy(this.exercises, this.activeTab);
+    }
+
+    this.filteredExercises = list;
+    this.totalExercises = list.length;
+    this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
+  }
+
+  /** Normalized journey day 1–200, or null if unassigned. */
+  exerciseCourseDayNum(ex: DigitalExercise): number | null {
+    const cd = ex.courseDay;
+    if (cd == null || cd === undefined) return null;
+    const n = Number(cd);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(200, Math.max(1, Math.floor(n)));
+  }
+
+  /**
+   * Students:
+   * - New: exercise day === current journey day, not yet passed.
+   * - Pending: any other incomplete (past days, future/locked preview, or unassigned day).
+   * - Completed: passed (≥ pass score), any day.
+   */
+  private matchesStudentTab(ex: DigitalExercise, tab: TabType): boolean {
+    const passed = this.isAttemptPassing(ex.studentAttempt);
+    const dayNum = this.exerciseCourseDayNum(ex);
+    const cur = this.studentCourseDay;
+
+    if (tab === 'completed') {
+      return passed;
+    }
+
+    if (passed) {
+      return false;
+    }
+
+    if (tab === 'new') {
+      return dayNum != null && dayNum === cur;
+    }
+
+    /* pending: incomplete and not "new" */
+    if (dayNum != null && dayNum === cur) {
+      return false;
+    }
+    return true;
+  }
+
+  /** Teachers/admins: original 14-day new vs pending split; completed = any attempt. */
+  private applyTabFilterLegacy(exercises: DigitalExercise[], tab: TabType): DigitalExercise[] {
     const now = Date.now();
     const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
 
-    let list = this.exercises;
-    if (this.activeTab === 'completed') {
-      list = list.filter(ex => ex.studentAttempt != null);
-    } else if (this.activeTab === 'pending') {
-      list = list.filter(ex => !ex.studentAttempt);
-      list = list.filter(ex => {
+    let list = exercises;
+    if (tab === 'completed') {
+      list = list.filter((ex) => ex.studentAttempt != null);
+    } else if (tab === 'pending') {
+      list = list.filter((ex) => !ex.studentAttempt);
+      list = list.filter((ex) => {
         const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
         return now - created > fourteenDaysMs;
       });
     } else {
-      list = list.filter(ex => !ex.studentAttempt);
-      list = list.filter(ex => {
+      list = list.filter((ex) => !ex.studentAttempt);
+      list = list.filter((ex) => {
         const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
         return now - created <= fourteenDaysMs;
       });
     }
-    this.filteredExercises = list;
-    this.totalExercises = list.length;
-    this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
+    return list;
   }
 
   get paginatedExercises(): DigitalExercise[] {

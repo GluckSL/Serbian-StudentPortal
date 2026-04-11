@@ -31,6 +31,11 @@ export class TeacherService {
     // const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     return this.http.get<any>(`${this.baseUrl}/students`, { withCredentials: true});
   }
+
+  /** Batch labels from meetings this teacher teaches (for My Classes filters). */
+  getClassBatches(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/class-batches`, { withCredentials: true });
+  }
   
   getTeacherById(teacherId: string): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/${teacherId}`, { withCredentials: true });

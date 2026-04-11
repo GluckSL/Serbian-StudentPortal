@@ -91,6 +91,10 @@ const meetingLinkSchema = new mongoose.Schema({
   attendanceRetries: { type: Number, default: 0 },
   attendanceError: { type: String, default: '' },
   
+  // Reminder emails (~10 min before start) — not sent at schedule time
+  reminderEmailSent: { type: Boolean, default: false },
+  reminderEmailSentAt: Date,
+
   // Email notification status
   emailNotificationStatus: {
     attempted: { type: Number, default: 0 },

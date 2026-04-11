@@ -330,13 +330,18 @@ export class CreateZoomMeetingComponent implements OnInit {
         if (response.success) {
           this.isCreatingMeeting = false;
           const emailStatus = response.emailStatus;
-          
-          if (emailStatus.allSent) {
+
+          if (emailStatus?.deferred) {
+            this.successMessage =
+              `✅ Zoom meeting created with ${response.data.attendeesCount} students. ` +
+              (emailStatus.message ||
+                'Students will receive the join link by email about 10 minutes before class starts.');
+          } else if (emailStatus?.allSent) {
             this.successMessage = `✅ Zoom meeting created successfully with ${response.data.attendeesCount} students! All invitation emails sent.`;
-          } else if (emailStatus.totalFailure) {
+          } else if (emailStatus?.totalFailure) {
             this.errorMessage = `⚠️ Meeting created but NO invitation emails were sent.`;
             this.successMessage = `Meeting created successfully but emails failed. Meeting ID: ${response.data.zoomMeetingId}`;
-          } else if (emailStatus.partialFailure) {
+          } else if (emailStatus?.partialFailure) {
             this.errorMessage = `⚠️ Meeting created but ${emailStatus.failed} out of ${emailStatus.attempted} invitation emails failed.`;
             this.successMessage = `Meeting created. ${emailStatus.successful} emails sent, ${emailStatus.failed} failed.`;
           } else {
