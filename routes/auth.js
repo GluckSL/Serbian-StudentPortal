@@ -68,10 +68,77 @@ function normalizeSidebarPermissions(sidebarPermissions) {
 // Track last sync status
 let lastSyncStatus = { lastRun: null, result: null };
 
+/**
+ * Monday column_values: many column types leave `text` empty; use typed GraphQL fields, then `value` JSON.
+ * See: StatusValue.label, DropdownValue.values[].label, MirrorValue.display_value.
+ */
+function mondayColumnDisplay(col) {
+  if (!col) return '';
+  if (col.display_value != null && String(col.display_value).trim() !== '') {
+    return String(col.display_value).trim();
+  }
+  if (col.label != null && String(col.label).trim() !== '') {
+    return String(col.label).trim();
+  }
+  if (Array.isArray(col.values) && col.values.length > 0) {
+    const parts = col.values
+      .map((v) => (v && v.label != null ? String(v.label).trim() : ''))
+      .filter(Boolean);
+    if (parts.length) return parts.join(', ');
+  }
+  const t = String(col.text || '').trim();
+  if (t) return t;
+  const v = col.value;
+  if (v == null || v === '') return '';
+  try {
+    const parsed = typeof v === 'string' ? JSON.parse(v) : v;
+    if (!parsed || typeof parsed !== 'object') return '';
+    const label = parsed.label;
+    if (label != null && typeof label === 'object' && label.text != null) {
+      return String(label.text).trim();
+    }
+    if (typeof label === 'string') return label.trim();
+    if (parsed.text != null) return String(parsed.text).trim();
+    const chosen = parsed.chosenValues || parsed.chosen_values;
+    if (Array.isArray(chosen) && chosen[0]?.name) {
+      return String(chosen[0].name).trim();
+    }
+  } catch (_) {
+    /* ignore malformed JSON */
+  }
+  return '';
+}
+
+/** Sub-selection for items.column_values (items_page queries). */
+const MONDAY_COLUMN_VALUES_GQL = `id type text value ... on StatusValue { label } ... on DropdownValue { values { label } } ... on MirrorValue { display_value }`;
+
+function mondayGet(columnValues, id) {
+  const col = columnValues.find((c) => c.id === id);
+  return mondayColumnDisplay(col);
+}
+
+/** Env may be one id or comma-separated ids (try in order until a non-empty label). */
+function mondayGetFirstNonEmpty(columnValues, envCsv) {
+  const ids = String(envCsv || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const colId of ids) {
+    const s = String(mondayGet(columnValues, colId) || '').trim();
+    if (s) return s;
+  }
+  return '';
+}
+
 // Reusable Monday.com sync function
 async function runMondaySync() {
   console.log("ðŸ”„ Starting Monday CRM full sync...");
   const startTime = new Date();
+  if (!process.env.MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS) {
+    console.warn(
+      '⚠️ MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS is not set — documentation payment will not sync; distinct filter will stay empty until env + sync.'
+    );
+  }
   const BOARD_ID = process.env.MONDAY_BOARD_ID;
 
   let allItems = [];
@@ -80,8 +147,8 @@ async function runMondaySync() {
 
   while (hasMore) {
     const query = cursor
-      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { id text } } } } }`
-      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { id text } } } } }`;
+      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
+      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
     const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
     const response = await axios.post("https://api.monday.com/v2", { query, variables }, { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } });
     const page = response.data.data.boards[0].items_page;
@@ -93,7 +160,7 @@ async function runMondaySync() {
   console.log(`ðŸ“‹ Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
 
   const eligibleItems = allItems.filter(item => {
-    const get = id => item.column_values.find(c => c.id === id)?.text || "";
+    const get = (id) => mondayGet(item.column_values, id);
     return get("color_mm019dcv").toUpperCase().trim() !== "WITHDREW";
   });
 
@@ -104,7 +171,7 @@ async function runMondaySync() {
 
   for (const item of eligibleItems) {
     try {
-      const get = id => item.column_values.find(c => c.id === id)?.text || "";
+      const get = (id) => mondayGet(item.column_values, id);
       const name = item.name;
       const email = get("text_mkw3spks").trim().toLowerCase();
       if (!email) { skipped++; continue; }
@@ -148,6 +215,10 @@ async function runMondaySync() {
       const examRemark = get("text_mkzzbgz1");
       const readingScore = get("numeric_mkzz97be"), listeningScore = get("numeric_mkzz8sr4");
       const writingScore = get("numeric_mkzz2bzg"), speakingScore = get("numeric_mkzz8q32");
+      const documentationPaymentStatus = mondayGetFirstNonEmpty(
+        item.column_values,
+        process.env.MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS
+      );
 
       const parseDate = (str) => str ? new Date(str) : null;
 
@@ -159,6 +230,7 @@ async function runMondaySync() {
         medium: medium ? [medium] : [], leadSource, stream, teacherIncharge,
         ...(assignedTeacherId ? { assignedTeacher: assignedTeacherId } : {}),
         reasonForWithdrawing, languageExamStatus, candidateStatus, examRemark,
+        documentationPaymentStatus,
         enrollmentDate: parseDate(enrollmentDateStr),
         batchStartedOn: parseDate(batchStartedOnStr),
         dateWithdrew: parseDate(dateWithdrewStr),
@@ -231,7 +303,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
             boards(ids: $boardId) {
               items_page(limit: 500, cursor: $cursor) {
                 cursor
-                items { id name column_values { id text } }
+                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
               }
             }
           }`
@@ -239,7 +311,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
             boards(ids: $boardId) {
               items_page(limit: 500) {
                 cursor
-                items { id name column_values { id text } }
+                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
               }
             }
           }`;
@@ -259,7 +331,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // Filter: All packages, exclude WITHDREW status
     const eligibleItems = allItems.filter(item => {
-      const get = id => item.column_values.find(c => c.id === id)?.text || "";
+      const get = (id) => mondayGet(item.column_values, id);
       const currentStatus = get("color_mm019dcv").toUpperCase().trim();
       return currentStatus !== "WITHDREW";
     });
@@ -270,7 +342,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const skipped = [];
 
     for (const item of eligibleItems) {
-      const get = id => item.column_values.find(c => c.id === id)?.text || "";
+      const get = (id) => mondayGet(item.column_values, id);
 
       const name              = item.name;
       const email             = get("text_mkw3spks").trim().toLowerCase();
@@ -289,6 +361,10 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       const leadSource        = get("dropdown_mm0d9jrv");
       const stream            = get("text_mkwtq4fq");
       const teacherIncharge   = get("dropdown_mkw72gz4");
+      const documentationPaymentStatus = mondayGetFirstNonEmpty(
+        item.column_values,
+        process.env.MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS
+      );
 
       if (!email) { skipped.push({ name, reason: 'No email' }); continue; }
 
@@ -296,7 +372,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         name, email, phoneNumber, address, age, qualifications,
         servicesOpted, subscription, languageLevelOpted, batch,
         studentStatus, level, medium, leadSource, stream,
-        teacherIncharge, enrollmentDate
+        teacherIncharge, enrollmentDate, documentationPaymentStatus
       };
 
       const existingUser = await User.findOne({ email }).lean();
@@ -316,7 +392,8 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
           stream: stream,
           leadSource: leadSource,
           teacherIncharge: teacherIncharge,
-          address: address
+          address: address,
+          documentationPaymentStatus: documentationPaymentStatus
         };
 
         for (const [field, mondayVal] of Object.entries(fieldsToCompare)) {

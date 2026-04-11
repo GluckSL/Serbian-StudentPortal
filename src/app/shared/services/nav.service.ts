@@ -22,7 +22,8 @@ export class NavService {
     {
       group: 'Dashboard',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '🏠', route: '/admin-dashboard', subGroup: null }
+        { id: 'dashboard', label: 'Dashboard', icon: '🏠', route: '/admin-dashboard', subGroup: null },
+        { id: 'analytic-dash', label: 'Analytic dash', icon: '📈', route: '/admin/analytic-dash', subGroup: 'Featured' }
       ]
     },
     {

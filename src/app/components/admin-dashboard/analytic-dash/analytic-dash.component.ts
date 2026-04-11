@@ -1,24 +1,18 @@
-//src/app/components/admin-dashboard/admin-dashboard.component.ts
+// Sales CRM grid — full Monday-synced student fields (separate route from Directory).
 
-import { Component, OnInit, TrackByFunction } from '@angular/core';
-import { AuthService } from '../../services/auth.service';
+import { Component, OnInit } from '@angular/core';
+import { AuthService } from '../../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
-import { jwtDecode } from 'jwt-decode';
 import { HttpClient, HttpClientModule, HttpParams } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { FeedbackService } from '../../services/feedback.service';
-import { NgChartsModule } from 'ng2-charts';
-import { SafeUrlPipe } from '../../pipes/safe-url.pipe';
-import { MaterialModule } from '../../shared/material.module';
-import { MatDialog } from '@angular/material/dialog';
-import { HttpHeaders } from '@angular/common/http';
-import {TeacherService} from '../../services/teacher.service';
-import { environment } from '../../../environments/environment';
-import { BulkStudentUploadComponent } from './bulk-student-upload.component';
+import { MaterialModule } from '../../../shared/material.module';
+import { TeacherService } from '../../../services/teacher.service';
+import { environment } from '../../../../environments/environment';
+import { BulkStudentUploadComponent } from '../bulk-student-upload.component';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
-import { NotificationService } from '../../services/notification.service';
+import { NotificationService } from '../../../services/notification.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -91,7 +85,7 @@ interface StudentListResponse {
 }
 
 @Component({
-  selector: 'app-admin-dashboard',
+  selector: 'app-analytic-dash',
   standalone: true,
   imports: [
     HttpClientModule,
@@ -99,15 +93,14 @@ interface StudentListResponse {
     FormsModule,
     ReactiveFormsModule,
     MaterialModule,
-    NgChartsModule,
     RouterModule,
     BulkStudentUploadComponent
   ],
-  templateUrl: './admin-dashboard.component.html',
-  styleUrls: ['./admin-dashboard.component.css']
+  templateUrl: './analytic-dash.component.html',
+  styleUrls: ['./analytic-dash.component.css']
 })
 
-export class AdminDashboardComponent implements OnInit {
+export class AnalyticDashComponent implements OnInit {
   students: any[] = [];          // original data
   filteredStudents: any[] = [];  // shown in table
   selectedStudentIds = new Set<string>();
@@ -136,20 +129,6 @@ export class AdminDashboardComponent implements OnInit {
     languageLevelOpted: [] as string[]
   };
 
-  /** Optional table columns (off by default); preferences in localStorage */
-  private readonly studentColumnPrefKey = 'adminStudentTableOptionalColumns';
-  readonly optionalColumns: { id: string; label: string }[] = [
-    { id: 'servicesOpted', label: 'Service opted' },
-    { id: 'qualifications', label: 'Qualification' },
-    { id: 'languageLevelOpted', label: 'Language level opted' },
-    { id: 'leadSource', label: 'Lead source' },
-    { id: 'stream', label: 'Stream' },
-    { id: 'enrollmentDate', label: 'Enrollment date' },
-    { id: 'teacherIncharge', label: 'Teacher in charge (CRM)' },
-    { id: 'whatsappNumber', label: 'WhatsApp' }
-  ];
-  columnVisibility: Record<string, boolean> = {};
-
   plan: string[] = ['PLATINUM', 'SILVER'];
   level: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   teachers: any[] = [];
@@ -167,11 +146,213 @@ export class AdminDashboardComponent implements OnInit {
   /** Filter form collapsed by default; use header “Filter” control to expand */
   filtersPanelOpen = false;
 
+  /** CRM table: optional columns (checkbox/reg/name/actions always shown) */
+  private readonly analyticColumnPrefKey = 'analyticDashCrmColumnVisibility';
+  readonly crmOptionalColumns: { id: string; label: string }[] = [
+    { id: 'email', label: 'Email' },
+    { id: 'phone', label: 'Phone' },
+    { id: 'whatsapp', label: 'WhatsApp' },
+    { id: 'address', label: 'Address' },
+    { id: 'age', label: 'Age' },
+    { id: 'leadSource', label: 'Lead source' },
+    { id: 'docPayment', label: 'Documentation payment status' },
+    { id: 'enrollment', label: 'Enrollment' },
+    { id: 'servicesOpted', label: 'Service opted' },
+    { id: 'subscription', label: 'Package' },
+    { id: 'languageLevelOpted', label: 'Language level opted' },
+    { id: 'level', label: 'Current level' },
+    { id: 'batch', label: 'Batch' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'otherLanguage', label: 'Other language' },
+    { id: 'qualifications', label: 'Qualification' },
+    { id: 'stream', label: 'Stream' },
+    { id: 'batchStarted', label: 'Batch started' },
+    { id: 'teacherIncharge', label: 'Teacher in charge (CRM)' },
+    { id: 'assignedTeacher', label: 'Assigned teacher' },
+    { id: 'studentStatus', label: 'Status' },
+    { id: 'dateWithdrew', label: 'Date withdrew' },
+    { id: 'reasonWithdrawal', label: 'Reason withdrawal' },
+    { id: 'languageExamStatus', label: 'Language exam status' },
+    { id: 'examPassed', label: 'Exam passed' },
+    { id: 'examReading', label: 'Reading score' },
+    { id: 'examListening', label: 'Listening score' },
+    { id: 'examWriting', label: 'Writing score' },
+    { id: 'examSpeaking', label: 'Speaking score' },
+    { id: 'examRemark', label: 'Exam remark' },
+    { id: 'candidateStatus', label: 'Candidate status' },
+    { id: 'a1Start', label: 'A1 start' },
+    { id: 'a1End', label: 'A1 end' },
+    { id: 'a2Start', label: 'A2 start' },
+    { id: 'a2End', label: 'A2 end' },
+    { id: 'b1Start', label: 'B1 start' },
+    { id: 'b1End', label: 'B1 end' },
+    { id: 'b2Start', label: 'B2 start' },
+    { id: 'b2End', label: 'B2 end' },
+    { id: 'lastCredentials', label: 'Last credentials' },
+    { id: 'registered', label: 'Registered' }
+  ];
+  columnVisibility: Record<string, boolean> = {};
+
   // Bulk upload
   showBulkUpload = false;
 
   toggleFiltersPanel(): void {
     this.filtersPanelOpen = !this.filtersPanelOpen;
+  }
+
+  initAnalyticColumnVisibility(): void {
+    let saved: Record<string, boolean> | null = null;
+    try {
+      const raw = localStorage.getItem(this.analyticColumnPrefKey);
+      if (raw) saved = JSON.parse(raw);
+    } catch {
+      /* ignore */
+    }
+    this.columnVisibility = {};
+    for (const c of this.crmOptionalColumns) {
+      const v = saved?.[c.id];
+      this.columnVisibility[c.id] = typeof v === 'boolean' ? v : true;
+    }
+  }
+
+  isCrmColVisible(id: string): boolean {
+    return !!this.columnVisibility[id];
+  }
+
+  toggleCrmColumn(id: string, visible: boolean): void {
+    this.columnVisibility[id] = visible;
+    try {
+      localStorage.setItem(this.analyticColumnPrefKey, JSON.stringify(this.columnVisibility));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  showAllCrmColumns(): void {
+    for (const c of this.crmOptionalColumns) {
+      this.columnVisibility[c.id] = true;
+    }
+    try {
+      localStorage.setItem(this.analyticColumnPrefKey, JSON.stringify(this.columnVisibility));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  get visibleCrmColumnCount(): number {
+    return this.crmOptionalColumns.filter((c) => this.isCrmColVisible(c.id)).length;
+  }
+
+  /** Advanced filter: pick any CRM field, then a value from distinct list in DB */
+  advancedFilterExpanded = false;
+  advancedFieldInputControl = new FormControl('', { nonNullable: true });
+  filteredAdvancedFields$!: Observable<{ id: string; label: string }[]>;
+  readonly advancedFilterFieldList: { id: string; label: string }[] = [
+    { id: 'level', label: 'Level (CEFR / course)' },
+    { id: 'subscription', label: 'Plan / Package' },
+    { id: 'batch', label: 'Batch' },
+    { id: 'studentStatus', label: 'Student status' },
+    { id: 'servicesOpted', label: 'Service opted' },
+    { id: 'qualifications', label: 'Qualification' },
+    { id: 'languageLevelOpted', label: 'Language level opted' },
+    { id: 'leadSource', label: 'Lead source' },
+    { id: 'stream', label: 'Stream' },
+    { id: 'teacherIncharge', label: 'Teacher in charge (CRM)' },
+    { id: 'otherLanguageKnown', label: 'Other language known' },
+    { id: 'documentationPaymentStatus', label: 'Documentation payment status' },
+    { id: 'languageExamStatus', label: 'Language exam status' },
+    { id: 'candidateStatus', label: 'Candidate status' },
+    { id: 'phoneNumber', label: 'Phone' },
+    { id: 'whatsappNumber', label: 'WhatsApp' },
+    { id: 'address', label: 'Address' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'age', label: 'Age' }
+  ];
+  selectedAdvancedField: { id: string; label: string } | null = null;
+  advancedDistinctValues: string[] = [];
+  advancedPendingValue = '';
+  loadingAdvancedDistinct = false;
+  appliedAdvField = '';
+  appliedAdvValue = '';
+
+  toggleAdvancedFilterPanel(): void {
+    this.advancedFilterExpanded = !this.advancedFilterExpanded;
+  }
+
+  private filterAdvancedFieldList(input: unknown): { id: string; label: string }[] {
+    const q =
+      typeof input === 'string'
+        ? input.toLowerCase().trim()
+        : '';
+    if (!q) return [...this.advancedFilterFieldList];
+    return this.advancedFilterFieldList.filter(
+      (f) =>
+        f.label.toLowerCase().includes(q) ||
+        f.id.toLowerCase().includes(q)
+    );
+  }
+
+  onAdvancedFieldOptionSelected(f: { id: string; label: string }): void {
+    this.selectedAdvancedField = f;
+    this.advancedFieldInputControl.setValue(f.label, { emitEvent: false });
+    this.advancedPendingValue = '';
+    this.advancedDistinctValues = [];
+    this.loadDistinctValuesForField(f.id);
+  }
+
+  loadDistinctValuesForField(fieldKey: string): void {
+    this.loadingAdvancedDistinct = true;
+    this.advancedDistinctValues = [];
+    this.http
+      .get<{ success: boolean; values?: string[]; message?: string }>(
+        `${apiUrl}/admin/students/distinct/${encodeURIComponent(fieldKey)}`,
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (res) => {
+          this.loadingAdvancedDistinct = false;
+          if (res.success) {
+            this.advancedDistinctValues = res.values ?? [];
+          } else {
+            this.notify.error(res.message || 'Could not load values');
+          }
+        },
+        error: () => {
+          this.loadingAdvancedDistinct = false;
+          this.notify.error('Could not load values for this field');
+        }
+      });
+  }
+
+  applyAdvancedFilter(): void {
+    if (!this.selectedAdvancedField) {
+      this.notify.warning('Choose a field first (type to search, then pick from the list)');
+      return;
+    }
+    if (!this.advancedPendingValue || String(this.advancedPendingValue).trim() === '') {
+      this.notify.warning('Choose a value from the dropdown');
+      return;
+    }
+    this.appliedAdvField = this.selectedAdvancedField.id;
+    this.appliedAdvValue = String(this.advancedPendingValue).trim();
+    this.fetchStudents(1);
+  }
+
+  clearAdvancedFilter(): void {
+    this.appliedAdvField = '';
+    this.appliedAdvValue = '';
+    this.selectedAdvancedField = null;
+    this.advancedDistinctValues = [];
+    this.advancedPendingValue = '';
+    this.advancedFieldInputControl.setValue('');
+    this.fetchStudents(this.currentPage);
+  }
+
+  get appliedAdvancedFilterSummary(): string {
+    if (!this.appliedAdvField || !this.appliedAdvValue) return '';
+    const f = this.advancedFilterFieldList.find((x) => x.id === this.appliedAdvField);
+    const label = f?.label || this.appliedAdvField;
+    return `${label}: ${this.appliedAdvValue}`;
   }
 
   // Bulk edit properties
@@ -213,8 +394,6 @@ export class AdminDashboardComponent implements OnInit {
     private authService: AuthService,
     private router: Router,
     private http: HttpClient,
-    private feedbackService: FeedbackService,
-    private dialog: MatDialog,
     private teacherService: TeacherService,
     private notify: NotificationService,
   ) {}
@@ -227,7 +406,11 @@ export class AdminDashboardComponent implements OnInit {
           this.router.navigate(['/dashboard']);
           return;
         }
-        this.initColumnVisibility();
+        this.initAnalyticColumnVisibility();
+        this.filteredAdvancedFields$ = this.advancedFieldInputControl.valueChanges.pipe(
+          startWith(''),
+          map((v) => this.filterAdvancedFieldList(v))
+        );
         this.fetchFilterOptions();
         this.fetchStudents();
         this.fetchTeachers();
@@ -260,6 +443,9 @@ export class AdminDashboardComponent implements OnInit {
     if (this.filters.servicesOpted) params = params.set('servicesOpted', this.filters.servicesOpted);
     if (this.filters.qualifications) params = params.set('qualifications', this.filters.qualifications);
     if (this.filters.languageLevelOpted) params = params.set('languageLevelOpted', this.filters.languageLevelOpted);
+    if (this.appliedAdvField && this.appliedAdvValue) {
+      params = params.set('advField', this.appliedAdvField).set('advValue', this.appliedAdvValue);
+    }
 
     this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, { params, withCredentials: true }).subscribe({
       next: res => {
@@ -326,34 +512,6 @@ export class AdminDashboardComponent implements OnInit {
       });
   }
 
-  initColumnVisibility(): void {
-    let saved: Record<string, boolean> | null = null;
-    try {
-      const raw = localStorage.getItem(this.studentColumnPrefKey);
-      if (raw) saved = JSON.parse(raw);
-    } catch {
-      /* ignore */
-    }
-    this.columnVisibility = {};
-    for (const c of this.optionalColumns) {
-      this.columnVisibility[c.id] =
-        saved && typeof saved[c.id] === 'boolean' ? saved[c.id] : false;
-    }
-  }
-
-  isColVisible(columnId: string): boolean {
-    return !!this.columnVisibility[columnId];
-  }
-
-  toggleOptionalColumn(columnId: string, visible: boolean): void {
-    this.columnVisibility[columnId] = visible;
-    try {
-      localStorage.setItem(this.studentColumnPrefKey, JSON.stringify(this.columnVisibility));
-    } catch {
-      /* ignore */
-    }
-  }
-
   // ✅ Fetch all registered teachers
   fetchTeachers(): void {
     this.teacherService.getAllTeachers().subscribe({
@@ -411,6 +569,12 @@ export class AdminDashboardComponent implements OnInit {
     };
     this.studentNameControl.setValue('');
     this.teacherNameControl.setValue('');
+    this.appliedAdvField = '';
+    this.appliedAdvValue = '';
+    this.selectedAdvancedField = null;
+    this.advancedDistinctValues = [];
+    this.advancedPendingValue = '';
+    this.advancedFieldInputControl.setValue('');
     this.fetchStudents(1);
   }
 
@@ -867,6 +1031,49 @@ export class AdminDashboardComponent implements OnInit {
     }
   }
 
+  formatCrmDate(date: Date | string | null | undefined): string {
+    if (!date) return '—';
+    try {
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) return '—';
+      return dateObj.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return '—';
+    }
+  }
+
+  mediumDisplay(student: any): string {
+    const m = student?.medium;
+    if (m == null || m === '') return '—';
+    if (Array.isArray(m)) return m.length ? m.join(', ') : '—';
+    return String(m);
+  }
+
+  examScore(student: any, key: 'reading' | 'listening' | 'writing' | 'speaking'): string {
+    const v = student?.examScores?.[key];
+    if (v === null || v === undefined || v === '') return '—';
+    return String(v);
+  }
+
+  courseDateCell(student: any, path: string): string {
+    const parts = path.split('.');
+    let cur: any = student;
+    for (const p of parts) {
+      cur = cur?.[p];
+    }
+    return this.formatCrmDate(cur);
+  }
+
+  assignedTeacherDisplay(student: any): string {
+    const t = student?.assignedTeacher;
+    if (t && typeof t === 'object') return t.name || '—';
+    return 'Unassigned';
+  }
+
   exportSelectedStudents(): void {
     if (this.selectedStudentIds.size === 0) {
       this.notify.warning('Please select at least one student to export');
@@ -893,6 +1100,7 @@ export class AdminDashboardComponent implements OnInit {
       'Age',
       'Program Enrolled',
       'Lead Source',
+      'Documentation Payment Status',
       'Assigned Teacher',
       'Created At',
       'Last Credentials Sent'
@@ -918,6 +1126,7 @@ export class AdminDashboardComponent implements OnInit {
         (student as any).age || 'N/A',
         (student as any).servicesOpted || 'N/A',
         (student as any).leadSource || 'N/A',
+        (student as any).documentationPaymentStatus || 'N/A',
         teacherName,
         student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : 'N/A',
         this.formatDate(student.lastCredentialsEmailSent)

@@ -69,6 +69,8 @@ const UserSchema = new mongoose.Schema({
   },
   examRemark: { type: String, default: "", function() { return this.role === "STUDENT"; } },
   candidateStatus: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  /** Monday.com Documentation payment status; column id from MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS */
+  documentationPaymentStatus: { type: String, default: "", required: false },
 
   /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
   currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },

@@ -14,7 +14,7 @@ import { EMPTY, expand, reduce } from 'rxjs';
 
 interface StudentDocument {
   _id: string;
-  studentId: string;
+  studentId: string | Record<string, unknown>;
   studentName: string;
   studentEmail: string;
   documentType: string;
@@ -24,6 +24,12 @@ interface StudentDocument {
   formattedFileSize?: string;
   documentTypeDisplay?: string;
   servicesOpted?: string;
+  /** Package from Monday CRM (User.subscription) */
+  subscription?: string;
+  /** Current student status from CRM (User.studentStatus) */
+  studentStatus?: string;
+  qualifications?: string;
+  languageLevelOpted?: string;
   status: 'PENDING' | 'VERIFIED' | 'REJECTED';
   uploadedAt: Date;
   verifiedAt?: Date;
@@ -69,6 +75,15 @@ export class DocumentVerificationComponent implements OnInit {
   selectedDocumentType: string = 'ALL';
   selectedServiceOpted: string = 'ALL';
   serviceOptedOptions: string[] = [];
+  /** CRM: User.studentStatus (Monday “current status”) */
+  selectedCrmStudentStatus: string = 'ALL';
+  crmStudentStatusOptions: string[] = [];
+  /** CRM: User.subscription (package) */
+  selectedPackage: string = 'ALL';
+  packageOptions: string[] = [];
+  /** CRM: User.qualifications */
+  selectedQualification: string = 'ALL';
+  qualificationOptions: string[] = [];
   searchQuery: string = '';
   
   // Pagination
@@ -184,10 +199,14 @@ export class DocumentVerificationComponent implements OnInit {
         ? (doc.studentId as any)._id : doc.studentId;
       const idStr = String(id);
       if (!studentMap.has(idStr)) {
+        const snap = this.getDocCrmSnapshot(doc);
         studentMap.set(idStr, {
           name: doc.studentName,
           email: doc.studentEmail,
-          service: (doc as any).servicesOpted || '',
+          service: snap.servicesOpted || (doc as any).servicesOpted || '',
+          crmStatus: snap.studentStatus,
+          package: snap.subscription,
+          qualification: snap.qualifications,
           docs: new Map<string, string>()
         });
       }
@@ -196,7 +215,15 @@ export class DocumentVerificationComponent implements OnInit {
     });
 
     // Build CSV header
-    const headers = ['Student Name', 'Email', 'Service Opted', ...docLabels];
+    const headers = [
+      'Student Name',
+      'Email',
+      'CRM Status',
+      'Package',
+      'Service Opted',
+      'Qualification',
+      ...docLabels
+    ];
     const rows: string[] = [headers.map(h => `"${h}"`).join(',')];
 
     // Build rows
@@ -204,7 +231,10 @@ export class DocumentVerificationComponent implements OnInit {
       const cols = [
         `"${student.name}"`,
         `"${student.email}"`,
+        `"${student.crmStatus || ''}"`,
+        `"${student.package || ''}"`,
         `"${student.service}"`,
+        `"${student.qualification || ''}"`,
       ];
       docTypes.forEach(type => {
         const status = student.docs.get(type) || '';
@@ -297,18 +327,111 @@ export class DocumentVerificationComponent implements OnInit {
     return String(student?.regNo ?? student?.registrationNumber ?? student?.registrationNo ?? '').trim();
   }
 
+  private uniqueSortedStrings(values: (string | undefined | null)[]): string[] {
+    return [...new Set(values.map(v => String(v ?? '').trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+  }
+
+  /** Rebuild CRM filter dropdowns from loaded students and documents (Monday-synced fields). */
+  refreshCrmFilterOptions(): void {
+    const fromStudents = Array.isArray(this.students) ? this.students : [];
+    const svc = fromStudents.map((s: any) => s.servicesOpted);
+    const pkg = fromStudents.map((s: any) => s.subscription);
+    const st = fromStudents.map((s: any) => s.studentStatus);
+    const qual = fromStudents.map((s: any) => s.qualifications);
+
+    for (const doc of this.documents) {
+      const snap = this.getDocCrmSnapshot(doc);
+      svc.push(snap.servicesOpted);
+      pkg.push(snap.subscription);
+      st.push(snap.studentStatus);
+      qual.push(snap.qualifications);
+    }
+
+    this.serviceOptedOptions = this.uniqueSortedStrings(svc);
+    this.packageOptions = this.uniqueSortedStrings(pkg);
+    this.crmStudentStatusOptions = this.uniqueSortedStrings(st);
+    this.qualificationOptions = this.uniqueSortedStrings(qual);
+  }
+
+  private getDocCrmSnapshot(doc: StudentDocument): {
+    studentStatus: string;
+    subscription: string;
+    servicesOpted: string;
+    qualifications: string;
+  } {
+    const sid = doc.studentId as any;
+    if (sid && typeof sid === 'object' && sid._id) {
+      return {
+        studentStatus: String(sid.studentStatus ?? '').trim(),
+        subscription: String(sid.subscription ?? '').trim(),
+        servicesOpted: String(sid.servicesOpted ?? doc.servicesOpted ?? '').trim(),
+        qualifications: String(sid.qualifications ?? '').trim()
+      };
+    }
+    const idStr = String(sid ?? '');
+    const st = this.students.find(s => this.getStudentId(s) === idStr);
+    if (st) {
+      return {
+        studentStatus: String(st.studentStatus ?? '').trim(),
+        subscription: String(st.subscription ?? '').trim(),
+        servicesOpted: String(st.servicesOpted ?? doc.servicesOpted ?? '').trim(),
+        qualifications: String(st.qualifications ?? '').trim()
+      };
+    }
+    return {
+      studentStatus: String(doc.studentStatus ?? '').trim(),
+      subscription: String(doc.subscription ?? '').trim(),
+      servicesOpted: String(doc.servicesOpted ?? '').trim(),
+      qualifications: String(doc.qualifications ?? '').trim()
+    };
+  }
+
+  private studentMatchesCrmFilters(student: any): boolean {
+    if (this.selectedCrmStudentStatus !== 'ALL') {
+      const s = String(student?.studentStatus ?? '').trim().toUpperCase();
+      if (s !== this.selectedCrmStudentStatus.trim().toUpperCase()) return false;
+    }
+    if (this.selectedPackage !== 'ALL') {
+      const p = String(student?.subscription ?? '').trim().toUpperCase();
+      if (p !== this.selectedPackage.trim().toUpperCase()) return false;
+    }
+    if (this.selectedServiceOpted !== 'ALL') {
+      const svc = String(student?.servicesOpted ?? '').trim();
+      if (svc !== this.selectedServiceOpted.trim()) return false;
+    }
+    if (this.selectedQualification !== 'ALL') {
+      const q = String(student?.qualifications ?? '').trim();
+      if (q !== this.selectedQualification.trim()) return false;
+    }
+    return true;
+  }
+
+  private docMatchesCrmFilters(doc: StudentDocument): boolean {
+    const snap = this.getDocCrmSnapshot(doc);
+    if (this.selectedCrmStudentStatus !== 'ALL') {
+      if (snap.studentStatus.toUpperCase() !== this.selectedCrmStudentStatus.trim().toUpperCase()) return false;
+    }
+    if (this.selectedPackage !== 'ALL') {
+      if (snap.subscription.toUpperCase() !== this.selectedPackage.trim().toUpperCase()) return false;
+    }
+    if (this.selectedServiceOpted !== 'ALL') {
+      if (snap.servicesOpted !== this.selectedServiceOpted.trim()) return false;
+    }
+    if (this.selectedQualification !== 'ALL') {
+      if (snap.qualifications !== this.selectedQualification.trim()) return false;
+    }
+    return true;
+  }
+
   loadDocuments(): void {
     this.loading = true;
     this.documentService.getAllDocuments().subscribe({
       next: (response) => {
         if (response.success) {
           this.documents = response.documents;
-          // Extract unique servicesOpted values
-          this.serviceOptedOptions = [...new Set(
-            this.documents
-              .map(doc => (doc as any).servicesOpted)
-              .filter((s): s is string => !!s && s.trim() !== '')
-          )].sort();
+          this.refreshCrmFilterOptions();
           this.applyFilters();
           this.loadStats();
           this.loading = false;
@@ -360,10 +483,8 @@ export class DocumentVerificationComponent implements OnInit {
       filtered = filtered.filter(doc => doc.documentType === this.selectedDocumentType);
     }
 
-    // Service opted filter
-    if (this.selectedServiceOpted !== 'ALL') {
-      filtered = filtered.filter(doc => (doc as any).servicesOpted === this.selectedServiceOpted);
-    }
+    // CRM filters (Monday-synced profile on student)
+    filtered = filtered.filter(doc => this.docMatchesCrmFilters(doc));
     
     // Search filter
     if (this.searchQuery.trim()) {
@@ -398,6 +519,9 @@ export class DocumentVerificationComponent implements OnInit {
     this.selectedStatus = 'ALL';
     this.selectedDocumentType = 'ALL';
     this.selectedServiceOpted = 'ALL';
+    this.selectedCrmStudentStatus = 'ALL';
+    this.selectedPackage = 'ALL';
+    this.selectedQualification = 'ALL';
     this.searchQuery = '';
     this.applyFilters();
   }
@@ -440,6 +564,8 @@ export class DocumentVerificationComponent implements OnInit {
         const studentId = this.getStudentId(student);
         if (!studentId) continue;
 
+        if (!this.studentMatchesCrmFilters(student)) continue;
+
         const allDocs = docsByStudent.get(studentId) || [];
         const visibleDocs = visibleDocsByStudent.get(studentId) || [];
 
@@ -458,6 +584,11 @@ export class DocumentVerificationComponent implements OnInit {
           studentEmail: this.getStudentEmail(student),
           studentRegNo: this.getStudentRegNo(student),
           studentObj: student,
+          subscription: String(student?.subscription ?? '').trim(),
+          studentStatus: String(student?.studentStatus ?? '').trim(),
+          servicesOpted: String(student?.servicesOpted ?? '').trim(),
+          qualifications: String(student?.qualifications ?? '').trim(),
+          languageLevelOpted: String(student?.languageLevelOpted ?? '').trim(),
           documents: visibleDocs,
           totalDocs: allDocs.length,
           pendingDocs: pending,
@@ -473,6 +604,7 @@ export class DocumentVerificationComponent implements OnInit {
           ? (doc.studentId as any)._id
           : doc.studentId;
         const idStr = String(id);
+        const snap = this.getDocCrmSnapshot(doc);
 
         if (!groupMap.has(idStr)) {
           groupMap.set(idStr, {
@@ -481,6 +613,11 @@ export class DocumentVerificationComponent implements OnInit {
             studentEmail: doc.studentEmail,
             studentRegNo: '',
             studentObj: null,
+            subscription: snap.subscription,
+            studentStatus: snap.studentStatus,
+            servicesOpted: snap.servicesOpted,
+            qualifications: snap.qualifications,
+            languageLevelOpted: String((doc as any).languageLevelOpted ?? '').trim(),
             documents: [],
             totalDocs: 0,
             pendingDocs: 0,
@@ -833,6 +970,7 @@ export class DocumentVerificationComponent implements OnInit {
         this.students = allStudents;
         this.filteredStudents = this.students;
         this.markVerifiedFilteredStudents = this.students;
+        this.refreshCrmFilterOptions();
         if (totalFromServer !== null) {
           this.stats.totalStudents = totalFromServer;
         } else {

@@ -117,12 +117,42 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Service Opted</mat-label>
+        <mat-form-field appearance="outline" class="filter-field filter-field-crm">
+          <mat-label>CRM status</mat-label>
+          <mat-select [(ngModel)]="selectedCrmStudentStatus" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All statuses</mat-option>
+            <mat-option *ngFor="let st of crmStudentStatusOptions" [value]="st">
+              {{ st }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field filter-field-crm">
+          <mat-label>Package</mat-label>
+          <mat-select [(ngModel)]="selectedPackage" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All packages</mat-option>
+            <mat-option *ngFor="let pkg of packageOptions" [value]="pkg">
+              {{ pkg }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field filter-field-crm">
+          <mat-label>Service opted</mat-label>
           <mat-select [(ngModel)]="selectedServiceOpted" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All Services</mat-option>
+            <mat-option value="ALL">All services</mat-option>
             <mat-option *ngFor="let service of serviceOptedOptions" [value]="service">
               {{ service }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field filter-field-qual">
+          <mat-label>Qualification</mat-label>
+          <mat-select [(ngModel)]="selectedQualification" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All qualifications</mat-option>
+            <mat-option *ngFor="let q of qualificationOptions" [value]="q">
+              {{ q }}
             </mat-option>
           </mat-select>
         </mat-form-field>
@@ -164,9 +194,16 @@
         <div class="student-group-header" (click)="toggleStudentExpand(group.studentId)">
           <div class="student-group-info">
             <mat-icon class="student-avatar-icon">account_circle</mat-icon>
-            <div>
+            <div class="student-group-title-block">
               <strong>{{ group.studentName }}</strong>
               <small>{{ group.studentEmail }}</small>
+              <div class="student-crm-meta" *ngIf="group.studentStatus || group.subscription || group.servicesOpted || group.qualifications || group.languageLevelOpted">
+                <span class="crm-pill" *ngIf="group.studentStatus" matTooltip="Current status (Monday CRM)">{{ group.studentStatus }}</span>
+                <span class="crm-pill crm-pill-package" *ngIf="group.subscription" matTooltip="Package">{{ group.subscription }}</span>
+                <span class="crm-pill crm-pill-service" *ngIf="group.servicesOpted" matTooltip="Service opted">{{ group.servicesOpted }}</span>
+                <span class="crm-pill crm-pill-qual" *ngIf="group.qualifications" matTooltip="Qualification">{{ group.qualifications }}</span>
+                <span class="crm-pill crm-pill-muted" *ngIf="group.languageLevelOpted" matTooltip="Language level opted">{{ group.languageLevelOpted }}</span>
+              </div>
             </div>
             <button mat-icon-button matTooltip="Send Email" 
                     (click)="openEmailDialog(group.studentName, group.studentEmail); $event.stopPropagation()"
@@ -314,6 +351,13 @@
               <div class="student-info">
                 <strong>{{ doc.studentName }}</strong>
                 <small>{{ doc.studentEmail }}</small>
+                <div class="student-crm-meta student-crm-meta--table" *ngIf="doc.studentStatus || doc.subscription || doc.servicesOpted || doc.qualifications || doc.languageLevelOpted">
+                  <span class="crm-pill" *ngIf="doc.studentStatus">{{ doc.studentStatus }}</span>
+                  <span class="crm-pill crm-pill-package" *ngIf="doc.subscription">{{ doc.subscription }}</span>
+                  <span class="crm-pill crm-pill-service" *ngIf="doc.servicesOpted">{{ doc.servicesOpted }}</span>
+                  <span class="crm-pill crm-pill-qual" *ngIf="doc.qualifications">{{ doc.qualifications }}</span>
+                  <span class="crm-pill crm-pill-muted" *ngIf="doc.languageLevelOpted">{{ doc.languageLevelOpted }}</span>
+                </div>
               </div>
               <button mat-icon-button matTooltip="Send Email" 
                       (click)="openEmailDialog(doc.studentName, doc.studentEmail); $event.stopPropagation()"

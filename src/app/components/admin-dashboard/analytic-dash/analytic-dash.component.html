@@ -8,11 +8,11 @@
         <div class="admin-header-text">
           <div class="admin-title-row">
             <span class="admin-title-icon" aria-hidden="true">
-              <i class="fas fa-graduation-cap"></i>
+              <i class="fas fa-chart-line"></i>
             </span>
             <div>
-              <h1 class="admin-title">Student Management</h1>
-              <p class="admin-subtitle">Search, filter, and manage learners synced from your CRM</p>
+              <h1 class="admin-title">Analytic dash</h1>
+              <p class="admin-subtitle">Sales CRM view: full Monday-synced fields per learner. Set <code class="admin-subtitle-code">MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS</code> to the Monday column id (comma-separated list tries each id until one has a value). Run CRM sync after changing it.</p>
             </div>
           </div>
         </div>
@@ -60,6 +60,9 @@
             </div>
           </div>
           <div class="action-group-right">
+            <button type="button" class="btn btn-action btn-action--ghost" routerLink="/admin-dashboard">
+              <i class="fas fa-table"></i> Student directory
+            </button>
             <button type="button" class="btn btn-action btn-action--ghost" routerLink="/student-logs">
               <i class="fas fa-history"></i> Logs
             </button>
@@ -241,6 +244,91 @@
                 </select>
               </div>
 
+              <div class="col-xl-2 col-lg-3 col-md-6 d-flex align-items-end pb-1">
+                <button
+                  type="button"
+                  class="btn btn-advanced-filter w-100"
+                  (click)="toggleAdvancedFilterPanel()"
+                  [attr.aria-expanded]="advancedFilterExpanded"
+                >
+                  <i class="fas fa-sliders-h me-1"></i>
+                  Advanced filter
+                  <span class="badge rounded-pill ms-1 advanced-filter-on-badge" *ngIf="appliedAdvField">On</span>
+                </button>
+              </div>
+
+              <div class="col-12" *ngIf="advancedFilterExpanded">
+                <div class="advanced-filter-panel">
+                  <p class="advanced-filter-help">
+                    Type any part of a field name (for example <strong>t</strong> matches <em>Lead source</em>, <em>Stream</em>, <em>Student status</em>…).
+                    Choose a field, then pick a value that exists in your student data.
+                  </p>
+                  <div class="row g-3 align-items-end">
+                    <div class="col-md-5 col-lg-4">
+                      <label class="form-label">Field</label>
+                      <mat-form-field class="filter-autocomplete w-100" appearance="outline" subscriptSizing="dynamic">
+                        <input
+                          matInput
+                          [formControl]="advancedFieldInputControl"
+                          [matAutocomplete]="advFieldAuto"
+                          placeholder="Type to search…"
+                        >
+                        <mat-autocomplete
+                          #advFieldAuto="matAutocomplete"
+                          (optionSelected)="onAdvancedFieldOptionSelected($event.option.value)"
+                        >
+                          <mat-option
+                            *ngFor="let f of filteredAdvancedFields$ | async"
+                            [value]="f"
+                          >
+                            {{ f.label }}
+                          </mat-option>
+                        </mat-autocomplete>
+                      </mat-form-field>
+                    </div>
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label">Value</label>
+                      <select
+                        class="form-select filter-select"
+                        [(ngModel)]="advancedPendingValue"
+                        [disabled]="!selectedAdvancedField || loadingAdvancedDistinct"
+                      >
+                        <option value="">
+                          {{ loadingAdvancedDistinct ? 'Loading values…' : (selectedAdvancedField ? 'Select a value' : 'Pick a field first') }}
+                        </option>
+                        <option *ngFor="let v of advancedDistinctValues" [value]="v">{{ v }}</option>
+                      </select>
+                      <small *ngIf="selectedAdvancedField && !loadingAdvancedDistinct && advancedDistinctValues.length === 0" class="text-muted d-block mt-1">
+                        No saved values for this field yet.
+                      </small>
+                    </div>
+                    <div class="col-md-12 col-lg-5 d-flex flex-wrap gap-2 align-items-center">
+                      <button type="button" class="btn btn-filter-apply" (click)="applyAdvancedFilter()">
+                        <i class="fas fa-check"></i> Apply advanced
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        (click)="clearAdvancedFilter()"
+                        [disabled]="!appliedAdvField && !selectedAdvancedField"
+                      >
+                        Clear advanced
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12" *ngIf="appliedAdvField">
+                <div class="advanced-filter-active-chip">
+                  <span class="advanced-filter-chip-label">Advanced filter</span>
+                  <span class="advanced-filter-chip-text">{{ appliedAdvancedFilterSummary }}</span>
+                  <button type="button" class="btn btn-link btn-sm advanced-filter-chip-remove" (click)="clearAdvancedFilter()" aria-label="Remove advanced filter">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+
               <!-- Search Action -->
               <div class="col-xl-12 col-lg-12">
                 <div class="filter-actions-bar">
@@ -257,140 +345,185 @@
         </div>
       </div>
 
-      <!-- Students Table -->
+      <!-- CRM wide table -->
       <div class="data-table-card">
         <div class="card table-card-shell">
           <div class="table-toolbar">
             <div class="table-toolbar-main">
-              <span class="table-toolbar-icon"><i class="fas fa-table"></i></span>
+              <span class="table-toolbar-icon"><i class="fas fa-chart-line"></i></span>
               <div>
-                <span class="table-toolbar-title">Directory</span>
-                <span class="table-toolbar-meta">Page {{ currentPage }} of {{ totalPages }}</span>
+                <span class="table-toolbar-title">CRM fields</span>
+                <span class="table-toolbar-meta">
+                  Page {{ currentPage }} of {{ totalPages }}
+                  · {{ visibleCrmColumnCount }}/{{ crmOptionalColumns.length }} columns visible
+                  · scroll horizontally
+                </span>
               </div>
             </div>
             <span class="table-toolbar-actions">
               <button
                 mat-icon-button
                 type="button"
-                class="table-columns-btn"
-                [matMenuTriggerFor]="studentColMenu"
-                matTooltip="Show or hide columns"
-                aria-label="Show or hide columns"
+                class="table-columns-btn analytic-columns-btn"
+                [matMenuTriggerFor]="crmColMenu"
+                matTooltip="Choose which columns to show"
+                aria-label="Choose CRM columns to display"
               >
                 <mat-icon>view_column</mat-icon>
               </button>
-              <mat-menu #studentColMenu="matMenu" class="student-column-picker-menu">
-                <div class="student-column-picker-inner" (click)="$event.stopPropagation()">
-                  <div class="student-column-picker-title">Optional columns</div>
-                  <mat-checkbox
-                    *ngFor="let c of optionalColumns"
-                    class="student-column-picker-check"
-                    [checked]="columnVisibility[c.id]"
-                    (change)="toggleOptionalColumn(c.id, $event.checked)"
-                  >
-                    {{ c.label }}
-                  </mat-checkbox>
+              <mat-menu #crmColMenu="matMenu" class="analytic-column-picker-menu">
+                <div class="analytic-column-picker-inner" (click)="$event.stopPropagation()">
+                  <div class="analytic-column-picker-head">
+                    <span class="analytic-column-picker-title">Visible columns</span>
+                    <button type="button" class="btn btn-link btn-sm analytic-show-all" (click)="showAllCrmColumns()">Show all</button>
+                  </div>
+                  <div class="analytic-column-picker-scroll">
+                    <mat-checkbox
+                      *ngFor="let c of crmOptionalColumns"
+                      class="analytic-column-picker-check"
+                      [checked]="isCrmColVisible(c.id)"
+                      (change)="toggleCrmColumn(c.id, $event.checked)"
+                    >
+                      {{ c.label }}
+                    </mat-checkbox>
+                  </div>
+                  <p class="analytic-column-picker-hint">Reg no, name, and actions always stay visible. Your choices are saved on this browser.</p>
                 </div>
               </mat-menu>
             </span>
           </div>
-          <div class="table-responsive table-responsive--rounded">
-            <table class="table table-hover admin-student-table mb-0">
+          <div class="table-responsive table-responsive--rounded table-responsive--crm-wide analytic-crm-scroll">
+            <table class="table table-hover admin-student-table admin-analytic-table analytic-crm-table mb-0">
               <thead>
                 <tr>
-                  <th style="width: 50px;">
-                    <input 
-                      type="checkbox" 
-                      class="form-check-input" 
+                  <th class="sticky-col-check" style="width: 48px;">
+                    <input
+                      type="checkbox"
+                      class="form-check-input"
                       [(ngModel)]="selectAll"
                       (change)="toggleSelectAll()"
                     >
                   </th>
-                  <th>Reg No</th>
-                  <th>Student Info</th>
-                  <th>Plan & Level</th>
-                  <th>Batch & Medium</th>
-                  <th *ngIf="isColVisible('servicesOpted')">Service opted</th>
-                  <th *ngIf="isColVisible('qualifications')">Qualification</th>
-                  <th *ngIf="isColVisible('languageLevelOpted')">Lang. level opted</th>
-                  <th *ngIf="isColVisible('leadSource')">Lead source</th>
-                  <th *ngIf="isColVisible('stream')">Stream</th>
-                  <th *ngIf="isColVisible('enrollmentDate')">Enrollment</th>
-                  <th *ngIf="isColVisible('teacherIncharge')">Teacher in charge</th>
-                  <th *ngIf="isColVisible('whatsappNumber')">WhatsApp</th>
-                  <th>Status</th>
-                  <th>Assigned Teacher</th>
-                  <th>Last Credentials Sent</th>
-                  <th class="text-center">Actions</th>
+                  <th class="sticky-col-name">Reg No</th>
+                  <th class="crm-col-name">Candidate / name</th>
+                  <th *ngIf="isCrmColVisible('email')">Email</th>
+                  <th *ngIf="isCrmColVisible('phone')">Phone</th>
+                  <th *ngIf="isCrmColVisible('whatsapp')">WhatsApp</th>
+                  <th *ngIf="isCrmColVisible('address')">Address</th>
+                  <th *ngIf="isCrmColVisible('age')">Age</th>
+                  <th *ngIf="isCrmColVisible('leadSource')">Lead source</th>
+                  <th *ngIf="isCrmColVisible('docPayment')">Documentation payment</th>
+                  <th *ngIf="isCrmColVisible('enrollment')">Enrollment</th>
+                  <th *ngIf="isCrmColVisible('servicesOpted')">Service opted</th>
+                  <th *ngIf="isCrmColVisible('subscription')">Package</th>
+                  <th *ngIf="isCrmColVisible('languageLevelOpted')">Lang. level opted</th>
+                  <th *ngIf="isCrmColVisible('level')">Current level</th>
+                  <th *ngIf="isCrmColVisible('batch')">Batch</th>
+                  <th *ngIf="isCrmColVisible('medium')">Medium</th>
+                  <th *ngIf="isCrmColVisible('otherLanguage')">Other language</th>
+                  <th *ngIf="isCrmColVisible('qualifications')">Qualification</th>
+                  <th *ngIf="isCrmColVisible('stream')">Stream</th>
+                  <th *ngIf="isCrmColVisible('batchStarted')">Batch started</th>
+                  <th *ngIf="isCrmColVisible('teacherIncharge')">Teacher in charge (CRM)</th>
+                  <th *ngIf="isCrmColVisible('assignedTeacher')">Assigned teacher</th>
+                  <th *ngIf="isCrmColVisible('studentStatus')">Status</th>
+                  <th *ngIf="isCrmColVisible('dateWithdrew')">Date withdrew</th>
+                  <th *ngIf="isCrmColVisible('reasonWithdrawal')">Reason withdrawal</th>
+                  <th *ngIf="isCrmColVisible('languageExamStatus')">Lang. exam status</th>
+                  <th *ngIf="isCrmColVisible('examPassed')">Exam passed</th>
+                  <th *ngIf="isCrmColVisible('examReading')">Reading</th>
+                  <th *ngIf="isCrmColVisible('examListening')">Listening</th>
+                  <th *ngIf="isCrmColVisible('examWriting')">Writing</th>
+                  <th *ngIf="isCrmColVisible('examSpeaking')">Speaking</th>
+                  <th *ngIf="isCrmColVisible('examRemark')">Exam remark</th>
+                  <th *ngIf="isCrmColVisible('candidateStatus')">Candidate status</th>
+                  <th *ngIf="isCrmColVisible('a1Start')">A1 start</th>
+                  <th *ngIf="isCrmColVisible('a1End')">A1 end</th>
+                  <th *ngIf="isCrmColVisible('a2Start')">A2 start</th>
+                  <th *ngIf="isCrmColVisible('a2End')">A2 end</th>
+                  <th *ngIf="isCrmColVisible('b1Start')">B1 start</th>
+                  <th *ngIf="isCrmColVisible('b1End')">B1 end</th>
+                  <th *ngIf="isCrmColVisible('b2Start')">B2 start</th>
+                  <th *ngIf="isCrmColVisible('b2End')">B2 end</th>
+                  <th *ngIf="isCrmColVisible('lastCredentials')">Last credentials</th>
+                  <th *ngIf="isCrmColVisible('registered')">Registered</th>
+                  <th class="text-center sticky-col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let student of filteredStudents; trackBy: trackById">
-                  <td>
-                    <input 
-                      type="checkbox" 
+                  <td class="sticky-col-check">
+                    <input
+                      type="checkbox"
                       class="form-check-input"
                       [checked]="isSelected(student._id)"
                       (change)="toggleStudentSelection(student._id)"
                     >
                   </td>
-                  <td>
-                    <span class="reg-number">{{ student.regNo || 'N/A' }}</span>
+                  <td class="sticky-col-name"><span class="reg-number">{{ student.regNo || '—' }}</span></td>
+                  <td class="crm-col-name"><div class="student-name">{{ student.name }}</div></td>
+                  <td *ngIf="isCrmColVisible('email')" class="crm-cell text-secondary">{{ crmCellDisplay(student, 'email') }}</td>
+                  <td *ngIf="isCrmColVisible('phone')" class="crm-cell">{{ crmCellDisplay(student, 'phoneNumber') }}</td>
+                  <td *ngIf="isCrmColVisible('whatsapp')" class="crm-cell">{{ crmCellDisplay(student, 'whatsappNumber') }}</td>
+                  <td *ngIf="isCrmColVisible('address')" class="crm-cell crm-cell--wide">{{ crmCellDisplay(student, 'address') }}</td>
+                  <td *ngIf="isCrmColVisible('age')" class="crm-cell">{{ student.age != null && student.age !== '' ? student.age : '—' }}</td>
+                  <td *ngIf="isCrmColVisible('leadSource')" class="crm-cell">{{ crmCellDisplay(student, 'leadSource') }}</td>
+                  <td *ngIf="isCrmColVisible('docPayment')" class="crm-cell">
+                    <span class="badge doc-payment-badge bg-secondary" *ngIf="crmCellDisplay(student, 'documentationPaymentStatus') !== '—'">
+                      {{ crmCellDisplay(student, 'documentationPaymentStatus') }}
+                    </span>
+                    <ng-container *ngIf="crmCellDisplay(student, 'documentationPaymentStatus') === '—'">—</ng-container>
                   </td>
-                  <td>
-                    <div class="student-info">
-                      <div class="student-name">{{ student.name }}</div>
-                      <div class="student-email">{{ student.email }}</div>
-                    </div>
+                  <td *ngIf="isCrmColVisible('enrollment')" class="crm-cell text-secondary">{{ formatCrmDate(student.enrollmentDate) }}</td>
+                  <td *ngIf="isCrmColVisible('servicesOpted')" class="crm-cell">{{ crmCellDisplay(student, 'servicesOpted') }}</td>
+                  <td *ngIf="isCrmColVisible('subscription')">
+                    <span class="badge crm-pill crm-pill--plan">{{ student.subscription || '—' }}</span>
                   </td>
-                  <td>
-                    <div class="plan-level">
-                      <span class="badge bg-primary">{{ student.subscription || 'N/A' }}</span>
-                      <span class="badge bg-info">{{ student.level || 'N/A' }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="batch-medium">
-                      <div class="batch">Batch: {{ student.batch || 'N/A' }}</div>
-                      <div class="medium">{{ student.medium || 'N/A' }}</div>
-                    </div>
-                  </td>
-                  <td *ngIf="isColVisible('servicesOpted')" class="crm-cell">{{ crmCellDisplay(student, 'servicesOpted') }}</td>
-                  <td *ngIf="isColVisible('qualifications')" class="crm-cell">{{ crmCellDisplay(student, 'qualifications') }}</td>
-                  <td *ngIf="isColVisible('languageLevelOpted')" class="crm-cell">{{ crmCellDisplay(student, 'languageLevelOpted') }}</td>
-                  <td *ngIf="isColVisible('leadSource')" class="crm-cell">{{ crmCellDisplay(student, 'leadSource') }}</td>
-                  <td *ngIf="isColVisible('stream')" class="crm-cell">{{ crmCellDisplay(student, 'stream') }}</td>
-                  <td *ngIf="isColVisible('enrollmentDate')" class="crm-cell text-muted small">
-                    {{ student.enrollmentDate ? formatDate(student.enrollmentDate) : '—' }}
-                  </td>
-                  <td *ngIf="isColVisible('teacherIncharge')" class="crm-cell">{{ crmCellDisplay(student, 'teacherIncharge') }}</td>
-                  <td *ngIf="isColVisible('whatsappNumber')" class="crm-cell">{{ crmCellDisplay(student, 'whatsappNumber') }}</td>
-                  <td>
-                    <span class="badge" [ngClass]="{
-                      'bg-success': student.studentStatus === 'COMPLETED',
-                      'bg-primary': student.studentStatus === 'ONGOING',
-                      'bg-warning': student.studentStatus === 'UNCERTAIN',
-                      'bg-danger': student.studentStatus === 'DROPPED',
-                      'bg-secondary': !student.studentStatus
+                  <td *ngIf="isCrmColVisible('languageLevelOpted')" class="crm-cell">{{ crmCellDisplay(student, 'languageLevelOpted') }}</td>
+                  <td *ngIf="isCrmColVisible('level')"><span class="badge crm-pill crm-pill--level">{{ student.level || '—' }}</span></td>
+                  <td *ngIf="isCrmColVisible('batch')" class="crm-cell">{{ crmCellDisplay(student, 'batch') }}</td>
+                  <td *ngIf="isCrmColVisible('medium')" class="crm-cell">{{ mediumDisplay(student) }}</td>
+                  <td *ngIf="isCrmColVisible('otherLanguage')" class="crm-cell">{{ crmCellDisplay(student, 'otherLanguageKnown') }}</td>
+                  <td *ngIf="isCrmColVisible('qualifications')" class="crm-cell">{{ crmCellDisplay(student, 'qualifications') }}</td>
+                  <td *ngIf="isCrmColVisible('stream')" class="crm-cell">{{ crmCellDisplay(student, 'stream') }}</td>
+                  <td *ngIf="isCrmColVisible('batchStarted')" class="crm-cell text-secondary">{{ formatCrmDate(student.batchStartedOn) }}</td>
+                  <td *ngIf="isCrmColVisible('teacherIncharge')" class="crm-cell">{{ crmCellDisplay(student, 'teacherIncharge') }}</td>
+                  <td *ngIf="isCrmColVisible('assignedTeacher')" class="crm-cell">{{ assignedTeacherDisplay(student) }}</td>
+                  <td *ngIf="isCrmColVisible('studentStatus')">
+                    <span class="badge crm-status-pill" [ngClass]="{
+                      'crm-status--done': student.studentStatus === 'COMPLETED',
+                      'crm-status--ongoing': student.studentStatus === 'ONGOING',
+                      'crm-status--uncertain': student.studentStatus === 'UNCERTAIN',
+                      'crm-status--dropped': student.studentStatus === 'DROPPED',
+                      'crm-status--withdrew': student.studentStatus === 'WITHDREW',
+                      'crm-status--empty': !student.studentStatus
                     }">
-                      {{ student.studentStatus || 'N/A' }}
+                      {{ student.studentStatus || '—' }}
                     </span>
                   </td>
-                  <td>
-                    <div class="teacher-info">
-                      {{ student.assignedTeacher?.name || 'Unassigned' }}
-                    </div>
-                  </td>
-                  <td>
-                    <div class="credentials-sent-info">
-                      <small class="text-muted">
-                        {{ formatDate(student.lastCredentialsEmailSent) }}
-                      </small>
-                    </div>
-                  </td>
-                  <td class="text-center">
+                  <td *ngIf="isCrmColVisible('dateWithdrew')" class="crm-cell text-secondary">{{ formatCrmDate(student.dateWithdrew) }}</td>
+                  <td *ngIf="isCrmColVisible('reasonWithdrawal')" class="crm-cell crm-cell--wide">{{ crmCellDisplay(student, 'reasonForWithdrawing') }}</td>
+                  <td *ngIf="isCrmColVisible('languageExamStatus')" class="crm-cell">{{ crmCellDisplay(student, 'languageExamStatus') }}</td>
+                  <td *ngIf="isCrmColVisible('examPassed')" class="crm-cell text-secondary">{{ formatCrmDate(student.examPassedDate) }}</td>
+                  <td *ngIf="isCrmColVisible('examReading')" class="crm-cell">{{ examScore(student, 'reading') }}</td>
+                  <td *ngIf="isCrmColVisible('examListening')" class="crm-cell">{{ examScore(student, 'listening') }}</td>
+                  <td *ngIf="isCrmColVisible('examWriting')" class="crm-cell">{{ examScore(student, 'writing') }}</td>
+                  <td *ngIf="isCrmColVisible('examSpeaking')" class="crm-cell">{{ examScore(student, 'speaking') }}</td>
+                  <td *ngIf="isCrmColVisible('examRemark')" class="crm-cell crm-cell--wide">{{ crmCellDisplay(student, 'examRemark') }}</td>
+                  <td *ngIf="isCrmColVisible('candidateStatus')" class="crm-cell">{{ crmCellDisplay(student, 'candidateStatus') }}</td>
+                  <td *ngIf="isCrmColVisible('a1Start')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseStartDates.A1StartDate') }}</td>
+                  <td *ngIf="isCrmColVisible('a1End')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseCompletionDates.A1CompletionDate') }}</td>
+                  <td *ngIf="isCrmColVisible('a2Start')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseStartDates.A2StartDate') }}</td>
+                  <td *ngIf="isCrmColVisible('a2End')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseCompletionDates.A2CompletionDate') }}</td>
+                  <td *ngIf="isCrmColVisible('b1Start')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseStartDates.B1StartDate') }}</td>
+                  <td *ngIf="isCrmColVisible('b1End')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseCompletionDates.B1CompletionDate') }}</td>
+                  <td *ngIf="isCrmColVisible('b2Start')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseStartDates.B2StartDate') }}</td>
+                  <td *ngIf="isCrmColVisible('b2End')" class="crm-cell text-secondary">{{ courseDateCell(student, 'courseCompletionDates.B2CompletionDate') }}</td>
+                  <td *ngIf="isCrmColVisible('lastCredentials')" class="crm-cell text-secondary">{{ formatDate(student.lastCredentialsEmailSent) }}</td>
+                  <td *ngIf="isCrmColVisible('registered')" class="crm-cell text-secondary">{{ formatCrmDate(student.registeredAt) }}</td>
+                  <td class="text-center sticky-col-actions">
                     <div class="action-buttons">
-                      <button 
+                      <button
                         class="btn btn-sm btn-outline-primary me-1"
                         [routerLink]="['/signup', student._id]"
                         title="Edit Student"

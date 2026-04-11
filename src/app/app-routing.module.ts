@@ -63,6 +63,14 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
+  {
+    path: 'admin/analytic-dash',
+    loadComponent: () => import('./components/admin-dashboard/analytic-dash/analytic-dash.component')
+      .then(m => m.AnalyticDashComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+
   // User Roles Management
   {
     path: 'user-roles',

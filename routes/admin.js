@@ -9,9 +9,90 @@ const MeetingLink = require('../models/MeetingLink');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 
+/** Whitelist: API key → User schema path (advanced filter + distinct values) */
+const ADV_STUDENT_FILTER_FIELDS = {
+  level: 'level',
+  subscription: 'subscription',
+  batch: 'batch',
+  studentStatus: 'studentStatus',
+  servicesOpted: 'servicesOpted',
+  qualifications: 'qualifications',
+  languageLevelOpted: 'languageLevelOpted',
+  leadSource: 'leadSource',
+  stream: 'stream',
+  teacherIncharge: 'teacherIncharge',
+  otherLanguageKnown: 'otherLanguageKnown',
+  documentationPaymentStatus: 'documentationPaymentStatus',
+  languageExamStatus: 'languageExamStatus',
+  candidateStatus: 'candidateStatus',
+  phoneNumber: 'phoneNumber',
+  whatsappNumber: 'whatsappNumber',
+  address: 'address',
+  medium: 'medium',
+  age: 'age'
+};
+
 // Admin dashboard route
 router.get("/admin-dashboard", verifyToken, checkRole("admin"), (req, res) => {
   res.json({ msg: "Welcome Admin" });
+});
+
+// Distinct CRM filter values for student list (Monday-synced fields)
+router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const base = { role: 'STUDENT' };
+    const clean = (arr) =>
+      [...new Set((arr || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
+
+    const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream] = await Promise.all([
+      User.distinct('batch', base),
+      User.distinct('servicesOpted', base),
+      User.distinct('qualifications', base),
+      User.distinct('languageLevelOpted', base),
+      User.distinct('leadSource', base),
+      User.distinct('stream', base)
+    ]);
+
+    res.json({
+      success: true,
+      batches: clean(batches),
+      servicesOpted: clean(servicesOpted),
+      qualifications: clean(qualifications),
+      languageLevelOpted: clean(languageLevelOpted),
+      leadSource: clean(leadSource),
+      stream: clean(stream)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Distinct values for one student field (analytic advanced filter)
+router.get('/students/distinct/:fieldKey', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const fieldKey = String(req.params.fieldKey || '').trim();
+    const path = ADV_STUDENT_FILTER_FIELDS[fieldKey];
+    if (!path) {
+      return res.status(400).json({ success: false, message: 'Unknown or disallowed field' });
+    }
+
+    const base = { role: 'STUDENT' };
+    let raw = await User.distinct(path, base);
+
+    if (path === 'medium') {
+      raw = (raw || []).flatMap((v) => (Array.isArray(v) ? v : [v]));
+    }
+
+    const clean = [...new Set((raw || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
+    );
+
+    res.json({ success: true, fieldKey, values: clean });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // Get all students
@@ -32,7 +113,14 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       batch,
       studentStatus,
       studentName,
-      teacherName
+      teacherName,
+      servicesOpted,
+      qualifications,
+      languageLevelOpted,
+      leadSource,
+      stream,
+      advField,
+      advValue
     } = req.query;
 
     const query = { role: 'STUDENT' };
@@ -42,6 +130,11 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     if (batch) query.batch = String(batch).trim();
     if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
     if (studentName) query.name = { $regex: new RegExp(String(studentName).trim(), 'i') };
+    if (servicesOpted) query.servicesOpted = String(servicesOpted).trim();
+    if (qualifications) query.qualifications = String(qualifications).trim();
+    if (languageLevelOpted) query.languageLevelOpted = String(languageLevelOpted).trim();
+    if (leadSource) query.leadSource = String(leadSource).trim();
+    if (stream) query.stream = String(stream).trim();
 
     if (teacherName) {
       const matchingTeachers = await User.find({
@@ -51,6 +144,24 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
 
       const teacherIds = matchingTeachers.map((teacher) => teacher._id);
       query.assignedTeacher = { $in: teacherIds };
+    }
+
+    // Advanced filter (single field/value); applied after basics — overrides same path if duplicated
+    if (advField && advValue !== undefined && advValue !== null && String(advValue).trim() !== '') {
+      const advPath = ADV_STUDENT_FILTER_FIELDS[String(advField).trim()];
+      if (advPath) {
+        let v = String(advValue).trim();
+        if (advPath === 'studentStatus') v = v.toUpperCase();
+        if (advPath === 'subscription') v = v.toUpperCase();
+        if (advPath === 'age') {
+          const n = parseInt(v, 10);
+          if (Number.isFinite(n)) query.age = n;
+        } else if (advPath === 'medium') {
+          query.medium = v;
+        } else {
+          query[advPath] = v;
+        }
+      }
     }
 
     const total = await User.countDocuments(query);

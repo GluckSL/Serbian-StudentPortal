@@ -331,13 +331,20 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (re
     if (documentType) filter.documentType = documentType;
     
     const documents = await StudentDocument.find(filter)
-      .populate('studentId', 'name email batch level servicesOpted')
+      .populate(
+        'studentId',
+        'name email regNo batch level subscription studentStatus qualifications servicesOpted languageLevelOpted'
+      )
       .sort({ uploadedAt: -1 })
       .lean();
     
     const documentsWithFormatting = documents.map(doc => ({
       ...doc,
       servicesOpted: doc.studentId?.servicesOpted || '',
+      subscription: doc.studentId?.subscription || '',
+      studentStatus: doc.studentId?.studentStatus || '',
+      qualifications: doc.studentId?.qualifications || '',
+      languageLevelOpted: doc.studentId?.languageLevelOpted || '',
       formattedFileSize: formatFileSize(doc.fileSize),
       documentTypeDisplay: getDocumentTypeDisplayName(doc.documentType)
     }));
