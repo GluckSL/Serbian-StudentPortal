@@ -7,6 +7,7 @@ import { RouterModule, Router } from '@angular/router';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { ModuleTrashService } from '../../services/module-trash.service';
 import { NotificationService } from '../../services/notification.service';
+import { AdminAnalyticsService } from '../../services/admin-analytics.service';
 
 interface ModuleWithStats {
   _id: string;
@@ -267,6 +268,9 @@ interface ModuleWithStats {
                             <button class="btn btn-sm btn-outline-warning me-1" (click)="toggleStatus(module)" title="Toggle Status">
                               <i class="fas" [class]="module.isActive ? 'fa-pause' : 'fa-play'"></i>
                             </button>
+                            <button class="btn btn-sm btn-outline-purple me-1" (click)="openAnalytics(module)" title="Student Analytics">
+                              <i class="fas fa-chart-bar"></i>
+                            </button>
                             <button class="btn btn-sm btn-outline-danger" (click)="deleteModule(module)" title="Delete Module">
                               <i class="fas fa-trash"></i>
                             </button>
@@ -296,6 +300,106 @@ interface ModuleWithStats {
           </nav>
 
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Analytics Modal ═══════ -->
+    <div class="analytics-overlay" *ngIf="analyticsModal.open" (click)="closeAnalytics()">
+      <div class="analytics-modal" (click)="$event.stopPropagation()">
+
+        <!-- Modal Header -->
+        <div class="am-header">
+          <div class="am-header-left">
+            <span class="am-icon">📊</span>
+            <div>
+              <h2 class="am-title">Module Analytics</h2>
+              <p class="am-subtitle">{{ analyticsModal.moduleName }}</p>
+            </div>
+          </div>
+          <button class="am-close" (click)="closeAnalytics()">✕</button>
+        </div>
+
+        <!-- Loading -->
+        <div class="am-loading" *ngIf="analyticsModal.loading">
+          <div class="am-spinner"></div>
+          <span>Loading student data…</span>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="am-summary" *ngIf="!analyticsModal.loading">
+          <div class="am-sum-card am-sum-total">
+            <span class="am-sum-num">{{ analyticsModal.totalStudents }}</span>
+            <span class="am-sum-label">Total Students</span>
+          </div>
+          <div class="am-sum-card am-sum-done">
+            <span class="am-sum-num">{{ analyticsModal.completed }}</span>
+            <span class="am-sum-label">✅ Completed</span>
+          </div>
+          <div class="am-sum-card am-sum-pend">
+            <span class="am-sum-num">{{ analyticsModal.notCompleted }}</span>
+            <span class="am-sum-label">⏳ Not Completed</span>
+          </div>
+          <div class="am-sum-card am-sum-time">
+            <span class="am-sum-num">{{ analyticsModal.avgTime }}</span>
+            <span class="am-sum-label">Avg Time Spent</span>
+          </div>
+          <div class="am-sum-card am-sum-score">
+            <span class="am-sum-num">{{ analyticsModal.avgScore }}%</span>
+            <span class="am-sum-label">Avg Score</span>
+          </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="am-tabs" *ngIf="!analyticsModal.loading">
+          <button class="am-tab" [class.active]="analyticsModal.filter === 'all'" (click)="setAnalyticsFilter('all')">All</button>
+          <button class="am-tab" [class.active]="analyticsModal.filter === 'completed'" (click)="setAnalyticsFilter('completed')">✅ Completed</button>
+          <button class="am-tab" [class.active]="analyticsModal.filter === 'not-completed'" (click)="setAnalyticsFilter('not-completed')">⏳ Not Completed</button>
+        </div>
+
+        <!-- Student Table -->
+        <div class="am-table-wrap" *ngIf="!analyticsModal.loading">
+          <table class="am-table" *ngIf="filteredAnalyticsSessions.length > 0; else noData">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Batch</th>
+                <th>Level</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Time Spent</th>
+                <th>Date &amp; Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of filteredAnalyticsSessions" class="am-row">
+                <td class="am-name">{{ s.studentName }}</td>
+                <td>{{ s.studentBatch || '—' }}</td>
+                <td>
+                  <span class="am-level-badge am-level-{{ s.studentLevel?.toLowerCase() }}">{{ s.studentLevel || '—' }}</span>
+                </td>
+                <td>
+                  <span class="am-status" [class.am-done]="s.completionStatus === 'completed'" [class.am-pend]="s.completionStatus !== 'completed'">
+                    {{ s.completionStatus === 'completed' ? '✅ Completed' : '⏳ ' + (s.completionStatus || 'In Progress') }}
+                  </span>
+                </td>
+                <td>
+                  <span class="am-score" [class.am-score-hi]="s.score >= 80" [class.am-score-mid]="s.score >= 50 && s.score < 80" [class.am-score-lo]="s.score < 50 && s.score > 0">
+                    {{ s.score > 0 ? (s.score | number:'1.0-1') + '%' : '—' }}
+                  </span>
+                </td>
+                <td>{{ formatMinutes(s.timeSpent) }}</td>
+                <td class="am-date">{{ formatDate(s.date) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #noData>
+            <div class="am-empty">
+              <span>📭</span>
+              <p>No student sessions found for this module yet.</p>
+            </div>
+          </ng-template>
+        </div>
+
       </div>
     </div>
 
@@ -594,6 +698,185 @@ interface ModuleWithStats {
     .btn-outline-danger   { color: #e11d48; border-color: #e11d48; }
     .btn-outline-danger:hover { background: #e11d48; color: #fff; }
 
+    .btn-outline-purple   { color: #7c3aed; border-color: #7c3aed; }
+    .btn-outline-purple:hover { background: #7c3aed; color: #fff; }
+
+    /* ── Analytics Modal Overlay ── */
+    .analytics-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.55);
+      backdrop-filter: blur(4px);
+      z-index: 1055;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .analytics-modal {
+      background: #fff;
+      border-radius: 18px;
+      width: 100%;
+      max-width: 860px;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 60px rgba(15,23,42,0.25);
+      overflow: hidden;
+    }
+
+    /* Header */
+    .am-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .am-header-left { display: flex; align-items: center; gap: 12px; }
+    .am-icon { font-size: 28px; }
+    .am-title { font-size: 16px; font-weight: 700; margin: 0; }
+    .am-subtitle { font-size: 11px; opacity: 0.8; margin: 0; }
+    .am-close {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      border-radius: 8px;
+      width: 32px; height: 32px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .am-close:hover { background: rgba(255,255,255,0.3); }
+
+    /* Loading */
+    .am-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 40px;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .am-spinner {
+      width: 24px; height: 24px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Summary Cards */
+    .am-summary {
+      display: flex;
+      gap: 10px;
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .am-sum-card {
+      flex: 1;
+      min-width: 90px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid;
+    }
+    .am-sum-num   { font-size: 20px; font-weight: 700; line-height: 1; }
+    .am-sum-label { font-size: 10px; margin-top: 4px; text-align: center; font-weight: 500; }
+    .am-sum-total { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+    .am-sum-done  { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+    .am-sum-pend  { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+    .am-sum-time  { background: #e0f2fe; border-color: #bae6fd; color: #0369a1; }
+    .am-sum-score { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
+
+    /* Filter Tabs */
+    .am-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 20px;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      flex-shrink: 0;
+    }
+    .am-tab {
+      padding: 10px 18px;
+      border: none;
+      background: none;
+      font-size: 12px;
+      font-weight: 500;
+      color: #64748b;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .am-tab:hover { color: #7c3aed; }
+    .am-tab.active { color: #7c3aed; border-bottom-color: #7c3aed; font-weight: 600; }
+
+    /* Table */
+    .am-table-wrap { overflow-y: auto; flex: 1; padding: 16px 20px; }
+    .am-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .am-table thead th {
+      background: #f1f5f9;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #475569;
+      border-bottom: 1px solid #e2e8f0;
+      position: sticky;
+      top: 0;
+    }
+    .am-row td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .am-row:hover td { background: #faf5ff; }
+    .am-name { font-weight: 600; color: #1e293b; }
+    .am-date { color: #64748b; white-space: nowrap; }
+
+    .am-level-badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 99px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .am-level-a1 { background: #dcfce7; color: #166534; }
+    .am-level-a2 { background: #d1fae5; color: #065f46; }
+    .am-level-b1 { background: #fef3c7; color: #92400e; }
+    .am-level-b2 { background: #fed7aa; color: #9a3412; }
+    .am-level-c1 { background: #fce7f3; color: #9d174d; }
+    .am-level-c2 { background: #ede9fe; color: #4c1d95; }
+
+    .am-status { font-size: 11px; font-weight: 500; }
+    .am-done { color: #16a34a; }
+    .am-pend { color: #d97706; }
+
+    .am-score { font-weight: 700; font-size: 13px; }
+    .am-score-hi  { color: #16a34a; }
+    .am-score-mid { color: #d97706; }
+    .am-score-lo  { color: #dc2626; }
+
+    .am-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+      color: #94a3b8;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .am-empty span { font-size: 36px; }
+
     /* ── Pagination ── */
     .pagination-nav { margin-top: 14px; }
 
@@ -691,9 +974,25 @@ export class ModuleManagementComponent implements OnInit {
   statusFilter = 'all';
   selectedModuleHistory: any = null;
 
+  // ── Analytics Modal State ──
+  analyticsModal = {
+    open: false,
+    loading: false,
+    moduleId: '',
+    moduleName: '',
+    filter: 'all' as 'all' | 'completed' | 'not-completed',
+    sessions: [] as any[],
+    totalStudents: 0,
+    completed: 0,
+    notCompleted: 0,
+    avgTime: '—',
+    avgScore: 0
+  };
+
   constructor(
     private learningModulesService: LearningModulesService,
     private moduleTrashService: ModuleTrashService,
+    private adminAnalyticsService: AdminAnalyticsService,
     private router: Router,
     private notify: NotificationService
   ) {}
@@ -835,6 +1134,73 @@ export class ModuleManagementComponent implements OnInit {
         error: () => this.notify.error('Failed to delete module')
       });
     });
+  }
+
+  // ── Analytics Modal Methods ──
+
+  openAnalytics(module: ModuleWithStats): void {
+    this.analyticsModal = {
+      open: true,
+      loading: true,
+      moduleId: module._id,
+      moduleName: module.title,
+      filter: 'all',
+      sessions: [],
+      totalStudents: 0,
+      completed: 0,
+      notCompleted: 0,
+      avgTime: '—',
+      avgScore: 0
+    };
+    document.body.style.overflow = 'hidden';
+
+    this.adminAnalyticsService.getModuleUsage({ moduleId: module._id, groupBy: 'module' })
+      .subscribe({
+        next: (res) => {
+          const moduleData = res.data?.[0];
+          const sessions: any[] = moduleData?.sessions || [];
+
+          const completed = sessions.filter(s => s.completionStatus === 'completed').length;
+          const totalTime = sessions.reduce((a: number, s: any) => a + (s.timeSpent || 0), 0);
+          const scores = sessions.map((s: any) => s.score || 0).filter((sc: number) => sc > 0);
+          const avgScore = scores.length ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
+
+          this.analyticsModal = {
+            ...this.analyticsModal,
+            loading: false,
+            sessions,
+            totalStudents: sessions.length,
+            completed,
+            notCompleted: sessions.length - completed,
+            avgTime: this.adminAnalyticsService.formatTimeSpent(sessions.length ? totalTime / sessions.length : 0),
+            avgScore
+          };
+        },
+        error: () => {
+          this.analyticsModal.loading = false;
+          this.notify.error('Failed to load analytics');
+        }
+      });
+  }
+
+  closeAnalytics(): void {
+    this.analyticsModal.open = false;
+    document.body.style.overflow = '';
+  }
+
+  setAnalyticsFilter(filter: 'all' | 'completed' | 'not-completed'): void {
+    this.analyticsModal.filter = filter;
+  }
+
+  get filteredAnalyticsSessions(): any[] {
+    const { sessions, filter } = this.analyticsModal;
+    if (filter === 'completed') return sessions.filter(s => s.completionStatus === 'completed');
+    if (filter === 'not-completed') return sessions.filter(s => s.completionStatus !== 'completed');
+    return sessions;
+  }
+
+  formatMinutes(minutes: number): string {
+    return this.adminAnalyticsService.formatTimeSpent(minutes || 0);
   }
 
   formatDate(date: Date | string): string {
