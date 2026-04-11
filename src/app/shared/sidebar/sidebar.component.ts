@@ -78,6 +78,15 @@ export class SidebarComponent implements OnInit {
     return this.userName?.slice(0, 2).toUpperCase() || '??';
   }
 
+  /** First word / rest on two lines — used only in mobile sidebar CSS. */
+  splitProfileName(name: string | null | undefined): { first: string; second: string | null } {
+    const raw = (name ?? '').trim();
+    if (!raw) return { first: '', second: null };
+    const parts = raw.split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return { first: parts[0], second: null };
+    return { first: parts[0], second: parts.slice(1).join(' ') };
+  }
+
   get roleColor(): string {
     const map: Record<string, string> = {
       ADMIN: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)',

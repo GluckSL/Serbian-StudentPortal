@@ -25,7 +25,12 @@
 
   <!-- Meetings Content -->
   <div *ngIf="!loading && !error">
-    <div class="table-wrap" *ngIf="allMeetings.length > 0">
+    <div class="sm-embedded-section-head" *ngIf="embedded">
+      <h2 class="sm-embedded-section-head__title">My Classes</h2>
+    </div>
+
+    <!-- Tabs must show even when every list is empty (e.g. My Course → Resources) -->
+    <div class="table-wrap" *ngIf="embedded || allMeetings.length > 0">
       <div class="tab-row">
         <button type="button" class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
           Upcoming Classes ({{ upcomingMeetings.length }})
@@ -60,10 +65,13 @@
               </ng-container>
             </td>
             <td class="col-teacher">
-              <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher?.name) as tn">
-                <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
-                <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
-              </ng-container>
+              <span class="teacher-display teacher-display--desktop">{{ meeting.teacher.name || '—' }}</span>
+              <span class="teacher-display teacher-display--mobile">
+                <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher.name) as tn">
+                  <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
+                  <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
+                </ng-container>
+              </span>
             </td>
             <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
             <td>{{ formatDuration(meeting.duration) }}</td>
@@ -109,10 +117,13 @@
               </ng-container>
             </td>
             <td class="col-teacher">
-              <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher?.name) as tn">
-                <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
-                <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
-              </ng-container>
+              <span class="teacher-display teacher-display--desktop">{{ meeting.teacher.name || '—' }}</span>
+              <span class="teacher-display teacher-display--mobile">
+                <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher.name) as tn">
+                  <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
+                  <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
+                </ng-container>
+              </span>
             </td>
             <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
             <td>{{ formatDuration(meeting.duration) }}</td>
@@ -155,10 +166,13 @@
               </ng-container>
             </td>
             <td class="col-teacher">
-              <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher?.name) as tn">
-                <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
-                <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
-              </ng-container>
+              <span class="teacher-display teacher-display--desktop">{{ meeting.teacher.name || '—' }}</span>
+              <span class="teacher-display teacher-display--mobile">
+                <ng-container *ngIf="splitTeacherDisplayName(meeting.teacher.name) as tn">
+                  <span class="teacher-line teacher-line--first">{{ tn.first }}</span>
+                  <span class="teacher-line teacher-line--second" *ngIf="tn.second">{{ tn.second }}</span>
+                </ng-container>
+              </span>
             </td>
             <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
             <td class="col-attend-prog">
@@ -184,8 +198,8 @@
       </table>
     </div>
 
-    <!-- Empty State -->
-    <div *ngIf="allMeetings.length === 0" class="empty-state">
+    <!-- Full-page empty state only when not embedded (embedded always has tabs + per-tab empty rows) -->
+    <div *ngIf="allMeetings.length === 0 && !embedded" class="empty-state">
       <mat-icon>event_busy</mat-icon>
       <h3>No Classes Scheduled</h3>
       <p>You don't have any Zoom classes scheduled yet.</p>

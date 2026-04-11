@@ -57,11 +57,23 @@
     </div>
   </div>
 
-  <!-- Tabs -->
+  <!-- Tabs + compact analytics entry (students) -->
   <div class="tabs-bar" *ngIf="!loading && exercises.length > 0">
-    <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
-    <button class="tab-btn" [class.active]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
-    <button class="tab-btn" [class.active]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
+    <div class="tabs-bar-tabs">
+      <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
+      <button class="tab-btn" [class.active]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
+      <button class="tab-btn" [class.active]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
+    </div>
+    <button
+      *ngIf="userRole === 'STUDENT'"
+      type="button"
+      class="tabs-analytics-btn"
+      (click)="openStudentAnalyticsPage()"
+      title="Open full analytics: overall summary and every exercise"
+    >
+      <span class="material-icons">analytics</span>
+      <span class="tabs-analytics-label">Analytics</span>
+    </button>
   </div>
 
   <!-- Loading -->
@@ -108,26 +120,47 @@
         <span class="dur-label">EST.</span>
       </div>
       <div class="row-priority">
-        <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
-          <svg class="ring-svg" viewBox="0 0 36 36">
-            <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-          </svg>
-          <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+        <div class="priority-stack">
+          <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+            <svg class="ring-svg" viewBox="0 0 36 36">
+              <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+          </div>
+          <span
+            class="wrong-hint"
+            *ngIf="userRole === 'STUDENT' && ex.studentAttempt && (ex.studentAttempt.wrongCount ?? 0) > 0"
+          >{{ ex.studentAttempt.wrongCount }} wrong</span>
+          <span
+            class="wrong-hint wrong-hint--ok"
+            *ngIf="userRole === 'STUDENT' && ex.studentAttempt && (ex.studentAttempt.wrongCount ?? 0) === 0 && isAttemptPassing(ex.studentAttempt)"
+          >0 wrong</span>
         </div>
       </div>
       <div class="row-action">
-        <button
-          *ngIf="!isExerciseJourneyLocked(ex)"
-          type="button"
-          class="btn-start"
-          (click)="startExercise(ex)"
-        >
-          {{ ex.studentAttempt ? 'Retry' : 'Start' }}
-        </button>
-        <button *ngIf="isExerciseJourneyLocked(ex)" type="button" class="btn-start btn-start--locked" disabled>
-          {{ journeyUnlockButtonLabel(ex) }}
-        </button>
+        <div class="row-action-inner">
+          <button
+            *ngIf="userRole === 'STUDENT' && ex.studentAttempt"
+            type="button"
+            class="btn-icon-analytics"
+            (click)="openExerciseReview(ex, $event)"
+            title="Open full analytics: your answers and corrections"
+          >
+            <span class="material-icons">analytics</span>
+          </button>
+          <button
+            *ngIf="!isExerciseJourneyLocked(ex)"
+            type="button"
+            class="btn-start"
+            (click)="startExercise(ex)"
+          >
+            {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+          </button>
+          <button *ngIf="isExerciseJourneyLocked(ex)" type="button" class="btn-start btn-start--locked" disabled>
+            {{ journeyUnlockButtonLabel(ex) }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

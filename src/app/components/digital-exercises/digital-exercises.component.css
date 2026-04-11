@@ -96,7 +96,7 @@
     72px
     80px
     76px
-    minmax(108px, 120px);
+    minmax(124px, 152px);
 }
 
 .day-badge {
@@ -340,23 +340,67 @@
 }
 
 
-/* ─── Tabs ────────────────────────────────────────────────────────────────── */
+/* ─── Tabs + student analytics chip ─────────────────────────────────────────── */
 .tabs-bar {
   display: flex;
-  gap: 22px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
   padding-bottom: 2px;
   border-bottom: 1px solid #e9e5ff;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   flex-wrap: nowrap;
-  scrollbar-width: thin;
 }
 
-.tabs-bar::-webkit-scrollbar {
-  height: 3px;
+.tabs-bar-tabs {
+  display: flex;
+  gap: 22px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Hide scrollbar (tabs still scroll on touch / trackpad); avoids UI next to Analytics */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 2px;
+}
+
+.tabs-bar-tabs::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.tabs-analytics-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px 8px;
+  margin-bottom: 1px;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  background: #fff;
+  color: #4338ca;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.12);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.tabs-analytics-btn .material-icons {
+  font-size: 18px;
+}
+
+.tabs-analytics-btn:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.18);
 }
 
 .tab-btn {
@@ -442,7 +486,7 @@
     72px
     80px
     76px
-    minmax(108px, 120px);
+    minmax(124px, 152px);
   gap: 10px 12px;
   align-items: end;
   padding: 0 10px 12px;
@@ -483,6 +527,30 @@
   justify-content: center;
 }
 
+.priority-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 52px;
+}
+
+.wrong-hint {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #dc2626;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-align: center;
+  max-width: 72px;
+}
+
+.wrong-hint--ok {
+  color: #15803d;
+}
+
 .exercise-row {
   display: grid;
   grid-template-columns:
@@ -493,7 +561,7 @@
     72px
     80px
     76px
-    minmax(108px, 120px);
+    minmax(124px, 152px);
   gap: 10px 12px;
   align-items: center;
   padding: 12px 10px;
@@ -664,6 +732,41 @@
   width: 100%;
 }
 
+.row-action-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 152px;
+}
+
+.btn-icon-analytics {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid #c7d2fe;
+  background: #fff;
+  color: #4f46e5;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-icon-analytics .material-icons {
+  font-size: 20px;
+}
+
+.btn-icon-analytics:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+}
+
 .row-action .btn-start--locked {
   background: #f1f5f9 !important;
   color: #475569 !important;
@@ -683,10 +786,11 @@
 
 .row-action .btn-start {
   box-sizing: border-box;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 40px;
-  max-width: 118px;
-  padding: 9px 12px;
+  max-width: none;
+  padding: 9px 10px;
   background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
   color: white;
   border: none;
@@ -942,21 +1046,26 @@
     display: none;
   }
 
+  /* Phone: stacked card — default (teacher / no journey day column) */
   .exercise-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 10px 12px;
+    display: grid;
+    grid-template-columns: 40px 1fr 1fr minmax(76px, auto);
+    grid-template-rows: auto auto auto auto;
+    gap: 8px 10px;
+    align-items: center;
     min-width: 0 !important;
     padding: 14px 12px;
   }
 
   .row-icon {
-    flex: 0 0 36px;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
   }
 
   .row-details {
-    flex: 1 1 calc(100% - 48px);
+    grid-column: 2 / -1;
+    grid-row: 1;
     min-width: 0;
   }
 
@@ -965,42 +1074,135 @@
     overflow-wrap: anywhere;
   }
 
-  .row-level,
-  .row-category {
-    flex: 1 1 calc(50% - 8px);
+  .row-level {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
     min-width: 0;
+  }
+
+  .row-category {
+    grid-column: 3 / -1;
+    grid-row: 2;
+    justify-self: end;
+    text-align: right;
+    min-width: 0;
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
   }
 
   .row-level .level-badge {
     font-size: 0.65rem;
   }
 
-  .row-category {
-    font-size: 0.8rem;
-    overflow-wrap: anywhere;
+  /* Meta row: volume · duration · status (teacher: col1 empty on row 3) */
+  .row-volume {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: center;
+    text-align: center;
+    min-width: 0;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid #eef2f7;
   }
 
-  .row-volume,
   .row-duration {
-    flex: 1 1 calc(50% - 8px);
+    grid-column: 3;
+    grid-row: 3;
+    justify-self: center;
+    text-align: center;
     min-width: 0;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid #eef2f7;
   }
 
   .row-priority {
-    flex: 0 0 auto;
-    margin-left: auto;
+    grid-column: 4;
+    grid-row: 3;
+    justify-self: end;
+    margin-left: 0;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid #eef2f7;
   }
 
   .row-action {
-    flex: 1 1 100%;
+    grid-column: 1 / -1;
+    grid-row: 4;
     display: flex;
     justify-content: stretch;
+    width: 100%;
   }
 
   .row-action .btn-start {
     width: 100%;
     min-height: 44px;
     font-size: 0.9rem;
+  }
+
+  /* Student: journey day sits in column 1 on meta row; shift volume/duration */
+  .exercise-list--student .exercise-row {
+    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) minmax(72px, auto);
+  }
+
+  .exercise-list--student .row-day {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: center;
+    align-self: center;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid #eef2f7;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  .exercise-list--student .row-volume {
+    grid-column: 2;
+  }
+
+  .exercise-list--student .row-duration {
+    grid-column: 3;
+  }
+
+  .exercise-list--student .row-priority {
+    grid-column: 4;
+  }
+
+  .exercise-list--student .row-action-inner {
+    max-width: none;
+    width: 100%;
+  }
+
+  .exercise-list--student .priority-stack {
+    min-height: auto;
+    align-items: center;
+  }
+
+  .exercise-list--student .wrong-hint {
+    max-width: none;
+  }
+
+  /* Teacher/admin: no day column — use full width under badges for meta row */
+  .exercise-list:not(.exercise-list--student) .row-volume {
+    grid-column: 1 / 3;
+    grid-row: 3;
+    justify-self: start;
+    text-align: left;
+    align-self: center;
+  }
+
+  .exercise-list:not(.exercise-list--student) .row-duration {
+    grid-column: 3;
+    justify-self: center;
+  }
+
+  .exercise-list:not(.exercise-list--student) .row-priority {
+    grid-column: 4;
   }
 
   .pagination {

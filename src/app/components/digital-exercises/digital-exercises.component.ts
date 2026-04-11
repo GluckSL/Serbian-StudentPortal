@@ -350,6 +350,21 @@ export class DigitalExercisesComponent implements OnInit {
     return Math.round(sum / completed.length);
   }
 
+  /** Full analytics page (overall + per-exercise table + links to question detail) */
+  openStudentAnalyticsPage(): void {
+    const extras =
+      this.embedded
+        ? { queryParams: { from: 'my-course' } }
+        : {};
+    this.router.navigate(['/digital-exercises', 'analytics'], extras);
+  }
+
+  openExerciseReview(exercise: DigitalExercise, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!exercise._id || !exercise.studentAttempt) return;
+    this.router.navigate(['/digital-exercises', exercise._id, 'review']);
+  }
+
   getCategoryIcon(category: string): string {
     const icons: Record<string, string> = {
       Grammar: 'menu_book',

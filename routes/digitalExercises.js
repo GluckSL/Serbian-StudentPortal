@@ -108,6 +108,128 @@ function parseTrueFalse(raw) {
   return null;
 }
 
+function clipText(s, max = 120) {
+  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
+/** Human-readable student submission for analytics / review UIs */
+function formatStudentAnswerForReview(q, r) {
+  if (!r) return '—';
+  if (q.type === 'mcq') {
+    const i = r.selectedOptionIndex;
+    if (i == null || i === undefined || !Array.isArray(q.options)) return '—';
+    return q.options[i] != null ? String(q.options[i]) : `(Option ${i + 1})`;
+  }
+  if (q.type === 'matching') {
+    const pairs = q.pairs || [];
+    const mr = r.matchingResponse || [];
+    if (!mr.length) return '—';
+    return mr.map((m) => {
+      const left = pairs[m.leftIndex]?.left ?? `L${(m.leftIndex ?? 0) + 1}`;
+      const given = m.rightValue != null ? m.rightValue : (pairs[m.rightIndex]?.right ?? '—');
+      return `${left} → ${given}`;
+    }).join(' · ');
+  }
+  if (q.type === 'fill-blank') {
+    const arr = r.fillBlankResponses || [];
+    return arr.length ? arr.map((x) => String(x || '—')).join(' / ') : '—';
+  }
+  if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
+    const t = r.spokenText || '';
+    const sc = r.pronunciationScore;
+    const tail = sc != null && sc !== undefined ? ` (${sc}% similarity)` : '';
+    return (t || '—') + tail;
+  }
+  if (q.type === 'question-answer') {
+    return (r.qaResponse && String(r.qaResponse).trim()) ? String(r.qaResponse).trim() : '—';
+  }
+  if (q.type === 'listening') {
+    const t = r.listeningText || r.qaResponse || '';
+    return t ? String(t).trim() : '—';
+  }
+  return '—';
+}
+
+function formatCorrectAnswerForReview(q) {
+  if (q.type === 'mcq') {
+    const i = q.correctAnswerIndex;
+    if (i == null || !Array.isArray(q.options)) return '—';
+    return q.options[i] != null ? String(q.options[i]) : `Option ${i + 1}`;
+  }
+  if (q.type === 'matching') {
+    const pairs = q.pairs || [];
+    return pairs.map((p) => `${p.left} → ${p.right ?? '—'}`).join(' · ') || '—';
+  }
+  if (q.type === 'fill-blank') {
+    const a = q.answers || [];
+    return a.length ? a.map((x) => String(x)).join(' / ') : '—';
+  }
+  if (q.type === 'pronunciation') {
+    return [q.word, q.phonetic].filter(Boolean).join(' ') || '—';
+  }
+  if (q.type === 'video-pronunciation') {
+    return q.caption ? String(q.caption) : '—';
+  }
+  if (q.type === 'question-answer') {
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
+    return samples.length ? samples.join(' · ') : '—';
+  }
+  if (q.type === 'listening') {
+    return q.expectedTranscript ? String(q.expectedTranscript) : '—';
+  }
+  return '—';
+}
+
+function questionPromptSnippet(q, idx) {
+  if (!q) return `Question ${idx + 1}`;
+  const text = q.question || q.prompt || q.instruction || q.sentence || q.word || q.caption || '';
+  return clipText(text, 100) || `Question ${idx + 1}`;
+}
+
+/**
+ * @param {object} exercise — full DigitalExercise lean doc
+ * @param {object} attempt — ExerciseAttempt lean doc with responses
+ */
+function buildPerQuestionReview(exercise, attempt) {
+  const questions = exercise.questions || [];
+  const byIdx = {};
+  (attempt.responses || []).forEach((r) => { byIdx[r.questionIndex] = r; });
+  return questions.map((q, i) => {
+    const r = byIdx[i];
+    return {
+      questionIndex: i,
+      displayIndex: i + 1,
+      type: q.type,
+      promptSnippet: questionPromptSnippet(q, i),
+      isCorrect: r ? !!r.isCorrect : false,
+      pointsEarned: r && typeof r.pointsEarned === 'number' ? r.pointsEarned : 0,
+      maxPoints: q.points || 1,
+      studentAnswer: formatStudentAnswerForReview(q, r),
+      expectedAnswer: formatCorrectAnswerForReview(q)
+    };
+  });
+}
+
+function exerciseOwnerId(exercise) {
+  const raw = exercise.createdBy;
+  if (raw && typeof raw === 'object' && raw._id) return raw._id.toString();
+  if (raw && raw.toString) return raw.toString();
+  return String(raw || '');
+}
+
+async function assertTeacherOwnsExercise(user, exercise) {
+  if (user.role === 'TEACHER') {
+    const owner = exerciseOwnerId(exercise);
+    if (owner !== String(user.id)) {
+      const err = new Error('Forbidden');
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+}
+
 function getAccessibleLevels(studentLevel) {
   const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const idx = levelOrder.indexOf(studentLevel);
@@ -226,20 +348,38 @@ router.get('/', verifyToken, async (req, res) => {
       .skip((parseInt(page) - 1) * parseInt(limit))
       .lean();
 
-    // For students: attach attempt summary
+    // For students: attach attempt summary (best score) + wrong/correct counts for analytics
     if (req.user.role === 'STUDENT') {
       const exerciseIds = exercises.map(e => e._id);
       const attempts = await ExerciseAttempt.find({
         studentId: req.user.id,
         exerciseId: { $in: exerciseIds },
         status: 'completed'
-      }).select('exerciseId scorePercentage completedAt attemptNumber').lean();
+      }).select('exerciseId scorePercentage completedAt attemptNumber responses').lean();
+
+      const exerciseById = {};
+      exercises.forEach((e) => { exerciseById[e._id.toString()] = e; });
 
       const attemptMap = {};
       attempts.forEach(a => {
         const key = a.exerciseId.toString();
+        const ex = exerciseById[key];
+        const totalQ = Array.isArray(ex?.questions) ? ex.questions.length : 0;
+        const resp = a.responses || [];
+        const wrongCount = resp.filter(r => !r.isCorrect).length;
+        const correctCount = resp.filter(r => r.isCorrect).length;
+        const summary = {
+          _id: a._id,
+          exerciseId: a.exerciseId,
+          scorePercentage: a.scorePercentage,
+          completedAt: a.completedAt,
+          attemptNumber: a.attemptNumber,
+          wrongCount,
+          correctCount,
+          totalQuestions: totalQ
+        };
         if (!attemptMap[key] || a.scorePercentage > attemptMap[key].scorePercentage) {
-          attemptMap[key] = a;
+          attemptMap[key] = summary;
         }
       });
 
@@ -1046,11 +1186,127 @@ router.get('/:id/my-attempts', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/digital-exercises/:id/my-review  — Student: per-question breakdown (best completed attempt)
+router.get('/:id/my-review', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'STUDENT') {
+      return res.status(403).json({ error: 'Only students can use this review endpoint' });
+    }
+
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise.visibleToStudents) {
+      return res.status(403).json({ error: 'Exercise not available' });
+    }
+
+    const access = await getStudentExerciseAccess(req.user.id);
+    if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
+      return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
+    }
+    if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
+      return res.status(403).json({ error: 'This exercise is above your current language level.' });
+    }
+
+    const attempt = await ExerciseAttempt.findOne({
+      studentId: req.user.id,
+      exerciseId: req.params.id,
+      status: 'completed'
+    })
+      .sort({ scorePercentage: -1, completedAt: -1 })
+      .lean();
+
+    if (!attempt) {
+      return res.status(404).json({ error: 'No completed attempt yet' });
+    }
+
+    const perQuestion = buildPerQuestionReview(exercise, attempt);
+    const wrongCount = perQuestion.filter((r) => !r.isCorrect).length;
+    const correctCount = perQuestion.filter((r) => r.isCorrect).length;
+
+    res.json({
+      exercise: { _id: exercise._id, title: exercise.title, level: exercise.level, category: exercise.category },
+      attempt: {
+        _id: attempt._id,
+        attemptNumber: attempt.attemptNumber,
+        scorePercentage: attempt.scorePercentage,
+        earnedPoints: attempt.earnedPoints,
+        totalPoints: attempt.totalPoints,
+        completedAt: attempt.completedAt,
+        timeSpentSeconds: attempt.timeSpentSeconds
+      },
+      summary: {
+        totalQuestions: perQuestion.length,
+        correctCount,
+        wrongCount
+      },
+      perQuestion
+    });
+  } catch (err) {
+    console.error('GET /digital-exercises/:id/my-review error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/digital-exercises/:id/attempts/:attemptId  — Staff: full attempt breakdown for one student
+router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    await assertTeacherOwnsExercise(req.user, exercise);
+
+    const attempt = await ExerciseAttempt.findOne({
+      _id: req.params.attemptId,
+      exerciseId: req.params.id,
+      status: 'completed'
+    })
+      .populate('studentId', 'name email batch level')
+      .lean();
+
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+
+    const perQuestion = buildPerQuestionReview(exercise, attempt);
+    const wrongCount = perQuestion.filter((r) => !r.isCorrect).length;
+    const correctCount = perQuestion.filter((r) => r.isCorrect).length;
+
+    res.json({
+      exercise: { _id: exercise._id, title: exercise.title, level: exercise.level, category: exercise.category },
+      attempt,
+      summary: {
+        totalQuestions: perQuestion.length,
+        correctCount,
+        wrongCount
+      },
+      perQuestion
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    if (code !== 500) {
+      return res.status(code).json({ error: err.message });
+    }
+    console.error('GET /digital-exercises/:id/attempts/:attemptId error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── TEACHER/ADMIN ANALYTICS ROUTES ──────────────────────────────────────────
 
 // GET /api/digital-exercises/:id/completions  — All completions for an exercise
 router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    await assertTeacherOwnsExercise(req.user, exercise);
+
     const { date, studentId, page = 1, limit = 50 } = req.query;
     const filter = { exerciseId: req.params.id, status: 'completed' };
     if (studentId) filter.studentId = studentId;

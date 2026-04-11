@@ -111,6 +111,20 @@
   max-width: none;
   min-width: 0;
 }
+
+.sm-embedded-section-head {
+  margin: 0 0 10px;
+  padding: 0 2px 0 10px;
+}
+
+.sm-embedded-section-head__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
 .student-meetings-container.student-meetings--embedded .table-wrap {
   background: transparent;
   border: none;
@@ -208,6 +222,15 @@
   vertical-align: middle;
   min-width: 0;
   max-width: 100%;
+}
+
+/* Desktop / laptop: one-line teacher name */
+.teacher-display--mobile {
+  display: none;
+}
+
+.teacher-display--desktop {
+  display: inline;
 }
 
 .teacher-line {
@@ -727,6 +750,15 @@ mat-card-actions button mat-icon {
     overflow-x: visible;
     max-width: 100%;
     min-width: 0;
+  }
+
+  /* Teacher: two-line split only on small screens */
+  .col-teacher .teacher-display--desktop {
+    display: none !important;
+  }
+
+  .col-teacher .teacher-display--mobile {
+    display: block;
   }
 
   /* One horizontal row like desktop; equal flex + ellipsis — no stack, no horizontal scroll */

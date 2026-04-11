@@ -820,11 +820,34 @@
 
   .lm-level-hint { margin-left: 0; }
 
-  .lm-filters-row {
-    flex-direction: column;
+  .lm-filters-card {
+    padding: 10px 12px;
   }
 
-  .lm-filter-group { min-width: 100%; }
+  /* Mobile: 2 filters per row (same idea as Exercises filter-chips) */
+  .lm-filters-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .lm-filter-group--search {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .lm-filter-group:not(.lm-filter-group--search) {
+    min-width: 0;
+  }
+
+  .lm-clear-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+    box-sizing: border-box;
+    justify-self: stretch;
+    align-self: stretch;
+  }
 
   .modules-list .list-item {
     flex-direction: column;

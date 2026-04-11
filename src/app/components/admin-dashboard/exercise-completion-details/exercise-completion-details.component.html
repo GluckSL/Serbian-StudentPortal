@@ -83,6 +83,35 @@
       </div>
     </section>
 
+    <!-- Cohort overall (all graded answers in this exercise) -->
+    <section class="section cohort-overall-section" *ngIf="hasQuestionStats">
+      <h2><span class="material-icons">analytics</span> Overall analytics</h2>
+      <p class="section-desc">Share of individual question outcomes across every completed attempt loaded for this report.</p>
+      <div class="cohort-overall-inner">
+        <div class="cohort-donut" aria-hidden="true">
+          <svg class="cohort-donut-svg" viewBox="0 0 36 36">
+            <path class="cohort-donut-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path
+              class="cohort-donut-fill"
+              [attr.stroke-dasharray]="cohortDonutDash"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            />
+          </svg>
+          <div class="cohort-donut-center">
+            <span class="cohort-donut-pct">{{ cohortItemAccuracy.pct }}%</span>
+            <span class="cohort-donut-sub">items correct</span>
+          </div>
+        </div>
+        <ul class="cohort-overall-stats">
+          <li><strong>{{ cohortItemAccuracy.correct }}</strong> correct answers (all attempts)</li>
+          <li><strong>{{ cohortItemAccuracy.wrong }}</strong> incorrect answers</li>
+          <li class="muted" *ngIf="cohortItemAccuracy.correct + cohortItemAccuracy.wrong > 0">
+            Based on {{ cohortItemAccuracy.correct + cohortItemAccuracy.wrong }} graded responses
+          </li>
+        </ul>
+      </div>
+    </section>
+
     <!-- Question-Level Analytics -->
     <section class="section" *ngIf="hasQuestionStats">
       <h2><span class="material-icons">quiz</span> Question Difficulty — Where Students Struggle</h2>
@@ -122,7 +151,7 @@
     <!-- All Attempts (detailed) -->
     <section class="section">
       <h2><span class="material-icons">history</span> All Attempts</h2>
-      <p class="section-desc">Complete attempt history</p>
+      <p class="section-desc">Click a student name to open a full per-question breakdown for that attempt in a new tab.</p>
       <div class="table-wrap" *ngIf="hasAttempts">
         <table class="data-table attempts-table">
           <thead>
@@ -137,7 +166,17 @@
           </thead>
           <tbody>
             <tr *ngFor="let a of attempts">
-              <td>{{ a.studentId?.name || a.studentName || '—' }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="btn-student-link"
+                  (click)="openAttemptDetailInNewTab(a, $event)"
+                  title="Open detailed analytics for this attempt"
+                >
+                  {{ a.studentId?.name || a.studentName || '—' }}
+                  <span class="material-icons open-tab-icon">open_in_new</span>
+                </button>
+              </td>
               <td>#{{ a.attemptNumber }}</td>
               <td>
                 <span class="score-badge" [class.good]="a.scorePercentage >= 70" [class.poor]="a.scorePercentage < 50">

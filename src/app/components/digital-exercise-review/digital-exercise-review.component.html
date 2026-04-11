@@ -1,0 +1,123 @@
+<div class="review-page">
+  <header class="review-header">
+    <button type="button" class="btn-back" (click)="back()">
+      <span class="material-icons">arrow_back</span> Back to exercises
+    </button>
+    <div *ngIf="data" class="title-block">
+      <h1>
+        <span class="material-icons">analytics</span>
+        Your results — {{ data.exercise.title }}
+      </h1>
+      <p class="meta">{{ data.exercise.level }} · {{ data.exercise.category }}</p>
+    </div>
+  </header>
+
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading your breakdown…</p>
+  </div>
+
+  <div class="error-state" *ngIf="error && !loading">
+    <span class="material-icons">error_outline</span>
+    <p>{{ error }}</p>
+    <button type="button" class="btn-back" (click)="back()">Go back</button>
+  </div>
+
+  <div class="review-body" *ngIf="data && !loading">
+    <section class="overall-card" aria-labelledby="overall-heading">
+      <div class="overall-label" id="overall-heading">Overall analytics</div>
+      <div class="overall-inner">
+        <div class="donut-wrap" aria-hidden="true">
+          <svg class="donut" viewBox="0 0 36 36">
+            <path class="donut-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path
+              class="donut-fill"
+              [attr.stroke-dasharray]="donutStrokeDash"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            />
+          </svg>
+          <div class="donut-center">
+            <span class="donut-pct">{{ data.attempt.scorePercentage }}%</span>
+            <span class="donut-sub">score</span>
+          </div>
+        </div>
+        <div class="overall-stats">
+          <div class="stat">
+            <span class="stat-value correct">{{ data.summary.correctCount }}</span>
+            <span class="stat-label">Correct</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value wrong">{{ data.summary.wrongCount }}</span>
+            <span class="stat-label">Wrong</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">{{ data.summary.totalQuestions }}</span>
+            <span class="stat-label">Questions</span>
+          </div>
+          <p class="attempt-meta">
+            Attempt #{{ data.attempt.attemptNumber ?? '—' }} · {{ formatDate(data.attempt.completedAt) }}
+            <span *ngIf="data.attempt.earnedPoints != null && data.attempt.totalPoints != null">
+              · {{ data.attempt.earnedPoints }} / {{ data.attempt.totalPoints }} pts
+            </span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" *ngIf="wrongRows(data.perQuestion).length > 0">
+      <h2><span class="material-icons">highlight_off</span> Questions to review</h2>
+      <p class="section-desc">These are the items you missed on your best scored attempt.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Question</th>
+              <th>Your answer</th>
+              <th>Expected</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of wrongRows(data.perQuestion)">
+              <td>{{ row.displayIndex }}</td>
+              <td class="prompt">{{ row.promptSnippet }}</td>
+              <td class="answer wrong">{{ row.studentAnswer }}</td>
+              <td class="answer expected">{{ row.expectedAnswer }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2><span class="material-icons">fact_check</span> All questions</h2>
+      <p class="section-desc">Full breakdown for every item.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Result</th>
+              <th>Question</th>
+              <th>Your answer</th>
+              <th>Expected</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of data.perQuestion" [class.row-wrong]="!row.isCorrect">
+              <td>{{ row.displayIndex }}</td>
+              <td>
+                <span class="pill" [class.pill-ok]="row.isCorrect" [class.pill-bad]="!row.isCorrect">
+                  {{ row.isCorrect ? 'Correct' : 'Wrong' }}
+                </span>
+              </td>
+              <td class="prompt">{{ row.promptSnippet }}</td>
+              <td class="answer">{{ row.studentAnswer }}</td>
+              <td class="answer muted">{{ row.expectedAnswer }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>

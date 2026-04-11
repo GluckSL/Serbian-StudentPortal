@@ -150,6 +150,50 @@ export interface ExerciseAttempt {
   status?: string;
   completedAt?: Date;
   timeSpentSeconds?: number;
+  /** Populated on student exercise list for analytics (best attempt) */
+  wrongCount?: number;
+  correctCount?: number;
+  totalQuestions?: number;
+}
+
+/** Per-question row from my-review / staff attempt detail APIs */
+export interface AttemptReviewRow {
+  questionIndex: number;
+  displayIndex: number;
+  type: string;
+  promptSnippet: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  maxPoints: number;
+  studentAnswer: string;
+  expectedAnswer: string;
+}
+
+export interface ExerciseReviewSummary {
+  totalQuestions: number;
+  correctCount: number;
+  wrongCount: number;
+}
+
+export interface MyExerciseReviewResponse {
+  exercise: { _id: string; title: string; level: string; category: string };
+  attempt: {
+    _id: string;
+    attemptNumber?: number;
+    scorePercentage: number;
+    earnedPoints?: number;
+    totalPoints?: number;
+    completedAt?: string;
+    timeSpentSeconds?: number;
+  };
+  summary: ExerciseReviewSummary;
+  perQuestion: AttemptReviewRow[];
+}
+
+export interface StaffAttemptReviewResponse extends MyExerciseReviewResponse {
+  attempt: MyExerciseReviewResponse['attempt'] & {
+    studentId?: { name?: string; email?: string; batch?: string; level?: string };
+  };
 }
 
 export interface QuestionResponse {
@@ -330,6 +374,19 @@ export class DigitalExerciseService {
 
   getMyAttempts(exerciseId: string): Observable<ExerciseAttempt[]> {
     return this.http.get<ExerciseAttempt[]>(`${this.apiUrl}/${exerciseId}/my-attempts`, { withCredentials: true });
+  }
+
+  /** Student: best completed attempt, per-question answers vs expected */
+  getMyExerciseReview(exerciseId: string): Observable<MyExerciseReviewResponse> {
+    return this.http.get<MyExerciseReviewResponse>(`${this.apiUrl}/${exerciseId}/my-review`, { withCredentials: true });
+  }
+
+  /** Admin/Teacher: one student's completed attempt with full breakdown */
+  getAttemptReviewForStaff(exerciseId: string, attemptId: string): Observable<StaffAttemptReviewResponse> {
+    return this.http.get<StaffAttemptReviewResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}`,
+      { withCredentials: true }
+    );
   }
 
   // ─── Analytics (Teacher/Admin) ────────────────────────────────────────────

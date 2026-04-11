@@ -6,7 +6,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
 
 interface Attempt {
-  _id: string;
+  _id?: string;
   studentId?: { name?: string; email?: string; batch?: string; level?: string };
   studentName?: string;
   studentBatch?: string;
@@ -219,5 +219,33 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
 
   get hasQuestionStats(): boolean {
     return Array.isArray(this.questionStats) && this.questionStats.length > 0;
+  }
+
+  /** Cohort-wide item correctness from aggregated question stats */
+  get cohortItemAccuracy(): { correct: number; wrong: number; pct: number } {
+    let correct = 0;
+    let wrong = 0;
+    for (const q of this.questionStats) {
+      correct += q.correctCount;
+      wrong += q.wrongCount;
+    }
+    const denom = correct + wrong;
+    const pct = denom > 0 ? Math.round((correct / denom) * 100) : 0;
+    return { correct, wrong, pct };
+  }
+
+  get cohortDonutDash(): string {
+    return `${this.cohortItemAccuracy.pct}, 100`;
+  }
+
+  openAttemptDetailInNewTab(attempt: Attempt, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const aid = attempt._id;
+    if (!aid || !this.exerciseId) return;
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/admin/digital-exercises', this.exerciseId, 'attempt', aid])
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }

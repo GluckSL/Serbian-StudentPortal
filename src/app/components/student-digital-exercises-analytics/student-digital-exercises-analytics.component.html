@@ -1,0 +1,116 @@
+<div class="analytics-page">
+  <header class="page-head">
+    <button type="button" class="btn-back" (click)="back()">
+      <span class="material-icons">arrow_back</span> Back
+    </button>
+    <h1>
+      <span class="material-icons">analytics</span>
+      Exercise analytics
+    </h1>
+    <p class="sub">
+      Overall results from your best scored attempt on each exercise, plus a per-exercise breakdown. Open any row for question-by-question detail.
+    </p>
+  </header>
+
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading…</p>
+  </div>
+
+  <div class="error-state" *ngIf="error && !loading">
+    <span class="material-icons">error_outline</span>
+    <p>{{ error }}</p>
+    <button type="button" class="btn-back" (click)="load()">Try again</button>
+  </div>
+
+  <div class="content" *ngIf="!loading && !error">
+    <section class="empty-hint" *ngIf="completedExercises.length === 0">
+      <span class="material-icons">insights</span>
+      <h2>No completed exercises yet</h2>
+      <p>Finish at least one exercise to see your analytics here.</p>
+      <button type="button" class="btn-primary" (click)="back()">Go to exercises</button>
+    </section>
+
+    <ng-container *ngIf="completedExercises.length > 0">
+      <section class="overall-card" aria-labelledby="ov-title">
+        <div class="overall-title" id="ov-title">Overall analytics</div>
+        <p class="overall-desc">
+          Across every exercise you have completed (we use your <strong>best scored attempt</strong> per exercise).
+        </p>
+        <div class="overall-inner">
+          <div class="donut-wrap" aria-hidden="true">
+            <svg class="donut-svg" viewBox="0 0 36 36">
+              <path class="donut-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path
+                class="donut-fill"
+                [attr.stroke-dasharray]="donutDash"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+            </svg>
+            <div class="donut-center">
+              <span class="donut-big">{{ overall.itemAccuracyPct }}%</span>
+              <span class="donut-small">items correct</span>
+            </div>
+          </div>
+          <div class="overall-right">
+            <ul class="stat-list">
+              <li><strong>{{ overall.completedExercises }}</strong> exercises completed</li>
+              <li><strong>{{ overall.avgScorePct }}%</strong> average score (best attempt each)</li>
+              <li><strong>{{ overall.correctTotal }}</strong> questions correct</li>
+              <li><strong>{{ overall.wrongTotal }}</strong> questions wrong</li>
+              <li class="muted" *ngIf="overall.totalQuestions > 0">
+                {{ overall.totalQuestions }} total questions graded
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <h2 class="detail-heading">
+          <span class="material-icons">table_chart</span>
+          Per exercise
+        </h2>
+        <p class="detail-desc">Scores and wrong counts; use <strong>Full detail</strong> to see every question and your answers.</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Exercise</th>
+                <th>Level</th>
+                <th>Score</th>
+                <th>Question results</th>
+                <th>Last completed</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ex of sortedCompleted">
+                <td class="title-cell">
+                  <span class="ex-title">{{ ex.title }}</span>
+                  <span class="ex-cat">{{ ex.category }}</span>
+                </td>
+                <td>
+                  <span class="level-pill" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
+                </td>
+                <td class="num">{{ ex.studentAttempt?.scorePercentage ?? '—' }}%</td>
+                <td class="results-cell">
+                  <span class="r-ok">{{ ex.studentAttempt?.correctCount ?? '—' }} correct</span>
+                  <span class="r-sep">·</span>
+                  <span class="r-bad">{{ ex.studentAttempt?.wrongCount ?? '—' }} wrong</span>
+                </td>
+                <td class="date-cell">{{ formatDate(ex.studentAttempt?.completedAt) }}</td>
+                <td>
+                  <button type="button" class="btn-detail" (click)="openExerciseReview(ex)">
+                    Full detail
+                    <span class="material-icons">chevron_right</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </ng-container>
+  </div>
+</div>

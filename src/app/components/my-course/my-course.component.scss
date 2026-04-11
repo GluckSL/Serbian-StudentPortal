@@ -376,6 +376,14 @@
   overflow: hidden;
 }
 
+.mc-tab-text--mobile {
+  display: none;
+}
+
+.mc-tab-text--desktop {
+  display: inline;
+}
+
 .mc-tab {
   border: none;
   cursor: pointer;
@@ -398,6 +406,17 @@
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+
+/* Narrow screens: first tab uses mobile label variant (same text as desktop) */
+@media (max-width: 900px) {
+  .mc-tab-text--desktop {
+    display: none;
+  }
+
+  .mc-tab-text--mobile {
+    display: inline;
+  }
 }
 
 @media (min-width: 480px) {

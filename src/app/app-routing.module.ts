@@ -278,8 +278,21 @@ export const routes: Routes = [
     canActivate: [AuthGuard]
   },
   {
+    path: 'digital-exercises/analytics',
+    loadComponent: () =>
+      import('./components/student-digital-exercises-analytics/student-digital-exercises-analytics.component').then(
+        (m) => m.StudentDigitalExercisesAnalyticsComponent
+      ),
+    canActivate: [AuthGuard]
+  },
+  {
     path: 'digital-exercises/:id/play',
     loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'digital-exercises/:id/review',
+    loadComponent: () => import('./components/digital-exercise-review/digital-exercise-review.component').then(m => m.DigitalExerciseReviewComponent),
     canActivate: [AuthGuard]
   },
   // Admin/Teacher: manage exercises
@@ -321,6 +334,12 @@ export const routes: Routes = [
   {
     path: 'admin/digital-exercises/:id/completions',
     loadComponent: () => import('./components/admin-dashboard/exercise-completion-details/exercise-completion-details.component').then(m => m.ExerciseCompletionDetailsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  {
+    path: 'admin/digital-exercises/:id/attempt/:attemptId',
+    loadComponent: () => import('./components/admin-dashboard/exercise-attempt-detail/exercise-attempt-detail.component').then(m => m.ExerciseAttemptDetailComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },

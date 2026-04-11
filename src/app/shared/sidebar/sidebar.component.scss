@@ -96,6 +96,36 @@
 }
 .profile-info { flex: 1; }
 .profile-name { font-size: 12px; font-weight: 500; color: #fff; }
+
+.profile-name-desktop { display: inline; }
+.profile-name-mobile { display: none; }
+
+.profile-name-first,
+.profile-name-rest {
+  display: block;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.profile-name-rest {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.92;
+  margin-top: 2px;
+}
+
+@media (max-width: 900px) {
+  .profile-name-desktop {
+    display: none !important;
+  }
+
+  .profile-name-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .profile-role { font-size: 10px; color: rgba(255,255,255,0.45); text-transform: capitalize; }
 
 .tour-btn {
