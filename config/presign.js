@@ -86,6 +86,51 @@ async function presignStoredS3Url(fileName, fileUrl) {
   return presignS3Url(fileUrl);
 }
 
+/** RFC 6266-style Content-Disposition for S3 GetObject (triggers browser download). */
+function attachmentContentDisposition(filename) {
+  const base = String(filename || 'download').replace(/["\r\n]/g, '_');
+  const star = encodeURIComponent(base);
+  return `attachment; filename="${base}"; filename*=UTF-8''${star}`;
+}
+
+/**
+ * Presigned URL that includes ResponseContentDisposition=attachment so the browser saves the file
+ * instead of opening it (avoids relying on cross-origin fetch + blob, which S3 often blocks via CORS).
+ */
+async function presignS3DownloadUrl(fileName, fileUrl, originalName) {
+  const disp = attachmentContentDisposition(originalName);
+  if (!USE_SIGNED) {
+    return fileUrl || null;
+  }
+  const clean = fileName && String(fileName).replace(/^\//, '').trim();
+  if (clean) {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: process.env.S3_BUCKET,
+        Key: clean,
+        ResponseContentDisposition: disp
+      });
+      return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
+    } catch (err) {
+      console.error('[presign] presignS3DownloadUrl (key) failed:', clean, err.message);
+    }
+  }
+  if (!fileUrl) return null;
+  const key = extractKey(fileUrl);
+  if (!key) return null;
+  try {
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: key,
+      ResponseContentDisposition: disp
+    });
+    return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
+  } catch (err) {
+    console.error('[presign] presignS3DownloadUrl (url) failed:', err.message);
+    return null;
+  }
+}
+
 /**
  * Walk all media URL fields in a plain exercise object and replace S3 URLs
  * with presigned versions.  Mutates in place (safe since callers use .lean()).
@@ -130,6 +175,7 @@ module.exports = {
   presignS3Url,
   presignS3ObjectKey,
   presignStoredS3Url,
+  presignS3DownloadUrl,
   resignExercise,
   resignExercises,
   isS3Url,

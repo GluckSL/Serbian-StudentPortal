@@ -169,8 +169,8 @@ export class TeacherMyClassesComponent implements OnInit {
     this.resourceService.openInBrowser(r.fileUrl || '');
   }
 
-  downloadResource(r: { fileUrl?: string; originalName?: string }): void {
-    this.resourceService.downloadFile(r.fileUrl || '', r.originalName || 'download');
+  downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
+    this.resourceService.downloadClassResource(r);
   }
 
   formatFileSize(bytes: number): string {
