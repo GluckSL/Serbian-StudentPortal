@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, Input } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
@@ -6,6 +6,7 @@ import { ZoomService } from '../../services/zoom.service';
 import { NotificationService } from '../../services/notification.service';
 import { ClassResourceService } from '../../services/class-resource.service';
 import { ClassDoubtService } from '../../services/class-doubt.service';
+import { ClassSubmissionService } from '../../services/class-submission.service';
 
 interface StudentMeeting {
   _id: string;
@@ -40,6 +41,7 @@ interface StudentMeeting {
 })
 export class StudentMeetingsComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
+  @ViewChild('submissionFileInput') private submissionFileRef?: ElementRef<HTMLInputElement>;
 
   allMeetings: StudentMeeting[] = [];
   upcomingMeetings: StudentMeeting[] = [];
@@ -67,11 +69,21 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   newDoubt = { title: '', explanation: '', visibility: 'public' };
   submittingDoubt = false;
 
+  // Submissions modal
+  showSubmissionModal = false;
+  submissionMeeting: StudentMeeting | null = null;
+  submissions: any[] = [];
+  loadingSubmissions = false;
+  selectedFile: File | null = null;
+  submissionCaption = '';
+  uploading = false;
+
   constructor(
     private zoomService: ZoomService,
     private notify: NotificationService,
     private resourceService: ClassResourceService,
-    private doubtService: ClassDoubtService
+    private doubtService: ClassDoubtService,
+    private submissionService: ClassSubmissionService
   ) {}
 
   ngOnInit(): void {
@@ -291,5 +303,82 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   isClassEnded(m: StudentMeeting): boolean {
     return m.hasEnded || m.status === 'ended';
+  }
+
+  // ── Submissions Modal ──
+  openSubmissions(m: StudentMeeting): void {
+    this.submissionMeeting = m;
+    this.showSubmissionModal = true;
+    this.selectedFile = null;
+    this.submissionCaption = '';
+    this.loadSubmissions(m._id);
+  }
+
+  loadSubmissions(meetingId: string): void {
+    this.loadingSubmissions = true;
+    this.submissionService.list(meetingId).subscribe({
+      next: (res) => { this.submissions = res.data || []; this.loadingSubmissions = false; },
+      error: () => { this.submissions = []; this.loadingSubmissions = false; }
+    });
+  }
+
+  closeSubmissionModal(): void {
+    this.showSubmissionModal = false;
+    this.submissionMeeting = null;
+    this.submissions = [];
+    this.selectedFile = null;
+    this.submissionCaption = '';
+  }
+
+  onSubmissionFileChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedFile = input.files?.[0] ?? null;
+  }
+
+  clearSelectedSubmissionFile(fileInput: HTMLInputElement | null): void {
+    this.selectedFile = null;
+    if (fileInput) fileInput.value = '';
+  }
+
+  uploadSubmission(): void {
+    if (!this.submissionMeeting || !this.selectedFile || this.uploading) return;
+    const formData = new FormData();
+    formData.append('file', this.selectedFile);
+    formData.append('caption', this.submissionCaption.trim());
+    this.uploading = true;
+    this.submissionService.upload(this.submissionMeeting._id, formData).subscribe({
+      next: (res) => {
+        if (res.data) this.submissions.unshift(res.data);
+        this.selectedFile = null;
+        this.submissionCaption = '';
+        const el = this.submissionFileRef?.nativeElement;
+        if (el) el.value = '';
+        this.uploading = false;
+        this.notify.success('Answer uploaded successfully!');
+      },
+      error: (err) => {
+        this.uploading = false;
+        const msg = err?.error?.message || 'Upload failed. Please try again.';
+        this.notify.error(msg);
+      }
+    });
+  }
+
+  submissionFeedbackLabel(sub: any): string {
+    const status = sub?.feedback?.status;
+    if (status === 'correct') return 'Correct';
+    if (status === 'wrong') return 'Wrong';
+    return 'Pending';
+  }
+
+  submissionFeedbackClass(sub: any): string {
+    const status = sub?.feedback?.status;
+    if (status === 'correct') return 'sub-badge--correct';
+    if (status === 'wrong') return 'sub-badge--wrong';
+    return 'sub-badge--pending';
+  }
+
+  viewSubmissionFile(sub: any): void {
+    if (sub?.fileUrl) window.open(sub.fileUrl, '_blank');
   }
 }

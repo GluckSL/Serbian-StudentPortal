@@ -273,6 +273,12 @@ button:disabled,
 /* ============================= */
 /* Toast / Snackbar Styles       */
 /* ============================= */
+/* Custom full-screen modals (e.g. Resources) use z-index 9999; CDK default is lower,
+   so snackbars were drawn behind the blurred backdrop. Keep all CDK overlays above them. */
+.cdk-overlay-container {
+  z-index: 10050 !important;
+}
+
 .snack-success .mdc-snackbar__surface,
 .snack-success.mat-mdc-snack-bar-container .mdc-snackbar__surface {
   background: #16a34a !important;
@@ -318,6 +324,14 @@ button:disabled,
 .snack-info .mat-mdc-button,
 .snack-warning .mat-mdc-button {
   color: rgba(255,255,255,0.85) !important;
+}
+
+/* Sit toasts higher than the screen edge so they clear modals and the thumb zone */
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-success,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-error,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-info,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-warning {
+  margin-bottom: 96px !important;
 }
 
 /* Confirm dialog panel */
@@ -492,6 +506,11 @@ body.teacher-read-only {
   button:has(.fa-trash-alt),
   a:has(.fa-trash),
   a:has(.fa-trash-alt) { display: none !important; }
+
+  /* Exception: teachers delete mistaken uploads in My Classes → Resources (not admin UI) */
+  button.resource-delete-btn.allow-teacher-delete {
+    display: inline-flex !important;
+  }
 
   /* ── Buttons with edit/pen icons ── */
   button:has(.fa-edit),

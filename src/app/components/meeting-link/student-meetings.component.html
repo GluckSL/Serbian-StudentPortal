@@ -139,6 +139,7 @@
               <div class="sm-btn-group">
                 <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
                 <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
+                <button type="button" class="sm-pill sm-pill--upload" (click)="openSubmissions(meeting)" title="Upload Answer"><i class="fas fa-upload"></i></button>
               </div>
             </td>
           </tr>
@@ -190,6 +191,7 @@
               <div class="sm-btn-group">
                 <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
                 <button type="button" class="sm-pill sm-pill--doubt" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
+                <button type="button" class="sm-pill sm-pill--upload" (click)="openSubmissions(meeting)" title="Upload Answer"><i class="fas fa-upload"></i></button>
               </div>
             </td>
           </tr>
@@ -331,6 +333,100 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Submissions Modal ── -->
+<div class="sm-modal-overlay" *ngIf="showSubmissionModal" (click)="closeSubmissionModal()">
+  <div class="sm-modal sm-modal--lg" (click)="$event.stopPropagation()">
+    <div class="sm-modal__head">
+      <h3><i class="fas fa-upload"></i> Answer Submissions</h3>
+      <span class="sm-modal__sub" *ngIf="submissionMeeting">{{ submissionMeeting.topic }}</span>
+      <button type="button" class="sm-modal__close" (click)="closeSubmissionModal()">&times;</button>
+    </div>
+    <div class="sm-modal__body">
+
+      <!-- Upload: row 1 = pick file; row 2 = note + send -->
+      <div class="sub-upload-compact">
+        <p class="sub-upload-hint">PDF, images, or Word — max 20 MB per file.</p>
+        <div class="sub-row-file">
+          <input
+            #submissionFileInput
+            id="sub-file-input"
+            type="file"
+            class="sub-file-input"
+            accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx"
+            (change)="onSubmissionFileChange($event)"
+          />
+          <button type="button" class="sub-pick-btn" (click)="submissionFileInput.click()">
+            <i class="fas fa-upload" aria-hidden="true"></i>
+            Choose file
+          </button>
+          <span class="sub-file-name" *ngIf="selectedFile" [title]="selectedFile.name">{{ selectedFile.name }}</span>
+          <span class="sub-file-placeholder" *ngIf="!selectedFile">No file selected</span>
+          <button
+            type="button"
+            class="sub-clear-file-btn"
+            *ngIf="selectedFile"
+            (click)="clearSelectedSubmissionFile(submissionFileInput)"
+            title="Remove selected file"
+          >
+            <i class="fas fa-times" aria-hidden="true"></i>
+            Clear
+          </button>
+        </div>
+        <div class="sub-row-note-send">
+          <input
+            type="text"
+            class="form-control sub-caption-input"
+            [(ngModel)]="submissionCaption"
+            placeholder="Add a note (optional)"
+            maxlength="500"
+          />
+          <button
+            type="button"
+            class="sub-send-btn"
+            [disabled]="!selectedFile || uploading"
+            (click)="uploadSubmission()"
+          >
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            {{ uploading ? 'Uploading…' : 'Send Answer' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="sub-divider">Your submissions</div>
+
+      <!-- Submissions list -->
+      <div class="text-center text-muted py-3" *ngIf="loadingSubmissions" style="font-size:12px;">Loading…</div>
+      <div *ngIf="!loadingSubmissions">
+        <div class="sm-modal__empty" *ngIf="submissions.length === 0">No submissions yet. Upload your first answer above.</div>
+        <div class="sub-card" *ngFor="let sub of submissions">
+          <div class="sub-card__top">
+            <div class="sub-card__file">
+              <i class="fas fa-file sub-card__icon"></i>
+              <div>
+                <div class="sub-card__name">{{ sub.originalName }}</div>
+                <div class="sub-card__meta">{{ formatFileSize(sub.fileSize) }} · {{ formatDateFull(sub.createdAt) }}</div>
+              </div>
+            </div>
+            <div class="sub-card__actions">
+              <button type="button" class="sm-pill sm-pill--view" (click)="viewSubmissionFile(sub)" title="View file">View</button>
+              <span class="sub-badge" [ngClass]="submissionFeedbackClass(sub)">{{ submissionFeedbackLabel(sub) }}</span>
+            </div>
+          </div>
+          <p class="sub-card__caption" *ngIf="sub.caption">{{ sub.caption }}</p>
+          <div class="sub-card__feedback" *ngIf="sub.feedback?.comment">
+            <i class="fas fa-comment-alt sub-card__feedback-icon"></i>
+            <div>
+              <span class="sub-card__feedback-author">{{ sub.feedback.reviewedBy?.name || 'Teacher' }}</span>
+              <p class="sub-card__feedback-text">{{ sub.feedback.comment }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>

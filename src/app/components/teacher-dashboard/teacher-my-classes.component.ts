@@ -6,6 +6,7 @@ import { TeacherService } from '../../services/teacher.service';
 import { ZoomService } from '../../services/zoom.service';
 import { ClassResourceService } from '../../services/class-resource.service';
 import { ClassDoubtService } from '../../services/class-doubt.service';
+import { ClassSubmissionService } from '../../services/class-submission.service';
 import { NotificationService } from '../../services/notification.service';
 
 @Component({
@@ -42,11 +43,21 @@ export class TeacherMyClassesComponent implements OnInit {
   replyingId: string | null = null;
   deletingId: string | null = null;
 
+  // Submissions modal
+  showSubmissionModal = false;
+  submissionMeeting: any = null;
+  submissions: any[] = [];
+  loadingSubmissions = false;
+  reviewingId: string | null = null;
+  reviewComments: Record<string, string> = {};
+  deletingSubmissionId: string | null = null;
+
   constructor(
     private teacherService: TeacherService,
     private zoomService: ZoomService,
     private resourceService: ClassResourceService,
     private doubtService: ClassDoubtService,
+    private submissionService: ClassSubmissionService,
     private notify: NotificationService
   ) {}
 
@@ -160,8 +171,13 @@ export class TeacherMyClassesComponent implements OnInit {
   deleteResource(r: any): void {
     if (!confirm(`Delete "${r.originalName}"?`)) return;
     this.resourceService.delete(r._id).subscribe({
-      next: () => { this.resources = this.resources.filter(x => x._id !== r._id); },
-      error: () => {}
+      next: () => {
+        this.resources = this.resources.filter(x => x._id !== r._id);
+        this.notify.success('Resource removed.');
+      },
+      error: (err) => {
+        this.notify.error(err?.error?.message || 'Could not delete this file.');
+      }
     });
   }
 
@@ -245,5 +261,80 @@ export class TeacherMyClassesComponent implements OnInit {
   formatDateFull(d: string | Date | null): string {
     if (!d) return '';
     return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ── Submissions Modal ──
+  openSubmissions(m: any): void {
+    this.submissionMeeting = m;
+    this.showSubmissionModal = true;
+    this.reviewComments = {};
+    this.loadSubmissions(m._id);
+  }
+
+  closeSubmissionModal(): void {
+    this.showSubmissionModal = false;
+    this.submissionMeeting = null;
+    this.submissions = [];
+    this.reviewComments = {};
+  }
+
+  loadSubmissions(meetingId: string): void {
+    this.loadingSubmissions = true;
+    this.submissionService.list(meetingId).subscribe({
+      next: (res) => { this.submissions = res.data || []; this.loadingSubmissions = false; },
+      error: () => { this.submissions = []; this.loadingSubmissions = false; }
+    });
+  }
+
+  reviewSubmission(sub: any, status: 'correct' | 'wrong'): void {
+    const id = String(sub._id ?? '');
+    if (!id || this.reviewingId) return;
+    const comment = (this.reviewComments[id] || '').trim();
+    this.reviewingId = id;
+    this.submissionService.review(id, status, comment).subscribe({
+      next: (res) => {
+        const idx = this.submissions.findIndex(s => String(s._id) === id);
+        if (idx >= 0 && res.data) this.submissions[idx] = res.data;
+        this.reviewingId = null;
+        this.notify.success(`Marked as ${status}`);
+      },
+      error: () => { this.reviewingId = null; this.notify.error('Failed to save review'); }
+    });
+  }
+
+  deleteSubmission(sub: any): void {
+    const id = String(sub._id ?? '');
+    if (!id || this.deletingSubmissionId) return;
+    if (!confirm(`Delete this submission by ${sub.studentId?.name || 'student'}?`)) return;
+    this.deletingSubmissionId = id;
+    this.submissionService.remove(id).subscribe({
+      next: () => {
+        this.submissions = this.submissions.filter(s => String(s._id) !== id);
+        this.deletingSubmissionId = null;
+      },
+      error: () => { this.deletingSubmissionId = null; }
+    });
+  }
+
+  viewSubmission(sub: any): void {
+    if (sub?.fileUrl) window.open(sub.fileUrl, '_blank');
+  }
+
+  submissionBadgeClass(sub: any): string {
+    const s = sub?.feedback?.status;
+    if (s === 'correct') return 'sub-badge--correct';
+    if (s === 'wrong') return 'sub-badge--wrong';
+    return 'sub-badge--pending';
+  }
+
+  submissionBadgeLabel(sub: any): string {
+    const s = sub?.feedback?.status;
+    if (s === 'correct') return 'Correct';
+    if (s === 'wrong') return 'Wrong';
+    return 'Pending';
+  }
+
+  submissionId(sub: any): string {
+    return String(sub?._id ?? '');
   }
 }
