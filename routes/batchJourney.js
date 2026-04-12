@@ -25,6 +25,55 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Batches a TEACHER may view: assignedBatches + batches of students assigned to them */
+async function buildTeacherAllowedBatchSet(teacherId) {
+  const teacher = await User.findById(teacherId).select('assignedBatches role').lean();
+  if (!teacher || teacher.role !== 'TEACHER') return null;
+  const set = new Set();
+  for (const b of teacher.assignedBatches || []) {
+    const n = String(b || '').trim();
+    if (n) set.add(n);
+  }
+  const fromStudents = await User.distinct('batch', {
+    role: 'STUDENT',
+    assignedTeacher: teacherId,
+    batch: { $nin: [null, ''] }
+  });
+  for (const b of fromStudents) {
+    const n = String(b || '').trim();
+    if (n) set.add(n);
+  }
+  return set;
+}
+
+function normBatchKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function teacherAllowedForBatch(allowedSet, batchName) {
+  if (!allowedSet || allowedSet.size === 0) return false;
+  const target = normBatchKey(batchName);
+  for (const a of allowedSet) {
+    if (normBatchKey(a) === target) return true;
+  }
+  return false;
+}
+
+async function teacherCanAccessBatch(req, batchName) {
+  if (req.user.role !== 'TEACHER') return true;
+  const set = await buildTeacherAllowedBatchSet(req.user.id);
+  return teacherAllowedForBatch(set, batchName);
+}
+
+async function teacherCanAccessStudent(req, studentId) {
+  if (req.user.role !== 'TEACHER') return true;
+  const st = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('batch assignedTeacher').lean();
+  if (!st) return false;
+  if (String(st.assignedTeacher || '') === String(req.user.id)) return true;
+  const set = await buildTeacherAllowedBatchSet(req.user.id);
+  return teacherAllowedForBatch(set, st.batch);
+}
+
 /** Upsert a BatchConfig row and return it */
 async function getOrCreateConfig(batchName) {
   const bn = String(batchName || '').trim();
@@ -130,14 +179,23 @@ async function checkDayCompletion(studentId, batchName, day) {
 
 // ─── GET /api/batch-journey ─────────────────────────────────────────────────
 // List every distinct batch from the User collection + joined BatchConfig data
-router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     // Batches can exist either because students are assigned to them (User.batch),
     // or because an admin created a BatchConfig before any students exist.
     const studentBatchNames = await User.distinct('batch', { role: 'STUDENT', batch: { $ne: null, $ne: '' } });
     const configBatchNames = await BatchConfig.distinct('batchName', { batchName: { $ne: null, $ne: '' } });
 
-    const allBatchNames = Array.from(new Set([...(studentBatchNames || []), ...(configBatchNames || [])]));
+    let allBatchNames = Array.from(new Set([...(studentBatchNames || []), ...(configBatchNames || [])]));
+
+    if (req.user.role === 'TEACHER') {
+      const allowed = await buildTeacherAllowedBatchSet(req.user.id);
+      if (!allowed || allowed.size === 0) {
+        allBatchNames = [];
+      } else {
+        allBatchNames = allBatchNames.filter((name) => teacherAllowedForBatch(allowed, name));
+      }
+    }
 
     const counts = await User.aggregate([
       { $match: { role: 'STUDENT', batch: { $in: allBatchNames } } },
@@ -198,9 +256,12 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
 });
 
 // ─── GET /api/batch-journey/:batchName/students ─────────────────────────────
-router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { batchName } = req.params;
+    if (!(await teacherCanAccessBatch(req, batchName))) {
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
+    }
     const students = await User.find({ role: 'STUDENT', batch: batchName })
       .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt')
       .sort({ name: 1 })
@@ -252,9 +313,12 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 });
 
 // ─── GET /api/batch-journey/:batchName/timeline ──────────────────────────────
-router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { batchName } = req.params;
+    if (!(await teacherCanAccessBatch(req, batchName))) {
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
+    }
     const cfg = await getOrCreateConfig(batchName);
     const length = cfg.journeyLength;
     const activeBatchDay = computeBatchDay(cfg);
@@ -445,8 +509,11 @@ router.post('/:batchName/assign-teacher', verifyToken, checkRole(['ADMIN', 'TEAC
 
 // ─── GET /api/batch-journey/student/:studentId/day-status ────────────────────
 // Check if a student has completed all tasks for their current day
-router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
+    if (!(await teacherCanAccessStudent(req, req.params.studentId))) {
+      return res.status(403).json({ message: 'You do not have access to this student.' });
+    }
     const student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
       .select('name regNo batch currentCourseDay').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
@@ -558,11 +625,14 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
 
 // ─── GET /api/batch-journey/:batchName/progress/day/:day/exercise-analytics ───
 // Per-student exercise attempts & scores for all exercises scheduled on a journey day
-router.get('/:batchName/progress/day/:day/exercise-analytics', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/:batchName/progress/day/:day/exercise-analytics', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const bn = String(req.params.batchName || '').trim();
     const dayNum = clampDay(req.params.day);
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
+    if (!(await teacherCanAccessBatch(req, bn))) {
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
+    }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
     const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
@@ -645,11 +715,14 @@ router.get('/:batchName/progress/day/:day/exercise-analytics', verifyToken, chec
 
 // ─── GET /api/batch-journey/:batchName/progress/day/:day ─────────────────────
 // Live-class attendance (who joined / who did not) + same summary as daily row
-router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const bn = String(req.params.batchName || '').trim();
     const dayNum = clampDay(req.params.day);
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
+    if (!(await teacherCanAccessBatch(req, bn))) {
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
+    }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
     const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
@@ -763,10 +836,28 @@ router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TE
 
 // ─── GET /api/batch-journey/:batchName/progress ──────────────────────────────
 // Aggregate batch-level progress: overall stats, per-day, per-week, per-student
-router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const bn = String(req.params.batchName || '').trim();
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
+    if (!(await teacherCanAccessBatch(req, bn))) {
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
+    }
+
+    const sectionsRaw = req.query.sections;
+    const wantAll = sectionsRaw == null || sectionsRaw === '' || sectionsRaw === 'all';
+    const sectionParts = wantAll
+      ? []
+      : String(sectionsRaw).split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+    const includeOverall = wantAll || sectionParts.includes('overall');
+    const includeDaily =
+      wantAll ||
+      sectionParts.includes('daily') ||
+      sectionParts.includes('weekly') ||
+      sectionParts.includes('detail');
+    if (!includeOverall && !includeDaily) {
+      return res.status(400).json({ message: 'Invalid sections. Use overall, daily, weekly, all, or comma-separated.' });
+    }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
 
@@ -780,13 +871,102 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     const studentIds = students.map(s => s._id);
 
-    // --- Exercise attempts (completed only) ---
-    const attempts = await ExerciseAttempt.find({
-      studentId: { $in: studentIds },
-      status: 'completed'
-    }).populate('exerciseId', 'title courseDay').lean();
+    // ── Fast path: overall + per-student rows only (no populate, no per-attempt documents) ──
+    if (!includeDaily) {
+      const [attemptAgg, meetingsLean] = await Promise.all([
+        ExerciseAttempt.aggregate([
+          { $match: { studentId: { $in: studentIds }, status: 'completed' } },
+          {
+            $group: {
+              _id: '$studentId',
+              count: { $sum: 1 },
+              totalScore: {
+                $sum: {
+                  $cond: [{ $ne: ['$scorePercentage', null] }, '$scorePercentage', 0]
+                }
+              },
+              scoreCount: {
+                $sum: {
+                  $cond: [{ $ne: ['$scorePercentage', null] }, 1, 0]
+                }
+              }
+            }
+          }
+        ]),
+        MeetingLink.find({ batch: batchRegex, status: { $ne: 'cancelled' } })
+          .select('attendance')
+          .lean()
+      ]);
 
-    // Build per-student exercise summary
+      const studentExerciseMap = {};
+      students.forEach(s => { studentExerciseMap[String(s._id)] = { count: 0, totalScore: 0, scoreCount: 0 }; });
+      for (const row of attemptAgg) {
+        const sid = String(row._id);
+        if (!studentExerciseMap[sid]) continue;
+        studentExerciseMap[sid].count = row.count;
+        studentExerciseMap[sid].totalScore = row.totalScore;
+        studentExerciseMap[sid].scoreCount = row.scoreCount;
+      }
+
+      const studentAttendanceMap = {};
+      students.forEach(s => { studentAttendanceMap[String(s._id)] = 0; });
+      meetingsLean.forEach(m => {
+        (m.attendance || []).forEach(a => {
+          const sid = String(a.studentId || a.userId || '');
+          if (studentAttendanceMap[sid] !== undefined && a.attended) {
+            studentAttendanceMap[sid] += 1;
+          }
+        });
+      });
+
+      const studentSummaries = students.map(s => {
+        const sid = String(s._id);
+        const ex = studentExerciseMap[sid];
+        return {
+          _id: s._id,
+          name: s.name,
+          regNo: s.regNo,
+          level: s.level,
+          currentDay: s.currentCourseDay || 1,
+          avgScore: ex.scoreCount ? Math.round(ex.totalScore / ex.scoreCount) : 0,
+          exercisesDone: ex.count,
+          classesAttended: studentAttendanceMap[sid] || 0
+        };
+      });
+
+      const totalExercisesCompleted = studentSummaries.reduce((a, s) => a + s.exercisesDone, 0);
+      const totalClassesAttended = studentSummaries.reduce((a, s) => a + s.classesAttended, 0);
+      const scoredStudents = studentSummaries.filter(s => s.avgScore > 0);
+      const avgScorePercent = scoredStudents.length ? Math.round(scoredStudents.reduce((a, s) => a + s.avgScore, 0) / scoredStudents.length) : 0;
+      const avgDayReached = studentSummaries.length ? Math.round(studentSummaries.reduce((a, s) => a + s.currentDay, 0) / studentSummaries.length) : 0;
+
+      return res.json({
+        overall: {
+          totalStudents: students.length,
+          avgScorePercent,
+          totalExercisesCompleted,
+          totalClassesAttended,
+          avgDayReached
+        },
+        students: studentSummaries,
+        daily: [],
+        weekly: []
+      });
+    }
+
+    // --- Heavy path: need exercise courseDay (populate) + day-by-day rollups ---
+    const [attempts, meetings] = await Promise.all([
+      ExerciseAttempt.find({
+        studentId: { $in: studentIds },
+        status: 'completed'
+      })
+        .populate('exerciseId', 'title courseDay')
+        .lean(),
+      MeetingLink.find({ batch: batchRegex, status: { $ne: 'cancelled' } })
+        .select('topic startTime duration courseDay attendance status')
+        .lean()
+    ]);
+
     const studentExerciseMap = {};
     students.forEach(s => { studentExerciseMap[String(s._id)] = { count: 0, totalScore: 0, scoreCount: 0 }; });
 
@@ -800,10 +980,6 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       }
     });
 
-    // --- Live classes & attendance ---
-    const meetings = await MeetingLink.find({ batch: batchRegex, status: { $ne: 'cancelled' } })
-      .select('topic startTime duration courseDay attendance status').lean();
-
     const studentAttendanceMap = {};
     students.forEach(s => { studentAttendanceMap[String(s._id)] = 0; });
 
@@ -816,7 +992,6 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       });
     });
 
-    // --- Per-student summary ---
     const studentSummaries = students.map(s => {
       const sid = String(s._id);
       const ex = studentExerciseMap[sid];
@@ -832,12 +1007,19 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       };
     });
 
-    // --- Overall stats ---
     const totalExercisesCompleted = studentSummaries.reduce((a, s) => a + s.exercisesDone, 0);
     const totalClassesAttended = studentSummaries.reduce((a, s) => a + s.classesAttended, 0);
     const scoredStudents = studentSummaries.filter(s => s.avgScore > 0);
     const avgScorePercent = scoredStudents.length ? Math.round(scoredStudents.reduce((a, s) => a + s.avgScore, 0) / scoredStudents.length) : 0;
     const avgDayReached = studentSummaries.length ? Math.round(studentSummaries.reduce((a, s) => a + s.currentDay, 0) / studentSummaries.length) : 0;
+
+    const overallPayload = {
+      totalStudents: students.length,
+      avgScorePercent,
+      totalExercisesCompleted,
+      totalClassesAttended,
+      avgDayReached
+    };
 
     // --- Daily breakdown ---
     // Determine days covered (max student day)
@@ -1009,8 +1191,12 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       classesAttended: w.classesAttended
     }));
 
+    if (!includeOverall) {
+      return res.json({ daily, weekly });
+    }
+
     res.json({
-      overall: { totalStudents: students.length, avgScorePercent, totalExercisesCompleted, totalClassesAttended, avgDayReached },
+      overall: overallPayload,
       daily,
       weekly,
       students: studentSummaries
@@ -1023,9 +1209,12 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
 // ─── GET /api/batch-journey/student/:studentId/full-progress ─────────────────
 // Full detailed progress for one student: exercises + Q&A, modules, live classes, day breakdown
-router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { studentId } = req.params;
+    if (!(await teacherCanAccessStudent(req, studentId))) {
+      return res.status(403).json({ message: 'You do not have access to this student.' });
+    }
 
     const student = await User.findOne({ _id: studentId, role: 'STUDENT' })
       .select('name regNo email level batch currentCourseDay').lean();

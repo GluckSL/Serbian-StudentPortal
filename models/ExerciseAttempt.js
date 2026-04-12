@@ -66,6 +66,7 @@ const ExerciseAttemptSchema = new mongoose.Schema({
 
 // Index for fast queries by student, exercise, date
 ExerciseAttemptSchema.index({ studentId: 1, exerciseId: 1 });
+ExerciseAttemptSchema.index({ studentId: 1, status: 1 }); // batch progress overall aggregate
 ExerciseAttemptSchema.index({ exerciseId: 1, status: 1 });
 ExerciseAttemptSchema.index({ studentId: 1, createdAt: -1 });
 // Daily completion tracking

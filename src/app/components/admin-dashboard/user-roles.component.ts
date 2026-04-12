@@ -18,6 +18,7 @@ interface ManagedUser {
   role: string;
   newRole: string;
   sidebarPermissions: string[];
+  teacherTabPermissions: string[];
   permissionsDirty: boolean;
 }
 
@@ -78,6 +79,7 @@ interface PwModal {
                       <th>Current Role</th>
                       <th>Change Role</th>
                       <th>Sidebar Access (Sub-Admin)</th>
+                      <th>Tab Access (Teacher)</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -136,6 +138,38 @@ interface PwModal {
                           </div>
                         </div>
                         <ng-template #noSidebarConfig>
+                          <span class="text-muted small">N/A</span>
+                        </ng-template>
+                      </td>
+                      <!-- Teacher Tab Permissions -->
+                      <td>
+                        <div *ngIf="isTeacherRole(user); else noTeacherTabConfig" class="permissions-wrap">
+                          <div class="permissions-toggle-row">
+                            <span class="permission-count">
+                              {{ user.teacherTabPermissions.length }} tab(s)
+                            </span>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-secondary permissions-toggle-btn"
+                              (click)="toggleTeacherTabDetails(user)"
+                            >
+                              {{ isTeacherTabDetailsOpen(user) ? 'Hide' : 'Assign Tabs' }}
+                              <i class="fas" [ngClass]="isTeacherTabDetailsOpen(user) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                            </button>
+                          </div>
+                          <div class="permissions-grid details-panel" *ngIf="isTeacherTabDetailsOpen(user)">
+                            <p class="tab-info-note">Teacher will see these tabs in <strong>read-only</strong> mode (no edit/delete).</p>
+                            <label class="permission-item" *ngFor="let option of subAdminPermissionOptions">
+                              <input
+                                type="checkbox"
+                                [checked]="user.teacherTabPermissions.includes(option.id)"
+                                (change)="toggleTeacherTabPermission(user, option.id, $event)"
+                              />
+                              <span>{{ option.label }}</span>
+                            </label>
+                          </div>
+                        </div>
+                        <ng-template #noTeacherTabConfig>
                           <span class="text-muted small">N/A</span>
                         </ng-template>
                       </td>
@@ -497,6 +531,17 @@ interface PwModal {
     }
     .permission-item input { margin: 0; }
 
+    .tab-info-note {
+      grid-column: 1 / -1;
+      font-size: 10px;
+      color: #0369a1;
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+      padding: 5px 8px;
+      margin-bottom: 6px;
+    }
+
     /* ── Form Select ── */
     .form-select-sm {
       min-width: 170px;
@@ -806,6 +851,7 @@ interface PwModal {
 export class UserRolesComponent implements OnInit {
   private readonly requiredSubAdminPermissions = ['dashboard', 'profile'];
   expandedSubAdminRows = new Set<string>();
+  expandedTeacherTabRows = new Set<string>();
   allTeachersAndAdmins: ManagedUser[] = [];
   subAdminPermissionGroups: { group: string; items: { id: string; label: string }[] }[] = [];
   subAdminPermissionOptions: { id: string; label: string }[] = [];
@@ -847,9 +893,13 @@ export class UserRolesComponent implements OnInit {
           ...user,
           newRole: user.role,
           sidebarPermissions: this.normalizePermissionsForRole(user.role, user.sidebarPermissions || []),
+          teacherTabPermissions: user.role === 'TEACHER'
+            ? this.navService.normalizeTeacherTabPermissions(user.teacherTabPermissions || [])
+            : [],
           permissionsDirty: false
         }));
         this.expandedSubAdminRows.clear();
+        this.expandedTeacherTabRows.clear();
       },
       error: (err) => {
         console.error('Failed to fetch teachers and admins:', err);
@@ -861,8 +911,13 @@ export class UserRolesComponent implements OnInit {
   onRoleChange(user: ManagedUser): void {
     if (user.newRole === 'SUB_ADMIN') {
       user.sidebarPermissions = this.navService.normalizeSidebarPermissions(user.sidebarPermissions || []);
+      user.teacherTabPermissions = [];
+    } else if (user.newRole === 'TEACHER') {
+      user.sidebarPermissions = [];
+      user.teacherTabPermissions = this.navService.normalizeTeacherTabPermissions(user.teacherTabPermissions || []);
     } else {
       user.sidebarPermissions = [];
+      user.teacherTabPermissions = [];
     }
     user.permissionsDirty = true;
   }
@@ -899,6 +954,34 @@ export class UserRolesComponent implements OnInit {
     user.permissionsDirty = true;
   }
 
+  isTeacherRole(user: ManagedUser): boolean {
+    return user.newRole === 'TEACHER' || user.role === 'TEACHER';
+  }
+
+  isTeacherTabDetailsOpen(user: ManagedUser): boolean {
+    return this.expandedTeacherTabRows.has(user._id);
+  }
+
+  toggleTeacherTabDetails(user: ManagedUser): void {
+    if (this.isTeacherTabDetailsOpen(user)) {
+      this.expandedTeacherTabRows.delete(user._id);
+    } else {
+      this.expandedTeacherTabRows.add(user._id);
+    }
+  }
+
+  toggleTeacherTabPermission(user: ManagedUser, permissionId: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const current = new Set(user.teacherTabPermissions || []);
+    if (input.checked) {
+      current.add(permissionId);
+    } else {
+      current.delete(permissionId);
+    }
+    user.teacherTabPermissions = this.navService.normalizeTeacherTabPermissions(Array.from(current));
+    user.permissionsDirty = true;
+  }
+
   hasPendingChanges(user: ManagedUser): boolean {
     return user.newRole !== user.role || user.permissionsDirty;
   }
@@ -907,19 +990,24 @@ export class UserRolesComponent implements OnInit {
     return role === 'SUB_ADMIN' ? this.navService.normalizeSidebarPermissions(sidebarPermissions) : [];
   }
 
+  private normalizeTeacherTabsForRole(role: string, teacherTabPermissions: string[]): string[] {
+    return role === 'TEACHER' ? this.navService.normalizeTeacherTabPermissions(teacherTabPermissions) : [];
+  }
+
   updateUserRole(user: ManagedUser): void {
     if (!this.hasPendingChanges(user)) {
       return;
     }
 
     const actionText = user.newRole === user.role
-      ? `update sidebar access for ${user.name}`
+      ? `update access for ${user.name}`
       : `change ${user.name}'s role from ${user.role} to ${user.newRole}`;
 
     this.notify.confirm('Update Access', `Are you sure you want to ${actionText}?`).subscribe(ok => {
       if (!ok) {
         user.newRole = user.role;
         user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
+        user.teacherTabPermissions = this.normalizeTeacherTabsForRole(user.role, user.teacherTabPermissions);
         user.permissionsDirty = false;
         return;
       }
@@ -928,12 +1016,16 @@ export class UserRolesComponent implements OnInit {
       payload.sidebarPermissions = user.newRole === 'SUB_ADMIN'
         ? this.navService.normalizeSidebarPermissions(user.sidebarPermissions || [])
         : [];
+      payload.teacherTabPermissions = user.newRole === 'TEACHER'
+        ? this.navService.normalizeTeacherTabPermissions(user.teacherTabPermissions || [])
+        : [];
 
       this.http.put(`${apiUrl}/auth/${user._id}`, payload, { withCredentials: true }).subscribe({
         next: () => {
           this.notify.success(`Successfully updated access for ${user.name}`);
           user.role = user.newRole;
           user.sidebarPermissions = this.normalizePermissionsForRole(user.role, payload.sidebarPermissions || []);
+          user.teacherTabPermissions = this.normalizeTeacherTabsForRole(user.role, payload.teacherTabPermissions || []);
           user.permissionsDirty = false;
           this.fetchTeachersAndAdmins();
         },
@@ -942,6 +1034,7 @@ export class UserRolesComponent implements OnInit {
           this.notify.error('Failed to update role/access. Please try again.');
           user.newRole = user.role;
           user.sidebarPermissions = this.normalizePermissionsForRole(user.role, user.sidebarPermissions);
+          user.teacherTabPermissions = this.normalizeTeacherTabsForRole(user.role, user.teacherTabPermissions);
           user.permissionsDirty = false;
         }
       });

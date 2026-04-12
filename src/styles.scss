@@ -478,3 +478,64 @@ button:disabled,
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Teacher Read-Only Mode
+   Applied via body.teacher-read-only when a TEACHER role user
+   accesses admin tabs assigned to them in view-only mode.
+   Hides all edit / delete / create action controls globally.
+   ═══════════════════════════════════════════════════════════════ */
+body.teacher-read-only {
+
+  /* ── Buttons with trash/delete icons ── */
+  button:has(.fa-trash),
+  button:has(.fa-trash-alt),
+  a:has(.fa-trash),
+  a:has(.fa-trash-alt) { display: none !important; }
+
+  /* ── Buttons with edit/pen icons ── */
+  button:has(.fa-edit),
+  button:has(.fa-pen),
+  button:has(.fa-pencil),
+  button:has(.fa-pencil-alt),
+  a:has(.fa-edit),
+  a:has(.fa-pen) { display: none !important; }
+
+  /* ── Buttons with plus/add icons (create new records) ── */
+  button:has(.fa-plus):not(.no-hide),
+  button:has(.fa-plus-circle):not(.no-hide) { display: none !important; }
+
+  /* ── Title-attribute based targeting ── */
+  [title="Delete"],
+  [title="delete"],
+  [title="Edit"],
+  [title="edit"],
+  [title="Remove"],
+  [title="remove"],
+  [title="Update"],
+  [title="Save changes"] { display: none !important; }
+
+  /* ── Common class-based delete/edit buttons ── */
+  .btn-del,
+  .btn-danger,
+  .btn-warning:has(.fa-edit),
+  .btn-warning:has(.fa-pen),
+  .zr-icon-btn--red { display: none !important; }
+
+  /* ── Input fields in editable table cells: make read-only visually ── */
+  table input[type="text"],
+  table input[type="number"],
+  table select,
+  table textarea {
+    pointer-events: none !important;
+    opacity: 0.7;
+    background: #f8fafc !important;
+    cursor: default !important;
+  }
+
+  /* ── Hide "Save" / "Update" action buttons in table rows ── */
+  td .btn-success { display: none !important; }
+
+  /* ── Role-change selects ── */
+  .form-select { pointer-events: none !important; opacity: 0.7; }
+}

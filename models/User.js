@@ -24,6 +24,7 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN", "SUB_ADMIN"], required: true },
   sidebarPermissions: { type: [String], default: [] },
+  teacherTabPermissions: { type: [String], default: [] },
   subscription: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: function() { return this.role === "STUDENT"; } },
   level: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: function() { return this.role === "STUDENT"; }},
   batch: { type: String, required: function() { return this.role === "STUDENT"; }},
