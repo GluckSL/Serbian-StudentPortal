@@ -171,7 +171,7 @@
           {{ uploadingFiles ? 'Uploading…' : 'Upload Files' }}
           <input type="file" multiple hidden (change)="onFilesSelected($event)" [disabled]="uploadingFiles" />
         </label>
-        <span class="upload-hint">PDF, DOC, PPT, TXT, ZIP, Images — max 20 MB each</span>
+        <span class="upload-hint">Any teaching file (docs, images, audio, video, archives, etc.) — max 20 MB each. Executables blocked.</span>
       </div>
       <div class="text-center text-muted py-3" *ngIf="loadingResources">Loading…</div>
       <div class="resource-list" *ngIf="!loadingResources">
@@ -185,7 +185,8 @@
             </div>
           </div>
           <div class="resource-actions">
-            <a class="tbl-action-btn tbl-action-btn--resource" [href]="r.fileUrl" target="_blank" rel="noopener">Download</a>
+            <button type="button" class="tbl-action-btn tbl-action-btn--view" (click)="viewResource(r)">View</button>
+            <button type="button" class="tbl-action-btn tbl-action-btn--resource" (click)="downloadResource(r)">Download</button>
             <button type="button" class="tbl-action-btn tbl-action-btn--delete" (click)="deleteResource(r)">
               <i class="fas fa-trash-alt"></i>
             </button>

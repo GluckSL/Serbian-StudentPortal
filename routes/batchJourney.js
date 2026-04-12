@@ -9,6 +9,7 @@ const LearningModule = require('../models/LearningModule');
 const DigitalExercise = require('../models/DigitalExercise');
 const MeetingLink = require('../models/MeetingLink');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
+const StudentProgress = require('../models/StudentProgress');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -552,6 +553,606 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
   } catch (err) {
     console.error('batch-journey PATCH /student/:id/day', err);
     res.status(500).json({ message: 'Failed to update student day', error: err.message });
+  }
+});
+
+// ─── GET /api/batch-journey/:batchName/progress/day/:day/exercise-analytics ───
+// Per-student exercise attempts & scores for all exercises scheduled on a journey day
+router.get('/:batchName/progress/day/:day/exercise-analytics', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const bn = String(req.params.batchName || '').trim();
+    const dayNum = clampDay(req.params.day);
+    if (!bn) return res.status(400).json({ message: 'batchName is required' });
+
+    const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
+      .select('_id name regNo').sort({ name: 1 }).lean();
+    if (!students.length) {
+      return res.json({ day: dayNum, exercises: [], students: [] });
+    }
+    const studentIds = students.map(s => s._id);
+
+    const exDocs = await DigitalExercise.find({
+      courseDay: dayNum,
+      isDeleted: { $ne: true },
+      visibleToStudents: true,
+      isActive: true
+    })
+      .select('_id title')
+      .sort({ title: 1 })
+      .lean();
+
+    const exIds = exDocs.map(e => e._id);
+    const exercises = exDocs.map(e => ({ _id: e._id, title: e.title || 'Untitled' }));
+
+    if (!exIds.length) {
+      return res.json({
+        day: dayNum,
+        exercises,
+        students: students.map(s => ({
+          _id: s._id,
+          name: s.name,
+          regNo: s.regNo,
+          exercises: []
+        }))
+      });
+    }
+
+    const attempts = await ExerciseAttempt.find({
+      studentId: { $in: studentIds },
+      exerciseId: { $in: exIds },
+      status: 'completed'
+    })
+      .select('studentId exerciseId scorePercentage completedAt')
+      .lean();
+
+    const best = {};
+    attempts.forEach((a) => {
+      const sid = String(a.studentId);
+      const eid = String(a.exerciseId);
+      const sc = a.scorePercentage != null ? Number(a.scorePercentage) : 0;
+      const key = `${sid}|${eid}`;
+      if (!best[key] || sc > best[key].scorePercent) {
+        best[key] = { scorePercent: sc, completedAt: a.completedAt };
+      }
+    });
+
+    const studentsOut = students.map((s) => {
+      const sid = String(s._id);
+      return {
+        _id: s._id,
+        name: s.name,
+        regNo: s.regNo,
+        exercises: exIds.map((eid) => {
+          const eidStr = String(eid);
+          const b = best[`${sid}|${eidStr}`];
+          return {
+            exerciseId: eid,
+            attempted: !!b,
+            scorePercent: b ? b.scorePercent : null,
+            completedAt: b ? b.completedAt : null
+          };
+        })
+      };
+    });
+
+    res.json({ day: dayNum, exercises, students: studentsOut });
+  } catch (err) {
+    console.error('batch-journey GET .../progress/day/:day/exercise-analytics', err);
+    res.status(500).json({ message: 'Failed to load exercise analytics', error: err.message });
+  }
+});
+
+// ─── GET /api/batch-journey/:batchName/progress/day/:day ─────────────────────
+// Live-class attendance (who joined / who did not) + same summary as daily row
+router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const bn = String(req.params.batchName || '').trim();
+    const dayNum = clampDay(req.params.day);
+    if (!bn) return res.status(400).json({ message: 'batchName is required' });
+
+    const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
+      .select('_id name regNo email').sort({ name: 1 }).lean();
+    if (!students.length) {
+      return res.json({
+        day: dayNum,
+        liveClasses: [],
+        exerciseCount: 0,
+        moduleCount: 0,
+        exerciseCompletionPercent: 0,
+        moduleCompletionPercent: 0
+      });
+    }
+    const studentIds = students.map(s => s._id);
+
+    const meetings = await MeetingLink.find({
+      batch: batchRegex,
+      courseDay: dayNum,
+      status: { $ne: 'cancelled' }
+    })
+      .select('topic startTime duration attendance')
+      .sort({ startTime: 1 })
+      .lean();
+
+    const liveClasses = meetings.map((m) => ({
+      meetingId: m._id,
+      topic: m.topic || 'Live class',
+      startTime: m.startTime,
+      duration: m.duration,
+      students: students.map((s) => {
+        const sid = String(s._id);
+        const att = (m.attendance || []).find((a) => String(a.studentId) === sid);
+        const attended = !!(att && att.attended);
+        return {
+          _id: s._id,
+          name: s.name,
+          regNo: s.regNo,
+          attended,
+          durationMinutes: att?.durationMinutes ?? null,
+          attendanceStatus: att?.status || (attended ? 'attended' : 'absent')
+        };
+      })
+    }));
+
+    const exIds = (
+      await DigitalExercise.find({
+        courseDay: dayNum,
+        isDeleted: { $ne: true },
+        visibleToStudents: true,
+        isActive: true
+      })
+        .select('_id')
+        .lean()
+    ).map((e) => e._id);
+
+    const modIds = (
+      await LearningModule.find({
+        courseDay: dayNum,
+        isDeleted: { $ne: true },
+        visibleToStudents: true
+      })
+        .select('_id')
+        .lean()
+    ).map((m) => m._id);
+
+    let exerciseCompletionPercent = 0;
+    let moduleCompletionPercent = 0;
+    const nStud = students.length;
+
+    if (exIds.length && nStud) {
+      const attempts = await ExerciseAttempt.find({
+        studentId: { $in: studentIds },
+        exerciseId: { $in: exIds },
+        status: 'completed'
+      })
+        .select('studentId exerciseId')
+        .lean();
+      const pairSet = new Set(attempts.map((a) => `${String(a.studentId)}|${String(a.exerciseId)}`));
+      let filled = 0;
+      for (const sid of studentIds) {
+        for (const eid of exIds) {
+          if (pairSet.has(`${String(sid)}|${String(eid)}`)) filled += 1;
+        }
+      }
+      exerciseCompletionPercent = Math.round((100 * filled) / (nStud * exIds.length));
+    }
+
+    if (modIds.length && nStud) {
+      const done = await StudentProgress.countDocuments({
+        studentId: { $in: studentIds },
+        moduleId: { $in: modIds },
+        status: 'completed'
+      });
+      moduleCompletionPercent = Math.round((100 * done) / (nStud * modIds.length));
+    }
+
+    res.json({
+      day: dayNum,
+      liveClasses,
+      exerciseCount: exIds.length,
+      moduleCount: modIds.length,
+      exerciseCompletionPercent,
+      moduleCompletionPercent
+    });
+  } catch (err) {
+    console.error('batch-journey GET /:batchName/progress/day/:day', err);
+    res.status(500).json({ message: 'Failed to load day progress', error: err.message });
+  }
+});
+
+// ─── GET /api/batch-journey/:batchName/progress ──────────────────────────────
+// Aggregate batch-level progress: overall stats, per-day, per-week, per-student
+router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const bn = String(req.params.batchName || '').trim();
+    if (!bn) return res.status(400).json({ message: 'batchName is required' });
+
+    const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
+
+    // All students in batch
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
+      .select('_id name regNo email level currentCourseDay').lean();
+
+    if (!students.length) {
+      return res.json({ overall: { totalStudents: 0, avgScorePercent: 0, totalExercisesCompleted: 0, totalClassesAttended: 0, avgDayReached: 0 }, daily: [], weekly: [], students: [] });
+    }
+
+    const studentIds = students.map(s => s._id);
+
+    // --- Exercise attempts (completed only) ---
+    const attempts = await ExerciseAttempt.find({
+      studentId: { $in: studentIds },
+      status: 'completed'
+    }).populate('exerciseId', 'title courseDay').lean();
+
+    // Build per-student exercise summary
+    const studentExerciseMap = {};
+    students.forEach(s => { studentExerciseMap[String(s._id)] = { count: 0, totalScore: 0, scoreCount: 0 }; });
+
+    attempts.forEach(a => {
+      const sid = String(a.studentId);
+      if (!studentExerciseMap[sid]) return;
+      studentExerciseMap[sid].count += 1;
+      if (a.scorePercentage !== undefined && a.scorePercentage !== null) {
+        studentExerciseMap[sid].totalScore += a.scorePercentage;
+        studentExerciseMap[sid].scoreCount += 1;
+      }
+    });
+
+    // --- Live classes & attendance ---
+    const meetings = await MeetingLink.find({ batch: batchRegex, status: { $ne: 'cancelled' } })
+      .select('topic startTime duration courseDay attendance status').lean();
+
+    const studentAttendanceMap = {};
+    students.forEach(s => { studentAttendanceMap[String(s._id)] = 0; });
+
+    meetings.forEach(m => {
+      (m.attendance || []).forEach(a => {
+        const sid = String(a.studentId || a.userId || '');
+        if (studentAttendanceMap[sid] !== undefined && a.attended) {
+          studentAttendanceMap[sid] += 1;
+        }
+      });
+    });
+
+    // --- Per-student summary ---
+    const studentSummaries = students.map(s => {
+      const sid = String(s._id);
+      const ex = studentExerciseMap[sid];
+      return {
+        _id: s._id,
+        name: s.name,
+        regNo: s.regNo,
+        level: s.level,
+        currentDay: s.currentCourseDay || 1,
+        avgScore: ex.scoreCount ? Math.round(ex.totalScore / ex.scoreCount) : 0,
+        exercisesDone: ex.count,
+        classesAttended: studentAttendanceMap[sid] || 0
+      };
+    });
+
+    // --- Overall stats ---
+    const totalExercisesCompleted = studentSummaries.reduce((a, s) => a + s.exercisesDone, 0);
+    const totalClassesAttended = studentSummaries.reduce((a, s) => a + s.classesAttended, 0);
+    const scoredStudents = studentSummaries.filter(s => s.avgScore > 0);
+    const avgScorePercent = scoredStudents.length ? Math.round(scoredStudents.reduce((a, s) => a + s.avgScore, 0) / scoredStudents.length) : 0;
+    const avgDayReached = studentSummaries.length ? Math.round(studentSummaries.reduce((a, s) => a + s.currentDay, 0) / studentSummaries.length) : 0;
+
+    // --- Daily breakdown ---
+    // Determine days covered (max student day)
+    const maxDay = Math.max(...students.map(s => s.currentCourseDay || 1), 1);
+    const dailyMap = {};
+    /** Unique students who attended ≥1 live class on that journey day (for charts: reached vs joined) */
+    const liveUniqueByDay = {};
+    for (let d = 1; d <= maxDay; d++) {
+      dailyMap[d] = { day: d, studentsCompleted: 0, totalScore: 0, scoreCount: 0, classesHeld: 0, classesAttended: 0 };
+      liveUniqueByDay[d] = new Set();
+    }
+
+    // Students who reached or passed each day
+    students.forEach(s => {
+      const reached = s.currentCourseDay || 1;
+      for (let d = 1; d <= reached && d <= maxDay; d++) {
+        if (dailyMap[d]) dailyMap[d].studentsCompleted += 1;
+      }
+    });
+
+    // Average score per day from attempts
+    attempts.forEach(a => {
+      const day = a.exerciseId?.courseDay;
+      if (day && dailyMap[day] && a.scorePercentage !== undefined) {
+        dailyMap[day].totalScore += a.scorePercentage;
+        dailyMap[day].scoreCount += 1;
+      }
+    });
+
+    meetings.forEach(m => {
+      const day = m.courseDay;
+      if (day && dailyMap[day]) {
+        dailyMap[day].classesHeld += 1;
+        (m.attendance || []).forEach(a => {
+          if (a.attended) {
+            dailyMap[day].classesAttended += 1;
+            const sid = String(a.studentId || a.userId || '');
+            if (sid) liveUniqueByDay[day].add(sid);
+          }
+        });
+      }
+    });
+
+    // Scheduled exercises & modules per journey day (visible to students)
+    const exForDays = await DigitalExercise.find({
+      courseDay: { $gte: 1, $lte: maxDay },
+      isDeleted: { $ne: true },
+      visibleToStudents: true,
+      isActive: true
+    }).select('_id courseDay').lean();
+
+    const modForDays = await LearningModule.find({
+      courseDay: { $gte: 1, $lte: maxDay },
+      isDeleted: { $ne: true },
+      visibleToStudents: true
+    }).select('_id courseDay').lean();
+
+    const exercisesByDay = {};
+    exForDays.forEach((ex) => {
+      const day = ex.courseDay;
+      if (!day || !dailyMap[day]) return;
+      if (!exercisesByDay[day]) exercisesByDay[day] = [];
+      exercisesByDay[day].push(ex._id);
+    });
+    const modulesByDay = {};
+    modForDays.forEach((mo) => {
+      const day = mo.courseDay;
+      if (!day || !dailyMap[day]) return;
+      if (!modulesByDay[day]) modulesByDay[day] = [];
+      modulesByDay[day].push(mo._id);
+    });
+
+    const allExIds = exForDays.map((e) => e._id);
+    const exAttemptPairs = allExIds.length
+      ? await ExerciseAttempt.find({
+        studentId: { $in: studentIds },
+        exerciseId: { $in: allExIds },
+        status: 'completed'
+      }).select('studentId exerciseId').lean()
+      : [];
+    const exPairSet = new Set(exAttemptPairs.map((a) => `${String(a.studentId)}|${String(a.exerciseId)}`));
+
+    const allModIds = modForDays.map((m) => m._id);
+    const modProgressDocs = allModIds.length
+      ? await StudentProgress.find({
+        studentId: { $in: studentIds },
+        moduleId: { $in: allModIds },
+        status: 'completed'
+      }).select('studentId moduleId').lean()
+      : [];
+    const modPairSet = new Set(modProgressDocs.map((p) => `${String(p.studentId)}|${String(p.moduleId)}`));
+
+    const nStud = students.length;
+
+    const daily = Object.values(dailyMap).map((d) => {
+      const exIds = exercisesByDay[d.day] || [];
+      const mIds = modulesByDay[d.day] || [];
+      let exerciseCompletionPercent = 0;
+      let moduleCompletionPercent = 0;
+      let exerciseSlotsFilled = 0;
+      const exerciseSlotsTotal = exIds.length * nStud;
+      if (exIds.length && nStud) {
+        let filled = 0;
+        for (const sid of studentIds) {
+          for (const eid of exIds) {
+            if (exPairSet.has(`${String(sid)}|${String(eid)}`)) filled += 1;
+          }
+        }
+        exerciseSlotsFilled = filled;
+        exerciseCompletionPercent = Math.round((100 * filled) / (nStud * exIds.length));
+      }
+      let moduleSlotsFilled = 0;
+      const moduleSlotsTotal = mIds.length * nStud;
+      if (mIds.length && nStud) {
+        let mf = 0;
+        for (const sid of studentIds) {
+          for (const mid of mIds) {
+            if (modPairSet.has(`${String(sid)}|${String(mid)}`)) mf += 1;
+          }
+        }
+        moduleSlotsFilled = mf;
+        moduleCompletionPercent = Math.round((100 * mf) / (nStud * mIds.length));
+      }
+      const liveUniqueJoined = liveUniqueByDay[d.day] ? liveUniqueByDay[d.day].size : 0;
+      return {
+        day: d.day,
+        studentsCompleted: d.studentsCompleted,
+        avgScore: d.scoreCount ? Math.round(d.totalScore / d.scoreCount) : 0,
+        classesHeld: d.classesHeld,
+        classesAttended: d.classesAttended,
+        liveUniqueJoined,
+        exerciseCount: exIds.length,
+        moduleCount: mIds.length,
+        exerciseCompletionPercent,
+        moduleCompletionPercent,
+        exerciseSlotsFilled,
+        exerciseSlotsTotal,
+        moduleSlotsFilled,
+        moduleSlotsTotal
+      };
+    });
+
+    // --- Weekly breakdown ---
+    const weeklyMap = {};
+    daily.forEach(d => {
+      const week = Math.ceil(d.day / 7);
+      if (!weeklyMap[week]) {
+        weeklyMap[week] = { week, days: [], totalScore: 0, scoreCount: 0, exercisesDone: 0, classesAttended: 0 };
+      }
+      weeklyMap[week].days.push(d.day);
+      weeklyMap[week].totalScore += d.avgScore * (d.avgScore > 0 ? 1 : 0);
+      if (d.avgScore > 0) weeklyMap[week].scoreCount += 1;
+      weeklyMap[week].classesAttended += d.classesAttended;
+    });
+
+    // Sum exercisesDone per week from attempts
+    attempts.forEach(a => {
+      const day = a.exerciseId?.courseDay;
+      if (!day) return;
+      const week = Math.ceil(day / 7);
+      if (weeklyMap[week]) weeklyMap[week].exercisesDone += 1;
+    });
+
+    const weekly = Object.values(weeklyMap).map((w) => ({
+      week: w.week,
+      days: w.days,
+      avgScore: w.scoreCount ? Math.round(w.totalScore / w.scoreCount) : 0,
+      exercisesDone: w.exercisesDone,
+      classesAttended: w.classesAttended
+    }));
+
+    res.json({
+      overall: { totalStudents: students.length, avgScorePercent, totalExercisesCompleted, totalClassesAttended, avgDayReached },
+      daily,
+      weekly,
+      students: studentSummaries
+    });
+  } catch (err) {
+    console.error('batch-journey GET /:batchName/progress', err);
+    res.status(500).json({ message: 'Failed to fetch batch progress', error: err.message });
+  }
+});
+
+// ─── GET /api/batch-journey/student/:studentId/full-progress ─────────────────
+// Full detailed progress for one student: exercises + Q&A, modules, live classes, day breakdown
+router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    const student = await User.findOne({ _id: studentId, role: 'STUDENT' })
+      .select('name regNo email level batch currentCourseDay').lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    // --- Exercise attempts with question responses ---
+    const attempts = await ExerciseAttempt.find({ studentId, status: 'completed' })
+      .populate('exerciseId', 'title courseDay category level')
+      .sort({ completedAt: 1 })
+      .lean();
+
+    const exercises = attempts.map(a => ({
+      attemptId: a._id,
+      exerciseId: a.exerciseId?._id,
+      title: a.exerciseId?.title || 'Untitled',
+      courseDay: a.exerciseId?.courseDay || null,
+      category: a.exerciseId?.category || null,
+      level: a.exerciseId?.level || null,
+      scorePercent: a.scorePercentage || 0,
+      earnedPoints: a.earnedPoints || 0,
+      totalPoints: a.totalPoints || 0,
+      completedAt: a.completedAt,
+      timeSpentSeconds: a.timeSpentSeconds || 0,
+      responses: (a.responses || []).map(r => ({
+        questionIndex: r.questionIndex,
+        questionType: r.questionType,
+        selectedOptionIndex: r.selectedOptionIndex,
+        matchingResponse: r.matchingResponse,
+        fillBlankResponses: r.fillBlankResponses,
+        spokenText: r.spokenText,
+        pronunciationScore: r.pronunciationScore,
+        qaResponse: r.qaResponse,
+        listeningText: r.listeningText,
+        isCorrect: r.isCorrect,
+        pointsEarned: r.pointsEarned
+      }))
+    }));
+
+    // --- Module progress ---
+    const moduleProgress = await StudentProgress.find({ studentId })
+      .populate('moduleId', 'title level category courseDay')
+      .sort({ lastAccessedAt: -1 })
+      .lean();
+
+    const modules = moduleProgress.map(p => ({
+      moduleId: p.moduleId?._id,
+      title: p.moduleId?.title || 'Untitled',
+      level: p.moduleId?.level || null,
+      category: p.moduleId?.category || null,
+      courseDay: p.moduleId?.courseDay || null,
+      status: p.status,
+      progressPercent: p.progressPercentage || 0,
+      exercisesCompleted: p.exercisesCompleted || 0,
+      timeSpent: p.timeSpent || 0,
+      lastAccessedAt: p.lastAccessedAt
+    }));
+
+    // --- Live classes ---
+    const meetings = await MeetingLink.find({
+      batch: new RegExp(`^${escapeRegExp(student.batch)}$`, 'i'),
+      status: { $ne: 'cancelled' }
+    }).select('topic startTime duration courseDay attendance status').lean();
+
+    const liveClasses = meetings.map(m => {
+      const attendEntry = (m.attendance || []).find(a => String(a.studentId || a.userId) === String(studentId));
+      return {
+        meetingId: m._id,
+        topic: m.topic,
+        startTime: m.startTime,
+        duration: m.duration,
+        courseDay: m.courseDay,
+        attended: !!(attendEntry?.attended)
+      };
+    });
+
+    // --- Day-by-day breakdown ---
+    const maxDay = student.currentCourseDay || 1;
+    const dayMap = {};
+    for (let d = 1; d <= maxDay; d++) {
+      dayMap[d] = { day: d, exercisesDone: 0, exercisesTotal: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0 };
+    }
+
+    // exercises done per day
+    exercises.forEach(e => {
+      const d = e.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].exercisesDone += 1;
+        dayMap[d].totalScore += e.scorePercent;
+        dayMap[d].scoreCount += 1;
+      }
+    });
+
+    // Total exercises available per day from attempts (approximation: count distinct exerciseId per day in exercises)
+    // and class info per day
+    liveClasses.forEach(c => {
+      const d = c.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].classesTotal += 1;
+        if (c.attended) dayMap[d].classesAttended += 1;
+      }
+    });
+
+    const dayBreakdown = Object.values(dayMap).map((d) => ({
+      day: d.day,
+      exercisesDone: d.exercisesDone,
+      classesAttended: d.classesAttended,
+      classesTotal: d.classesTotal,
+      avgScore: d.scoreCount ? Math.round(d.totalScore / d.scoreCount) : 0
+    }));
+
+    res.json({
+      student: {
+        _id: student._id,
+        name: student.name,
+        regNo: student.regNo,
+        email: student.email,
+        level: student.level,
+        currentDay: student.currentCourseDay || 1
+      },
+      exercises,
+      modules,
+      liveClasses,
+      dayBreakdown
+    });
+  } catch (err) {
+    console.error('batch-journey GET /student/:id/full-progress', err);
+    res.status(500).json({ message: 'Failed to fetch student full progress', error: err.message });
   }
 });
 
