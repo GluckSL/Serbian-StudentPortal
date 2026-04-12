@@ -29,8 +29,50 @@ export class ClassResourceService {
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   }
 
-  /** Save the file locally; falls back to opening in a new tab if fetch/CORS blocks the download. */
-  downloadFile(fileUrl: string, originalName: string): void {
+  /**
+   * Download a class resource. Uses API + S3 presigned URL with Content-Disposition: attachment
+   * so the browser saves the file (avoids cross-origin fetch to S3, which usually fails without CORS).
+   */
+  downloadClassResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
+    const name = (r.originalName || 'download').trim() || 'download';
+    const id = r._id != null ? String(r._id) : '';
+    const fallbackUrl = r.fileUrl || '';
+    if (id) {
+      this.http
+        .get<{ success?: boolean; url?: string }>(`${this.base}/download/${id}`, { withCredentials: true })
+        .subscribe({
+          next: (res) => {
+            if (res?.url) {
+              this.triggerAttachmentDownload(res.url);
+              return;
+            }
+            this.downloadViaFetchOrOpen(fallbackUrl, name);
+          },
+          error: () => this.downloadViaFetchOrOpen(fallbackUrl, name)
+        });
+      return;
+    }
+    this.downloadViaFetchOrOpen(fallbackUrl, name);
+  }
+
+  /** Load URL in a hidden iframe — works with S3 responses that send Content-Disposition: attachment. */
+  private triggerAttachmentDownload(url: string): void {
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'display:none;width:0;height:0;border:none;position:fixed';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    window.setTimeout(() => {
+      try {
+        iframe.remove();
+      } catch {
+        /* noop */
+      }
+    }, 300000);
+  }
+
+  /** Last resort when no resource id or API fails: blob download if CORS allows, else open tab. */
+  private downloadViaFetchOrOpen(fileUrl: string, originalName: string): void {
     if (!fileUrl) return;
     const name = originalName?.trim() || 'download';
     fetch(fileUrl)

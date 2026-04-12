@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const multer = require('multer');
 const multerS3 = require('multer-s3');
@@ -7,7 +8,7 @@ const s3Client = require('../config/s3');
 const ClassResource = require('../models/ClassResource');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { presignStoredS3Url } = require('../config/presign');
+const { presignStoredS3Url, presignS3DownloadUrl } = require('../config/presign');
 
 // Allow most resource types (docs, images, audio, video, archives, etc.).
 // Block obvious executable / installer extensions and PE-related MIME types.
@@ -77,6 +78,27 @@ router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_AD
   } catch (err) {
     console.error('classResources upload error:', err);
     res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
+  }
+});
+
+// GET /download/:resourceId — presigned URL with Content-Disposition: attachment (real download, no CORS fetch)
+router.get('/download/:resourceId', verifyToken, async (req, res) => {
+  try {
+    const { resourceId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(resourceId)) {
+      return res.status(400).json({ success: false, message: 'Invalid resource id' });
+    }
+    const resource = await ClassResource.findById(resourceId).lean();
+    if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    const url = await presignS3DownloadUrl(resource.fileName, resource.fileUrl, resource.originalName);
+    if (!url) {
+      return res.status(500).json({ success: false, message: 'Could not build download URL' });
+    }
+    res.json({ success: true, url });
+  } catch (err) {
+    console.error('classResources GET /download/:resourceId', err);
+    res.status(500).json({ success: false, message: 'Download link failed', error: err.message });
   }
 });
 
