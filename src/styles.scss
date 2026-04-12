@@ -273,6 +273,12 @@ button:disabled,
 /* ============================= */
 /* Toast / Snackbar Styles       */
 /* ============================= */
+/* Custom full-screen modals (e.g. Resources) use z-index 9999; CDK default is lower,
+   so snackbars were drawn behind the blurred backdrop. Keep all CDK overlays above them. */
+.cdk-overlay-container {
+  z-index: 10050 !important;
+}
+
 .snack-success .mdc-snackbar__surface,
 .snack-success.mat-mdc-snack-bar-container .mdc-snackbar__surface {
   background: #16a34a !important;
@@ -318,6 +324,14 @@ button:disabled,
 .snack-info .mat-mdc-button,
 .snack-warning .mat-mdc-button {
   color: rgba(255,255,255,0.85) !important;
+}
+
+/* Sit toasts higher than the screen edge so they clear modals and the thumb zone */
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-success,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-error,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-info,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-warning {
+  margin-bottom: 96px !important;
 }
 
 /* Confirm dialog panel */
@@ -479,43 +493,68 @@ button:disabled,
   }
 }
 
-/* Digital exercises: themed select overlay (replaces native mobile picker) */
-.dex-select-panel.mat-mdc-select-panel {
-  border-radius: 12px !important;
-  box-shadow:
-    0 4px 6px -1px rgba(15, 23, 42, 0.08),
-    0 10px 24px -4px rgba(99, 102, 241, 0.15) !important;
-  border: 1px solid #e5e7eb !important;
-  margin-top: 6px;
-  padding: 6px 0;
-  max-width: min(100vw - 48px, 320px);
-}
+/* ═══════════════════════════════════════════════════════════════
+   Teacher Read-Only Mode
+   Applied via body.teacher-read-only when a TEACHER role user
+   accesses admin tabs assigned to them in view-only mode.
+   Hides all edit / delete / create action controls globally.
+   ═══════════════════════════════════════════════════════════════ */
+body.teacher-read-only {
 
-@media (max-width: 640px) {
-  .dex-select-panel.mat-mdc-select-panel {
-    max-width: calc(100vw - 32px) !important;
-    box-sizing: border-box;
+  /* ── Buttons with trash/delete icons ── */
+  button:has(.fa-trash),
+  button:has(.fa-trash-alt),
+  a:has(.fa-trash),
+  a:has(.fa-trash-alt) { display: none !important; }
+
+  /* Exception: teachers delete mistaken uploads in My Classes → Resources (not admin UI) */
+  button.resource-delete-btn.allow-teacher-delete {
+    display: inline-flex !important;
   }
-}
 
-.dex-select-panel .mat-mdc-option {
-  min-height: 44px;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #374151;
-}
+  /* ── Buttons with edit/pen icons ── */
+  button:has(.fa-edit),
+  button:has(.fa-pen),
+  button:has(.fa-pencil),
+  button:has(.fa-pencil-alt),
+  a:has(.fa-edit),
+  a:has(.fa-pen) { display: none !important; }
 
-.dex-select-panel .mat-mdc-option .mdc-list-item__primary-text {
-  font-size: inherit;
-  font-weight: inherit;
-}
+  /* ── Buttons with plus/add icons (create new records) ── */
+  button:has(.fa-plus):not(.no-hide),
+  button:has(.fa-plus-circle):not(.no-hide) { display: none !important; }
 
-.dex-select-panel .mat-mdc-option:hover:not(.mdc-list-item--disabled),
-.dex-select-panel .mat-mdc-option.mat-mdc-option-active {
-  background: #f5f3ff !important;
-}
+  /* ── Title-attribute based targeting ── */
+  [title="Delete"],
+  [title="delete"],
+  [title="Edit"],
+  [title="edit"],
+  [title="Remove"],
+  [title="remove"],
+  [title="Update"],
+  [title="Save changes"] { display: none !important; }
 
-.dex-select-panel .mat-mdc-option.mdc-list-item--selected:not(.mdc-list-item--disabled) {
-  background: #eef2ff !important;
-  color: #4338ca !important;
+  /* ── Common class-based delete/edit buttons ── */
+  .btn-del,
+  .btn-danger,
+  .btn-warning:has(.fa-edit),
+  .btn-warning:has(.fa-pen),
+  .zr-icon-btn--red { display: none !important; }
+
+  /* ── Input fields in editable table cells: make read-only visually ── */
+  table input[type="text"],
+  table input[type="number"],
+  table select,
+  table textarea {
+    pointer-events: none !important;
+    opacity: 0.7;
+    background: #f8fafc !important;
+    cursor: default !important;
+  }
+
+  /* ── Hide "Save" / "Update" action buttons in table rows ── */
+  td .btn-success { display: none !important; }
+
+  /* ── Role-change selects ── */
+  .form-select { pointer-events: none !important; opacity: 0.7; }
 }

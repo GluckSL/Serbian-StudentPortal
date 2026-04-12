@@ -143,6 +143,9 @@
                       <button type="button" class="tbl-action-btn tbl-action-btn--doubt" (click)="openDoubts(m)" title="Doubts">
                         <i class="fas fa-question-circle"></i> Doubts
                       </button>
+                      <button type="button" class="tbl-action-btn tbl-action-btn--submission" (click)="openSubmissions(m)" title="Student Submissions">
+                        <i class="fas fa-inbox"></i> Submissions
+                      </button>
                       <a class="tbl-action-btn tbl-action-btn--open" [routerLink]="['/teacher/meetings', m._id]">Open</a>
                     </div>
                   </td>
@@ -165,13 +168,15 @@
       <button type="button" class="modal-close" (click)="closeResourceModal()">&times;</button>
     </div>
     <div class="modal-body">
-      <div class="upload-area">
-        <label class="upload-btn">
-          <i class="fas fa-cloud-upload-alt"></i>
-          {{ uploadingFiles ? 'Uploading…' : 'Upload Files' }}
-          <input type="file" multiple hidden (change)="onFilesSelected($event)" [disabled]="uploadingFiles" />
-        </label>
-        <span class="upload-hint">Any teaching file (docs, images, audio, video, archives, etc.) — max 20 MB each. Executables blocked.</span>
+      <div class="resource-upload-compact">
+        <p class="resource-upload-hint">Any teaching file (docs, images, audio, video, archives, etc.) — max 20 MB each. Executables blocked.</p>
+        <div class="resource-upload-row">
+          <label class="resource-upload-pick">
+            <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+            {{ uploadingFiles ? 'Uploading…' : 'Choose files' }}
+            <input type="file" multiple hidden (change)="onFilesSelected($event)" [disabled]="uploadingFiles" />
+          </label>
+        </div>
       </div>
       <div class="text-center text-muted py-3" *ngIf="loadingResources">Loading…</div>
       <div class="resource-list" *ngIf="!loadingResources">
@@ -179,16 +184,22 @@
         <div class="resource-row" *ngFor="let r of resources">
           <div class="resource-info">
             <i class="fas fa-file"></i>
-            <div>
+            <div class="resource-info__text">
               <div class="resource-name">{{ r.originalName }}</div>
               <div class="resource-meta">{{ formatFileSize(r.fileSize) }} · {{ formatDate(r.uploadedAt) }}</div>
             </div>
           </div>
-          <div class="resource-actions">
+          <div class="resource-actions" role="group" aria-label="File actions">
             <button type="button" class="tbl-action-btn tbl-action-btn--view" (click)="viewResource(r)">View</button>
             <button type="button" class="tbl-action-btn tbl-action-btn--resource" (click)="downloadResource(r)">Download</button>
-            <button type="button" class="tbl-action-btn tbl-action-btn--delete" (click)="deleteResource(r)">
-              <i class="fas fa-trash-alt"></i>
+            <button
+              type="button"
+              class="resource-delete-btn allow-teacher-delete"
+              (click)="deleteResource(r)"
+              title="Delete this file"
+              aria-label="Delete this file"
+            >
+              <i class="fas fa-trash-alt" aria-hidden="true"></i>
             </button>
           </div>
         </div>
@@ -238,6 +249,91 @@
             <button type="button" class="tbl-action-btn tbl-action-btn--resource" [disabled]="replyingId === d._id || !(replyTexts[d._id] || '').trim()" (click)="sendReply(d)">
               {{ replyingId === d._id ? 'Sending…' : 'Reply' }}
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Submissions Modal ── -->
+<div class="modal-overlay" *ngIf="showSubmissionModal" (click)="closeSubmissionModal()">
+  <div class="modal-card modal-card--lg" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3><i class="fas fa-inbox"></i> Student Submissions</h3>
+      <span class="modal-sub" *ngIf="submissionMeeting">{{ submissionMeeting.topic }}</span>
+      <button type="button" class="modal-close" (click)="closeSubmissionModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="text-center text-muted py-3" *ngIf="loadingSubmissions">Loading…</div>
+      <div *ngIf="!loadingSubmissions">
+        <div class="doubt-empty" *ngIf="submissions.length === 0">No submissions yet for this class.</div>
+        <div class="tsub-card" *ngFor="let sub of submissions">
+          <div class="tsub-card__head">
+            <div class="tsub-card__student">
+              <i class="fas fa-user-circle tsub-card__avatar"></i>
+              <div>
+                <div class="tsub-card__name">{{ sub.studentId?.name || 'Student' }}</div>
+                <div class="tsub-card__meta">{{ formatDateFull(sub.createdAt) }}</div>
+              </div>
+            </div>
+            <div class="tsub-card__badges">
+              <span class="sub-badge" [ngClass]="submissionBadgeClass(sub)">{{ submissionBadgeLabel(sub) }}</span>
+              <button
+                type="button"
+                class="doubt-delete-btn"
+                [disabled]="deletingSubmissionId === submissionId(sub)"
+                (click)="deleteSubmission(sub)"
+                title="Delete submission"
+              >
+                <i class="fas" [ngClass]="deletingSubmissionId === submissionId(sub) ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="tsub-card__file">
+            <i class="fas fa-file tsub-card__file-icon"></i>
+            <span class="tsub-card__file-name">{{ sub.originalName }}</span>
+            <span class="tsub-card__file-size">{{ formatFileSize(sub.fileSize) }}</span>
+            <button type="button" class="tbl-action-btn tbl-action-btn--view" (click)="viewSubmission(sub)">View</button>
+          </div>
+
+          <p class="tsub-card__caption" *ngIf="sub.caption"><i class="fas fa-quote-left"></i> {{ sub.caption }}</p>
+
+          <!-- Existing feedback -->
+          <div class="tsub-card__existing-feedback" *ngIf="sub.feedback?.status">
+            <span class="sub-badge" [ngClass]="submissionBadgeClass(sub)">{{ submissionBadgeLabel(sub) }}</span>
+            <span class="tsub-card__reviewer" *ngIf="sub.feedback?.reviewedBy?.name">by {{ sub.feedback.reviewedBy.name }}</span>
+            <p class="tsub-card__feedback-comment" *ngIf="sub.feedback?.comment">{{ sub.feedback.comment }}</p>
+          </div>
+
+          <!-- Review controls -->
+          <div class="tsub-card__review">
+            <input
+              type="text"
+              class="form-control form-control-sm tsub-card__comment-input"
+              placeholder="Add a comment (optional)…"
+              [(ngModel)]="reviewComments[submissionId(sub)]"
+              maxlength="1000"
+            />
+            <div class="tsub-card__review-btns">
+              <button
+                type="button"
+                class="tsub-review-btn tsub-review-btn--correct"
+                [disabled]="reviewingId === submissionId(sub)"
+                (click)="reviewSubmission(sub, 'correct')"
+              >
+                <i class="fas fa-check"></i> Correct
+              </button>
+              <button
+                type="button"
+                class="tsub-review-btn tsub-review-btn--wrong"
+                [disabled]="reviewingId === submissionId(sub)"
+                (click)="reviewSubmission(sub, 'wrong')"
+              >
+                <i class="fas fa-times"></i> Wrong
+              </button>
+            </div>
           </div>
         </div>
       </div>

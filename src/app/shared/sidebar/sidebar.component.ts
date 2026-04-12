@@ -36,7 +36,11 @@ export class SidebarComponent implements OnInit {
         this.userName = user.name || '';
         this.userEmail = user.email || '';
         this.sidebarPermissions = user.sidebarPermissions || [];
-        this.navGroups = this.navService.getNavForRole(this.userRole, this.sidebarPermissions);
+        this.navGroups = this.navService.getNavForRole(
+          this.userRole,
+          this.sidebarPermissions,
+          user.teacherTabPermissions || []
+        );
       }
     });
   }

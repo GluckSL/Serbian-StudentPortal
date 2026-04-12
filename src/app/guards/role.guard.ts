@@ -62,6 +62,19 @@ export class RoleGuard implements CanActivate {
       return false;
     }
 
+    // TEACHER accessing an admin-only route via assigned tab permissions (view-only)
+    const canTeacherTryAdminRoute =
+      user?.role === 'TEACHER' &&
+      allowedRoles.some((role: string) => role === 'ADMIN' || role === 'TEACHER_ADMIN');
+
+    if (canTeacherTryAdminRoute) {
+      if (this.navService.canTeacherAccessAdminRoute(url, user?.teacherTabPermissions || [])) {
+        return true;
+      }
+      this.router.navigate(['/teacher-dashboard']);
+      return false;
+    }
+
     // Wrong role — redirect to correct dashboard
     if (user?.role === 'STUDENT') {
       const isVisaDocOnly = (user?.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';

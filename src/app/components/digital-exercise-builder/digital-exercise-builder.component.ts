@@ -52,6 +52,12 @@ interface BuilderQuestion {
   videoUploading?: boolean;
   // Common
   points: number;
+  // Per-question attachment (any file type)
+  attachmentUrl?: string;
+  attachmentUploading?: boolean;
+  // Teacher explanation shown to students in review
+  answerExplanation?: string;
+  generatingExplanation?: boolean;
 }
 
 interface VideoFeedbackAudioRow {
@@ -97,6 +103,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   @ViewChild('videoFileInput') videoFileInput!: ElementRef<HTMLInputElement>;
   currentVideoQ: BuilderQuestion | null = null;
+
+  @ViewChild('attachmentFileInput') attachmentFileInput!: ElementRef<HTMLInputElement>;
+  currentAttachmentQ: BuilderQuestion | null = null;
 
   readonly maxVideoFeedbackClips = 4;
   videoSuccessFeedbackRows: VideoFeedbackAudioRow[] = [];
@@ -266,7 +275,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       type: qType as any,
       points: 1,
       context: '',
-      worksheetKind: isWorksheetKind ? type : null
+      worksheetKind: isWorksheetKind ? type : null,
+      attachmentUrl: '',
+      answerExplanation: ''
     };
 
     if (qType === 'mcq') {
@@ -408,6 +419,95 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     q.similarityThreshold = v;
   }
 
+  // ─── Question attachment helpers ───────────────────────────────────────────
+
+  triggerAttachmentFile(q: BuilderQuestion): void {
+    this.currentAttachmentQ = q;
+    this.attachmentFileInput?.nativeElement?.click();
+  }
+
+  onAttachmentFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = this.currentAttachmentQ;
+    this.currentAttachmentQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    q.attachmentUploading = true;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        q.attachmentUrl = res.url;
+        q.attachmentUploading = false;
+        this.showSuccess('File uploaded');
+      },
+      error: (err) => {
+        q.attachmentUploading = false;
+        this.showError(err.error?.error || 'Upload failed');
+      }
+    });
+  }
+
+  removeAttachment(q: BuilderQuestion): void {
+    q.attachmentUrl = '';
+  }
+
+  getAttachmentType(url: string): 'image' | 'audio' | 'video' | 'pdf' | 'other' {
+    if (!url) return 'other';
+    const lower = url.toLowerCase().split('?')[0];
+    if (/\.(jpe?g|png|gif|webp|svg)$/.test(lower)) return 'image';
+    if (/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(lower)) return 'audio';
+    if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
+    if (/\.pdf$/.test(lower)) return 'pdf';
+    return 'other';
+  }
+
+  // ─── AI explanation helpers ────────────────────────────────────────────────
+
+  useAiExplanation(q: BuilderQuestion): void {
+    const questionText =
+      q.question || q.prompt || q.word || q.sentence || q.instruction || '';
+    const correctAnswer = this.getCorrectAnswerText(q);
+    if (!questionText && !correctAnswer) {
+      this.showError('Please fill in the question details first');
+      return;
+    }
+    q.generatingExplanation = true;
+    this.exerciseService.generateExplanation({
+      questionType: q.worksheetKind || q.type,
+      questionText,
+      correctAnswer,
+      targetLanguage: this.targetLanguage
+    }).subscribe({
+      next: (res) => {
+        q.answerExplanation = res.explanation;
+        q.generatingExplanation = false;
+      },
+      error: (err) => {
+        q.generatingExplanation = false;
+        this.showError(err.error?.error || 'AI generation failed');
+      }
+    });
+  }
+
+  private getCorrectAnswerText(q: BuilderQuestion): string {
+    if (q.type === 'mcq' && q.options && q.correctAnswerIndex !== undefined) {
+      return q.options[q.correctAnswerIndex] || '';
+    }
+    if (q.type === 'fill-blank' && q.answers?.length) {
+      return q.answers.join(', ');
+    }
+    if (q.type === 'question-answer' && q.sampleAnswers?.length) {
+      return q.sampleAnswers.join(' | ');
+    }
+    if (q.type === 'listening' && q.expectedTranscript) {
+      return q.expectedTranscript;
+    }
+    if (q.type === 'pronunciation' && q.word) {
+      return q.word;
+    }
+    return '';
+  }
+
   // Listening helpers
   triggerListeningFile(q: BuilderQuestion): void {
     this.currentListeningQ = q;
@@ -453,7 +553,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       videoUrl: '',
       caption: '',
       acceptedVariants: [],
-      points: 1
+      points: 1,
+      attachmentUrl: '',
+      answerExplanation: ''
     };
     this.questions.push(q);
     this.activeTab = 'video';

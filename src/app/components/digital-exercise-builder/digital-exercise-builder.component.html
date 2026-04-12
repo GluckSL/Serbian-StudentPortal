@@ -3,6 +3,7 @@
   <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
   <input type="file" #videoFileInput accept="video/*" (change)="onVideoFileSelected($event)" class="file-input-hidden" />
   <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
 
   <!-- AI Generator Banner (create mode only) -->
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
@@ -302,6 +303,65 @@
               rows="3"
               placeholder="Add optional context shown to students above this question..."
             ></textarea>
+          </div>
+
+          <!-- Per-question attachment -->
+          <div class="field-group full">
+            <label class="field-label">
+              <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">attach_file</span>
+              Attachment <span class="label-optional">(optional — image, audio, PDF, video)</span>
+            </label>
+            <div *ngIf="!q.attachmentUrl && !q.attachmentUploading" class="attachment-upload-row">
+              <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
+                <span class="material-icons">upload_file</span> Upload file
+              </button>
+            </div>
+            <div *ngIf="q.attachmentUploading" class="attachment-uploading">
+              <span class="material-icons spin">sync</span> Uploading…
+            </div>
+            <!-- Preview based on file type -->
+            <div *ngIf="q.attachmentUrl && !q.attachmentUploading" class="attachment-preview">
+              <ng-container [ngSwitch]="getAttachmentType(q.attachmentUrl)">
+                <img *ngSwitchCase="'image'" [src]="q.attachmentUrl" alt="Attachment" class="attachment-img-preview" />
+                <audio *ngSwitchCase="'audio'" [src]="q.attachmentUrl" controls class="attachment-audio-preview"></audio>
+                <video *ngSwitchCase="'video'" [src]="q.attachmentUrl" controls class="attachment-video-preview"></video>
+                <a *ngSwitchCase="'pdf'" [href]="q.attachmentUrl" target="_blank" class="attachment-file-link">
+                  <span class="material-icons">picture_as_pdf</span> View PDF
+                </a>
+                <a *ngSwitchDefault [href]="q.attachmentUrl" target="_blank" class="attachment-file-link">
+                  <span class="material-icons">insert_drive_file</span> View file
+                </a>
+              </ng-container>
+              <button type="button" class="btn-remove-attachment" (click)="removeAttachment(q)" matTooltip="Remove attachment">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Answer Explanation -->
+          <div class="field-group full">
+            <label class="field-label">
+              <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">lightbulb</span>
+              Answer Explanation <span class="label-optional">(shown to students in review)</span>
+            </label>
+            <div class="explanation-field-wrap">
+              <textarea
+                [(ngModel)]="q.answerExplanation"
+                class="field-input"
+                rows="3"
+                placeholder="Explain why the correct answer is right…"
+              ></textarea>
+              <button
+                type="button"
+                class="btn-use-ai"
+                (click)="useAiExplanation(q)"
+                [disabled]="q.generatingExplanation"
+                matTooltip="Generate explanation with AI"
+              >
+                <span class="material-icons">{{ q.generatingExplanation ? 'sync' : 'auto_awesome' }}</span>
+                {{ q.generatingExplanation ? 'Generating…' : 'Use AI' }}
+              </button>
+            </div>
           </div>
 
           <!-- MCQ Editor -->

@@ -19,6 +19,7 @@ interface User {
   email: string;
   role: 'ADMIN' | 'TEACHER' | 'TEACHER_ADMIN' | 'SUB_ADMIN' | 'STUDENT';
   sidebarPermissions?: string[];
+  teacherTabPermissions?: string[];
   batch?: string;
   medium?: string;
   subscription?: string;

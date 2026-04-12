@@ -122,6 +122,10 @@ const DigitalExerciseSchema = new mongoose.Schema({
     caption: String,
     // Common
     points: { type: Number, default: 1 },
+    // Per-question attachment (image, audio, PDF, video) visible only for this question
+    attachmentUrl: { type: String, default: '' },
+    // Teacher explanation of why the correct answer is right; shown to students in review
+    answerExplanation: { type: String, default: '' },
     // Worksheet metadata: set by AI when generated from a structured worksheet
     sectionTitle: { type: String, default: null },  // e.g. "STUFE 1 – LEICHT | Übung L1.1"
     tier: { type: String, enum: ['easy', 'medium', 'hard', null], default: null }

@@ -8,6 +8,7 @@ import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
+import { AuthService } from '../../../services/auth.service';
 
 interface BatchSummary {
   batchName: string;
@@ -91,10 +92,10 @@ interface TimelineDay {
         </p>
       </div>
       <div class="j-header-actions">
-        <button class="j-btn j-btn-outline" (click)="showCreateBatch = true">
+        <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn j-btn-outline" (click)="showCreateBatch = true">
           <i class="fas fa-plus"></i> Create batch
         </button>
-        <button class="j-btn j-btn-outline" (click)="loadBatches()">
+        <button type="button" class="j-btn j-btn-outline" (click)="loadBatches()">
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
       </div>
@@ -317,7 +318,7 @@ interface TimelineDay {
                 <td class="j-td-teacher" [title]="b.teacherName || ''">
                   <div class="j-teacher-cell">
                     <span>{{ b.teacherName || '—' }}</span>
-                    <button *ngIf="!b.teacherName"
+                    <button *ngIf="!isJourneyReadOnly && !b.teacherName"
                             type="button"
                             class="j-btn j-btn-outline j-btn-sm"
                             style="margin-left:10px;"
@@ -337,8 +338,11 @@ interface TimelineDay {
                   </div>
                 </td>
                 <td>
-                  <button class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
+                  <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
                     <i class="fas fa-pen"></i> Manage
+                  </button>
+                  <button *ngIf="isJourneyReadOnly" type="button" class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
+                    <i class="fas fa-eye"></i> View
                   </button>
                 </td>
               </tr>
@@ -368,8 +372,54 @@ interface TimelineDay {
 
     <!-- ── Config row ─────────────────────────────── -->
     <div class="j-config-card">
-      <h4 class="j-card-title">Batch Settings</h4>
-      <div class="j-config-row">
+      <h4 class="j-card-title">
+        Batch Settings
+        <span *ngIf="isJourneyReadOnly" class="j-ro-pill">View only</span>
+      </h4>
+
+      <!-- Teachers: compact summary cards (read-only) -->
+      <div class="j-ro-summary" *ngIf="isJourneyReadOnly">
+        <div class="j-ro-card">
+          <div class="j-ro-card-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Teacher</span>
+            <span class="j-ro-card-value">{{ selectedBatch.teacherName || 'Not assigned' }}</span>
+          </div>
+        </div>
+        <div class="j-ro-card">
+          <div class="j-ro-card-icon j-ro-card-icon--violet"><i class="fas fa-road"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Journey length</span>
+            <span class="j-ro-card-value">{{ editJourneyLength }} days</span>
+          </div>
+        </div>
+        <div class="j-ro-card">
+          <div class="j-ro-card-icon j-ro-card-icon--blue"><i class="fas fa-calendar-alt"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Batch start</span>
+            <span class="j-ro-card-value">{{ editBatchStartDate ? (editBatchStartDate | date:'dd MMM yyyy') : 'Manual mode' }}</span>
+          </div>
+        </div>
+        <div class="j-ro-card j-ro-card--highlight">
+          <div class="j-ro-card-icon j-ro-card-icon--green"><i class="fas fa-bullseye"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Current batch day</span>
+            <span class="j-ro-card-value">
+              Day {{ editBatchStartDate ? computedDayFromDate() : editBatchDay }}
+              <span class="j-auto-badge" *ngIf="editBatchStartDate" style="margin-left:6px"><i class="fas fa-magic"></i> Auto</span>
+            </span>
+          </div>
+        </div>
+        <div class="j-ro-card j-ro-card--wide" *ngIf="editNotes?.trim()">
+          <div class="j-ro-card-icon j-ro-card-icon--muted"><i class="fas fa-sticky-note"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Notes</span>
+            <span class="j-ro-card-value j-ro-card-value--notes">{{ editNotes }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="j-config-row" *ngIf="!isJourneyReadOnly">
         <div class="j-config-field" style="min-width: 220px;">
           <label>Teacher</label>
           <div class="j-teacher-inline">
@@ -426,10 +476,10 @@ interface TimelineDay {
         </div>
 
         <div class="j-config-actions">
-          <button class="j-btn j-btn-outline" (click)="saveConfig()" [disabled]="savingConfig">
+          <button type="button" class="j-btn j-btn-outline" (click)="saveConfig()" [disabled]="savingConfig">
             <i class="fas fa-save"></i> {{ savingConfig ? 'Saving…' : 'Save Config' }}
           </button>
-          <button class="j-btn j-btn-primary" (click)="applyDayToAllStudents()" [disabled]="applyingDay">
+          <button type="button" class="j-btn j-btn-primary" (click)="applyDayToAllStudents()" [disabled]="applyingDay">
             <i class="fas fa-users"></i>
             {{ applyingDay ? 'Applying…' : 'Apply Day ' + (editBatchStartDate ? computedDayFromDate() : editBatchDay) + ' to All Students' }}
           </button>
@@ -445,7 +495,7 @@ interface TimelineDay {
           Today is automatically <strong>Day {{ computedDayFromDate() }}</strong>.
           Student journey days advance independently when they complete their tasks.
         </div>
-        <button type="button" class="j-btn-icon-sm" title="Remove start date (switch to manual)"
+        <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn-icon-sm" title="Remove start date (switch to manual)"
                 (click)="clearStartDate()">
           <i class="fas fa-times"></i>
         </button>
@@ -501,7 +551,7 @@ interface TimelineDay {
                 <th>Student Day</th>
                 <th>Batch Day</th>
                 <th>Tasks (current day)</th>
-                <th class="text-center">Set Day / Advance</th>
+                <th *ngIf="!isJourneyReadOnly" class="text-center">Set Day / Advance</th>
               </tr>
             </thead>
         <tbody>
@@ -580,18 +630,18 @@ interface TimelineDay {
                 </button>
               </div>
             </td>
-            <!-- Set Day / Advance -->
-            <td>
+            <!-- Set Day / Advance (admins only) -->
+            <td *ngIf="!isJourneyReadOnly">
               <div class="j-student-day-ctrl">
                 <input type="number" [(ngModel)]="s.editDay" min="1" [max]="selectedBatch!.journeyLength"
                        class="j-input-sm" placeholder="Day">
-                <button class="j-btn j-btn-sm j-btn-primary"
+                <button type="button" class="j-btn j-btn-sm j-btn-primary"
                         title="Set to exact day"
                         (click)="setStudentDay(s)"
                         [disabled]="s.saving || !s.editDay">
                   <i class="fas fa-pen"></i>
                 </button>
-                <button class="j-btn j-btn-sm"
+                <button type="button" class="j-btn j-btn-sm"
                         [title]="advanceArrowTitle(s)"
                         [class.j-btn-success]="s.taskStatus?.complete"
                         [class.j-btn-warning]="!s.taskStatus?.complete"
@@ -700,8 +750,8 @@ interface TimelineDay {
     <!-- ── Progress tab ───────────────────────────── -->
     <div *ngIf="activeTab === 'progress'" class="jp-section">
 
-      <!-- Skeleton (tab opens first; data loads on demand) -->
-      <div *ngIf="loadingProgress" class="jp-skeleton" aria-busy="true" aria-label="Loading progress">
+      <!-- Initial load: summary + per-student rows only (daily/weekly load when you open those views) -->
+      <div *ngIf="loadingProgressOverall && !batchProgress" class="jp-skeleton" aria-busy="true" aria-label="Loading progress">
         <div class="jp-sk-hero">
           <div>
             <div class="j-sk j-sk-hero-title"></div>
@@ -727,13 +777,13 @@ interface TimelineDay {
         </div>
       </div>
 
-      <ng-container *ngIf="!loadingProgress">
-        <div class="jp-shell" *ngIf="batchProgress">
+      <ng-container *ngIf="batchProgress">
+        <div class="jp-shell">
 
           <div class="jp-hero">
             <div class="jp-hero-text">
               <h2 class="jp-hero-title"><i class="fas fa-chart-line"></i> Batch progress</h2>
-              <p class="jp-hero-sub">Compare days, spot dips in scores or attendance, and open any student for full detail.</p>
+              <p class="jp-hero-sub">Summary loads first. Open <strong>Daily</strong> or <strong>Weekly</strong> to load charts and day-by-day breakdown. Use <strong>View</strong> on a row for full student detail.</p>
             </div>
             <button type="button" class="j-btn j-btn-outline jp-hero-refresh" (click)="loadBatchProgress()">
               <i class="fas fa-sync-alt"></i> Refresh data
@@ -784,15 +834,6 @@ interface TimelineDay {
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- No data -->
-        <div *ngIf="!batchProgress" class="jp-empty-state">
-          <i class="fas fa-database"></i>
-          <p>No progress data loaded yet. Open this tab or tap <strong>Refresh data</strong> after selecting a batch.</p>
-          <button type="button" class="j-btn j-btn-primary j-btn-sm" *ngIf="selectedBatch" (click)="loadBatchProgress()">
-            <i class="fas fa-sync-alt"></i> Load progress
-          </button>
         </div>
 
         <!-- ── Overall view: per-student table ── -->
@@ -847,6 +888,11 @@ interface TimelineDay {
 
         <!-- ── Daily view: row expand = exercise/module summary; analytics buttons open modals ── -->
         <div *ngIf="batchProgress && progressView === 'daily'" class="jp-panel jp-daily-card">
+          <div class="jp-detail-loading" *ngIf="loadingProgressDetail">
+            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+            Loading day-by-day breakdown…
+          </div>
+          <ng-container *ngIf="!loadingProgressDetail">
           <div class="jp-panel-head">
             <h3 class="jp-panel-title"><i class="fas fa-calendar-alt"></i> Day-by-day operations</h3>
             <span class="jp-panel-meta">{{ progressDaily.length }} days</span>
@@ -938,16 +984,22 @@ interface TimelineDay {
                     </td>
                   </tr>
                 </ng-container>
-                <tr *ngIf="progressDaily.length === 0">
+                <tr *ngIf="progressDetailLoaded && progressDaily.length === 0">
                   <td colspan="10" class="j-empty-inline">No daily data yet.</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          </ng-container>
         </div>
 
         <!-- ── Weekly view: charts + summary table ── -->
         <div *ngIf="batchProgress && progressView === 'weekly'" class="jp-week-wrap">
+          <div class="jp-detail-loading" *ngIf="loadingProgressDetail">
+            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+            Loading weekly charts…
+          </div>
+          <ng-container *ngIf="!loadingProgressDetail">
           <div class="jp-panel jp-week-charts-panel">
             <div class="jp-panel-head jp-panel-head--charts">
               <div>
@@ -1032,16 +1084,25 @@ interface TimelineDay {
                     <td>{{ w.exercisesDone }}</td>
                     <td>{{ w.classesAttended }}</td>
                   </tr>
-                  <tr *ngIf="progressWeekly.length === 0">
+                  <tr *ngIf="progressDetailLoaded && progressWeekly.length === 0">
                     <td colspan="5" class="j-empty-inline">No weekly data yet.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
+          </ng-container>
         </div>
 
       </ng-container>
+
+      <div *ngIf="!batchProgress && !loadingProgressOverall" class="jp-empty-state">
+        <i class="fas fa-database"></i>
+        <p>No progress data loaded yet. Tap <strong>Refresh data</strong> or open this tab again.</p>
+        <button type="button" class="j-btn j-btn-primary j-btn-sm" *ngIf="selectedBatch" (click)="loadBatchProgress()">
+          <i class="fas fa-sync-alt"></i> Load progress
+        </button>
+      </div>
     </div><!-- /progress tab -->
 
   </div><!-- /detail -->
@@ -2703,6 +2764,82 @@ interface TimelineDay {
     .jp-status-done { background: #dcfce7; color: #16a34a; }
     .jp-status-wip  { background: #dbeafe; color: #2563eb; }
     .jp-status-ns   { background: #f1f5f9; color: #64748b; }
+
+    .j-ro-pill {
+      display: inline-block;
+      margin-left: 10px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #e0f2fe;
+      color: #0369a1;
+      vertical-align: middle;
+    }
+    .j-ro-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .j-ro-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(145deg, #f8fafc 0%, #fff 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .j-ro-card--highlight {
+      border-color: #c7d2fe;
+      background: linear-gradient(145deg, #eef2ff 0%, #fff 100%);
+    }
+    .j-ro-card--wide {
+      grid-column: 1 / -1;
+    }
+    .j-ro-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #e0f2fe;
+      color: #0369a1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .j-ro-card-icon--violet { background: #ede9fe; color: #6d28d9; }
+    .j-ro-card-icon--blue { background: #dbeafe; color: #1d4ed8; }
+    .j-ro-card-icon--green { background: #d1fae5; color: #047857; }
+    .j-ro-card-icon--muted { background: #f1f5f9; color: #64748b; }
+    .j-ro-card-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .j-ro-card-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+    }
+    .j-ro-card-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: #0f172a;
+      line-height: 1.35;
+    }
+    .j-ro-card-value--notes { font-weight: 500; font-size: 13px; color: #334155; }
+
+    .jp-detail-loading {
+      padding: 28px;
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .jp-detail-loading .spinner-border { vertical-align: middle; margin-right: 8px; }
   `]
 })
 export class JourneyManagementComponent implements OnInit {
@@ -2771,7 +2908,12 @@ export class JourneyManagementComponent implements OnInit {
   // ── Progress tab state ──────────────────────────────────────────────────────
   progressView: 'overall' | 'daily' | 'weekly' = 'overall';
   batchProgress: any = null;
-  loadingProgress = false;
+  /** Initial Progress tab load: overall + per-student summary rows only */
+  loadingProgressOverall = false;
+  /** Lazy load when user opens Daily or Weekly */
+  loadingProgressDetail = false;
+  progressOverallLoaded = false;
+  progressDetailLoaded = false;
   /** Which journey week (1-based) the weekly charts focus on */
   progressChartsWeek = 1;
 
@@ -2806,10 +2948,16 @@ export class JourneyManagementComponent implements OnInit {
   classAnalyticsLoading = false;
   classAnalyticsDay: number | null = null;
 
+  /** True when logged in as TEACHER (journey tab is view-only). */
+  isJourneyReadOnly = false;
+
   constructor(
     private http: HttpClient,
-    private notify: NotificationService
-  ) {}
+    private notify: NotificationService,
+    private authService: AuthService
+  ) {
+    this.isJourneyReadOnly = this.authService.getSnapshotUser()?.role === 'TEACHER';
+  }
 
   get filteredTeachers(): TeacherPick[] {
     const q = String(this.teacherSearch || '').trim().toLowerCase();
@@ -3006,6 +3154,9 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.authService.currentUser$.subscribe((u) => {
+      this.isJourneyReadOnly = u?.role === 'TEACHER';
+    });
     this.initProgressChartOptions();
     this.loadBatches();
   }
@@ -3050,13 +3201,20 @@ export class JourneyManagementComponent implements OnInit {
     this.timelineDays = [];
     this.batchProgress = null;
     this.progressChartsWeek = 1;
+    this.progressOverallLoaded = false;
+    this.progressDetailLoaded = false;
+    this.loadingProgressOverall = false;
+    this.loadingProgressDetail = false;
     this.clearProgressWeeklyCharts();
     this.resetProgressDayUi();
-    // Defer fetch so the batch shell + student skeleton paint before HTTP (tab-wise load)
-    queueMicrotask(() => {
-      if (this.selectedBatch?.batchName === b.batchName) {
-        this.loadStudents(b.batchName);
-      }
+    // Paint batch header/settings first, then load the students table (faster perceived load)
+    const bn = b.batchName;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (this.selectedBatch?.batchName === bn && this.activeTab === 'students') {
+          this.loadStudents(bn);
+        }
+      });
     });
   }
 
@@ -3066,6 +3224,10 @@ export class JourneyManagementComponent implements OnInit {
     this.timelineDays = [];
     this.batchProgress = null;
     this.studentsLoadedForBatch = null;
+    this.progressOverallLoaded = false;
+    this.progressDetailLoaded = false;
+    this.loadingProgressOverall = false;
+    this.loadingProgressDetail = false;
     this.clearProgressWeeklyCharts();
     this.resetProgressDayUi();
     this.loadBatches();
@@ -3347,53 +3509,144 @@ export class JourneyManagementComponent implements OnInit {
 
   openProgress(): void {
     this.activeTab = 'progress';
-    if (this.batchProgress) {
-      if (this.progressView === 'weekly') this.rebuildProgressWeeklyCharts();
+    if (!this.selectedBatch) return;
+    if (!this.progressOverallLoaded) {
+      this.loadProgressOverall();
       return;
     }
-    this.loadBatchProgress();
+    if ((this.progressView === 'daily' || this.progressView === 'weekly') && !this.progressDetailLoaded) {
+      this.loadProgressDetail();
+    } else if (this.progressView === 'weekly' && this.progressDetailLoaded) {
+      this.rebuildProgressWeeklyCharts();
+    }
   }
 
+  /** Full reload (all sections) — e.g. Refresh button */
   loadBatchProgress(): void {
     if (!this.selectedBatch) return;
     const batchName = this.selectedBatch.batchName;
-    this.loadingProgress = true;
+    this.loadingProgressOverall = true;
+    this.loadingProgressDetail = false;
     this.batchProgress = null;
+    this.progressOverallLoaded = false;
+    this.progressDetailLoaded = false;
     this.clearProgressWeeklyCharts();
     this.resetProgressDayUi();
     queueMicrotask(() => {
       if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
-        this.loadingProgress = false;
+        this.loadingProgressOverall = false;
         return;
       }
-      this.http.get<any>(
-        `${this.apiUrl}/${encodeURIComponent(batchName)}/progress`,
-        { withCredentials: true }
-      ).subscribe({
-        next: r => {
+      this.http
+        .get<any>(`${this.apiUrl}/${encodeURIComponent(batchName)}/progress`, { withCredentials: true })
+        .subscribe({
+          next: (r) => {
+            if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
+              this.loadingProgressOverall = false;
+              return;
+            }
+            this.batchProgress = r;
+            this.progressOverallLoaded = true;
+            this.progressDetailLoaded = true;
+            this.loadingProgressOverall = false;
+            this.ensureProgressChartsWeekInRange();
+            if (this.progressView === 'weekly') this.rebuildProgressWeeklyCharts();
+          },
+          error: (e) => {
+            console.error(e);
+            this.loadingProgressOverall = false;
+            if (this.selectedBatch?.batchName === batchName) {
+              this.notify.error('Failed to load progress data.');
+            }
+          }
+        });
+    });
+  }
+
+  private loadProgressOverall(): void {
+    if (!this.selectedBatch) return;
+    const batchName = this.selectedBatch.batchName;
+    this.loadingProgressOverall = true;
+    queueMicrotask(() => {
+      if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
+        this.loadingProgressOverall = false;
+        return;
+      }
+      const url = `${this.apiUrl}/${encodeURIComponent(batchName)}/progress`;
+      this.http
+        .get<any>(url, { params: { sections: 'overall' }, withCredentials: true })
+        .subscribe({
+          next: (r) => {
+            if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
+              this.loadingProgressOverall = false;
+              return;
+            }
+            this.batchProgress = {
+              overall: r.overall,
+              students: r.students || [],
+              daily: [],
+              weekly: []
+            };
+            this.progressOverallLoaded = true;
+            this.progressDetailLoaded = false;
+            this.loadingProgressOverall = false;
+            if (this.progressView === 'daily' || this.progressView === 'weekly') {
+              this.loadProgressDetail();
+            }
+          },
+          error: (e) => {
+            console.error(e);
+            this.loadingProgressOverall = false;
+            if (this.selectedBatch?.batchName === batchName) {
+              this.notify.error('Failed to load progress data.');
+            }
+          }
+        });
+    });
+  }
+
+  private loadProgressDetail(): void {
+    if (!this.selectedBatch || !this.batchProgress) return;
+    if (this.progressDetailLoaded) {
+      if (this.progressView === 'weekly') this.rebuildProgressWeeklyCharts();
+      return;
+    }
+    const batchName = this.selectedBatch.batchName;
+    this.loadingProgressDetail = true;
+    const url = `${this.apiUrl}/${encodeURIComponent(batchName)}/progress`;
+    this.http
+      .get<any>(url, { params: { sections: 'daily' }, withCredentials: true })
+      .subscribe({
+        next: (r) => {
           if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
-            this.loadingProgress = false;
+            this.loadingProgressDetail = false;
             return;
           }
-          this.batchProgress = r;
-          this.loadingProgress = false;
+          this.batchProgress = {
+            ...this.batchProgress,
+            daily: r.daily || [],
+            weekly: r.weekly || []
+          };
+          this.progressDetailLoaded = true;
+          this.loadingProgressDetail = false;
           this.ensureProgressChartsWeekInRange();
           if (this.progressView === 'weekly') this.rebuildProgressWeeklyCharts();
         },
-        error: e => {
+        error: (e) => {
           console.error(e);
-          this.loadingProgress = false;
+          this.loadingProgressDetail = false;
           if (this.selectedBatch?.batchName === batchName) {
-            this.notify.error('Failed to load progress data.');
+            this.notify.error('Failed to load daily or weekly progress.');
           }
         }
       });
-    });
   }
 
   onProgressViewChange(v: 'overall' | 'daily' | 'weekly'): void {
     this.progressView = v;
-    if (v === 'weekly') this.rebuildProgressWeeklyCharts();
+    if (v === 'daily' || v === 'weekly') {
+      this.loadProgressDetail();
+    }
   }
 
   selectProgressWeek(w: number): void {

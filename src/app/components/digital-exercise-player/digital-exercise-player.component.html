@@ -129,6 +129,22 @@
         </div>
         <div class="review-q-body">
           <div class="review-q-text" *ngIf="pq.data.context">{{ pq.data.context }}</div>
+
+          <!-- Attachment in review -->
+          <div class="q-attachment-box" *ngIf="pq.data.attachmentUrl">
+            <ng-container [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)">
+              <img *ngSwitchCase="'image'" [src]="pq.data.attachmentUrl" alt="Attachment" class="q-attachment-img" />
+              <audio *ngSwitchCase="'audio'" [src]="pq.data.attachmentUrl" controls class="q-attachment-audio"></audio>
+              <video *ngSwitchCase="'video'" [src]="pq.data.attachmentUrl" controls class="q-attachment-video"></video>
+              <a *ngSwitchCase="'pdf'" [href]="pq.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+                <span class="material-icons">picture_as_pdf</span> Open PDF
+              </a>
+              <a *ngSwitchDefault [href]="pq.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+                <span class="material-icons">insert_drive_file</span> Open file
+              </a>
+            </ng-container>
+          </div>
+
           <div class="review-q-text" *ngIf="pq.data.type === 'mcq'">{{ pq.data.question }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
@@ -149,6 +165,12 @@
           <div class="review-answer-row" *ngIf="!pq.isCorrect">
             <span class="review-label">Correct answer:</span>
             <span class="review-value correct">{{ getReviewCorrectText(pq) }}</span>
+          </div>
+
+          <!-- Answer explanation (shown when present, highlighted for wrong answers) -->
+          <div class="review-explanation-box" *ngIf="pq.data.answerExplanation">
+            <span class="material-icons review-explanation-icon">lightbulb</span>
+            <span class="review-explanation-text">{{ pq.data.answerExplanation }}</span>
           </div>
         </div>
       </div>
@@ -609,6 +631,22 @@
       <div class="q-context-box" *ngIf="currentQuestion.data.context">
         <div class="q-context-text">{{ currentQuestion.data.context }}</div>
       </div>
+
+      <!-- Per-question attachment (image / audio / video / PDF) -->
+      <div class="q-attachment-box" *ngIf="currentQuestion.data.attachmentUrl">
+        <ng-container [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)">
+          <img *ngSwitchCase="'image'" [src]="currentQuestion.data.attachmentUrl" alt="Question attachment" class="q-attachment-img" />
+          <audio *ngSwitchCase="'audio'" [src]="currentQuestion.data.attachmentUrl" controls class="q-attachment-audio"></audio>
+          <video *ngSwitchCase="'video'" [src]="currentQuestion.data.attachmentUrl" controls class="q-attachment-video"></video>
+          <a *ngSwitchCase="'pdf'" [href]="currentQuestion.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+            <span class="material-icons">picture_as_pdf</span> Open PDF
+          </a>
+          <a *ngSwitchDefault [href]="currentQuestion.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+            <span class="material-icons">insert_drive_file</span> Open file
+          </a>
+        </ng-container>
+      </div>
+
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
         <!-- Worksheet section header (shown when sectionTitle changes between questions) -->

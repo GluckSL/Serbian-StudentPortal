@@ -221,7 +221,7 @@ export class NavService {
     }
   ];
 
-  getNavForRole(role: string, sidebarPermissions: string[] = []): NavGroup[] {
+  getNavForRole(role: string, sidebarPermissions: string[] = [], teacherTabPermissions: string[] = []): NavGroup[] {
     switch (role) {
       case 'ADMIN':
       case 'TEACHER_ADMIN':
@@ -229,7 +229,9 @@ export class NavService {
       case 'SUB_ADMIN':
         return this.getSubAdminNav(sidebarPermissions);
       case 'TEACHER':
-        return this.TEACHER_NAV;
+        return teacherTabPermissions.length > 0
+          ? this.getTeacherNavWithTabs(teacherTabPermissions)
+          : this.TEACHER_NAV;
       case 'STUDENT':
         return this.STUDENT_NAV;
       default:
@@ -258,6 +260,56 @@ export class NavService {
       items: group.items.map(item => ({ ...item }))
     }));
   }
+
+  // ── Teacher Tab Permissions (view-only admin tabs for TEACHER role) ───────
+
+  normalizeTeacherTabPermissions(permissions: string[] = []): string[] {
+    const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
+    return Array.from(new Set((permissions || []).filter(id => validIds.has(id))));
+  }
+
+  canTeacherAccessAdminRoute(route: string, teacherTabPermissions: string[] = []): boolean {
+    const allowedIds = new Set(this.normalizeTeacherTabPermissions(teacherTabPermissions));
+    const allowedItems = this.getAllAdminNavItems().filter(item => allowedIds.has(item.id));
+    const normalizedRoute = this.normalizeRoute(route);
+    return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
+  }
+
+  private getTeacherNavWithTabs(teacherTabPermissions: string[]): NavGroup[] {
+    const allowedIds = new Set(this.normalizeTeacherTabPermissions(teacherTabPermissions));
+
+    const baseNav: NavGroup[] = this.TEACHER_NAV.map((g) => ({
+      ...g,
+      items: g.items.map((i) => ({ ...i }))
+    }));
+
+    if (allowedIds.has('journey')) {
+      const journeyItem = this.getAllAdminNavItems().find((i) => i.id === 'journey');
+      const learningIdx = baseNav.findIndex((g) => g.group === 'Learning');
+      if (journeyItem && learningIdx >= 0) {
+        const learning = baseNav[learningIdx];
+        const hasJourney = learning.items.some((i) => i.id === 'journey');
+        if (!hasJourney) {
+          baseNav[learningIdx] = {
+            ...learning,
+            items: [...learning.items, { ...journeyItem, label: 'Journey' }]
+          };
+        }
+      }
+    }
+
+    const assignedAdminGroups: NavGroup[] = this.ADMIN_NAV
+      .map((group) => ({
+        ...group,
+        group: `${group.group} (View Only)`,
+        items: group.items.filter((item) => allowedIds.has(item.id) && item.id !== 'journey')
+      }))
+      .filter((group) => group.items.length > 0);
+
+    return [...baseNav, ...assignedAdminGroups];
+  }
+
+  // ── Sub-Admin permissions ─────────────────────────────────────────────────
 
   normalizeSidebarPermissions(sidebarPermissions: string[] = []): string[] {
     const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));

@@ -3,12 +3,85 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const multer = require('multer');
+const multerS3 = require('multer-s3');
+const path = require('path');
+const fs = require('fs');
 const DigitalExercise = require('../models/DigitalExercise');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
+const s3Client = require('../config/s3');
 const { resignExercise, resignExercises } = require('../config/presign');
+
+// ─── Attachment upload (per-question) ─────────────────────────────────────────
+const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
+function ensureAttachmentDir() {
+  if (!fs.existsSync(ATTACHMENT_DIR)) fs.mkdirSync(ATTACHMENT_DIR, { recursive: true });
+}
+
+function isVideoOrImageMime(mt) {
+  const m = String(mt || '').toLowerCase();
+  return m.startsWith('video/') || m.startsWith('image/');
+}
+
+const attachmentFilter = (req, file, cb) => {
+  const mt = String(file.mimetype || '').toLowerCase();
+  const allowed =
+    mt.startsWith('image/') ||
+    mt.startsWith('audio/') ||
+    mt.startsWith('video/') ||
+    mt === 'application/pdf' ||
+    mt === 'application/msword' ||
+    mt === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (allowed) return cb(null, true);
+  return cb(new Error(`File type not allowed: ${mt}`), false);
+};
+
+const attachmentDiskStorage = multer.diskStorage({
+  destination: (req, file, cb) => { ensureAttachmentDir(); cb(null, ATTACHMENT_DIR); },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.bin';
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+  }
+});
+
+const attachmentS3Storage = multerS3({
+  s3: s3Client,
+  bucket: process.env.S3_BUCKET,
+  contentType: multerS3.AUTO_CONTENT_TYPE,
+  key: (req, file, cb) => {
+    const prefix = process.env.S3_PREFIX || 'uploads';
+    const ext = path.extname(file.originalname) || '.bin';
+    cb(null, `${prefix}/exercise-attachments/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+  }
+});
+
+const attachmentHybridStorage = {
+  _handleFile(req, file, cb) {
+    if (isVideoOrImageMime(file.mimetype)) {
+      attachmentS3Storage._handleFile(req, file, cb);
+    } else {
+      attachmentDiskStorage._handleFile(req, file, cb);
+    }
+  },
+  _removeFile(req, file, cb) {
+    if (file.location) {
+      cb(null);
+    } else if (file.path) {
+      fs.unlink(file.path, cb);
+    } else {
+      cb(null);
+    }
+  }
+};
+
+const attachmentUpload = multer({
+  storage: attachmentHybridStorage,
+  fileFilter: attachmentFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
 
 /** Fields the admin/teacher client may send on PUT; avoids stripping nested arrays or applying unsafe full-document spreads. */
 const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
@@ -1414,5 +1487,71 @@ router.get('/analytics/student/:studentId', verifyToken, checkRole(['ADMIN', 'TE
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/digital-exercises/upload-attachment  — Upload a per-question attachment
+router.post(
+  '/upload-attachment',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  attachmentUpload.single('attachment'),
+  (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      // S3 files have .location; disk files use a relative path
+      const url = req.file.location || `/uploads/exercise-attachments/${req.file.filename}`;
+      return res.json({ success: true, url });
+    } catch (err) {
+      console.error('POST /digital-exercises/upload-attachment error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/digital-exercises/generate-explanation  — AI-generate an answer explanation
+router.post(
+  '/generate-explanation',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { questionType, questionText, correctAnswer, targetLanguage } = req.body;
+      if (!questionText && !correctAnswer) {
+        return res.status(400).json({ error: 'questionText or correctAnswer is required' });
+      }
+
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ error: 'OpenAI not configured' });
+      }
+
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const langNote = targetLanguage ? ` The exercise language is ${targetLanguage}.` : '';
+      const typeNote = questionType ? ` Question type: ${questionType}.` : '';
+      const userContent =
+        `Write a concise teacher explanation (1-3 sentences) in English of why the answer is correct for this language-learning exercise.${typeNote}${langNote} Always respond in English regardless of the question language.\n` +
+        (questionText ? `Question: ${questionText}\n` : '') +
+        (correctAnswer ? `Correct answer: ${correctAnswer}` : '');
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a language teacher writing brief, clear answer explanations for students. Always write your explanations in English, even if the question or answer is in another language. Be concise and educational.'
+          },
+          { role: 'user', content: userContent }
+        ],
+        max_tokens: 200,
+        temperature: 0.5
+      });
+
+      const explanation = completion.choices[0]?.message?.content?.trim() || '';
+      return res.json({ explanation });
+    } catch (err) {
+      console.error('POST /digital-exercises/generate-explanation error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 module.exports = router;

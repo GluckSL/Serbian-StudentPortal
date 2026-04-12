@@ -64,6 +64,17 @@ function normalizeSidebarPermissions(sidebarPermissions) {
   return uniqueValid;
 }
 
+function normalizeTeacherTabPermissions(permissions) {
+  if (!Array.isArray(permissions)) return [];
+  return Array.from(
+    new Set(
+      permissions.filter(
+        (id) => typeof id === "string" && ALLOWED_SIDEBAR_PERMISSION_IDS.includes(id)
+      )
+    )
+  );
+}
+
 // Read CRM data from Monday.com â€” Full sync: update existing + create new (all packages, exclude WITHDREW)
 // Track last sync status
 let lastSyncStatus = { lastRun: null, result: null };
@@ -859,7 +870,8 @@ router.post("/login", async (req, res) => {
         role: user.role,
         subscription: user.subscription,
         profilePhoto: user.profilePhoto || null,
-        sidebarPermissions: user.sidebarPermissions || []
+        sidebarPermissions: user.sidebarPermissions || [],
+        teacherTabPermissions: user.teacherTabPermissions || []
       }
     });
   } catch (err) {
@@ -927,7 +939,7 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   try {
     const users = await User.find({
       role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN'] }
-    }).select("name email regNo role sidebarPermissions").sort({ role: 1, name: 1 });
+    }).select("name email regNo role sidebarPermissions teacherTabPermissions").sort({ role: 1, name: 1 });
 
     res.status(200).json(users);
   } catch (error) {
@@ -1160,7 +1172,8 @@ router.put("/:id", async (req, res) => {
       courseStartDates,
       reasonForWithdrawing,
       qualifications,
-      sidebarPermissions
+      sidebarPermissions,
+      teacherTabPermissions
     } = req.body;
 
     // 4ï¸âƒ£ Build update object
@@ -1197,6 +1210,15 @@ router.put("/:id", async (req, res) => {
       updateData.sidebarPermissions = normalizeSidebarPermissions(existingUser.sidebarPermissions || []);
     } else if (role && role !== "SUB_ADMIN") {
       updateData.sidebarPermissions = [];
+
+    // Teacher tab permissions (view-only admin tabs assigned to TEACHER role)
+    if (role === "TEACHER" && typeof teacherTabPermissions !== "undefined") {
+      updateData.teacherTabPermissions = normalizeTeacherTabPermissions(teacherTabPermissions);
+    } else if (role === "TEACHER" && typeof teacherTabPermissions === "undefined") {
+      updateData.teacherTabPermissions = normalizeTeacherTabPermissions(existingUser.teacherTabPermissions || []);
+    } else if (role && role !== "TEACHER") {
+      updateData.teacherTabPermissions = [];
+    }
     }
 
     // âœ… Auto-set start date for new level if level changed and start date not set

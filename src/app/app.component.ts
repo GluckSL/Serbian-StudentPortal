@@ -52,6 +52,12 @@ export class AppComponent implements OnInit {
 
     this.authService.currentUser$.subscribe(user => {
       this.isLoggedIn = !!user;
+      // Apply read-only body class for TEACHER role (not TEACHER_ADMIN)
+      if (user?.role === 'TEACHER') {
+        document.body.classList.add('teacher-read-only');
+      } else {
+        document.body.classList.remove('teacher-read-only');
+      }
     });
 
     const currentUrl = this.router.url;
