@@ -1254,7 +1254,38 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       console.log('👥 Sample meeting attendee:', meeting.attendees[0]);
     }
 
+    // Preserve teacher/admin manual Zoom↔student links across reloads (GET used to overwrite these every time)
+    const manualByStudentId = new Map();
+    for (const row of meeting.attendance || []) {
+      if (row && row.studentId && row.matchMethod === 'manual_map') {
+        manualByStudentId.set(row.studentId.toString(), row);
+      }
+    }
+
     const attendanceData = meeting.attendees.map(attendee => {
+      const sid = attendee.studentId && attendee.studentId.toString();
+      const manualRow = sid ? manualByStudentId.get(sid) : null;
+      if (manualRow) {
+        const m = manualRow.toObject ? manualRow.toObject() : { ...manualRow };
+        return {
+          studentId: attendee.studentId,
+          name: attendee.name,
+          email: attendee.email,
+          attended: m.attended !== undefined ? m.attended : false,
+          confidence: m.confidence != null ? m.confidence : 100,
+          matchMethod: 'manual_map',
+          zoomName: m.zoomName || null,
+          zoomEmail: m.zoomEmail || null,
+          joinTime: m.joinTime || null,
+          leaveTime: m.leaveTime || null,
+          duration: m.duration != null ? m.duration : 0,
+          durationMinutes: m.durationMinutes != null ? m.durationMinutes : 0,
+          attendancePercent: m.attendancePercent != null ? m.attendancePercent : 0,
+          status: m.status || 'absent',
+          needsReview: !!m.needsReview
+        };
+      }
+
       const matchResult = findBestParticipantMatch(attendee, zoomReport.participants);
       const participantDuration = matchResult.match?.durationMinutes || 0;
       const meetingDuration = meeting.duration || 60;
@@ -1313,6 +1344,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       console.warn('journey pending sync (manual attendance):', e.message);
     }
 
+    const normAttendStr = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
     const allParticipants = (zoomReport.participants || []).map(p => ({
       name: p.name || '',
       email: p.email || '',
@@ -1321,14 +1353,14 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       duration: p.duration || 0,
       durationMinutes: p.durationMinutes || 0,
       sessionCount: p.sessionCount || 1,
-      isMapped: attendanceData.some(a => 
-        a.zoomEmail && p.email && a.zoomEmail.toLowerCase() === p.email.toLowerCase() ||
-        a.zoomName && p.name && a.zoomName.toLowerCase() === p.name.toLowerCase()
+      isMapped: attendanceData.some(a =>
+        (a.zoomEmail && p.email && normAttendStr(a.zoomEmail) === normAttendStr(p.email)) ||
+        (a.zoomName && p.name && normAttendStr(a.zoomName) === normAttendStr(p.name))
       ),
       mappedTo: (() => {
-        const mapped = attendanceData.find(a => 
-          a.zoomEmail && p.email && a.zoomEmail.toLowerCase() === p.email.toLowerCase() ||
-          a.zoomName && p.name && a.zoomName.toLowerCase() === p.name.toLowerCase()
+        const mapped = attendanceData.find(a =>
+          (a.zoomEmail && p.email && normAttendStr(a.zoomEmail) === normAttendStr(p.email)) ||
+          (a.zoomName && p.name && normAttendStr(a.zoomName) === normAttendStr(p.name))
         );
         return mapped ? { name: mapped.name, email: mapped.email } : null;
       })()
@@ -1391,13 +1423,17 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
       return res.status(400).json({ success: false, message: 'Could not fetch Zoom data' });
     }
 
+    const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
     const participant = (zoomReport.participants || []).find(p =>
-      (participantEmail && p.email && p.email.toLowerCase() === participantEmail.toLowerCase()) ||
-      (participantName && p.name && p.name.toLowerCase() === participantName.toLowerCase())
+      (participantEmail && p.email && norm(p.email) === norm(participantEmail)) ||
+      (participantName && p.name && norm(p.name) === norm(participantName))
     );
 
     if (!participant) {
-      return res.status(404).json({ success: false, message: 'Zoom participant not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Zoom participant not found. Try again with the exact Zoom display name, or refresh the page in case the report updated.'
+      });
     }
 
     const meetingDuration = meeting.duration || 60;
@@ -1415,9 +1451,9 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
       email: attendee.email,
       attended: meetsThreshold,
       confidence: 100,
-      matchMethod: 'email',
+      matchMethod: 'manual_map',
       zoomName: participant.name,
-      zoomEmail: participant.email,
+      zoomEmail: participant.email || '',
       joinTime: participant.joinTime || null,
       leaveTime: participant.leaveTime || null,
       duration: participant.duration || 0,

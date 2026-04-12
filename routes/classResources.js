@@ -2,26 +2,18 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const path = require('path');
 const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const s3Client = require('../config/s3');
 const ClassResource = require('../models/ClassResource');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { presignS3Url } = require('../config/presign');
+const { presignStoredS3Url } = require('../config/presign');
 
-const allowedTypes = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain',
-  'application/zip',
-  'image/png',
-  'image/jpeg',
-  'image/webp'
-];
+// Allow most resource types (docs, images, audio, video, archives, etc.).
+// Block obvious executable / installer extensions and PE-related MIME types.
+const DANGEROUS_EXT = /\.(exe|bat|cmd|com|scr|msi|dll|vbs|ps1|pif|cpl|inf|reg|hta|iso)$/i;
+const DANGEROUS_MIME =
+  /application\/(x-msdownload|x-dosexec|x-msdos-program|vnd\.microsoft\.portable-executable)/i;
 
 const upload = multer({
   storage: multerS3({
@@ -34,13 +26,31 @@ const upload = multer({
     }
   }),
   fileFilter: (_req, file, cb) => {
-    cb(null, allowedTypes.includes(file.mimetype));
+    const name = file.originalname || '';
+    if (DANGEROUS_EXT.test(name)) {
+      return cb(new Error('This file type is not allowed for security reasons.'));
+    }
+    if (file.mimetype && DANGEROUS_MIME.test(file.mimetype)) {
+      return cb(new Error('This file type is not allowed for security reasons.'));
+    }
+    cb(null, true);
   },
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
+const uploadResources = upload.array('files', 5);
+
 // POST /:meetingId/upload  — teacher uploads files for a class
-router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN']), upload.array('files', 5), async (req, res) => {
+router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN']), (req, res, next) => {
+  uploadResources(req, res, (err) => {
+    if (err) {
+      const message = err.message || 'Upload failed';
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(status).json({ success: false, message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const meeting = await MeetingLink.findById(req.params.meetingId);
     if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
@@ -56,7 +66,14 @@ router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_AD
     }));
 
     const saved = await ClassResource.insertMany(docs);
-    res.json({ success: true, data: saved });
+    const data = await Promise.all(
+      saved.map(async (doc) => {
+        const o = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+        if (o.fileUrl) o.fileUrl = await presignStoredS3Url(o.fileName, o.fileUrl);
+        return o;
+      })
+    );
+    res.json({ success: true, data });
   } catch (err) {
     console.error('classResources upload error:', err);
     res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
@@ -71,9 +88,9 @@ router.get('/:meetingId', verifyToken, async (req, res) => {
       .sort({ uploadedAt: -1 })
       .lean();
 
-    // Replace private S3 URLs with presigned URLs so students can download
+    // Prefer canonical S3 key (fileName) when signing — avoids %20 / %2520 key mismatches vs fileUrl
     await Promise.all(resources.map(async (r) => {
-      if (r.fileUrl) r.fileUrl = await presignS3Url(r.fileUrl);
+      if (r.fileUrl) r.fileUrl = await presignStoredS3Url(r.fileName, r.fileUrl);
     }));
 
     res.json({ success: true, data: resources });

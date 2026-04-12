@@ -4,6 +4,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { NgChartsModule } from 'ng2-charts';
+import { ChartConfiguration } from 'chart.js';
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
 
@@ -73,7 +75,7 @@ interface TimelineDay {
 @Component({
   selector: 'app-journey-management',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NgChartsModule],
   template: `
 <div class="journey-root">
 
@@ -452,18 +454,35 @@ interface TimelineDay {
 
     <!-- ── Tabs ────────────────────────────────────── -->
     <div class="j-tabs">
-      <button class="j-tab" [class.active]="activeTab === 'students'" (click)="activeTab = 'students'">
+      <button class="j-tab" [class.active]="activeTab === 'students'" (click)="openStudentsTab()">
         <i class="fas fa-users"></i> Students
       </button>
       <button class="j-tab" [class.active]="activeTab === 'timeline'" (click)="openTimeline()">
         <i class="fas fa-stream"></i> Content Timeline
       </button>
+      <button class="j-tab" [class.active]="activeTab === 'progress'" (click)="openProgress()">
+        <i class="fas fa-chart-line"></i> Progress
+      </button>
     </div>
 
     <!-- ── Students tab ───────────────────────────── -->
     <div *ngIf="activeTab === 'students'" class="j-table-card">
-      <div *ngIf="loadingStudents" class="j-loading-inline">
-        <div class="spinner-border spinner-border-sm text-primary"></div> Loading students…
+      <div *ngIf="loadingStudents" class="j-sk-table-wrap" aria-busy="true" aria-label="Loading students">
+        <div class="j-sk-row j-sk-row--head">
+          <div class="j-sk j-sk-cell" *ngFor="let _ of skStudentCols"></div>
+        </div>
+        <div class="j-sk-row" *ngFor="let _ of skStudentRows">
+          <div class="j-sk j-sk-cell j-sk-cell--lg"></div>
+          <div class="j-sk j-sk-cell"></div>
+          <div class="j-sk j-sk-cell"></div>
+          <div class="j-sk j-sk-cell"></div>
+          <div class="j-sk j-sk-cell j-sk-cell--md"></div>
+          <div class="j-sk j-sk-cell j-sk-cell--md"></div>
+          <div class="j-sk j-sk-cell j-sk-cell--bar"></div>
+          <div class="j-sk j-sk-cell"></div>
+          <div class="j-sk j-sk-cell j-sk-cell--btn"></div>
+          <div class="j-sk j-sk-cell j-sk-cell--wide"></div>
+        </div>
       </div>
 
       <div *ngIf="!loadingStudents && batchStudents.length === 0" class="j-empty-inline">
@@ -573,11 +592,11 @@ interface TimelineDay {
                   <i class="fas fa-pen"></i>
                 </button>
                 <button class="j-btn j-btn-sm"
-                        title="{{ s.taskStatus?.complete ? 'Advance to next day' : 'Force advance (tasks not done)' }}"
+                        [title]="advanceArrowTitle(s)"
                         [class.j-btn-success]="s.taskStatus?.complete"
                         [class.j-btn-warning]="!s.taskStatus?.complete"
                         (click)="advanceStudentDay(s, !s.taskStatus?.complete)"
-                        [disabled]="s.advancing || s.currentCourseDay >= selectedBatch!.journeyLength">
+                        [disabled]="s.advancing || s.saving || (!advanceArrowHasJumpTarget(s) && s.currentCourseDay >= selectedBatch!.journeyLength)">
                   <i class="fas" [class.fa-arrow-right]="!s.advancing" [class.fa-spinner]="s.advancing"
                                  [class.fa-spin]="s.advancing"></i>
                 </button>
@@ -590,8 +609,24 @@ interface TimelineDay {
 
     <!-- ── Timeline tab ───────────────────────────── -->
     <div *ngIf="activeTab === 'timeline'" class="j-timeline-section">
-      <div *ngIf="loadingTimeline" class="j-loading-inline">
-        <div class="spinner-border spinner-border-sm text-primary"></div> Loading timeline…
+      <div *ngIf="loadingTimeline" class="j-sk-timeline" aria-busy="true" aria-label="Loading timeline">
+        <div class="j-sk-timeline-filter">
+          <div class="j-sk j-sk-pill"></div>
+          <div class="j-sk j-sk-pill j-sk-pill--short"></div>
+        </div>
+        <div class="j-sk-timeline-day" *ngFor="let _ of skTimelineDays">
+          <div class="j-sk-timeline-head">
+            <div class="j-sk j-sk-title"></div>
+            <div class="j-sk-chips">
+              <span class="j-sk j-sk-chip"></span>
+              <span class="j-sk j-sk-chip"></span>
+            </div>
+          </div>
+          <div class="j-sk-timeline-body">
+            <div class="j-sk j-sk-line"></div>
+            <div class="j-sk j-sk-line j-sk-line--short"></div>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="!loadingTimeline && timelineDays.length === 0" class="j-empty-inline">
@@ -662,7 +697,569 @@ interface TimelineDay {
       </div>
     </div>
 
+    <!-- ── Progress tab ───────────────────────────── -->
+    <div *ngIf="activeTab === 'progress'" class="jp-section">
+
+      <!-- Skeleton (tab opens first; data loads on demand) -->
+      <div *ngIf="loadingProgress" class="jp-skeleton" aria-busy="true" aria-label="Loading progress">
+        <div class="jp-sk-hero">
+          <div>
+            <div class="j-sk j-sk-hero-title"></div>
+            <div class="j-sk j-sk-hero-sub"></div>
+          </div>
+          <div class="j-sk j-sk-btn"></div>
+        </div>
+        <div class="jp-sk-pills">
+          <div class="j-sk j-sk-pill-wide" *ngFor="let _ of skPillRow"></div>
+        </div>
+        <div class="jp-sk-stats">
+          <div class="jp-sk-stat" *ngFor="let _ of skStatRow">
+            <div class="j-sk j-sk-stat-ico"></div>
+            <div class="jp-sk-stat-text">
+              <div class="j-sk j-sk-stat-val"></div>
+              <div class="j-sk j-sk-stat-lbl"></div>
+            </div>
+          </div>
+        </div>
+        <div class="jp-sk-panel">
+          <div class="j-sk j-sk-panel-head"></div>
+          <div class="j-sk j-sk-row-bar" *ngFor="let _ of skPanelRows"></div>
+        </div>
+      </div>
+
+      <ng-container *ngIf="!loadingProgress">
+        <div class="jp-shell" *ngIf="batchProgress">
+
+          <div class="jp-hero">
+            <div class="jp-hero-text">
+              <h2 class="jp-hero-title"><i class="fas fa-chart-line"></i> Batch progress</h2>
+              <p class="jp-hero-sub">Compare days, spot dips in scores or attendance, and open any student for full detail.</p>
+            </div>
+            <button type="button" class="j-btn j-btn-outline jp-hero-refresh" (click)="loadBatchProgress()">
+              <i class="fas fa-sync-alt"></i> Refresh data
+            </button>
+          </div>
+
+          <!-- Sub-view toggle -->
+          <div class="jp-view-pills jp-view-pills--segmented">
+            <button type="button" class="jp-pill" [class.jp-pill-active]="progressView === 'overall'" (click)="onProgressViewChange('overall')">
+              <i class="fas fa-users"></i> Overall
+            </button>
+            <button type="button" class="jp-pill" [class.jp-pill-active]="progressView === 'daily'" (click)="onProgressViewChange('daily')">
+              <i class="fas fa-calendar-day"></i> Daily
+            </button>
+            <button type="button" class="jp-pill" [class.jp-pill-active]="progressView === 'weekly'" (click)="onProgressViewChange('weekly')">
+              <i class="fas fa-calendar-week"></i> Weekly
+            </button>
+          </div>
+
+          <!-- Stats cards -->
+          <div class="jp-stats-row">
+            <div class="jp-stat-card jp-stat-card--accent-gold">
+              <div class="jp-stat-icon jp-icon-score"><i class="fas fa-star"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ progressOverall.avgScorePercent ?? 0 }}%</div>
+                <div class="jp-stat-label">Avg score</div>
+              </div>
+            </div>
+            <div class="jp-stat-card jp-stat-card--accent-blue">
+              <div class="jp-stat-icon jp-icon-exercise"><i class="fas fa-dumbbell"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ progressOverall.totalExercisesCompleted ?? 0 }}</div>
+                <div class="jp-stat-label">Exercises done</div>
+              </div>
+            </div>
+            <div class="jp-stat-card jp-stat-card--accent-green">
+              <div class="jp-stat-icon jp-icon-class"><i class="fas fa-video"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ progressOverall.totalClassesAttended ?? 0 }}</div>
+                <div class="jp-stat-label">Class check-ins</div>
+              </div>
+            </div>
+            <div class="jp-stat-card jp-stat-card--accent-violet">
+              <div class="jp-stat-icon jp-icon-day"><i class="fas fa-road"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ progressOverall.avgDayReached ?? 0 }}</div>
+                <div class="jp-stat-label">Avg day reached</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- No data -->
+        <div *ngIf="!batchProgress" class="jp-empty-state">
+          <i class="fas fa-database"></i>
+          <p>No progress data loaded yet. Open this tab or tap <strong>Refresh data</strong> after selecting a batch.</p>
+          <button type="button" class="j-btn j-btn-primary j-btn-sm" *ngIf="selectedBatch" (click)="loadBatchProgress()">
+            <i class="fas fa-sync-alt"></i> Load progress
+          </button>
+        </div>
+
+        <!-- ── Overall view: per-student table ── -->
+        <div *ngIf="batchProgress && progressView === 'overall'" class="jp-panel">
+          <div class="jp-panel-head">
+            <h3 class="jp-panel-title"><i class="fas fa-user-graduate"></i> Per-student summary</h3>
+            <span class="jp-panel-meta">{{ progressStudents.length }} students</span>
+          </div>
+          <div class="jp-table-scroll">
+          <table class="j-table jp-table-zebra">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Reg No</th>
+                <th>Level</th>
+                <th>Current Day</th>
+                <th>Avg Score</th>
+                <th>Exercises Done</th>
+                <th>Classes Attended</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of progressStudents">
+                <td><strong>{{ s.name }}</strong></td>
+                <td>{{ s.regNo }}</td>
+                <td><span class="j-badge j-badge-primary">{{ s.level }}</span></td>
+                <td>
+                  <span class="jp-day-badge">Day {{ s.currentDay }}</span>
+                </td>
+                <td>
+                  <div class="jp-score-bar-wrap">
+                    <div class="jp-score-bar" [style.width.%]="s.avgScore"></div>
+                    <span class="jp-score-text">{{ s.avgScore }}%</span>
+                  </div>
+                </td>
+                <td>{{ s.exercisesDone }}</td>
+                <td>{{ s.classesAttended }}</td>
+                <td>
+                  <button class="j-btn j-btn-sm j-btn-primary" (click)="loadStudentDetail(s._id)">
+                    <i class="fas fa-eye"></i> View
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="progressStudents.length === 0">
+                <td colspan="8" class="j-empty-inline">No students found.</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        <!-- ── Daily view: row expand = exercise/module summary; analytics buttons open modals ── -->
+        <div *ngIf="batchProgress && progressView === 'daily'" class="jp-panel jp-daily-card">
+          <div class="jp-panel-head">
+            <h3 class="jp-panel-title"><i class="fas fa-calendar-alt"></i> Day-by-day operations</h3>
+            <span class="jp-panel-meta">{{ progressDaily.length }} days</span>
+          </div>
+          <div class="jp-daily-table-scroll">
+            <table class="j-table jp-daily-table">
+              <thead>
+                <tr>
+                  <th class="jp-col-expand" aria-hidden="true"></th>
+                  <th>Day</th>
+                  <th>Students reached</th>
+                  <th>Scheduled</th>
+                  <th>Exercise completion</th>
+                  <th>Module completion</th>
+                  <th>Avg score (day)</th>
+                  <th>Classes held</th>
+                  <th>Check-ins</th>
+                  <th>Analytics</th>
+                </tr>
+              </thead>
+              <tbody>
+                <ng-container *ngFor="let d of progressDaily">
+                  <tr
+                    class="jp-day-row"
+                    [class.jp-day-row--open]="expandedProgressDay === d.day"
+                    (click)="toggleProgressDay(d.day)"
+                    [attr.aria-expanded]="expandedProgressDay === d.day"
+                  >
+                    <td class="jp-col-expand"><i class="fas" [ngClass]="expandedProgressDay === d.day ? 'fa-chevron-down' : 'fa-chevron-right'"></i></td>
+                    <td><span class="jp-day-badge">Day {{ d.day }}</span></td>
+                    <td>{{ d.studentsCompleted }}</td>
+                    <td>
+                      <span class="jp-sched-pill">{{ d.exerciseCount ?? 0 }} ex</span>
+                      <span class="jp-sched-pill jp-sched-pill--mod">{{ d.moduleCount ?? 0 }} mod</span>
+                    </td>
+                    <td>
+                      <div class="jp-score-bar-wrap jp-score-bar-wrap--narrow">
+                        <div class="jp-score-bar jp-score-bar--violet" [style.width.%]="d.exerciseCompletionPercent ?? 0"></div>
+                        <span class="jp-score-text">{{ d.exerciseCompletionPercent ?? 0 }}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="jp-score-bar-wrap jp-score-bar-wrap--narrow">
+                        <div class="jp-score-bar jp-score-bar--amber" [style.width.%]="d.moduleCompletionPercent ?? 0"></div>
+                        <span class="jp-score-text">{{ d.moduleCompletionPercent ?? 0 }}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="jp-score-bar-wrap jp-score-bar-wrap--narrow">
+                        <div class="jp-score-bar" [style.width.%]="d.avgScore"></div>
+                        <span class="jp-score-text">{{ d.avgScore }}%</span>
+                      </div>
+                    </td>
+                    <td>{{ d.classesHeld }}</td>
+                    <td>{{ d.classesAttended }}</td>
+                    <td (click)="$event.stopPropagation()">
+                      <button
+                        type="button"
+                        class="j-btn j-btn-sm j-btn-outline"
+                        [disabled]="!dayHasAnalytics(d)"
+                        [title]="dayAnalyticsHint(d)"
+                        (click)="openDayAnalytics(d, $event)"
+                      >
+                        <i class="fas" [ngClass]="(d.classesHeld ?? 0) > 0 ? 'fa-video' : 'fa-chart-bar'"></i>
+                        Analytics
+                      </button>
+                    </td>
+                  </tr>
+                  <tr *ngIf="expandedProgressDay === d.day" class="jp-day-detail-row">
+                    <td colspan="10" class="jp-day-detail-cell">
+                      <div *ngIf="dayDetailLoading" class="j-loading-inline">Loading day details…</div>
+                      <div *ngIf="!dayDetailLoading && dayDetailError" class="j-empty-inline">{{ dayDetailError }}</div>
+                      <ng-container *ngIf="!dayDetailLoading && !dayDetailError && dayDetail && dayDetail.day === d.day">
+                        <div class="jp-detail-summary">
+                          <span><strong>{{ dayDetail.exerciseCount }}</strong> exercises</span>
+                          <span><strong>{{ dayDetail.moduleCount }}</strong> modules</span>
+                          <span>Exercise completion: <strong>{{ dayDetail.exerciseCompletionPercent }}%</strong></span>
+                          <span>Module completion: <strong>{{ dayDetail.moduleCompletionPercent }}%</strong></span>
+                          <button
+                            type="button"
+                            class="j-btn j-btn-sm j-btn-primary"
+                            *ngIf="dayDetail.exerciseCount > 0"
+                            (click)="openExerciseAnalytics(d.day, $event)"
+                          >
+                            <i class="fas fa-chart-bar"></i> Exercise analytics
+                          </button>
+                        </div>
+                      </ng-container>
+                    </td>
+                  </tr>
+                </ng-container>
+                <tr *ngIf="progressDaily.length === 0">
+                  <td colspan="10" class="j-empty-inline">No daily data yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Weekly view: charts + summary table ── -->
+        <div *ngIf="batchProgress && progressView === 'weekly'" class="jp-week-wrap">
+          <div class="jp-panel jp-week-charts-panel">
+            <div class="jp-panel-head jp-panel-head--charts">
+              <div>
+                <h3 class="jp-panel-title"><i class="fas fa-chart-area"></i> Week-over-week: day-by-day analysis</h3>
+                <p class="jp-panel-desc">
+                  <strong>Live classes</strong> — students who reached that day vs how many joined at least one class (unique).
+                  <strong>Modules</strong> — module completions vs not done (student × module slots).
+                  <strong>Exercises</strong> — exercise completions vs not done, and <strong>avg score %</strong> (line) to spot weak days.
+                </p>
+              </div>
+              <div class="jp-week-picker" *ngIf="progressWeekly.length">
+                <span class="jp-week-picker-label">Week</span>
+                <div class="jp-week-picker-pills">
+                  <button
+                    type="button"
+                    class="jp-week-num"
+                    *ngFor="let wk of progressWeekly"
+                    [class.jp-week-num--active]="progressChartsWeek === wk.week"
+                    (click)="selectProgressWeek(wk.week)"
+                  >
+                    {{ wk.week }}
+                    <small>Days {{ wk.days[0] }}–{{ wk.days[wk.days.length - 1] }}</small>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="jp-charts-grid jp-charts-grid--three" *ngIf="getDailyRowsForProgressWeek().length; else jpNoWeekData">
+              <div class="jp-chart-card jp-chart-card--focus">
+                <div class="jp-chart-card-label"><i class="fas fa-video"></i> Chart 1 · Live classes</div>
+                <div class="jp-chart-canvas jp-chart-canvas--week">
+                  <canvas *ngIf="jpWeekLiveData" baseChart [data]="jpWeekLiveData" [options]="jpWeekLiveOpts" [type]="'bar'"></canvas>
+                </div>
+              </div>
+              <div class="jp-chart-card jp-chart-card--focus">
+                <div class="jp-chart-card-label"><i class="fas fa-book"></i> Chart 2 · Modules</div>
+                <div class="jp-chart-canvas jp-chart-canvas--week">
+                  <canvas *ngIf="jpWeekModuleData" baseChart [data]="jpWeekModuleData" [options]="jpWeekModuleOpts" [type]="'bar'"></canvas>
+                </div>
+              </div>
+              <div class="jp-chart-card jp-chart-card--focus">
+                <div class="jp-chart-card-label"><i class="fas fa-dumbbell"></i> Chart 3 · Exercises</div>
+                <div class="jp-chart-canvas jp-chart-canvas--week jp-chart-canvas--tall">
+                  <canvas *ngIf="jpWeekExerciseData" baseChart [data]="jpWeekExerciseData" [options]="jpWeekExerciseOpts" [type]="'bar'"></canvas>
+                </div>
+              </div>
+            </div>
+            <ng-template #jpNoWeekData>
+              <div class="jp-chart-empty">
+                <i class="fas fa-chart-bar"></i>
+                <p>No days in this week yet. As students move through the journey, daily metrics will appear here.</p>
+              </div>
+            </ng-template>
+          </div>
+
+          <div class="jp-panel">
+            <div class="jp-panel-head">
+              <h3 class="jp-panel-title"><i class="fas fa-table"></i> Weekly rollup</h3>
+              <span class="jp-panel-meta">Totals per calendar week</span>
+            </div>
+            <div class="jp-table-scroll">
+              <table class="j-table jp-table-zebra">
+                <thead>
+                  <tr>
+                    <th>Week</th>
+                    <th>Days covered</th>
+                    <th>Avg score</th>
+                    <th>Exercises done</th>
+                    <th>Class check-ins</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let w of progressWeekly" [class.jp-row-highlight]="progressChartsWeek === w.week">
+                    <td><strong>Week {{ w.week }}</strong></td>
+                    <td><span class="jp-day-range">Days {{ w.days[0] }}–{{ w.days[w.days.length - 1] }}</span></td>
+                    <td>
+                      <div class="jp-score-bar-wrap jp-score-bar-wrap--table">
+                        <div class="jp-score-bar" [style.width.%]="w.avgScore"></div>
+                        <span class="jp-score-text">{{ w.avgScore }}%</span>
+                      </div>
+                    </td>
+                    <td>{{ w.exercisesDone }}</td>
+                    <td>{{ w.classesAttended }}</td>
+                  </tr>
+                  <tr *ngIf="progressWeekly.length === 0">
+                    <td colspan="5" class="j-empty-inline">No weekly data yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </ng-container>
+    </div><!-- /progress tab -->
+
   </div><!-- /detail -->
+
+  <!-- ── Student Progress Detail Modal ──────────────────────────────────────── -->
+  <div class="j-modal-backdrop" *ngIf="showStudentProgressModal" (click)="closeStudentProgressModal()">
+    <div class="jp-detail-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+
+      <!-- Modal header -->
+      <div class="j-modal-header">
+        <div>
+          <h3 *ngIf="selectedStudentProgress">
+            {{ selectedStudentProgress.student.name }}
+            <span class="jp-detail-sub">{{ selectedStudentProgress.student.regNo }} · {{ selectedStudentProgress.student.level }} · Day {{ selectedStudentProgress.student.currentDay }}</span>
+          </h3>
+          <h3 *ngIf="!selectedStudentProgress && loadingStudentProgress">Loading…</h3>
+        </div>
+        <button type="button" class="j-modal-close" (click)="closeStudentProgressModal()" aria-label="Close">&times;</button>
+      </div>
+
+      <!-- Loading spinner -->
+      <div *ngIf="loadingStudentProgress" class="j-loading-inline jp-modal-loading">
+        <div class="spinner-border spinner-border-sm text-primary"></div> Loading student data…
+      </div>
+
+      <ng-container *ngIf="selectedStudentProgress && !loadingStudentProgress">
+
+        <!-- Inner tabs -->
+        <div class="jp-inner-tabs">
+          <button class="jp-inner-tab" [class.active]="studentProgressModalTab === 'overview'" (click)="studentProgressModalTab = 'overview'">
+            <i class="fas fa-chart-bar"></i> Overview
+          </button>
+          <button class="jp-inner-tab" [class.active]="studentProgressModalTab === 'exercises'" (click)="studentProgressModalTab = 'exercises'">
+            <i class="fas fa-dumbbell"></i> Exercises ({{ selectedStudentProgress.exercises.length }})
+          </button>
+          <button class="jp-inner-tab" [class.active]="studentProgressModalTab === 'modules'" (click)="studentProgressModalTab = 'modules'">
+            <i class="fas fa-book"></i> Modules ({{ selectedStudentProgress.modules.length }})
+          </button>
+          <button class="jp-inner-tab" [class.active]="studentProgressModalTab === 'classes'" (click)="studentProgressModalTab = 'classes'">
+            <i class="fas fa-video"></i> Live Classes ({{ selectedStudentProgress.liveClasses.length }})
+          </button>
+        </div>
+
+        <!-- ── Overview tab ── -->
+        <div *ngIf="studentProgressModalTab === 'overview'" class="jp-modal-body">
+
+          <!-- Mini stat cards -->
+          <div class="jp-stats-row jp-stats-sm">
+            <div class="jp-stat-card">
+              <div class="jp-stat-icon jp-icon-exercise"><i class="fas fa-dumbbell"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ selectedStudentProgress.exercises.length }}</div>
+                <div class="jp-stat-label">Exercises Done</div>
+              </div>
+            </div>
+            <div class="jp-stat-card">
+              <div class="jp-stat-icon jp-icon-score"><i class="fas fa-star"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ avgScoreForDetail() }}%</div>
+                <div class="jp-stat-label">Avg Score</div>
+              </div>
+            </div>
+            <div class="jp-stat-card">
+              <div class="jp-stat-icon jp-icon-class"><i class="fas fa-video"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ classesAttendedForDetail() }}</div>
+                <div class="jp-stat-label">Classes Attended</div>
+              </div>
+            </div>
+            <div class="jp-stat-card">
+              <div class="jp-stat-icon jp-icon-day"><i class="fas fa-road"></i></div>
+              <div class="jp-stat-body">
+                <div class="jp-stat-value">{{ selectedStudentProgress.student.currentDay }}</div>
+                <div class="jp-stat-label">Current Day</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Day-by-day breakdown -->
+          <h4 class="jp-section-title">Day-by-Day Breakdown</h4>
+          <div class="jp-day-grid">
+            <div class="jp-day-cell" *ngFor="let d of selectedStudentProgress.dayBreakdown"
+                 [class.jp-day-good]="d.exercisesDone > 0 || d.classesAttended > 0"
+                 [class.jp-day-empty]="d.exercisesDone === 0 && d.classesAttended === 0">
+              <div class="jp-dc-label">Day {{ d.day }}</div>
+              <div class="jp-dc-score" *ngIf="d.exercisesDone > 0">{{ d.avgScore }}%</div>
+              <div class="jp-dc-score jp-dc-empty" *ngIf="d.exercisesDone === 0">—</div>
+              <div class="jp-dc-meta">
+                <span><i class="fas fa-dumbbell"></i> {{ d.exercisesDone }}</span>
+                <span><i class="fas fa-video"></i> {{ d.classesAttended }}/{{ d.classesTotal }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Exercises tab ── -->
+        <div *ngIf="studentProgressModalTab === 'exercises'" class="jp-modal-body">
+          <div *ngIf="selectedStudentProgress.exercises.length === 0" class="j-empty-inline">No completed exercises yet.</div>
+          <div class="jp-exercise-list">
+            <div class="jp-exercise-row" *ngFor="let ex of selectedStudentProgress.exercises">
+              <div class="jp-ex-header" (click)="toggleExerciseExpand(ex.attemptId)">
+                <div class="jp-ex-info">
+                  <span class="jp-day-badge" *ngIf="ex.courseDay">Day {{ ex.courseDay }}</span>
+                  <span class="jp-ex-title">{{ ex.title }}</span>
+                  <span class="j-badge j-badge-secondary" *ngIf="ex.level">{{ ex.level }}</span>
+                  <span class="j-badge j-badge-secondary" *ngIf="ex.category">{{ ex.category }}</span>
+                </div>
+                <div class="jp-ex-meta">
+                  <span class="jp-score-chip" [class.jp-score-good]="ex.scorePercent >= 70" [class.jp-score-mid]="ex.scorePercent >= 40 && ex.scorePercent < 70" [class.jp-score-low]="ex.scorePercent < 40">
+                    {{ ex.scorePercent }}%
+                  </span>
+                  <span class="jp-points">{{ ex.earnedPoints }}/{{ ex.totalPoints }} pts</span>
+                  <span class="jp-time-spent" *ngIf="ex.timeSpentSeconds">{{ formatSeconds(ex.timeSpentSeconds) }}</span>
+                  <span class="jp-completed-at" *ngIf="ex.completedAt">{{ ex.completedAt | date:'dd MMM yyyy' }}</span>
+                  <i class="fas" [class.fa-chevron-down]="!expandedExercises.has(ex.attemptId)" [class.fa-chevron-up]="expandedExercises.has(ex.attemptId)"></i>
+                </div>
+              </div>
+
+              <!-- Question-level breakdown -->
+              <div class="jp-responses" *ngIf="expandedExercises.has(ex.attemptId)">
+                <div *ngIf="ex.responses.length === 0" class="jp-no-responses">No question responses recorded.</div>
+                <table class="jp-response-table" *ngIf="ex.responses.length > 0">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Type</th>
+                      <th>Answer Given</th>
+                      <th>Correct?</th>
+                      <th>Points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of ex.responses">
+                      <td>Q{{ r.questionIndex + 1 }}</td>
+                      <td><span class="jp-qtype">{{ r.questionType }}</span></td>
+                      <td class="jp-answer">{{ questionAnswerLabel(r) }}</td>
+                      <td>
+                        <span class="jp-correct" *ngIf="r.isCorrect"><i class="fas fa-check-circle"></i></span>
+                        <span class="jp-wrong" *ngIf="!r.isCorrect"><i class="fas fa-times-circle"></i></span>
+                      </td>
+                      <td>{{ r.pointsEarned }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Modules tab ── -->
+        <div *ngIf="studentProgressModalTab === 'modules'" class="jp-modal-body">
+          <div *ngIf="selectedStudentProgress.modules.length === 0" class="j-empty-inline">No module progress recorded yet.</div>
+          <table class="j-table" *ngIf="selectedStudentProgress.modules.length > 0">
+            <thead>
+              <tr>
+                <th>Module</th>
+                <th>Level</th>
+                <th>Day</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Exercises Done</th>
+                <th>Last Accessed</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let m of selectedStudentProgress.modules">
+                <td>{{ m.title }}</td>
+                <td><span class="j-badge j-badge-primary" *ngIf="m.level">{{ m.level }}</span></td>
+                <td><span class="jp-day-badge" *ngIf="m.courseDay">Day {{ m.courseDay }}</span></td>
+                <td>
+                  <span class="jp-status-chip" [class.jp-status-done]="m.status === 'completed'" [class.jp-status-wip]="m.status === 'in-progress'" [class.jp-status-ns]="m.status === 'not-started'">
+                    {{ m.status }}
+                  </span>
+                </td>
+                <td>
+                  <div class="jp-score-bar-wrap">
+                    <div class="jp-score-bar" [style.width.%]="m.progressPercent"></div>
+                    <span class="jp-score-text">{{ m.progressPercent }}%</span>
+                  </div>
+                </td>
+                <td>{{ m.exercisesCompleted }}</td>
+                <td>{{ m.lastAccessedAt | date:'dd MMM yyyy' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ── Live Classes tab ── -->
+        <div *ngIf="studentProgressModalTab === 'classes'" class="jp-modal-body">
+          <div *ngIf="selectedStudentProgress.liveClasses.length === 0" class="j-empty-inline">No live classes scheduled yet.</div>
+          <table class="j-table" *ngIf="selectedStudentProgress.liveClasses.length > 0">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Date &amp; Time</th>
+                <th>Duration</th>
+                <th>Day</th>
+                <th>Attended?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of selectedStudentProgress.liveClasses">
+                <td>{{ c.topic }}</td>
+                <td>{{ c.startTime | date:'dd MMM yyyy, HH:mm' }}</td>
+                <td>{{ c.duration }} min</td>
+                <td><span class="jp-day-badge" *ngIf="c.courseDay">Day {{ c.courseDay }}</span></td>
+                <td>
+                  <span class="jp-correct" *ngIf="c.attended"><i class="fas fa-check-circle"></i> Yes</span>
+                  <span class="jp-wrong" *ngIf="!c.attended"><i class="fas fa-times-circle"></i> No</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </ng-container>
+    </div>
+  </div><!-- /student progress modal -->
 
   <!-- Task check: centered modal -->
   <div class="j-modal-backdrop" *ngIf="taskModal" (click)="closeTaskModal()">
@@ -705,6 +1302,91 @@ interface TimelineDay {
           <i class="fas fa-sync-alt"></i> Re-check
         </button>
         <button type="button" class="j-btn j-btn-primary" (click)="closeTaskModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exercise analytics matrix (journey day) -->
+  <div class="j-modal-backdrop" *ngIf="showExerciseAnalyticsModal" (click)="closeExerciseAnalyticsModal()">
+    <div class="jp-detail-modal jp-ex-analytics-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <div class="j-modal-header">
+        <div>
+          <h3>Exercise analytics — Day {{ exerciseAnalyticsDay }}</h3>
+          <span class="jp-detail-sub" *ngIf="selectedBatch">{{ selectedBatch.batchName }}</span>
+        </div>
+        <button type="button" class="j-modal-close" (click)="closeExerciseAnalyticsModal()" aria-label="Close">&times;</button>
+      </div>
+      <div *ngIf="exerciseAnalyticsLoading" class="j-loading-inline jp-modal-loading">
+        <div class="spinner-border spinner-border-sm text-primary"></div> Loading…
+      </div>
+      <div *ngIf="!exerciseAnalyticsLoading && exerciseAnalytics" class="jp-ex-analytics-body">
+        <p *ngIf="!exerciseAnalytics.exercises?.length" class="j-empty-inline">No published exercises use this course day yet.</p>
+        <div *ngIf="exerciseAnalytics.exercises?.length" class="jp-ex-table-wrap">
+          <table class="j-table jp-ex-matrix">
+            <thead>
+              <tr>
+                <th class="jp-ex-student-col">Student</th>
+                <th *ngFor="let ex of exerciseAnalytics.exercises" class="jp-ex-title-col" [title]="ex.title">{{ ex.title }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of exerciseAnalytics.students">
+                <td class="jp-ex-student-col"><strong>{{ row.name }}</strong><br /><small class="jp-reg">{{ row.regNo }}</small></td>
+                <td *ngFor="let cell of row.exercises" class="jp-ex-cell" [class.jp-ex-cell--miss]="!cell.attempted" [class.jp-ex-cell--ok]="cell.attempted">
+                  <span *ngIf="cell.attempted">{{ cell.scorePercent }}%</span>
+                  <span *ngIf="!cell.attempted" class="jp-miss">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live class attendance (journey day) -->
+  <div class="j-modal-backdrop" *ngIf="showClassAnalyticsModal" (click)="closeClassAnalyticsModal()">
+    <div class="jp-detail-modal jp-class-analytics-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <div class="j-modal-header">
+        <div>
+          <h3>Live class attendance — Day {{ classAnalyticsDay }}</h3>
+          <span class="jp-detail-sub" *ngIf="selectedBatch">{{ selectedBatch.batchName }}</span>
+        </div>
+        <button type="button" class="j-modal-close" (click)="closeClassAnalyticsModal()" aria-label="Close">&times;</button>
+      </div>
+      <div *ngIf="classAnalyticsLoading" class="j-loading-inline jp-modal-loading">
+        <div class="spinner-border spinner-border-sm text-primary"></div> Loading…
+      </div>
+      <div *ngIf="!classAnalyticsLoading && classAnalyticsDetail" class="jp-class-analytics-body">
+        <p *ngIf="!classAnalyticsDetail.liveClasses?.length" class="jp-class-analytics-empty">
+          No live Zoom classes are linked to this journey day yet. When a meeting uses the same <strong>Course Day</strong>, attendance will appear here.
+        </p>
+        <ng-container *ngFor="let lc of classAnalyticsDetail.liveClasses">
+          <div class="jp-live-block jp-live-block--modal">
+            <div class="jp-live-head">
+              <strong>{{ lc.topic }}</strong>
+              <span *ngIf="lc.startTime" class="jp-live-meta">{{ lc.startTime | date:'dd MMM yyyy, HH:mm' }}</span>
+              <span *ngIf="lc.duration" class="jp-live-meta">{{ lc.duration }} min</span>
+            </div>
+            <div class="jp-att-grid">
+              <div class="jp-att-col jp-att-yes">
+                <span class="jp-att-title"><i class="fas fa-check-circle"></i> Attended ({{ attendedStudents(lc.students).length }})</span>
+                <ul class="jp-att-list">
+                  <li *ngFor="let st of attendedStudents(lc.students)">{{ st.name }}<span *ngIf="st.regNo" class="jp-reg"> · {{ st.regNo }}</span></li>
+                </ul>
+              </div>
+              <div class="jp-att-col jp-att-no">
+                <span class="jp-att-title"><i class="fas fa-user-slash"></i> Did not attend ({{ absentStudents(lc.students).length }})</span>
+                <ul class="jp-att-list">
+                  <li *ngFor="let st of absentStudents(lc.students)">{{ st.name }}<span *ngIf="st.regNo" class="jp-reg"> · {{ st.regNo }}</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+      <div class="j-modal-footer jp-class-analytics-footer">
+        <button type="button" class="j-btn j-btn-primary" (click)="closeClassAnalyticsModal()">Close</button>
       </div>
     </div>
   </div>
@@ -777,6 +1459,139 @@ interface TimelineDay {
       border-color: rgba(255, 255, 255, 0.95);
     }
     .j-btn-sm { padding: 4px 10px; font-size: 11px; }
+
+    /* ── Skeleton loaders (tab-wise lazy data) ── */
+    @keyframes j-sk-shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    .j-sk {
+      position: relative;
+      overflow: hidden;
+      background: #e8ecf4;
+      border-radius: 8px;
+    }
+    .j-sk::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+      animation: j-sk-shimmer 1.15s ease-in-out infinite;
+    }
+    .j-sk-table-wrap {
+      padding: 12px 4px 16px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+    }
+    .j-sk-row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.7fr 0.6fr 0.7fr 0.9fr 0.9fr 1fr 0.7fr 0.7fr 1.1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 8px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .j-sk-row--head { border-bottom: 2px solid #e8ecf4; padding-bottom: 12px; margin-bottom: 4px; }
+    .j-sk-row--head .j-sk-cell { height: 12px; border-radius: 4px; }
+    .j-sk-cell { height: 14px; }
+    .j-sk-cell--lg { grid-column: span 1; min-width: 0; }
+    .j-sk-cell--md { width: 70%; }
+    .j-sk-cell--bar { height: 8px; margin-top: 4px; border-radius: 4px; }
+    .j-sk-cell--btn { width: 52px; height: 26px; border-radius: 6px; margin: 0 auto; }
+    .j-sk-cell--wide { min-height: 28px; }
+    .j-sk-timeline { padding: 8px 0 20px; }
+    .j-sk-timeline-filter {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 0 4px;
+    }
+    .j-sk-pill { height: 34px; width: 140px; border-radius: 10px; }
+    .j-sk-pill--short { width: 90px; }
+    .j-sk-timeline-day {
+      background: #fff;
+      border: 1px solid #e8ecf4;
+      border-radius: 14px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(15,23,42,.04);
+    }
+    .j-sk-timeline-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e8ecf4;
+    }
+    .j-sk-title { height: 14px; width: 120px; border-radius: 4px; }
+    .j-sk-chips { display: flex; gap: 6px; }
+    .j-sk-chip { display: inline-block; width: 72px; height: 22px; border-radius: 999px; }
+    .j-sk-timeline-body { padding: 14px 16px; }
+    .j-sk-line { height: 12px; border-radius: 4px; margin-bottom: 10px; max-width: 92%; }
+    .j-sk-line--short { max-width: 55%; margin-bottom: 0; }
+
+    .jp-skeleton {
+      padding: 4px 4px 20px;
+      animation: fadeIn .2s ease;
+    }
+    @keyframes fadeIn { from { opacity: .6; } to { opacity: 1; } }
+    .jp-sk-hero {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px;
+      background: linear-gradient(180deg, #f0f7fc 0%, #fafbfc 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      margin-bottom: 16px;
+    }
+    .j-sk-hero-title { height: 22px; width: 220px; margin-bottom: 10px; border-radius: 6px; }
+    .j-sk-hero-sub { height: 13px; width: min(420px, 90%); border-radius: 4px; }
+    .j-sk-btn { width: 130px; height: 36px; border-radius: 10px; flex-shrink: 0; }
+    .jp-sk-pills {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      background: #e8ecf4;
+      border-radius: 14px;
+      margin-bottom: 18px;
+      max-width: 420px;
+    }
+    .j-sk-pill-wide { flex: 1; height: 36px; border-radius: 10px; min-width: 80px; }
+    .jp-sk-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .jp-sk-stat {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px;
+      background: #fff;
+      border: 1px solid #e8ecf4;
+      border-radius: 16px;
+    }
+    .j-sk-stat-ico { width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0; }
+    .jp-sk-stat-text { flex: 1; min-width: 0; }
+    .j-sk-stat-val { height: 20px; width: 48px; margin-bottom: 6px; border-radius: 4px; }
+    .j-sk-stat-lbl { height: 10px; width: 80px; border-radius: 4px; }
+    .jp-sk-panel {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      padding: 16px 18px 20px;
+      box-shadow: 0 4px 16px rgba(15,23,42,.05);
+    }
+    .j-sk-panel-head { height: 16px; width: 200px; margin-bottom: 16px; border-radius: 4px; }
+    .j-sk-row-bar { height: 14px; border-radius: 6px; margin-bottom: 12px; max-width: 100%; }
+    .j-sk-row-bar:nth-child(odd) { max-width: 96%; }
+    .j-sk-row-bar:nth-child(even) { max-width: 88%; }
 
     .j-teacher-cell { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
 
@@ -1295,6 +2110,599 @@ interface TimelineDay {
       .j-filter-sort { min-width: 0; }
       .j-config-row { flex-direction: column; }
     }
+
+    /* ═══════════════════════════════════════════════════════════════
+       PROGRESS TAB
+       ═══════════════════════════════════════════════════════════════ */
+    .jp-section { padding: 0 4px 28px; }
+
+    .jp-loading-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 28px 24px;
+      background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    .jp-shell {
+      background: linear-gradient(180deg, #f0f7fc 0%, #fafbfc 48%, transparent 100%);
+      border-radius: 20px;
+      padding: 20px 20px 8px;
+      margin-bottom: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .jp-hero {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .jp-hero-title {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #0c4a6e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .jp-hero-sub {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+      max-width: 520px;
+      line-height: 1.5;
+    }
+    .jp-hero-refresh { flex-shrink: 0; }
+
+    .jp-empty-state {
+      text-align: center;
+      padding: 36px 20px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 16px;
+      color: #64748b;
+      margin-bottom: 16px;
+    }
+    .jp-empty-state i { font-size: 2rem; color: #94a3b8; margin-bottom: 12px; display: block; }
+    .jp-empty-state p { margin: 0 0 14px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+    /* Sub-view pills */
+    .jp-view-pills {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .jp-view-pills--segmented {
+      background: #e8ecf4;
+      padding: 4px;
+      border-radius: 14px;
+      gap: 4px;
+    }
+    .jp-view-pills--segmented .jp-pill {
+      border: none;
+      background: transparent;
+      border-radius: 10px;
+      flex: 1 1 auto;
+      justify-content: center;
+      min-width: 100px;
+    }
+    .jp-view-pills--segmented .jp-pill:hover { background: rgba(255,255,255,.7); color: #005b96; }
+    .jp-view-pills--segmented .jp-pill-active {
+      background: #fff;
+      color: #005b96;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .jp-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 18px;
+      border-radius: 24px;
+      border: 1.5px solid #e2e8f0;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .jp-pill:hover { background: #e8f4fc; border-color: #005b96; color: #005b96; }
+    .jp-pill-active {
+      background: #005b96;
+      border-color: #005b96;
+      color: #fff;
+    }
+
+    /* Stats cards row */
+    .jp-stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 0;
+    }
+    .jp-stats-sm .jp-stat-card { padding: 14px 16px; }
+    .jp-stat-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #fff;
+      border: 1px solid #e8ecf4;
+      border-radius: 16px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .jp-stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+    .jp-stat-card--accent-gold { border-left: 4px solid #f59e0b; }
+    .jp-stat-card--accent-blue { border-left: 4px solid #2563eb; }
+    .jp-stat-card--accent-green { border-left: 4px solid #16a34a; }
+    .jp-stat-card--accent-violet { border-left: 4px solid #7c3aed; }
+    .jp-stat-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .jp-icon-score  { background: #fef3c7; color: #d97706; }
+    .jp-icon-exercise { background: #dbeafe; color: #2563eb; }
+    .jp-icon-class  { background: #dcfce7; color: #16a34a; }
+    .jp-icon-day    { background: #ede9fe; color: #7c3aed; }
+    .jp-stat-value { font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    .jp-stat-label { font-size: 11px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* Score bar */
+    .jp-score-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 100px;
+    }
+    .jp-score-bar {
+      height: 7px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #005b96, #38bdf8);
+      min-width: 2px;
+      max-width: 80px;
+      flex: 1 1 auto;
+      transition: width .3s;
+    }
+    .jp-score-text { font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap; }
+
+    /* Day badge */
+    .jp-day-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      background: #ede9fe;
+      color: #7c3aed;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Panels & tables (Overall / Daily / Weekly) */
+    .jp-panel {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .jp-panel-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 16px;
+      padding: 16px 20px;
+      background: linear-gradient(90deg, #f8fafc 0%, #fff 100%);
+      border-bottom: 1px solid #e8ecf4;
+    }
+    .jp-panel-head--charts { align-items: flex-start; }
+    .jp-panel-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .jp-panel-meta { font-size: 12px; color: #64748b; font-weight: 500; }
+    .jp-panel-desc {
+      margin: 6px 0 0;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.45;
+      max-width: 640px;
+    }
+    .jp-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .jp-table-zebra tbody tr:nth-child(even) { background: #fafbfc; }
+    .jp-table-zebra tbody tr:hover { background: #f0f9ff; }
+    .jp-score-bar-wrap--table { min-width: 120px; max-width: 160px; }
+    .jp-score-bar-wrap--table .jp-score-bar { max-width: 100px; }
+    .jp-day-range { font-size: 12px; color: #475569; }
+    .jp-row-highlight { background: #eff6ff !important; outline: 1px solid #93c5fd; }
+
+    /* Weekly charts */
+    .jp-week-wrap { margin-top: 4px; }
+    .jp-week-charts-panel { margin-bottom: 20px; }
+    .jp-week-picker { flex-shrink: 0; text-align: right; }
+    .jp-week-picker-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .jp-week-picker-pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .jp-week-num {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 72px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 2px solid #e2e8f0;
+      background: #fff;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 800;
+      color: #334155;
+      transition: all .15s;
+    }
+    .jp-week-num small {
+      display: block;
+      font-size: 9px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .jp-week-num:hover { border-color: #005b96; color: #005b96; }
+    .jp-week-num--active {
+      border-color: #005b96;
+      background: linear-gradient(180deg, #e8f4fc 0%, #fff 100%);
+      color: #005b96;
+      box-shadow: 0 2px 10px rgba(0, 91, 150, 0.15);
+    }
+    .jp-charts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding: 16px 18px 22px;
+    }
+    .jp-charts-grid--three {
+      grid-template-columns: 1fr;
+      gap: 22px;
+    }
+    @media (min-width: 1100px) {
+      .jp-charts-grid--three { grid-template-columns: repeat(3, 1fr); align-items: stretch; }
+    }
+    @media (max-width: 1200px) {
+      .jp-charts-grid:not(.jp-charts-grid--three) { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 700px) {
+      .jp-charts-grid:not(.jp-charts-grid--three) { grid-template-columns: 1fr; }
+      .jp-week-picker { text-align: left; width: 100%; }
+      .jp-week-picker-pills { justify-content: flex-start; }
+    }
+    .jp-chart-card {
+      background: #fafbfc;
+      border: 1px solid #e8ecf4;
+      border-radius: 14px;
+      padding: 12px 12px 8px;
+      min-height: 0;
+    }
+    .jp-chart-card--wide {
+      grid-column: span 2;
+    }
+    @media (max-width: 1200px) {
+      .jp-chart-card--wide { grid-column: span 2; }
+    }
+    @media (max-width: 700px) {
+      .jp-chart-card--wide { grid-column: span 1; }
+    }
+    .jp-chart-canvas {
+      position: relative;
+      height: 240px;
+      width: 100%;
+    }
+    .jp-chart-canvas--tall { height: 280px; }
+    .jp-chart-canvas--week { height: 260px; }
+    .jp-chart-card--focus {
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+    }
+    .jp-chart-card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #475569;
+      padding: 10px 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .jp-chart-card-label i { color: #005b96; }
+    .jp-chart-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #94a3b8;
+    }
+    .jp-chart-empty i { font-size: 2rem; display: block; margin-bottom: 10px; opacity: .7; }
+    .jp-chart-empty p { margin: 0; font-size: 13px; max-width: 360px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+    /* Daily progress: expandable rows + analytics */
+    .jp-daily-card { padding-bottom: 4px; }
+    .jp-panel.jp-daily-card .jp-daily-table-scroll { padding: 0 12px 16px; }
+    .jp-daily-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .jp-daily-table { min-width: 940px; }
+    .jp-col-expand { width: 28px; text-align: center; color: #94a3b8; }
+    .jp-day-row { cursor: pointer; transition: background .12s; }
+    .jp-day-row:hover { background: #f1f5f9; }
+    .jp-day-row--open { background: #eff6ff; }
+    .jp-day-detail-row { background: #fafbfc; }
+    .jp-day-detail-cell {
+      padding: 16px 18px 20px !important;
+      border-top: 1px dashed #e2e8f0;
+      vertical-align: top;
+    }
+    .jp-sched-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 8px;
+      font-size: 10px; font-weight: 700; background: #dcfce7; color: #166534; margin-right: 4px;
+    }
+    .jp-sched-pill--mod { background: #dbeafe; color: #1d4ed8; }
+    .jp-score-bar-wrap--narrow { min-width: 72px; }
+    .jp-score-bar--violet { background: linear-gradient(90deg, #7c3aed, #a78bfa) !important; }
+    .jp-score-bar--amber { background: linear-gradient(90deg, #d97706, #fbbf24) !important; }
+    .jp-detail-muted { font-size: 12px; color: #94a3b8; margin-bottom: 12px; line-height: 1.45; }
+    .jp-live-block {
+      border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; background: #fff;
+    }
+    .jp-live-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin-bottom: 10px; }
+    .jp-live-head strong { font-size: 13px; color: #0f172a; }
+    .jp-live-meta { font-size: 11px; color: #64748b; }
+    .jp-att-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 700px) { .jp-att-grid { grid-template-columns: 1fr; } }
+    .jp-att-col { border-radius: 10px; padding: 10px 12px; font-size: 12px; }
+    .jp-att-yes { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .jp-att-no { background: #fef2f2; border: 1px solid #fecaca; }
+    .jp-att-title { display: block; font-weight: 700; margin-bottom: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+    .jp-att-yes .jp-att-title { color: #166534; }
+    .jp-att-no .jp-att-title { color: #b91c1c; }
+    .jp-att-list { margin: 0; padding-left: 18px; color: #334155; max-height: 220px; overflow-y: auto; }
+    .jp-att-list li { margin-bottom: 3px; }
+    .jp-reg { color: #94a3b8; font-weight: 500; }
+    .jp-detail-summary {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 8px;
+      padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #475569;
+    }
+    .jp-ex-analytics-modal { max-width: min(1200px, 96vw); }
+    .jp-class-analytics-modal {
+      max-width: min(880px, 96vw);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .jp-class-analytics-body {
+      padding: 0 20px 16px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .jp-class-analytics-empty {
+      margin: 0;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.5;
+    }
+    .jp-live-block--modal { margin-bottom: 16px; }
+    .jp-class-analytics-footer { flex-shrink: 0; border-top: 1px solid #e8ecf4; padding-top: 14px; }
+    .jp-ex-analytics-body { padding: 0 20px 20px; overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .jp-ex-table-wrap { overflow: auto; max-height: 65vh; border: 1px solid #e2e8f0; border-radius: 12px; }
+    .jp-ex-matrix { margin: 0; font-size: 11px; }
+    .jp-ex-student-col {
+      position: sticky; left: 0; z-index: 2; background: #fff; min-width: 140px;
+      box-shadow: 4px 0 8px rgba(15,23,42,.06);
+    }
+    th.jp-ex-student-col { z-index: 3; }
+    .jp-ex-title-col {
+      min-width: 100px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      vertical-align: bottom;
+    }
+    .jp-ex-cell { text-align: center; font-weight: 600; }
+    .jp-ex-cell--ok { color: #166534; background: #f0fdf4; }
+    .jp-ex-cell--miss { color: #94a3b8; background: #f8fafc; }
+    .jp-miss { font-weight: 500; }
+
+    /* ── Student detail modal ── */
+    .jp-detail-modal {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.18);
+      width: 92vw;
+      max-width: 1000px;
+      max-height: 90vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .jp-modal-loading { padding: 40px; justify-content: center; }
+    .jp-detail-sub {
+      display: block;
+      font-size: 12px;
+      font-weight: 400;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* Inner tabs */
+    .jp-inner-tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 2px solid #e2e8f0;
+      padding: 0 20px;
+      background: #f8fafc;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .jp-inner-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 18px;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      white-space: nowrap;
+      transition: color .15s;
+    }
+    .jp-inner-tab:hover { color: #005b96; }
+    .jp-inner-tab.active { color: #005b96; border-bottom-color: #005b96; font-weight: 600; }
+
+    .jp-modal-body {
+      overflow-y: auto;
+      padding: 20px;
+      flex: 1 1 auto;
+    }
+
+    /* Day grid (overview) */
+    .jp-section-title { font-size: 14px; font-weight: 600; color: #334155; margin: 18px 0 12px; }
+    .jp-day-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 8px;
+    }
+    .jp-day-cell {
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      transition: box-shadow .15s;
+    }
+    .jp-day-good { background: #f0fdf4; border-color: #86efac; }
+    .jp-day-empty { opacity: .55; }
+    .jp-dc-label { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; }
+    .jp-dc-score { font-size: 16px; font-weight: 700; color: #005b96; }
+    .jp-dc-empty { color: #cbd5e1; font-size: 16px; }
+    .jp-dc-meta { display: flex; justify-content: center; gap: 8px; margin-top: 4px; font-size: 10px; color: #64748b; }
+    .jp-dc-meta span { display: inline-flex; align-items: center; gap: 3px; }
+
+    /* Exercise list */
+    .jp-exercise-list { display: flex; flex-direction: column; gap: 10px; }
+    .jp-exercise-row {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .jp-ex-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      cursor: pointer;
+      gap: 12px;
+      transition: background .12s;
+    }
+    .jp-ex-header:hover { background: #f8fafc; }
+    .jp-ex-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+    .jp-ex-title { font-size: 13px; font-weight: 600; color: #0f172a; }
+    .jp-ex-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    /* Score chips */
+    .jp-score-chip {
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .jp-score-good { background: #dcfce7; color: #16a34a; }
+    .jp-score-mid  { background: #fef9c3; color: #ca8a04; }
+    .jp-score-low  { background: #fee2e2; color: #dc2626; }
+    .jp-points { font-size: 11px; color: #64748b; }
+    .jp-time-spent { font-size: 11px; color: #94a3b8; }
+    .jp-completed-at { font-size: 11px; color: #94a3b8; }
+
+    /* Responses */
+    .jp-responses { padding: 0 16px 16px; }
+    .jp-no-responses { color: #94a3b8; font-size: 12px; font-style: italic; }
+    .jp-response-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .jp-response-table th {
+      text-align: left;
+      padding: 6px 10px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    .jp-response-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+      vertical-align: top;
+    }
+    .jp-response-table tr:last-child td { border-bottom: none; }
+    .jp-qtype {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 8px;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .jp-answer { max-width: 240px; word-break: break-word; }
+    .jp-correct { color: #16a34a; font-size: 13px; }
+    .jp-wrong   { color: #dc2626; font-size: 13px; }
+
+    /* Status chips */
+    .jp-status-chip {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    .jp-status-done { background: #dcfce7; color: #16a34a; }
+    .jp-status-wip  { background: #dbeafe; color: #2563eb; }
+    .jp-status-ns   { background: #f1f5f9; color: #64748b; }
   `]
 })
 export class JourneyManagementComponent implements OnInit {
@@ -1333,6 +2741,16 @@ export class JourneyManagementComponent implements OnInit {
   selectedBatch: BatchSummary | null = null;
   batchStudents: StudentRow[] = [];
   loadingStudents = false;
+  /** Avoid refetching students when switching back to Students tab for the same batch */
+  studentsLoadedForBatch: string | null = null;
+
+  /** Skeleton row counts (template only) */
+  readonly skStudentCols = Array.from({ length: 10 });
+  readonly skStudentRows = Array.from({ length: 8 });
+  readonly skTimelineDays = Array.from({ length: 5 });
+  readonly skPillRow = Array.from({ length: 3 });
+  readonly skStatRow = Array.from({ length: 4 });
+  readonly skPanelRows = Array.from({ length: 10 });
   savingConfig = false;
   applyingDay = false;
 
@@ -1341,7 +2759,7 @@ export class JourneyManagementComponent implements OnInit {
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
 
-  activeTab: 'students' | 'timeline' = 'students';
+  activeTab: 'students' | 'timeline' | 'progress' = 'students';
 
   timelineDays: TimelineDay[] = [];
   loadingTimeline = false;
@@ -1349,6 +2767,44 @@ export class JourneyManagementComponent implements OnInit {
 
   /** Centered card: task check results */
   taskModal: TaskCheckModal | null = null;
+
+  // ── Progress tab state ──────────────────────────────────────────────────────
+  progressView: 'overall' | 'daily' | 'weekly' = 'overall';
+  batchProgress: any = null;
+  loadingProgress = false;
+  /** Which journey week (1-based) the weekly charts focus on */
+  progressChartsWeek = 1;
+
+  /** Weekly day-by-day charts (Chart.js via ng2-charts) */
+  jpWeekLiveData: ChartConfiguration<'bar'>['data'] | null = null;
+  jpWeekLiveOpts!: ChartConfiguration<'bar'>['options'];
+  jpWeekModuleData: ChartConfiguration<'bar'>['data'] | null = null;
+  jpWeekModuleOpts!: ChartConfiguration<'bar'>['options'];
+  /** Mixed bar + line (Chart.js dataset types) */
+  jpWeekExerciseData: ChartConfiguration<'bar'>['data'] | null = null;
+  jpWeekExerciseOpts!: ChartConfiguration<'bar'>['options'];
+
+  /** Student detail modal */
+  selectedStudentProgress: any = null;
+  showStudentProgressModal = false;
+  loadingStudentProgress = false;
+  studentProgressModalTab: 'overview' | 'exercises' | 'modules' | 'classes' = 'overview';
+  expandedExercises: Set<string> = new Set();
+
+  /** Progress → Daily: expandable day + exercise analytics modal */
+  expandedProgressDay: number | null = null;
+  dayDetail: any = null;
+  dayDetailLoading = false;
+  dayDetailError = '';
+  showExerciseAnalyticsModal = false;
+  exerciseAnalytics: any = null;
+  exerciseAnalyticsLoading = false;
+  exerciseAnalyticsDay: number | null = null;
+
+  showClassAnalyticsModal = false;
+  classAnalyticsDetail: any = null;
+  classAnalyticsLoading = false;
+  classAnalyticsDay: number | null = null;
 
   constructor(
     private http: HttpClient,
@@ -1550,6 +3006,7 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.initProgressChartOptions();
     this.loadBatches();
   }
 
@@ -1588,15 +3045,45 @@ export class JourneyManagementComponent implements OnInit {
       : '';
     this.editNotes = b.notes;
     this.activeTab = 'students';
+    this.batchStudents = [];
+    this.studentsLoadedForBatch = null;
     this.timelineDays = [];
-    this.loadStudents(b.batchName);
+    this.batchProgress = null;
+    this.progressChartsWeek = 1;
+    this.clearProgressWeeklyCharts();
+    this.resetProgressDayUi();
+    // Defer fetch so the batch shell + student skeleton paint before HTTP (tab-wise load)
+    queueMicrotask(() => {
+      if (this.selectedBatch?.batchName === b.batchName) {
+        this.loadStudents(b.batchName);
+      }
+    });
   }
 
   closeBatch(): void {
     this.selectedBatch = null;
     this.batchStudents = [];
     this.timelineDays = [];
+    this.batchProgress = null;
+    this.studentsLoadedForBatch = null;
+    this.clearProgressWeeklyCharts();
+    this.resetProgressDayUi();
     this.loadBatches();
+  }
+
+  private resetProgressDayUi(): void {
+    this.expandedProgressDay = null;
+    this.dayDetail = null;
+    this.dayDetailLoading = false;
+    this.dayDetailError = '';
+    this.showExerciseAnalyticsModal = false;
+    this.exerciseAnalytics = null;
+    this.exerciseAnalyticsLoading = false;
+    this.exerciseAnalyticsDay = null;
+    this.showClassAnalyticsModal = false;
+    this.classAnalyticsDetail = null;
+    this.classAnalyticsLoading = false;
+    this.classAnalyticsDay = null;
   }
 
   loadStudents(batchName: string): void {
@@ -1613,6 +3100,9 @@ export class JourneyManagementComponent implements OnInit {
           enrollmentDate: s.enrollmentDate || null,
           accountCreatedAt: s.accountCreatedAt || null
         }));
+        if (this.selectedBatch?.batchName === batchName) {
+          this.studentsLoadedForBatch = batchName;
+        }
         this.loadingStudents = false;
       },
       error: e => { console.error(e); this.loadingStudents = false; }
@@ -1671,6 +3161,7 @@ export class JourneyManagementComponent implements OnInit {
         s.editDay = r.student.currentCourseDay;
         s.saving = false;
         s.taskStatus = null;
+        this.notify.success(`Set to Day ${r.student.currentCourseDay}.`);
       },
       error: e => { console.error(e); s.saving = false; this.notify.error('Failed to update student day.'); }
     });
@@ -1735,9 +3226,48 @@ export class JourneyManagementComponent implements OnInit {
     if (s) this.checkStudentTasks(s);
   }
 
+  /** When the row has a valid day in the input that differs from current, the arrow applies that day (admin override). */
+  advanceArrowHasJumpTarget(s: StudentRow): boolean {
+    if (!this.selectedBatch) return false;
+    const t = this.parsedEditDay(s);
+    if (t == null) return false;
+    return t !== s.currentCourseDay;
+  }
+
+  advanceArrowTitle(s: StudentRow): string {
+    const t = this.parsedEditDay(s);
+    if (t != null && t !== s.currentCourseDay) {
+      return `Set journey day to ${t}`;
+    }
+    return s.taskStatus?.complete ? 'Advance to next day' : 'Force advance +1 day (tasks not done)';
+  }
+
+  private parsedEditDay(s: StudentRow): number | null {
+    if (!this.selectedBatch) return null;
+    const max = this.selectedBatch.journeyLength;
+    const raw = s.editDay as unknown;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+    if (!Number.isFinite(n) || n < 1 || n > max) return null;
+    return n;
+  }
+
   advanceStudentDay(s: StudentRow, force = false): void {
     if (!this.selectedBatch) return;
-    if (s.currentCourseDay >= this.selectedBatch.journeyLength) return;
+    const maxDay = this.selectedBatch.journeyLength;
+    const jumpTo = this.parsedEditDay(s);
+    if (jumpTo != null && jumpTo !== s.currentCourseDay) {
+      this.notify.confirm(
+        'Set journey day',
+        `Set ${s.name} to Day ${jumpTo}? Their scheduled content will follow this day (admin override).`,
+        'Set day',
+        'Cancel'
+      ).subscribe(ok => {
+        if (ok) this.setStudentDay(s);
+      });
+      return;
+    }
+    if (s.currentCourseDay >= maxDay) return;
     if (force) {
       this.notify.confirm('Force Advance', `Force-advance ${s.name} to Day ${s.currentCourseDay + 1} even though tasks are not completed?`, 'Yes, Force', 'Cancel').subscribe(ok => {
         if (ok) this._doAdvanceStudentDay(s, true);
@@ -1774,10 +3304,27 @@ export class JourneyManagementComponent implements OnInit {
   openTimeline(): void {
     this.activeTab = 'timeline';
     if (!this.selectedBatch || this.timelineDays.length) return;
+    const batchName = this.selectedBatch.batchName;
     this.loadingTimeline = true;
-    this.http.get<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}/timeline`, { withCredentials: true }).subscribe({
-      next: r => { this.timelineDays = r.days || []; this.loadingTimeline = false; },
-      error: e => { console.error(e); this.loadingTimeline = false; }
+    queueMicrotask(() => {
+      if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
+        this.loadingTimeline = false;
+        return;
+      }
+      this.http.get<any>(`${this.apiUrl}/${encodeURIComponent(batchName)}/timeline`, { withCredentials: true }).subscribe({
+        next: r => {
+          if (this.selectedBatch?.batchName !== batchName) {
+            this.loadingTimeline = false;
+            return;
+          }
+          this.timelineDays = r.days || [];
+          this.loadingTimeline = false;
+        },
+        error: e => {
+          console.error(e);
+          this.loadingTimeline = false;
+        }
+      });
     });
   }
 
@@ -1786,5 +3333,539 @@ export class JourneyManagementComponent implements OnInit {
     const el = document.getElementById(`day-${day}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     else this.notify.info(`No content found for Day ${day}.`);
+  }
+
+  openStudentsTab(): void {
+    this.activeTab = 'students';
+    if (!this.selectedBatch) return;
+    if (this.studentsLoadedForBatch !== this.selectedBatch.batchName) {
+      this.loadStudents(this.selectedBatch.batchName);
+    }
+  }
+
+  // ── Progress tab methods ────────────────────────────────────────────────────
+
+  openProgress(): void {
+    this.activeTab = 'progress';
+    if (this.batchProgress) {
+      if (this.progressView === 'weekly') this.rebuildProgressWeeklyCharts();
+      return;
+    }
+    this.loadBatchProgress();
+  }
+
+  loadBatchProgress(): void {
+    if (!this.selectedBatch) return;
+    const batchName = this.selectedBatch.batchName;
+    this.loadingProgress = true;
+    this.batchProgress = null;
+    this.clearProgressWeeklyCharts();
+    this.resetProgressDayUi();
+    queueMicrotask(() => {
+      if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
+        this.loadingProgress = false;
+        return;
+      }
+      this.http.get<any>(
+        `${this.apiUrl}/${encodeURIComponent(batchName)}/progress`,
+        { withCredentials: true }
+      ).subscribe({
+        next: r => {
+          if (!this.selectedBatch || this.selectedBatch.batchName !== batchName) {
+            this.loadingProgress = false;
+            return;
+          }
+          this.batchProgress = r;
+          this.loadingProgress = false;
+          this.ensureProgressChartsWeekInRange();
+          if (this.progressView === 'weekly') this.rebuildProgressWeeklyCharts();
+        },
+        error: e => {
+          console.error(e);
+          this.loadingProgress = false;
+          if (this.selectedBatch?.batchName === batchName) {
+            this.notify.error('Failed to load progress data.');
+          }
+        }
+      });
+    });
+  }
+
+  onProgressViewChange(v: 'overall' | 'daily' | 'weekly'): void {
+    this.progressView = v;
+    if (v === 'weekly') this.rebuildProgressWeeklyCharts();
+  }
+
+  selectProgressWeek(w: number): void {
+    this.progressChartsWeek = w;
+    this.rebuildProgressWeeklyCharts();
+  }
+
+  private clearProgressWeeklyCharts(): void {
+    this.jpWeekLiveData = null;
+    this.jpWeekModuleData = null;
+    this.jpWeekExerciseData = null;
+  }
+
+  private ensureProgressChartsWeekInRange(): void {
+    const weeks = (this.batchProgress?.weekly || []).map((x: any) => x.week as number);
+    if (!weeks.length) {
+      this.progressChartsWeek = 1;
+      return;
+    }
+    if (!weeks.includes(this.progressChartsWeek)) {
+      this.progressChartsWeek = weeks[0];
+    }
+  }
+
+  /** Daily rows for the selected progressChartsWeek (Days 1–7, 8–14, …) */
+  getDailyRowsForProgressWeek(): any[] {
+    const start = (this.progressChartsWeek - 1) * 7 + 1;
+    const end = this.progressChartsWeek * 7;
+    return (this.progressDaily || []).filter((d: any) => d.day >= start && d.day <= end);
+  }
+
+  private initProgressChartOptions(): void {
+    const titleFont = { size: 13, weight: 'bold' as const };
+    const axisColor = '#64748b';
+    const gridColor = 'rgba(148, 163, 184, 0.15)';
+
+    this.jpWeekLiveOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, color: axisColor } },
+        title: {
+          display: true,
+          text: 'Students reached vs joined live (unique)',
+          font: titleFont,
+          color: '#0f172a',
+          padding: { bottom: 8 }
+        },
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const i = items[0]?.dataIndex;
+              if (i == null) return [];
+              const row = this.getDailyRowsForProgressWeek()[i];
+              if (!row) return [];
+              const reached = row.studentsCompleted ?? 0;
+              const joined = this.weekLiveUniqueJoined(row);
+              if (!reached) return ['No students at this day yet'];
+              const pct = Math.round((100 * joined) / reached);
+              return [`Join rate: ${joined} / ${reached} (${pct}%)`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: axisColor, maxRotation: 45, minRotation: 0 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, color: axisColor }, grid: { color: gridColor }, title: { display: true, text: 'Students', color: axisColor, font: { size: 11 } } }
+      }
+    };
+
+    this.jpWeekModuleOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, color: axisColor } },
+        title: {
+          display: true,
+          text: 'Module slots: completed vs not done',
+          font: titleFont,
+          color: '#0f172a',
+          padding: { bottom: 8 }
+        },
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const i = items[0]?.dataIndex;
+              if (i == null) return [];
+              const row = this.getDailyRowsForProgressWeek()[i];
+              if (!row) return [];
+              const tot = this.weekModuleTotal(row);
+              const done = this.weekModuleFilled(row);
+              if (!tot) return ['No modules scheduled this day'];
+              return [`Batch completion: ${row.moduleCompletionPercent ?? 0}% · ${done} / ${tot} slots`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: axisColor, maxRotation: 45, minRotation: 0 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, color: axisColor }, grid: { color: gridColor }, title: { display: true, text: 'Student × module slots', color: axisColor, font: { size: 11 } } }
+      }
+    };
+
+    this.jpWeekExerciseOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, color: axisColor } },
+        title: {
+          display: true,
+          text: 'Exercise slots: done vs not done · orange line = avg score',
+          font: titleFont,
+          color: '#0f172a',
+          padding: { bottom: 8 }
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const y = ctx.parsed.y;
+              const id = (ctx.dataset as { yAxisID?: string }).yAxisID;
+              if (id === 'y1') return `${ctx.dataset.label}: ${y}%`;
+              return `${ctx.dataset.label}: ${y}`;
+            },
+            afterBody: (items) => {
+              const i = items[0]?.dataIndex;
+              if (i == null) return [];
+              const row = this.getDailyRowsForProgressWeek()[i];
+              if (!row) return [];
+              const tot = this.weekExerciseTotal(row);
+              const done = this.weekExerciseFilled(row);
+              if (!tot) return ['No exercises scheduled this day'];
+              return [`Batch completion: ${row.exerciseCompletionPercent ?? 0}% · ${done} / ${tot} slots · Avg score: ${row.avgScore ?? 0}%`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: axisColor, maxRotation: 45, minRotation: 0 } },
+        y: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: true,
+          grid: { color: gridColor },
+          ticks: { color: axisColor, stepSize: 1 },
+          title: { display: true, text: 'Exercise slots', color: axisColor, font: { size: 11 } }
+        },
+        y1: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          max: 100,
+          grid: { drawOnChartArea: false },
+          ticks: { color: axisColor, callback: (v: string | number) => `${v}%` },
+          title: { display: true, text: 'Avg score', color: axisColor, font: { size: 11 } }
+        }
+      }
+    } as ChartConfiguration<'bar'>['options'];
+  }
+
+  private weekNStud(): number {
+    return this.progressOverall?.totalStudents ?? 0;
+  }
+
+  private weekExerciseFilled(d: any): number {
+    if (d.exerciseSlotsFilled != null) return d.exerciseSlotsFilled;
+    const n = this.weekNStud();
+    const ex = d.exerciseCount ?? 0;
+    if (!n || !ex) return 0;
+    return Math.round(((d.exerciseCompletionPercent ?? 0) / 100) * n * ex);
+  }
+
+  private weekExerciseTotal(d: any): number {
+    if (d.exerciseSlotsTotal != null) return d.exerciseSlotsTotal;
+    return (d.exerciseCount ?? 0) * this.weekNStud();
+  }
+
+  private weekModuleFilled(d: any): number {
+    if (d.moduleSlotsFilled != null) return d.moduleSlotsFilled;
+    const n = this.weekNStud();
+    const m = d.moduleCount ?? 0;
+    if (!n || !m) return 0;
+    return Math.round(((d.moduleCompletionPercent ?? 0) / 100) * n * m);
+  }
+
+  private weekModuleTotal(d: any): number {
+    if (d.moduleSlotsTotal != null) return d.moduleSlotsTotal;
+    return (d.moduleCount ?? 0) * this.weekNStud();
+  }
+
+  private weekLiveUniqueJoined(d: any): number {
+    if (d.liveUniqueJoined != null) return d.liveUniqueJoined;
+    const att = d.classesAttended ?? 0;
+    const reached = d.studentsCompleted ?? 0;
+    return Math.min(att, reached);
+  }
+
+  rebuildProgressWeeklyCharts(): void {
+    const rows = this.getDailyRowsForProgressWeek();
+    if (!rows.length) {
+      this.clearProgressWeeklyCharts();
+      return;
+    }
+    const labels = rows.map((d: any) => `Day ${d.day}`);
+
+    this.jpWeekLiveData = {
+      labels,
+      datasets: [
+        {
+          label: 'Students (reached this day)',
+          data: rows.map((d: any) => d.studentsCompleted ?? 0),
+          backgroundColor: 'rgba(100, 116, 139, 0.55)',
+          borderRadius: 6,
+          borderSkipped: false
+        },
+        {
+          label: 'Joined live (unique)',
+          data: rows.map((d: any) => this.weekLiveUniqueJoined(d)),
+          backgroundColor: 'rgba(22, 163, 74, 0.88)',
+          borderRadius: 6,
+          borderSkipped: false
+        }
+      ]
+    };
+
+    this.jpWeekModuleData = {
+      labels,
+      datasets: [
+        {
+          label: 'Module slots done',
+          data: rows.map((d: any) => this.weekModuleFilled(d)),
+          backgroundColor: 'rgba(217, 119, 6, 0.88)',
+          borderRadius: 6,
+          borderSkipped: false
+        },
+        {
+          label: 'Not completed',
+          data: rows.map((d: any) => Math.max(0, this.weekModuleTotal(d) - this.weekModuleFilled(d))),
+          backgroundColor: 'rgba(203, 213, 225, 0.75)',
+          borderRadius: 6,
+          borderSkipped: false
+        }
+      ]
+    };
+
+    const exDone = rows.map((d: any) => this.weekExerciseFilled(d));
+    const exLeft = rows.map((d: any) => Math.max(0, this.weekExerciseTotal(d) - this.weekExerciseFilled(d)));
+    const exAvg = rows.map((d: any) => d.avgScore ?? 0);
+
+    this.jpWeekExerciseData = {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Exercise slots done',
+          data: exDone,
+          backgroundColor: 'rgba(37, 99, 235, 0.88)',
+          yAxisID: 'y',
+          borderRadius: 4,
+          borderSkipped: false
+        } as any,
+        {
+          type: 'bar',
+          label: 'Not completed',
+          data: exLeft,
+          backgroundColor: 'rgba(148, 163, 184, 0.55)',
+          yAxisID: 'y',
+          borderRadius: 4,
+          borderSkipped: false
+        } as any,
+        {
+          type: 'line',
+          label: 'Avg score %',
+          data: exAvg,
+          borderColor: '#ea580c',
+          backgroundColor: 'rgba(234, 88, 12, 0.12)',
+          yAxisID: 'y1',
+          tension: 0.35,
+          fill: false,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5
+        } as any
+      ]
+    };
+  }
+
+  toggleProgressDay(day: number): void {
+    if (this.expandedProgressDay === day) {
+      this.expandedProgressDay = null;
+      this.dayDetail = null;
+      this.dayDetailError = '';
+      this.dayDetailLoading = false;
+      return;
+    }
+    this.expandedProgressDay = day;
+    this.loadDayDetail(day);
+  }
+
+  loadDayDetail(day: number): void {
+    if (!this.selectedBatch) return;
+    this.dayDetailLoading = true;
+    this.dayDetail = null;
+    this.dayDetailError = '';
+    this.http
+      .get<any>(
+        `${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}/progress/day/${day}`,
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.dayDetail = r;
+          this.dayDetailLoading = false;
+        },
+        error: (e) => {
+          this.dayDetailLoading = false;
+          this.dayDetailError = e?.error?.message || 'Failed to load day details.';
+        }
+      });
+  }
+
+  attendedStudents(students: any[] | undefined): any[] {
+    return (students || []).filter((s) => s.attended);
+  }
+
+  absentStudents(students: any[] | undefined): any[] {
+    return (students || []).filter((s) => !s.attended);
+  }
+
+  /** Single Analytics column: live classes take priority, else exercise matrix */
+  dayHasAnalytics(d: { classesHeld?: number; exerciseCount?: number }): boolean {
+    return (d.classesHeld ?? 0) > 0 || (d.exerciseCount ?? 0) > 0;
+  }
+
+  dayAnalyticsHint(d: { classesHeld?: number; exerciseCount?: number }): string {
+    if ((d.classesHeld ?? 0) > 0) return 'Live class attendance for this day';
+    if ((d.exerciseCount ?? 0) > 0) return 'Exercise scores for this day';
+    return '';
+  }
+
+  openDayAnalytics(d: { day: number; classesHeld?: number; exerciseCount?: number }, ev?: Event): void {
+    ev?.stopPropagation();
+    if ((d.classesHeld ?? 0) > 0) {
+      this.openClassAnalytics(d.day, ev);
+      return;
+    }
+    if ((d.exerciseCount ?? 0) > 0) {
+      this.openExerciseAnalytics(d.day, ev);
+      return;
+    }
+    this.notify.info('No live classes or scheduled exercises for this day.');
+  }
+
+  openExerciseAnalytics(day: number, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!this.selectedBatch) return;
+    this.exerciseAnalyticsDay = day;
+    this.showExerciseAnalyticsModal = true;
+    this.exerciseAnalytics = null;
+    this.exerciseAnalyticsLoading = true;
+    this.http
+      .get<any>(
+        `${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}/progress/day/${day}/exercise-analytics`,
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.exerciseAnalytics = r;
+          this.exerciseAnalyticsLoading = false;
+        },
+        error: (e) => {
+          this.exerciseAnalyticsLoading = false;
+          this.notify.error(e?.error?.message || 'Failed to load exercise analytics.');
+        }
+      });
+  }
+
+  closeExerciseAnalyticsModal(): void {
+    this.showExerciseAnalyticsModal = false;
+    this.exerciseAnalytics = null;
+    this.exerciseAnalyticsDay = null;
+    this.exerciseAnalyticsLoading = false;
+  }
+
+  openClassAnalytics(day: number, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!this.selectedBatch) return;
+    this.classAnalyticsDay = day;
+    this.showClassAnalyticsModal = true;
+    this.classAnalyticsDetail = null;
+    this.classAnalyticsLoading = true;
+    this.http
+      .get<any>(
+        `${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}/progress/day/${day}`,
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.classAnalyticsDetail = r;
+          this.classAnalyticsLoading = false;
+        },
+        error: (e) => {
+          this.classAnalyticsLoading = false;
+          this.notify.error(e?.error?.message || 'Failed to load class attendance.');
+          this.closeClassAnalyticsModal();
+        }
+      });
+  }
+
+  closeClassAnalyticsModal(): void {
+    this.showClassAnalyticsModal = false;
+    this.classAnalyticsDetail = null;
+    this.classAnalyticsDay = null;
+    this.classAnalyticsLoading = false;
+  }
+
+  loadStudentDetail(studentId: string): void {
+    this.showStudentProgressModal = true;
+    this.selectedStudentProgress = null;
+    this.loadingStudentProgress = true;
+    this.studentProgressModalTab = 'overview';
+    this.expandedExercises.clear();
+    this.http.get<any>(
+      `${this.apiUrl}/student/${studentId}/full-progress`,
+      { withCredentials: true }
+    ).subscribe({
+      next: r => { this.selectedStudentProgress = r; this.loadingStudentProgress = false; },
+      error: e => { console.error(e); this.loadingStudentProgress = false; this.notify.error('Failed to load student detail.'); }
+    });
+  }
+
+  closeStudentProgressModal(): void {
+    this.showStudentProgressModal = false;
+    this.selectedStudentProgress = null;
+    this.expandedExercises.clear();
+  }
+
+  toggleExerciseExpand(id: string): void {
+    if (this.expandedExercises.has(id)) this.expandedExercises.delete(id);
+    else this.expandedExercises.add(id);
+  }
+
+  formatSeconds(sec: number): string {
+    if (!sec) return '0m';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  questionAnswerLabel(r: any): string {
+    if (!r) return '—';
+    if (r.questionType === 'mcq') return r.selectedOptionIndex !== undefined ? `Option ${r.selectedOptionIndex + 1}` : '—';
+    if (r.questionType === 'matching') return (r.matchingResponse || []).map((m: any) => `${m.leftIndex + 1}↔${m.rightIndex + 1}`).join(', ') || '—';
+    if (r.questionType === 'fill-blank') return (r.fillBlankResponses || []).join(', ') || '—';
+    if (r.questionType === 'pronunciation') return r.spokenText || '—';
+    if (r.questionType === 'question-answer') return r.qaResponse || '—';
+    if (r.questionType === 'listening') return r.listeningText || '—';
+    return '—';
+  }
+
+  get progressStudents(): any[] { return this.batchProgress?.students || []; }
+  get progressDaily(): any[] { return this.batchProgress?.daily || []; }
+  get progressWeekly(): any[] { return this.batchProgress?.weekly || []; }
+  get progressOverall(): any { return this.batchProgress?.overall || {}; }
+
+  avgScoreForDetail(): number {
+    const exs = this.selectedStudentProgress?.exercises || [];
+    if (!exs.length) return 0;
+    return Math.round(exs.reduce((sum: number, e: any) => sum + (e.scorePercent || 0), 0) / exs.length);
+  }
+
+  classesAttendedForDetail(): number {
+    return (this.selectedStudentProgress?.liveClasses || []).filter((c: any) => c.attended).length;
   }
 }

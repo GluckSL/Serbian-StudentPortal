@@ -18,10 +18,25 @@ function isS3Url(url) {
   return url.includes('.amazonaws.com/');
 }
 
-/** Extract the S3 object key from a full S3 URL. */
+/**
+ * Extract the S3 object key from a full S3 URL.
+ * Some stored URLs are multiply percent-encoded; decoding repeatedly yields the
+ * real key that matches the object in the bucket. Signing with a key that still
+ * contains literal %20 makes the SDK emit %2520 in the presigned path → NoSuchKey.
+ */
 function extractKey(url) {
   try {
-    return new URL(url).pathname.replace(/^\//, '');
+    let path = new URL(url).pathname.replace(/^\//, '');
+    let prev = null;
+    for (let i = 0; i < 8 && path !== prev; i++) {
+      prev = path;
+      try {
+        path = decodeURIComponent(path);
+      } catch {
+        break;
+      }
+    }
+    return path;
   } catch {
     return null;
   }
@@ -42,6 +57,33 @@ async function presignS3Url(url) {
     console.error('[presign] Failed to sign URL:', url, err.message);
     return url; // fall back to original — still may get 403 but won't crash
   }
+}
+
+/**
+ * Sign using the exact S3 object key (e.g. multer-s3 `file.key`), avoiding URL parse bugs.
+ * Prefer this when both key and location URL are available (class resources, deletes, etc.).
+ */
+async function presignS3ObjectKey(key) {
+  if (!USE_SIGNED || !key || typeof key !== 'string') return null;
+  const clean = key.replace(/^\//, '').trim();
+  if (!clean) return null;
+  try {
+    const command = new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: clean });
+    return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
+  } catch (err) {
+    console.error('[presign] Failed to sign object key:', clean, err.message);
+    return null;
+  }
+}
+
+/**
+ * Presign for rows that store both canonical `fileName` (S3 key) and `fileUrl` (https location).
+ */
+async function presignStoredS3Url(fileName, fileUrl) {
+  if (!USE_SIGNED || !fileUrl) return fileUrl;
+  const signed = await presignS3ObjectKey(fileName);
+  if (signed) return signed;
+  return presignS3Url(fileUrl);
 }
 
 /**
@@ -84,4 +126,12 @@ async function resignExercises(exercises) {
   return exercises;
 }
 
-module.exports = { presignS3Url, resignExercise, resignExercises, isS3Url, USE_SIGNED };
+module.exports = {
+  presignS3Url,
+  presignS3ObjectKey,
+  presignStoredS3Url,
+  resignExercise,
+  resignExercises,
+  isS3Url,
+  USE_SIGNED
+};

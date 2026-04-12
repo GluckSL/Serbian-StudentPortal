@@ -6,6 +6,7 @@ import { TeacherService } from '../../services/teacher.service';
 import { ZoomService } from '../../services/zoom.service';
 import { ClassResourceService } from '../../services/class-resource.service';
 import { ClassDoubtService } from '../../services/class-doubt.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-teacher-my-classes',
@@ -45,7 +46,8 @@ export class TeacherMyClassesComponent implements OnInit {
     private teacherService: TeacherService,
     private zoomService: ZoomService,
     private resourceService: ClassResourceService,
-    private doubtService: ClassDoubtService
+    private doubtService: ClassDoubtService,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -141,8 +143,17 @@ export class TeacherMyClassesComponent implements OnInit {
     const files = Array.from(input.files);
     this.uploadingFiles = true;
     this.resourceService.upload(this.resourceMeeting._id, files).subscribe({
-      next: () => { this.uploadingFiles = false; this.loadResources(this.resourceMeeting._id); input.value = ''; },
-      error: () => { this.uploadingFiles = false; }
+      next: (res) => {
+        this.uploadingFiles = false;
+        const n = Array.isArray(res?.data) ? res.data.length : files.length;
+        this.notify.success(n === 1 ? 'File uploaded successfully.' : `${n} files uploaded successfully.`);
+        this.loadResources(this.resourceMeeting!._id);
+        input.value = '';
+      },
+      error: (err) => {
+        this.uploadingFiles = false;
+        this.notify.error(err?.error?.message || 'Upload failed.');
+      }
     });
   }
 
@@ -152,6 +163,14 @@ export class TeacherMyClassesComponent implements OnInit {
       next: () => { this.resources = this.resources.filter(x => x._id !== r._id); },
       error: () => {}
     });
+  }
+
+  viewResource(r: { fileUrl?: string }): void {
+    this.resourceService.openInBrowser(r.fileUrl || '');
+  }
+
+  downloadResource(r: { fileUrl?: string; originalName?: string }): void {
+    this.resourceService.downloadFile(r.fileUrl || '', r.originalName || 'download');
   }
 
   formatFileSize(bytes: number): string {

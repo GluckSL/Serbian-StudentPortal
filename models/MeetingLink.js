@@ -71,13 +71,14 @@ const meetingLinkSchema = new mongoose.Schema({
     leaveTime: Date,
     duration: Number, // in seconds
     durationMinutes: Number, // in minutes
+    attendancePercent: { type: Number }, // optional; % of meeting duration present
     status: { type: String, enum: ['attended', 'absent', 'late'], default: 'absent' },
     
     // Enhanced matching fields
     confidence: { type: Number, default: 0 }, // 0-100
     matchMethod: { 
       type: String, 
-      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match'], 
+      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map'], 
       default: 'no_match' 
     },
     zoomName: String, // Name displayed in Zoom

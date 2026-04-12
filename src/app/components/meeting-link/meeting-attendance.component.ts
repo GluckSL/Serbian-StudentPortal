@@ -777,6 +777,7 @@ export class MeetingAttendanceComponent implements OnInit {
         this.mappingLoading = false;
         this.mappingIndex = -1;
         this.mapStudentEmail = '';
+        this.selectedTab = 0;
         this.loadAttendance();
       },
       error: (err) => {
