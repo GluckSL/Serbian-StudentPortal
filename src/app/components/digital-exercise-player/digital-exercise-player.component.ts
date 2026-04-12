@@ -1309,6 +1309,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return resolveMediaUrl(relative);
   }
 
+  getAttachmentType(url: string): 'image' | 'audio' | 'video' | 'pdf' | 'other' {
+    if (!url) return 'other';
+    const lower = url.toLowerCase().split('?')[0];
+    if (/\.(jpe?g|png|gif|webp|svg)$/.test(lower)) return 'image';
+    if (/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(lower)) return 'audio';
+    if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
+    if (/\.pdf$/.test(lower)) return 'pdf';
+    return 'other';
+  }
+
   startListeningSpeech(pq: PlayerQuestion): void {
     if (this.state === 'submitted') return;
     if (!this.speechSupported) {

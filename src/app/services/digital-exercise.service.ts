@@ -545,4 +545,27 @@ export class DigitalExerciseService {
       { withCredentials: true }
     );
   }
+
+  uploadQuestionAttachment(file: File): Observable<{ success: boolean; url: string }> {
+    const formData = new FormData();
+    formData.append('attachment', file);
+    return this.http.post<{ success: boolean; url: string }>(
+      `${environment.apiUrl}/digital-exercises/upload-attachment`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  generateExplanation(data: {
+    questionType?: string;
+    questionText?: string;
+    correctAnswer?: string;
+    targetLanguage?: string;
+  }): Observable<{ explanation: string }> {
+    return this.http.post<{ explanation: string }>(
+      `${environment.apiUrl}/digital-exercises/generate-explanation`,
+      data,
+      { withCredentials: true }
+    );
+  }
 }

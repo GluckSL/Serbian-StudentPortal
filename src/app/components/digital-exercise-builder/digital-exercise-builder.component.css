@@ -1911,6 +1911,76 @@ textarea.field-input.field-input--desc {
 }
 .btn-add-video-clip:hover { background: #f5f3ff; border-color: #7c3aed; }
 
+/* ── Per-question attachment ── */
+.attachment-upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.attachment-uploading { display: flex; align-items: center; gap: 6px; color: #6d28d9; font-size: 0.875rem; padding: 6px 0; }
+.attachment-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.attachment-img-preview { max-height: 160px; max-width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; object-fit: contain; }
+.attachment-audio-preview { max-width: 100%; }
+.attachment-video-preview { max-height: 200px; max-width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
+.attachment-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.attachment-file-link:hover { background: #e2e8f0; }
+.btn-remove-attachment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #dc2626;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+}
+.btn-remove-attachment:hover { background: #fee2e2; }
+
+/* ── Answer explanation ── */
+.explanation-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.btn-use-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 7px 16px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-use-ai:hover { opacity: 0.88; }
+.btn-use-ai:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-use-ai .material-icons { font-size: 16px; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; display: inline-block; }
+
 /* footer */
 .footer-right { display: flex; gap: 12px; align-items: center; }
 
