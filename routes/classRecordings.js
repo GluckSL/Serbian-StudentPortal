@@ -9,8 +9,30 @@ const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET } = require('../config/r2');
+const { backfillZoomRecordings } = require('../services/zoomRecordingBackfillService');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
+
+function normalizeBatch(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isSameBatch(studentBatch, meetingBatch) {
+  const a = normalizeBatch(studentBatch);
+  const b = normalizeBatch(meetingBatch);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // Allow meeting batch names that extend student batch labels,
+  // e.g. "Batch 35" vs "Batch 35 - A1 German Class"
+  return b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`);
+}
 
 // GET /api/class-recordings — Teacher/Admin: all recordings; Student: filtered
 router.get('/', verifyToken, async (req, res) => {
@@ -43,6 +65,79 @@ router.get('/', verifyToken, async (req, res) => {
     res.json({ success: true, recordings });
   } catch (error) {
     console.error('Error fetching class recordings:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/admin/all — Admin/Teacher: combined manual + zoom recordings
+router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    // 1) Manual recordings (existing ClassRecording records)
+    const manualRecordings = await ClassRecording.find({ active: true })
+      .populate('uploadedBy', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
+    const zoomRecordings = await ZoomRecording.find({ status: 'ready' })
+      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
+    const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
+      .select('_id topic batch startTime duration')
+      .lean();
+
+    const meetingMap = {};
+    meetingLinks.forEach((m) => { meetingMap[m._id.toString()] = m; });
+
+    const zoomItems = zoomRecordings.map((z) => {
+      const meeting = meetingMap[z.meetingLinkId.toString()] || {};
+      return {
+        _id: `zoom-${z.meetingLinkId.toString()}`,
+        recordingType: 'ZOOM',
+        source: 'ZOOM_AUTO',
+        title: meeting.topic || 'Zoom Class Recording',
+        description: '',
+        videoUrl: '',
+        level: 'ZOOM',
+        plan: 'ALL',
+        batches: meeting.batch ? [meeting.batch] : [],
+        uploadedBy: { _id: null, name: 'Zoom Webhook' },
+        active: true,
+        createdAt: z.createdAt,
+        // zoom-specific extras for admin UI
+        meetingLinkId: z.meetingLinkId,
+        zoomMeetingId: z.zoomMeetingId || null,
+        status: z.status,
+        r2Key: z.r2Key,
+        duration: z.duration,
+        classDate: meeting.startTime || z.createdAt,
+        classDuration: meeting.duration || null,
+      };
+    });
+
+    const manualItems = manualRecordings.map((m) => ({
+      ...m,
+      recordingType: 'MANUAL',
+      source: 'MANUAL_UPLOAD',
+      status: 'ready',
+      duration: null,
+      classDate: m.createdAt,
+      classDuration: null,
+      meetingLinkId: null,
+      zoomMeetingId: null,
+      r2Key: null,
+    }));
+
+    const recordings = [...manualItems, ...zoomItems].sort(
+      (a, b) => new Date(b.classDate || b.createdAt) - new Date(a.classDate || a.createdAt)
+    );
+
+    res.json({ success: true, recordings });
+  } catch (error) {
+    console.error('Error fetching combined admin recordings:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -192,14 +287,21 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
 
     if (['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
       // Staff can optionally filter by batch via query param, otherwise get all
-      batchFilter = req.query.batch ? { batch: req.query.batch } : {};
+      batchFilter = req.query.batch
+        ? { batch: { $regex: `^${escapeRegex(String(req.query.batch))}`, $options: 'i' } }
+        : {};
     } else {
       // Student: derive batch from their profile
       const student = await User.findById(userId).select('batch').lean();
       if (!student || !student.batch) {
         return res.status(400).json({ success: false, message: 'Student batch not set on your profile.' });
       }
-      batchFilter = { batch: student.batch };
+      batchFilter = {
+        batch: {
+          $regex: `^${escapeRegex(String(student.batch))}(\\b|\\s*[-:|])`,
+          $options: 'i',
+        },
+      };
     }
 
     // 1. Find all MeetingLinks for this batch
@@ -248,6 +350,115 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
 });
 
 /**
+ * POST /api/class-recordings/zoom/backfill
+ *
+ * Admin tool to backfill past class recordings from Zoom for existing MeetingLink records.
+ * This is for historical data recovery. Future classes should still flow automatically
+ * through the recording.completed webhook.
+ *
+ * Body (all optional):
+ *  - batch: "35"
+ *  - limit: 200
+ *  - includeFailed: true
+ *  - force: false
+ */
+router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const {
+      batch = null,
+      limit = 100,
+      includeFailed = true,
+      force = false,
+    } = req.body || {};
+
+    const result = await backfillZoomRecordings({
+      batch,
+      limit,
+      includeFailed,
+      force,
+    });
+
+    return res.json({
+      success: true,
+      message: 'Backfill scan completed. Queued recordings will continue processing in background.',
+      ...result,
+    });
+  } catch (error) {
+    console.error('Error running zoom recording backfill:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * GET /api/class-recordings/zoom/debug/status
+ *
+ * Temporary admin/teacher debug endpoint to inspect ingestion status by batch.
+ * Query params:
+ *  - batch (optional): filter to one batch
+ *  - limit (optional, default 200): max rows
+ */
+router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 200, 500));
+    const batch = req.query.batch ? String(req.query.batch) : null;
+    const meetingFilter = batch ? { batch } : {};
+
+    const meetingLinks = await MeetingLink.find(meetingFilter)
+      .select('_id batch topic startTime duration createdAt')
+      .sort({ startTime: -1, createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    if (!meetingLinks.length) {
+      return res.json({ success: true, total: 0, summary: {}, rows: [] });
+    }
+
+    const meetingIds = meetingLinks.map((m) => m._id);
+    const zoomRows = await ZoomRecording.find({ meetingLinkId: { $in: meetingIds } })
+      .select('meetingLinkId zoomMeetingId status r2Key duration errorMessage createdAt updatedAt')
+      .lean();
+
+    const zoomByMeetingId = {};
+    zoomRows.forEach((z) => {
+      zoomByMeetingId[z.meetingLinkId.toString()] = z;
+    });
+
+    const rows = meetingLinks.map((meeting) => {
+      const zoom = zoomByMeetingId[meeting._id.toString()];
+      return {
+        meetingLinkId: meeting._id,
+        batch: meeting.batch || '',
+        topic: meeting.topic || 'Class',
+        classDate: meeting.startTime || meeting.createdAt,
+        meetingDuration: meeting.duration || null,
+        zoomMeetingId: zoom?.zoomMeetingId || null,
+        status: zoom?.status || 'missing',
+        r2Key: zoom?.r2Key || null,
+        recordingDuration: zoom?.duration || null,
+        errorMessage: zoom?.errorMessage || null,
+        recordingCreatedAt: zoom?.createdAt || null,
+        recordingUpdatedAt: zoom?.updatedAt || null,
+      };
+    });
+
+    const summary = rows.reduce((acc, row) => {
+      acc[row.status] = (acc[row.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      total: rows.length,
+      summary,
+      rows,
+    });
+  } catch (error) {
+    console.error('Error fetching zoom debug status:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/class-recordings/zoom/:meetingLinkId
  *
  * Returns a short-lived R2 presigned URL for the recording of a given class.
@@ -285,7 +496,7 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
         return res.status(404).json({ success: false, message: 'Class not found.' });
       }
 
-      if (!student || meetingLink.batch !== student.batch) {
+      if (!student || !isSameBatch(student.batch, meetingLink.batch)) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
       }
     }

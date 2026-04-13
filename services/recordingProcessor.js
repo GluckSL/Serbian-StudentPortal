@@ -31,7 +31,12 @@ function buildR2Key(meetingLinkId, recordingStartTime) {
  * Zoom requires the access token as a query param or Authorization header.
  */
 async function createZoomDownloadStream(downloadUrl, accessToken) {
-  const response = await axios.get(downloadUrl, {
+  const url = new URL(downloadUrl);
+  // Some Zoom recording download endpoints require token as query param.
+  // Keep Authorization header too for compatibility across account configs.
+  url.searchParams.set('access_token', accessToken);
+
+  const response = await axios.get(url.toString(), {
     responseType: 'stream',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -101,12 +106,16 @@ async function uploadStreamToR2(readableStream, r2Key) {
  * @param {string} zoomMeetingId  - Numeric Zoom meeting ID from webhook payload
  * @param {string} downloadUrl    - Direct download URL from Zoom recording payload
  * @param {string} recordingStart - ISO start time of the recording (from Zoom payload)
+ * @param {Object} options
+ * @param {string} options.meetingLinkId - Optional explicit MeetingLink _id to avoid ambiguous matching
  */
-async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart) {
+async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
   console.log(`🎬 Starting recording pipeline for Zoom meeting ${zoomMeetingId}`);
 
   // 1. Match Zoom meeting ID to our internal MeetingLink
-  const meetingLink = await MeetingLink.findOne({ zoomMeetingId: String(zoomMeetingId) });
+  const meetingLink = options.meetingLinkId
+    ? await MeetingLink.findById(options.meetingLinkId)
+    : await MeetingLink.findOne({ zoomMeetingId: String(zoomMeetingId) });
   if (!meetingLink) {
     console.warn(`⚠️  No MeetingLink found for Zoom meeting ID ${zoomMeetingId} — skipping.`);
     return;
@@ -116,13 +125,14 @@ async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart) 
   const r2Key = buildR2Key(meetingLinkId, recordingStart);
 
   // 2. Create the ZoomRecording document in "processing" state
-  let zoomRecordingDoc = await ZoomRecording.findOne({ zoomMeetingId: String(zoomMeetingId) });
+  let zoomRecordingDoc = await ZoomRecording.findOne({ meetingLinkId });
   if (zoomRecordingDoc) {
     // Re-processing an existing recording (e.g. retry after failure)
     zoomRecordingDoc.status = 'processing';
     zoomRecordingDoc.errorMessage = null;
     zoomRecordingDoc.r2Key = r2Key;
     zoomRecordingDoc.zoomDownloadUrl = downloadUrl;
+    zoomRecordingDoc.zoomMeetingId = String(zoomMeetingId);
   } else {
     zoomRecordingDoc = new ZoomRecording({
       meetingLinkId,
