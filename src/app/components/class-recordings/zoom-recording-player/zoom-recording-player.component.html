@@ -1,0 +1,52 @@
+<div class="recording-player-wrapper">
+
+  <!-- Loading state -->
+  <div *ngIf="loading" class="player-state player-loading">
+    <div class="spinner"></div>
+    <p>Loading recording&hellip;</p>
+  </div>
+
+  <!-- Processing state (auto-polling) -->
+  <div *ngIf="!loading && processingStatus === 'processing'" class="player-state player-processing">
+    <div class="pulse-icon">&#9654;</div>
+    <h3>Recording in Progress</h3>
+    <p>Your class recording is being processed and will be available shortly.</p>
+    <p class="hint">This page will check automatically every 10 seconds.</p>
+  </div>
+
+  <!-- Failed state -->
+  <div *ngIf="!loading && processingStatus === 'failed'" class="player-state player-error">
+    <div class="error-icon">&#9888;</div>
+    <h3>Recording Unavailable</h3>
+    <p>{{ error }}</p>
+  </div>
+
+  <!-- Access / not found errors -->
+  <div *ngIf="!loading && error && processingStatus !== 'processing' && processingStatus !== 'failed'"
+       class="player-state player-error">
+    <div class="error-icon">&#9888;</div>
+    <p>{{ error }}</p>
+  </div>
+
+  <!-- Video player -->
+  <div *ngIf="!loading && videoSrc" class="player-container">
+    <div class="player-meta" *ngIf="createdAt">
+      <span class="meta-date">&#128198; {{ createdAt | date: 'mediumDate' }}</span>
+      <span class="meta-duration" *ngIf="duration">&#9205; {{ formatDuration(duration) }}</span>
+    </div>
+
+    <video
+      #videoPlayer
+      class="video-element"
+      controls
+      preload="metadata"
+      [src]="videoSrc"
+      controlsList="nodownload"
+      (contextmenu)="$event.preventDefault()">
+      Your browser does not support the HTML5 video player.
+    </video>
+
+    <p class="access-notice">&#128274; Secure link &mdash; expires in 15 minutes. Refresh if playback stops.</p>
+  </div>
+
+</div>

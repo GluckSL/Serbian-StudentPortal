@@ -16,6 +16,33 @@ export interface ClassRecording {
   createdAt: string;
 }
 
+export interface ZoomRecordingResponse {
+  success: boolean;
+  signedUrl: string;
+  duration: number | null;
+  createdAt: string;
+  r2Key: string;
+}
+
+export interface ZoomRecordingStatusResponse {
+  success: boolean;
+  status: 'processing' | 'ready' | 'failed';
+  duration: number | null;
+  createdAt: string;
+}
+
+/** Shape of each item returned by GET /zoom/my-batch */
+export interface BatchZoomRecording {
+  meetingLinkId: string;
+  r2Key: string;
+  duration: number | null;
+  createdAt: string;
+  topic: string;
+  batch: string;
+  classDate: string;
+  meetingDuration: number | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ClassRecordingsService {
   private url = `${environment.apiUrl}/class-recordings`;
@@ -57,5 +84,43 @@ export class ClassRecordingsService {
 
   getAnalyticsSummary(): Observable<{ success: boolean; summary: Record<string, any> }> {
     return this.http.get<any>(`${this.url}/analytics/summary`, { withCredentials: true });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Zoom Auto-Recorded Sessions
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetch a short-lived R2 presigned URL for a Zoom-recorded class session.
+   * @param meetingLinkId  The internal MeetingLink _id
+   */
+  getZoomRecordingUrl(meetingLinkId: string): Observable<ZoomRecordingResponse> {
+    return this.http.get<ZoomRecordingResponse>(
+      `${this.url}/zoom/${meetingLinkId}`,
+      { withCredentials: true }
+    );
+  }
+
+  /**
+   * Poll processing status without generating a signed URL.
+   * Useful while the recording is still being ingested.
+   */
+  getZoomRecordingStatus(meetingLinkId: string): Observable<ZoomRecordingStatusResponse> {
+    return this.http.get<ZoomRecordingStatusResponse>(
+      `${this.url}/zoom/${meetingLinkId}/status`,
+      { withCredentials: true }
+    );
+  }
+
+  /**
+   * List all Zoom recordings for the authenticated student's own batch.
+   * Admins/Teachers may pass an optional batch query param.
+   */
+  getMyBatchZoomRecordings(batch?: string): Observable<{ success: boolean; recordings: BatchZoomRecording[] }> {
+    const params = batch ? `?batch=${encodeURIComponent(batch)}` : '';
+    return this.http.get<any>(
+      `${this.url}/zoom/my-batch${params}`,
+      { withCredentials: true }
+    );
   }
 }

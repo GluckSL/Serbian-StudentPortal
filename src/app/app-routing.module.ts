@@ -351,6 +351,16 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
 
+  // Zoom-recorded class session player
+  // Accessible by any authenticated user; the backend enforces enrollment checks.
+  {
+    path: 'class-recording/:meetingLinkId',
+    loadComponent: () =>
+      import('./components/class-recordings/zoom-recording-player/zoom-recording-player.component')
+        .then(m => m.ZoomRecordingPlayerComponent),
+    canActivate: [AuthGuard],
+  },
+
   // Wildcard route to handle invalid paths
   { path: '**', redirectTo: 'home' }
 ];

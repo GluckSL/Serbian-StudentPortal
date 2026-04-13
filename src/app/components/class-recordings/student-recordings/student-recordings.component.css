@@ -300,3 +300,138 @@
   font-size: 11px; color: #005b96; text-decoration: none; font-weight: 600;
 }
 .sr-drive-fallback a:hover { text-decoration: underline; }
+
+/* ── Zoom recording cards ─────────────────────────────────────────────────── */
+.sr-card__video--zoom {
+  position: relative;
+  min-height: 210px;
+  background: #0f0f1a;
+  border-radius: 14px 14px 0 0;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Thumbnail / play prompt */
+.zoom-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-height: 210px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  transition: background 0.2s;
+}
+.sr-card__video--zoom:hover .zoom-thumb {
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+}
+.zoom-thumb__icon {
+  font-size: 3rem;
+  color: #fff;
+  opacity: 0.85;
+  line-height: 1;
+}
+.zoom-thumb__label {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+  font-weight: 500;
+  margin: 0;
+}
+
+/* Loading / error states inside the card */
+.zoom-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 210px;
+  width: 100%;
+  font-size: 0.85rem;
+  color: #fff;
+  padding: 16px;
+  text-align: center;
+}
+.zoom-state--error { color: #ffcdd2; }
+
+.zoom-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.zoom-retry-btn {
+  margin-top: 6px;
+  padding: 4px 14px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: transparent;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.zoom-retry-btn:hover { background: rgba(255,255,255,0.1); }
+
+/* Embedded video player */
+.zoom-player-wrap {
+  position: relative;
+  width: 100%;
+  background: #000;
+}
+.zoom-video {
+  width: 100%;
+  max-height: 280px;
+  display: block;
+  outline: none;
+}
+.zoom-close-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 26px;
+  text-align: center;
+  z-index: 10;
+}
+.zoom-close-btn:hover { background: rgba(0,0,0,0.9); }
+
+/* Chips */
+.sr-zoom-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.sr-batch-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.sr-card__duration {
+  font-size: 0.75rem;
+  color: #6b7280;
+}

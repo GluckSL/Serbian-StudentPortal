@@ -5,11 +5,11 @@
   <div class="sr-header" *ngIf="!embedded">
     <div>
       <h2 class="sr-header__title">Class Recordings</h2>
-      <p class="sr-header__sub">{{ filteredRecordings.length }} recording{{ filteredRecordings.length !== 1 ? 's' : '' }} available for your batch &amp; level</p>
+      <p class="sr-header__sub">{{ filteredRecordings.length }} recording{{ filteredRecordings.length !== 1 ? 's' : '' }} available for your batch</p>
     </div>
   </div>
 
-  <!-- ── Filters ── -->
+  <!-- ── Search ── -->
   <div class="sr-filters-wrap">
     <input class="sr-input" type="text" placeholder="Search recordings…"
            [(ngModel)]="searchQuery" (input)="applySearch()">
@@ -17,9 +17,9 @@
 
   <!-- ── Empty ── -->
   <div *ngIf="!filteredRecordings.length" class="sr-empty">
-    <i class="fa fa-video sr-empty__icon"></i>
+    <span class="sr-empty__icon">&#127909;</span>
     <h3>No recordings available yet</h3>
-    <p *ngIf="searchQuery">Try a different search term</p>
+    <p *ngIf="searchQuery">Try a different search term.</p>
     <p *ngIf="!searchQuery">Your teacher hasn't uploaded any recordings for your batch and level yet.</p>
   </div>
 
@@ -27,45 +27,102 @@
   <div class="sr-grid" *ngIf="filteredRecordings.length">
     <div class="sr-card" *ngFor="let r of filteredRecordings">
 
-      <!-- Video embed -->
-      <div class="sr-card__video" (click)="startWatching(r._id)">
-        <iframe *ngIf="!isGoogleDrive(r.videoUrl)"
-                [src]="getSafeUrl(r.videoUrl)" frameborder="0" allowfullscreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                title="{{ r.title }}"></iframe>
-        <iframe *ngIf="isGoogleDrive(r.videoUrl)"
-                [src]="getSafeUrl(r.videoUrl)" allow="autoplay" allowfullscreen
-                title="{{ r.title }}"></iframe>
-        <div class="sr-card__play-overlay" [class.sr-card__play-overlay--active]="activeRecordingId === r._id">
-          <i class="fa fa-circle-play"></i>
-        </div>
-      </div>
+      <!-- ══ ZOOM RECORDING CARD ══ -->
+      <ng-container *ngIf="r.type === 'zoom'">
 
-      <!-- Fallback link for Google Drive -->
-      <div class="sr-drive-fallback" *ngIf="isGoogleDrive(r.videoUrl)">
-        <a [href]="getGoogleDriveOpenUrl(r.videoUrl)" target="_blank" rel="noopener">
-          <i class="fa fa-external-link"></i> Can't see the video? Open in Google Drive
-        </a>
-      </div>
+        <!-- Zoom player overlay -->
+        <div class="sr-card__video sr-card__video--zoom" (click)="playZoomRecording(r.meetingLinkId!)">
 
-      <!-- Card body -->
-      <div class="sr-card__body">
-        <div class="sr-card__meta">
-          <span class="sr-level-chip">{{ r.level }}</span>
-          <span class="sr-plan-chip" *ngIf="r.plan !== 'ALL'">{{ r.plan }}</span>
-          <span class="sr-watching-badge" *ngIf="activeRecordingId === r._id">
-            <i class="fa fa-circle" style="font-size:7px;color:#ef4444;"></i> Watching
-          </span>
+          <!-- Loading state -->
+          <div *ngIf="activeZoomId === r.meetingLinkId && zoomLoading" class="zoom-state zoom-state--loading">
+            <div class="zoom-spinner"></div>
+            <span>Loading…</span>
+          </div>
+
+          <!-- Error state -->
+          <div *ngIf="activeZoomId === r.meetingLinkId && zoomError && !zoomLoading" class="zoom-state zoom-state--error">
+            <span>&#9888;</span>
+            <p>{{ zoomError }}</p>
+            <button class="zoom-retry-btn" (click)="$event.stopPropagation(); closeZoomPlayer()">Dismiss</button>
+          </div>
+
+          <!-- Video player -->
+          <div *ngIf="activeZoomId === r.meetingLinkId && activeZoomUrl && !zoomLoading"
+               class="zoom-player-wrap" (click)="$event.stopPropagation()">
+            <video class="zoom-video"
+                   [src]="activeZoomUrl"
+                   controls
+                   preload="metadata"
+                   controlsList="nodownload"
+                   (contextmenu)="$event.preventDefault()"
+                   autoplay>
+            </video>
+            <button class="zoom-close-btn" (click)="closeZoomPlayer()" title="Close">&#10005;</button>
+          </div>
+
+          <!-- Thumbnail / play prompt (default state) -->
+          <div *ngIf="activeZoomId !== r.meetingLinkId" class="zoom-thumb">
+            <div class="zoom-thumb__icon">&#9654;</div>
+            <p class="zoom-thumb__label">Play Recording</p>
+          </div>
         </div>
-        <h3 class="sr-card__title">{{ r.title }}</h3>
-        <p class="sr-card__desc" *ngIf="r.description">{{ r.description }}</p>
-        <div class="sr-card__footer">
-          <span class="sr-card__date"><i class="fa fa-calendar-days"></i> {{ formatDate(r.createdAt) }}</span>
-          <span class="sr-card__uploader" *ngIf="r.uploadedBy">
-            <i class="fa fa-user"></i> {{ r.uploadedBy.name }}
-          </span>
+
+        <!-- Card body -->
+        <div class="sr-card__body">
+          <div class="sr-card__meta">
+            <span class="sr-zoom-chip">&#128252; Zoom</span>
+            <span class="sr-batch-chip" *ngIf="r.batch">{{ r.batch }}</span>
+          </div>
+          <h3 class="sr-card__title">{{ r.title }}</h3>
+          <div class="sr-card__footer">
+            <span class="sr-card__date">&#128198; {{ formatDate(r.date) }}</span>
+            <span class="sr-card__duration" *ngIf="r.duration">&#9205; {{ formatDuration(r.duration) }}</span>
+          </div>
         </div>
-      </div>
+
+      </ng-container>
+
+      <!-- ══ MANUAL (UPLOADED) RECORDING CARD ══ -->
+      <ng-container *ngIf="r.type === 'manual'">
+
+        <div class="sr-card__video" (click)="startWatching(r.id)">
+          <iframe *ngIf="!isGoogleDrive(r.videoUrl!)"
+                  [src]="getSafeUrl(r.videoUrl!)" frameborder="0" allowfullscreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  title="{{ r.title }}"></iframe>
+          <iframe *ngIf="isGoogleDrive(r.videoUrl!)"
+                  [src]="getSafeUrl(r.videoUrl!)" allow="autoplay" allowfullscreen
+                  title="{{ r.title }}"></iframe>
+          <div class="sr-card__play-overlay" [class.sr-card__play-overlay--active]="activeRecordingId === r.id">
+            <span>&#9654;</span>
+          </div>
+        </div>
+
+        <!-- Fallback for Google Drive -->
+        <div class="sr-drive-fallback" *ngIf="isGoogleDrive(r.videoUrl!)">
+          <a [href]="getGoogleDriveOpenUrl(r.videoUrl!)" target="_blank" rel="noopener">
+            &#128279; Can't see the video? Open in Google Drive
+          </a>
+        </div>
+
+        <div class="sr-card__body">
+          <div class="sr-card__meta">
+            <span class="sr-level-chip" *ngIf="r.level">{{ r.level }}</span>
+            <span class="sr-plan-chip" *ngIf="r.plan && r.plan !== 'ALL'">{{ r.plan }}</span>
+            <span class="sr-batch-chip" *ngIf="r.batch">{{ r.batch }}</span>
+            <span class="sr-watching-badge" *ngIf="activeRecordingId === r.id">
+              <span style="font-size:7px;color:#ef4444;">&#9679;</span> Watching
+            </span>
+          </div>
+          <h3 class="sr-card__title">{{ r.title }}</h3>
+          <p class="sr-card__desc" *ngIf="r.description">{{ r.description }}</p>
+          <div class="sr-card__footer">
+            <span class="sr-card__date">&#128198; {{ formatDate(r.date) }}</span>
+            <span class="sr-card__uploader" *ngIf="r.uploadedBy">&#128100; {{ r.uploadedBy }}</span>
+          </div>
+        </div>
+
+      </ng-container>
 
     </div>
   </div>
