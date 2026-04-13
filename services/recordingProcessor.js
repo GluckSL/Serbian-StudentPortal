@@ -28,22 +28,65 @@ function buildR2Key(meetingLinkId, recordingStartTime) {
 
 /**
  * Download a Zoom recording URL as a readable stream.
- * Zoom requires the access token as a query param or Authorization header.
+ * Zoom often 302-redirects to CDN/storage. Axios (and browsers) typically strip
+ * Authorization on cross-host redirects → 401 on the final hop.
+ * We follow redirects manually and re-attach access_token on every URL.
  */
 async function createZoomDownloadStream(downloadUrl, accessToken) {
-  const url = new URL(downloadUrl);
-  // Some Zoom recording download endpoints require token as query param.
-  // Keep Authorization header too for compatibility across account configs.
-  url.searchParams.set('access_token', accessToken);
+  const withToken = (absoluteUrl) => {
+    const u = new URL(absoluteUrl);
+    u.searchParams.set('access_token', accessToken);
+    return u.toString();
+  };
 
-  const response = await axios.get(url.toString(), {
-    responseType: 'stream',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    maxRedirects: 5,
-  });
-  return response.data; // Readable stream
+  /**
+   * @param {string} urlStr
+   * @param {{ authHeader: boolean }} opts
+   */
+  async function getStream(urlStr, opts) {
+    return axios.get(urlStr, {
+      responseType: 'stream',
+      maxRedirects: 0,
+      validateStatus: () => true,
+      headers: opts.authHeader ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
+  }
+
+  let current = withToken(downloadUrl);
+
+  for (let hop = 0; hop < 15; hop += 1) {
+    let response = await getStream(current, { authHeader: true });
+
+    // Some Zoom/CDN edges reject Bearer on the first hop; query token alone works.
+    if (response.status === 401) {
+      response.data?.destroy?.();
+      response = await getStream(current, { authHeader: false });
+    }
+
+    if (response.status === 200) {
+      return response.data;
+    }
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const loc = response.headers.location;
+      response.data?.destroy?.();
+      if (!loc) {
+        throw new Error('Zoom download redirect missing Location header');
+      }
+      current = withToken(new URL(loc, current).href);
+      continue;
+    }
+
+    response.data?.destroy?.();
+    throw new Error(
+      `Zoom download failed: HTTP ${response.status}` +
+        (response.status === 401
+          ? ' (check cloud recording scopes + that S2S app is on the same account as the meeting host)'
+          : '')
+    );
+  }
+
+  throw new Error('Zoom download: too many redirects');
 }
 
 /**
