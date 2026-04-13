@@ -5,6 +5,7 @@ const ClassRecording = require('../models/ClassRecording');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
 const MeetingLink = require('../models/MeetingLink');
+const ZoomWebhookAudit = require('../models/ZoomWebhookAudit');
 const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -454,6 +455,39 @@ router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
     });
   } catch (error) {
     console.error('Error fetching zoom debug status:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * GET /api/class-recordings/zoom/webhook-audit
+ *
+ * Admin/teacher endpoint to inspect recent webhook ingress + processing outcomes.
+ * Query params:
+ *  - limit (default 100, max 500)
+ *  - status (optional)
+ *  - eventType (optional)
+ */
+router.get('/zoom/webhook-audit', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 100, 500));
+    const filter = {};
+    if (req.query.status) filter.status = String(req.query.status);
+    if (req.query.eventType) filter.eventType = String(req.query.eventType);
+
+    const rows = await ZoomWebhookAudit.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const summary = rows.reduce((acc, row) => {
+      acc[row.status] = (acc[row.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({ success: true, total: rows.length, summary, rows });
+  } catch (error) {
+    console.error('Error fetching webhook audit logs:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

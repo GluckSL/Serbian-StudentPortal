@@ -430,6 +430,7 @@
 }
 
 .cr-modal--wide { width: 780px; }
+.cr-modal--audit { width: 980px; }
 
 .cr-modal__head {
   display: flex;
@@ -512,6 +513,24 @@
 .cr-field .cr-select { width: 100%; box-sizing: border-box; }
 
 .cr-hint { font-size: 11px; color: #94a3b8; margin: 4px 0 0; }
+
+.cr-audit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cr-audit-pill {
+  display: inline-block;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
 
 /* ── Batch chips in modal ── */
 .cr-batch-grid { display: flex; flex-wrap: wrap; gap: 6px; }
