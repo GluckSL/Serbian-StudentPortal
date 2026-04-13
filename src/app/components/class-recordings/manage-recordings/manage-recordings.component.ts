@@ -4,7 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ClassRecordingsService, ClassRecording, AdminClassRecording } from '../../../services/class-recordings.service';
+import {
+  ClassRecordingsService,
+  ClassRecording,
+  AdminClassRecording,
+  ZoomWebhookAuditRow,
+} from '../../../services/class-recordings.service';
 import { NotificationService } from '../../../services/notification.service';
 
 @Component({
@@ -28,6 +33,10 @@ export class ManageRecordingsComponent implements OnInit {
 
   loading = false;
   backfillLoading = false;
+  showWebhookAuditModal = false;
+  webhookAuditLoading = false;
+  webhookAuditRows: ZoomWebhookAuditRow[] = [];
+  webhookAuditSummary: Record<string, number> = {};
   showForm = false;
   editing: ClassRecording | null = null;
 
@@ -86,6 +95,31 @@ export class ManageRecordingsComponent implements OnInit {
         this.snackBar.open(err.error?.message || 'Backfill failed', 'Close', { duration: 4000 });
       }
     });
+  }
+
+  openWebhookAudit(): void {
+    this.showWebhookAuditModal = true;
+    this.webhookAuditLoading = true;
+    this.webhookAuditRows = [];
+    this.webhookAuditSummary = {};
+
+    this.service.getZoomWebhookAudit({ limit: 200 }).subscribe({
+      next: (res) => {
+        this.webhookAuditRows = res.rows || [];
+        this.webhookAuditSummary = res.summary || {};
+        this.webhookAuditLoading = false;
+      },
+      error: () => {
+        this.webhookAuditLoading = false;
+        this.snackBar.open('Failed to load webhook audit logs', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  closeWebhookAudit(): void {
+    this.showWebhookAuditModal = false;
+    this.webhookAuditRows = [];
+    this.webhookAuditSummary = {};
   }
 
   loadRecordings(): void {

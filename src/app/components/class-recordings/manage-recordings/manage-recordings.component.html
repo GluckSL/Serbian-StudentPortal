@@ -8,6 +8,9 @@
       <p class="cr-header__sub">{{ filteredRecordings.length }} of {{ recordings.length }} recordings</p>
     </div>
     <div class="cr-header__actions">
+      <button class="cr-btn cr-btn--outline" (click)="openWebhookAudit()">
+        <i class="fa fa-wave-square"></i> Webhook Audit
+      </button>
       <button class="cr-btn cr-btn--secondary" (click)="runZoomBackfill()" [disabled]="backfillLoading">
         <i class="fa fa-rotate"></i> {{ backfillLoading ? 'Backfilling...' : 'Backfill Zoom Recordings' }}
       </button>
@@ -147,6 +150,57 @@
     </div>
   </div>
 
+</div>
+
+<!-- ── Webhook Audit Modal ── -->
+<div class="cr-overlay" *ngIf="showWebhookAuditModal" (click)="closeWebhookAudit()">
+  <div class="cr-modal cr-modal--wide cr-modal--audit" (click)="$event.stopPropagation()">
+    <div class="cr-modal__head">
+      <h3><i class="fa fa-wave-square" style="color:#1d4ed8;margin-right:6px;"></i>Zoom Webhook Audit</h3>
+      <button class="cr-modal__close" (click)="closeWebhookAudit()">✕</button>
+    </div>
+    <div class="cr-modal__body">
+      <div *ngIf="webhookAuditLoading" style="text-align:center;padding:30px;">
+        <div class="cr-spinner"></div>
+      </div>
+
+      <div *ngIf="!webhookAuditLoading" class="cr-audit-summary">
+        <span class="cr-audit-pill" *ngFor="let kv of webhookAuditSummary | keyvalue">
+          {{ kv.key }}: {{ kv.value }}
+        </span>
+      </div>
+
+      <div *ngIf="!webhookAuditLoading && !webhookAuditRows.length" class="cr-empty cr-empty--sm">
+        <i class="fa fa-inbox cr-empty__icon cr-empty__icon--sm"></i>
+        <p>No webhook audit logs found.</p>
+      </div>
+
+      <table class="cr-table" *ngIf="!webhookAuditLoading && webhookAuditRows.length">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Event</th>
+            <th>Meeting ID</th>
+            <th>Files</th>
+            <th>Type</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let a of webhookAuditRows" class="cr-row">
+            <td><span class="cr-cell-sub">{{ formatDateTime(a.createdAt) }}</span></td>
+            <td><span class="cr-level-chip">{{ a.status }}</span></td>
+            <td><span class="cr-cell-main">{{ a.eventType }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.meetingId || '—' }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.recordingFilesCount || 0 }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.selectedRecordingType || '—' }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.errorMessage || '—' }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ── Add / Edit Modal ── -->

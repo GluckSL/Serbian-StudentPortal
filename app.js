@@ -85,7 +85,8 @@ app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx
 
 // Zoom webhook — must be registered BEFORE express.json() so the raw body
 // is available for HMAC signature verification
-app.use('/api/zoom/webhook', express.raw({ type: '*/*', limit: '1mb' }), zoomWebhookRoutes);
+// Zoom recording.completed payloads can exceed 1 MB (recording_files metadata)
+app.use('/api/zoom/webhook', express.raw({ type: '*/*', limit: '15mb' }), zoomWebhookRoutes);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));

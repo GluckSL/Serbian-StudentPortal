@@ -118,7 +118,7 @@ async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, 
     : await MeetingLink.findOne({ zoomMeetingId: String(zoomMeetingId) });
   if (!meetingLink) {
     console.warn(`⚠️  No MeetingLink found for Zoom meeting ID ${zoomMeetingId} — skipping.`);
-    return;
+    return { success: false, error: 'No MeetingLink found for provided zoomMeetingId' };
   }
 
   const meetingLinkId = meetingLink._id.toString();
@@ -166,11 +166,13 @@ async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, 
     await zoomRecordingDoc.save();
 
     console.log(`✅ Recording ready: ${r2Key}`);
+    return { success: true, r2Key, meetingLinkId };
   } catch (err) {
     console.error(`❌ Recording pipeline failed for meeting ${zoomMeetingId}:`, err.message);
     zoomRecordingDoc.status = 'failed';
     zoomRecordingDoc.errorMessage = err.message;
     await zoomRecordingDoc.save();
+    return { success: false, error: err.message, meetingLinkId };
   }
 }
 

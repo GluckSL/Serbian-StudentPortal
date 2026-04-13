@@ -28,6 +28,19 @@ export interface AdminClassRecording extends ClassRecording {
   r2Key?: string | null;
 }
 
+export interface ZoomWebhookAuditRow {
+  _id: string;
+  eventType: string;
+  meetingId: string | null;
+  meetingUuid: string | null;
+  status: string;
+  recordingFilesCount: number;
+  selectedRecordingType: string | null;
+  hasDownloadUrl: boolean;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
 export interface ZoomRecordingResponse {
   success: boolean;
   signedUrl: string;
@@ -76,6 +89,19 @@ export class ClassRecordingsService {
     force?: boolean;
   }): Observable<any> {
     return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
+  }
+
+  getZoomWebhookAudit(params?: {
+    limit?: number;
+    status?: string;
+    eventType?: string;
+  }): Observable<{ success: boolean; total: number; summary: Record<string, number>; rows: ZoomWebhookAuditRow[] }> {
+    const qp = new URLSearchParams();
+    if (params?.limit) qp.set('limit', String(params.limit));
+    if (params?.status) qp.set('status', params.status);
+    if (params?.eventType) qp.set('eventType', params.eventType);
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
+    return this.http.get<any>(`${this.url}/zoom/webhook-audit${qs}`, { withCredentials: true });
   }
 
   getBatches(): Observable<{ success: boolean; batches: string[] }> {
