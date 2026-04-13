@@ -45,6 +45,7 @@ const translationRoutes = require('./routes/translation');
 const moduleTrashRoutes = require('./routes/moduleTrash');
 const adminAnalyticsRoutes = require('./routes/adminAnalytics');
 const zoomRoutes = require('./routes/zoom');
+const zoomWebhookRoutes = require('./routes/zoomWebhook');
 const upgradeRequestsRoutes = require('./routes/upgradeRequests');
 const studentLogRoutes = require('./routes/studentLog');
 const studentDocumentsRoutes = require('./routes/studentDocuments');
@@ -81,6 +82,10 @@ const cookieParser = require('cookie-parser');
 
 app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx or Heroku)
 
+
+// Zoom webhook — must be registered BEFORE express.json() so the raw body
+// is available for HMAC signature verification
+app.use('/api/zoom/webhook', express.raw({ type: '*/*', limit: '1mb' }), zoomWebhookRoutes);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
