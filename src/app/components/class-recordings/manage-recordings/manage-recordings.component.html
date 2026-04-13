@@ -7,9 +7,14 @@
       <h2 class="cr-header__title">Class Recordings</h2>
       <p class="cr-header__sub">{{ filteredRecordings.length }} of {{ recordings.length }} recordings</p>
     </div>
-    <button class="cr-btn cr-btn--primary" (click)="openForm()">
-      <i class="fa fa-plus"></i> Add Recording
-    </button>
+    <div class="cr-header__actions">
+      <button class="cr-btn cr-btn--secondary" (click)="runZoomBackfill()" [disabled]="backfillLoading">
+        <i class="fa fa-rotate"></i> {{ backfillLoading ? 'Backfilling...' : 'Backfill Zoom Recordings' }}
+      </button>
+      <button class="cr-btn cr-btn--primary" (click)="openForm()">
+        <i class="fa fa-plus"></i> Add Recording
+      </button>
+    </div>
   </div>
 
   <!-- ── Stats ── -->
@@ -64,6 +69,7 @@
     <table *ngIf="filteredRecordings.length" class="cr-table">
       <thead>
         <tr>
+          <th>Type</th>
           <th>Title</th>
           <th>Level</th>
           <th>Plan</th>
@@ -78,6 +84,11 @@
       </thead>
       <tbody>
         <tr *ngFor="let r of filteredRecordings" class="cr-row">
+          <td>
+            <span class="cr-type-chip" [class.cr-type-chip--zoom]="isZoomRecording(r)">
+              {{ isZoomRecording(r) ? 'Zoom' : 'Manual' }}
+            </span>
+          </td>
           <td>
             <span class="cr-cell-main">{{ r.title }}</span>
             <span class="cr-cell-sub" *ngIf="r.description">{{ r.description }}</span>
@@ -106,7 +117,7 @@
             <span class="cr-cell-sub">{{ getStats(r._id).avgTime }}</span>
           </td>
           <td>
-            <span class="cr-cell-sub">{{ formatDate(r.createdAt) }}</span>
+            <span class="cr-cell-sub">{{ formatDate((r.classDate || r.createdAt)!) }}</span>
           </td>
           <td>
             <div class="cr-teacher" *ngIf="r.uploadedBy">
@@ -116,13 +127,13 @@
           </td>
           <td>
             <div class="cr-actions">
-              <button class="cr-icon-btn cr-icon-btn--blue" (click)="openViews(r); $event.stopPropagation()" title="View Analytics">
+              <button class="cr-icon-btn cr-icon-btn--blue" (click)="openViews(r); $event.stopPropagation()" title="View Analytics" [disabled]="isZoomRecording(r)">
                 <i class="fa fa-chart-bar"></i>
               </button>
-              <button class="cr-icon-btn cr-icon-btn--green" (click)="openForm(r)" title="Edit">
+              <button class="cr-icon-btn cr-icon-btn--green" (click)="openForm(r)" title="Edit" [disabled]="isZoomRecording(r)">
                 <i class="fa fa-pen"></i>
               </button>
-              <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecording(r)" title="Delete">
+              <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecording(r)" title="Delete" [disabled]="isZoomRecording(r)">
                 <i class="fa fa-trash"></i>
               </button>
             </div>

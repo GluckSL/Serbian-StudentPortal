@@ -16,6 +16,18 @@ export interface ClassRecording {
   createdAt: string;
 }
 
+export interface AdminClassRecording extends ClassRecording {
+  recordingType?: 'MANUAL' | 'ZOOM';
+  source?: 'MANUAL_UPLOAD' | 'ZOOM_AUTO';
+  status?: 'ready' | 'processing' | 'failed' | 'missing';
+  duration?: number | null;
+  classDate?: string;
+  classDuration?: number | null;
+  meetingLinkId?: string | null;
+  zoomMeetingId?: string | null;
+  r2Key?: string | null;
+}
+
 export interface ZoomRecordingResponse {
   success: boolean;
   signedUrl: string;
@@ -51,6 +63,19 @@ export class ClassRecordingsService {
 
   getRecordings(): Observable<{ success: boolean; recordings: ClassRecording[] }> {
     return this.http.get<any>(this.url, { withCredentials: true });
+  }
+
+  getAdminAllRecordings(): Observable<{ success: boolean; recordings: AdminClassRecording[] }> {
+    return this.http.get<any>(`${this.url}/admin/all`, { withCredentials: true });
+  }
+
+  runZoomBackfill(payload: {
+    batch?: string | null;
+    limit?: number;
+    includeFailed?: boolean;
+    force?: boolean;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
   }
 
   getBatches(): Observable<{ success: boolean; batches: string[] }> {

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ClassRecordingsService, ClassRecording } from '../../../services/class-recordings.service';
+import { ClassRecordingsService, ClassRecording, AdminClassRecording } from '../../../services/class-recordings.service';
 import { NotificationService } from '../../../services/notification.service';
 
 @Component({
@@ -15,8 +15,8 @@ import { NotificationService } from '../../../services/notification.service';
   styleUrls: ['./manage-recordings.component.css']
 })
 export class ManageRecordingsComponent implements OnInit {
-  recordings: ClassRecording[] = [];
-  filteredRecordings: ClassRecording[] = [];
+  recordings: AdminClassRecording[] = [];
+  filteredRecordings: AdminClassRecording[] = [];
   availableBatches: string[] = [];
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   plans = [
@@ -27,6 +27,7 @@ export class ManageRecordingsComponent implements OnInit {
   ];
 
   loading = false;
+  backfillLoading = false;
   showForm = false;
   editing: ClassRecording | null = null;
 
@@ -57,9 +58,39 @@ export class ManageRecordingsComponent implements OnInit {
     this.loadAnalytics();
   }
 
+  runZoomBackfill(): void {
+    if (this.backfillLoading) return;
+    this.backfillLoading = true;
+
+    this.service.runZoomBackfill({
+      batch: this.filterBatch !== 'ALL' ? this.filterBatch : null,
+      limit: 200,
+      includeFailed: true,
+      force: false,
+    }).subscribe({
+      next: (res) => {
+        this.backfillLoading = false;
+        this.snackBar.open(
+          `Backfill queued: ${res.queued || 0}, skipped ready: ${res.skippedAlreadyReady || 0}, no recording in Zoom: ${res.skippedNoRecordingInZoom || 0}`,
+          'Close',
+          { duration: 6000 }
+        );
+
+        // Reload after a short delay so newly queued items can appear as processing/ready.
+        setTimeout(() => {
+          this.loadRecordings();
+        }, 2000);
+      },
+      error: (err) => {
+        this.backfillLoading = false;
+        this.snackBar.open(err.error?.message || 'Backfill failed', 'Close', { duration: 4000 });
+      }
+    });
+  }
+
   loadRecordings(): void {
     this.loading = true;
-    this.service.getRecordings().subscribe({
+    this.service.getAdminAllRecordings().subscribe({
       next: (res) => { this.recordings = res.recordings; this.applyFilters(); this.loading = false; },
       error: () => { this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 }); this.loading = false; }
     });
@@ -75,10 +106,13 @@ export class ManageRecordingsComponent implements OnInit {
   applyFilters(): void {
     let list = [...this.recordings];
     if (this.filterLevel !== 'ALL') list = list.filter(r => r.level === this.filterLevel);
-    if (this.filterBatch !== 'ALL') list = list.filter(r => r.batches.includes(this.filterBatch));
+    if (this.filterBatch !== 'ALL') list = list.filter(r => (r.batches || []).includes(this.filterBatch));
     if (this.searchQuery.trim()) {
       const q = this.searchQuery.toLowerCase();
-      list = list.filter(r => r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q));
+      list = list.filter(r =>
+        (r.title || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q)
+      );
     }
     this.filteredRecordings = list;
   }
@@ -172,6 +206,10 @@ export class ManageRecordingsComponent implements OnInit {
       students: s.uniqueStudentCount || 0,
       avgTime: this.formatDuration(s.avgWatchTime || 0)
     };
+  }
+
+  isZoomRecording(r: AdminClassRecording): boolean {
+    return r.recordingType === 'ZOOM' || r.source === 'ZOOM_AUTO';
   }
 
   openViews(r: ClassRecording): void {
