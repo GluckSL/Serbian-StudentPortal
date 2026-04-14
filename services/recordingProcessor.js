@@ -33,10 +33,20 @@ function buildR2Key(meetingLinkId, recordingStartTime) {
  * We follow redirects manually and re-attach access_token on every URL.
  */
 async function createZoomDownloadStream(downloadUrl, accessToken) {
+  // Only inject auth onto URLs on the same origin as the initial Zoom download URL.
+  // After Zoom redirects to a CDN/storage host (e.g. ssrweb.zoom.us), the URL is
+  // already signed — adding access_token or a Bearer header to it causes a 403.
+  const zoomOrigin = new URL(downloadUrl).origin;
+
   const withToken = (absoluteUrl) => {
     const u = new URL(absoluteUrl);
+    if (u.origin !== zoomOrigin) return absoluteUrl; // CDN URL — leave as-is
     u.searchParams.set('access_token', accessToken);
     return u.toString();
+  };
+
+  const isZoomOrigin = (urlStr) => {
+    try { return new URL(urlStr).origin === zoomOrigin; } catch { return false; }
   };
 
   /**
@@ -116,15 +126,19 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
   for (let hop = 0; hop < 15; hop += 1) {
     const hopUrl = new URL(current);
     const safeHopUrl = `${hopUrl.origin}${hopUrl.pathname}`; // avoid logging query token
+    const onZoomOrigin = isZoomOrigin(current);
 
-    console.log(`⬇️  Zoom download hop ${hop + 1}: GET ${safeHopUrl} (authHeader=on)`);
-    let response = await getStream(current, { authHeader: true });
+    console.log(
+      `⬇️  Zoom download hop ${hop + 1}: GET ${safeHopUrl}` +
+        (onZoomOrigin ? ' (authHeader=on, zoom-origin)' : ' (authHeader=off, cdn-redirect)')
+    );
+    let response = await getStream(current, { authHeader: onZoomOrigin });
 
-    // Some Zoom/CDN edges reject Bearer on the first hop; query token alone works.
-    if (response.status === 401) {
+    // Some Zoom API edges reject Bearer even on the first hop; query token alone works.
+    if (response.status === 401 && onZoomOrigin) {
       console.warn(`⚠️  Zoom download hop ${hop + 1}: HTTP 401 with Authorization header; retrying without header`);
       response.data?.destroy?.();
-      console.log(`⬇️  Zoom download hop ${hop + 1}: GET ${safeHopUrl} (authHeader=off)`);
+      console.log(`⬇️  Zoom download hop ${hop + 1}: GET ${safeHopUrl} (authHeader=off, 401-retry)`);
       response = await getStream(current, { authHeader: false });
     }
 
