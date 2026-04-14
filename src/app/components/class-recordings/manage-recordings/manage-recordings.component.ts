@@ -33,8 +33,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   loading = false;
   backfillLoading = false;
-  backfillStatusMessage = '';
-  private backfillPollTimer: any = null;
+  publishLoadingId: string | null = null;
   showWebhookAuditModal = false;
   webhookAuditLoading = false;
   webhookAuditRows: ZoomWebhookAuditRow[] = [];
@@ -55,6 +54,11 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   viewsRecording: ClassRecording | null = null;
   viewsList: any[] = [];
   loadingViews = false;
+  zoomTeachers: Array<{ _id: string; name: string; email?: string }> = [];
+  showZoomEditModal = false;
+  zoomEditingMeetingLinkId: string | null = null;
+  zoomEditForm = { title: '', batch: '', teacherId: '' };
+  viewsMeta: { totalStudents?: number; watchedCount?: number; notWatchedCount?: number; totalWatchSeconds?: number; videoSizeBytes?: number } = {};
 
   constructor(
     private service: ClassRecordingsService,
@@ -67,6 +71,14 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.loadRecordings();
     this.loadBatches();
     this.loadAnalytics();
+    this.loadZoomTeachers();
+  }
+
+  loadZoomTeachers(): void {
+    this.service.getZoomTeachers().subscribe({
+      next: (res) => { this.zoomTeachers = res.data || []; },
+      error: () => { this.zoomTeachers = []; }
+    });
   }
 
   runZoomBackfill(): void {
@@ -154,7 +166,14 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   loadRecordings(): void {
     this.loading = true;
     this.service.getAdminAllRecordings().subscribe({
-      next: (res) => { this.recordings = res.recordings; this.applyFilters(); this.loading = false; },
+      next: (res) => {
+        this.recordings = (res.recordings || []).map((r: AdminClassRecording) => ({
+          ...r,
+          isPublished: this.isZoomRecording(r) ? r.isPublished !== false : true,
+        }));
+        this.applyFilters();
+        this.loading = false;
+      },
       error: () => { this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 }); this.loading = false; }
     });
   }
@@ -230,6 +249,106 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  viewRecordingAction(r: AdminClassRecording): void {
+    if (!this.isZoomRecording(r)) {
+      this.openViews(r);
+      return;
+    }
+    if (!r.meetingLinkId) {
+      this.snackBar.open('Meeting link not found for this recording.', 'Close', { duration: 3000 });
+      return;
+    }
+    this.viewsRecording = r as any;
+    this.loadingViews = true;
+    this.showViewsModal = true;
+    this.viewsMeta = {};
+    this.service.getZoomViews(String(r.meetingLinkId)).subscribe({
+      next: (res) => {
+        this.viewsList = res.views || [];
+        this.viewsMeta = res.summary || {};
+        this.loadingViews = false;
+      },
+      error: (err) => {
+        this.loadingViews = false;
+        this.snackBar.open(err.error?.message || 'Unable to load Zoom analytics', 'Close', { duration: 3000 });
+      },
+    });
+  }
+
+  editRecordingAction(r: AdminClassRecording): void {
+    if (!this.isZoomRecording(r)) {
+      this.openForm(r);
+      return;
+    }
+    this.openZoomEdit(r);
+  }
+
+  deleteRecordingAction(r: AdminClassRecording): void {
+    if (!this.isZoomRecording(r)) {
+      this.deleteRecording(r);
+      return;
+    }
+    if (!r.meetingLinkId) {
+      this.snackBar.open('Meeting link not found for this recording.', 'Close', { duration: 3000 });
+      return;
+    }
+    this.notify.confirm(
+      'Delete Zoom Recording',
+      `Delete "${r.title}" from recordings list?`,
+      'Yes, Delete',
+      'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.service.deleteZoomRecording(String(r.meetingLinkId)).subscribe({
+        next: () => {
+          this.snackBar.open('Zoom recording deleted', 'Close', { duration: 3000 });
+          this.loadRecordings();
+        },
+        error: (err) => this.snackBar.open(err.error?.message || 'Failed to delete Zoom recording', 'Close', { duration: 3000 }),
+      });
+    });
+  }
+
+  openZoomEdit(r: AdminClassRecording): void {
+    if (!r.meetingLinkId) {
+      this.snackBar.open('Meeting link not found for this recording.', 'Close', { duration: 3000 });
+      return;
+    }
+    this.zoomEditingMeetingLinkId = String(r.meetingLinkId);
+    this.zoomEditForm = {
+      title: r.title || '',
+      batch: (r.batches && r.batches[0]) || '',
+      teacherId: r.assignedTeacherId ? String(r.assignedTeacherId) : '',
+    };
+    this.showZoomEditModal = true;
+  }
+
+  closeZoomEdit(): void {
+    this.showZoomEditModal = false;
+    this.zoomEditingMeetingLinkId = null;
+    this.zoomEditForm = { title: '', batch: '', teacherId: '' };
+  }
+
+  saveZoomEdit(): void {
+    if (!this.zoomEditingMeetingLinkId) return;
+    if (!this.zoomEditForm.title.trim()) {
+      this.snackBar.open('Title is required', 'Close', { duration: 2500 });
+      return;
+    }
+    this.service.updateZoomRecordingMeta(this.zoomEditingMeetingLinkId, {
+      title: this.zoomEditForm.title.trim(),
+      batch: this.zoomEditForm.batch.trim(),
+      teacherId: this.zoomEditForm.teacherId || undefined,
+    }).subscribe({
+      next: () => {
+        this.snackBar.open('Zoom recording updated', 'Close', { duration: 2500 });
+        this.closeZoomEdit();
+        this.loadRecordings();
+      },
+      error: (err) => this.snackBar.open(err.error?.message || 'Failed to update Zoom recording', 'Close', { duration: 3000 }),
+    });
+  }
+
   getEmbedUrl(url: string): string {
     // Convert YouTube watch URLs to embed
     const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
@@ -275,6 +394,41 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     return r.recordingType === 'ZOOM' || r.source === 'ZOOM_AUTO';
   }
 
+  canToggleStudentVisibility(r: AdminClassRecording): boolean {
+    return this.isZoomRecording(r) && !!r.meetingLinkId && r.status === 'ready';
+  }
+
+  toggleStudentVisibility(r: AdminClassRecording): void {
+    if (!this.canToggleStudentVisibility(r) || !r.meetingLinkId || this.publishLoadingId) return;
+
+    const nextState = !(r.isPublished !== false);
+    const action = nextState ? 'Show to students' : 'Hide from students';
+    this.notify.confirm(
+      'Student Visibility',
+      `${action} for "${r.title}"?`,
+      'Yes',
+      'Cancel'
+    ).subscribe((ok) => {
+      if (!ok) return;
+      this.publishLoadingId = String(r.meetingLinkId);
+      this.service.publishZoomRecordings([String(r.meetingLinkId)], nextState).subscribe({
+        next: () => {
+          this.publishLoadingId = null;
+          this.snackBar.open(
+            nextState ? 'Recording is now visible to students.' : 'Recording is now hidden from students.',
+            'Close',
+            { duration: 3000 }
+          );
+          this.loadRecordings();
+        },
+        error: (err) => {
+          this.publishLoadingId = null;
+          this.snackBar.open(err.error?.message || 'Failed to update visibility', 'Close', { duration: 3000 });
+        }
+      });
+    });
+  }
+
   openViews(r: ClassRecording): void {
     this.viewsRecording = r;
     this.loadingViews = true;
@@ -285,7 +439,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     });
   }
 
-  closeViews(): void { this.showViewsModal = false; this.viewsRecording = null; this.viewsList = []; }
+  closeViews(): void { this.showViewsModal = false; this.viewsRecording = null; this.viewsList = []; this.viewsMeta = {}; }
 
   clearFilters(): void {
     this.searchQuery = '';
@@ -313,9 +467,22 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   formatDateTime(d: string): string {
+    if (!d) return '—';
     return new Date(d).toLocaleString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
+  }
+
+  formatBytes(bytes?: number): string {
+    const b = Number(bytes || 0);
+    if (!b) return '—';
+    if (b < 1024) return `${b} B`;
+    const kb = b / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(2)} GB`;
   }
 }

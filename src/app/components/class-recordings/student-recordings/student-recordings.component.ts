@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   ClassRecordingsService,
   ClassRecording,
@@ -14,12 +15,15 @@ import { catchError } from 'rxjs/operators';
 /** Unified shape for displaying both manual and Zoom recordings in the same list */
 export interface DisplayRecording {
   type: 'manual' | 'zoom';
-  id: string;                   // _id for manual, meetingLinkId for zoom
+  id: string; // _id for manual, meetingLinkId for zoom
   title: string;
   description: string;
-  date: string;                 // ISO date string
-  duration: number | null;      // seconds
+  date: string; // ISO date string
+  duration: number | null; // seconds
   batch: string;
+  teacherName: string;
+  attempted: boolean | null;
+  attendanceStatus: 'Attended' | 'Not Attended' | 'Not Attempted' | 'Pending' | 'N/A';
   // manual-specific
   videoUrl?: string;
   level?: string;
@@ -45,21 +49,32 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
   loading = false;
   searchQuery = '';
 
-  // Zoom player state
-  activeZoomId: string | null = null;    // meetingLinkId currently loading/playing
-  activeZoomUrl: string | null = null;   // presigned URL once fetched
-  zoomLoading = false;
-  zoomError: string | null = null;
+  // Player modal state
+  showPlayerModal = false;
+  playerLoading = false;
+  playerError: string | null = null;
+  playerKind: 'video' | 'iframe' = 'video';
+  playerTitle = '';
+  playerVideoUrl: string | null = null;
+  playerIframeUrl: SafeResourceUrl | null = null;
+
+  // Optional details modal
+  showDetailsModal = false;
+  selectedRecording: DisplayRecording | null = null;
 
   // Manual recording view tracking
   activeViewId: string | null = null;
   activeRecordingId: string | null = null;
   watchStartTime = 0;
-  private durationInterval: any = null;
+  private manualDurationInterval: any = null;
+  private activeZoomViewId: string | null = null;
+  private zoomWatchStartTime = 0;
+  private zoomDurationInterval: any = null;
 
   constructor(
     private service: ClassRecordingsService,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -77,6 +92,9 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
         date: r.createdAt,
         duration: null,
         batch: (r.batches || []).join(', '),
+        teacherName: r.uploadedBy?.name || 'Teacher',
+        attempted: null,
+        attendanceStatus: 'N/A',
         videoUrl: r.videoUrl,
         level: r.level,
         plan: r.plan,
@@ -91,6 +109,9 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
         date: r.classDate,
         duration: r.duration,
         batch: r.batch,
+        teacherName: r.teacherName || 'Teacher',
+        attempted: typeof r.attempted === 'boolean' ? r.attempted : null,
+        attendanceStatus: r.attendanceStatus || 'Pending',
         meetingLinkId: r.meetingLinkId,
       }));
 
@@ -105,6 +126,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopTracking();
+    this.stopZoomTracking();
   }
 
   // ── Search ─────────────────────────────────────────────────────────────────
@@ -117,39 +139,116 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
     );
   }
 
-  // ── Zoom recording playback ────────────────────────────────────────────────
+  // ── Row actions ────────────────────────────────────────────────────────────
 
-  playZoomRecording(meetingLinkId: string): void {
-    if (this.activeZoomId === meetingLinkId && this.activeZoomUrl) return; // already loaded
+  playRecording(recording: DisplayRecording): void {
+    this.stopZoomTracking();
+    this.playerLoading = true;
+    this.playerError = null;
+    this.playerTitle = recording.title;
+    this.playerVideoUrl = null;
+    this.playerIframeUrl = null;
+    this.showPlayerModal = true;
 
-    this.activeZoomId = meetingLinkId;
-    this.activeZoomUrl = null;
-    this.zoomLoading = true;
-    this.zoomError = null;
+    if (recording.type === 'manual') {
+      this.startWatching(recording.id);
+      const manualUrl = recording.videoUrl || '';
+      if (!manualUrl) {
+        this.playerLoading = false;
+        this.playerError = 'Video URL is missing for this recording.';
+        return;
+      }
+      if (this.isDirectVideoFile(manualUrl)) {
+        this.playerKind = 'video';
+        this.playerVideoUrl = manualUrl;
+      } else {
+        this.playerKind = 'iframe';
+        this.playerIframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.getEmbedUrl(manualUrl));
+      }
+      this.playerLoading = false;
+      return;
+    }
 
-    this.service.getZoomRecordingUrl(meetingLinkId).subscribe({
+    if (!recording.meetingLinkId) {
+      this.playerLoading = false;
+      this.playerError = 'Meeting information is missing.';
+      return;
+    }
+
+    this.service.getZoomRecordingUrl(recording.meetingLinkId).subscribe({
       next: (res) => {
-        this.zoomLoading = false;
-        this.activeZoomUrl = res.signedUrl;
+        this.playerLoading = false;
+        this.playerKind = 'video';
+        this.playerVideoUrl = res.signedUrl;
+        this.startZoomTracking(recording.meetingLinkId!);
       },
       error: (err) => {
-        this.zoomLoading = false;
+        this.playerLoading = false;
         const msg: string = err.error?.message || '';
         if (err.status === 202) {
-          this.zoomError = 'Recording is still being processed. Please check back shortly.';
+          this.playerError = 'Recording is still being processed. Please check back shortly.';
         } else if (err.status === 403) {
-          this.zoomError = 'This recording is not available for your batch.';
+          this.playerError = 'This recording is hidden or not available for your batch.';
         } else {
-          this.zoomError = msg || 'Unable to load recording. Please try again.';
+          this.playerError = msg || 'Unable to load recording. Please try again.';
         }
       },
     });
   }
 
-  closeZoomPlayer(): void {
-    this.activeZoomId = null;
-    this.activeZoomUrl = null;
-    this.zoomError = null;
+  openDetails(recording: DisplayRecording): void {
+    this.selectedRecording = recording;
+    this.showDetailsModal = true;
+  }
+
+  closeDetails(): void {
+    this.showDetailsModal = false;
+    this.selectedRecording = null;
+  }
+
+  openInNewTab(recording: DisplayRecording): void {
+    if (recording.type === 'manual') {
+      const url = recording.videoUrl || '';
+      if (!url) {
+        this.snackBar.open('No URL available for this recording.', 'Close', { duration: 2500 });
+        return;
+      }
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+
+    if (!recording.meetingLinkId) return;
+    this.service.getZoomRecordingUrl(recording.meetingLinkId).subscribe({
+      next: (res) => window.open(res.signedUrl, '_blank', 'noopener'),
+      error: () => this.snackBar.open('Unable to open this recording in a new tab.', 'Close', { duration: 2500 }),
+    });
+  }
+
+  copyRecordingLink(recording: DisplayRecording): void {
+    if (recording.type === 'manual') {
+      const url = recording.videoUrl || '';
+      if (!url) {
+        this.snackBar.open('No URL available to copy.', 'Close', { duration: 2500 });
+        return;
+      }
+      this.copyText(url);
+      return;
+    }
+
+    if (!recording.meetingLinkId) return;
+    this.service.getZoomRecordingUrl(recording.meetingLinkId).subscribe({
+      next: (res) => this.copyText(res.signedUrl),
+      error: () => this.snackBar.open('Unable to copy this recording link right now.', 'Close', { duration: 2500 }),
+    });
+  }
+
+  closePlayer(): void {
+    this.stopZoomTracking();
+    this.showPlayerModal = false;
+    this.playerLoading = false;
+    this.playerError = null;
+    this.playerVideoUrl = null;
+    this.playerIframeUrl = null;
   }
 
   // ── Manual recording view tracking ────────────────────────────────────────
@@ -162,7 +261,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
     this.service.startView(recordingId).subscribe({
       next: (res) => {
         this.activeViewId = res.viewId;
-        this.durationInterval = setInterval(() => this.updateDuration(), 15000);
+        this.manualDurationInterval = setInterval(() => this.updateDuration(), 15000);
       },
       error: () => {},
     });
@@ -176,16 +275,36 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
 
   private stopTracking(): void {
     if (this.activeViewId) this.updateDuration();
-    if (this.durationInterval) { clearInterval(this.durationInterval); this.durationInterval = null; }
+    if (this.manualDurationInterval) { clearInterval(this.manualDurationInterval); this.manualDurationInterval = null; }
     this.activeViewId = null;
     this.activeRecordingId = null;
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  getSafeUrl(url: string): SafeResourceUrl {
-    return this.sanitizer.bypassSecurityTrustResourceUrl(this.getEmbedUrl(url));
+  private startZoomTracking(meetingLinkId: string): void {
+    this.stopZoomTracking();
+    this.zoomWatchStartTime = Date.now();
+    this.service.startZoomView(meetingLinkId).subscribe({
+      next: (res) => {
+        this.activeZoomViewId = res.viewId;
+        this.zoomDurationInterval = setInterval(() => this.updateZoomDuration(), 15000);
+      },
+      error: () => {},
+    });
   }
+
+  private updateZoomDuration(): void {
+    if (!this.activeZoomViewId) return;
+    const seconds = Math.round((Date.now() - this.zoomWatchStartTime) / 1000);
+    this.service.updateZoomViewDuration(this.activeZoomViewId, seconds).subscribe({ error: () => {} });
+  }
+
+  private stopZoomTracking(): void {
+    if (this.activeZoomViewId) this.updateZoomDuration();
+    if (this.zoomDurationInterval) { clearInterval(this.zoomDurationInterval); this.zoomDurationInterval = null; }
+    this.activeZoomViewId = null;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   getEmbedUrl(url: string): string {
     const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
@@ -195,27 +314,57 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
     return url;
   }
 
-  isGoogleDrive(url: string): boolean {
-    return /drive\.google\.com/.test(url || '');
+  isDirectVideoFile(url: string): boolean {
+    return /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i.test(url || '');
   }
 
-  getGoogleDriveOpenUrl(url: string): string {
-    const match = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (match) return `https://drive.google.com/file/d/${match[1]}/view`;
-    return url;
+  getAttemptedLabel(r: DisplayRecording): string {
+    if (r.attempted === null) return 'N/A';
+    return r.attempted ? 'Yes' : 'No';
+  }
+
+  getAttendanceLabel(r: DisplayRecording): string {
+    return r.attendanceStatus || 'Pending';
+  }
+
+  getAttendanceClass(r: DisplayRecording): string {
+    const s = this.getAttendanceLabel(r).toLowerCase();
+    if (s === 'attended') return 'sr-attendance sr-attendance--ok';
+    if (s === 'not attended' || s === 'not attempted') return 'sr-attendance sr-attendance--warn';
+    if (s === 'pending') return 'sr-attendance sr-attendance--pending';
+    return 'sr-attendance';
   }
 
   formatDate(d: string): string {
-    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
+  formatTime(d: string): string {
+    return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
   formatDuration(seconds: number | null): string {
-    if (!seconds) return '';
+    if (!seconds) return '—';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
     if (h > 0) return `${h}h ${m}m`;
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
+  }
+
+  private copyText(text: string): void {
+    const done = () => this.snackBar.open('Link copied.', 'Close', { duration: 1800 });
+    const fail = () => this.snackBar.open('Copy failed. Please copy manually.', 'Close', { duration: 2200 });
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+      return;
+    }
+    fail();
   }
 }

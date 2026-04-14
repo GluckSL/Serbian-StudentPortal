@@ -4,11 +4,12 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const ClassRecording = require('../models/ClassRecording');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
+const ZoomRecordingView = require('../models/ZoomRecordingView');
 const MeetingLink = require('../models/MeetingLink');
 const ZoomWebhookAudit = require('../models/ZoomWebhookAudit');
 const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET } = require('../config/r2');
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
 
@@ -81,13 +82,14 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
 
     // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
     const zoomRecordings = await ZoomRecording.find({ status: 'ready' })
-      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId')
+      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt')
       .sort({ createdAt: -1 })
       .lean();
 
     const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
     const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
-      .select('_id topic batch startTime duration')
+      .select('_id topic batch startTime duration assignedTeacher')
+      .populate('assignedTeacher', 'name')
       .lean();
 
     const meetingMap = {};
@@ -111,7 +113,10 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
         // zoom-specific extras for admin UI
         meetingLinkId: z.meetingLinkId,
         zoomMeetingId: z.zoomMeetingId || null,
+        assignedTeacherId: meeting.assignedTeacher?._id || null,
         status: z.status,
+        isPublished: z.isPublished !== false,
+        publishedAt: z.publishedAt || null,
         r2Key: z.r2Key,
         duration: z.duration,
         classDate: meeting.startTime || z.createdAt,
@@ -124,6 +129,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       recordingType: 'MANUAL',
       source: 'MANUAL_UPLOAD',
       status: 'ready',
+      isPublished: true,
+      publishedAt: m.createdAt,
       duration: null,
       classDate: m.createdAt,
       classDuration: null,
@@ -268,6 +275,137 @@ router.get('/:id/views', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
   }
 });
 
+// POST /api/class-recordings/zoom/:meetingLinkId/view — Student starts watching a Zoom recording
+router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    const view = await ZoomRecordingView.create({
+      meetingLinkId,
+      student: req.user.id,
+      watchDuration: 0,
+    });
+    res.json({ success: true, viewId: view._id });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/class-recordings/zoom/view/:viewId — Update Zoom watch duration
+router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
+  try {
+    const { watchDuration } = req.body || {};
+    await ZoomRecordingView.findByIdAndUpdate(req.params.viewId, {
+      watchDuration: watchDuration || 0,
+      lastUpdatedAt: new Date(),
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/zoom/:meetingLinkId/views — Admin analytics for one Zoom recording
+router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+
+    const [meeting, zoomRec, zoomViews] = await Promise.all([
+      MeetingLink.findById(meetingLinkId).select('batch').lean(),
+      ZoomRecording.findOne({ meetingLinkId }).select('r2Key').lean(),
+      ZoomRecordingView.find({ meetingLinkId })
+        .populate('student', 'name email batch level')
+        .sort({ startedAt: -1 })
+        .lean(),
+    ]);
+
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found.' });
+    }
+
+    const watchMap = {};
+    for (const v of zoomViews) {
+      const sid = v?.student?._id ? String(v.student._id) : null;
+      if (!sid) continue;
+      if (!watchMap[sid]) watchMap[sid] = [];
+      watchMap[sid].push(v);
+    }
+
+    const allStudents = await User.find({ role: 'STUDENT' })
+      .select('name email batch level')
+      .lean();
+
+    const batchStudents = allStudents.filter((s) =>
+      isSameBatch(s.batch, meeting.batch) || isSameBatch(meeting.batch, s.batch)
+    );
+
+    const rows = [];
+    for (const student of batchStudents) {
+      const sid = String(student._id);
+      const sessions = watchMap[sid] || [];
+      if (!sessions.length) {
+        rows.push({
+          student: {
+            name: student.name || 'Unknown',
+            email: student.email || '',
+            batch: student.batch || '',
+            level: student.level || '',
+          },
+          watchDuration: 0,
+          startedAt: null,
+          lastUpdatedAt: null,
+          viewed: false,
+        });
+        continue;
+      }
+
+      const latest = sessions[0];
+      rows.push({
+        student: {
+          name: student.name || 'Unknown',
+          email: student.email || '',
+          batch: student.batch || '',
+          level: student.level || '',
+        },
+        watchDuration: Number(latest.watchDuration || 0),
+        startedAt: latest.startedAt || null,
+        lastUpdatedAt: latest.lastUpdatedAt || null,
+        viewed: true,
+      });
+    }
+
+    let videoSizeBytes = 0;
+    if (zoomRec?.r2Key) {
+      try {
+        const head = await r2Client.send(new HeadObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: zoomRec.r2Key,
+        }));
+        videoSizeBytes = Number(head.ContentLength || 0);
+      } catch (e) {
+        videoSizeBytes = 0;
+      }
+    }
+
+    const watchedCount = rows.filter((r) => r.viewed).length;
+    const totalWatchSeconds = rows.reduce((sum, r) => sum + Number(r.watchDuration || 0), 0);
+
+    return res.json({
+      success: true,
+      views: rows,
+      summary: {
+        totalStudents: rows.length,
+        watchedCount,
+        notWatchedCount: rows.length - watchedCount,
+        totalWatchSeconds,
+        videoSizeBytes,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching zoom recording views:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Zoom Auto-Recorded Sessions (ingested via webhook → R2)
 // ---------------------------------------------------------------------------
@@ -285,6 +423,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const { role, id: userId } = req.user;
 
     let batchFilter;
+    let studentBatchValue = null;
 
     if (['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
       // Staff can optionally filter by batch via query param, otherwise get all
@@ -297,18 +436,28 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
       if (!student || !student.batch) {
         return res.status(400).json({ success: false, message: 'Student batch not set on your profile.' });
       }
+      studentBatchValue = String(student.batch);
+      const batchToken = escapeRegex(studentBatchValue);
       batchFilter = {
         batch: {
-          $regex: `^${escapeRegex(String(student.batch))}(\\b|\\s*[-:|])`,
+          // Broad pre-filter: batch token can appear in labels like
+          // "35", "Batch 35", "Batch 35 - A1 German Class", etc.
+          $regex: `(^|\\s|-)${batchToken}(\\b|\\s*[-:|])`,
           $options: 'i',
         },
       };
     }
 
     // 1. Find all MeetingLinks for this batch
-    const meetingLinks = await MeetingLink.find(batchFilter)
-      .select('_id topic batch startTime duration')
+    let meetingLinks = await MeetingLink.find(batchFilter)
+      .select('_id topic batch startTime duration status attendance assignedTeacher')
+      .populate('assignedTeacher', 'name')
       .lean();
+
+    // Final guard for students: normalize and compare batch labels safely.
+    if (studentBatchValue) {
+      meetingLinks = meetingLinks.filter((m) => isSameBatch(studentBatchValue, m.batch));
+    }
 
     if (!meetingLinks.length) {
       return res.json({ success: true, recordings: [] });
@@ -320,8 +469,9 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const zoomRecordings = await ZoomRecording.find({
       meetingLinkId: { $in: meetingLinkIds },
       status: 'ready',
+      isPublished: { $ne: false },
     })
-      .select('meetingLinkId r2Key duration status createdAt')
+      .select('meetingLinkId r2Key duration status createdAt isPublished')
       .lean();
 
     // Build a lookup map for meeting link metadata
@@ -331,13 +481,36 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     // Merge recording with its meeting info and sort by class date descending
     const recordings = zoomRecordings.map((rec) => {
       const meeting = meetingMap[rec.meetingLinkId.toString()] || {};
+      const startTime = meeting.startTime ? new Date(meeting.startTime) : null;
+      const durationMinutes = Number(meeting.duration || 0);
+      const computedEnd = startTime && durationMinutes > 0
+        ? new Date(startTime.getTime() + durationMinutes * 60 * 1000)
+        : null;
+      const attempted = meeting.status === 'ended' || (computedEnd ? Date.now() >= computedEnd.getTime() : false);
+      const myAttendance = Array.isArray(meeting.attendance)
+        ? meeting.attendance.find((a) => String(a?.studentId || '') === String(userId))
+        : null;
+      const attendanceStatus = myAttendance
+        ? (
+            myAttendance.attended === true ||
+            myAttendance.status === 'attended' ||
+            Number(myAttendance.attendancePercent || 0) >= 75
+              ? 'Attended'
+              : (attempted ? 'Not Attended' : 'Pending')
+          )
+        : (attempted ? 'Not Attempted' : 'Pending');
+
       return {
         meetingLinkId: rec.meetingLinkId,
         r2Key: rec.r2Key,
         duration: rec.duration,
         createdAt: rec.createdAt,
+        isPublished: rec.isPublished !== false,
         topic: meeting.topic || 'Class Recording',
         batch: meeting.batch || '',
+        teacherName: meeting.assignedTeacher?.name || 'Teacher',
+        attempted,
+        attendanceStatus,
         classDate: meeting.startTime || rec.createdAt,
         meetingDuration: meeting.duration || null,
       };
@@ -413,6 +586,101 @@ router.get('/zoom/backfill/status', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
 });
 
 /**
+ * POST /api/class-recordings/zoom/publish
+ *
+ * Toggle Zoom recording visibility for students.
+ * Body:
+ *  - meetingLinkIds: string[]
+ *  - isPublished: boolean
+ */
+router.post('/zoom/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkIds, isPublished } = req.body || {};
+    if (!Array.isArray(meetingLinkIds) || meetingLinkIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'meetingLinkIds array is required.' });
+    }
+
+    const publishState = Boolean(isPublished);
+    const result = await ZoomRecording.updateMany(
+      { meetingLinkId: { $in: meetingLinkIds } },
+      {
+        $set: {
+          isPublished: publishState,
+          publishedAt: publishState ? new Date() : null,
+        },
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: publishState ? 'Recording(s) visible to students.' : 'Recording(s) hidden from students.',
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    console.error('Error updating Zoom publish state:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * PUT /api/class-recordings/zoom/:meetingLinkId/meta
+ *
+ * Edit metadata of a Zoom class recording (title/topic, teacher, batch).
+ */
+router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    const { title, batch, teacherId } = req.body || {};
+
+    const meeting = await MeetingLink.findById(meetingLinkId);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found.' });
+    }
+
+    if (typeof title === 'string' && title.trim()) {
+      meeting.topic = title.trim();
+    }
+    if (typeof batch === 'string' && batch.trim()) {
+      meeting.batch = batch.trim();
+    }
+    if (teacherId) {
+      const teacher = await User.findById(teacherId).select('_id role').lean();
+      if (!teacher || !['TEACHER', 'TEACHER_ADMIN', 'ADMIN'].includes(teacher.role)) {
+        return res.status(400).json({ success: false, message: 'Invalid teacher selected.' });
+      }
+      meeting.assignedTeacher = teacher._id;
+    }
+
+    await meeting.save();
+    return res.json({ success: true, message: 'Zoom recording details updated.' });
+  } catch (error) {
+    console.error('Error updating zoom recording metadata:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * DELETE /api/class-recordings/zoom/:meetingLinkId
+ *
+ * Remove a Zoom auto-recording entry for a class.
+ */
+router.delete('/zoom/:meetingLinkId', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    const removed = await ZoomRecording.findOneAndDelete({ meetingLinkId });
+    if (!removed) {
+      return res.status(404).json({ success: false, message: 'Zoom recording not found.' });
+    }
+    await ZoomRecordingView.deleteMany({ meetingLinkId });
+    return res.json({ success: true, message: 'Zoom recording deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting zoom recording:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/class-recordings/zoom/debug/status
  *
  * Temporary admin/teacher debug endpoint to inspect ingestion status by batch.
@@ -438,7 +706,7 @@ router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
 
     const meetingIds = meetingLinks.map((m) => m._id);
     const zoomRows = await ZoomRecording.find({ meetingLinkId: { $in: meetingIds } })
-      .select('meetingLinkId zoomMeetingId status r2Key duration errorMessage createdAt updatedAt')
+      .select('meetingLinkId zoomMeetingId status isPublished r2Key duration errorMessage createdAt updatedAt')
       .lean();
 
     const zoomByMeetingId = {};
@@ -456,6 +724,7 @@ router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
         meetingDuration: meeting.duration || null,
         zoomMeetingId: zoom?.zoomMeetingId || null,
         status: zoom?.status || 'missing',
+        isPublished: zoom?.isPublished !== false,
         r2Key: zoom?.r2Key || null,
         recordingDuration: zoom?.duration || null,
         errorMessage: zoom?.errorMessage || null,
@@ -543,6 +812,10 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
 
     // 2. Authorisation check for students — batch-based (attended or not)
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+      if (zoomRecording.isPublished === false) {
+        return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
+      }
+
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch').lean(),
         User.findById(userId).select('batch').lean(),
@@ -572,6 +845,7 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       signedUrl,
       duration: zoomRecording.duration,
       createdAt: zoomRecording.createdAt,
+      isPublished: zoomRecording.isPublished !== false,
       r2Key: zoomRecording.r2Key,
     });
   } catch (error) {

@@ -25,7 +25,10 @@ export interface AdminClassRecording extends ClassRecording {
   classDuration?: number | null;
   meetingLinkId?: string | null;
   zoomMeetingId?: string | null;
+  assignedTeacherId?: string | null;
   r2Key?: string | null;
+  isPublished?: boolean;
+  publishedAt?: string | null;
 }
 
 export interface ZoomWebhookAuditRow {
@@ -46,6 +49,7 @@ export interface ZoomRecordingResponse {
   signedUrl: string;
   duration: number | null;
   createdAt: string;
+  isPublished?: boolean;
   r2Key: string;
 }
 
@@ -62,8 +66,12 @@ export interface BatchZoomRecording {
   r2Key: string;
   duration: number | null;
   createdAt: string;
+  isPublished?: boolean;
   topic: string;
   batch: string;
+  teacherName?: string;
+  attempted?: boolean;
+  attendanceStatus?: 'Attended' | 'Not Attended' | 'Not Attempted' | 'Pending';
   classDate: string;
   meetingDuration: number | null;
 }
@@ -91,8 +99,17 @@ export class ClassRecordingsService {
     return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
   }
 
-  getZoomBackfillStatus(): Observable<any> {
-    return this.http.get<any>(`${this.url}/zoom/backfill/status`, { withCredentials: true });
+  publishZoomRecordings(meetingLinkIds: string[], isPublished: boolean): Observable<{
+    success: boolean;
+    message: string;
+    matched: number;
+    modified: number;
+  }> {
+    return this.http.post<any>(
+      `${this.url}/zoom/publish`,
+      { meetingLinkIds, isPublished },
+      { withCredentials: true }
+    );
   }
 
   getZoomWebhookAudit(params?: {
@@ -124,6 +141,10 @@ export class ClassRecordingsService {
     return this.http.delete<any>(`${this.url}/${id}`, { withCredentials: true });
   }
 
+  deleteZoomRecording(meetingLinkId: string): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<any>(`${this.url}/zoom/${meetingLinkId}`, { withCredentials: true });
+  }
+
   // View tracking
   startView(recordingId: string): Observable<{ success: boolean; viewId: string }> {
     return this.http.post<any>(`${this.url}/${recordingId}/view`, {}, { withCredentials: true });
@@ -135,6 +156,20 @@ export class ClassRecordingsService {
 
   getViews(recordingId: string): Observable<{ success: boolean; views: any[] }> {
     return this.http.get<any>(`${this.url}/${recordingId}/views`, { withCredentials: true });
+  }
+
+  getZoomViews(meetingLinkId: string): Observable<{
+    success: boolean;
+    views: any[];
+    summary?: {
+      totalStudents: number;
+      watchedCount: number;
+      notWatchedCount: number;
+      totalWatchSeconds: number;
+      videoSizeBytes: number;
+    };
+  }> {
+    return this.http.get<any>(`${this.url}/zoom/${meetingLinkId}/views`, { withCredentials: true });
   }
 
   getAnalyticsSummary(): Observable<{ success: boolean; summary: Record<string, any> }> {
@@ -154,6 +189,14 @@ export class ClassRecordingsService {
       `${this.url}/zoom/${meetingLinkId}`,
       { withCredentials: true }
     );
+  }
+
+  startZoomView(meetingLinkId: string): Observable<{ success: boolean; viewId: string }> {
+    return this.http.post<any>(`${this.url}/zoom/${meetingLinkId}/view`, {}, { withCredentials: true });
+  }
+
+  updateZoomViewDuration(viewId: string, watchDuration: number): Observable<any> {
+    return this.http.put<any>(`${this.url}/zoom/view/${viewId}`, { watchDuration }, { withCredentials: true });
   }
 
   /**
@@ -177,5 +220,17 @@ export class ClassRecordingsService {
       `${this.url}/zoom/my-batch${params}`,
       { withCredentials: true }
     );
+  }
+
+  updateZoomRecordingMeta(meetingLinkId: string, payload: {
+    title?: string;
+    batch?: string;
+    teacherId?: string;
+  }): Observable<{ success: boolean; message: string }> {
+    return this.http.put<any>(`${this.url}/zoom/${meetingLinkId}/meta`, payload, { withCredentials: true });
+  }
+
+  getZoomTeachers(): Observable<{ success: boolean; data: Array<{ _id: string; name: string; email: string }> }> {
+    return this.http.get<any>(`${environment.apiUrl}/zoom/teachers`, { withCredentials: true });
   }
 }
