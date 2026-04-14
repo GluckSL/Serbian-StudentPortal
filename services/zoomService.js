@@ -10,42 +10,6 @@ class ZoomService {
   }
 
   /**
-   * Zoom interprets `start_time` differently depending on the format:
-   * - If it ends with `Z` (UTC) / includes an offset, Zoom treats it as absolute time (timezone may be ignored).
-   * - If timezone is provided, sending a timezone-local `YYYY-MM-DDTHH:mm:ss` is safest/expected.
-   */
-  formatZoomStartTime(startTime, timezone = 'Asia/Colombo') {
-    try {
-      if (!startTime) return startTime;
-      const d = new Date(startTime);
-      if (Number.isNaN(d.getTime())) return startTime;
-
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).formatToParts(d);
-
-      const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
-      const y = map.year;
-      const m = map.month;
-      const day = map.day;
-      const hh = map.hour;
-      const mm = map.minute;
-      const ss = map.second;
-      if (!y || !m || !day || !hh || !mm || !ss) return startTime;
-      return `${y}-${m}-${day}T${hh}:${mm}:${ss}`;
-    } catch (e) {
-      return startTime;
-    }
-  }
-
-  /**
    * Get Zoom Access Token using the master Server-to-Server OAuth credentials.
    */
   async getAccessToken() {
@@ -100,11 +64,10 @@ class ZoomService {
         settings = {}
       } = meetingData;
 
-      const zoomStartTime = this.formatZoomStartTime(startTime, timezone);
       const payload = {
         topic: topic || 'German Language Class',
         type: zoomConfig.meetingTypes.SCHEDULED,
-        start_time: zoomStartTime,
+        start_time: startTime,
         duration: duration || 60,
         timezone: timezone,
         agenda: agenda || 'German language learning session',
@@ -184,11 +147,6 @@ class ZoomService {
     const token = await this.getAccessToken();
     if (!updateData.settings) updateData.settings = {};
     updateData.settings.registrants_email_notification = false;
-
-    if (updateData.start_time) {
-      const tz = updateData.timezone || 'Asia/Colombo';
-      updateData.start_time = this.formatZoomStartTime(updateData.start_time, tz);
-    }
 
     await axios.patch(`${zoomConfig.apiBaseUrl}/meetings/${meetingId}`, updateData, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
