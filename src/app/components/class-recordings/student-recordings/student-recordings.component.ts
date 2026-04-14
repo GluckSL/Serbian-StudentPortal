@@ -19,7 +19,7 @@ import {
 } from '../../../services/class-recordings.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import Hls from 'hls.js';
+import Hls, { ErrorData } from 'hls.js';
 
 /** Unified shape for displaying both manual and Zoom recordings in the same list */
 export interface DisplayRecording {
@@ -294,7 +294,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         }
       });
 
-      this.hls.on(Hls.Events.ERROR, (_event, data) => {
+      this.hls.on(Hls.Events.ERROR, (_event: string, data: ErrorData) => {
         if (data.fatal) {
           this.videoBuffering = false;
           this.playerError    = 'Playback error. Please refresh and try again.';
