@@ -16,7 +16,7 @@ import {
   ZoomRecordingResponse,
 } from '../../../services/class-recordings.service';
 import { environment } from '../../../../environments/environment';
-import Hls from 'hls.js';
+import Hls, { ErrorData } from 'hls.js';
 
 @Component({
   selector: 'app-zoom-recording-player',
@@ -164,7 +164,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
           video.play().catch(() => {});
         }
       });
-      this.hls.on(Hls.Events.ERROR, (_e, data) => {
+      this.hls.on(Hls.Events.ERROR, (_e: string, data: ErrorData) => {
         if (data.fatal) {
           this.buffering = false;
           this.error     = 'Playback error. Please refresh and try again.';
