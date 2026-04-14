@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { AuthService } from '../../../services/auth.service';
 import {
   ClassRecordingsService,
   ClassRecording,
@@ -48,6 +49,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
   filteredRecordings: DisplayRecording[] = [];
   loading = false;
   searchQuery = '';
+  currentUserBatch = '';
 
   // Player modal state
   showPlayerModal = false;
@@ -74,11 +76,13 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
   constructor(
     private service: ClassRecordingsService,
     private sanitizer: DomSanitizer,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
     this.loading = true;
+    this.currentUserBatch = String(this.serviceUserBatch() || '');
 
     forkJoin({
       manual: this.service.getRecordings().pipe(catchError(() => of({ success: false, recordings: [] as ClassRecording[] }))),
@@ -116,7 +120,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
       }));
 
       // Merge and sort newest-first
-      this.allRecordings = [...manualItems, ...zoomItems].sort(
+      const merged = [...manualItems, ...zoomItems].filter((r) => this.isSameBatchForStudent(r.batch));
+      this.allRecordings = merged.sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       this.filteredRecordings = [...this.allRecordings];
@@ -356,6 +361,30 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
     if (h > 0) return `${h}h ${m}m`;
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
+  }
+
+  private serviceUserBatch(): string {
+    return String(this.authService.getSnapshotUser()?.batch || '');
+  }
+
+  private normalizeBatch(value: string): string {
+    return String(value || '')
+      .toLowerCase()
+      .trim()
+      .replace(/^batch\s+/, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  private isSameBatchForStudent(recordingBatch: string): boolean {
+    if (!this.currentUserBatch) return true;
+    const a = this.normalizeBatch(this.currentUserBatch);
+    const b = this.normalizeBatch(recordingBatch);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    return (
+      b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`) ||
+      a.startsWith(`${b} -`) || a.startsWith(`${b}:`) || a.startsWith(`${b} |`)
+    );
   }
 
   private copyText(text: string): void {

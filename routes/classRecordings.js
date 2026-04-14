@@ -19,6 +19,7 @@ function normalizeBatch(value) {
   return String(value || '')
     .toLowerCase()
     .trim()
+    .replace(/^batch\s+/, '')
     .replace(/\s+/g, ' ');
 }
 
@@ -33,7 +34,10 @@ function isSameBatch(studentBatch, meetingBatch) {
   if (a === b) return true;
   // Allow meeting batch names that extend student batch labels,
   // e.g. "Batch 35" vs "Batch 35 - A1 German Class"
-  return b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`);
+  return (
+    b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`) ||
+    a.startsWith(`${b} -`) || a.startsWith(`${b}:`) || a.startsWith(`${b} |`)
+  );
 }
 
 // GET /api/class-recordings — Teacher/Admin: all recordings; Student: filtered
@@ -53,18 +57,23 @@ router.get('/', verifyToken, async (req, res) => {
       .select('batch level subscription').lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-    const filter = {
+    const baseFilter = {
       active: true,
       level: student.level,
-      batches: student.batch,
       plan: { $in: [student.subscription, 'ALL'] }
     };
 
-    const recordings = await ClassRecording.find(filter)
+    const recordings = await ClassRecording.find(baseFilter)
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 }).lean();
 
-    res.json({ success: true, recordings });
+    // Strict student-batch visibility guard: only same batch recordings.
+    const filteredRecordings = recordings.filter((r) =>
+      Array.isArray(r.batches) &&
+      r.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch))
+    );
+
+    res.json({ success: true, recordings: filteredRecordings });
   } catch (error) {
     console.error('Error fetching class recordings:', error);
     res.status(500).json({ success: false, message: error.message });
