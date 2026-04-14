@@ -21,32 +21,48 @@
     <p>{{ error }}</p>
   </div>
 
-  <!-- Access / not found errors -->
+  <!-- Access / not-found errors -->
   <div *ngIf="!loading && error && processingStatus !== 'processing' && processingStatus !== 'failed'"
        class="player-state player-error">
     <div class="error-icon">&#9888;</div>
     <p>{{ error }}</p>
   </div>
 
-  <!-- Video player -->
-  <div *ngIf="!loading && videoSrc" class="player-container">
+  <!-- Video player — shown as soon as videoSrc or hlsSrc is set -->
+  <div *ngIf="!loading && (videoSrc || hlsSrc)" class="player-container">
     <div class="player-meta" *ngIf="createdAt">
       <span class="meta-date">&#128198; {{ createdAt | date: 'mediumDate' }}</span>
       <span class="meta-duration" *ngIf="duration">&#9205; {{ formatDuration(duration) }}</span>
     </div>
 
-    <video
-      #videoPlayer
-      class="video-element"
-      controls
-      preload="metadata"
-      [src]="videoSrc"
-      controlsList="nodownload"
-      (contextmenu)="$event.preventDefault()">
-      Your browser does not support the HTML5 video player.
-    </video>
+    <div class="video-wrap">
+      <!--
+        [attr.src] is null for HLS mode (hls.js manages the src via loadSource).
+        For MP4 legacy mode, [attr.src] is the presigned URL.
+      -->
+      <video
+        #videoPlayer
+        class="video-element"
+        controls
+        preload="auto"
+        [attr.src]="hlsSrc ? null : videoSrc"
+        controlsList="nodownload"
+        (contextmenu)="$event.preventDefault()"
+        (canplay)="onVideoCanPlay()"
+        (waiting)="onVideoWaiting()"
+        (playing)="onVideoPlaying()"
+        (error)="onVideoError()">
+        Your browser does not support the HTML5 video player.
+      </video>
 
-    <p class="access-notice">&#128274; Secure link &mdash; expires in 15 minutes. Refresh if playback stops.</p>
+      <!-- Buffering overlay -->
+      <div *ngIf="buffering" class="zrp-buf-overlay">
+        <div class="zrp-buf-spinner"></div>
+        <p>Buffering&hellip;</p>
+      </div>
+    </div>
+
+    <p class="access-notice">&#128274; Secure HLS stream &mdash; segments expire in 15 minutes.</p>
   </div>
 
 </div>

@@ -23,7 +23,7 @@
         <tr>
           <th>Class Title</th>
           <th>Teacher</th>
-          <th>Date & Time</th>
+          <th>Date &amp; Time</th>
           <th>Attempted</th>
           <th>Attendance</th>
           <th class="sr-col-action">Action</th>
@@ -44,24 +44,19 @@
             <div class="sr-date">{{ formatDate(r.date) }}</div>
             <div class="sr-time">{{ formatTime(r.date) }}</div>
           </td>
-          <td>
-            <span class="sr-badge">{{ getAttemptedLabel(r) }}</span>
-          </td>
-          <td>
-            <span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span>
-          </td>
+          <td><span class="sr-badge">{{ getAttemptedLabel(r) }}</span></td>
+          <td><span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span></td>
           <td class="sr-col-action">
             <div class="sr-actions">
-              <button class="sr-icon-btn sr-icon-btn--resource" (click)="openDetails(r)" title="Details">
-                <i class="fa fa-folder-open"></i>
-              </button>
-              <button class="sr-icon-btn sr-icon-btn--help" (click)="openInNewTab(r)" title="Open">
-                <i class="fa fa-circle-question"></i>
-              </button>
-              <button class="sr-icon-btn sr-icon-btn--download" (click)="copyRecordingLink(r)" title="Copy Link">
-                <i class="fa fa-download"></i>
-              </button>
-              <button class="sr-icon-btn sr-icon-btn--play" (click)="playRecording(r)" title="Play">
+              <!--
+                (mouseenter) fires on hover — silently pre-fetches the signed URL
+                so the cache is warm by the time the user clicks (~200 ms later).
+              -->
+              <button
+                class="sr-icon-btn sr-icon-btn--play"
+                (click)="playRecording(r)"
+                (mouseenter)="onPlayButtonHover(r)"
+                title="Play">
                 <i class="fa fa-play"></i>
               </button>
             </div>
@@ -72,6 +67,7 @@
   </div>
 </div>
 
+<!-- ── Player modal ─────────────────────────────────────────────────────── -->
 <div class="sr-overlay" *ngIf="showPlayerModal" (click)="closePlayer()">
   <div class="sr-player-modal" (click)="$event.stopPropagation()">
     <div class="sr-player-head">
@@ -79,6 +75,8 @@
       <button class="sr-close" (click)="closePlayer()">&#10005;</button>
     </div>
     <div class="sr-player-body">
+
+      <!-- Phase 1: fetching signed URL / HLS playlist path from API -->
       <div *ngIf="playerLoading" class="sr-player-state">
         <div class="sr-spinner"></div>
         <p>Loading video...</p>
@@ -88,15 +86,44 @@
         <p>{{ playerError }}</p>
       </div>
 
-      <video
-        *ngIf="!playerLoading && !playerError && playerKind === 'video' && playerVideoUrl"
-        class="sr-video"
-        [src]="playerVideoUrl"
-        controls
-        autoplay
-        playsinline
-        preload="metadata">
-      </video>
+      <!--
+        Phase 2+: <video> element shown immediately once a URL is available.
+        For HLS: hls.js attaches via ViewChild (playerHlsUrl is set, [attr.src] is null).
+        For MP4: [attr.src] is bound directly; browser starts buffering immediately.
+        The buffering overlay sits on top while the initial buffer fills.
+      -->
+      <div
+        *ngIf="!playerLoading && !playerError && playerKind === 'video' && (playerVideoUrl || playerHlsUrl)"
+        class="sr-video-wrap">
+
+        <video
+          #srVideoEl
+          class="sr-video"
+          [attr.src]="playerHlsUrl ? null : playerVideoUrl"
+          controls
+          controlsList="nodownload noplaybackrate"
+          (contextmenu)="$event.preventDefault()"
+          playsinline
+          preload="auto"
+          (canplay)="onVideoCanPlay()"
+          (waiting)="onVideoWaiting()"
+          (playing)="onVideoPlaying()"
+          (error)="onVideoError()">
+        </video>
+
+        <!-- Buffering / startup overlay -->
+        <div *ngIf="videoBuffering" class="sr-buf-overlay">
+          <div class="sr-buf-icon">
+            <svg viewBox="0 0 44 44" fill="none">
+              <circle cx="22" cy="22" r="18" stroke="rgba(255,255,255,0.15)" stroke-width="4"/>
+              <circle cx="22" cy="22" r="18" stroke="#3b82f6" stroke-width="4"
+                stroke-dasharray="30 83" stroke-linecap="round" class="sr-buf-arc"/>
+            </svg>
+          </div>
+          <p class="sr-buf-label">Buffering<span class="sr-buf-dots"></span></p>
+          <p class="sr-buf-hint">Starting in a moment — streaming via HLS</p>
+        </div>
+      </div>
 
       <iframe
         *ngIf="!playerLoading && !playerError && playerKind === 'iframe' && playerIframeUrl"
@@ -108,26 +135,6 @@
     </div>
     <div class="sr-player-foot" *ngIf="!playerLoading && !playerError">
       Use the fullscreen button in the player controls to maximize.
-    </div>
-  </div>
-</div>
-
-<div class="sr-overlay" *ngIf="showDetailsModal" (click)="closeDetails()">
-  <div class="sr-details-modal" (click)="$event.stopPropagation()">
-    <div class="sr-player-head">
-      <h3>Recording Details</h3>
-      <button class="sr-close" (click)="closeDetails()">&#10005;</button>
-    </div>
-    <div class="sr-details-body" *ngIf="selectedRecording as r">
-      <p><strong>Title:</strong> {{ r.title }}</p>
-      <p><strong>Type:</strong> {{ r.type === 'zoom' ? 'Zoom' : 'Manual' }}</p>
-      <p><strong>Teacher:</strong> {{ r.teacherName || 'Teacher' }}</p>
-      <p><strong>Date:</strong> {{ formatDate(r.date) }} {{ formatTime(r.date) }}</p>
-      <p><strong>Attempted:</strong> {{ getAttemptedLabel(r) }}</p>
-      <p><strong>Attendance:</strong> {{ getAttendanceLabel(r) }}</p>
-      <p><strong>Batch:</strong> {{ r.batch || 'N/A' }}</p>
-      <p><strong>Duration:</strong> {{ formatDuration(r.duration) }}</p>
-      <p *ngIf="r.description"><strong>Description:</strong> {{ r.description }}</p>
     </div>
   </div>
 </div>

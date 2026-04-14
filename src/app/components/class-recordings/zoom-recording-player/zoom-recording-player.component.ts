@@ -3,6 +3,7 @@ import {
   Input,
   OnInit,
   OnDestroy,
+  AfterViewChecked,
   ViewChild,
   ElementRef,
   OnChanges,
@@ -14,6 +15,7 @@ import {
   ClassRecordingsService,
   ZoomRecordingResponse,
 } from '../../../services/class-recordings.service';
+import Hls from 'hls.js';
 
 @Component({
   selector: 'app-zoom-recording-player',
@@ -22,22 +24,28 @@ import {
   templateUrl: './zoom-recording-player.component.html',
   styleUrls: ['./zoom-recording-player.component.css'],
 })
-export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChanges {
-  /** MeetingLink _id — can be passed as @Input or read from route params */
+export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChanges, AfterViewChecked {
   @Input() meetingLinkId: string | null = null;
 
   @ViewChild('videoPlayer') videoPlayerRef!: ElementRef<HTMLVideoElement>;
 
+  /** Set for MP4 (legacy) recordings — bound to [attr.src]. */
   videoSrc: string | null = null;
+  /** Set for HLS recordings — hls.js loadSource target. */
+  hlsSrc: string | null = null;
+
   duration: number | null = null;
   createdAt: string | null = null;
+  buffering = false;
 
   loading = false;
   error: string | null = null;
   processingStatus: 'processing' | 'ready' | 'failed' | null = null;
 
+  private hls: Hls | null = null;
+  private pendingHlsInit = false;
   private pollingTimer: any = null;
-  private readonly POLL_INTERVAL_MS = 10_000; // check every 10 s while processing
+  private readonly POLL_INTERVAL_MS = 10_000;
 
   constructor(
     private recordingsService: ClassRecordingsService,
@@ -45,13 +53,10 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
   ) {}
 
   ngOnInit(): void {
-    // Support both @Input and route param (e.g. /class-recording/:meetingLinkId)
     if (!this.meetingLinkId) {
       this.meetingLinkId = this.route.snapshot.paramMap.get('meetingLinkId');
     }
-    if (this.meetingLinkId) {
-      this.loadRecording();
-    }
+    if (this.meetingLinkId) this.loadRecording();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -61,33 +66,49 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
     }
   }
 
+  ngAfterViewChecked(): void {
+    if (this.pendingHlsInit && this.videoPlayerRef?.nativeElement) {
+      this.pendingHlsInit = false;
+      this.initHls(this.videoPlayerRef.nativeElement, this.hlsSrc!);
+    }
+  }
+
   ngOnDestroy(): void {
+    this.destroyHls();
     this.clearPolling();
   }
 
   loadRecording(): void {
     if (!this.meetingLinkId) return;
-
-    this.loading = true;
-    this.error = null;
+    this.loading  = true;
+    this.error    = null;
     this.videoSrc = null;
+    this.hlsSrc   = null;
 
     this.recordingsService.getZoomRecordingUrl(this.meetingLinkId).subscribe({
       next: (res: ZoomRecordingResponse) => {
-        this.loading = false;
-        this.videoSrc = res.signedUrl;
-        this.duration = res.duration;
-        this.createdAt = res.createdAt;
+        this.loading         = false;
+        this.duration        = res.duration;
+        this.createdAt       = res.createdAt;
         this.processingStatus = 'ready';
+        this.buffering       = true;
         this.clearPolling();
+
+        if (res.hlsMode) {
+          this.hlsSrc   = this.recordingsService.getHlsPlaylistUrl(this.meetingLinkId!);
+          this.videoSrc = null;
+          this.pendingHlsInit = true; // AfterViewChecked will call initHls
+        } else {
+          this.videoSrc = res.signedUrl;
+          this.hlsSrc   = null;
+        }
       },
       error: (err) => {
-        this.loading = false;
-        const status = err.status;
+        this.loading  = false;
+        const status  = err.status;
         const msg: string = err.error?.message || '';
 
         if (status === 202) {
-          // Still processing — start polling
           this.processingStatus = 'processing';
           this.error = 'Recording is being processed. This page will refresh automatically.';
           this.startPolling();
@@ -105,11 +126,70 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
     });
   }
 
+  // ── HLS ───────────────────────────────────────────────────────────────────
+
+  private initHls(video: HTMLVideoElement, url: string): void {
+    this.destroyHls();
+
+    if (Hls.isSupported()) {
+      this.hls = new Hls({
+        enableWorker: true,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        startLevel: 0,
+        startPosition: 0,
+        backBufferLength: 5,
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.withCredentials = true;
+        },
+      });
+      this.hls.loadSource(url);
+      this.hls.attachMedia(video);
+      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        this.hls!.currentLevel = 0; // lowest quality first
+        this.buffering = false;
+        video.play().catch(() => {});
+      });
+      this.hls.on(Hls.Events.FRAG_LOADED, () => {
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+      });
+      this.hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) {
+          this.buffering = false;
+          this.error     = 'Playback error. Please refresh and try again.';
+          this.hlsSrc    = null;
+        }
+      });
+
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS
+      video.src = url;
+      video.addEventListener('canplay', () => {
+        this.buffering = false;
+        video.play().catch(() => {});
+      }, { once: true });
+    }
+  }
+
+  private destroyHls(): void {
+    if (this.hls) { this.hls.destroy(); this.hls = null; }
+  }
+
+  // ── MP4 video events ──────────────────────────────────────────────────────
+
+  onVideoCanPlay(): void  { this.buffering = false; this.videoPlayerRef?.nativeElement.play().catch(() => {}); }
+  onVideoWaiting(): void  { this.buffering = true; }
+  onVideoPlaying(): void  { this.buffering = false; }
+  onVideoError(): void    { this.buffering = false; this.error = 'Playback error. Please try again.'; this.videoSrc = null; }
+
+  // ── Polling while processing ──────────────────────────────────────────────
+
   private startPolling(): void {
     this.clearPolling();
     this.pollingTimer = setInterval(() => {
       if (!this.meetingLinkId) return;
-
       this.recordingsService.getZoomRecordingStatus(this.meetingLinkId).subscribe({
         next: (res) => {
           if (res.status === 'ready') {
@@ -121,31 +201,29 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
             this.error = 'Recording processing failed. Please contact support.';
           }
         },
-        error: () => {
-          // Silently retry on network errors during polling
-        },
+        error: () => {},
       });
     }, this.POLL_INTERVAL_MS);
   }
 
   private clearPolling(): void {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
+    if (this.pollingTimer) { clearInterval(this.pollingTimer); this.pollingTimer = null; }
   }
 
   private reset(): void {
-    this.videoSrc = null;
-    this.error = null;
-    this.loading = false;
+    this.destroyHls();
+    this.videoSrc         = null;
+    this.hlsSrc           = null;
+    this.error            = null;
+    this.loading          = false;
+    this.buffering        = false;
     this.processingStatus = null;
-    this.duration = null;
-    this.createdAt = null;
+    this.duration         = null;
+    this.createdAt        = null;
+    this.pendingHlsInit   = false;
     this.clearPolling();
   }
 
-  /** Format seconds → h:mm:ss or m:ss */
   formatDuration(seconds: number | null): string {
     if (!seconds) return '—';
     const h = Math.floor(seconds / 3600);

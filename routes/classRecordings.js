@@ -10,10 +10,74 @@ const ZoomWebhookAudit = require('../models/ZoomWebhookAudit');
 const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
-const { r2Client, R2_BUCKET } = require('../config/r2');
+const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config/r2');
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
+
+// ── In-memory HLS playlist cache ──────────────────────────────────────────────
+// Stores rewritten m3u8 (with presigned segment URLs) per meetingLinkId.
+// TTL is 13 min — safely within the 15-min presigned URL lifetime.
+const _hlsCache = new Map(); // meetingLinkId → { content: string, expiresAt: number }
+const HLS_CACHE_TTL_MS = 13 * 60 * 1000;
+
+function getHlsCached(meetingLinkId) {
+  const entry = _hlsCache.get(meetingLinkId);
+  if (!entry || Date.now() >= entry.expiresAt) {
+    _hlsCache.delete(meetingLinkId);
+    return null;
+  }
+  return entry.content;
+}
+
+function setHlsCached(meetingLinkId, content) {
+  _hlsCache.set(meetingLinkId, { content, expiresAt: Date.now() + HLS_CACHE_TTL_MS });
+}
+
+/** Drain an AWS SDK v3 stream body into a UTF-8 string. */
+async function streamToString(body) {
+  const chunks = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+/**
+ * Fetch the raw HLS playlist from R2, then replace every `.ts` line with
+ * a presigned R2 URL valid for SIGNED_URL_EXPIRY_SECONDS.
+ * The browser (or hls.js) can then fetch segments directly from R2,
+ * bypassing the Express server entirely — zero extra backend load during playback.
+ */
+async function buildSignedHlsPlaylist(hlsKey) {
+  if (!R2_CONFIG_OK) {
+    throw new Error(`R2 is not configured: ${r2ConfigIssues.join(', ')}`);
+  }
+  const { GetObjectCommand: GetObj } = require('@aws-sdk/client-s3');
+
+  // Fetch raw m3u8 text from R2
+  const obj = await r2Client.send(new GetObj({ Bucket: R2_BUCKET, Key: hlsKey }));
+  const raw = await streamToString(obj.Body);
+
+  // The HLS directory prefix (everything before /playlist.m3u8)
+  const hlsDir = hlsKey.substring(0, hlsKey.lastIndexOf('/'));
+
+  // Replace each segment filename line with a presigned URL
+  const lines = raw.split('\n');
+  const signed = await Promise.all(
+    lines.map(async (line) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.endsWith('.ts')) {
+        const segKey = `${hlsDir}/${trimmed}`;
+        const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: segKey });
+        return getSignedUrl(r2Client, cmd, { expiresIn: SIGNED_URL_EXPIRY_SECONDS });
+      }
+      return line;
+    })
+  );
+
+  return signed.join('\n');
+}
 
 function normalizeBatch(value) {
   return String(value || '')
@@ -793,15 +857,97 @@ router.get('/zoom/webhook-audit', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
 });
 
 /**
+ * GET /api/class-recordings/zoom/:meetingLinkId/hls/playlist
+ *
+ * Serves the HLS master playlist (.m3u8) with every segment line replaced by
+ * a short-lived presigned R2 URL.  Once the client has this playlist, it fetches
+ * segments directly from R2 — the Express server is NOT involved during playback.
+ *
+ * The playlist is cached in-memory for 13 minutes so repeated seeks / refreshes
+ * don't re-sign hundreds of URLs on every request.
+ *
+ * Access control is identical to the MP4 signed-URL endpoint.
+ */
+router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) => {
+  try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
+    const { meetingLinkId } = req.params;
+    const { role, id: userId } = req.user;
+
+    const zoomRecording = await ZoomRecording.findOne({ meetingLinkId })
+      .select('hlsKey status isPublished').lean();
+
+    if (!zoomRecording || !zoomRecording.hlsKey) {
+      return res.status(404).json({ success: false, message: 'HLS recording not found for this class.' });
+    }
+    if (zoomRecording.status === 'processing') {
+      return res.status(202).json({ success: false, message: 'Recording is still being processed.' });
+    }
+    if (zoomRecording.status !== 'ready') {
+      return res.status(500).json({ success: false, message: 'Recording is not available.' });
+    }
+
+    // Student access control
+    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+      if (zoomRecording.isPublished === false) {
+        return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
+      }
+      const [meetingLink, student] = await Promise.all([
+        MeetingLink.findById(meetingLinkId).select('batch').lean(),
+        User.findById(userId).select('batch').lean(),
+      ]);
+      if (!meetingLink || !student || !isSameBatch(student.batch, meetingLink.batch)) {
+        return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
+      }
+    }
+
+    // Serve from cache when possible
+    const cached = getHlsCached(meetingLinkId);
+    if (cached) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.send(cached);
+    }
+
+    // Build and cache the signed playlist
+    const playlist = await buildSignedHlsPlaylist(zoomRecording.hlsKey);
+    setHlsCached(meetingLinkId, playlist);
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(playlist);
+
+  } catch (error) {
+    console.error('Error serving HLS playlist:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/class-recordings/zoom/:meetingLinkId
  *
  * Returns a short-lived R2 presigned URL for the recording of a given class.
+ * For HLS recordings (hlsKey set) it also returns hlsMode:true so the client
+ * knows to use the /hls/playlist endpoint instead of the MP4 URL.
  * Access rules:
  *  - ADMIN / TEACHER_ADMIN / TEACHER: always allowed
  *  - STUDENT: must belong to the same batch as the MeetingLink (attended or not)
  */
 router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
   try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
     const { meetingLinkId } = req.params;
     const { role, id: userId } = req.user;
 
@@ -839,19 +985,30 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       }
     }
 
-    // 3. Generate a presigned URL from R2 (15-minute TTL)
-    const command = new GetObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: zoomRecording.r2Key,
-    });
+    // 3. For HLS recordings — no MP4 presigned URL needed; client uses /hls/playlist endpoint.
+    //    For legacy MP4 recordings (hlsKey absent, r2Key present) — generate presigned URL.
+    const hlsMode = !!zoomRecording.hlsKey;
+    let signedUrl = null;
 
-    const signedUrl = await getSignedUrl(r2Client, command, {
-      expiresIn: SIGNED_URL_EXPIRY_SECONDS,
-    });
+    if (!hlsMode && zoomRecording.r2Key) {
+      const command = new GetObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: zoomRecording.r2Key,
+      });
+      signedUrl = await getSignedUrl(r2Client, command, { expiresIn: SIGNED_URL_EXPIRY_SECONDS });
+    }
+
+    if (!hlsMode && !signedUrl) {
+      return res.status(500).json({
+        success: false,
+        message: 'Recording is missing both hlsKey and r2Key.',
+      });
+    }
 
     res.json({
       success: true,
-      signedUrl,
+      hlsMode,                                  // true → use /hls/playlist endpoint
+      signedUrl,                                // null for HLS recordings; MP4 URL for legacy
       duration: zoomRecording.duration,
       createdAt: zoomRecording.createdAt,
       isPublished: zoomRecording.isPublished !== false,
