@@ -10,6 +10,8 @@ export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' |
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
   context?: string;
+  /** Toggle advanced/AI grading behavior for this question. */
+  aiGradingEnabled?: boolean;
 }
 
 export interface MCQQuestion extends QuestionCommonFields {
@@ -559,7 +561,10 @@ export class DigitalExerciseService {
   generateExplanation(data: {
     questionType?: string;
     questionText?: string;
+    storyParagraph?: string;
+    contextText?: string;
     correctAnswer?: string;
+    sampleAnswers?: string[];
     targetLanguage?: string;
   }): Observable<{ explanation: string }> {
     return this.http.post<{ explanation: string }>(

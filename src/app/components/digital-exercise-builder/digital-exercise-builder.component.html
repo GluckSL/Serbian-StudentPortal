@@ -572,70 +572,80 @@
               </button>
             </div>
 
-            <!-- AI Grading Config -->
-            <div class="qa-grading-config" *ngIf="q.worksheetKind !== 'true-false'">
-              <div class="qa-grading-title">
-                <span class="material-icons">auto_awesome</span>
-                AI Grading Settings
-              </div>
-              <div class="qa-grading-row">
-
-                <!-- Threshold -->
-                <div class="qa-grading-field">
-                  <label>Minimum % to pass</label>
-                  <div class="threshold-control">
-                    <div class="threshold-display">
-                      <div>
-                        <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
-                        <span class="threshold-val-unit">%</span>
-                      </div>
-                      <span class="threshold-label">match required to pass</span>
-                    </div>
-                    <input
-                      type="range" min="50" max="100" step="5"
-                      [ngModel]="q.similarityThreshold ?? 70"
-                      (ngModelChange)="setThreshold(q, $event)"
-                      class="threshold-slider"
-                      [style.--val]="((q.similarityThreshold ?? 70) - 50) / 50 * 100 + '%'"
-                    />
-                    <div class="threshold-presets">
-                      <button *ngFor="let p of [50,60,70,80,90,100]"
-                        type="button"
-                        class="preset-btn"
-                        [class.active]="(q.similarityThreshold ?? 70) === p"
-                        (click)="q.similarityThreshold = p">
-                        {{ p }}%
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Scoring mode -->
-                <div class="qa-grading-field">
-                  <label>Marks awarded</label>
-                  <div class="scoring-mode-opts">
-                    <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
-                      <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
-                      <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
-                      <div class="scoring-opt-text">
-                        <span class="scoring-opt-name">Full marks if passed</span>
-                        <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
-                      </div>
-                    </label>
-                    <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
-                      <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
-                      <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
-                      <div class="scoring-opt-text">
-                        <span class="scoring-opt-name">Proportional marks</span>
-                        <span class="scoring-opt-desc">Scaled by AI score (85% → 0.85 × pts)</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-              </div>
-            </div>
           </ng-container>
+
+          <!-- Grading Config (all question types) -->
+          <div class="qa-grading-config">
+            <div class="qa-grading-title">
+              <span class="material-icons">auto_awesome</span>
+              Grading Settings
+            </div>
+            <div class="field-group full" style="margin-bottom:10px;">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.aiGradingEnabled" />
+                Use AI/advanced grading for this question
+              </label>
+            </div>
+            <p class="hint-text" *ngIf="q.aiGradingEnabled === false" style="margin-top:-4px;">
+              AI/advanced grading is off. This question will use strict normal grading.
+            </p>
+            <div class="qa-grading-row" *ngIf="q.aiGradingEnabled !== false">
+
+              <!-- Threshold -->
+              <div class="qa-grading-field">
+                <label>Minimum % to pass</label>
+                <div class="threshold-control">
+                  <div class="threshold-display">
+                    <div>
+                      <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
+                      <span class="threshold-val-unit">%</span>
+                    </div>
+                    <span class="threshold-label">match required to pass</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    [ngModel]="q.similarityThreshold ?? 70"
+                    (ngModelChange)="setThreshold(q, $event)"
+                    class="threshold-slider"
+                    [style.--val]="(q.similarityThreshold ?? 70) + '%'"
+                  />
+                  <div class="threshold-presets">
+                    <button *ngFor="let p of [20,40,60,70,80,90,100]"
+                      type="button"
+                      class="preset-btn"
+                      [class.active]="(q.similarityThreshold ?? 70) === p"
+                      (click)="q.similarityThreshold = p">
+                      {{ p }}%
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scoring mode -->
+              <div class="qa-grading-field">
+                <label>Marks awarded</label>
+                <div class="scoring-mode-opts">
+                  <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
+                    <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
+                    <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                    <div class="scoring-opt-text">
+                      <span class="scoring-opt-name">Full marks if passed</span>
+                      <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                    </div>
+                  </label>
+                  <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
+                    <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
+                    <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                    <div class="scoring-opt-text">
+                      <span class="scoring-opt-name">Proportional marks</span>
+                      <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+          </div>
 
           <!-- Pronunciation Editor -->
           <ng-container *ngIf="q.type === 'pronunciation'">

@@ -39,8 +39,9 @@ interface BuilderQuestion {
   sampleAnswers?: string[];
   // Story paragraph for worksheet-style questions (e.g. true-false reading passage).
   storyParagraph?: string;
-  similarityThreshold?: number;   // 0-100, default 70
+  similarityThreshold?: number;   // 0-100, default varies by type
   scoringMode?: 'full' | 'proportional';
+  aiGradingEnabled?: boolean;
   // Listening
   mediaUrl?: string;
   expectedTranscript?: string; // stored as the correct answer text for listening
@@ -189,7 +190,19 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   private mapQuestionFromApi(q: any): BuilderQuestion {
-    const base: BuilderQuestion = { type: q.type, points: q.points || 1, context: q.context || '' };
+    const base: BuilderQuestion = {
+      type: q.type,
+      points: q.points || 1,
+      context: q.context || '',
+      attachmentUrl: q.attachmentUrl || '',
+      answerExplanation: q.answerExplanation || '',
+      worksheetKind: q.worksheetKind || null,
+      similarityThreshold: (typeof q.similarityThreshold === 'number')
+        ? this.clampThreshold(q.similarityThreshold)
+        : this.defaultThresholdForQuestion(q.type),
+      scoringMode: q.scoringMode === 'proportional' ? 'proportional' : 'full',
+      aiGradingEnabled: q.aiGradingEnabled !== false
+    };
     if (q.type === 'mcq') {
       Object.assign(base, {
         question: q.question || '',
@@ -222,10 +235,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       Object.assign(base, {
         prompt: q.prompt || '',
         sampleAnswers: [...(q.sampleAnswers || [''])],
-        storyParagraph: q.storyParagraph || '',
-        similarityThreshold: q.similarityThreshold ?? 70,
-        scoringMode: q.scoringMode || 'full',
-        worksheetKind: q.worksheetKind || null
+        storyParagraph: q.storyParagraph || ''
       });
     } else if (q.type === 'video-pronunciation') {
       Object.assign(base, {
@@ -238,7 +248,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         prompt: q.prompt || '',
         mediaUrl: q.mediaUrl || '',
         expectedTranscript: q.expectedTranscript || '',
-        attemptMode: 'typing'
+        attemptMode: q.attemptMode || 'typing'
       });
     }
     return base;
@@ -277,7 +287,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       context: '',
       worksheetKind: isWorksheetKind ? type : null,
       attachmentUrl: '',
-      answerExplanation: ''
+      answerExplanation: '',
+      similarityThreshold: this.defaultThresholdForQuestion(qType),
+      scoringMode: 'full',
+      aiGradingEnabled: true
     };
 
     if (qType === 'mcq') {
@@ -414,9 +427,19 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   setThreshold(q: BuilderQuestion, raw: any): void {
     let v = parseInt(String(raw), 10);
     if (isNaN(v)) return;
-    if (v < 0) v = 0;
-    if (v > 100) v = 100;
-    q.similarityThreshold = v;
+    q.similarityThreshold = this.clampThreshold(v);
+  }
+
+  private clampThreshold(v: number): number {
+    if (v < 0) return 0;
+    if (v > 100) return 100;
+    return Math.round(v);
+  }
+
+  private defaultThresholdForQuestion(type: BuilderQuestion['type']): number {
+    // Keep existing behavior baseline for pronunciation/video types.
+    if (type === 'video-pronunciation') return 20;
+    return 70;
   }
 
   // ─── Question attachment helpers ───────────────────────────────────────────
@@ -466,8 +489,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   useAiExplanation(q: BuilderQuestion): void {
     const questionText =
       q.question || q.prompt || q.word || q.sentence || q.instruction || '';
+    const storyParagraph = q.storyParagraph || '';
+    const contextText = q.context || '';
     const correctAnswer = this.getCorrectAnswerText(q);
-    if (!questionText && !correctAnswer) {
+    const sampleAnswers = (q.sampleAnswers || []).map((x) => String(x || '').trim()).filter(Boolean);
+    if (!questionText && !storyParagraph && !contextText && !correctAnswer && sampleAnswers.length === 0) {
       this.showError('Please fill in the question details first');
       return;
     }
@@ -475,7 +501,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.exerciseService.generateExplanation({
       questionType: q.worksheetKind || q.type,
       questionText,
+      storyParagraph,
+      contextText,
       correctAnswer,
+      sampleAnswers,
       targetLanguage: this.targetLanguage
     }).subscribe({
       next: (res) => {
@@ -555,7 +584,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       acceptedVariants: [],
       points: 1,
       attachmentUrl: '',
-      answerExplanation: ''
+      answerExplanation: '',
+      similarityThreshold: this.defaultThresholdForQuestion('video-pronunciation'),
+      scoringMode: 'full',
+      aiGradingEnabled: true
     };
     this.questions.push(q);
     this.activeTab = 'video';
