@@ -99,7 +99,8 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       startTime,
       duration: duration || 60,
       timezone: timezone || 'Asia/Colombo',
-      agenda: agenda || `German Language Class - Batch ${batch}`
+      agenda: agenda || `German Language Class - Batch ${batch}`,
+      coHostEmail: teacher.email
     }, zoomHostEmail);
 
     if (!zoomResult.success) {
@@ -124,6 +125,7 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       zoomMeetingId: meeting.id,
       zoomPassword: meeting.password,
       hostEmail: meeting.hostEmail,
+      coHostEmail: teacher.email,
       startUrl: meeting.startUrl,
       joinUrl: meeting.joinUrl,
       createdBy: req.user.id,

@@ -97,10 +97,12 @@ class ZoomService {
         duration,
         timezone = 'Asia/Colombo',
         agenda,
+        coHostEmail,
         settings = {}
       } = meetingData;
 
       const zoomStartTime = this.formatZoomStartTime(startTime, timezone);
+      const altHosts = String(coHostEmail || '').trim();
       const payload = {
         topic: topic || 'German Language Class',
         type: zoomConfig.meetingTypes.SCHEDULED,
@@ -120,6 +122,7 @@ class ZoomService {
           approval_type: 2, // No registration required
           registrants_email_notification: false,
           registrants_confirmation_email: false,
+          ...(altHosts ? { alternative_hosts: altHosts } : {}),
           alternative_hosts_email_notification: false
         }
       };
