@@ -11,7 +11,12 @@
       <button class="cr-btn cr-btn--outline" (click)="openWebhookAudit()">
         <i class="fa fa-wave-square"></i> Webhook Audit
       </button>
-      <button class="cr-btn cr-btn--secondary" (click)="runZoomBackfill()" [disabled]="backfillLoading">
+      <button
+        class="cr-btn cr-btn--secondary"
+        type="button"
+        (click)="runZoomBackfill()"
+        [disabled]="backfillLoading"
+        title="Re-queues meetings from Zoom (force). Existing ready MP4 recordings are reprocessed into HLS when Zoom still has the file.">
         <i class="fa fa-rotate"></i> {{ backfillLoading ? 'Backfilling...' : 'Backfill Zoom Recordings' }}
       </button>
       <button class="cr-btn cr-btn--primary" (click)="openForm()">

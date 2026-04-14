@@ -92,12 +92,18 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       batch: this.filterBatch !== 'ALL' ? this.filterBatch : null,
       limit: 200,
       includeFailed: true,
-      force: false,
+      // Re-queue recordings that are already "ready" so they run through the
+      // current pipeline (HLS) instead of staying on legacy MP4-only objects.
+      force: true,
     }).subscribe({
       next: () => {
         // Server responds 202 immediately — begin polling for completion.
         this.backfillStatusMessage = 'Backfill running in background…';
-        this.snackBar.open('Backfill started — scanning Zoom recordings in background', 'Close', { duration: 5000 });
+        this.snackBar.open(
+          'Backfill started (force) — reprocessing may take a while; old MP4 → HLS where Zoom still has the file',
+          'Close',
+          { duration: 7000 }
+        );
         this.startBackfillPolling();
       },
       error: (err) => {

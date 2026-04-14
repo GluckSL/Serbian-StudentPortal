@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { forkJoin, of, catchError } from 'rxjs';
+import { of, catchError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { StudentProgressService } from '../../services/student-progress.service';
 import { AuthService } from '../../services/auth.service';
@@ -40,6 +40,10 @@ type ProgressRange = 'weekly' | 'overall';
   styleUrls: ['./my-course.component.scss']
 })
 export class MyCourseComponent implements OnInit {
+  /** Row placeholders for the loading skeleton (My class tab). */
+  readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
+  readonly skeletonSideLines = [0, 1, 2];
+
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
   /** Prevents opening two celebration dialogs from overlapping refresh + init timers. */
@@ -132,35 +136,43 @@ export class MyCourseComponent implements OnInit {
       error: () => {}
     });
 
-    forkJoin({
-      journey: this.progressService.getStudentJourney(),
-      meetings: this.zoomService.getStudentMeetings().pipe(
+    // Journey first: unlock the page as soon as progress API returns (fastest paint).
+    // Meetings load in parallel and patch preview when ready — avoids waiting on the slower hop.
+    this.progressService
+      .getStudentJourney()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (journey) => {
+          this.journey = journey;
+          this.loadQuickAccess();
+          this.pickTabHeaderQuote();
+          this.loading = false;
+          setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
+          if (!this._tourChecked) {
+            this._tourChecked = true;
+            import('../../services/tour.service').then((m) => {
+              const tourService = new m.TourService();
+              if (!tourService.hasCompletedTour()) {
+                setTimeout(() => tourService.startStudentTour(), 500);
+              }
+            });
+          }
+        },
+        error: () => {
+          this.pickTabHeaderQuote();
+          this.loading = false;
+        },
+      });
+
+    this.zoomService
+      .getStudentMeetings()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
         catchError(() => of({ success: false, data: [] }))
       )
-    }).subscribe({
-      next: ({ journey, meetings }) => {
-        this.journey = journey;
-        this.applyMeetingsPreview(meetings);
-        this.loadQuickAccess();
-        this.pickTabHeaderQuote();
-        this.loading = false;
-        setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
-        // Start tour for first-time students
-        if (!this._tourChecked) {
-          this._tourChecked = true;
-          import('../../services/tour.service').then(m => {
-            const tourService = new m.TourService();
-            if (!tourService.hasCompletedTour()) {
-              setTimeout(() => tourService.startStudentTour(), 500);
-            }
-          });
-        }
-      },
-      error: () => {
-        this.pickTabHeaderQuote();
-        this.loading = false;
-      }
-    });
+      .subscribe({
+        next: (meetings) => this.applyMeetingsPreview(meetings),
+      });
 
     this.route.queryParamMap.subscribe((q) => {
       const t = q.get('tab');

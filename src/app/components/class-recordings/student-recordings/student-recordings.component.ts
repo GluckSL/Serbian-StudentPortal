@@ -20,6 +20,15 @@ import {
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import Hls from 'hls.js';
+import { environment } from '../../../../environments/environment';
+
+/** Single active list filter (combined with search text). Uses attendance, not Zoom "attempted". */
+export type RecordingListFilter =
+  | 'all'
+  | 'attended'
+  | 'not_attended'
+  | 'date_newest'
+  | 'date_oldest';
 
 /** Unified shape for displaying both manual and Zoom recordings in the same list */
 export interface DisplayRecording {
@@ -56,6 +65,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   filteredRecordings: DisplayRecording[] = [];
   loading = false;
   searchQuery = '';
+  /** Filter / sort mode for the recordings list (see filter menu in template). */
+  recordingFilter: RecordingListFilter = 'all';
   currentUserBatch = '';
 
   // ── Player modal state ────────────────────────────────────────────────────
@@ -138,7 +149,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
       const merged = [...manualItems, ...zoomItems].filter((r) => this.isSameBatchForStudent(r.batch));
       this.allRecordings = merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      this.filteredRecordings = [...this.allRecordings];
+      this.applyListFilters();
       this.prefetchFirst5Zoom();
       this.loading = false;
     });
@@ -163,10 +174,67 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   // ── Search ────────────────────────────────────────────────────────────────
 
   applySearch(): void {
+    this.applyListFilters();
+  }
+
+  /** Apply search text + recording filter / date sort to `filteredRecordings`. */
+  applyListFilters(): void {
+    let list = [...this.allRecordings];
     const q = this.searchQuery.trim().toLowerCase();
-    if (!q) { this.filteredRecordings = [...this.allRecordings]; return; }
-    this.filteredRecordings = this.allRecordings.filter(
-      (r) => r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.batch.toLowerCase().includes(q)
+    if (q) {
+      list = list.filter(
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.description.toLowerCase().includes(q) ||
+          r.batch.toLowerCase().includes(q)
+      );
+    }
+    switch (this.recordingFilter) {
+      case 'attended':
+        list = list.filter((r) => this.matchesAttendedFilter(r));
+        break;
+      case 'not_attended':
+        list = list.filter((r) => this.matchesNotAttendedFilter(r));
+        break;
+      case 'date_newest':
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        break;
+      case 'date_oldest':
+        list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        break;
+      default:
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        break;
+    }
+    this.filteredRecordings = list;
+  }
+
+  setRecordingFilter(mode: RecordingListFilter): void {
+    this.recordingFilter = mode;
+    this.applyListFilters();
+  }
+
+  /** Normalized attendance label for filtering (API may vary casing). */
+  private readAttendanceNorm(r: DisplayRecording): string {
+    return (r.attendanceStatus || '').trim().toLowerCase();
+  }
+
+  /** Filter: attended classes only. */
+  private matchesAttendedFilter(r: DisplayRecording): boolean {
+    return this.readAttendanceNorm(r) === 'attended';
+  }
+
+  /**
+   * Filter: not attended / not completed — everything except "Attended" and bare N/A
+   * (manual-only rows stay in "All" only).
+   */
+  private matchesNotAttendedFilter(r: DisplayRecording): boolean {
+    const a = this.readAttendanceNorm(r);
+    if (a === 'attended' || a === 'n/a' || a === '') return false;
+    return (
+      a === 'not attended' ||
+      a === 'not attempted' ||
+      a === 'pending'
     );
   }
 
@@ -273,9 +341,19 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         startLevel: 0,
         startPosition: 0,
         backBufferLength: 5,
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          // Playlist endpoint needs session cookie; segment fetches go direct to R2.
-          xhr.withCredentials = true;
+        xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
+          // Only same-origin API requests need cookies (playlist). Presigned .ts URLs
+          // are on R2 — withCredentials there triggers a credentialed CORS mode that
+          // R2 will not satisfy → browser reports "CORS error" and playback stalls.
+          try {
+            const apiOrigin = new URL(environment.apiUrl).origin;
+            const target = new URL(url || '', window.location.href);
+            if (target.origin === apiOrigin) {
+              xhr.withCredentials = true;
+            }
+          } catch {
+            /* leave default (no credentials) for R2 / opaque URLs */
+          }
         },
       });
 

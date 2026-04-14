@@ -15,6 +15,7 @@ import {
   ClassRecordingsService,
   ZoomRecordingResponse,
 } from '../../../services/class-recordings.service';
+import { environment } from '../../../../environments/environment';
 import Hls from 'hls.js';
 
 @Component({
@@ -139,8 +140,16 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
         startLevel: 0,
         startPosition: 0,
         backBufferLength: 5,
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          xhr.withCredentials = true;
+        xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
+          try {
+            const apiOrigin = new URL(environment.apiUrl).origin;
+            const target = new URL(url || '', window.location.href);
+            if (target.origin === apiOrigin) {
+              xhr.withCredentials = true;
+            }
+          } catch {
+            /* no credentials for R2 segment URLs */
+          }
         },
       });
       this.hls.loadSource(url);
