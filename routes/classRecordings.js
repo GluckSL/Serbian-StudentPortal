@@ -80,8 +80,9 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       .lean();
 
     // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
-    const zoomRecordings = await ZoomRecording.find({ status: 'ready' })
-      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId')
+    // Admin sees all states so they can decide what to publish.
+    const zoomRecordings = await ZoomRecording.find({})
+      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -112,6 +113,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
         meetingLinkId: z.meetingLinkId,
         zoomMeetingId: z.zoomMeetingId || null,
         status: z.status,
+        isPublished: Boolean(z.isPublished),
+        publishedAt: z.publishedAt || null,
         r2Key: z.r2Key,
         duration: z.duration,
         classDate: meeting.startTime || z.createdAt,
@@ -124,6 +127,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       recordingType: 'MANUAL',
       source: 'MANUAL_UPLOAD',
       status: 'ready',
+      isPublished: true,
+      publishedAt: m.createdAt,
       duration: null,
       classDate: m.createdAt,
       classDuration: null,
@@ -320,8 +325,9 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const zoomRecordings = await ZoomRecording.find({
       meetingLinkId: { $in: meetingLinkIds },
       status: 'ready',
+      isPublished: true,
     })
-      .select('meetingLinkId r2Key duration status createdAt')
+      .select('meetingLinkId r2Key duration status createdAt isPublished')
       .lean();
 
     // Build a lookup map for meeting link metadata
@@ -336,6 +342,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
         r2Key: rec.r2Key,
         duration: rec.duration,
         createdAt: rec.createdAt,
+        isPublished: Boolean(rec.isPublished),
         topic: meeting.topic || 'Class Recording',
         batch: meeting.batch || '',
         classDate: meeting.startTime || rec.createdAt,
@@ -391,6 +398,44 @@ router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
 });
 
 /**
+ * POST /api/class-recordings/zoom/publish
+ *
+ * Publish/unpublish selected Zoom recordings for student visibility.
+ * Body:
+ *  - meetingLinkIds: string[]
+ *  - isPublished: boolean (default true)
+ */
+router.post('/zoom/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { meetingLinkIds, isPublished = true } = req.body || {};
+    if (!Array.isArray(meetingLinkIds) || meetingLinkIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'meetingLinkIds array is required.' });
+    }
+
+    const update = {
+      isPublished: Boolean(isPublished),
+      publishedAt: isPublished ? new Date() : null,
+      publishedBy: isPublished ? req.user.id : null,
+    };
+
+    const result = await ZoomRecording.updateMany(
+      { meetingLinkId: { $in: meetingLinkIds } },
+      { $set: update }
+    );
+
+    return res.json({
+      success: true,
+      message: isPublished ? 'Recordings published successfully.' : 'Recordings unpublished successfully.',
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    console.error('Error publishing zoom recordings:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/class-recordings/zoom/debug/status
  *
  * Temporary admin/teacher debug endpoint to inspect ingestion status by batch.
@@ -416,7 +461,7 @@ router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
 
     const meetingIds = meetingLinks.map((m) => m._id);
     const zoomRows = await ZoomRecording.find({ meetingLinkId: { $in: meetingIds } })
-      .select('meetingLinkId zoomMeetingId status r2Key duration errorMessage createdAt updatedAt')
+      .select('meetingLinkId zoomMeetingId status isPublished r2Key duration errorMessage createdAt updatedAt')
       .lean();
 
     const zoomByMeetingId = {};
@@ -434,6 +479,7 @@ router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
         meetingDuration: meeting.duration || null,
         zoomMeetingId: zoom?.zoomMeetingId || null,
         status: zoom?.status || 'missing',
+        isPublished: Boolean(zoom?.isPublished),
         r2Key: zoom?.r2Key || null,
         recordingDuration: zoom?.duration || null,
         errorMessage: zoom?.errorMessage || null,
@@ -519,8 +565,12 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       return res.status(500).json({ success: false, message: 'Recording processing failed. Please contact support.' });
     }
 
-    // 2. Authorisation check for students — batch-based (attended or not)
+    // 2. Authorisation check for students — batch-based + published only
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+      if (!zoomRecording.isPublished) {
+        return res.status(403).json({ success: false, message: 'This recording has not been published yet.' });
+      }
+
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch').lean(),
         User.findById(userId).select('batch').lean(),
@@ -550,6 +600,7 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       signedUrl,
       duration: zoomRecording.duration,
       createdAt: zoomRecording.createdAt,
+      isPublished: Boolean(zoomRecording.isPublished),
       r2Key: zoomRecording.r2Key,
     });
   } catch (error) {

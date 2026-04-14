@@ -74,6 +74,13 @@ const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 const { scheduleZoomMeetingReminderEmails } = require('./jobs/zoomMeetingReminderEmails');
 
+// WhatsApp CRM notification jobs
+const { scheduleClassReminders } = require('./jobs/whatsapp/classReminder');
+const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
+const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
+const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
+const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
+
 // Multer setup for file uploads
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
@@ -251,6 +258,13 @@ app.listen(PORT, () => {
   scheduleAutoFetchAttendance();
   scheduleJourneyDayRollover();
   scheduleZoomMeetingReminderEmails();
+
+  // WhatsApp CRM notification jobs
+  scheduleClassReminders();
+  scheduleAbsenceAlerts();
+  scheduleMissedActivitiesAlerts();
+  scheduleWeeklyReports();
+  scheduleConsecutiveAbsenceAlerts();
 });
 
 

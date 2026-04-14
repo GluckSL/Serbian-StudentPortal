@@ -26,6 +26,8 @@ export interface AdminClassRecording extends ClassRecording {
   meetingLinkId?: string | null;
   zoomMeetingId?: string | null;
   r2Key?: string | null;
+  isPublished?: boolean;
+  publishedAt?: string | null;
 }
 
 export interface ZoomWebhookAuditRow {
@@ -89,6 +91,14 @@ export class ClassRecordingsService {
     force?: boolean;
   }): Observable<any> {
     return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
+  }
+
+  publishZoomRecordings(meetingLinkIds: string[], isPublished = true): Observable<any> {
+    return this.http.post<any>(
+      `${this.url}/zoom/publish`,
+      { meetingLinkIds, isPublished },
+      { withCredentials: true }
+    );
   }
 
   getZoomWebhookAudit(params?: {

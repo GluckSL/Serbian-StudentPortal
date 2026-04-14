@@ -33,12 +33,14 @@ export class ManageRecordingsComponent implements OnInit {
 
   loading = false;
   backfillLoading = false;
+  publishLoading = false;
   showWebhookAuditModal = false;
   webhookAuditLoading = false;
   webhookAuditRows: ZoomWebhookAuditRow[] = [];
   webhookAuditSummary: Record<string, number> = {};
   showForm = false;
   editing: ClassRecording | null = null;
+  selectedZoomMeetingIds: string[] = [];
 
   form = { title: '', description: '', videoUrl: '', batches: [] as string[], level: 'A1', plan: 'ALL' };
 
@@ -125,7 +127,18 @@ export class ManageRecordingsComponent implements OnInit {
   loadRecordings(): void {
     this.loading = true;
     this.service.getAdminAllRecordings().subscribe({
-      next: (res) => { this.recordings = res.recordings; this.applyFilters(); this.loading = false; },
+      next: (res) => {
+        this.recordings = res.recordings;
+        this.applyFilters();
+        // Remove selections that no longer exist in the current list.
+        const currentIds = new Set(
+          this.recordings
+            .filter((r) => this.isZoomRecording(r) && r.meetingLinkId)
+            .map((r) => String(r.meetingLinkId))
+        );
+        this.selectedZoomMeetingIds = this.selectedZoomMeetingIds.filter((id) => currentIds.has(id));
+        this.loading = false;
+      },
       error: () => { this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 }); this.loading = false; }
     });
   }
@@ -244,6 +257,44 @@ export class ManageRecordingsComponent implements OnInit {
 
   isZoomRecording(r: AdminClassRecording): boolean {
     return r.recordingType === 'ZOOM' || r.source === 'ZOOM_AUTO';
+  }
+
+  isZoomReadyUnpublished(r: AdminClassRecording): boolean {
+    return this.isZoomRecording(r) && r.status === 'ready' && !r.isPublished;
+  }
+
+  isSelectedZoom(meetingLinkId: string | null | undefined): boolean {
+    if (!meetingLinkId) return false;
+    return this.selectedZoomMeetingIds.includes(String(meetingLinkId));
+  }
+
+  toggleZoomSelection(meetingLinkId: string | null | undefined): void {
+    if (!meetingLinkId) return;
+    const id = String(meetingLinkId);
+    const index = this.selectedZoomMeetingIds.indexOf(id);
+    if (index >= 0) this.selectedZoomMeetingIds.splice(index, 1);
+    else this.selectedZoomMeetingIds.push(id);
+  }
+
+  publishSelectedZoom(): void {
+    if (!this.selectedZoomMeetingIds.length || this.publishLoading) return;
+    this.publishLoading = true;
+    this.service.publishZoomRecordings(this.selectedZoomMeetingIds, true).subscribe({
+      next: (res) => {
+        this.publishLoading = false;
+        this.snackBar.open(
+          `Published ${res.modified || 0} recording(s).`,
+          'Close',
+          { duration: 4000 }
+        );
+        this.selectedZoomMeetingIds = [];
+        this.loadRecordings();
+      },
+      error: (err) => {
+        this.publishLoading = false;
+        this.snackBar.open(err.error?.message || 'Failed to publish recordings', 'Close', { duration: 4000 });
+      },
+    });
   }
 
   openViews(r: ClassRecording): void {

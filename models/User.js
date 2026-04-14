@@ -89,6 +89,10 @@ const UserSchema = new mongoose.Schema({
     progressPercent: { type: Number, default: 0 },
     lastUpdated: { type: Date, default: Date.now }
   }],
+
+  // WhatsApp consecutive-absence alert state
+  consecutiveAbsenceAlertSentAt: { type: Date, default: null },
+  consecutiveAbsenceAlertStreak: { type: Number, default: null },
 });
 
 module.exports = mongoose.model("User", UserSchema);
