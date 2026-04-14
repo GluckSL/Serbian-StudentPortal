@@ -16,6 +16,29 @@ export interface NavGroup {
 @Injectable({ providedIn: 'root' })
 export class NavService {
   private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['dashboard', 'profile'];
+  private readonly SUB_ADMIN_ROUTE_ALIASES: Record<string, string[]> = {
+    modules: [
+      '/learning-modules',
+      '/module-creation-choice',
+      '/create-module',
+      '/create-module-ai',
+      '/create-roleplay-module',
+      '/edit-module'
+    ],
+    exercises: [
+      '/admin/digital-exercises',
+      '/admin/digital-exercises/create',
+      '/admin/digital-exercises/create-video',
+      '/admin/digital-exercises/generate-ai',
+      '/admin/digital-exercises/generate-listening-manual'
+    ],
+    'manage-classes': [
+      '/teacher/meetings'
+    ],
+    journey: [
+      '/admin/journey'
+    ]
+  };
 
   // ── ADMIN ──────────────────────────────────────────────────────────────
   private readonly ADMIN_NAV: NavGroup[] = [
@@ -335,7 +358,11 @@ export class NavService {
     );
 
     const normalizedRoute = this.normalizeRoute(route);
-    return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
+    return allowedItems.some(item => {
+      if (this.routeMatches(item.route, normalizedRoute)) return true;
+      const aliases = this.SUB_ADMIN_ROUTE_ALIASES[item.id] || [];
+      return aliases.some(alias => this.routeMatches(alias, normalizedRoute));
+    });
   }
 
   private getSubAdminNav(sidebarPermissions: string[]): NavGroup[] {
