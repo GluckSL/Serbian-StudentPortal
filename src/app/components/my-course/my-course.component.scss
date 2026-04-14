@@ -445,6 +445,30 @@
   }
 }
 
+/* Phone: horizontal scroll so full tab labels stay readable (no “Journey to Ger…”). Desktop/tablet rail unchanged above 640px. */
+@media (max-width: 640px) {
+  .mc-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    flex-wrap: nowrap;
+  }
+
+  .mc-tabs::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .mc-tab {
+    flex: 0 0 auto;
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    padding-inline: 10px;
+    font-size: 11px;
+  }
+}
+
 .mc-tab:hover {
   color: #0f172a;
 }
@@ -455,7 +479,7 @@
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
-/* Compact profile card — full width; ~60% height of My class hero; same card language as .mc-hero */
+/* Compact profile card — full width; same card language as .mc-hero */
 .mc-tab-profile {
   display: flex;
   flex-direction: row;
@@ -464,7 +488,6 @@
   gap: 20px 24px;
   width: 100%;
   min-height: calc(var(--mc-hero-visual-height) * 0.6);
-  max-height: calc(var(--mc-hero-visual-height) * 0.6);
   padding: 10px 20px 10px 22px;
   box-sizing: border-box;
   background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 35%, #f0f4ff 70%, #f8fafc 100%);
@@ -473,7 +496,14 @@
   box-shadow:
     0 1px 3px rgba(15, 23, 42, 0.06),
     0 12px 40px rgba(99, 102, 241, 0.1);
-  overflow: hidden;
+}
+
+/* Fixed-height clip is desktop-only; mobile rules above must not be overridden (quote + level stay visible). */
+@media (min-width: 901px) {
+  .mc-tab-profile {
+    max-height: calc(var(--mc-hero-visual-height) * 0.6);
+    overflow: hidden;
+  }
 }
 
 .mc-tab-profile__main {

@@ -11,7 +11,7 @@ const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET } = require('../config/r2');
-const { backfillZoomRecordings } = require('../services/zoomRecordingBackfillService');
+const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
 
@@ -536,31 +536,53 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
  *  - includeFailed: true
  *  - force: false
  */
-router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const {
-      batch = null,
-      limit = 100,
-      includeFailed = true,
-      force = false,
-    } = req.body || {};
+/**
+ * POST /api/class-recordings/zoom/backfill
+ *
+ * Starts a backfill in the background and responds 202 immediately so
+ * Cloudflare's proxy timeout is never hit. Poll GET /zoom/backfill/status
+ * to track progress.
+ */
+router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  const {
+    batch = null,
+    limit = 100,
+    includeFailed = true,
+    force = false,
+  } = req.body || {};
 
-    const result = await backfillZoomRecordings({
-      batch,
-      limit,
-      includeFailed,
-      force,
+  const status = getBackfillStatus();
+  if (status.running) {
+    return res.status(409).json({
+      success: false,
+      message: 'A backfill is already running. Poll GET /api/class-recordings/zoom/backfill/status for updates.',
+      startedAt: status.startedAt,
+      params: status.params,
     });
-
-    return res.json({
-      success: true,
-      message: 'Backfill scan completed. Queued recordings will continue processing in background.',
-      ...result,
-    });
-  } catch (error) {
-    console.error('Error running zoom recording backfill:', error);
-    return res.status(500).json({ success: false, message: error.message });
   }
+
+  // Respond immediately — scanning + downloading can take minutes.
+  res.status(202).json({
+    success: true,
+    message: 'Backfill started in background. Poll GET /api/class-recordings/zoom/backfill/status for results.',
+    params: { batch, limit, includeFailed, force },
+  });
+
+  // Fire-and-forget: runs entirely outside the HTTP request lifecycle.
+  backfillZoomRecordings({ batch, limit, includeFailed, force }).catch((err) => {
+    console.error('❌ Backfill top-level error:', err.message);
+  });
+});
+
+/**
+ * GET /api/class-recordings/zoom/backfill/status
+ *
+ * Returns the state of the most recently triggered backfill job.
+ * Use this to poll after calling POST /zoom/backfill.
+ */
+router.get('/zoom/backfill/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  const status = getBackfillStatus();
+  res.json({ success: true, ...status });
 });
 
 /**

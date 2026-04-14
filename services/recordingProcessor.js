@@ -33,11 +33,80 @@ function buildR2Key(meetingLinkId, recordingStartTime) {
  * We follow redirects manually and re-attach access_token on every URL.
  */
 async function createZoomDownloadStream(downloadUrl, accessToken) {
+  // Only inject auth onto URLs on the same origin as the initial Zoom download URL.
+  // After Zoom redirects to a CDN/storage host (e.g. ssrweb.zoom.us), the URL is
+  // already signed — adding access_token or a Bearer header to it causes a 403.
+  const zoomOrigin = new URL(downloadUrl).origin;
+
   const withToken = (absoluteUrl) => {
     const u = new URL(absoluteUrl);
+    if (u.origin !== zoomOrigin) return absoluteUrl; // CDN URL — leave as-is
     u.searchParams.set('access_token', accessToken);
     return u.toString();
   };
+
+  const isZoomOrigin = (urlStr) => {
+    try { return new URL(urlStr).origin === zoomOrigin; } catch { return false; }
+  };
+
+  /**
+   * Read a small snippet of a response stream for diagnostics.
+   * Only used for non-200 responses where we destroy the stream anyway.
+   * @param {import('stream').Readable} stream
+   * @param {number} maxBytes
+   */
+  async function readStreamSnippet(stream, maxBytes = 4096) {
+    if (!stream || typeof stream.on !== 'function') return null;
+
+    return await new Promise((resolve) => {
+      let chunks = [];
+      let total = 0;
+      let done = false;
+
+      const cleanup = () => {
+        stream.off('data', onData);
+        stream.off('end', onEnd);
+        stream.off('error', onError);
+      };
+
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        cleanup();
+        resolve(val);
+      };
+
+      const onError = () => finish(null);
+      const onEnd = () => {
+        try {
+          finish(Buffer.concat(chunks, total).toString('utf8'));
+        } catch {
+          finish(null);
+        }
+      };
+
+      const onData = (chunk) => {
+        if (done) return;
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+        const remaining = maxBytes - total;
+        if (remaining <= 0) return;
+        const slice = buf.length > remaining ? buf.subarray(0, remaining) : buf;
+        chunks.push(slice);
+        total += slice.length;
+        if (total >= maxBytes) {
+          try {
+            finish(Buffer.concat(chunks, total).toString('utf8'));
+          } catch {
+            finish(null);
+          }
+        }
+      };
+
+      stream.on('data', onData);
+      stream.once('end', onEnd);
+      stream.once('error', onError);
+    });
+  }
 
   /**
    * @param {string} urlStr
@@ -55,15 +124,26 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
   let current = withToken(downloadUrl);
 
   for (let hop = 0; hop < 15; hop += 1) {
-    let response = await getStream(current, { authHeader: true });
+    const hopUrl = new URL(current);
+    const safeHopUrl = `${hopUrl.origin}${hopUrl.pathname}`; // avoid logging query token
+    const onZoomOrigin = isZoomOrigin(current);
 
-    // Some Zoom/CDN edges reject Bearer on the first hop; query token alone works.
-    if (response.status === 401) {
+    console.log(
+      `⬇️  Zoom download hop ${hop + 1}: GET ${safeHopUrl}` +
+        (onZoomOrigin ? ' (authHeader=on, zoom-origin)' : ' (authHeader=off, cdn-redirect)')
+    );
+    let response = await getStream(current, { authHeader: onZoomOrigin });
+
+    // Some Zoom API edges reject Bearer even on the first hop; query token alone works.
+    if (response.status === 401 && onZoomOrigin) {
+      console.warn(`⚠️  Zoom download hop ${hop + 1}: HTTP 401 with Authorization header; retrying without header`);
       response.data?.destroy?.();
+      console.log(`⬇️  Zoom download hop ${hop + 1}: GET ${safeHopUrl} (authHeader=off, 401-retry)`);
       response = await getStream(current, { authHeader: false });
     }
 
     if (response.status === 200) {
+      console.log(`✅ Zoom download hop ${hop + 1}: HTTP 200 stream opened`);
       return response.data;
     }
 
@@ -73,17 +153,47 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
       if (!loc) {
         throw new Error('Zoom download redirect missing Location header');
       }
+      try {
+        const next = new URL(loc, current);
+        console.log(
+          `➡️  Zoom download hop ${hop + 1}: HTTP ${response.status} redirect to ${next.origin}${next.pathname}`
+        );
+      } catch {
+        console.log(`➡️  Zoom download hop ${hop + 1}: HTTP ${response.status} redirect`);
+      }
       current = withToken(new URL(loc, current).href);
       continue;
     }
 
+    // Error response: capture small body snippet (Zoom often returns JSON error payloads)
+    const trackingId =
+      response.headers?.['x-zm-trackingid'] ||
+      response.headers?.['x-zm-tracking-id'] ||
+      response.headers?.['x-zm-trackingid'] ||
+      null;
+    const requestId =
+      response.headers?.['x-request-id'] ||
+      response.headers?.['x-amzn-requestid'] ||
+      response.headers?.['cf-ray'] ||
+      null;
+
+    const snippet = await readStreamSnippet(response.data, 4096);
     response.data?.destroy?.();
-    throw new Error(
-      `Zoom download failed: HTTP ${response.status}` +
-        (response.status === 401
-          ? ' (check cloud recording scopes + that S2S app is on the same account as the meeting host)'
-          : '')
+    const extraHint =
+      response.status === 401
+        ? ' (check cloud recording scopes + that S2S app is on the same account as the meeting host)'
+        : response.status === 403
+          ? ' (403 is often caused by missing recording permission / not the same account as host / or an expired & signed download URL)'
+          : '';
+
+    console.error(
+      `❌ Zoom download failed at hop ${hop + 1}: HTTP ${response.status}${extraHint}` +
+        (trackingId ? ` | zm-trackingid=${trackingId}` : '') +
+        (requestId ? ` | request=${requestId}` : '') +
+        (snippet ? ` | body_snippet=${JSON.stringify(snippet)}` : '')
     );
+
+    throw new Error(`Zoom download failed: HTTP ${response.status}`);
   }
 
   throw new Error('Zoom download: too many redirects');
@@ -95,6 +205,10 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
  */
 function compressVideoStream(inputStream) {
   const outputStream = new PassThrough();
+  let completed = false;
+
+  outputStream.once('finish', () => { completed = true; });
+  outputStream.once('close', () => { completed = true; });
 
   ffmpeg(inputStream)
     .inputFormat('mp4')
@@ -108,7 +222,17 @@ function compressVideoStream(inputStream) {
       '-f mp4',
     ])
     .on('error', (err) => {
-      console.error('FFmpeg compression error:', err.message);
+      const msg = String(err?.message || err);
+      // fluent-ffmpeg can emit "Output stream closed" after the consumer has
+      // already finished reading the stream. That is not actionable and should
+      // not be treated as a pipeline failure.
+      if (msg.toLowerCase().includes('output stream closed')) {
+        // In our pipeline this is benign (upload continues / completes). Treat as non-fatal.
+        console.warn(`⚠️  FFmpeg notice (ignored): ${msg}`);
+        return;
+      }
+
+      console.error('FFmpeg compression error:', msg);
       outputStream.destroy(err);
     })
     .pipe(outputStream, { end: true });
@@ -166,6 +290,7 @@ async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, 
 
   const meetingLinkId = meetingLink._id.toString();
   const r2Key = buildR2Key(meetingLinkId, recordingStart);
+  console.log(`🧩 Recording context: meetingLinkId=${meetingLinkId} r2Key=${r2Key}`);
 
   // 2. Create the ZoomRecording document in "processing" state
   let zoomRecordingDoc = await ZoomRecording.findOne({ meetingLinkId });
@@ -192,7 +317,12 @@ async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, 
     const accessToken = await zoomService.getAccessToken();
 
     // 4. Open Zoom download stream
-    console.log(`⬇️  Downloading from Zoom: ${downloadUrl}`);
+    try {
+      const u = new URL(downloadUrl);
+      console.log(`⬇️  Downloading from Zoom: ${u.origin}${u.pathname}`);
+    } catch {
+      console.log(`⬇️  Downloading from Zoom: ${downloadUrl}`);
+    }
     const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken);
 
     // 5. Compress via FFmpeg
