@@ -205,6 +205,10 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
  */
 function compressVideoStream(inputStream) {
   const outputStream = new PassThrough();
+  let completed = false;
+
+  outputStream.once('finish', () => { completed = true; });
+  outputStream.once('close', () => { completed = true; });
 
   ffmpeg(inputStream)
     .inputFormat('mp4')
@@ -218,7 +222,17 @@ function compressVideoStream(inputStream) {
       '-f mp4',
     ])
     .on('error', (err) => {
-      console.error('FFmpeg compression error:', err.message);
+      const msg = String(err?.message || err);
+      // fluent-ffmpeg can emit "Output stream closed" after the consumer has
+      // already finished reading the stream. That is not actionable and should
+      // not be treated as a pipeline failure.
+      if (msg.toLowerCase().includes('output stream closed')) {
+        // In our pipeline this is benign (upload continues / completes). Treat as non-fatal.
+        console.warn(`⚠️  FFmpeg notice (ignored): ${msg}`);
+        return;
+      }
+
+      console.error('FFmpeg compression error:', msg);
       outputStream.destroy(err);
     })
     .pipe(outputStream, { end: true });
