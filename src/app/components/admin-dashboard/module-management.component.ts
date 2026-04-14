@@ -152,11 +152,29 @@ interface ModuleWithStats {
           </div>
 
           <!-- Loading State -->
-          <div *ngIf="loading" class="loading-state text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading...</span>
+          <div *ngIf="loading" class="loading-state">
+            <div class="skeleton-header">
+              <div class="skeleton-line skeleton-line--title"></div>
+              <div class="skeleton-line skeleton-line--text"></div>
             </div>
-            <p class="mt-3">Loading modules...</p>
+            <div class="skeleton-stats">
+              <div class="skeleton-chip" *ngFor="let _ of skeletonStats; trackBy: trackByIndex"></div>
+            </div>
+            <div class="skeleton-table">
+              <div class="skeleton-row skeleton-row--head">
+                <div class="skeleton-cell" *ngFor="let _ of skeletonColumns; trackBy: trackByIndex"></div>
+              </div>
+              <div class="skeleton-row" *ngFor="let _ of skeletonRows; trackBy: trackByIndex">
+                <div class="skeleton-cell" *ngFor="let __ of skeletonColumns; trackBy: trackByIndex"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div *ngIf="!loading && modules.length === 0" class="empty-state">
+            <div class="empty-state-icon">📚</div>
+            <h3>No modules found</h3>
+            <p>Try changing the filter or create a new module.</p>
           </div>
 
           <!-- Results Summary -->
@@ -189,7 +207,7 @@ interface ModuleWithStats {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr *ngFor="let module of modules">
+                      <tr *ngFor="let module of modules; trackBy: trackByModuleId">
                         <td>
                           <div class="module-info">
                             <div class="module-title">{{ module.title }}</div>
@@ -290,7 +308,7 @@ interface ModuleWithStats {
               <li class="page-item" [class.disabled]="pagination.current === 1">
                 <button class="page-link" (click)="changePage(pagination.current - 1)">Previous</button>
               </li>
-              <li class="page-item" *ngFor="let page of getPageNumbers()" [class.active]="page === pagination.current">
+              <li class="page-item" *ngFor="let page of getPageNumbers(); trackBy: trackByPage" [class.active]="page === pagination.current">
                 <button class="page-link" (click)="changePage(page)">{{ page }}</button>
               </li>
               <li class="page-item" [class.disabled]="pagination.current === pagination.pages">
@@ -371,7 +389,7 @@ interface ModuleWithStats {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let s of filteredAnalyticsSessions" class="am-row">
+              <tr *ngFor="let s of filteredAnalyticsSessions; trackBy: trackBySession" class="am-row">
                 <td class="am-name">{{ s.studentName }}</td>
                 <td>{{ s.studentBatch || '—' }}</td>
                 <td>
@@ -418,7 +436,7 @@ interface ModuleWithStats {
             
             <h6 class="mt-4">Update History:</h6>
             <div class="timeline">
-              <div class="timeline-item" *ngFor="let update of selectedModuleHistory.updateHistory; let i = index">
+              <div class="timeline-item" *ngFor="let update of selectedModuleHistory.updateHistory; let i = index; trackBy: trackByHistoryVersion">
                 <div class="timeline-marker bg-primary"></div>
                 <div class="timeline-content">
                   <div class="d-flex justify-content-between">
@@ -586,13 +604,66 @@ interface ModuleWithStats {
     .loading-state {
       background: #fff;
       border-radius: 14px;
-      padding: 30px 20px;
+      padding: 18px;
       box-shadow: 0 2px 12px rgba(15,23,42,0.07);
-      text-align: center;
     }
 
-    .loading-state p { font-size: 12px; color: #64748b; margin-top: 10px; }
-    .spinner-border { color: #005b96; }
+    .skeleton-header { margin-bottom: 14px; }
+    .skeleton-line {
+      border-radius: 8px;
+      background: linear-gradient(90deg, #eef2f7 25%, #f7f9fc 50%, #eef2f7 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s linear infinite;
+    }
+    .skeleton-line--title { width: 220px; max-width: 100%; height: 14px; margin-bottom: 8px; }
+    .skeleton-line--text { width: 320px; max-width: 100%; height: 10px; }
+    .skeleton-stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .skeleton-chip {
+      height: 52px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #eef2f7 25%, #f7f9fc 50%, #eef2f7 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s linear infinite;
+    }
+    .skeleton-table { border: 1px solid #eef2f7; border-radius: 10px; overflow: hidden; }
+    .skeleton-row {
+      display: grid;
+      grid-template-columns: 2.2fr 1.1fr 0.8fr 1fr 1fr 0.8fr 0.8fr 0.8fr 1.4fr;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .skeleton-row--head { background: #f8fafc; }
+    .skeleton-row:last-child { border-bottom: none; }
+    .skeleton-cell {
+      height: 11px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #eef2f7 25%, #f7f9fc 50%, #eef2f7 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s linear infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .empty-state {
+      background: #fff;
+      border: 1px dashed #cbd5e1;
+      border-radius: 14px;
+      padding: 26px 16px;
+      text-align: center;
+      margin-bottom: 10px;
+      color: #475569;
+    }
+    .empty-state-icon { font-size: 28px; line-height: 1; margin-bottom: 8px; }
+    .empty-state h3 { font-size: 14px; margin: 0 0 4px; color: #0f172a; }
+    .empty-state p { margin: 0; font-size: 12px; }
 
     /* ── Results Summary ── */
     .results-summary {
@@ -971,6 +1042,9 @@ export class ModuleManagementComponent implements OnInit {
   summary: any = null;
   pagination: any = null;
   loading = true;
+  readonly skeletonRows = Array.from({ length: 7 });
+  readonly skeletonColumns = Array.from({ length: 9 });
+  readonly skeletonStats = Array.from({ length: 5 });
   statusFilter = 'all';
   selectedModuleHistory: any = null;
 
@@ -1002,10 +1076,14 @@ export class ModuleManagementComponent implements OnInit {
   }
 
   loadModules(): void {
+    this.fetchModules(1);
+  }
+
+  private fetchModules(page: number): void {
     this.loading = true;
     this.learningModulesService.getModulesForAdmin({
       status: this.statusFilter,
-      page: 1,
+      page,
       limit: 20
     }).subscribe({
       next: (response) => {
@@ -1022,24 +1100,8 @@ export class ModuleManagementComponent implements OnInit {
   }
 
   changePage(page: number): void {
-    if (page >= 1 && page <= this.pagination.pages) {
-      this.loading = true;
-      this.learningModulesService.getModulesForAdmin({
-        status: this.statusFilter,
-        page: page,
-        limit: 20
-      }).subscribe({
-        next: (response) => {
-          this.modules = response.modules;
-          this.pagination = response.pagination;
-          this.loading = false;
-        },
-        error: (error) => {
-          console.error('Error loading modules:', error);
-          this.loading = false;
-        }
-      });
-    }
+    if (!this.pagination || page < 1 || page > this.pagination.pages || page === this.pagination.current) return;
+    this.fetchModules(page);
   }
 
   getPageNumbers(): number[] {
@@ -1211,5 +1273,25 @@ export class ModuleManagementComponent implements OnInit {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  trackByModuleId(_: number, module: ModuleWithStats): string {
+    return module._id;
+  }
+
+  trackByPage(_: number, page: number): number {
+    return page;
+  }
+
+  trackBySession(index: number, session: any): string {
+    return session?._id || `${session?.studentId || 'student'}-${session?.date || index}`;
+  }
+
+  trackByHistoryVersion(index: number, update: any): string | number {
+    return update?.version ?? index;
+  }
+
+  trackByIndex(index: number): number {
+    return index;
   }
 }

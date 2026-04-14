@@ -23,7 +23,8 @@ export class NavService {
       '/create-module',
       '/create-module-ai',
       '/create-roleplay-module',
-      '/edit-module'
+      '/edit-module',
+      '/ai-tutor-chat'
     ],
     exercises: [
       '/admin/digital-exercises',
