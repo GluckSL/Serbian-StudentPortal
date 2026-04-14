@@ -318,6 +318,28 @@
   color: #6d28d9;
 }
 
+.cr-published-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.cr-published-chip--yes {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.cr-published-chip--no {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 /* ── Plan chip ── */
 .cr-plan-chip {
   display: inline-block;
@@ -376,6 +398,8 @@
 .cr-icon-btn--green:hover { background: #bbf7d0; }
 .cr-icon-btn--red   { background: #fee2e2; color: #dc2626; }
 .cr-icon-btn--red:hover   { background: #fecaca; }
+.cr-icon-btn--amber { background: #fef3c7; color: #b45309; }
+.cr-icon-btn--amber:hover { background: #fde68a; }
 .cr-icon-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

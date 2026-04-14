@@ -44,6 +44,17 @@ const zoomRecordingSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Controls student visibility for this recording.
+    isPublished: {
+      type: Boolean,
+      default: true,
+    },
+
+    publishedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
     // Original Zoom download URL (stored for retry capability)
     zoomDownloadUrl: {
       type: String,
@@ -56,5 +67,6 @@ const zoomRecordingSchema = new mongoose.Schema(
 zoomRecordingSchema.index({ meetingLinkId: 1 });
 zoomRecordingSchema.index({ zoomMeetingId: 1 });
 zoomRecordingSchema.index({ status: 1 });
+zoomRecordingSchema.index({ isPublished: 1, status: 1 });
 
 module.exports = mongoose.model('ZoomRecording', zoomRecordingSchema);
