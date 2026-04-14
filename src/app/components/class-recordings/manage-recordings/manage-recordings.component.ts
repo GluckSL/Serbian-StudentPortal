@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -19,7 +19,7 @@ import { NotificationService } from '../../../services/notification.service';
   templateUrl: './manage-recordings.component.html',
   styleUrls: ['./manage-recordings.component.css']
 })
-export class ManageRecordingsComponent implements OnInit {
+export class ManageRecordingsComponent implements OnInit, OnDestroy {
   recordings: AdminClassRecording[] = [];
   filteredRecordings: AdminClassRecording[] = [];
   availableBatches: string[] = [];
@@ -33,6 +33,8 @@ export class ManageRecordingsComponent implements OnInit {
 
   loading = false;
   backfillLoading = false;
+  backfillStatusMessage = '';
+  private backfillPollTimer: any = null;
   showWebhookAuditModal = false;
   webhookAuditLoading = false;
   webhookAuditRows: ZoomWebhookAuditRow[] = [];
@@ -70,6 +72,7 @@ export class ManageRecordingsComponent implements OnInit {
   runZoomBackfill(): void {
     if (this.backfillLoading) return;
     this.backfillLoading = true;
+    this.backfillStatusMessage = 'Starting backfill…';
 
     this.service.runZoomBackfill({
       batch: this.filterBatch !== 'ALL' ? this.filterBatch : null,
@@ -77,24 +80,50 @@ export class ManageRecordingsComponent implements OnInit {
       includeFailed: true,
       force: false,
     }).subscribe({
-      next: (res) => {
-        this.backfillLoading = false;
-        this.snackBar.open(
-          `Backfill queued: ${res.queued || 0}, skipped ready: ${res.skippedAlreadyReady || 0}, no recording in Zoom: ${res.skippedNoRecordingInZoom || 0}`,
-          'Close',
-          { duration: 6000 }
-        );
-
-        // Reload after a short delay so newly queued items can appear as processing/ready.
-        setTimeout(() => {
-          this.loadRecordings();
-        }, 2000);
+      next: () => {
+        // Server responds 202 immediately — begin polling for completion.
+        this.backfillStatusMessage = 'Backfill running in background…';
+        this.snackBar.open('Backfill started — scanning Zoom recordings in background', 'Close', { duration: 5000 });
+        this.startBackfillPolling();
       },
       error: (err) => {
         this.backfillLoading = false;
+        this.backfillStatusMessage = '';
         this.snackBar.open(err.error?.message || 'Backfill failed', 'Close', { duration: 4000 });
       }
     });
+  }
+
+  private startBackfillPolling(): void {
+    this.stopBackfillPolling();
+    this.backfillPollTimer = setInterval(() => {
+      this.service.getZoomBackfillStatus().subscribe({
+        next: (status) => {
+          if (!status.running) {
+            this.stopBackfillPolling();
+            this.backfillLoading = false;
+            const s = status.summary;
+            this.backfillStatusMessage = s
+              ? `Done — queued: ${s.queued ?? 0}, skipped ready: ${s.skippedAlreadyReady ?? 0}, no recording: ${s.skippedNoRecordingInZoom ?? 0}, errors: ${s.errors ?? 0}`
+              : (status.error ? `Backfill error: ${status.error}` : 'Backfill complete');
+            this.snackBar.open(this.backfillStatusMessage, 'Close', { duration: 8000 });
+            setTimeout(() => this.loadRecordings(), 1500);
+          }
+        },
+        error: () => { /* silently ignore poll errors */ }
+      });
+    }, 5000);
+  }
+
+  private stopBackfillPolling(): void {
+    if (this.backfillPollTimer) {
+      clearInterval(this.backfillPollTimer);
+      this.backfillPollTimer = null;
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopBackfillPolling();
   }
 
   openWebhookAudit(): void {
