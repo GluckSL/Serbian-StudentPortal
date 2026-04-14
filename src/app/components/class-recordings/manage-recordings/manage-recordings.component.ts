@@ -33,6 +33,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   loading = false;
   backfillLoading = false;
+  backfillStatusMessage = '';
+  private backfillPollTimer: ReturnType<typeof setInterval> | null = null;
   publishLoadingId: string | null = null;
   showWebhookAuditModal = false;
   webhookAuditLoading = false;
@@ -110,7 +112,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.stopBackfillPolling();
     this.backfillPollTimer = setInterval(() => {
       this.service.getZoomBackfillStatus().subscribe({
-        next: (status) => {
+        next: (status: any) => {
           if (!status.running) {
             this.stopBackfillPolling();
             this.backfillLoading = false;
