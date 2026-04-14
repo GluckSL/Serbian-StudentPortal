@@ -78,9 +78,6 @@
                 <option value="">Select Teacher</option>
                 <option *ngFor="let t of teachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
               </select>
-              <small class="text-muted">
-                The selected teacher will be added as a Zoom co-host automatically (to manage breakout rooms).
-              </small>
             </div>
 
             <div class="mb-3">
