@@ -20,6 +20,8 @@ interface User {
   role: 'ADMIN' | 'TEACHER' | 'TEACHER_ADMIN' | 'SUB_ADMIN' | 'STUDENT';
   sidebarPermissions?: string[];
   teacherTabPermissions?: string[];
+  sidebarAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
+  teacherTabAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
   batch?: string;
   medium?: string;
   subscription?: string;

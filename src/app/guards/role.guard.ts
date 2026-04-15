@@ -42,7 +42,11 @@ export class RoleGuard implements CanActivate {
         return true;
       }
 
-      if (this.navService.canSubAdminAccessRoute(url, user?.sidebarPermissions || [])) {
+      if (this.navService.canSubAdminAccessRoute(
+        url,
+        user?.sidebarPermissions || [],
+        user?.sidebarAccessLevels || {}
+      )) {
         return true;
       }
 
@@ -55,7 +59,11 @@ export class RoleGuard implements CanActivate {
       allowedRoles.some((role: string) => role === 'ADMIN' || role === 'TEACHER_ADMIN');
 
     if (canSubAdminTryAdminRoute) {
-      if (this.navService.canSubAdminAccessRoute(url, user?.sidebarPermissions || [])) {
+      if (this.navService.canSubAdminAccessRoute(
+        url,
+        user?.sidebarPermissions || [],
+        user?.sidebarAccessLevels || {}
+      )) {
         return true;
       }
       this.router.navigate(['/admin-dashboard']);
@@ -68,7 +76,11 @@ export class RoleGuard implements CanActivate {
       allowedRoles.some((role: string) => role === 'ADMIN' || role === 'TEACHER_ADMIN');
 
     if (canTeacherTryAdminRoute) {
-      if (this.navService.canTeacherAccessAdminRoute(url, user?.teacherTabPermissions || [])) {
+      if (this.navService.canTeacherAccessAdminRoute(
+        url,
+        user?.teacherTabPermissions || [],
+        user?.teacherTabAccessLevels || {}
+      )) {
         return true;
       }
       this.router.navigate(['/teacher-dashboard']);

@@ -2,11 +2,32 @@ const express = require('express');
 const router = express.Router();
 const SupportTicket = require('../models/SupportTicket');
 const upload = require('../config/supportTicketUpload');
+const transporter = require('../config/emailConfig');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 function buildPublicUrl(req, fileName) {
   // app.js serves /uploads statically from /uploads
   return `${req.protocol}://${req.get('host')}/uploads/support-tickets/${fileName}`;
+}
+
+async function sendNewTicketAlert(ticket) {
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: 'Selvaganesh@gluckglobal.com',
+    cc: 'sourav@gluckgloabl.com',
+    subject: `[Support Ticket] ${ticket.ticketNumber} - ${ticket.subject}`,
+    html: `
+      <h3>New Support Ticket Received</h3>
+      <p><strong>Ticket Number:</strong> ${ticket.ticketNumber}</p>
+      <p><strong>Name:</strong> ${ticket.name}</p>
+      <p><strong>Email:</strong> ${ticket.email}</p>
+      <p><strong>Category:</strong> ${ticket.category}</p>
+      <p><strong>Priority:</strong> ${ticket.priority}</p>
+      <p><strong>Subject:</strong> ${ticket.subject}</p>
+      <p><strong>Description:</strong> ${ticket.description}</p>
+      <p><strong>Screenshot:</strong> <a href="${ticket?.screenshot?.url || '#'}">View Attachment</a></p>
+    `
+  });
 }
 
 // POST /api/support/tickets  (public; screenshot required)
@@ -48,6 +69,12 @@ router.post('/tickets', upload.single('screenshot'), async (req, res) => {
     });
 
     const saved = await ticket.save();
+    try {
+      await sendNewTicketAlert(saved);
+    } catch (mailErr) {
+      console.error('Support ticket notification email error:', mailErr);
+    }
+
     return res.status(201).json({ success: true, data: saved });
   } catch (err) {
     console.error('Support ticket create error:', err);
