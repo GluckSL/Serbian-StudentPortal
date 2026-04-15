@@ -319,6 +319,19 @@ function buildPerQuestionReview(exercise, attempt) {
   });
 }
 
+async function refreshExerciseCompletionStats(exerciseId) {
+  const completedCount = await ExerciseAttempt.countDocuments({ exerciseId, status: 'completed' });
+  const avgResult = await ExerciseAttempt.aggregate([
+    { $match: { exerciseId: new mongoose.Types.ObjectId(exerciseId), status: 'completed' } },
+    { $group: { _id: null, avg: { $avg: '$scorePercentage' } } }
+  ]);
+
+  await DigitalExercise.findByIdAndUpdate(exerciseId, {
+    totalCompletions: completedCount,
+    averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
+  });
+}
+
 function exerciseOwnerId(exercise) {
   const raw = exercise.createdBy;
   if (raw && typeof raw === 'object' && raw._id) return raw._id.toString();
@@ -1467,6 +1480,76 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
     }
     console.error('GET /digital-exercises/:id/attempts/:attemptId error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/digital-exercises/:id/attempts/:attemptId/questions/:questionIndex/override
+// Staff override: manually mark a submitted question as correct/incorrect and recalculate score.
+router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    await assertTeacherOwnsExercise(req.user, exercise);
+
+    const idx = Number.parseInt(req.params.questionIndex, 10);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= (exercise.questions || []).length) {
+      return res.status(400).json({ error: 'Invalid question index' });
+    }
+
+    const attempt = await ExerciseAttempt.findOne({
+      _id: req.params.attemptId,
+      exerciseId: req.params.id,
+      status: 'completed'
+    });
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+
+    const targetResp = (attempt.responses || []).find((r) => Number(r.questionIndex) === idx);
+    if (!targetResp) {
+      return res.status(404).json({ error: 'No submitted answer found for this question' });
+    }
+
+    const shouldBeCorrect = typeof req.body?.isCorrect === 'boolean' ? req.body.isCorrect : true;
+    const maxPoints = Number(exercise.questions?.[idx]?.points) || 1;
+
+    targetResp.isCorrect = shouldBeCorrect;
+    targetResp.pointsEarned = shouldBeCorrect ? maxPoints : 0;
+    attempt.markModified('responses');
+
+    const earnedPoints = (attempt.responses || []).reduce((sum, r) => {
+      const pts = Number(r?.pointsEarned);
+      return sum + (Number.isFinite(pts) ? pts : 0);
+    }, 0);
+    const totalPoints = (exercise.questions || []).reduce((sum, q) => sum + (Number(q?.points) || 1), 0);
+    const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+
+    attempt.earnedPoints = earnedPoints;
+    attempt.totalPoints = totalPoints;
+    attempt.scorePercentage = scorePercentage;
+    await attempt.save();
+
+    await refreshExerciseCompletionStats(req.params.id);
+
+    return res.json({
+      success: true,
+      attemptId: attempt._id,
+      questionIndex: idx,
+      isCorrect: shouldBeCorrect,
+      pointsEarned: targetResp.pointsEarned,
+      earnedPoints: attempt.earnedPoints,
+      totalPoints: attempt.totalPoints,
+      scorePercentage: attempt.scorePercentage
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    if (code !== 500) {
+      return res.status(code).json({ error: err.message });
+    }
+    console.error('PATCH /digital-exercises/:id/attempts/:attemptId/questions/:questionIndex/override error:', err);
+    return res.status(500).json({ error: err.message });
   }
 });
 

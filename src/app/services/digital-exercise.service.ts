@@ -198,6 +198,17 @@ export interface StaffAttemptReviewResponse extends MyExerciseReviewResponse {
   };
 }
 
+export interface StaffAttemptOverrideResponse {
+  success: boolean;
+  attemptId: string;
+  questionIndex: number;
+  isCorrect: boolean;
+  pointsEarned: number;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+}
+
 export interface QuestionResponse {
   questionIndex: number;
   selectedOptionIndex?: number;
@@ -387,6 +398,20 @@ export class DigitalExerciseService {
   getAttemptReviewForStaff(exerciseId: string, attemptId: string): Observable<StaffAttemptReviewResponse> {
     return this.http.get<StaffAttemptReviewResponse>(
       `${this.apiUrl}/${exerciseId}/attempts/${attemptId}`,
+      { withCredentials: true }
+    );
+  }
+
+  /** Admin/Teacher: override grading for one submitted question in an attempt */
+  overrideAttemptQuestion(
+    exerciseId: string,
+    attemptId: string,
+    questionIndex: number,
+    isCorrect: boolean
+  ): Observable<StaffAttemptOverrideResponse> {
+    return this.http.patch<StaffAttemptOverrideResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}/questions/${questionIndex}/override`,
+      { isCorrect },
       { withCredentials: true }
     );
   }

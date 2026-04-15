@@ -781,6 +781,7 @@
                     class="blank-input"
                     [(ngModel)]="currentQuestion.fillAnswers![pi]"
                     (ngModelChange)="markAttempted(currentQuestion)"
+                    (focus)="setActiveSpecialInputTarget({ type: 'fill-blank', blankIndex: pi })"
                     [placeholder]="'blank ' + (pi + 1)"
                     [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
                     [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
@@ -796,6 +797,20 @@
           <div class="hint-label" *ngIf="currentQuestion.data.hint">
             <span class="material-icons">lightbulb</span>
             Hint: {{ currentQuestion.data.hint }}
+          </div>
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
+              </button>
+            </div>
           </div>
           <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
@@ -864,6 +879,7 @@
               placeholder="Type what you hear..."
               [(ngModel)]="currentQuestion.listeningText"
               (ngModelChange)="markAttempted(currentQuestion)"
+              (focus)="setActiveSpecialInputTarget({ type: 'listening' })"
               [disabled]="hasCurrentSubmitted"
             ></textarea>
             <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
@@ -876,6 +892,20 @@
               >
                 <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
                 {{ currentQuestion.isRecording ? 'Stop' : 'Speak' }}
+              </button>
+            </div>
+          </div>
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
               </button>
             </div>
           </div>
@@ -1031,8 +1061,23 @@
               placeholder="Write your answer here..."
               [(ngModel)]="currentQuestion.qaResponse"
               (ngModelChange)="markAttempted(currentQuestion)"
+              (focus)="setActiveSpecialInputTarget({ type: 'question-answer' })"
               [disabled]="hasCurrentSubmitted"
             ></textarea>
+            <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+              <div class="special-char-label">Special letters</div>
+              <div class="special-char-list" role="group" aria-label="German special letters">
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
           </ng-template>
 
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
