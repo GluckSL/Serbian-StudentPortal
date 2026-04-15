@@ -42,7 +42,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
 
   // Session summary card (replaces browser alert)
   showSummaryCard: boolean = false;
-  summaryData: { conversations: number; duration: number; vocabulary: string[] } = { conversations: 0, duration: 0, vocabulary: [] };
+  summaryData: { conversations: number; duration: number; vocabulary: string[]; wasCompleted: boolean } = { conversations: 0, duration: 0, vocabulary: [], wasCompleted: false };
 
   // Auto-refresh mechanism
   private autoRefreshInterval: any;
@@ -859,7 +859,7 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           });
 
           // Show in-page summary card instead of a browser alert
-          this.summaryData = { conversations: conversationCount, duration, vocabulary: vocabularyUsed };
+          this.summaryData = { conversations: conversationCount, duration, vocabulary: vocabularyUsed, wasCompleted: false };
           this.showSummaryCard = true;
           this.isLoading = false;
           this.cdr.detectChanges();
