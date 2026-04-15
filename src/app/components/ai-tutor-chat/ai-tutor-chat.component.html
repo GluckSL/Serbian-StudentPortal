@@ -537,10 +537,10 @@
     <div class="summary-card__accent"></div>
 
     <!-- Trophy icon -->
-    <div class="summary-card__icon">🎉</div>
+    <div class="summary-card__icon">{{ summaryData.wasCompleted ? '🎉' : '👋' }}</div>
 
-    <h2 class="summary-card__title">Session Complete!</h2>
-    <p class="summary-card__subtitle">Great work! Here's how your session went.</p>
+    <h2 class="summary-card__title">{{ summaryData.wasCompleted ? 'Session Complete!' : 'Session Ended' }}</h2>
+    <p class="summary-card__subtitle">{{ summaryData.wasCompleted ? "Great work! Here's how your session went." : "Here's a summary of your session." }}</p>
 
     <!-- Stats row -->
     <div class="summary-stats">
@@ -566,7 +566,7 @@
       </div>
     </div>
     <div class="summary-vocab" *ngIf="summaryData.vocabulary.length === 0">
-      <p class="summary-vocab__label" style="color:#64748b;">Practice completed — keep it up! 🌟</p>
+      <p class="summary-vocab__label" style="color:#64748b;">{{ summaryData.wasCompleted ? 'Practice completed — keep it up! 🌟' : 'Keep practicing to complete this module! 💪' }}</p>
     </div>
 
     <!-- Actions -->

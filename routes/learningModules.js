@@ -5,6 +5,7 @@ const router = express.Router();
 const LearningModule = require('../models/LearningModule');
 const StudentProgress = require('../models/StudentProgress');
 const User = require('../models/User');
+const SessionRecord = require('../models/SessionRecord');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // GET /api/learning-modules - Get all modules (with filtering and level-based access control)
@@ -646,6 +647,19 @@ router.post('/:id/complete', verifyToken, checkRole(['STUDENT', 'TEACHER', 'ADMI
     }
     
     await progress.save();
+    
+    // ✅ Also update the latest session record for this student+module
+    try {
+      const latestSessionRecord = await SessionRecord.findOne({ studentId, moduleId })
+        .sort({ createdAt: -1 });
+      if (latestSessionRecord && !latestSessionRecord.isModuleCompleted) {
+        latestSessionRecord.isModuleCompleted = true;
+        await latestSessionRecord.save();
+        console.log(`✅ Session record also marked as completed`);
+      }
+    } catch (srError) {
+      console.error('⚠️ Failed to update session record (non-critical):', srError.message);
+    }
     
     console.log(`✅ Module marked as completed: ${module.title} (${sessionData?.timeSpentMinutes || 'N/A'} minutes)`);
     
