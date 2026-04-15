@@ -1025,11 +1025,12 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(plainPassword, salt);
     await user.save();
+    console.log(`📧 Sending admin password email with App ID template for user ${user._id} (${user.regNo})`);
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸ”",
+      subject: "Your GlÃ¼ck Global Student Portal Credentials (App ID + Password)",
       html: `
         <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
           <p>Hello ${user.name},</p>
@@ -1037,7 +1038,7 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
           <p>Your password has been updated. Here are your login credentials for the <strong>GlÃ¼ck Global Portal</strong>:</p>
 
           <ul>
-            <li><strong>Web App ID:</strong> ${user.regNo}</li>
+            <li><strong>App ID:</strong> ${user.regNo}</li>
             <li><strong>Password:</strong> ${plainPassword}</li>
           </ul>
 
