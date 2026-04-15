@@ -34,7 +34,10 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   loading = false;
   backfillLoading = false;
   backfillStatusMessage = '';
+  backfillMeetingIdsInput = '';
   private backfillPollTimer: ReturnType<typeof setInterval> | null = null;
+  private processingClockTimer: ReturnType<typeof setInterval> | null = null;
+  private processingNowMs = Date.now();
   publishLoadingId: string | null = null;
   showWebhookAuditModal = false;
   webhookAuditLoading = false;
@@ -74,6 +77,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.loadBatches();
     this.loadAnalytics();
     this.loadZoomTeachers();
+    this.startProcessingClock();
   }
 
   loadZoomTeachers(): void {
@@ -85,6 +89,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   runZoomBackfill(): void {
     if (this.backfillLoading) return;
+    const meetingIds = this.parseMeetingIdsInput(this.backfillMeetingIdsInput);
     this.backfillLoading = true;
     this.backfillStatusMessage = 'Starting backfill…';
 
@@ -92,6 +97,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       batch: this.filterBatch !== 'ALL' ? this.filterBatch : null,
       limit: 200,
       includeFailed: true,
+      meetingIds,
       // Re-queue recordings that are already "ready" so they run through the
       // current pipeline (HLS) instead of staying on legacy MP4-only objects.
       force: true,
@@ -100,7 +106,9 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         // Server responds 202 immediately — begin polling for completion.
         this.backfillStatusMessage = 'Backfill running in background…';
         this.snackBar.open(
-          'Backfill started (force) — reprocessing may take a while; old MP4 → HLS where Zoom still has the file',
+          meetingIds.length
+            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s).`
+            : 'Backfill started (force) — reprocessing may take a while; old MP4 → HLS where Zoom still has the file',
           'Close',
           { duration: 7000 }
         );
@@ -142,8 +150,31 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  private parseMeetingIdsInput(input: string): string[] {
+    const ids = (input || '')
+      .split(/[\s,]+/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    return Array.from(new Set(ids));
+  }
+
   ngOnDestroy(): void {
     this.stopBackfillPolling();
+    this.stopProcessingClock();
+  }
+
+  private startProcessingClock(): void {
+    this.stopProcessingClock();
+    this.processingClockTimer = setInterval(() => {
+      this.processingNowMs = Date.now();
+    }, 1000);
+  }
+
+  private stopProcessingClock(): void {
+    if (this.processingClockTimer) {
+      clearInterval(this.processingClockTimer);
+      this.processingClockTimer = null;
+    }
   }
 
   openWebhookAudit(): void {
@@ -404,6 +435,55 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   canToggleStudentVisibility(r: AdminClassRecording): boolean {
     return this.isZoomRecording(r) && !!r.meetingLinkId && r.status === 'ready';
+  }
+
+  isProcessingRecording(r: AdminClassRecording): boolean {
+    return this.isZoomRecording(r) && r.status === 'processing';
+  }
+
+  getProcessingElapsedText(r: AdminClassRecording): string {
+    const startedAtMs = this.getProcessingStartMs(r);
+    if (!startedAtMs) return 'Processing...';
+    const elapsedSec = Math.max(0, Math.floor((this.processingNowMs - startedAtMs) / 1000));
+    return `Processing ${this.formatClock(elapsedSec)}`;
+  }
+
+  getProcessingEtaText(r: AdminClassRecording): string {
+    const startedAtMs = this.getProcessingStartMs(r);
+    if (!startedAtMs) return 'ETA unavailable';
+    const elapsedSec = Math.max(0, Math.floor((this.processingNowMs - startedAtMs) / 1000));
+    const remaining = this.estimateProcessingSeconds(r) - elapsedSec;
+    if (remaining <= 0) return 'Finishing soon';
+    return `ETA ${this.formatClock(remaining)}`;
+  }
+
+  private getProcessingStartMs(r: AdminClassRecording): number | null {
+    const candidate = r.createdAt || r.classDate;
+    if (!candidate) return null;
+    const ms = new Date(candidate).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  private estimateProcessingSeconds(r: AdminClassRecording): number {
+    const classMinutes = Number(r.classDuration || 0);
+    if (classMinutes > 0) {
+      // Rough estimate: ~25s processing per class minute, clamped to practical bounds.
+      return Math.min(75 * 60, Math.max(5 * 60, Math.round(classMinutes * 25)));
+    }
+    const videoSeconds = Number(r.duration || 0);
+    if (videoSeconds > 0) {
+      return Math.min(75 * 60, Math.max(5 * 60, Math.round(videoSeconds * 0.35)));
+    }
+    return 20 * 60;
+  }
+
+  private formatClock(totalSeconds: number): string {
+    const sec = Math.max(0, Math.floor(totalSeconds));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   toggleStudentVisibility(r: AdminClassRecording): void {

@@ -238,7 +238,12 @@ router.post('/', (req, res) => {
       },
     }).then((auditDoc) => {
       // Fire-and-forget: process asynchronously so we don't block Zoom
-      processZoomRecording(zoomMeetingId, downloadUrl, recordingStart).then((result) => {
+      processZoomRecording(
+        zoomMeetingId,
+        downloadUrl,
+        recordingStart,
+        { meetingUuid: obj.uuid || null }
+      ).then((result) => {
         if (!auditDoc) return;
         auditDoc.status = result?.success ? 'processed' : 'failed';
         auditDoc.errorMessage = result?.success ? null : (result?.error || 'Unknown processing failure');
