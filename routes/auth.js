@@ -1030,12 +1030,12 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Your GlÃ¼ck Global Student Portal Credentials (App ID + Password)",
+      subject: "Your Gluck Global Student Portal Credentials (App ID + Password)",
       html: `
         <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
           <p>Hello ${user.name},</p>
 
-          <p>Your password has been updated. Here are your login credentials for the <strong>GlÃ¼ck Global Portal</strong>:</p>
+          <p>Your password has been updated. Here are your login credentials for the <strong>Gluck Global Portal</strong>:</p>
 
           <ul>
             <li><strong>App ID:</strong> ${user.regNo}</li>
@@ -1047,7 +1047,7 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
           <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
           <p>Best regards,<br>
-          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+          <strong>Gluck Global Pvt Ltd</strong></p>
         </div>
       `
     };
