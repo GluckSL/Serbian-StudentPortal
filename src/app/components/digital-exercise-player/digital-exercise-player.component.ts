@@ -61,6 +61,11 @@ interface PlayerQuestion {
   feedback?: string;
 }
 
+type SpecialInputTarget =
+  | { type: 'fill-blank'; blankIndex: number }
+  | { type: 'question-answer' }
+  | { type: 'listening' };
+
 @Component({
   selector: 'app-digital-exercise-player',
   standalone: true,
@@ -123,6 +128,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   vpChatMessages: VpChatMessage[] = [];
   private vpChatSeq = 0;
   private vpChatClipPrompted = new Set<number>();
+  readonly specialCharacters: string[] = ['ä', 'ö', 'ü', 'ß', 'Ä', 'Ö', 'Ü'];
+  private activeSpecialInputTarget: SpecialInputTarget | null = null;
 
   @ViewChild('vpChatScroll') vpChatScroll?: ElementRef<HTMLDivElement>;
 
@@ -1277,6 +1284,69 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   getTypeLabel(type: string): string {
     return this.exerciseService.getQuestionTypeLabel(type as any);
+  }
+
+  showSpecialCharacterPad(pq: PlayerQuestion | null | undefined): boolean {
+    if (!pq?.data) return false;
+    if (pq.data.type === 'fill-blank') return true;
+    if (pq.data.type === 'listening') return true;
+    if (pq.data.type === 'question-answer') return !this.isTrueFalseQuestion(pq.data);
+    return false;
+  }
+
+  setActiveSpecialInputTarget(target: SpecialInputTarget): void {
+    this.activeSpecialInputTarget = target;
+  }
+
+  insertSpecialCharacter(char: string): void {
+    if (this.state === 'submitted' || !char) return;
+
+    if (this.insertAtCaretInFocusedControl(char)) {
+      this.markAttempted(this.currentQuestion);
+      return;
+    }
+
+    const pq = this.currentQuestion;
+    if (!pq) return;
+
+    if (this.activeSpecialInputTarget?.type === 'fill-blank') {
+      const idx = this.activeSpecialInputTarget.blankIndex;
+      if (!Array.isArray(pq.fillAnswers) || idx < 0 || idx >= pq.fillAnswers.length) return;
+      pq.fillAnswers[idx] = `${pq.fillAnswers[idx] || ''}${char}`;
+      this.markAttempted(pq);
+      return;
+    }
+
+    if (this.activeSpecialInputTarget?.type === 'question-answer') {
+      pq.qaResponse = `${pq.qaResponse || ''}${char}`;
+      this.markAttempted(pq);
+      return;
+    }
+
+    if (this.activeSpecialInputTarget?.type === 'listening') {
+      pq.listeningText = `${pq.listeningText || ''}${char}`;
+      this.markAttempted(pq);
+    }
+  }
+
+  private insertAtCaretInFocusedControl(char: string): boolean {
+    const active = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+    if (!active) return false;
+    const isInput = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA';
+    if (!isInput || active.disabled) return false;
+    const value = active.value ?? '';
+    const start = active.selectionStart ?? value.length;
+    const end = active.selectionEnd ?? value.length;
+    const next = `${value.slice(0, start)}${char}${value.slice(end)}`;
+    active.value = next;
+    active.dispatchEvent(new Event('input', { bubbles: true }));
+    const caret = start + char.length;
+    try {
+      active.setSelectionRange(caret, caret);
+    } catch {
+      // Ignore for controls that do not support explicit selection range.
+    }
+    return true;
   }
 
   private getWorksheetKindLabel(kind: string | null | undefined): string | null {

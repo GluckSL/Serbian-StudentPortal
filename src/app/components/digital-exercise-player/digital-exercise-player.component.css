@@ -1049,6 +1049,47 @@
 .qa-hint { font-size: 0.82rem; color: #4b5563; background: #f0f9ff; border-radius: 8px; padding: 10px 12px; }
 .qa-hint strong { color: #0369a1; }
 
+.special-char-pad {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.special-char-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.special-char-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.special-char-btn {
+  min-width: 40px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.special-char-btn:hover {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #312e81;
+}
+
 /* True / False (worksheetKind="true-false") */
 .tf-story-paragraph {
   font-size: 0.98rem;

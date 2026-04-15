@@ -172,6 +172,7 @@
 
 .cr-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
 .cr-input--search { flex: 1; min-width: 200px; }
+.cr-input--meeting-ids { min-width: 260px; }
 .cr-textarea { resize: vertical; width: 100%; box-sizing: border-box; }
 
 .cr-select {
@@ -338,6 +339,15 @@
 .cr-published-chip--no {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.cr-processing-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #92400e;
+  white-space: nowrap;
 }
 
 /* ── Plan chip ── */
@@ -586,6 +596,7 @@
   .cr-header__actions { width: 100%; flex-direction: column; }
   .cr-header__title { font-size: 16px; }
   .cr-header .cr-btn { width: 100%; justify-content: center; }
+  .cr-header .cr-input--meeting-ids { width: 100%; min-width: 0; }
   .cr-stats { grid-template-columns: 1fr 1fr; }
   .cr-filters { flex-direction: column; }
   .cr-input--search, .cr-select { width: 100%; }

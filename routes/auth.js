@@ -42,6 +42,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "monday-sync",
   "profile"
 ];
+const ALLOWED_ACCESS_LEVELS = ["view", "edit", "full"];
 
 function normalizeSidebarPermissions(sidebarPermissions) {
   if (!Array.isArray(sidebarPermissions)) {
@@ -73,6 +74,42 @@ function normalizeTeacherTabPermissions(permissions) {
       )
     )
   );
+}
+
+function normalizeAccessLevels(accessLevels, fallbackPermissions = []) {
+  const normalized = {};
+
+  if (accessLevels && typeof accessLevels === "object" && !Array.isArray(accessLevels)) {
+    for (const [permissionId, level] of Object.entries(accessLevels)) {
+      if (
+        ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId) &&
+        ALLOWED_ACCESS_LEVELS.includes(level)
+      ) {
+        normalized[permissionId] = level;
+      }
+    }
+  }
+
+  if (Array.isArray(fallbackPermissions)) {
+    for (const permissionId of fallbackPermissions) {
+      if (ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId) && !normalized[permissionId]) {
+        normalized[permissionId] = "view";
+      }
+    }
+  }
+
+  return normalized;
+}
+
+function accessLevelsToPermissions(accessLevels) {
+  if (!accessLevels || typeof accessLevels !== "object") return [];
+  return Object.entries(accessLevels)
+    .filter(
+      ([permissionId, level]) =>
+        ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId) &&
+        ALLOWED_ACCESS_LEVELS.includes(level)
+    )
+    .map(([permissionId]) => permissionId);
 }
 
 // Read CRM data from Monday.com â€” Full sync: update existing + create new (all packages, exclude WITHDREW)
@@ -871,7 +908,9 @@ router.post("/login", async (req, res) => {
         subscription: user.subscription,
         profilePhoto: user.profilePhoto || null,
         sidebarPermissions: user.sidebarPermissions || [],
-        teacherTabPermissions: user.teacherTabPermissions || []
+        teacherTabPermissions: user.teacherTabPermissions || [],
+        sidebarAccessLevels: user.sidebarAccessLevels || {},
+        teacherTabAccessLevels: user.teacherTabAccessLevels || {}
       }
     });
   } catch (err) {
@@ -939,7 +978,7 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   try {
     const users = await User.find({
       role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN'] }
-    }).select("name email regNo role sidebarPermissions teacherTabPermissions").sort({ role: 1, name: 1 });
+    }).select("name email regNo role sidebarPermissions teacherTabPermissions sidebarAccessLevels teacherTabAccessLevels").sort({ role: 1, name: 1 });
 
     res.status(200).json(users);
   } catch (error) {
@@ -986,19 +1025,20 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(plainPassword, salt);
     await user.save();
+    console.log(`📧 Sending admin password email with App ID template for user ${user._id} (${user.regNo})`);
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸ”",
+      subject: "Your Gluck Global Student Portal Credentials (App ID + Password)",
       html: `
         <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
           <p>Hello ${user.name},</p>
 
-          <p>Your password has been updated. Here are your login credentials for the <strong>GlÃ¼ck Global Portal</strong>:</p>
+          <p>Your password has been updated. Here are your login credentials for the <strong>Gluck Global Portal</strong>:</p>
 
           <ul>
-            <li><strong>Email ID:</strong> ${user.email}</li>
+            <li><strong>App ID:</strong> ${user.regNo}</li>
             <li><strong>Password:</strong> ${plainPassword}</li>
           </ul>
 
@@ -1007,7 +1047,7 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
           <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
           <p>Best regards,<br>
-          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+          <strong>Gluck Global Pvt Ltd</strong></p>
         </div>
       `
     };
@@ -1173,7 +1213,9 @@ router.put("/:id", async (req, res) => {
       reasonForWithdrawing,
       qualifications,
       sidebarPermissions,
-      teacherTabPermissions
+      teacherTabPermissions,
+      sidebarAccessLevels,
+      teacherTabAccessLevels
     } = req.body;
 
     // 4ï¸âƒ£ Build update object
@@ -1202,23 +1244,71 @@ router.put("/:id", async (req, res) => {
       qualifications
     };
 
-    if (typeof sidebarPermissions !== "undefined") {
-      updateData.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
-    }
+    // Sub-admin sidebar permissions (supports both legacy list and access levels map)
+    if (role === "SUB_ADMIN") {
+      const hasSidebarAccessLevelsPayload = typeof sidebarAccessLevels !== "undefined";
+      const accessLevelSeed = hasSidebarAccessLevelsPayload
+        ? normalizeAccessLevels(sidebarAccessLevels)
+        : normalizeAccessLevels(existingUser.sidebarAccessLevels || {});
 
-    if (role === "SUB_ADMIN" && typeof sidebarPermissions === "undefined") {
-      updateData.sidebarPermissions = normalizeSidebarPermissions(existingUser.sidebarPermissions || []);
-    } else if (role && role !== "SUB_ADMIN") {
-      updateData.sidebarPermissions = [];
+      const normalizedSidebarPermissions =
+        hasSidebarAccessLevelsPayload
+          ? normalizeSidebarPermissions(accessLevelsToPermissions(accessLevelSeed))
+          : typeof sidebarPermissions !== "undefined"
+          ? normalizeSidebarPermissions(sidebarPermissions)
+          : normalizeSidebarPermissions(existingUser.sidebarPermissions || []);
 
-    // Teacher tab permissions (view-only admin tabs assigned to TEACHER role)
-    if (role === "TEACHER" && typeof teacherTabPermissions !== "undefined") {
-      updateData.teacherTabPermissions = normalizeTeacherTabPermissions(teacherTabPermissions);
-    } else if (role === "TEACHER" && typeof teacherTabPermissions === "undefined") {
-      updateData.teacherTabPermissions = normalizeTeacherTabPermissions(existingUser.teacherTabPermissions || []);
-    } else if (role && role !== "TEACHER") {
+      const normalizedSidebarAccessLevels = normalizeAccessLevels(
+        accessLevelSeed,
+        normalizedSidebarPermissions
+      );
+
+      if (!normalizedSidebarAccessLevels.dashboard) {
+        normalizedSidebarAccessLevels.dashboard = "view";
+      }
+      if (!normalizedSidebarAccessLevels.profile) {
+        normalizedSidebarAccessLevels.profile = "view";
+      }
+
+      updateData.sidebarAccessLevels = normalizedSidebarAccessLevels;
+      updateData.sidebarPermissions = normalizeSidebarPermissions(
+        accessLevelsToPermissions(normalizedSidebarAccessLevels)
+      );
       updateData.teacherTabPermissions = [];
+      updateData.teacherTabAccessLevels = {};
+    } else if (role) {
+      updateData.sidebarPermissions = [];
+      updateData.sidebarAccessLevels = {};
     }
+
+    // Teacher tab permissions (supports both legacy list and access levels map)
+    if (role === "TEACHER") {
+      const hasTeacherAccessLevelsPayload = typeof teacherTabAccessLevels !== "undefined";
+      const teacherAccessLevelSeed = hasTeacherAccessLevelsPayload
+        ? normalizeAccessLevels(teacherTabAccessLevels)
+        : normalizeAccessLevels(existingUser.teacherTabAccessLevels || {});
+
+      const normalizedTeacherTabPermissions =
+        hasTeacherAccessLevelsPayload
+          ? normalizeTeacherTabPermissions(accessLevelsToPermissions(teacherAccessLevelSeed))
+          : typeof teacherTabPermissions !== "undefined"
+          ? normalizeTeacherTabPermissions(teacherTabPermissions)
+          : normalizeTeacherTabPermissions(existingUser.teacherTabPermissions || []);
+
+      const normalizedTeacherTabAccessLevels = normalizeAccessLevels(
+        teacherAccessLevelSeed,
+        normalizedTeacherTabPermissions
+      );
+
+      updateData.teacherTabAccessLevels = normalizedTeacherTabAccessLevels;
+      updateData.teacherTabPermissions = normalizeTeacherTabPermissions(
+        accessLevelsToPermissions(normalizedTeacherTabAccessLevels)
+      );
+      updateData.sidebarPermissions = [];
+      updateData.sidebarAccessLevels = {};
+    } else if (role && role !== "SUB_ADMIN") {
+      updateData.teacherTabPermissions = [];
+      updateData.teacherTabAccessLevels = {};
     }
 
     // âœ… Auto-set start date for new level if level changed and start date not set

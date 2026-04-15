@@ -68,7 +68,8 @@
 
     <section class="section" *ngIf="wrongRows(data.perQuestion).length > 0">
       <h2><span class="material-icons">rule_folder</span> Incorrect responses</h2>
-      <p class="section-desc">What the student submitted vs the expected answer.</p>
+      <p class="section-desc">What the student submitted vs the expected answer. You can manually mark a response as correct.</p>
+      <p class="action-error" *ngIf="actionError">{{ actionError }}</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
@@ -77,6 +78,7 @@
               <th>Question</th>
               <th>Student answer</th>
               <th>Expected</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -85,6 +87,16 @@
               <td class="prompt">{{ row.promptSnippet }}</td>
               <td class="answer wrong">{{ row.studentAnswer }}</td>
               <td class="answer expected">{{ row.expectedAnswer }}</td>
+              <td class="action-cell">
+                <button
+                  type="button"
+                  class="btn-action"
+                  [disabled]="updatingQuestionIndex !== null"
+                  (click)="markAsCorrect(row)"
+                >
+                  {{ isUpdatingRow(row) ? 'Saving…' : 'Mark as correct' }}
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>

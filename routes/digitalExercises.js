@@ -187,6 +187,40 @@ function clipText(s, max = 120) {
   return `${t.slice(0, max - 1)}…`;
 }
 
+function normalizeThresholdForQuestion(q) {
+  const raw = Number(q?.similarityThreshold);
+  if (Number.isFinite(raw)) return Math.max(0, Math.min(100, Math.round(raw)));
+  if (q?.type === 'video-pronunciation') return VIDEO_PRONUNCIATION_PASS_SCORE;
+  return 70;
+}
+
+function normalizeScoringModeForQuestion(q) {
+  return q?.scoringMode === 'proportional' ? 'proportional' : 'full';
+}
+
+function isAdvancedGradingEnabled(q) {
+  return q?.aiGradingEnabled !== false;
+}
+
+function normalizeTextForExactCompare(raw) {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function applyThresholdScoring(q, rawScore) {
+  const threshold = normalizeThresholdForQuestion(q);
+  const scoringMode = normalizeScoringModeForQuestion(q);
+  const score = Math.max(0, Math.min(100, Number(rawScore) || 0));
+  const maxPoints = q?.points || 1;
+  const isCorrect = score >= threshold;
+  const pointsEarned = scoringMode === 'proportional'
+    ? parseFloat(((score / 100) * maxPoints).toFixed(2))
+    : (isCorrect ? maxPoints : 0);
+  return { score, threshold, scoringMode, isCorrect, pointsEarned };
+}
+
 /** Human-readable student submission for analytics / review UIs */
 function formatStudentAnswerForReview(q, r) {
   if (!r) return '—';
@@ -282,6 +316,19 @@ function buildPerQuestionReview(exercise, attempt) {
       studentAnswer: formatStudentAnswerForReview(q, r),
       expectedAnswer: formatCorrectAnswerForReview(q)
     };
+  });
+}
+
+async function refreshExerciseCompletionStats(exerciseId) {
+  const completedCount = await ExerciseAttempt.countDocuments({ exerciseId, status: 'completed' });
+  const avgResult = await ExerciseAttempt.aggregate([
+    { $match: { exerciseId: new mongoose.Types.ObjectId(exerciseId), status: 'completed' } },
+    { $group: { _id: null, avg: { $avg: '$scorePercentage' } } }
+  ]);
+
+  await DigitalExercise.findByIdAndUpdate(exerciseId, {
+    totalCompletions: completedCount,
+    averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
   });
 }
 
@@ -908,49 +955,60 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
 
     const q = exercise.questions[idx];
     const resp = response || { questionIndex: idx };
+    const useAdvancedGrading = isAdvancedGradingEnabled(q);
     let isCorrect = false;
     let pointsEarned = 0;
+    let rawScore = 0;
     let correctAnswer = null;
 
     if (q.type === 'mcq') {
       const correctIdx = typeof q.correctAnswerIndex === 'number' ? q.correctAnswerIndex : 0;
-      isCorrect = resp.selectedOptionIndex === correctIdx;
+      rawScore = resp.selectedOptionIndex === correctIdx ? 100 : 0;
       correctAnswer = { correctAnswerIndex: correctIdx, explanation: q.explanation };
     } else if (q.type === 'matching') {
       const pairs = q.pairs || [];
-      if (resp.matchingResponse && resp.matchingResponse.length === pairs.length) {
-        let allCorrect = true;
-        for (const match of resp.matchingResponse) {
-          const expectedRight = pairs[match.leftIndex]?.right;
+      const total = pairs.length;
+      if (total > 0 && Array.isArray(resp.matchingResponse)) {
+        const byLeft = {};
+        for (const m of resp.matchingResponse) byLeft[m.leftIndex] = m;
+        let correctCount = 0;
+        for (let li = 0; li < total; li++) {
+          const match = byLeft[li];
+          if (!match) continue;
+          const expectedRight = pairs[li]?.right;
           const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
-          if (expectedRight === undefined || givenRight === undefined || String(expectedRight) !== String(givenRight)) {
-            allCorrect = false;
-            break;
+          if (expectedRight !== undefined && givenRight !== undefined && String(expectedRight) === String(givenRight)) {
+            correctCount += 1;
           }
         }
-        isCorrect = allCorrect;
+        rawScore = useAdvancedGrading
+          ? Math.round((correctCount / total) * 100)
+          : (correctCount === total ? 100 : 0);
       }
       correctAnswer = { pairs: pairs.map((p, i) => ({ leftIndex: i, rightValue: p.right })) };
     } else if (q.type === 'fill-blank') {
       const answers = q.answers || [];
-      if (resp.fillBlankResponses && resp.fillBlankResponses.length === answers.length) {
-        isCorrect = resp.fillBlankResponses.every((ans, i) => {
+      const total = answers.length;
+      if (total > 0 && Array.isArray(resp.fillBlankResponses)) {
+        let correctCount = 0;
+        for (let i = 0; i < total; i++) {
+          const ans = String(resp.fillBlankResponses[i] ?? '');
           const correct = answers[i];
-          return q.caseSensitive
-            ? ans.trim() === correct.trim()
-            : ans.trim().toLowerCase() === correct.trim().toLowerCase();
-        });
+          const ok = q.caseSensitive
+            ? ans.trim() === String(correct || '').trim()
+            : ans.trim().toLowerCase() === String(correct || '').trim().toLowerCase();
+          if (ok) correctCount += 1;
+        }
+        rawScore = useAdvancedGrading
+          ? Math.round((correctCount / total) * 100)
+          : (correctCount === total ? 100 : 0);
       }
       correctAnswer = { answers };
     } else if (q.type === 'pronunciation') {
-      const score = resp.pronunciationScore || 0;
-      isCorrect = score >= 70;
-      pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+      rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
       correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'video-pronunciation') {
-      const score = resp.pronunciationScore || 0;
-      isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
-      pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+      rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
       correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
     } else if (q.type === 'question-answer') {
       const studentAns = (resp.qaResponse || '').trim();
@@ -962,32 +1020,58 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       if (isTrueFalse) {
         const expected = parseTrueFalse(expectedRaw);
         const given = parseTrueFalse(studentAns);
-        isCorrect = expected !== null && given !== null && given === expected;
-        pointsEarned = isCorrect ? (q.points || 1) : 0;
-        correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
+        rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
+        correctAnswer = {
+          sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : []
+        };
       } else if (studentAns) {
-        const aiResult = await aiGradeAnswer(q.prompt || '', Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [], studentAns);
         const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
-        const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
-        const scoringMode = q.scoringMode || 'full';
-        const { score } = aiResult;
-        isCorrect = score >= threshold;
-        pointsEarned = scoringMode === 'proportional'
-          ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
-          : (isCorrect ? (q.points || 1) : 0);
-        correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
+        if (useAdvancedGrading) {
+          const aiResult = await aiGradeAnswer(
+            q.prompt || '',
+            samples,
+            studentAns
+          );
+          rawScore = Math.max(0, Math.min(100, Number(aiResult?.score) || 0));
+        } else {
+          const normalizedStudent = normalizeTextForExactCompare(studentAns);
+          const exact = samples.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+          rawScore = exact ? 100 : 0;
+        }
+        correctAnswer = { sampleAnswers: samples };
       }
     } else if (q.type === 'listening') {
       const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
       const expected = normalizeListeningAnswer(q.expectedTranscript || '');
-      if (expected && studentText) {
-        isCorrect = studentText === expected;
-      }
+      rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
       correctAnswer = { expectedTranscript: q.expectedTranscript };
     }
 
-    if (q.type !== 'pronunciation' && q.type !== 'video-pronunciation' && q.type !== 'question-answer') {
+    if (useAdvancedGrading) {
+      const scoring = applyThresholdScoring(q, rawScore);
+      isCorrect = scoring.isCorrect;
+      pointsEarned = scoring.pointsEarned;
+      correctAnswer = {
+        ...(correctAnswer || {}),
+        threshold: scoring.threshold,
+        scoringMode: scoring.scoringMode,
+        score: scoring.score,
+        aiGradingEnabled: true
+      };
+    } else if (q.type === 'pronunciation') {
+      const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+      isCorrect = score >= 70;
+      pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+      correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+    } else if (q.type === 'video-pronunciation') {
+      const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+      isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
+      pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+      correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+    } else {
+      isCorrect = rawScore >= 100;
       pointsEarned = isCorrect ? (q.points || 1) : 0;
+      correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
     const gradedResp = {
@@ -1086,6 +1170,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     const qaScoreMap = {}; // questionIndex → { score }
     const qaPromises = exercise.questions.map((q, i) => {
       if (q.type !== 'question-answer') return Promise.resolve();
+      if (!isAdvancedGradingEnabled(q)) return Promise.resolve();
       const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
       const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
       const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
@@ -1106,46 +1191,59 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     for (let i = 0; i < exercise.questions.length; i++) {
       const q = exercise.questions[i];
       const resp = (responses || []).find(r => r.questionIndex === i) || { questionIndex: i };
+      const useAdvancedGrading = isAdvancedGradingEnabled(q);
       let isCorrect = false;
       let pointsEarned = 0;
+      let rawScore = 0;
       let correctAnswer = null;
 
       if (q.type === 'mcq') {
-        isCorrect = resp.selectedOptionIndex === q.correctAnswerIndex;
+        rawScore = resp.selectedOptionIndex === q.correctAnswerIndex ? 100 : 0;
         correctAnswer = { correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation };
       } else if (q.type === 'matching') {
-        if (resp.matchingResponse && resp.matchingResponse.length === q.pairs.length) {
-          let allCorrect = true;
-          for (const match of resp.matchingResponse) {
-            const expectedRight = q.pairs[match.leftIndex]?.right;
-            const givenRight = match.rightValue != null ? match.rightValue : q.pairs[match.rightIndex]?.right;
-            if (expectedRight === undefined || givenRight === undefined || String(expectedRight) !== String(givenRight)) {
-              allCorrect = false;
-              break;
+        const pairs = q.pairs || [];
+        const total = pairs.length;
+        if (total > 0 && Array.isArray(resp.matchingResponse)) {
+          const byLeft = {};
+          for (const m of resp.matchingResponse) byLeft[m.leftIndex] = m;
+          let correctCount = 0;
+          for (let li = 0; li < total; li++) {
+            const match = byLeft[li];
+            if (!match) continue;
+            const expectedRight = pairs[li]?.right;
+            const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
+            if (expectedRight !== undefined && givenRight !== undefined && String(expectedRight) === String(givenRight)) {
+              correctCount += 1;
             }
           }
-          isCorrect = allCorrect;
+          rawScore = useAdvancedGrading
+            ? Math.round((correctCount / total) * 100)
+            : (correctCount === total ? 100 : 0);
         }
-        correctAnswer = { pairs: q.pairs.map((p, idx) => ({ leftIndex: idx, rightValue: p.right })) };
+        correctAnswer = { pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: p.right })) };
       } else if (q.type === 'fill-blank') {
-        if (resp.fillBlankResponses && resp.fillBlankResponses.length === q.answers.length) {
-          isCorrect = resp.fillBlankResponses.every((ans, idx) => {
-            const correct = q.answers[idx];
-            return q.caseSensitive
-              ? ans.trim() === correct.trim()
-              : ans.trim().toLowerCase() === correct.trim().toLowerCase();
-          });
+        const answers = q.answers || [];
+        const total = answers.length;
+        if (total > 0 && Array.isArray(resp.fillBlankResponses)) {
+          let correctCount = 0;
+          for (let idx = 0; idx < total; idx++) {
+            const ans = String(resp.fillBlankResponses[idx] ?? '');
+            const correct = answers[idx];
+            const ok = q.caseSensitive
+              ? ans.trim() === String(correct || '').trim()
+              : ans.trim().toLowerCase() === String(correct || '').trim().toLowerCase();
+            if (ok) correctCount += 1;
+          }
+          rawScore = useAdvancedGrading
+            ? Math.round((correctCount / total) * 100)
+            : (correctCount === total ? 100 : 0);
         }
-        correctAnswer = { answers: q.answers };
+        correctAnswer = { answers };
       } else if (q.type === 'pronunciation') {
-        const score = resp.pronunciationScore || 0;
-        isCorrect = score >= 70;
-        pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+        rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
         correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'video-pronunciation') {
-        const score = resp.pronunciationScore || 0;
-        isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
-        pointsEarned = isCorrect ? q.points : Math.round(q.points * score / 100);
+        rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
         correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'question-answer') {
         const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
@@ -1154,35 +1252,52 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         if (isTrueFalse) {
           const expected = parseTrueFalse(expectedRaw);
           const given = parseTrueFalse(resp.qaResponse);
-          isCorrect = expected !== null && given !== null && given === expected;
-          pointsEarned = isCorrect ? (q.points || 1) : 0;
+          rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
           correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
         } else {
           const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
-          const threshold = typeof q.similarityThreshold === 'number' ? q.similarityThreshold : 70;
-          const scoringMode = q.scoringMode || 'full';
-          const aiResult = qaScoreMap[i];
-
-          if (aiResult) {
-            const { score } = aiResult;
-            isCorrect = score >= threshold;
-            pointsEarned = scoringMode === 'proportional'
-              ? parseFloat(((score / 100) * (q.points || 1)).toFixed(2))
-              : (isCorrect ? (q.points || 1) : 0);
+          if (useAdvancedGrading) {
+            const aiResult = qaScoreMap[i];
+            rawScore = Math.max(0, Math.min(100, Number(aiResult?.score) || 0));
+          } else {
+            const normalizedStudent = normalizeTextForExactCompare(resp.qaResponse || '');
+            const exact = samples.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+            rawScore = exact ? 100 : 0;
           }
-          correctAnswer = { sampleAnswers: samples, threshold, scoringMode };
+          correctAnswer = { sampleAnswers: samples };
         }
       } else if (q.type === 'listening') {
         const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
         const expected = normalizeListeningAnswer(q.expectedTranscript || '');
-        if (expected && studentText) {
-          isCorrect = studentText === expected;
-        }
+        rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
         correctAnswer = { expectedTranscript: q.expectedTranscript };
       }
 
-      if (q.type !== 'pronunciation' && q.type !== 'video-pronunciation' && q.type !== 'question-answer') {
+      if (useAdvancedGrading) {
+        const scoring = applyThresholdScoring(q, rawScore);
+        isCorrect = scoring.isCorrect;
+        pointsEarned = scoring.pointsEarned;
+        correctAnswer = {
+          ...(correctAnswer || {}),
+          threshold: scoring.threshold,
+          scoringMode: scoring.scoringMode,
+          score: scoring.score,
+          aiGradingEnabled: true
+        };
+      } else if (q.type === 'pronunciation') {
+        const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+        isCorrect = score >= 70;
+        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+        correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+      } else if (q.type === 'video-pronunciation') {
+        const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+        isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
+        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+        correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+      } else {
+        isCorrect = rawScore >= 100;
         pointsEarned = isCorrect ? (q.points || 1) : 0;
+        correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
       }
       earnedPoints += pointsEarned;
 
@@ -1368,6 +1483,76 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
   }
 });
 
+// PATCH /api/digital-exercises/:id/attempts/:attemptId/questions/:questionIndex/override
+// Staff override: manually mark a submitted question as correct/incorrect and recalculate score.
+router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    await assertTeacherOwnsExercise(req.user, exercise);
+
+    const idx = Number.parseInt(req.params.questionIndex, 10);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= (exercise.questions || []).length) {
+      return res.status(400).json({ error: 'Invalid question index' });
+    }
+
+    const attempt = await ExerciseAttempt.findOne({
+      _id: req.params.attemptId,
+      exerciseId: req.params.id,
+      status: 'completed'
+    });
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+
+    const targetResp = (attempt.responses || []).find((r) => Number(r.questionIndex) === idx);
+    if (!targetResp) {
+      return res.status(404).json({ error: 'No submitted answer found for this question' });
+    }
+
+    const shouldBeCorrect = typeof req.body?.isCorrect === 'boolean' ? req.body.isCorrect : true;
+    const maxPoints = Number(exercise.questions?.[idx]?.points) || 1;
+
+    targetResp.isCorrect = shouldBeCorrect;
+    targetResp.pointsEarned = shouldBeCorrect ? maxPoints : 0;
+    attempt.markModified('responses');
+
+    const earnedPoints = (attempt.responses || []).reduce((sum, r) => {
+      const pts = Number(r?.pointsEarned);
+      return sum + (Number.isFinite(pts) ? pts : 0);
+    }, 0);
+    const totalPoints = (exercise.questions || []).reduce((sum, q) => sum + (Number(q?.points) || 1), 0);
+    const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+
+    attempt.earnedPoints = earnedPoints;
+    attempt.totalPoints = totalPoints;
+    attempt.scorePercentage = scorePercentage;
+    await attempt.save();
+
+    await refreshExerciseCompletionStats(req.params.id);
+
+    return res.json({
+      success: true,
+      attemptId: attempt._id,
+      questionIndex: idx,
+      isCorrect: shouldBeCorrect,
+      pointsEarned: targetResp.pointsEarned,
+      earnedPoints: attempt.earnedPoints,
+      totalPoints: attempt.totalPoints,
+      scorePercentage: attempt.scorePercentage
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    if (code !== 500) {
+      return res.status(code).json({ error: err.message });
+    }
+    console.error('PATCH /digital-exercises/:id/attempts/:attemptId/questions/:questionIndex/override error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── TEACHER/ADMIN ANALYTICS ROUTES ──────────────────────────────────────────
 
 // GET /api/digital-exercises/:id/completions  — All completions for an exercise
@@ -1514,9 +1699,31 @@ router.post(
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   async (req, res) => {
     try {
-      const { questionType, questionText, correctAnswer, targetLanguage } = req.body;
-      if (!questionText && !correctAnswer) {
-        return res.status(400).json({ error: 'questionText or correctAnswer is required' });
+      const {
+        questionType,
+        questionText,
+        storyParagraph,
+        contextText,
+        correctAnswer,
+        sampleAnswers,
+        targetLanguage
+      } = req.body;
+
+      const cleanedSampleAnswers = Array.isArray(sampleAnswers)
+        ? sampleAnswers.map((x) => String(x || '').trim()).filter(Boolean)
+        : [];
+
+      const hasAnyInput =
+        String(questionText || '').trim() ||
+        String(storyParagraph || '').trim() ||
+        String(contextText || '').trim() ||
+        String(correctAnswer || '').trim() ||
+        cleanedSampleAnswers.length > 0;
+
+      if (!hasAnyInput) {
+        return res.status(400).json({
+          error: 'Provide questionText, storyParagraph, contextText, correctAnswer, or sampleAnswers'
+        });
       }
 
       if (!process.env.OPENAI_API_KEY) {
@@ -1525,19 +1732,22 @@ router.post(
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const langNote = targetLanguage ? ` The exercise language is ${targetLanguage}.` : '';
+      const langNote = targetLanguage ? ` Exercise language: ${targetLanguage}.` : '';
       const typeNote = questionType ? ` Question type: ${questionType}.` : '';
       const userContent =
-        `Write a concise teacher explanation (1-3 sentences) in English of why the answer is correct for this language-learning exercise.${typeNote}${langNote} Always respond in English regardless of the question language.\n` +
+        `Write a concise teacher explanation (2-4 sentences) in English for why the answer is correct.${typeNote}${langNote} Use all provided fields together (question, story/context, and answer). If there is a story paragraph, explicitly connect the answer to evidence from it.\n` +
         (questionText ? `Question: ${questionText}\n` : '') +
-        (correctAnswer ? `Correct answer: ${correctAnswer}` : '');
+        (storyParagraph ? `Story paragraph: ${storyParagraph}\n` : '') +
+        (contextText ? `Additional context: ${contextText}\n` : '') +
+        (correctAnswer ? `Correct answer: ${correctAnswer}\n` : '') +
+        (cleanedSampleAnswers.length > 0 ? `Sample answers: ${cleanedSampleAnswers.join(' | ')}` : '');
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are a language teacher writing brief, clear answer explanations for students. Always write your explanations in English, even if the question or answer is in another language. Be concise and educational.'
+            content: 'You are a language teacher writing clear answer explanations for students. Always write in English, even if the source content is in another language. Use the provided story/context as evidence when present, and explain why alternatives would be incorrect when that distinction matters (for example true/false).'
           },
           { role: 'user', content: userContent }
         ],

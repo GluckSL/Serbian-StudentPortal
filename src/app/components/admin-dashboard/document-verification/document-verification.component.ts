@@ -11,10 +11,12 @@ import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { EMPTY, expand, reduce } from 'rxjs';
+import { Router } from '@angular/router';
 
 interface StudentDocument {
   _id: string;
   studentId: string | Record<string, unknown>;
+  documentTypeId?: string;
   studentName: string;
   studentEmail: string;
   documentType: string;
@@ -35,6 +37,9 @@ interface StudentDocument {
   verifiedAt?: Date;
   verifiedBy?: string;
   verificationNotes?: string;
+  remarks?: string;
+  version?: number;
+  isCurrent?: boolean;
 }
 
 interface DocumentStats {
@@ -84,6 +89,14 @@ export class DocumentVerificationComponent implements OnInit {
   /** CRM: User.qualifications */
   selectedQualification: string = 'ALL';
   qualificationOptions: string[] = [];
+  selectedBatch: string = 'ALL';
+  batchOptions: string[] = [];
+  selectedLevel: string = 'ALL';
+  levelOptions: string[] = [];
+  selectedLanguageLevelOpted: string = 'ALL';
+  languageLevelOptedOptions: string[] = [];
+  studentNameQuery: string = '';
+  teacherQuery: string = '';
   searchQuery: string = '';
   
   // Pagination
@@ -95,7 +108,7 @@ export class DocumentVerificationComponent implements OnInit {
   loading: boolean = false;
   
   // Document types - populated dynamically from requirements
-  documentTypes: { value: string; label: string }[] = [];
+  documentTypes: { value: string; label: string; id?: string }[] = [];
   
   displayedColumns: string[] = [
     'select',
@@ -144,9 +157,14 @@ export class DocumentVerificationComponent implements OnInit {
 
   // Compact view
   viewMode: 'compact' | 'detailed' = 'compact';
+  showAdvancedFilters = false;
   studentGroups: any[] = [];
   filteredStudentGroups: any[] = [];
+  paginatedStudentGroups: any[] = [];
   expandedStudentId: string | null = null;
+  compactPageSize = 10;
+  compactPageIndex = 0;
+  totalStudentGroups = 0;
 
   // Document preview
   showPreviewDialog: boolean = false;
@@ -163,6 +181,8 @@ export class DocumentVerificationComponent implements OnInit {
     label: '',
     description: '',
     required: false,
+    isRequired: false,
+    allowMultiple: false,
     category: 'OTHER',
     order: 0
   };
@@ -260,7 +280,8 @@ export class DocumentVerificationComponent implements OnInit {
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -327,6 +348,28 @@ export class DocumentVerificationComponent implements OnInit {
     return String(student?.regNo ?? student?.registrationNumber ?? student?.registrationNo ?? '').trim();
   }
 
+  private getStudentTeacher(student: any): string {
+    return String(
+      student?.teacherName ??
+      student?.assignedTeacher ??
+      student?.teacher ??
+      student?.teacherEmail ??
+      ''
+    ).trim();
+  }
+
+  private getStudentLevel(student: any): string {
+    return String(student?.level ?? '').trim();
+  }
+
+  private getStudentBatch(student: any): string {
+    return String(student?.batch ?? '').trim();
+  }
+
+  private getStudentLanguageLevel(student: any): string {
+    return String(student?.languageLevelOpted ?? '').trim();
+  }
+
   private uniqueSortedStrings(values: (string | undefined | null)[]): string[] {
     return [...new Set(values.map(v => String(v ?? '').trim()).filter(Boolean))].sort((a, b) =>
       a.localeCompare(b, undefined, { sensitivity: 'base' })
@@ -340,6 +383,9 @@ export class DocumentVerificationComponent implements OnInit {
     const pkg = fromStudents.map((s: any) => s.subscription);
     const st = fromStudents.map((s: any) => s.studentStatus);
     const qual = fromStudents.map((s: any) => s.qualifications);
+    const batch = fromStudents.map((s: any) => this.getStudentBatch(s));
+    const level = fromStudents.map((s: any) => this.getStudentLevel(s));
+    const lang = fromStudents.map((s: any) => this.getStudentLanguageLevel(s));
 
     for (const doc of this.documents) {
       const snap = this.getDocCrmSnapshot(doc);
@@ -347,12 +393,18 @@ export class DocumentVerificationComponent implements OnInit {
       pkg.push(snap.subscription);
       st.push(snap.studentStatus);
       qual.push(snap.qualifications);
+      batch.push(snap.batch);
+      level.push(snap.level);
+      lang.push(snap.languageLevelOpted);
     }
 
     this.serviceOptedOptions = this.uniqueSortedStrings(svc);
     this.packageOptions = this.uniqueSortedStrings(pkg);
     this.crmStudentStatusOptions = this.uniqueSortedStrings(st);
     this.qualificationOptions = this.uniqueSortedStrings(qual);
+    this.batchOptions = this.uniqueSortedStrings(batch);
+    this.levelOptions = this.uniqueSortedStrings(level);
+    this.languageLevelOptedOptions = this.uniqueSortedStrings(lang);
   }
 
   private getDocCrmSnapshot(doc: StudentDocument): {
@@ -360,6 +412,10 @@ export class DocumentVerificationComponent implements OnInit {
     subscription: string;
     servicesOpted: string;
     qualifications: string;
+    batch: string;
+    level: string;
+    languageLevelOpted: string;
+    teacher: string;
   } {
     const sid = doc.studentId as any;
     if (sid && typeof sid === 'object' && sid._id) {
@@ -367,7 +423,11 @@ export class DocumentVerificationComponent implements OnInit {
         studentStatus: String(sid.studentStatus ?? '').trim(),
         subscription: String(sid.subscription ?? '').trim(),
         servicesOpted: String(sid.servicesOpted ?? doc.servicesOpted ?? '').trim(),
-        qualifications: String(sid.qualifications ?? '').trim()
+        qualifications: String(sid.qualifications ?? '').trim(),
+        batch: String(sid.batch ?? '').trim(),
+        level: String(sid.level ?? '').trim(),
+        languageLevelOpted: String(sid.languageLevelOpted ?? doc.languageLevelOpted ?? '').trim(),
+        teacher: this.getStudentTeacher(sid)
       };
     }
     const idStr = String(sid ?? '');
@@ -377,18 +437,38 @@ export class DocumentVerificationComponent implements OnInit {
         studentStatus: String(st.studentStatus ?? '').trim(),
         subscription: String(st.subscription ?? '').trim(),
         servicesOpted: String(st.servicesOpted ?? doc.servicesOpted ?? '').trim(),
-        qualifications: String(st.qualifications ?? '').trim()
+        qualifications: String(st.qualifications ?? '').trim(),
+        batch: this.getStudentBatch(st),
+        level: this.getStudentLevel(st),
+        languageLevelOpted: this.getStudentLanguageLevel(st),
+        teacher: this.getStudentTeacher(st)
       };
     }
     return {
       studentStatus: String(doc.studentStatus ?? '').trim(),
       subscription: String(doc.subscription ?? '').trim(),
       servicesOpted: String(doc.servicesOpted ?? '').trim(),
-      qualifications: String(doc.qualifications ?? '').trim()
+      qualifications: String(doc.qualifications ?? '').trim(),
+      batch: String((doc as any).batch ?? '').trim(),
+      level: String((doc as any).level ?? '').trim(),
+      languageLevelOpted: String(doc.languageLevelOpted ?? '').trim(),
+      teacher: ''
     };
   }
 
   private studentMatchesCrmFilters(student: any): boolean {
+    if (this.studentNameQuery.trim()) {
+      const nameQuery = this.studentNameQuery.trim().toLowerCase();
+      const name = this.getStudentName(student).toLowerCase();
+      if (!name.includes(nameQuery)) return false;
+    }
+
+    if (this.teacherQuery.trim()) {
+      const teacherQuery = this.teacherQuery.trim().toLowerCase();
+      const teacher = this.getStudentTeacher(student).toLowerCase();
+      if (!teacher.includes(teacherQuery)) return false;
+    }
+
     if (this.selectedCrmStudentStatus !== 'ALL') {
       const s = String(student?.studentStatus ?? '').trim().toUpperCase();
       if (s !== this.selectedCrmStudentStatus.trim().toUpperCase()) return false;
@@ -405,11 +485,28 @@ export class DocumentVerificationComponent implements OnInit {
       const q = String(student?.qualifications ?? '').trim();
       if (q !== this.selectedQualification.trim()) return false;
     }
+    if (this.selectedBatch !== 'ALL') {
+      if (this.getStudentBatch(student) !== this.selectedBatch.trim()) return false;
+    }
+    if (this.selectedLevel !== 'ALL') {
+      if (this.getStudentLevel(student) !== this.selectedLevel.trim()) return false;
+    }
+    if (this.selectedLanguageLevelOpted !== 'ALL') {
+      if (this.getStudentLanguageLevel(student) !== this.selectedLanguageLevelOpted.trim()) return false;
+    }
     return true;
   }
 
   private docMatchesCrmFilters(doc: StudentDocument): boolean {
     const snap = this.getDocCrmSnapshot(doc);
+    if (this.studentNameQuery.trim()) {
+      const nameQuery = this.studentNameQuery.trim().toLowerCase();
+      if (!String(doc.studentName || '').toLowerCase().includes(nameQuery)) return false;
+    }
+    if (this.teacherQuery.trim()) {
+      const teacherQuery = this.teacherQuery.trim().toLowerCase();
+      if (!String(snap.teacher || '').toLowerCase().includes(teacherQuery)) return false;
+    }
     if (this.selectedCrmStudentStatus !== 'ALL') {
       if (snap.studentStatus.toUpperCase() !== this.selectedCrmStudentStatus.trim().toUpperCase()) return false;
     }
@@ -421,6 +518,15 @@ export class DocumentVerificationComponent implements OnInit {
     }
     if (this.selectedQualification !== 'ALL') {
       if (snap.qualifications !== this.selectedQualification.trim()) return false;
+    }
+    if (this.selectedBatch !== 'ALL') {
+      if (snap.batch !== this.selectedBatch.trim()) return false;
+    }
+    if (this.selectedLevel !== 'ALL') {
+      if (snap.level !== this.selectedLevel.trim()) return false;
+    }
+    if (this.selectedLanguageLevelOpted !== 'ALL') {
+      if (snap.languageLevelOpted !== this.selectedLanguageLevelOpted.trim()) return false;
     }
     return true;
   }
@@ -522,6 +628,11 @@ export class DocumentVerificationComponent implements OnInit {
     this.selectedCrmStudentStatus = 'ALL';
     this.selectedPackage = 'ALL';
     this.selectedQualification = 'ALL';
+    this.selectedBatch = 'ALL';
+    this.selectedLevel = 'ALL';
+    this.selectedLanguageLevelOpted = 'ALL';
+    this.studentNameQuery = '';
+    this.teacherQuery = '';
     this.searchQuery = '';
     this.applyFilters();
   }
@@ -590,6 +701,7 @@ export class DocumentVerificationComponent implements OnInit {
           qualifications: String(student?.qualifications ?? '').trim(),
           languageLevelOpted: String(student?.languageLevelOpted ?? '').trim(),
           documents: visibleDocs,
+          requirementRows: this.createRequirementRows(allDocs),
           totalDocs: allDocs.length,
           pendingDocs: pending,
           verifiedDocs: verified,
@@ -619,6 +731,7 @@ export class DocumentVerificationComponent implements OnInit {
             qualifications: snap.qualifications,
             languageLevelOpted: String((doc as any).languageLevelOpted ?? '').trim(),
             documents: [],
+            requirementRows: [],
             totalDocs: 0,
             pendingDocs: 0,
             verifiedDocs: 0,
@@ -627,6 +740,7 @@ export class DocumentVerificationComponent implements OnInit {
         }
         const group = groupMap.get(idStr);
         group.documents.push(doc);
+        group.requirementRows = this.createRequirementRows(group.documents);
         group.totalDocs++;
         if (doc.status === 'PENDING') group.pendingDocs++;
         else if (doc.status === 'VERIFIED') group.verifiedDocs++;
@@ -643,14 +757,52 @@ export class DocumentVerificationComponent implements OnInit {
     });
 
     this.filteredStudentGroups = this.studentGroups;
+    this.totalStudentGroups = this.filteredStudentGroups.length;
+    this.compactPageIndex = 0;
+    this.updatePaginatedStudentGroups();
+  }
+
+  updatePaginatedStudentGroups(): void {
+    const start = this.compactPageIndex * this.compactPageSize;
+    const end = start + this.compactPageSize;
+    this.paginatedStudentGroups = this.filteredStudentGroups.slice(start, end);
+  }
+
+  onCompactPageChange(event: PageEvent): void {
+    this.compactPageSize = event.pageSize;
+    this.compactPageIndex = event.pageIndex;
+    this.updatePaginatedStudentGroups();
   }
 
   toggleStudentExpand(studentId: string): void {
     this.expandedStudentId = this.expandedStudentId === studentId ? null : studentId;
   }
 
+  openStudentDocumentsPage(group: any): void {
+    const tree = this.router.createUrlTree(
+      ['/admin/document-verification/student', group.studentId],
+      {
+        queryParams: {
+          name: group.studentName || '',
+          email: group.studentEmail || '',
+          studentStatus: group.studentStatus || '',
+          subscription: group.subscription || '',
+          servicesOpted: group.servicesOpted || '',
+          qualifications: group.qualifications || '',
+          languageLevelOpted: group.languageLevelOpted || ''
+        }
+      }
+    );
+    const serializedUrl = this.router.serializeUrl(tree);
+    window.open(serializedUrl, '_blank', 'noopener');
+  }
+
   switchView(mode: 'compact' | 'detailed'): void {
     this.viewMode = mode;
+  }
+
+  toggleAdvancedFilters(): void {
+    this.showAdvancedFilters = !this.showAdvancedFilters;
   }
 
   openPreview(doc: StudentDocument): void {
@@ -705,36 +857,15 @@ export class DocumentVerificationComponent implements OnInit {
     this.previewRawUrl = '';
   }
 
+  openDocumentInNewTab(doc: StudentDocument): void {
+    if (!doc || doc.fileName === 'NO_FILE_UPLOADED') return;
+    const previewUrl = this.documentService.getPreviewUrl(doc._id);
+    window.open(previewUrl, '_blank', 'noopener');
+  }
+
   downloadDocument(doc: StudentDocument): void {
-    this.documentService.downloadDocument(doc._id).subscribe({
-      next: (blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const link = window.document.createElement('a');
-        link.href = url;
-        link.download = doc.documentName || doc.fileName;
-        link.click();
-        window.URL.revokeObjectURL(url);
-        this.snackBar.open('Document downloaded', 'Close', { duration: 2000 });
-      },
-      error: (error) => {
-        console.error('Error downloading document:', error);
-        // Try to read error message from blob response
-        if (error.error instanceof Blob) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            try {
-              const errJson = JSON.parse(reader.result as string);
-              this.snackBar.open(errJson.message || 'Error downloading document', 'Close', { duration: 4000 });
-            } catch {
-              this.snackBar.open('Error downloading document', 'Close', { duration: 3000 });
-            }
-          };
-          reader.readAsText(error.error);
-        } else {
-          this.snackBar.open('Error downloading document', 'Close', { duration: 3000 });
-        }
-      }
-    });
+    this.documentService.triggerServerDownload(doc._id);
+    this.snackBar.open('Download started', 'Close', { duration: 2000 });
   }
 
   openVerificationDialog(document: StudentDocument, action: 'VERIFIED' | 'REJECTED'): void {
@@ -742,6 +873,10 @@ export class DocumentVerificationComponent implements OnInit {
     this.verificationAction = action;
     this.verificationNotes = document.verificationNotes || '';
     this.showVerificationDialog = true;
+  }
+
+  requestReupload(doc: StudentDocument): void {
+    this.openVerificationDialog(doc, 'REJECTED');
   }
 
   closeVerificationDialog(): void {
@@ -1000,10 +1135,12 @@ export class DocumentVerificationComponent implements OnInit {
     let failed = 0;
     const total = this.bulkUploadForm.files.length;
     
-    this.bulkUploadForm.files.forEach((file, index) => {
+    const requirementId = this.getRequirementIdByType(this.bulkUploadForm.documentType);
+    this.bulkUploadForm.files.forEach((file) => {
       const formData = new FormData();
       formData.append('document', file);
       formData.append('studentEmail', this.bulkUploadForm.studentEmail);
+      if (requirementId) formData.append('documentTypeId', requirementId);
       formData.append('documentType', this.bulkUploadForm.documentType);
       formData.append('documentName', file.name);
       formData.append('description', `Uploaded by admin on behalf of student`);
@@ -1075,7 +1212,11 @@ export class DocumentVerificationComponent implements OnInit {
       return;
     }
     
-    this.documentService.markDocumentAsVerified(this.markVerifiedForm).subscribe({
+    const requirementId = this.getRequirementIdByType(this.markVerifiedForm.documentType);
+    this.documentService.markDocumentAsVerified({
+      ...this.markVerifiedForm,
+      documentTypeId: requirementId
+    }).subscribe({
       next: (response) => {
         if (response.success) {
           this.snackBar.open('Document marked as verified successfully', 'Close', { duration: 4000 });
@@ -1100,8 +1241,10 @@ export class DocumentVerificationComponent implements OnInit {
           // Build documentTypes dropdown from requirements
           this.documentTypes = this.requirements.map(r => ({
             value: r.type,
-            label: r.label
+            label: r.name || r.label,
+            id: r._id || r.id
           }));
+          this.buildStudentGroups();
         }
       },
       error: (error) => {
@@ -1118,6 +1261,8 @@ export class DocumentVerificationComponent implements OnInit {
         label: requirement.label,
         description: requirement.description,
         required: requirement.required,
+        isRequired: requirement.isRequired ?? requirement.required,
+        allowMultiple: requirement.allowMultiple ?? false,
         category: requirement.category,
         order: requirement.order
       };
@@ -1128,6 +1273,8 @@ export class DocumentVerificationComponent implements OnInit {
         label: '',
         description: '',
         required: false,
+        isRequired: false,
+        allowMultiple: false,
         category: 'OTHER',
         order: this.requirements.length
       };
@@ -1145,6 +1292,7 @@ export class DocumentVerificationComponent implements OnInit {
       this.snackBar.open('Please fill in all required fields', 'Close', { duration: 3000 });
       return;
     }
+    this.requirementForm.isRequired = this.requirementForm.required;
     
     if (this.editingRequirement) {
       // Update existing
@@ -1169,6 +1317,7 @@ export class DocumentVerificationComponent implements OnInit {
       if (!this.requirementForm.type) {
         this.requirementForm.type = this.requirementForm.label.toUpperCase().replace(/\s+/g, '_');
       }
+      this.requirementForm.isRequired = this.requirementForm.required;
       
       this.documentService.createDocumentRequirement(this.requirementForm).subscribe({
         next: (response) => {
@@ -1238,5 +1387,91 @@ export class DocumentVerificationComponent implements OnInit {
         this.sendingEmail = false;
       }
     });
+  }
+
+  getRequirementIdByType(type: string): string | undefined {
+    const req = this.requirements.find((r) => r.type === type);
+    return req?._id || req?.id;
+  }
+
+  replaceDocument(doc: StudentDocument): void {
+    const input = window.document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+    input.onchange = () => {
+      const selectedFile = input.files && input.files.length > 0 ? input.files[0] : null;
+      if (!selectedFile) return;
+      this.documentService.replaceDocument(doc._id, selectedFile).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.snackBar.open('Document replaced with a new version', 'Close', { duration: 3000 });
+            this.loadDocuments();
+          }
+        },
+        error: (error) => {
+          console.error('Error replacing document:', error);
+          this.snackBar.open(error.error?.message || 'Error replacing document', 'Close', { duration: 3000 });
+        }
+      });
+    };
+    input.click();
+  }
+
+  createRequirementRows(studentDocs: StudentDocument[]): Array<{
+    type: string;
+    label: string;
+    required: boolean;
+    status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'NOT_UPLOADED';
+    doc: StudentDocument | null;
+    uploadedAt: Date | null;
+    remarks: string;
+  }> {
+    const docs = Array.isArray(studentDocs) ? studentDocs : [];
+    const rows: Array<{
+      type: string;
+      label: string;
+      required: boolean;
+      status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'NOT_UPLOADED';
+      doc: StudentDocument | null;
+      uploadedAt: Date | null;
+      remarks: string;
+    }> = [];
+
+    const sortedRequirements = [...this.requirements].sort(
+      (a, b) => Number(a?.order || 0) - Number(b?.order || 0)
+    );
+
+    for (const req of sortedRequirements) {
+      const docsByType = docs
+        .filter((d) => d.documentType === req.type)
+        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      const latest = docsByType.length > 0 ? docsByType[0] : null;
+
+      rows.push({
+        type: req.type,
+        label: req.name || req.label || req.type,
+        required: !!(req.required || req.isRequired),
+        status: latest ? latest.status : 'NOT_UPLOADED',
+        doc: latest,
+        uploadedAt: latest?.uploadedAt || null,
+        remarks: String(latest?.verificationNotes || latest?.remarks || '').trim()
+      });
+    }
+
+    for (const doc of docs) {
+      if (!rows.some((r) => r.type === doc.documentType)) {
+        rows.push({
+          type: doc.documentType,
+          label: doc.documentTypeDisplay || doc.documentType,
+          required: false,
+          status: doc.status,
+          doc,
+          uploadedAt: doc.uploadedAt || null,
+          remarks: String(doc.verificationNotes || doc.remarks || '').trim()
+        });
+      }
+    }
+
+    return rows;
   }
 }

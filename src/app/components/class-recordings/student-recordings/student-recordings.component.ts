@@ -1,9 +1,16 @@
-import { Component, OnInit, OnDestroy, Input } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  AfterViewChecked,
+  Input,
+  ViewChild,
+  ElementRef,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../services/auth.service';
 import {
   ClassRecordingsService,
@@ -12,25 +19,33 @@ import {
 } from '../../../services/class-recordings.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import Hls, { ErrorData } from 'hls.js';
+import { environment } from '../../../../environments/environment';
+
+/** Single active list filter (combined with search text). Uses attendance, not Zoom "attempted". */
+export type RecordingListFilter =
+  | 'all'
+  | 'attended'
+  | 'not_attended'
+  | 'date_newest'
+  | 'date_oldest';
 
 /** Unified shape for displaying both manual and Zoom recordings in the same list */
 export interface DisplayRecording {
   type: 'manual' | 'zoom';
-  id: string; // _id for manual, meetingLinkId for zoom
+  id: string;
   title: string;
   description: string;
-  date: string; // ISO date string
-  duration: number | null; // seconds
+  date: string;
+  duration: number | null;
   batch: string;
   teacherName: string;
   attempted: boolean | null;
   attendanceStatus: 'Attended' | 'Not Attended' | 'Not Attempted' | 'Pending' | 'N/A';
-  // manual-specific
   videoUrl?: string;
   level?: string;
   plan?: string;
   uploadedBy?: string;
-  // zoom-specific
   meetingLinkId?: string;
 }
 
@@ -41,30 +56,38 @@ export interface DisplayRecording {
   templateUrl: './student-recordings.component.html',
   styleUrls: ['./student-recordings.component.css'],
 })
-export class StudentRecordingsComponent implements OnInit, OnDestroy {
-  /** When true, hides the page header (e.g. inside My Course). */
+export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewChecked {
   @Input() embedded = false;
+
+  @ViewChild('srVideoEl') srVideoEl?: ElementRef<HTMLVideoElement>;
 
   allRecordings: DisplayRecording[] = [];
   filteredRecordings: DisplayRecording[] = [];
   loading = false;
   searchQuery = '';
+  /** Filter / sort mode for the recordings list (see filter menu in template). */
+  recordingFilter: RecordingListFilter = 'all';
   currentUserBatch = '';
 
-  // Player modal state
-  showPlayerModal = false;
-  playerLoading = false;
+  // ── Player modal state ────────────────────────────────────────────────────
+  showPlayerModal  = false;
+  playerLoading    = false;
   playerError: string | null = null;
   playerKind: 'video' | 'iframe' = 'video';
-  playerTitle = '';
+  playerTitle      = '';
+  /** Set for MP4 (legacy) mode — bound directly to [attr.src] on <video>. */
   playerVideoUrl: string | null = null;
+  /** Set for HLS mode — hls.js loadSource() target. */
+  playerHlsUrl: string | null = null;
   playerIframeUrl: SafeResourceUrl | null = null;
+  videoBuffering   = false;
 
-  // Optional details modal
-  showDetailsModal = false;
-  selectedRecording: DisplayRecording | null = null;
+  // ── hls.js instance ───────────────────────────────────────────────────────
+  private hls: Hls | null = null;
+  /** Signals AfterViewChecked to call initHlsPlayer once video el is in DOM. */
+  private pendingHlsInit = false;
 
-  // Manual recording view tracking
+  // ── Manual recording view tracking ────────────────────────────────────────
   activeViewId: string | null = null;
   activeRecordingId: string | null = null;
   watchStartTime = 0;
@@ -73,10 +96,15 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
   private zoomWatchStartTime = 0;
   private zoomDurationInterval: any = null;
 
+  // Signed-URL cache: meetingLinkId → { url, expiresAt }
+  // Stores either the HLS playlist URL (if hlsMode) or MP4 URL (legacy).
+  private readonly zoomUrlCache = new Map<string, { url: string; hlsMode: boolean; expiresAt: number }>();
+  private readonly warmedHlsUrls = new Set<string>();
+  private readonly CACHE_TTL_MS = 13 * 60 * 1000; // 13 min
+
   constructor(
     private service: ClassRecordingsService,
     private sanitizer: DomSanitizer,
-    private snackBar: MatSnackBar,
     private authService: AuthService
   ) {}
 
@@ -86,7 +114,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
 
     forkJoin({
       manual: this.service.getRecordings().pipe(catchError(() => of({ success: false, recordings: [] as ClassRecording[] }))),
-      zoom: this.service.getMyBatchZoomRecordings().pipe(catchError(() => of({ success: false, recordings: [] as BatchZoomRecording[] }))),
+      zoom:   this.service.getMyBatchZoomRecordings().pipe(catchError(() => of({ success: false, recordings: [] as BatchZoomRecording[] }))),
     }).subscribe(({ manual, zoom }) => {
       const manualItems: DisplayRecording[] = (manual.recordings || []).map((r: ClassRecording) => ({
         type: 'manual',
@@ -119,40 +147,126 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
         meetingLinkId: r.meetingLinkId,
       }));
 
-      // Merge and sort newest-first
-      const merged = [...manualItems, ...zoomItems].filter((r) => this.isSameBatchForStudent(r.batch));
-      this.allRecordings = merged.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      this.filteredRecordings = [...this.allRecordings];
+      // Batch visibility is already enforced by backend endpoints for students.
+      // Avoid a second client-side batch filter that can hide valid recordings
+      // when batch labels differ in formatting.
+      const merged = [...manualItems, ...zoomItems];
+      this.allRecordings = merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      this.applyListFilters();
+      this.prefetchFirst5Zoom();
       this.loading = false;
     });
   }
 
+  ngAfterViewChecked(): void {
+    // When hls init is pending, the <video> element may not yet be in the DOM.
+    // AfterViewChecked runs after every Angular change detection cycle,
+    // so the element will be available on the cycle after *ngIf renders it.
+    if (this.pendingHlsInit && this.srVideoEl?.nativeElement) {
+      this.pendingHlsInit = false;
+      this.initHlsOnElement(this.srVideoEl.nativeElement, this.playerHlsUrl!);
+    }
+  }
+
   ngOnDestroy(): void {
+    this.destroyHls();
     this.stopTracking();
     this.stopZoomTracking();
   }
 
-  // ── Search ─────────────────────────────────────────────────────────────────
+  // ── Search ────────────────────────────────────────────────────────────────
 
   applySearch(): void {
+    this.applyListFilters();
+  }
+
+  /** Apply search text + recording filter / date sort to `filteredRecordings`. */
+  applyListFilters(): void {
+    let list = [...this.allRecordings];
     const q = this.searchQuery.trim().toLowerCase();
-    if (!q) { this.filteredRecordings = [...this.allRecordings]; return; }
-    this.filteredRecordings = this.allRecordings.filter(
-      (r) => r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.batch.toLowerCase().includes(q)
+    if (q) {
+      list = list.filter(
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.description.toLowerCase().includes(q) ||
+          r.batch.toLowerCase().includes(q)
+      );
+    }
+    switch (this.recordingFilter) {
+      case 'attended':
+        list = list.filter((r) => this.matchesAttendedFilter(r));
+        break;
+      case 'not_attended':
+        list = list.filter((r) => this.matchesNotAttendedFilter(r));
+        break;
+      case 'date_newest':
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        break;
+      case 'date_oldest':
+        list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        break;
+      default:
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        break;
+    }
+    this.filteredRecordings = list;
+  }
+
+  setRecordingFilter(mode: RecordingListFilter): void {
+    this.recordingFilter = mode;
+    this.applyListFilters();
+  }
+
+  /** Normalized attendance label for filtering (API may vary casing). */
+  private readAttendanceNorm(r: DisplayRecording): string {
+    return (r.attendanceStatus || '').trim().toLowerCase();
+  }
+
+  /** Filter: attended classes only. */
+  private matchesAttendedFilter(r: DisplayRecording): boolean {
+    return this.readAttendanceNorm(r) === 'attended';
+  }
+
+  /**
+   * Filter: not attended / not completed — everything except "Attended" and bare N/A
+   * (manual-only rows stay in "All" only).
+   */
+  private matchesNotAttendedFilter(r: DisplayRecording): boolean {
+    const a = this.readAttendanceNorm(r);
+    if (a === 'attended' || a === 'n/a' || a === '') return false;
+    return (
+      a === 'not attended' ||
+      a === 'not attempted' ||
+      a === 'pending'
     );
   }
 
-  // ── Row actions ────────────────────────────────────────────────────────────
+  // ── Hover prefetch ────────────────────────────────────────────────────────
+  // When the mouse enters a play button, silently pre-fetch the URL so that
+  // by the time the user clicks (~200 ms later) the URL is already cached.
+
+  onPlayButtonHover(recording: DisplayRecording): void {
+    if (recording.type !== 'zoom' || !recording.meetingLinkId) return;
+    const cached = this.getCachedZoomUrl(recording.meetingLinkId);
+    if (cached) {
+      if (cached.hlsMode) this.warmHlsPlaylist(cached.url);
+      return;
+    }
+    this.fetchAndCacheZoomUrl(recording.meetingLinkId, false);
+  }
+
+  // ── Row actions ───────────────────────────────────────────────────────────
 
   playRecording(recording: DisplayRecording): void {
+    this.destroyHls();
     this.stopZoomTracking();
-    this.playerLoading = true;
-    this.playerError = null;
-    this.playerTitle = recording.title;
-    this.playerVideoUrl = null;
+    this.playerLoading   = true;
+    this.playerError     = null;
+    this.playerTitle     = recording.title;
+    this.playerVideoUrl  = null;
+    this.playerHlsUrl    = null;
     this.playerIframeUrl = null;
+    this.videoBuffering  = false;
     this.showPlayerModal = true;
 
     if (recording.type === 'manual') {
@@ -160,14 +274,15 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
       const manualUrl = recording.videoUrl || '';
       if (!manualUrl) {
         this.playerLoading = false;
-        this.playerError = 'Video URL is missing for this recording.';
+        this.playerError   = 'Video URL is missing for this recording.';
         return;
       }
       if (this.isDirectVideoFile(manualUrl)) {
-        this.playerKind = 'video';
+        this.playerKind     = 'video';
         this.playerVideoUrl = manualUrl;
+        this.videoBuffering = true;
       } else {
-        this.playerKind = 'iframe';
+        this.playerKind      = 'iframe';
         this.playerIframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.getEmbedUrl(manualUrl));
       }
       this.playerLoading = false;
@@ -176,18 +291,157 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
 
     if (!recording.meetingLinkId) {
       this.playerLoading = false;
-      this.playerError = 'Meeting information is missing.';
+      this.playerError   = 'Meeting information is missing.';
       return;
     }
 
-    this.service.getZoomRecordingUrl(recording.meetingLinkId).subscribe({
+    const cached = this.getCachedZoomUrl(recording.meetingLinkId);
+    if (cached) {
+      this.playerLoading = false;
+      this.playerKind    = 'video';
+      this.startZoomTracking(recording.meetingLinkId);
+      this.applyZoomUrl(cached.url, cached.hlsMode);
+      return;
+    }
+
+    this.fetchAndCacheZoomUrl(recording.meetingLinkId, true);
+  }
+
+  closePlayer(): void {
+    this.destroyHls();
+    this.stopZoomTracking();
+    this.showPlayerModal = false;
+    this.playerLoading   = false;
+    this.playerError     = null;
+    this.playerVideoUrl  = null;
+    this.playerHlsUrl    = null;
+    this.playerIframeUrl = null;
+    this.videoBuffering  = false;
+    this.pendingHlsInit  = false;
+  }
+
+  // ── HLS player ────────────────────────────────────────────────────────────
+
+  private applyZoomUrl(url: string, hlsMode: boolean): void {
+    this.videoBuffering = true;
+    if (hlsMode) {
+      this.playerHlsUrl   = url;
+      this.playerVideoUrl = null;
+      // Signal AfterViewChecked to init hls.js once <video> is in the DOM
+      this.pendingHlsInit = true;
+    } else {
+      this.playerVideoUrl = url;
+      this.playerHlsUrl   = null;
+    }
+  }
+
+  private initHlsOnElement(video: HTMLVideoElement, hlsUrl: string): void {
+    if (Hls.isSupported()) {
+      this.hls = new Hls({
+        enableWorker: true,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        startLevel: 0,
+        startPosition: 0,
+        backBufferLength: 5,
+        xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
+          // Only same-origin API requests need cookies (playlist). Presigned .ts URLs
+          // are on R2 — withCredentials there triggers a credentialed CORS mode that
+          // R2 will not satisfy → browser reports "CORS error" and playback stalls.
+          try {
+            const apiOrigin = new URL(environment.apiUrl).origin;
+            const target = new URL(url || '', window.location.href);
+            if (target.origin === apiOrigin) {
+              xhr.withCredentials = true;
+            }
+          } catch {
+            /* leave default (no credentials) for R2 / opaque URLs */
+          }
+        },
+      });
+
+      this.hls.loadSource(hlsUrl);
+      this.hls.attachMedia(video);
+
+      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        this.hls!.currentLevel = 0; // lowest quality first
+        this.videoBuffering = false;
+        video.play().catch(() => {});
+      });
+
+      this.hls.on(Hls.Events.FRAG_LOADED, () => {
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+      });
+
+      this.hls.on(Hls.Events.ERROR, (_event: string, data: ErrorData) => {
+        if (data.fatal) {
+          this.videoBuffering = false;
+          this.playerError    = 'Playback error. Please refresh and try again.';
+          this.playerHlsUrl   = null;
+        }
+      });
+
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari — native HLS support, no hls.js needed
+      video.src = hlsUrl;
+      video.addEventListener('canplay', () => {
+        this.videoBuffering = false;
+        video.play().catch(() => {});
+      }, { once: true });
+    }
+  }
+
+  private destroyHls(): void {
+    if (this.hls) {
+      this.hls.destroy();
+      this.hls = null;
+    }
+  }
+
+  // ── Video element event handlers (for MP4 mode) ───────────────────────────
+
+  onVideoCanPlay(): void {
+    this.videoBuffering = false;
+    this.srVideoEl?.nativeElement.play().catch(() => {});
+  }
+
+  onVideoWaiting(): void {
+    this.videoBuffering = true;
+  }
+
+  onVideoPlaying(): void {
+    this.videoBuffering = false;
+  }
+
+  onVideoError(): void {
+    this.videoBuffering = false;
+    this.playerError    = 'Unable to play this video. Please try again.';
+    this.playerVideoUrl = null;
+  }
+
+  // ── Zoom URL fetching + caching ───────────────────────────────────────────
+
+  private fetchAndCacheZoomUrl(meetingLinkId: string, applyToPlayer: boolean): void {
+    this.service.getZoomRecordingUrl(meetingLinkId).subscribe({
       next: (res) => {
+        const hlsMode = !!res.hlsMode;
+        const url = hlsMode
+          ? this.service.getHlsPlaylistUrl(meetingLinkId)
+          : (res.signedUrl ?? '');
+
+        this.setCachedZoomUrl(meetingLinkId, url, hlsMode);
+        if (hlsMode) this.warmHlsPlaylist(url);
+
+        if (!applyToPlayer) return;
         this.playerLoading = false;
-        this.playerKind = 'video';
-        this.playerVideoUrl = res.signedUrl;
-        this.startZoomTracking(recording.meetingLinkId!);
+        this.playerKind    = 'video';
+        this.startZoomTracking(meetingLinkId);
+        this.applyZoomUrl(url, hlsMode);
       },
       error: (err) => {
+        if (!applyToPlayer) return;
         this.playerLoading = false;
         const msg: string = err.error?.message || '';
         if (err.status === 202) {
@@ -201,62 +455,46 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
     });
   }
 
-  openDetails(recording: DisplayRecording): void {
-    this.selectedRecording = recording;
-    this.showDetailsModal = true;
+  private prefetchFirst5Zoom(): void {
+    this.allRecordings
+      .filter((r) => r.type === 'zoom' && !!r.meetingLinkId)
+      .slice(0, 5)
+      .forEach((r) => {
+        const id = String(r.meetingLinkId);
+        if (!this.getCachedZoomUrl(id)) {
+          this.fetchAndCacheZoomUrl(id, false);
+        }
+      });
   }
 
-  closeDetails(): void {
-    this.showDetailsModal = false;
-    this.selectedRecording = null;
-  }
-
-  openInNewTab(recording: DisplayRecording): void {
-    if (recording.type === 'manual') {
-      const url = recording.videoUrl || '';
-      if (!url) {
-        this.snackBar.open('No URL available for this recording.', 'Close', { duration: 2500 });
-        return;
-      }
-      window.open(url, '_blank', 'noopener');
-      return;
+  private getCachedZoomUrl(meetingLinkId: string): { url: string; hlsMode: boolean } | null {
+    const entry = this.zoomUrlCache.get(meetingLinkId);
+    if (!entry || Date.now() >= entry.expiresAt) {
+      this.zoomUrlCache.delete(meetingLinkId);
+      return null;
     }
+    return { url: entry.url, hlsMode: entry.hlsMode };
+  }
 
-    if (!recording.meetingLinkId) return;
-    this.service.getZoomRecordingUrl(recording.meetingLinkId).subscribe({
-      next: (res) => window.open(res.signedUrl, '_blank', 'noopener'),
-      error: () => this.snackBar.open('Unable to open this recording in a new tab.', 'Close', { duration: 2500 }),
+  private setCachedZoomUrl(meetingLinkId: string, url: string, hlsMode: boolean): void {
+    this.zoomUrlCache.set(meetingLinkId, {
+      url,
+      hlsMode,
+      expiresAt: Date.now() + this.CACHE_TTL_MS,
     });
   }
 
-  copyRecordingLink(recording: DisplayRecording): void {
-    if (recording.type === 'manual') {
-      const url = recording.videoUrl || '';
-      if (!url) {
-        this.snackBar.open('No URL available to copy.', 'Close', { duration: 2500 });
-        return;
-      }
-      this.copyText(url);
-      return;
-    }
-
-    if (!recording.meetingLinkId) return;
-    this.service.getZoomRecordingUrl(recording.meetingLinkId).subscribe({
-      next: (res) => this.copyText(res.signedUrl),
-      error: () => this.snackBar.open('Unable to copy this recording link right now.', 'Close', { duration: 2500 }),
-    });
+  /**
+   * Warm playlist fetch on hover to prime DNS + TLS + CDN edge cache.
+   * Uses credentials because playlist endpoint is session-authenticated.
+   */
+  private warmHlsPlaylist(hlsUrl: string): void {
+    if (this.warmedHlsUrls.has(hlsUrl)) return;
+    this.warmedHlsUrls.add(hlsUrl);
+    fetch(hlsUrl, { credentials: 'include' }).catch(() => {});
   }
 
-  closePlayer(): void {
-    this.stopZoomTracking();
-    this.showPlayerModal = false;
-    this.playerLoading = false;
-    this.playerError = null;
-    this.playerVideoUrl = null;
-    this.playerIframeUrl = null;
-  }
-
-  // ── Manual recording view tracking ────────────────────────────────────────
+  // ── Manual view tracking ──────────────────────────────────────────────────
 
   startWatching(recordingId: string): void {
     if (this.activeRecordingId === recordingId) return;
@@ -281,16 +519,18 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
   private stopTracking(): void {
     if (this.activeViewId) this.updateDuration();
     if (this.manualDurationInterval) { clearInterval(this.manualDurationInterval); this.manualDurationInterval = null; }
-    this.activeViewId = null;
+    this.activeViewId      = null;
     this.activeRecordingId = null;
   }
+
+  // ── Zoom view tracking ────────────────────────────────────────────────────
 
   private startZoomTracking(meetingLinkId: string): void {
     this.stopZoomTracking();
     this.zoomWatchStartTime = Date.now();
     this.service.startZoomView(meetingLinkId).subscribe({
       next: (res) => {
-        this.activeZoomViewId = res.viewId;
+        this.activeZoomViewId  = res.viewId;
         this.zoomDurationInterval = setInterval(() => this.updateZoomDuration(), 15000);
       },
       error: () => {},
@@ -309,7 +549,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
     this.activeZoomViewId = null;
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Misc helpers ──────────────────────────────────────────────────────────
 
   getEmbedUrl(url: string): string {
     const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
@@ -342,10 +582,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
 
   formatDate(d: string): string {
     return new Date(d).toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
     });
   }
 
@@ -368,11 +605,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
   }
 
   private normalizeBatch(value: string): string {
-    return String(value || '')
-      .toLowerCase()
-      .trim()
-      .replace(/^batch\s+/, '')
-      .replace(/\s+/g, ' ');
+    return String(value || '').toLowerCase().trim()
+      .replace(/^batch\s+/, '').replace(/\s+/g, ' ');
   }
 
   private isSameBatchForStudent(recordingBatch: string): boolean {
@@ -385,15 +619,5 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy {
       b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`) ||
       a.startsWith(`${b} -`) || a.startsWith(`${b}:`) || a.startsWith(`${b} |`)
     );
-  }
-
-  private copyText(text: string): void {
-    const done = () => this.snackBar.open('Link copied.', 'Close', { duration: 1800 });
-    const fail = () => this.snackBar.open('Copy failed. Please copy manually.', 'Close', { duration: 2200 });
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(fail);
-      return;
-    }
-    fail();
   }
 }

@@ -433,7 +433,7 @@ button:disabled,
 
 /* Minimum 44px touch targets for interactive elements */
 @media (max-width: 768px) {
-  button:not(.cd-btn):not(.mobile-menu-btn),
+  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play),
   .btn,
   a[role="button"],
   [mat-button],
@@ -470,6 +470,11 @@ button:disabled,
   * {
     -webkit-tap-highlight-color: rgba(0,0,0,0);
   }
+}
+
+/* Recordings filter menu: stay above my-course / FAB stacking */
+.cdk-overlay-container > .cdk-overlay-pane:has(.sr-recordings-filter-menu) {
+  z-index: 12000 !important;
 }
 
 /* Sidebar scrollable on phone */

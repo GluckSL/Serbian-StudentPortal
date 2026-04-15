@@ -46,11 +46,14 @@ export interface ZoomWebhookAuditRow {
 
 export interface ZoomRecordingResponse {
   success: boolean;
-  signedUrl: string;
+  /** True when the recording was converted to HLS. Use hlsPlaylistUrl for playback. */
+  hlsMode: boolean;
+  /** Presigned MP4 URL — only present for legacy recordings where hlsMode is false. */
+  signedUrl: string | null;
   duration: number | null;
   createdAt: string;
   isPublished?: boolean;
-  r2Key: string;
+  r2Key: string | null;
 }
 
 export interface ZoomRecordingStatusResponse {
@@ -64,6 +67,7 @@ export interface ZoomRecordingStatusResponse {
 export interface BatchZoomRecording {
   meetingLinkId: string;
   r2Key: string;
+  status?: 'processing' | 'ready' | 'failed';
   duration: number | null;
   createdAt: string;
   isPublished?: boolean;
@@ -95,6 +99,7 @@ export class ClassRecordingsService {
     limit?: number;
     includeFailed?: boolean;
     force?: boolean;
+    meetingIds?: string[];
   }): Observable<any> {
     return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
   }
@@ -193,6 +198,15 @@ export class ClassRecordingsService {
       `${this.url}/zoom/${meetingLinkId}`,
       { withCredentials: true }
     );
+  }
+
+  /**
+   * Returns the URL of the authenticated HLS playlist endpoint for a recording.
+   * The backend serves a rewritten .m3u8 where every segment line is a
+   * presigned R2 URL, so hls.js fetches segments directly from R2.
+   */
+  getHlsPlaylistUrl(meetingLinkId: string): string {
+    return `${this.url}/zoom/${meetingLinkId}/hls/playlist`;
   }
 
   startZoomView(meetingLinkId: string): Observable<{ success: boolean; viewId: string }> {

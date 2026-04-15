@@ -572,8 +572,49 @@
 </div>
 
 <ng-template #mcLoading>
-  <div class="mc mc--loading">
-    <div class="mc-spinner"></div>
-    <p>Loading your course…</p>
+  <div class="mc mc--skeleton" aria-busy="true" aria-label="Loading course">
+    <!-- Hero skeleton (matches mc-hero layout) -->
+    <div class="mc-sk-hero">
+      <div class="mc-sk-hero__text">
+        <div class="mc-sk-line mc-sk-line--lg"></div>
+        <div class="mc-sk-line mc-sk-line--md"></div>
+        <div class="mc-sk-line mc-sk-line--sm"></div>
+        <div class="mc-sk-pills">
+          <div class="mc-sk-pill"></div>
+          <div class="mc-sk-pill"></div>
+        </div>
+      </div>
+      <div class="mc-sk-hero__avatar" aria-hidden="true"></div>
+    </div>
+
+    <!-- Tabs skeleton -->
+    <div class="mc-sk-tabs">
+      <div class="mc-sk-tab"></div>
+      <div class="mc-sk-tab"></div>
+      <div class="mc-sk-tab"></div>
+      <div class="mc-sk-tab mc-sk-tab--short"></div>
+    </div>
+
+    <!-- Main grid skeleton (matches classes tab: main + sidebar) -->
+    <div class="mc-sk-grid">
+      <div class="mc-sk-card">
+        <div class="mc-sk-line mc-sk-line--title"></div>
+        <div class="mc-sk-table">
+          <div class="mc-sk-row" *ngFor="let _ of skeletonMeetingRows">
+            <div class="mc-sk-cell mc-sk-cell--wide"></div>
+            <div class="mc-sk-cell"></div>
+            <div class="mc-sk-cell"></div>
+            <div class="mc-sk-cell mc-sk-cell--btn"></div>
+          </div>
+        </div>
+      </div>
+      <div class="mc-sk-card mc-sk-card--side">
+        <div class="mc-sk-line mc-sk-line--title"></div>
+        <div class="mc-sk-line" *ngFor="let _ of skeletonSideLines"></div>
+        <div class="mc-sk-block"></div>
+      </div>
+    </div>
+
+    <p class="mc-sk-hint">Loading your course…</p>
   </div>
 </ng-template>

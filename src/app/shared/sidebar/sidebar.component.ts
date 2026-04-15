@@ -39,7 +39,9 @@ export class SidebarComponent implements OnInit {
         this.navGroups = this.navService.getNavForRole(
           this.userRole,
           this.sidebarPermissions,
-          user.teacherTabPermissions || []
+          user.teacherTabPermissions || [],
+          user.sidebarAccessLevels || {},
+          user.teacherTabAccessLevels || {}
         );
       }
     });

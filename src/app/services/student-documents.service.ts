@@ -7,10 +7,15 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface DocumentRequirement {
+  id: string;
   type: string;
+  name: string;
   label: string;
   required: boolean;
+  isRequired: boolean;
   description: string;
+  category?: string;
+  allowMultiple: boolean;
 }
 
 export interface StudentDocument {
@@ -19,6 +24,7 @@ export interface StudentDocument {
   studentName: string;
   studentEmail: string;
   documentType: string;
+  documentTypeId: string;
   documentName: string;
   fileName: string;
   filePath: string;
@@ -30,6 +36,10 @@ export interface StudentDocument {
   verifiedBy?: string;
   verifiedAt?: Date;
   verificationNotes?: string;
+  remarks?: string;
+  version?: number;
+  isCurrent?: boolean;
+  documentCategory?: string;
   uploadedAt: Date;
   updatedAt: Date;
   documentTypeDisplay: string;
@@ -79,6 +89,21 @@ export class StudentDocumentsService {
     }>(`${this.apiUrl}/upload`, formData, { withCredentials: true });
   }
 
+  // Replace an existing document with a new version
+  replaceDocument(documentId: string, file: File): Observable<{
+    success: boolean;
+    message: string;
+    document: StudentDocument;
+  }> {
+    const formData = new FormData();
+    formData.append('document', file);
+    return this.http.post<{
+      success: boolean;
+      message: string;
+      document: StudentDocument;
+    }>(`${this.apiUrl}/admin/replace/${documentId}`, formData, { withCredentials: true });
+  }
+
   // Delete a document
   deleteDocument(documentId: string): Observable<{
     success: boolean;
@@ -96,6 +121,19 @@ export class StudentDocumentsService {
       responseType: 'blob',
       withCredentials: true
     });
+  }
+
+  // Download by browser navigation to avoid XHR/CORS false errors on S3 redirects
+  triggerServerDownload(documentId: string): void {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = `${this.apiUrl}/download/${encodeURIComponent(documentId)}`;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    }, 30000);
   }
 
   // Preview a document inline
@@ -212,7 +250,7 @@ export class StudentDocumentsService {
   // Verify or reject a document (Admin/Teacher only)
   verifyDocument(
     documentId: string,
-    status: 'VERIFIED' | 'REJECTED',
+    status: 'PENDING' | 'VERIFIED' | 'REJECTED',
     verificationNotes?: string
   ): Observable<{
     success: boolean;
@@ -329,6 +367,7 @@ export class StudentDocumentsService {
   // Mark document as verified without uploading file (Admin only)
   markDocumentAsVerified(data: {
     studentEmail: string;
+    documentTypeId?: string;
     documentType: string;
     documentName: string;
     verificationNotes: string;

@@ -11,7 +11,19 @@
       <button class="cr-btn cr-btn--outline" (click)="openWebhookAudit()">
         <i class="fa fa-wave-square"></i> Webhook Audit
       </button>
-      <button class="cr-btn cr-btn--secondary" (click)="runZoomBackfill()" [disabled]="backfillLoading">
+      <input
+        class="cr-input cr-input--meeting-ids"
+        type="text"
+        [(ngModel)]="backfillMeetingIdsInput"
+        placeholder="Meeting IDs (comma separated)"
+        [disabled]="backfillLoading"
+        title="Optional: enter one or more Zoom meeting IDs to backfill only those classes." />
+      <button
+        class="cr-btn cr-btn--secondary"
+        type="button"
+        (click)="runZoomBackfill()"
+        [disabled]="backfillLoading"
+        title="Re-queues meetings from Zoom (force). If Meeting IDs are provided, only those are backfilled.">
         <i class="fa fa-rotate"></i> {{ backfillLoading ? 'Backfilling...' : 'Backfill Zoom Recordings' }}
       </button>
       <button class="cr-btn cr-btn--primary" (click)="openForm()">
@@ -130,6 +142,9 @@
                   : 'Visible'
               }}
             </span>
+            <span class="cr-processing-note" *ngIf="isProcessingRecording(r)">
+              {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
+            </span>
           </td>
           <td>
             <span class="cr-cell-sub">{{ formatDate((r.classDate || r.createdAt)!) }}</span>
@@ -148,7 +163,7 @@
                 [class.cr-icon-btn--blue]="isZoomRecording(r) && !r.isPublished"
                 [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === r.meetingLinkId"
                 (click)="toggleStudentVisibility(r); $event.stopPropagation()"
-                [title]="r.isPublished ? 'Hide from Students' : 'Show to Students'"
+                [title]="canToggleStudentVisibility(r) ? (r.isPublished ? 'Hide from Students' : 'Show to Students') : 'Visibility toggle available only when recording status is Ready'"
                 *ngIf="isZoomRecording(r)">
                 <i class="fa" [class.fa-eye-slash]="r.isPublished" [class.fa-eye]="!r.isPublished"></i>
               </button>

@@ -10,6 +10,8 @@ export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' |
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
   context?: string;
+  /** Toggle advanced/AI grading behavior for this question. */
+  aiGradingEnabled?: boolean;
 }
 
 export interface MCQQuestion extends QuestionCommonFields {
@@ -194,6 +196,17 @@ export interface StaffAttemptReviewResponse extends MyExerciseReviewResponse {
   attempt: MyExerciseReviewResponse['attempt'] & {
     studentId?: { name?: string; email?: string; batch?: string; level?: string };
   };
+}
+
+export interface StaffAttemptOverrideResponse {
+  success: boolean;
+  attemptId: string;
+  questionIndex: number;
+  isCorrect: boolean;
+  pointsEarned: number;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
 }
 
 export interface QuestionResponse {
@@ -389,6 +402,20 @@ export class DigitalExerciseService {
     );
   }
 
+  /** Admin/Teacher: override grading for one submitted question in an attempt */
+  overrideAttemptQuestion(
+    exerciseId: string,
+    attemptId: string,
+    questionIndex: number,
+    isCorrect: boolean
+  ): Observable<StaffAttemptOverrideResponse> {
+    return this.http.patch<StaffAttemptOverrideResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}/questions/${questionIndex}/override`,
+      { isCorrect },
+      { withCredentials: true }
+    );
+  }
+
   // ─── Analytics (Teacher/Admin) ────────────────────────────────────────────
 
   getExerciseCompletions(exerciseId: string, filters: { date?: string; studentId?: string; page?: number; limit?: number } = {}): Observable<any> {
@@ -559,7 +586,10 @@ export class DigitalExerciseService {
   generateExplanation(data: {
     questionType?: string;
     questionText?: string;
+    storyParagraph?: string;
+    contextText?: string;
     correctAnswer?: string;
+    sampleAnswers?: string[];
     targetLanguage?: string;
   }): Observable<{ explanation: string }> {
     return this.http.post<{ explanation: string }>(

@@ -238,6 +238,13 @@
   color: #64748b;
 }
 
+.action-error {
+  margin: 0 0 14px;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .table-wrap {
   overflow-x: auto;
   border-radius: 12px;
@@ -303,6 +310,30 @@
   white-space: nowrap;
   font-weight: 600;
   color: #475569;
+}
+
+.action-cell {
+  white-space: nowrap;
+}
+
+.btn-action {
+  border: 1px solid #16a34a;
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-action:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.btn-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .pill {

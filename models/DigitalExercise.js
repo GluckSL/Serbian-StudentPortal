@@ -113,6 +113,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
     storyParagraph: { type: String, default: '' },
     similarityThreshold: { type: Number, default: 70 },   // 0-100 — min AI score to pass
     scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
+    aiGradingEnabled: { type: Boolean, default: true },
     // Listening fields (prompt reused for instruction)
     mediaUrl: String,  // URL to audio file (uploaded or external link)
     expectedTranscript: String,  // AI-extracted text, teacher-verified before publish
