@@ -1,0 +1,157 @@
+<div class="student-document-profile-container">
+  <div class="header">
+    <div>
+      <h2>Student Document Profile</h2>
+      <p>Complete document checklist, status, and actions</p>
+    </div>
+    <div class="header-actions">
+      <button mat-raised-button color="primary" class="export-btn" (click)="exportStudentDocumentDetails()">
+        <mat-icon>download</mat-icon>
+        Export Details
+      </button>
+      <button mat-stroked-button color="primary" (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+        Back to Verification
+      </button>
+    </div>
+  </div>
+
+  <mat-card class="student-meta">
+    <mat-card-content>
+      <div class="meta-grid">
+        <div><strong>Name:</strong> {{ student.name || '-' }}</div>
+        <div><strong>Email:</strong> {{ student.email || '-' }}</div>
+        <div><strong>CRM Status:</strong> {{ student.studentStatus || '-' }}</div>
+        <div><strong>Package:</strong> {{ student.subscription || '-' }}</div>
+        <div><strong>Service:</strong> {{ student.servicesOpted || '-' }}</div>
+        <div><strong>Qualification:</strong> {{ student.qualifications || '-' }}</div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="table-card">
+    <mat-card-content>
+      <div *ngIf="loading" class="loading">
+        <mat-spinner diameter="38"></mat-spinner>
+        <p>Loading student documents...</p>
+      </div>
+
+      <div *ngIf="!loading" class="table-container">
+        <table class="documents-table">
+          <thead>
+            <tr>
+              <th>Required Document</th>
+              <th>Uploaded File</th>
+              <th>Status</th>
+              <th>Uploaded At</th>
+              <th>Re-upload Reason</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows">
+              <td>
+                <div class="req-title">{{ row.label }}</div>
+                <small class="req-meta">{{ row.required ? 'Required' : 'Optional' }}</small>
+              </td>
+              <td>
+                <ng-container *ngIf="row.doc; else notUploadedCell">
+                  {{ row.doc.documentName || row.doc.fileName }}
+                </ng-container>
+                <ng-template #notUploadedCell>
+                  <span class="muted">Not uploaded</span>
+                </ng-template>
+              </td>
+              <td class="status-cell">
+                <ng-container *ngIf="row.doc; else notUploadedStatus">
+                  <select
+                    class="status-dropdown"
+                    [ngClass]="getStatusToneClass(row.selectedStatus || row.status)"
+                    [(ngModel)]="row.selectedStatus"
+                    (change)="updateRowStatus(row)">
+                    <option value="PENDING">Pending Review</option>
+                    <option value="VERIFIED">Verified</option>
+                    <option value="REJECTED">Request Re-upload</option>
+                  </select>
+                </ng-container>
+                <ng-template #notUploadedStatus>
+                  <span [class]="getStatusBadgeClass(row.status)">
+                    <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
+                    {{ getStatusLabel(row.status) }}
+                  </span>
+                </ng-template>
+              </td>
+              <td>{{ formatDate(row.uploadedAt) }}</td>
+              <td>
+                <span class="reason" *ngIf="row.status === 'REJECTED' && row.remarks; else noReason">{{ row.remarks }}</span>
+                <ng-template #noReason><span class="muted">-</span></ng-template>
+              </td>
+              <td class="actions-cell">
+                <div class="actions" *ngIf="row.doc; else uploadOnlyAction">
+                  <button mat-icon-button class="action-btn action-view"
+                          (click)="openDocumentInNewTab(row.doc)"
+                          [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
+                          matTooltip="View in new tab">
+                    <mat-icon>open_in_new</mat-icon>
+                  </button>
+                  <button mat-icon-button class="action-btn action-download"
+                          (click)="downloadDocument(row.doc)"
+                          [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
+                          matTooltip="Download">
+                    <mat-icon>download</mat-icon>
+                  </button>
+                  <button mat-icon-button class="action-btn action-replace"
+                          (click)="replaceDocument(row.doc)"
+                          matTooltip="Replace">
+                    <mat-icon>sync_alt</mat-icon>
+                  </button>
+                  <button mat-icon-button class="action-btn action-reupload"
+                          (click)="openReuploadDialog(row.doc)"
+                          matTooltip="Request re-upload">
+                    <mat-icon>assignment_return</mat-icon>
+                  </button>
+                  <button mat-icon-button class="action-btn action-upload"
+                          (click)="uploadForStudent(row)"
+                          matTooltip="Upload for student">
+                    <mat-icon>cloud_upload</mat-icon>
+                  </button>
+                </div>
+                <ng-template #uploadOnlyAction>
+                  <button mat-raised-button color="primary" class="upload-only-btn" (click)="uploadForStudent(row)">
+                    <mat-icon>cloud_upload</mat-icon>
+                    Upload Document
+                  </button>
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="overlay" *ngIf="showReuploadDialog" (click)="closeReuploadDialog()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <h3>Request Re-upload</h3>
+        <button mat-icon-button (click)="closeReuploadDialog()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Reason (e.g., blur image, missing page)</mat-label>
+          <textarea matInput [(ngModel)]="reuploadReason" rows="4"></textarea>
+        </mat-form-field>
+      </div>
+      <div class="dialog-actions">
+        <button mat-button (click)="closeReuploadDialog()">Cancel</button>
+        <button mat-raised-button color="warn"
+                [disabled]="!reuploadReason.trim()"
+                (click)="submitReuploadRequest()">
+          Send Re-upload Request
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
