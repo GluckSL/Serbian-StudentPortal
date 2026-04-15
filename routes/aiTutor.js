@@ -18,43 +18,26 @@ async function generateRolePlayWelcome(targetLanguage, scenario) {
   let studentRole = scenario.studentRole;
   let aiRole = scenario.aiRole;
 
-  // Translate role descriptions to the target language so the intro is fully in that language
-  if (targetLanguage && targetLanguage !== 'English' && openaiService.isConfigured()) {
-    try {
-      const [translatedStudentRole, translatedAiRole] = await Promise.all([
-        openaiService.translateText(studentRole, 'English', targetLanguage),
-        openaiService.translateText(aiRole, 'English', targetLanguage)
-      ]);
-      // translateText returns { success: boolean, translatedText: string }
-      if (translatedStudentRole?.success && translatedStudentRole.translatedText) {
-        studentRole = translatedStudentRole.translatedText;
-      }
-      if (translatedAiRole?.success && translatedAiRole.translatedText) {
-        aiRole = translatedAiRole.translatedText;
-      }
-    } catch (err) {
-      console.error('⚠️ Role translation failed, using original English roles:', err.message);
-    }
-  }
+  // Welcome message is always in English
+  const welcome = `Welcome to the Role-Play Session! You will be the ${studentRole}, I will be the ${aiRole}. Say "Let's start" to begin or "stop" to end the session.`;
 
-  const messages = {
+  // Trigger words include both English and target language variants
+  const triggersByLang = {
     'German': {
-      welcome: `Willkommen zur Rollenspiel-Sitzung! Du wirst der/die ${studentRole} sein, ich werde der/die ${aiRole} sein. Sage "Los geht's" um zu beginnen oder "Stopp" um die Sitzung zu beenden.`,
-      triggers: {
-        start: ["Los geht's", "Beginnen wir", "Anfangen", "Start"],
-        stop: ["Stopp", "Ende", "Aufhören", "Beenden"]
-      }
-    },
-    'English': {
-      welcome: `Welcome to the Role-Play Session! You will be the ${studentRole}, I will be the ${aiRole}. Say "Let's start" to begin or "stop" to end the session.`,
-      triggers: {
-        start: ["Let's start", "Start", "Begin", "Go"],
-        stop: ["Stop", "End", "Quit", "Finish"]
-      }
+      start: ["Let's start", "Start", "Begin", "Go", "Los geht's", "Beginnen wir", "Anfangen"],
+      stop: ["Stop", "End", "Quit", "Finish", "Stopp", "Ende", "Aufhören", "Beenden"]
     }
   };
-  
-  return messages[targetLanguage] || messages['English'];
+
+  const defaultTriggers = {
+    start: ["Let's start", "Start", "Begin", "Go"],
+    stop: ["Stop", "End", "Quit", "Finish"]
+  };
+
+  return {
+    welcome,
+    triggers: triggersByLang[targetLanguage] || defaultTriggers
+  };
 }
 
 // Enhanced AI Tutor Service using ChatGPT-4o

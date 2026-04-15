@@ -420,8 +420,9 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
       return 'German';
     }
     
-    // Default to target language if no specific characters detected
-    return this.module?.targetLanguage || 'English';
+    // If text is purely ASCII/Latin with no special characters, it's English
+    // Don't default to target language — that causes a German voice to read English text
+    return 'English';
   }
 
   // Update speech recognition language based on module
@@ -489,6 +490,13 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           console.log('📊 Messages after welcome - Local:', this.localMessages.length, 'Component:', this.messages.length);
           
           // Role-play details removed - using simplified interface
+          
+          // If waiting for trigger (role-play intro), set speech recognition to English
+          // so "Let's start" is recognized correctly instead of being misheard as German
+          if (response.welcomeMessage.metadata?.waitingForTrigger && this.speechRecognition) {
+            this.speechRecognition.lang = 'en-US';
+            console.log('🎤 Speech recognition set to English for trigger detection');
+          }
           
           // Speak the welcome message if voice is enabled
           if (this.voiceEnabled && response.welcomeMessage.content) {
@@ -670,6 +678,13 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           } else {
             // Check for automatic completion based on AI response content
             this.checkForAutoCompletion(response.response);
+          }
+          
+          // Switch speech recognition to target language once role-play starts
+          if (response.response.metadata?.rolePlayStarted && this.speechRecognition && this.module) {
+            const langCode = this.getLanguageCode(this.module.targetLanguage);
+            this.speechRecognition.lang = langCode;
+            console.log(`🎤 Role-play started — speech recognition switched to ${this.module.targetLanguage} (${langCode})`);
           }
           
           // Speak the AI response if voice is enabled
@@ -1146,11 +1161,18 @@ Keep practicing! 🌟`,
       this.speechRecognition.interimResults = true; // Get interim results for better UX
       this.speechRecognition.maxAlternatives = 1; // Only need the best match
       
-      // Set language based on module's target language
-      if (this.module?.targetLanguage === 'English') {
+      // Set language based on session state
+      // During role-play intro (waiting for "Let's start"), use English so trigger is recognized correctly
+      const lastMessage = this.localMessages[this.localMessages.length - 1];
+      const isWaitingForTrigger = (lastMessage?.metadata as any)?.waitingForTrigger === true;
+      
+      if (isWaitingForTrigger) {
         this.speechRecognition.lang = 'en-US';
+        console.log('🎤 Speech recognition set to English (waiting for trigger)');
       } else {
-        this.speechRecognition.lang = 'de-DE'; // Default to German
+        const langCode = this.module ? this.getLanguageCode(this.module.targetLanguage) : 'en-US';
+        this.speechRecognition.lang = langCode;
+        console.log(`🎤 Speech recognition set to ${this.module?.targetLanguage || 'English'} (${langCode})`);
       }
       
       this.speechRecognition.onstart = () => {
@@ -1390,6 +1412,25 @@ Keep practicing! 🌟`,
     if (this.speechRecognition && !this.isListening) {
       // Clear any previous error messages
       this.showSpeechError = false;
+      
+      // Set speech recognition language based on session state
+      // During role-play intro (waiting for trigger), use English so "Let's start" is recognized correctly
+      const lastMessage = this.localMessages[this.localMessages.length - 1];
+      const isWaitingForTrigger = (lastMessage?.messageType as string) === 'role-play-intro' 
+        || (lastMessage?.metadata as any)?.waitingForTrigger === true
+        || (lastMessage?.metadata as any)?.sessionState === 'introduction';
+      
+      const newLang = isWaitingForTrigger
+        ? 'en-US'
+        : (this.module ? this.getLanguageCode(this.module.targetLanguage) : 'en-US');
+      
+      // Update speech recognition language
+      if (this.speechRecognition.lang !== newLang) {
+        console.log(`🎤 Switching speech recognition language: ${this.speechRecognition.lang} → ${newLang}`);
+        this.speechRecognition.lang = newLang;
+      }
+      console.log('🎤 Speech recognition language:', this.speechRecognition.lang, isWaitingForTrigger ? '(trigger mode)' : '(lesson mode)',
+        'lastMessage type:', lastMessage?.messageType, 'metadata:', JSON.stringify(lastMessage?.metadata));
       
       // Check if we should preserve existing message
       const hasExistingMessage = this.currentMessage && this.currentMessage.trim();

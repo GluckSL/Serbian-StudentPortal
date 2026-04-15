@@ -449,7 +449,7 @@ ${scenario.studentGuidance || rolePlayInstructions.studentGuidance || `You are p
 SESSION STATES - FOLLOW THIS FLOW:
 
 1. INTRODUCTION STATE (when session starts):
-   - Greet the student warmly in ${nativeLang}
+   - Greet the student warmly in English
    - Explain the role-play scenario: "${scenario.situation}"
    - Describe the setting: "${scenario.setting || 'Not specified'}"
    - Clearly state: "I will be the ${scenario.aiRole} and you will be the ${scenario.studentRole}"
@@ -479,7 +479,7 @@ SESSION STATES - FOLLOW THIS FLOW:
      * More challenging vocabulary or grammar
      * Cultural context discussions
    - When BOTH objective completion AND 15+ minutes are met:
-     * Break character and congratulate the student in ${nativeLang}
+     * Break character and congratulate the student in English
      * Summarize what was accomplished
      * Provide positive feedback on their performance
      * ⚠️ CRITICAL: You MUST include at least one of these EXACT completion signal phrases in your final message (the system uses these to detect completion):
@@ -501,7 +501,7 @@ SESSION STATES - FOLLOW THIS FLOW:
 
 4. MANUAL STOP (if student says "stop", "end", "finish", "quit"):
    - Break character immediately
-   - Thank them for practicing in ${nativeLang}
+   - Thank them for practicing in English
    - Provide encouragement about their progress
    - End the session gracefully
 
@@ -524,9 +524,9 @@ ${conversationFlow.length > 0 ?
 IMPORTANT: Always respond in plain text, not JSON format. Be natural and conversational.
 
 LANGUAGE INSTRUCTIONS:
-- INTRODUCTION STATE: Respond in ${nativeLang} (for explanations)
+- INTRODUCTION STATE: Respond in English (for explanations)
 - ROLE-PLAY STATE: Respond ONLY in ${targetLang} (the language being learned)
-- COMPLETION STATE: Respond in ${nativeLang} (for congratulations)
+- COMPLETION STATE: Respond in English (for congratulations and completion signals)
 
 CRITICAL RULES:
 1. START in INTRODUCTION state - explain everything before role-playing
