@@ -180,14 +180,13 @@ interface PwModal {
                       <td colspan="8">
                         <div class="details-panel permission-matrix-shell">
                           <p class="tab-info-note" *ngIf="isTeacherRole(user)">
-                            Assign tab access with checkbox matrix: <strong>None</strong>, <strong>View</strong>, <strong>Edit</strong>, <strong>Full</strong>.
+                            Assign tab access with checkbox matrix: <strong>View</strong>, <strong>Edit</strong>, <strong>Full</strong>. Uncheck to remove access.
                           </p>
                           <div class="permissions-grid">
                             <table class="permission-table permission-table-wide">
                               <thead>
                                 <tr>
                                   <th>Tab</th>
-                                  <th>None</th>
                                   <th>View</th>
                                   <th>Edit</th>
                                   <th>Full</th>
@@ -195,33 +194,26 @@ interface PwModal {
                               </thead>
                               <tbody>
                                 <tr *ngFor="let option of subAdminPermissionOptions">
-                                  <td class="tab-name-cell">{{ option.label }}</td>
-                                  <td>
-                                    <input
-                                      *ngIf="isSubAdminRole(user)"
-                                      type="checkbox"
-                                      [checked]="getSubAdminAccessLevel(user, option.id) === null"
-                                      [disabled]="isPermissionMandatory(option.id)"
-                                      (change)="onSubAdminCheckboxToggle(user, option.id, null, $event)"
-                                    />
-                                    <input
-                                      *ngIf="isTeacherRole(user)"
-                                      type="checkbox"
-                                      [checked]="getTeacherTabAccessLevel(user, option.id) === null"
-                                      (change)="onTeacherCheckboxToggle(user, option.id, null, $event)"
-                                    />
+                                  <td class="tab-name-cell"
+                                      [ngClass]="{
+                                        'tab-access-none': getAccessBadgeClass(user, option.id) === 'none',
+                                        'tab-access-partial': getAccessBadgeClass(user, option.id) === 'partial',
+                                        'tab-access-full': getAccessBadgeClass(user, option.id) === 'full'
+                                      }">
+                                    {{ option.label }}
                                   </td>
                                   <td>
                                     <input
                                       *ngIf="isSubAdminRole(user)"
                                       type="checkbox"
-                                      [checked]="getSubAdminAccessLevel(user, option.id) === 'view'"
+                                      [checked]="hasSubAdminAccessAtLeast(user, option.id, 'view')"
+                                      [disabled]="isPermissionMandatory(option.id) && getSubAdminAccessLevel(user, option.id) === 'view'"
                                       (change)="onSubAdminCheckboxToggle(user, option.id, 'view', $event)"
                                     />
                                     <input
                                       *ngIf="isTeacherRole(user)"
                                       type="checkbox"
-                                      [checked]="getTeacherTabAccessLevel(user, option.id) === 'view'"
+                                      [checked]="hasTeacherAccessAtLeast(user, option.id, 'view')"
                                       (change)="onTeacherCheckboxToggle(user, option.id, 'view', $event)"
                                     />
                                   </td>
@@ -229,13 +221,14 @@ interface PwModal {
                                     <input
                                       *ngIf="isSubAdminRole(user)"
                                       type="checkbox"
-                                      [checked]="getSubAdminAccessLevel(user, option.id) === 'edit'"
+                                      [checked]="hasSubAdminAccessAtLeast(user, option.id, 'edit')"
+                                      [disabled]="isPermissionMandatory(option.id) && getSubAdminAccessLevel(user, option.id) === 'edit'"
                                       (change)="onSubAdminCheckboxToggle(user, option.id, 'edit', $event)"
                                     />
                                     <input
                                       *ngIf="isTeacherRole(user)"
                                       type="checkbox"
-                                      [checked]="getTeacherTabAccessLevel(user, option.id) === 'edit'"
+                                      [checked]="hasTeacherAccessAtLeast(user, option.id, 'edit')"
                                       (change)="onTeacherCheckboxToggle(user, option.id, 'edit', $event)"
                                     />
                                   </td>
@@ -243,13 +236,14 @@ interface PwModal {
                                     <input
                                       *ngIf="isSubAdminRole(user)"
                                       type="checkbox"
-                                      [checked]="getSubAdminAccessLevel(user, option.id) === 'full'"
+                                      [checked]="hasSubAdminAccessAtLeast(user, option.id, 'full')"
+                                      [disabled]="isPermissionMandatory(option.id) && getSubAdminAccessLevel(user, option.id) === 'full'"
                                       (change)="onSubAdminCheckboxToggle(user, option.id, 'full', $event)"
                                     />
                                     <input
                                       *ngIf="isTeacherRole(user)"
                                       type="checkbox"
-                                      [checked]="getTeacherTabAccessLevel(user, option.id) === 'full'"
+                                      [checked]="hasTeacherAccessAtLeast(user, option.id, 'full')"
                                       (change)="onTeacherCheckboxToggle(user, option.id, 'full', $event)"
                                     />
                                   </td>
@@ -626,6 +620,18 @@ interface PwModal {
       color: #1e293b;
       width: 56%;
       min-width: 220px;
+    }
+    .permission-table .tab-name-cell.tab-access-none {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .permission-table .tab-name-cell.tab-access-partial {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+    .permission-table .tab-name-cell.tab-access-full {
+      background: #dcfce7;
+      color: #166534;
     }
     .permission-table input[type="checkbox"] {
       width: 14px;
@@ -1086,6 +1092,12 @@ export class UserRolesComponent implements OnInit {
     return (user.sidebarPermissions || []).includes(permissionId) ? 'view' : null;
   }
 
+  hasSubAdminAccessAtLeast(user: ManagedUser, permissionId: string, required: AccessLevel): boolean {
+    const current = this.getSubAdminAccessLevel(user, permissionId);
+    if (!current) return false;
+    return this.navService.canAccessLevel(current, required);
+  }
+
   setSubAdminAccessLevel(user: ManagedUser, permissionId: string, value: AccessLevel | null): void {
     const next: Record<string, AccessLevel> = { ...(user.sidebarAccessLevels || {}) };
 
@@ -1100,7 +1112,10 @@ export class UserRolesComponent implements OnInit {
     }
 
     user.sidebarAccessLevels = this.normalizeAccessLevelsForRole('SUB_ADMIN', next, user.sidebarPermissions || [], true);
-    user.sidebarPermissions = this.navService.normalizeSidebarPermissions(user.sidebarPermissions || [], user.sidebarAccessLevels);
+    user.sidebarPermissions = this.navService.normalizeSidebarPermissions(
+      Object.keys(user.sidebarAccessLevels || {}),
+      user.sidebarAccessLevels
+    );
     user.permissionsDirty = true;
   }
 
@@ -1111,12 +1126,32 @@ export class UserRolesComponent implements OnInit {
     event: Event
   ): void {
     const checked = (event.target as HTMLInputElement).checked;
+    const current = this.getSubAdminAccessLevel(user, permissionId);
     if (checked) {
       this.setSubAdminAccessLevel(user, permissionId, level);
       return;
     }
 
-    // Unchecking selected level falls back to no access (except mandatory permissions).
+    // Hierarchical uncheck behavior:
+    // full -> edit, edit -> view, view -> none
+    if (level === 'full' && current === 'full') {
+      this.setSubAdminAccessLevel(user, permissionId, 'edit');
+      return;
+    }
+    if (level === 'edit' && (current === 'edit' || current === 'full')) {
+      this.setSubAdminAccessLevel(user, permissionId, 'view');
+      return;
+    }
+    if (level === 'view' && current) {
+      if (this.isPermissionMandatory(permissionId)) {
+        this.setSubAdminAccessLevel(user, permissionId, 'view');
+      } else {
+        this.setSubAdminAccessLevel(user, permissionId, null);
+      }
+      return;
+    }
+
+    // Fallback
     if (this.isPermissionMandatory(permissionId)) {
       this.setSubAdminAccessLevel(user, permissionId, 'view');
     } else {
@@ -1151,6 +1186,22 @@ export class UserRolesComponent implements OnInit {
     return (user.teacherTabPermissions || []).includes(permissionId) ? 'view' : null;
   }
 
+  hasTeacherAccessAtLeast(user: ManagedUser, permissionId: string, required: AccessLevel): boolean {
+    const current = this.getTeacherTabAccessLevel(user, permissionId);
+    if (!current) return false;
+    return this.navService.canAccessLevel(current, required);
+  }
+
+  getAccessBadgeClass(user: ManagedUser, permissionId: string): 'none' | 'partial' | 'full' {
+    const level = this.isSubAdminRole(user)
+      ? this.getSubAdminAccessLevel(user, permissionId)
+      : this.getTeacherTabAccessLevel(user, permissionId);
+
+    if (!level) return 'none';
+    if (level === 'full') return 'full';
+    return 'partial';
+  }
+
   setTeacherTabAccessLevel(user: ManagedUser, permissionId: string, value: AccessLevel | null): void {
     const next: Record<string, AccessLevel> = { ...(user.teacherTabAccessLevels || {}) };
     if (value && this.isValidAccessLevel(value)) {
@@ -1159,7 +1210,10 @@ export class UserRolesComponent implements OnInit {
       delete next[permissionId];
     }
     user.teacherTabAccessLevels = this.normalizeTeacherAccessLevelsForRole('TEACHER', next, user.teacherTabPermissions || []);
-    user.teacherTabPermissions = this.navService.normalizeTeacherTabPermissions(user.teacherTabPermissions || [], user.teacherTabAccessLevels);
+    user.teacherTabPermissions = this.navService.normalizeTeacherTabPermissions(
+      Object.keys(user.teacherTabAccessLevels || {}),
+      user.teacherTabAccessLevels
+    );
     user.permissionsDirty = true;
   }
 
@@ -1170,10 +1224,27 @@ export class UserRolesComponent implements OnInit {
     event: Event
   ): void {
     const checked = (event.target as HTMLInputElement).checked;
+    const current = this.getTeacherTabAccessLevel(user, permissionId);
     if (checked) {
       this.setTeacherTabAccessLevel(user, permissionId, level);
       return;
     }
+
+    // Hierarchical uncheck behavior:
+    // full -> edit, edit -> view, view -> none
+    if (level === 'full' && current === 'full') {
+      this.setTeacherTabAccessLevel(user, permissionId, 'edit');
+      return;
+    }
+    if (level === 'edit' && (current === 'edit' || current === 'full')) {
+      this.setTeacherTabAccessLevel(user, permissionId, 'view');
+      return;
+    }
+    if (level === 'view' && current) {
+      this.setTeacherTabAccessLevel(user, permissionId, null);
+      return;
+    }
+
     this.setTeacherTabAccessLevel(user, permissionId, null);
   }
 
@@ -1200,8 +1271,11 @@ export class UserRolesComponent implements OnInit {
     if (role !== 'SUB_ADMIN') return {};
 
     const normalized = this.navService.normalizeAccessLevels(accessLevels || {});
-    for (const permissionId of fallbackPermissions || []) {
-      if (!normalized[permissionId]) normalized[permissionId] = 'view';
+    const hasExplicitAccessLevels = Object.keys(normalized).length > 0;
+    if (!hasExplicitAccessLevels) {
+      for (const permissionId of fallbackPermissions || []) {
+        if (!normalized[permissionId]) normalized[permissionId] = 'view';
+      }
     }
 
     if (enforceMandatory) {
@@ -1219,8 +1293,11 @@ export class UserRolesComponent implements OnInit {
   ): Record<string, AccessLevel> {
     if (role !== 'TEACHER') return {};
     const normalized = this.navService.normalizeAccessLevels(accessLevels || {});
-    for (const permissionId of fallbackPermissions || []) {
-      if (!normalized[permissionId]) normalized[permissionId] = 'view';
+    const hasExplicitAccessLevels = Object.keys(normalized).length > 0;
+    if (!hasExplicitAccessLevels) {
+      for (const permissionId of fallbackPermissions || []) {
+        if (!normalized[permissionId]) normalized[permissionId] = 'view';
+      }
     }
     return normalized;
   }
@@ -1230,9 +1307,11 @@ export class UserRolesComponent implements OnInit {
     sidebarPermissions: string[],
     sidebarAccessLevels: Record<string, AccessLevel> = {}
   ): string[] {
-    return role === 'SUB_ADMIN'
-      ? this.navService.normalizeSidebarPermissions(sidebarPermissions, sidebarAccessLevels)
-      : [];
+    if (role !== 'SUB_ADMIN') return [];
+    const hasExplicitAccessLevels = Object.keys(sidebarAccessLevels || {}).length > 0;
+    return hasExplicitAccessLevels
+      ? this.navService.normalizeSidebarPermissions(Object.keys(sidebarAccessLevels || {}), sidebarAccessLevels)
+      : this.navService.normalizeSidebarPermissions(sidebarPermissions, sidebarAccessLevels);
   }
 
   private normalizeTeacherTabsForRole(
@@ -1240,9 +1319,11 @@ export class UserRolesComponent implements OnInit {
     teacherTabPermissions: string[],
     teacherTabAccessLevels: Record<string, AccessLevel> = {}
   ): string[] {
-    return role === 'TEACHER'
-      ? this.navService.normalizeTeacherTabPermissions(teacherTabPermissions, teacherTabAccessLevels)
-      : [];
+    if (role !== 'TEACHER') return [];
+    const hasExplicitAccessLevels = Object.keys(teacherTabAccessLevels || {}).length > 0;
+    return hasExplicitAccessLevels
+      ? this.navService.normalizeTeacherTabPermissions(Object.keys(teacherTabAccessLevels || {}), teacherTabAccessLevels)
+      : this.navService.normalizeTeacherTabPermissions(teacherTabPermissions, teacherTabAccessLevels);
   }
 
   updateUserRole(user: ManagedUser): void {
@@ -1279,14 +1360,14 @@ export class UserRolesComponent implements OnInit {
         ? this.normalizeAccessLevelsForRole('SUB_ADMIN', user.sidebarAccessLevels || {}, user.sidebarPermissions || [], true)
         : {};
       payload.sidebarPermissions = user.newRole === 'SUB_ADMIN'
-        ? this.navService.normalizeSidebarPermissions(user.sidebarPermissions || [], payload.sidebarAccessLevels)
+        ? this.navService.normalizeSidebarPermissions(Object.keys(payload.sidebarAccessLevels || {}), payload.sidebarAccessLevels)
         : [];
 
       payload.teacherTabAccessLevels = user.newRole === 'TEACHER'
         ? this.normalizeTeacherAccessLevelsForRole('TEACHER', user.teacherTabAccessLevels || {}, user.teacherTabPermissions || [])
         : {};
       payload.teacherTabPermissions = user.newRole === 'TEACHER'
-        ? this.navService.normalizeTeacherTabPermissions(user.teacherTabPermissions || [], payload.teacherTabAccessLevels)
+        ? this.navService.normalizeTeacherTabPermissions(Object.keys(payload.teacherTabAccessLevels || {}), payload.teacherTabAccessLevels)
         : [];
 
       this.http.put(`${apiUrl}/auth/${user._id}`, payload, { withCredentials: true }).subscribe({

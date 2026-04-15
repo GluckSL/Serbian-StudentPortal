@@ -1245,15 +1245,20 @@ router.put("/:id", async (req, res) => {
 
     // Sub-admin sidebar permissions (supports both legacy list and access levels map)
     if (role === "SUB_ADMIN") {
+      const hasSidebarAccessLevelsPayload = typeof sidebarAccessLevels !== "undefined";
+      const accessLevelSeed = hasSidebarAccessLevelsPayload
+        ? normalizeAccessLevels(sidebarAccessLevels)
+        : normalizeAccessLevels(existingUser.sidebarAccessLevels || {});
+
       const normalizedSidebarPermissions =
-        typeof sidebarPermissions !== "undefined"
+        hasSidebarAccessLevelsPayload
+          ? normalizeSidebarPermissions(accessLevelsToPermissions(accessLevelSeed))
+          : typeof sidebarPermissions !== "undefined"
           ? normalizeSidebarPermissions(sidebarPermissions)
           : normalizeSidebarPermissions(existingUser.sidebarPermissions || []);
 
       const normalizedSidebarAccessLevels = normalizeAccessLevels(
-        typeof sidebarAccessLevels !== "undefined"
-          ? sidebarAccessLevels
-          : (existingUser.sidebarAccessLevels || {}),
+        accessLevelSeed,
         normalizedSidebarPermissions
       );
 
@@ -1277,15 +1282,20 @@ router.put("/:id", async (req, res) => {
 
     // Teacher tab permissions (supports both legacy list and access levels map)
     if (role === "TEACHER") {
+      const hasTeacherAccessLevelsPayload = typeof teacherTabAccessLevels !== "undefined";
+      const teacherAccessLevelSeed = hasTeacherAccessLevelsPayload
+        ? normalizeAccessLevels(teacherTabAccessLevels)
+        : normalizeAccessLevels(existingUser.teacherTabAccessLevels || {});
+
       const normalizedTeacherTabPermissions =
-        typeof teacherTabPermissions !== "undefined"
+        hasTeacherAccessLevelsPayload
+          ? normalizeTeacherTabPermissions(accessLevelsToPermissions(teacherAccessLevelSeed))
+          : typeof teacherTabPermissions !== "undefined"
           ? normalizeTeacherTabPermissions(teacherTabPermissions)
           : normalizeTeacherTabPermissions(existingUser.teacherTabPermissions || []);
 
       const normalizedTeacherTabAccessLevels = normalizeAccessLevels(
-        typeof teacherTabAccessLevels !== "undefined"
-          ? teacherTabAccessLevels
-          : (existingUser.teacherTabAccessLevels || {}),
+        teacherAccessLevelSeed,
         normalizedTeacherTabPermissions
       );
 
