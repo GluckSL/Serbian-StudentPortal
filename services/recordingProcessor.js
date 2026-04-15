@@ -27,7 +27,49 @@ function buildHlsPrefix(meetingLinkId) {
   return `${meetingLinkId}/hls`;
 }
 
-// ── Zoom download (unchanged from original) ───────────────────────────────────
+function normalizeZoomMeetingId(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function buildLooseZoomMeetingIdRegex(zoomMeetingId) {
+  const digits = normalizeZoomMeetingId(zoomMeetingId);
+  if (digits.length < 8) return null;
+  return new RegExp(`^\\D*${digits.split('').join('\\D*')}\\D*$`);
+}
+
+async function resolveMeetingLink(zoomMeetingId, options = {}) {
+  if (options.meetingLinkId) {
+    return MeetingLink.findById(options.meetingLinkId);
+  }
+
+  const rawZoomMeetingId = String(zoomMeetingId || '').trim();
+  if (rawZoomMeetingId) {
+    const exactMatch = await MeetingLink.findOne({ zoomMeetingId: rawZoomMeetingId });
+    if (exactMatch) return exactMatch;
+  }
+
+  const meetingUuid = String(options.meetingUuid || '').trim();
+  if (meetingUuid) {
+    const uuidMatch = await MeetingLink.findOne({ zoomMeetingUuid: meetingUuid });
+    if (uuidMatch) {
+      console.log(`🧩 MeetingLink resolved by zoomMeetingUuid for meeting ${zoomMeetingId}`);
+      return uuidMatch;
+    }
+  }
+
+  const looseRegex = buildLooseZoomMeetingIdRegex(rawZoomMeetingId);
+  if (looseRegex) {
+    const looseMatch = await MeetingLink.findOne({ zoomMeetingId: { $regex: looseRegex } });
+    if (looseMatch) {
+      console.log(`🧩 MeetingLink resolved by flexible zoomMeetingId match for ${zoomMeetingId}`);
+      return looseMatch;
+    }
+  }
+
+  return null;
+}
+
+// ── Zoom download ──────────────────────────────────────────────────────────────
 
 async function createZoomDownloadStream(downloadUrl, accessToken) {
   const zoomOrigin = new URL(downloadUrl).origin;
@@ -101,6 +143,21 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
       console.warn(`⚠️  Hop ${hop + 1}: HTTP 401 with header; retrying without`);
       response.data?.destroy?.();
       response = await getStream(current, { authHeader: false });
+
+      if (response.status === 401) {
+        const rawCurrentWithoutToken = (() => {
+          try {
+            const u = new URL(current);
+            u.searchParams.delete('access_token');
+            return u.toString();
+          } catch {
+            return current;
+          }
+        })();
+        console.warn(`⚠️  Hop ${hop + 1}: HTTP 401 without header; retrying raw URL`);
+        response.data?.destroy?.();
+        response = await getStream(rawCurrentWithoutToken, { authHeader: false });
+      }
     }
 
     if (response.status === 200) {
@@ -272,14 +329,13 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
  * @param {string} recordingStart  ISO timestamp from Zoom webhook
  * @param {Object} options
  * @param {string} [options.meetingLinkId]
+ * @param {string} [options.meetingUuid]
  */
-async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
+async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
   console.log(`🎬 Starting HLS pipeline for Zoom meeting ${zoomMeetingId}`);
 
   // 1. Resolve MeetingLink
-  const meetingLink = options.meetingLinkId
-    ? await MeetingLink.findById(options.meetingLinkId)
-    : await MeetingLink.findOne({ zoomMeetingId: String(zoomMeetingId) });
+  const meetingLink = await resolveMeetingLink(zoomMeetingId, options);
 
   if (!meetingLink) {
     console.warn(`⚠️  No MeetingLink for Zoom meeting ${zoomMeetingId} — skipping.`);
@@ -359,6 +415,35 @@ async function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, 
       }
     }
   }
+}
+
+// ── Global processing queue ───────────────────────────────────────────────────
+// Keep FFmpeg work bounded so cron/API work isn't starved by CPU-heavy jobs.
+const PROCESS_CONCURRENCY = Math.max(1, Number(process.env.RECORDING_PROCESS_CONCURRENCY) || 1);
+const pipelineQueue = [];
+let activePipelines = 0;
+
+function drainPipelineQueue() {
+  while (activePipelines < PROCESS_CONCURRENCY && pipelineQueue.length > 0) {
+    const job = pipelineQueue.shift();
+    activePipelines += 1;
+    console.log(`🧵 Recording queue: active=${activePipelines}/${PROCESS_CONCURRENCY}, waiting=${pipelineQueue.length}`);
+
+    runZoomRecordingPipeline(job.zoomMeetingId, job.downloadUrl, job.recordingStart, job.options)
+      .then(job.resolve)
+      .catch(job.reject)
+      .finally(() => {
+        activePipelines = Math.max(0, activePipelines - 1);
+        drainPipelineQueue();
+      });
+  }
+}
+
+function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
+  return new Promise((resolve, reject) => {
+    pipelineQueue.push({ zoomMeetingId, downloadUrl, recordingStart, options, resolve, reject });
+    drainPipelineQueue();
+  });
 }
 
 module.exports = { processZoomRecording };

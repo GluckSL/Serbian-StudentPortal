@@ -376,7 +376,7 @@ export class LearningModulesComponent implements OnInit {
   isTeacherOrAdmin(): boolean {
     const role = this.currentUser?.role;
     if (role === 'TEACHER' || role === 'ADMIN' || role === 'TEACHER_ADMIN') return true;
-    if (role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules');
+    if (role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules', 'edit');
     return false;
   }
 
@@ -494,7 +494,7 @@ export class LearningModulesComponent implements OnInit {
     
     // Admins can delete any module
     if (this.currentUser.role === 'ADMIN' || this.currentUser.role === 'TEACHER_ADMIN') return true;
-    if (this.currentUser.role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules');
+    if (this.currentUser.role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules', 'full');
     
     // Teachers can delete modules they created
     if (this.currentUser.role === 'TEACHER') {
@@ -507,10 +507,14 @@ export class LearningModulesComponent implements OnInit {
     return false;
   }
 
-  private hasSubAdminPermission(permissionId: string): boolean {
+  private hasSubAdminPermission(permissionId: string, requiredLevel: 'view' | 'edit' | 'full' = 'view'): boolean {
     if (this.currentUser?.role !== 'SUB_ADMIN') return false;
-    const permissions = this.navService.normalizeSidebarPermissions(this.currentUser?.sidebarPermissions || []);
-    return permissions.includes(permissionId);
+    const level = this.navService.getTabAccessLevel(
+      permissionId,
+      this.currentUser?.sidebarAccessLevels || {},
+      this.currentUser?.sidebarPermissions || []
+    );
+    return this.navService.canAccessLevel(level || undefined, requiredLevel);
   }
 
   getPaginationArray(): number[] {

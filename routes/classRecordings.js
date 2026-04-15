@@ -154,7 +154,9 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       .lean();
 
     // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
-    const zoomRecordings = await ZoomRecording.find({ status: 'ready' })
+    // Admin/teacher list should include all states so rows do not "disappear"
+    // while processing or after failures.
+    const zoomRecordings = await ZoomRecording.find({})
       .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt')
       .sort({ createdAt: -1 })
       .lean();
@@ -538,7 +540,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
 
     const meetingLinkIds = meetingLinks.map((m) => m._id);
 
-    // 2. Find all ready ZoomRecordings for those meetings
+    // 2. Find only READY + visible ZoomRecordings for students.
     const zoomRecordings = await ZoomRecording.find({
       meetingLinkId: { $in: meetingLinkIds },
       status: 'ready',
@@ -577,6 +579,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
         meetingLinkId: rec.meetingLinkId,
         r2Key: rec.r2Key,
         duration: rec.duration,
+        status: rec.status,
         createdAt: rec.createdAt,
         isPublished: rec.isPublished !== false,
         topic: meeting.topic || 'Class Recording',
@@ -608,6 +611,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
  *  - limit: 200
  *  - includeFailed: true
  *  - force: false
+ *  - meetingIds: ["81190533282", "81221622942"] or "81190533282,81221622942"
  */
 /**
  * POST /api/class-recordings/zoom/backfill
@@ -622,6 +626,7 @@ router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
     limit = 100,
     includeFailed = true,
     force = false,
+    meetingIds = [],
   } = req.body || {};
 
   const status = getBackfillStatus();
@@ -638,11 +643,11 @@ router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
   res.status(202).json({
     success: true,
     message: 'Backfill started in background. Poll GET /api/class-recordings/zoom/backfill/status for results.',
-    params: { batch, limit, includeFailed, force },
+    params: { batch, limit, includeFailed, force, meetingIds },
   });
 
   // Fire-and-forget: runs entirely outside the HTTP request lifecycle.
-  backfillZoomRecordings({ batch, limit, includeFailed, force }).catch((err) => {
+  backfillZoomRecordings({ batch, limit, includeFailed, force, meetingIds }).catch((err) => {
     console.error('❌ Backfill top-level error:', err.message);
   });
 });
@@ -674,8 +679,9 @@ router.post('/zoom/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', '
     }
 
     const publishState = Boolean(isPublished);
+    // Only ready recordings are eligible for student visibility toggling.
     const result = await ZoomRecording.updateMany(
-      { meetingLinkId: { $in: meetingLinkIds } },
+      { meetingLinkId: { $in: meetingLinkIds }, status: 'ready' },
       {
         $set: {
           isPublished: publishState,

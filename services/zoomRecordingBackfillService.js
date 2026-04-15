@@ -48,6 +48,68 @@ function encodeUuidForZoom(uuid) {
   return encodeURIComponent(encodeURIComponent(uuid));
 }
 
+function normalizeZoomMeetingId(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function parseMeetingIdsInput(value) {
+  const parts = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(/[\s,]+/);
+
+  const unique = new Set();
+  for (const part of parts) {
+    const trimmed = String(part || '').trim();
+    if (!trimmed) continue;
+    unique.add(trimmed);
+  }
+  return Array.from(unique);
+}
+
+function buildLooseZoomMeetingIdRegex(zoomMeetingId) {
+  const digits = normalizeZoomMeetingId(zoomMeetingId);
+  if (digits.length < 8) return null;
+  return new RegExp(`^\\D*${digits.split('').join('\\D*')}\\D*$`);
+}
+
+function buildMeetingIdFilterClauses(meetingIds) {
+  const clauses = [];
+  for (const id of meetingIds) {
+    const raw = String(id || '').trim();
+    if (!raw) continue;
+    clauses.push({ zoomMeetingId: raw });
+
+    const digits = normalizeZoomMeetingId(raw);
+    if (digits && digits !== raw) {
+      clauses.push({ zoomMeetingId: digits });
+    }
+
+    const looseRegex = buildLooseZoomMeetingIdRegex(raw);
+    if (looseRegex) {
+      clauses.push({ zoomMeetingId: { $regex: looseRegex } });
+    }
+  }
+  return clauses;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableZoomError(err) {
+  const status = err?.response?.status;
+  const code = String(err?.code || '').toUpperCase();
+  const msg = String(err?.message || '').toLowerCase();
+  if ([429, 500, 502, 503, 504].includes(status)) return true;
+  if (['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'EAI_AGAIN', 'ENOTFOUND'].includes(code)) return true;
+  return (
+    msg.includes('client network socket disconnected before secure tls connection was established') ||
+    msg.includes('socket hang up') ||
+    msg.includes('timeout')
+  );
+}
+
 async function fetchMeetingRecordingsFromZoom(meetingLink, accessToken) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const meetingId = String(meetingLink.zoomMeetingId || '').trim();
@@ -82,11 +144,31 @@ async function fetchMeetingRecordingsFromZoom(meetingLink, accessToken) {
   return null;
 }
 
+async function fetchMeetingRecordingsFromZoomWithRetry(meetingLink, accessToken, maxAttempts = 3) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fetchMeetingRecordingsFromZoom(meetingLink, accessToken);
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryableZoomError(err) || attempt === maxAttempts) break;
+      const delayMs = Math.min(5000, 700 * Math.pow(2, attempt - 1));
+      console.warn(
+        `⚠️  Zoom recordings fetch retry ${attempt}/${maxAttempts} for meetingLinkId=${meetingLink._id} ` +
+        `zoomId=${meetingLink.zoomMeetingId} after ${delayMs}ms: ${err.message}`
+      );
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr;
+}
+
 async function backfillZoomRecordings({
   batch = null,
   limit = 100,
   includeFailed = true,
   force = false,
+  meetingIds = [],
 } = {}) {
   if (backfillState.running) {
     console.warn('⚠️  Backfill already running — ignoring duplicate request');
@@ -98,7 +180,8 @@ async function backfillZoomRecordings({
   backfillState.completedAt = null;
   backfillState.error = null;
   backfillState.summary = null;
-  backfillState.params = { batch, limit, includeFailed, force };
+  const parsedMeetingIds = parseMeetingIdsInput(meetingIds);
+  backfillState.params = { batch, limit, includeFailed, force, meetingIds: parsedMeetingIds };
 
   const parsedLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
   const query = {
@@ -107,8 +190,18 @@ async function backfillZoomRecordings({
   };
 
   if (batch) query.batch = String(batch);
+  if (parsedMeetingIds.length) {
+    const clauses = buildMeetingIdFilterClauses(parsedMeetingIds);
+    if (!clauses.length) {
+      throw new Error('meetingIds was provided but no valid IDs were found.');
+    }
+    query.$or = clauses;
+  }
 
-  console.log(`🔄 Backfill started — batch=${batch || 'all'} limit=${parsedLimit} includeFailed=${includeFailed} force=${force}`);
+  console.log(
+    `🔄 Backfill started — batch=${batch || 'all'} limit=${parsedLimit} includeFailed=${includeFailed} force=${force}` +
+    ` meetingIds=${parsedMeetingIds.length ? parsedMeetingIds.join(',') : 'all'}`
+  );
 
   try {
     const meetingLinks = await MeetingLink.find(query)
@@ -120,6 +213,8 @@ async function backfillZoomRecordings({
     const summary = {
       considered: meetingLinks.length,
       queued: 0,
+      pipelineCompleted: 0,
+      pipelineFailed: 0,
       skippedAlreadyReady: 0,
       skippedProcessing: 0,
       skippedFailed: 0,
@@ -127,6 +222,7 @@ async function backfillZoomRecordings({
       errors: 0,
       details: [],
     };
+    const pipelineQueue = [];
 
     if (!meetingLinks.length) {
       console.log('ℹ️  Backfill: no matching MeetingLinks found — nothing to do');
@@ -169,7 +265,7 @@ async function backfillZoomRecordings({
           }
         }
 
-        const zoomData = await fetchMeetingRecordingsFromZoom(meeting, accessToken);
+        const zoomData = await fetchMeetingRecordingsFromZoomWithRetry(meeting, accessToken);
         const targetFile = pickBestMp4(zoomData?.recording_files || []);
 
         if (!targetFile?.download_url) {
@@ -185,16 +281,15 @@ async function backfillZoomRecordings({
           `zoomId=${meeting.zoomMeetingId} batch="${meeting.batch}" type=${targetFile.recording_type}`
         );
 
-        processZoomRecording(
-          String(meeting.zoomMeetingId),
-          targetFile.download_url,
-          recordingStart,
-          { meetingLinkId: meeting._id.toString() }
-        ).catch((err) => {
-          console.error(`❌ Backfill pipeline error for meetingLinkId=${meeting._id}:`, err.message);
-        });
-
         summary.queued += 1;
+        pipelineQueue.push({
+          meetingLinkId: meeting._id,
+          zoomMeetingId: String(meeting.zoomMeetingId),
+          downloadUrl: targetFile.download_url,
+          recordingStart,
+          batch: meeting.batch,
+          topic: meeting.topic,
+        });
         summary.details.push({
           meetingLinkId: meeting._id,
           batch: meeting.batch,
@@ -219,10 +314,43 @@ async function backfillZoomRecordings({
       }
     }
 
+    // IMPORTANT: process queued recordings sequentially to prevent server overload.
+    // Running many FFmpeg conversions at once can saturate CPU/RAM and cause 504s.
+    if (pipelineQueue.length) {
+      console.log(`🚚 Backfill pipeline starting: ${pipelineQueue.length} recording(s), sequential mode`);
+    }
+    for (let idx = 0; idx < pipelineQueue.length; idx += 1) {
+      const item = pipelineQueue[idx];
+      try {
+        console.log(
+          `🎬 Backfill pipeline ${idx + 1}/${pipelineQueue.length}: ` +
+          `meetingLinkId=${item.meetingLinkId} zoomId=${item.zoomMeetingId}`
+        );
+        const result = await processZoomRecording(
+          item.zoomMeetingId,
+          item.downloadUrl,
+          item.recordingStart,
+          { meetingLinkId: item.meetingLinkId.toString() }
+        );
+        if (result?.success) {
+          summary.pipelineCompleted += 1;
+        } else {
+          summary.pipelineFailed += 1;
+          console.error(
+            `❌ Backfill pipeline failed for meetingLinkId=${item.meetingLinkId}: ${result?.error || 'unknown'}`
+          );
+        }
+      } catch (err) {
+        summary.pipelineFailed += 1;
+        console.error(`❌ Backfill pipeline error for meetingLinkId=${item.meetingLinkId}:`, err.message);
+      }
+    }
+
     console.log(
       `✅ Backfill scan complete: considered=${summary.considered} queued=${summary.queued} ` +
       `skippedReady=${summary.skippedAlreadyReady} skippedProcessing=${summary.skippedProcessing} ` +
-      `skippedFailed=${summary.skippedFailed} noRecording=${summary.skippedNoRecordingInZoom} errors=${summary.errors}`
+      `skippedFailed=${summary.skippedFailed} noRecording=${summary.skippedNoRecordingInZoom} errors=${summary.errors} ` +
+      `pipelineCompleted=${summary.pipelineCompleted} pipelineFailed=${summary.pipelineFailed}`
     );
 
     backfillState.summary = summary;

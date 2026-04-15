@@ -67,6 +67,7 @@ export interface ZoomRecordingStatusResponse {
 export interface BatchZoomRecording {
   meetingLinkId: string;
   r2Key: string;
+  status?: 'processing' | 'ready' | 'failed';
   duration: number | null;
   createdAt: string;
   isPublished?: boolean;
@@ -98,6 +99,7 @@ export class ClassRecordingsService {
     limit?: number;
     includeFailed?: boolean;
     force?: boolean;
+    meetingIds?: string[];
   }): Observable<any> {
     return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
   }

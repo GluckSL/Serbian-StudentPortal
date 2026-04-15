@@ -147,7 +147,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         meetingLinkId: r.meetingLinkId,
       }));
 
-      const merged = [...manualItems, ...zoomItems].filter((r) => this.isSameBatchForStudent(r.batch));
+      // Batch visibility is already enforced by backend endpoints for students.
+      // Avoid a second client-side batch filter that can hide valid recordings
+      // when batch labels differ in formatting.
+      const merged = [...manualItems, ...zoomItems];
       this.allRecordings = merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       this.applyListFilters();
       this.prefetchFirst5Zoom();
