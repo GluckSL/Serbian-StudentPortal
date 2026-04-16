@@ -51,6 +51,12 @@ interface PlayerQuestion {
   vpAutoAdvanceTimer?: any;
   /** Bumped to cancel in-flight praise/retry sequences (e.g. user hits Try again). */
   vpAdvanceSeq?: number;
+  /** Current playback time for caption switching (seconds). */
+  vpCurrentTimeSec?: number;
+  /** Pending timer id for optional secondary caption chat line. */
+  vpSecondaryCaptionTimer?: any;
+  /** True once the optional secondary caption line is shown in chat for this clip. */
+  vpSecondaryCaptionShownInChat?: boolean;
   /** True after the clip fires `ended` — then Replay + Speak are shown */
   vpPlaybackEnded?: boolean;
   /** Number of failed pronunciation attempts (incorrect result or speech error) for this clip. */
@@ -156,6 +162,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.stopVpFeedbackAudio();
     this.playerQuestions.forEach(pq => {
       if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
+      if (pq.vpSecondaryCaptionTimer) clearTimeout(pq.vpSecondaryCaptionTimer);
     });
   }
 
@@ -215,6 +222,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.vpPlaybackEnded = false;
         pq.vpAdvanceSeq = 0;
         pq.vpFailCount = 0;
+        pq.vpCurrentTimeSec = 0;
+        pq.vpSecondaryCaptionShownInChat = false;
       }
       return pq;
     });
@@ -284,6 +293,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.vpChatMessages = [];
     this.vpChatSeq = 0;
     this.vpChatClipPrompted.clear();
+    this.playerQuestions.forEach((pq) => {
+      if (pq.vpSecondaryCaptionTimer) {
+        clearTimeout(pq.vpSecondaryCaptionTimer);
+        pq.vpSecondaryCaptionTimer = undefined;
+      }
+      pq.vpSecondaryCaptionShownInChat = false;
+    });
   }
 
   pushVpChat(role: 'tutor' | 'user', text: string, extra?: { isCorrect?: boolean; score?: number }): void {
@@ -307,20 +323,70 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!this.isVideoOnlyExercise || this.state !== 'playing') return;
     const pq = this.currentQuestion;
     if (!pq || pq.data?.type !== 'video-pronunciation') return;
-    if (this.vpChatClipPrompted.has(this.currentIndex)) return;
-    this.vpChatClipPrompted.add(this.currentIndex);
-    const n = this.currentIndex + 1;
-    const total = this.playerQuestions.length;
-    const cap = pq.data.caption || '';
-    this.pushVpChat(
-      'tutor',
-      `Clip ${n} of ${total} — watch the video, then say: "${cap}"`
-    );
+    if (!this.vpChatClipPrompted.has(this.currentIndex)) {
+      this.vpChatClipPrompted.add(this.currentIndex);
+      const n = this.currentIndex + 1;
+      const total = this.playerQuestions.length;
+      const cap = this.primaryCaptionForQuestion(pq.data);
+      this.pushVpChat(
+        'tutor',
+        `Clip ${n} of ${total} — watch the video, then say: "${cap}"`
+      );
+    }
+    this.maybeScheduleSecondaryCaptionChatPrompt(pq, this.currentIndex);
+  }
+
+  private maybeScheduleSecondaryCaptionChatPrompt(pq: PlayerQuestion, clipIndex: number): void {
+    const secondary = this.secondaryCaptionForQuestion(pq.data);
+    if (!secondary || pq.vpSecondaryCaptionShownInChat || pq.vpSecondaryCaptionTimer) return;
+    const delayMs = this.secondaryCaptionDelaySecondsForQuestion(pq.data) * 1000;
+    pq.vpSecondaryCaptionTimer = setTimeout(() => {
+      pq.vpSecondaryCaptionTimer = undefined;
+      if (this.state !== 'playing' || this.currentIndex !== clipIndex) return;
+      pq.vpSecondaryCaptionShownInChat = true;
+      this.pushVpChat('tutor', `Now say: "${secondary}"`);
+    }, delayMs);
+  }
+
+  private clearVpSecondaryCaptionTimers(exceptIndex: number = -1): void {
+    this.playerQuestions.forEach((pq, i) => {
+      if (i === exceptIndex) return;
+      if (pq.vpSecondaryCaptionTimer) {
+        clearTimeout(pq.vpSecondaryCaptionTimer);
+        pq.vpSecondaryCaptionTimer = undefined;
+      }
+    });
+  }
+
+  private primaryCaptionForQuestion(data: any): string {
+    const primary = String(data?.caption || '').trim();
+    return primary || 'Speak now';
+  }
+
+  private secondaryCaptionForQuestion(data: any): string {
+    return String(data?.secondaryCaption || '').trim();
+  }
+
+  private secondaryCaptionDelaySecondsForQuestion(data: any): number {
+    const raw = Number(data?.secondaryCaptionAtSeconds);
+    if (!Number.isFinite(raw)) return DigitalExercisePlayerComponent.VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS;
+    return Math.max(0, Math.min(600, Math.round(raw)));
+  }
+
+  getVpPromptCaption(pq: PlayerQuestion | null | undefined): string {
+    if (!pq || pq.data?.type !== 'video-pronunciation') return '';
+    const primary = this.primaryCaptionForQuestion(pq.data);
+    const secondary = this.secondaryCaptionForQuestion(pq.data);
+    if (!secondary) return primary;
+    const threshold = this.secondaryCaptionDelaySecondsForQuestion(pq.data);
+    const t = Number(pq.vpCurrentTimeSec || 0);
+    return t >= threshold ? secondary : primary;
   }
 
   private afterVideoOnlyNavigation(): void {
     if (this.isVideoOnlyExercise && this.state === 'playing') {
       this.clearVpFeedbackUi();
+      this.clearVpSecondaryCaptionTimers(this.currentIndex);
       this.syncVpChatForCurrentQuestion();
       setTimeout(() => this.scrollVpChatToBottom(), 80);
     }
@@ -1195,7 +1261,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (pq.data.type === 'listening') return pq.data.expectedTranscript || '—';
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
-    if (pq.data.type === 'video-pronunciation') return pq.data.caption || '—';
+    if (pq.data.type === 'video-pronunciation') {
+      const first = String(pq.data.caption || '').trim();
+      const second = String(pq.data.secondaryCaption || '').trim();
+      if (first && second) {
+        const after = this.secondaryCaptionDelaySecondsForQuestion(pq.data);
+        return `${first} / after ${after}s: ${second}`;
+      }
+      return first || '—';
+    }
     return '—';
   }
 
@@ -1424,22 +1498,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Min match score (0–100) to treat a clip as passed and advance (practice-partner / video clips). */
   private static readonly VP_PASS_SCORE = 20;
+  private static readonly VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS = 5;
 
-  onVpLoadStart(): void {
+  onVpLoadStart(pq?: PlayerQuestion): void {
     this.vpVideoElement = null;
+    if (pq?.data?.type === 'video-pronunciation') {
+      pq.vpCurrentTimeSec = 0;
+    }
   }
 
   /** When the clip is ready — autoplay without native controls. */
-  onVpVideoReady(ev: Event): void {
+  onVpVideoReady(ev: Event, pq?: PlayerQuestion): void {
     const video = ev.target as HTMLVideoElement;
     if (!video) return;
     this.vpVideoElement = video;
-    const pq = this.playerQuestions[this.currentIndex];
-    if (pq?.data?.type === 'video-pronunciation') {
-      pq.vpPlaybackEnded = false;
+    const active = pq || this.playerQuestions[this.currentIndex];
+    if (active?.data?.type === 'video-pronunciation') {
+      active.vpPlaybackEnded = false;
+      active.vpCurrentTimeSec = 0;
     }
     video.muted = false;
     video.play().catch(() => {});
+  }
+
+  onVpVideoTimeUpdate(ev: Event, pq: PlayerQuestion): void {
+    if (!pq || pq.data?.type !== 'video-pronunciation') return;
+    const v = ev.target as HTMLVideoElement;
+    if (!v) return;
+    pq.vpCurrentTimeSec = Number.isFinite(v.currentTime) ? v.currentTime : 0;
   }
 
   /**
@@ -1455,6 +1541,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       v.pause();
       if (v.duration && !isNaN(v.duration) && v.duration > 0) {
         v.currentTime = Math.max(0, v.duration - 0.001);
+        pq.vpCurrentTimeSec = v.duration;
       }
     } catch {
       /* ignore */
@@ -1479,6 +1566,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq?.data?.type === 'video-pronunciation') {
       pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
       pq.vpPlaybackEnded = false;
+      pq.vpCurrentTimeSec = 0;
     }
     this.clearVpFeedbackUi();
     const v = this.vpVideoElement;
@@ -1588,7 +1676,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       // Student gets full mark for tap-to-speak attempt in video-only flow.
       pq.pronunciationScore = 100;
       // Store the prompted phrase as what was spoken for review/chat consistency.
-      pq.vpSpokenText = (pq.data?.caption || '').trim() || 'Attempted';
+      pq.vpSpokenText = this.getVpPromptCaption(pq) || 'Attempted';
       this.markAttempted(pq);
       this.pushVpChat('user', pq.vpSpokenText || '', { isCorrect: true, score: 100 });
       this.advanceClipAfterAttempt(pq);

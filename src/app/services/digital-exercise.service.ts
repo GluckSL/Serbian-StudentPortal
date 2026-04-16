@@ -80,6 +80,8 @@ export interface VideoPronunciationQuestion extends QuestionCommonFields {
   _id?: string;
   videoUrl: string;
   caption: string;
+  secondaryCaption?: string;
+  secondaryCaptionAtSeconds?: number;
   acceptedVariants?: string[];
   points: number;
 }

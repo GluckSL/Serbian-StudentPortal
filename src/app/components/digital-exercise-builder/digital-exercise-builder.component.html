@@ -266,7 +266,9 @@
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
                 <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
-                <span *ngSwitchCase="'video-pronunciation'">{{ q.caption || 'No caption' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})</span>
+                <span *ngSwitchCase="'video-pronunciation'">
+                  {{ q.caption || 'No caption' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})
+                </span>
               </ng-container>
             </span>
           </div>
@@ -749,7 +751,7 @@
       </div>
       <p class="video-info-hint">
         <span class="material-icons">info</span>
-        Students watch each video clip, then speak the caption aloud. Correct pronunciation advances to the next video.
+        Students watch each video clip, then speak the caption aloud. You can add an optional second caption that appears later in the same clip.
       </p>
     </div>
 
@@ -859,6 +861,31 @@
               <label class="field-label required">Caption (word/phrase student must speak)</label>
               <input type="text" [(ngModel)]="vq.caption" class="field-input video-caption-field"
                 placeholder="e.g. Guten Morgen" autocomplete="off" />
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Second caption <span class="label-optional">opt.</span></label>
+              <input
+                type="text"
+                [(ngModel)]="vq.secondaryCaption"
+                class="field-input field-input--sm"
+                placeholder="e.g. Ich fahre mit der Bahn."
+                autocomplete="off"
+              />
+              <p class="hint-text">If filled, this replaces the first caption in student view after the delay below.</p>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Second caption delay (seconds)</label>
+              <input
+                type="number"
+                [(ngModel)]="vq.secondaryCaptionAtSeconds"
+                class="field-input field-input--number field-input--sm"
+                min="0"
+                max="600"
+                step="1"
+              />
+              <p class="hint-text">Default is 5 seconds.</p>
             </div>
 
             <div class="field-group">
@@ -1017,6 +1044,10 @@
             </div>
             <div *ngIf="!q.videoUrl" class="pq-no-video">No video uploaded</div>
             <div class="pq-caption"><span class="material-icons">record_voice_over</span> Student speaks: <strong>{{ q.caption || '—' }}</strong></div>
+            <div class="pq-caption" *ngIf="q.secondaryCaption">
+              <span class="material-icons">schedule</span>
+              After {{ q.secondaryCaptionAtSeconds ?? 5 }}s: <strong>{{ q.secondaryCaption }}</strong>
+            </div>
             <div *ngIf="q.acceptedVariants && q.acceptedVariants.length > 0" class="pq-variants">
               Also accepted: {{ q.acceptedVariants.join(', ') }}
             </div>

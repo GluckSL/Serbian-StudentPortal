@@ -378,8 +378,9 @@
                 webkit-playsinline
                 preload="auto"
                 disablePictureInPicture
-                (loadeddata)="onVpVideoReady($event)"
-                (loadstart)="onVpLoadStart()"
+                (loadeddata)="onVpVideoReady($event, currentQuestion)"
+                (loadstart)="onVpLoadStart(currentQuestion)"
+                (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
                 (ended)="onVpVideoEnded($event, currentQuestion)"
               ></video>
 
@@ -394,7 +395,7 @@
                   </div>
                   <div class="vp-stage-overlay-text vp-stage-overlay-text--in-frame">
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.context">{{ currentQuestion.data.context }}</p>
-                    <h2 class="vp-stage-phrase">{{ currentQuestion.data.caption }}</h2>
+                    <h2 class="vp-stage-phrase">{{ getVpPromptCaption(currentQuestion) }}</h2>
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.acceptedVariants?.length">
                       Also accepted: {{ currentQuestion.data.acceptedVariants.join(', ') }}
                     </p>
@@ -922,7 +923,7 @@
                 <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.context">
                   {{ currentQuestion.data.context }}
                 </div>
-                <div class="vp-caption vp-caption--mobile">{{ currentQuestion.data.caption }}</div>
+                <div class="vp-caption vp-caption--mobile">{{ getVpPromptCaption(currentQuestion) }}</div>
                 <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.acceptedVariants?.length > 0">
                   Also ok: {{ currentQuestion.data.acceptedVariants.join(', ') }}
                 </div>
@@ -937,8 +938,9 @@
                   webkit-playsinline
                   preload="auto"
                   disablePictureInPicture
-                  (loadeddata)="onVpVideoReady($event)"
-                  (loadstart)="onVpLoadStart()"
+                  (loadeddata)="onVpVideoReady($event, currentQuestion)"
+                  (loadstart)="onVpLoadStart(currentQuestion)"
+                  (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
                   (ended)="onVpVideoEnded($event, currentQuestion)"
                 ></video>
               </div>
