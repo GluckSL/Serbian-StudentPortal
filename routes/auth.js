@@ -43,6 +43,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "timetable",
   "monday-sync",
   "support-tickets",
+  "announcements",
   "help",
   "profile"
 ];

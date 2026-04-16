@@ -1,9 +1,10 @@
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
+import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
 
 @Component({
   selector: 'app-support-fab',
@@ -12,10 +13,10 @@ import { environment } from '../../../environments/environment';
   templateUrl: './support-fab.component.html',
   styleUrls: ['./support-fab.component.css']
 })
-export class SupportFabComponent implements OnInit {
+export class SupportFabComponent implements OnInit, OnDestroy {
   open = false; // small launcher panel
   modalOpen = false; // full modal
-  activeTab: 'submit' | 'tickets' = 'submit';
+  activeTab: 'submit' | 'tickets' | 'announcements' = 'submit';
 
   ticketForm!: FormGroup;
   submitting = false;
@@ -27,6 +28,13 @@ export class SupportFabComponent implements OnInit {
   currentUser: any = null;
   tickets: any[] = [];
   loadingTickets = false;
+  announcements: AnnouncementItem[] = [];
+  loadingAnnouncements = false;
+  announcementBadgeCount = 0;
+  private announcementBadgeTimer: any = null;
+  selectedAnnouncement: AnnouncementItem | null = null;
+  private announcementReqSeq = 0;
+  private autoOpenedAnnouncementId: string | null = null;
 
   readonly categories = [
     { value: 'login', label: 'Login / Access Issue' },
@@ -48,7 +56,8 @@ export class SupportFabComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
-    private authService: AuthService
+    private authService: AuthService,
+    private announcementService: AnnouncementService
   ) {}
 
   ngOnInit(): void {
@@ -64,9 +73,21 @@ export class SupportFabComponent implements OnInit {
       description: ['', [Validators.required, Validators.minLength(20), Validators.maxLength(1000)]],
       screenshot: [null, Validators.required]
     });
+
+    this.autoOpenedAnnouncementId = this.readAutoOpenedAnnouncementId();
+    this.refreshAnnouncementBadge();
+    this.announcementBadgeTimer = setInterval(() => this.refreshAnnouncementBadge(), 60000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.announcementBadgeTimer) {
+      clearInterval(this.announcementBadgeTimer);
+      this.announcementBadgeTimer = null;
+    }
   }
 
   toggle(): void {
+    this.refreshAnnouncementBadge();
     this.open = !this.open;
   }
 
@@ -74,22 +95,28 @@ export class SupportFabComponent implements OnInit {
     this.open = false;
   }
 
-  openModal(tab: 'submit' | 'tickets' = 'submit'): void {
+  openModal(tab: 'submit' | 'tickets' | 'announcements' = 'submit'): void {
+    this.refreshAnnouncementBadge();
     this.activeTab = tab;
     this.modalOpen = true;
     this.open = false;
     this.submitError = '';
     this.submitSuccess = false;
+    if (tab === 'announcements') this.selectedAnnouncement = null;
     if (tab === 'tickets') this.loadMyTickets();
+    if (tab === 'announcements') this.loadAnnouncements();
   }
 
   closeModal(): void {
     this.modalOpen = false;
   }
 
-  setTab(tab: 'submit' | 'tickets'): void {
+  setTab(tab: 'submit' | 'tickets' | 'announcements'): void {
+    this.refreshAnnouncementBadge();
     this.activeTab = tab;
+    if (tab !== 'announcements') this.selectedAnnouncement = null;
     if (tab === 'tickets') this.loadMyTickets();
+    if (tab === 'announcements') this.loadAnnouncements();
   }
 
   onScreenshotSelected(event: Event): void {
@@ -169,6 +196,101 @@ export class SupportFabComponent implements OnInit {
           this.loadingTickets = false;
         }
       });
+  }
+
+  loadAnnouncements(): void {
+    this.loadingAnnouncements = true;
+    this.selectedAnnouncement = null;
+    this.announcementService.getForStudent().subscribe({
+      next: (res) => {
+        this.announcements = res?.data || [];
+        // When showing announcements, default to the latest item (so we don't need tabs/list).
+        this.selectedAnnouncement = this.announcements[0] || null;
+        this.isLoggedIn = true;
+        this.loadingAnnouncements = false;
+        this.announcementBadgeCount = this.announcements.length;
+      },
+      error: (err) => {
+        this.announcements = [];
+        if (err?.status === 401) this.isLoggedIn = false;
+        this.loadingAnnouncements = false;
+      }
+    });
+  }
+
+  selectAnnouncement(a: AnnouncementItem): void {
+    this.selectedAnnouncement = a;
+  }
+
+  backToAnnouncementList(): void {
+    this.selectedAnnouncement = null;
+  }
+
+  private refreshAnnouncementBadge(): void {
+    const reqId = ++this.announcementReqSeq;
+    console.info('[support-fab] refresh announcements badge:start', {
+      reqId,
+      isLoggedIn: this.isLoggedIn,
+      userId: this.currentUser?._id || null
+    });
+    this.announcementService.getForStudent().subscribe({
+      next: (res) => {
+        const list = Array.isArray(res?.data) ? res.data : [];
+        this.isLoggedIn = true;
+        this.announcementBadgeCount = list.length;
+        this.maybeAutoOpenLatestAnnouncement(list);
+        console.info('[support-fab] refresh announcements badge:success', {
+          reqId,
+          total: list.length
+        });
+      },
+      error: (err) => {
+        this.announcementBadgeCount = 0;
+        if (err?.status === 401) this.isLoggedIn = false;
+        console.error('[support-fab] refresh announcements badge:error', {
+          reqId,
+          status: err?.status,
+          message: err?.error?.message || err?.message || 'Unknown error'
+        });
+      }
+    });
+  }
+
+  private maybeAutoOpenLatestAnnouncement(list: AnnouncementItem[]): void {
+    const latest = list[0];
+    const latestId = latest?._id || null;
+    if (!latestId) return;
+    if (this.autoOpenedAnnouncementId === latestId) return;
+
+    this.autoOpenedAnnouncementId = latestId;
+    this.persistAutoOpenedAnnouncementId(latestId);
+    this.activeTab = 'announcements';
+    this.announcements = list;
+    this.selectedAnnouncement = latest;
+    this.open = false;
+    this.modalOpen = true;
+    console.info('[support-fab] auto-opened latest announcement once', { latestId });
+  }
+
+  private getAutoOpenStorageKey(): string {
+    const userId = this.currentUser?._id || 'unknown';
+    return `sf_auto_opened_announcement_${userId}`;
+  }
+
+  private readAutoOpenedAnnouncementId(): string | null {
+    try {
+      return localStorage.getItem(this.getAutoOpenStorageKey());
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  private persistAutoOpenedAnnouncementId(announcementId: string): void {
+    try {
+      localStorage.setItem(this.getAutoOpenStorageKey(), announcementId);
+    } catch (_err) {
+      // Ignore storage failures (private mode / blocked storage).
+    }
   }
 
   get descriptionLen(): number {

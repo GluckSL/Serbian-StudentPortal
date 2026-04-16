@@ -1,0 +1,176 @@
+<div class="ann-page">
+  <header class="ann-header">
+    <h1>Create Announcement</h1>
+    <p>Broadcast information across specific student batches and schedule deployment.</p>
+  </header>
+
+  <div class="ann-layout">
+    <section class="ann-main">
+      <div class="ann-block">
+        <div class="ann-block__title">Announcement Content</div>
+
+        <div class="ann-type-switch">
+          <label class="ann-radio">
+            <input type="radio" name="deliveryType" value="website" [(ngModel)]="deliveryType" />
+            Website
+          </label>
+          <label class="ann-radio">
+            <input type="radio" name="deliveryType" value="website_email" [(ngModel)]="deliveryType" />
+            Website + Email
+          </label>
+        </div>
+
+        <div class="ann-field">
+          <label>Website Announcement Title</label>
+          <input type="text" [(ngModel)]="title" maxlength="150" placeholder="e.g. Q4 Academic Calendar Update" />
+        </div>
+
+        <div class="ann-field">
+          <label>Announcement Body</label>
+          <textarea [(ngModel)]="body" rows="8" maxlength="5000" placeholder="Type your announcement here..."></textarea>
+        </div>
+
+        <div *ngIf="isWebsiteEmail" class="ann-email-box">
+          <h3>Email Add-on</h3>
+          <p class="ann-email-box__note">
+            For <strong>Website + Email</strong>, the <strong>email subject</strong> and <strong>email body</strong> will use the same
+            <strong>Title</strong> and <strong>Body</strong> you entered above.
+          </p>
+        </div>
+      </div>
+
+      <div class="ann-block">
+        <div class="ann-block__title">Attachments</div>
+        <label class="ann-dropzone">
+          <input type="file" multiple (change)="onFileChange($event)" />
+          <span class="ann-dropzone__icon">⬆</span>
+          <strong>Click to upload or drag and drop</strong>
+          <small>PDF, DOCX, JPG or PNG (max. 25MB each)</small>
+        </label>
+
+        <div class="ann-file-list" *ngIf="selectedFiles.length">
+          <div class="ann-file" *ngFor="let file of selectedFiles">
+            <div class="ann-file__meta">
+              <span class="ann-file__name">{{ file.name }}</span>
+              <span class="ann-file__size">{{ formatBytes(file.size) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="ann-side">
+      <div class="ann-block ann-block--side">
+        <div class="ann-block__title">Distribution Settings</div>
+
+        <div class="ann-field">
+          <label>Target Batches</label>
+          <select [(ngModel)]="batchToAdd" (change)="onBatchDropdownChange()">
+            <option value="">Select target batch...</option>
+            <option *ngFor="let batch of batches" [value]="batch.batchName">{{ batch.batchName }}</option>
+          </select>
+        </div>
+
+        <div class="ann-chip-wrap" *ngIf="selectedBatches.length">
+          <button type="button" class="ann-chip" *ngFor="let batchName of selectedBatches" (click)="removeBatch(batchName)">
+            {{ batchName }} <span>✕</span>
+          </button>
+        </div>
+
+        <div class="ann-field">
+          <label>Send Type</label>
+          <div class="ann-send-toggle">
+            <button
+              type="button"
+              class="ann-send-toggle__btn"
+              [class.ann-send-toggle__btn--active]="sendMode === 'instant'"
+              (click)="setSendMode('instant')"
+            >
+              Instant
+            </button>
+            <button
+              type="button"
+              class="ann-send-toggle__btn"
+              [class.ann-send-toggle__btn--active]="sendMode === 'schedule'"
+              (click)="setSendMode('schedule')"
+            >
+              Schedule
+            </button>
+          </div>
+        </div>
+
+        <div class="ann-field" *ngIf="isScheduled">
+          <label>Schedule Date & Time</label>
+          <input type="datetime-local" [(ngModel)]="scheduleAt" />
+          <small>Select when this announcement should be sent.</small>
+        </div>
+
+        <div class="ann-preview">
+          <div class="ann-preview__tag">Live Preview</div>
+          <div class="ann-preview__title">{{ previewTitle }}</div>
+          <div class="ann-preview__body">{{ previewBody }}</div>
+        </div>
+
+        <button type="button" class="ann-submit" [disabled]="saving" (click)="createAnnouncement()">
+          {{ saving ? 'Sending...' : 'Send Announcement' }}
+        </button>
+        <button type="button" class="ann-draft" [disabled]="saving" (click)="saveDraftPlaceholder()">
+          Save as Draft
+        </button>
+      </div>
+
+      <div class="ann-block ann-targets">
+        <div class="ann-block__title">Visible To Students</div>
+        <div class="ann-targets__count">
+          {{ targetStudents.length }} student{{ targetStudents.length === 1 ? '' : 's' }} selected
+        </div>
+        <p class="ann-targets__hint" *ngIf="!selectedBatches.length">
+          Select batch to preview students who will receive this announcement.
+        </p>
+        <p class="ann-targets__hint" *ngIf="selectedBatches.length && loadingTargetStudents">
+          Loading students...
+        </p>
+        <div class="ann-targets__empty" *ngIf="selectedBatches.length && !loadingTargetStudents && !targetStudents.length">
+          No active students found for selected batch.
+        </div>
+        <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetStudents.length">
+          <div class="ann-targets__item" *ngFor="let student of targetStudents | slice:0:8">
+            <div class="ann-targets__name">{{ student.name }}</div>
+            <div class="ann-targets__meta">{{ student.regNo }} | {{ student.batch }}</div>
+          </div>
+          <div class="ann-targets__more" *ngIf="targetStudents.length > 8">
+            +{{ targetStudents.length - 8 }} more students
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="ann-history">
+    <div class="ann-list-head">
+      <h2>All Announcements</h2>
+      <button type="button" (click)="loadAnnouncements()">Refresh</button>
+    </div>
+
+    <p *ngIf="loading">Loading announcements...</p>
+    <div *ngIf="!loading && !announcements.length" class="ann-empty">No announcements yet.</div>
+
+    <div class="ann-item" *ngFor="let item of announcements">
+      <div class="ann-item-head">
+        <h3>{{ item.title }}</h3>
+        <span>{{ item.createdAt | date: 'medium' }}</span>
+      </div>
+      <p class="ann-item-body">{{ item.body }}</p>
+      <div class="ann-meta">
+        <span>Type: {{ item.deliveryType === 'website_email' ? 'Website + Email' : 'Website' }}</span>
+        <span>Batches: {{ item.targetBatches.join(', ') }}</span>
+        <span *ngIf="item.createdBy?.name">By: {{ item.createdBy?.name }}</span>
+      </div>
+      <div class="ann-files" *ngIf="item.attachments?.length">
+        <a *ngFor="let file of item.attachments" [href]="file.fileUrl" target="_blank" rel="noreferrer">
+          {{ file.fileName }}
+        </a>
+      </div>
+    </div>
+  </section>
+</div>

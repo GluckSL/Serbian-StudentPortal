@@ -1,0 +1,53 @@
+<div class="sa-page">
+  <!-- Welcome Banner -->
+  <section class="sa-hero">
+    <div class="sa-hero__inner">
+      <div>
+        <div class="sa-hero__kicker">ACADEMIC PORTAL</div>
+        <h1 class="sa-hero__title">Welcome back, {{ studentName }}.</h1>
+        <p class="sa-hero__sub">
+          Here’s what’s new in your batch today. You have <strong>{{ announcementCount }}</strong> new announcement{{ announcementCount === 1 ? '' : 's' }}.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sa-feed">
+    <div class="sa-feed__head">
+      <h2 class="sa-feed__title">Recent Feed</h2>
+    </div>
+
+    <p *ngIf="loading" class="sa-loading">Loading announcements...</p>
+
+    <div *ngIf="!loading && announcements.length === 0" class="sa-empty">No announcements yet.</div>
+
+    <article class="sa-card" *ngFor="let item of announcements">
+      <div class="sa-card__stripe" [class.sa-card__stripe--email]="item.deliveryType === 'website_email'"></div>
+
+      <header class="sa-card__head">
+        <div class="sa-card__meta">
+          <span class="sa-card__date">{{ item.createdAt | date:'medium' }}</span>
+        </div>
+      </header>
+
+      <h3 class="sa-card__title">{{ item.title }}</h3>
+
+      <p class="sa-card__body">{{ item.body }}</p>
+
+      <div class="sa-card__files" *ngIf="item.attachments?.length">
+        <div class="sa-card__filesTitle">Attachments</div>
+        <div class="sa-card__fileRow">
+          <a
+            *ngFor="let file of item.attachments"
+            class="sa-chip"
+            [href]="file.fileUrl"
+            target="_blank"
+            rel="noreferrer"
+          >
+            {{ file.fileName }}
+          </a>
+        </div>
+      </div>
+    </article>
+  </section>
+</div>

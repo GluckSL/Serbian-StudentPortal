@@ -125,6 +125,7 @@ export class NavService {
     {
       group: 'Support',
       items: [
+        { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: '🎫', route: '/admin/support-tickets', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: '❓', route: '/help', subGroup: null }
       ]
@@ -177,6 +178,7 @@ export class NavService {
     {
       group: 'Help',
       items: [
+        { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
       ]
     },
@@ -206,7 +208,8 @@ export class NavService {
     {
       group: 'My Course',
       items: [
-        { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null }
+        { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null },
+        { id: 'student-announcements', label: 'Announcements', icon: '📢', route: '/student/announcements', subGroup: null }
       ]
     },
     {
