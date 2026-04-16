@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { of, catchError } from 'rxjs';
+import { of, catchError, interval } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { StudentProgressService } from '../../services/student-progress.service';
 import { AuthService } from '../../services/auth.service';
@@ -15,6 +15,7 @@ import { LearningModulesComponent } from '../learning-modules/learning-modules.c
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
 import {
   JourneyPendingCelebrationDialogComponent,
   JourneyPendingCelebrationData
@@ -72,6 +73,12 @@ export class MyCourseComponent implements OnInit {
 
   /** Quick access: newest accessible module not completed. */
   nextNewAccessibleModule: LearningModule | null = null;
+  latestAnnouncement: AnnouncementItem | null = null;
+  announcementDismissed = false;
+  announcementExpanded = false;
+  loadingAnnouncement = false;
+  announcementLoadError = false;
+  private lastAnnouncementId: string | null = null;
 
   private readonly motivateLines = [
     'You’re going strong — keep showing up!',
@@ -122,7 +129,8 @@ export class MyCourseComponent implements OnInit {
     private zoomService: ZoomService,
     private exerciseService: DigitalExerciseService,
     private learningModulesService: LearningModulesService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private announcementService: AnnouncementService
   ) {}
 
   ngOnInit(): void {
@@ -173,6 +181,8 @@ export class MyCourseComponent implements OnInit {
       .subscribe({
         next: (meetings) => this.applyMeetingsPreview(meetings),
       });
+
+    // Announcements are shown under Help & Support (messenger) → Announcements.
 
     this.route.queryParamMap.subscribe((q) => {
       const t = q.get('tab');
@@ -250,6 +260,55 @@ export class MyCourseComponent implements OnInit {
     } else {
       this.journeyDayModules = [];
     }
+  }
+
+  private loadLatestAnnouncement(): void {
+    this.loadingAnnouncement = true;
+    this.announcementLoadError = false;
+    console.info('[my-course] loading student announcements');
+    this.announcementService
+      .getForStudent()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const list = Array.isArray(res?.data) ? res.data : [];
+          const nextAnnouncement = list[0] || null;
+          const nextId = nextAnnouncement?._id || null;
+          if (nextId && nextId !== this.lastAnnouncementId) {
+            this.announcementDismissed = false;
+          }
+          this.latestAnnouncement = nextAnnouncement;
+          this.lastAnnouncementId = nextId;
+          this.loadingAnnouncement = false;
+          console.info('[my-course] student announcements loaded', {
+            total: list.length,
+            latestAnnouncementId: nextId
+          });
+        },
+        error: (err) => {
+          this.latestAnnouncement = null;
+          this.loadingAnnouncement = false;
+          this.announcementLoadError = true;
+          console.error('[my-course] failed to load student announcements', err);
+        }
+      });
+  }
+
+  dismissAnnouncement(): void {
+    this.announcementDismissed = true;
+    this.announcementExpanded = false;
+  }
+
+  expandAnnouncement(): void {
+    this.announcementExpanded = true;
+  }
+
+  closeAnnouncementModal(): void {
+    this.announcementExpanded = false;
+  }
+
+  openAnnouncementsPage(): void {
+    this.router.navigate(['/student/announcements']);
   }
 
   private getPublishedTs(item: any): number {

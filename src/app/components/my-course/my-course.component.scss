@@ -904,6 +904,74 @@
   color: #0f766e;
 }
 
+.mc-update--announcement {
+  border: 1px solid rgba(79, 70, 229, 0.22);
+  border-radius: 12px;
+  padding: 12px 10px;
+  margin: 0 0 10px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.06));
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.mc-update--announcement:hover {
+  transform: translateY(-1px);
+  border-color: rgba(79, 70, 229, 0.35);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.12);
+}
+
+.mc-update__icon--announcement {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.mc-update--announcement .mc-update__title {
+  color: #4338ca;
+}
+
+.mc-update--announcement .mc-update__when {
+  color: #475569;
+  font-weight: 500;
+}
+
+.mc-ann-actions {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 6px;
+  align-self: flex-start;
+}
+
+.mc-ann-actions__btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 8px;
+  background: #fff;
+  color: #312e81;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.mc-ann-actions__btn:hover {
+  background: #eef2ff;
+}
+
+.mc-update__link {
+  margin-top: 8px;
+  border: 1px solid #c7d2fe;
+  background: #ffffff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mc-update__link:hover {
+  background: #eef2ff;
+}
+
 .mc-side-card__dayline {
   display: flex;
   align-items: baseline;
@@ -962,6 +1030,68 @@
   font-weight: 500;
   color: #94a3b8;
   margin-top: 2px;
+}
+
+.mc-announcement {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.mc-announcement__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mc-announcement__title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #1e3a8a;
+}
+
+.mc-announcement__actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.mc-announcement__btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #93c5fd;
+  border-radius: 7px;
+  background: #fff;
+  color: #1e3a8a;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.mc-announcement__body {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.mc-announcement__empty {
+  margin: 0 0 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.78rem;
+  padding: 8px 10px;
+}
+
+.mc-announcement__empty--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .mc-update {
@@ -1103,6 +1233,66 @@
 
 .mc-side-card__link .material-icons {
   font-size: 18px;
+}
+
+.mc-announcement-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+
+.mc-announcement-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.mc-announcement-modal__panel {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28);
+  padding: 12px;
+}
+
+.mc-announcement-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.mc-announcement-modal__head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.mc-announcement-modal__head button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.mc-announcement-modal__body {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  color: #334155;
+}
+
+.mc-announcement-modal__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 /* Journey Day tab */
