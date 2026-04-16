@@ -159,8 +159,10 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
   }
 });
 
-// List announcements for the logged-in student
-router.get('/student', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+// List announcements for the logged-in student.
+// We intentionally allow any authenticated user here (no strict role check),
+// and rely on the student record + batch lookup to determine visibility.
+router.get('/student', verifyToken, async (req, res) => {
   try {
     const student = await User.findById(req.user.id).select('batch').lean();
     const batch = String(student?.batch || '').trim();
