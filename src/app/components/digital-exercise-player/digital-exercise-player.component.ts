@@ -21,6 +21,7 @@ interface VpChatMessage {
   id: string;
   role: 'tutor' | 'user';
   text: string;
+  kind?: 'info' | 'your-turn' | 'clip-watch' | 'intro';
   isCorrect?: boolean;
   score?: number;
 }
@@ -51,6 +52,12 @@ interface PlayerQuestion {
   vpAutoAdvanceTimer?: any;
   /** Bumped to cancel in-flight praise/retry sequences (e.g. user hits Try again). */
   vpAdvanceSeq?: number;
+  /** Current playback time for caption switching (seconds). */
+  vpCurrentTimeSec?: number;
+  /** Pending timer id for optional secondary caption chat line. */
+  vpSecondaryCaptionTimer?: any;
+  /** True once the optional secondary caption line is shown in chat for this clip. */
+  vpSecondaryCaptionShownInChat?: boolean;
   /** True after the clip fires `ended` — then Replay + Speak are shown */
   vpPlaybackEnded?: boolean;
   /** Number of failed pronunciation attempts (incorrect result or speech error) for this clip. */
@@ -156,6 +163,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.stopVpFeedbackAudio();
     this.playerQuestions.forEach(pq => {
       if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
+      if (pq.vpSecondaryCaptionTimer) clearTimeout(pq.vpSecondaryCaptionTimer);
     });
   }
 
@@ -215,6 +223,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.vpPlaybackEnded = false;
         pq.vpAdvanceSeq = 0;
         pq.vpFailCount = 0;
+        pq.vpCurrentTimeSec = 0;
+        pq.vpSecondaryCaptionShownInChat = false;
       }
       return pq;
     });
@@ -284,13 +294,25 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.vpChatMessages = [];
     this.vpChatSeq = 0;
     this.vpChatClipPrompted.clear();
+    this.playerQuestions.forEach((pq) => {
+      if (pq.vpSecondaryCaptionTimer) {
+        clearTimeout(pq.vpSecondaryCaptionTimer);
+        pq.vpSecondaryCaptionTimer = undefined;
+      }
+      pq.vpSecondaryCaptionShownInChat = false;
+    });
   }
 
-  pushVpChat(role: 'tutor' | 'user', text: string, extra?: { isCorrect?: boolean; score?: number }): void {
+  pushVpChat(
+    role: 'tutor' | 'user',
+    text: string,
+    extra?: { isCorrect?: boolean; score?: number; kind?: VpChatMessage['kind'] }
+  ): void {
     this.vpChatMessages.push({
       id: `c${++this.vpChatSeq}`,
       role,
       text,
+      kind: extra?.kind,
       isCorrect: extra?.isCorrect,
       score: extra?.score
     });
@@ -307,20 +329,99 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!this.isVideoOnlyExercise || this.state !== 'playing') return;
     const pq = this.currentQuestion;
     if (!pq || pq.data?.type !== 'video-pronunciation') return;
-    if (this.vpChatClipPrompted.has(this.currentIndex)) return;
-    this.vpChatClipPrompted.add(this.currentIndex);
-    const n = this.currentIndex + 1;
-    const total = this.playerQuestions.length;
-    const cap = pq.data.caption || '';
-    this.pushVpChat(
-      'tutor',
-      `Clip ${n} of ${total} — watch the video, then say: "${cap}"`
-    );
+    if (!this.vpChatClipPrompted.has(this.currentIndex)) {
+      this.vpChatClipPrompted.add(this.currentIndex);
+      const n = this.currentIndex + 1;
+      const total = this.playerQuestions.length;
+      this.pushVpChat(
+        'tutor',
+        `Clip ${n} of ${total} — watch the video.`,
+        { kind: 'clip-watch' }
+      );
+      this.pushVpChat('tutor', `The video clip says: "${this.primaryCaptionForQuestion(pq.data)}"`, { kind: 'info' });
+      this.maybeScheduleSecondaryCaptionPrompt(pq, this.currentIndex);
+    }
+  }
+
+  private maybeScheduleSecondaryCaptionPrompt(pq: PlayerQuestion, clipIndex: number): void {
+    const secondary = this.secondaryCaptionForQuestion(pq.data);
+    if (!secondary || pq.vpSecondaryCaptionShownInChat || pq.vpSecondaryCaptionTimer) return;
+    const delayMs = this.secondaryCaptionDelaySecondsForQuestion(pq.data) * 1000;
+    pq.vpSecondaryCaptionTimer = setTimeout(() => {
+      pq.vpSecondaryCaptionTimer = undefined;
+      if (this.state !== 'playing' || this.currentIndex !== clipIndex) return;
+      pq.vpSecondaryCaptionShownInChat = true;
+      this.pushVpChat('tutor', `Now it says: "${secondary}"`, { kind: 'info' });
+    }, delayMs);
+  }
+
+  private clearVpSecondaryCaptionTimers(exceptIndex: number = -1): void {
+    this.playerQuestions.forEach((pq, i) => {
+      if (i === exceptIndex) return;
+      if (pq.vpSecondaryCaptionTimer) {
+        clearTimeout(pq.vpSecondaryCaptionTimer);
+        pq.vpSecondaryCaptionTimer = undefined;
+      }
+    });
+  }
+
+  private primaryCaptionForQuestion(data: any): string {
+    const primary = String(data?.caption || '').trim();
+    return primary || 'Speak now';
+  }
+
+  private secondaryCaptionForQuestion(data: any): string {
+    return String(data?.secondaryCaption || '').trim();
+  }
+
+  private secondaryCaptionDelaySecondsForQuestion(data: any): number {
+    const raw = Number(data?.secondaryCaptionAtSeconds);
+    if (!Number.isFinite(raw)) return DigitalExercisePlayerComponent.VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS;
+    return Math.max(0, Math.min(600, Math.round(raw)));
+  }
+
+  private pushTutorTurnPromptForSpeak(caption: string): void {
+    const line = String(caption || '').trim();
+    if (!line) return;
+    this.pushVpChat('tutor', `Now your turn says: "${line}"`, { kind: 'your-turn' });
+  }
+
+  getTutorCaptionParts(text: string): { before: string; value: string; after: string } | null {
+    const t = String(text || '');
+    const knownPrefixes = ['The video clip says:', 'Now it says:', 'Now your turn says:'];
+    const isTarget = knownPrefixes.some((p) => t.startsWith(p));
+    if (!isTarget) return null;
+
+    const firstQuote = t.indexOf('"');
+    const lastQuote = t.lastIndexOf('"');
+    if (firstQuote < 0 || lastQuote <= firstQuote) return null;
+
+    return {
+      before: t.slice(0, firstQuote + 1),
+      value: t.slice(firstQuote + 1, lastQuote),
+      after: t.slice(lastQuote)
+    };
+  }
+
+  private speakTargetCaptionForQuestion(pq: PlayerQuestion | null | undefined): string {
+    if (!pq || pq.data?.type !== 'video-pronunciation') return '';
+    return this.secondaryCaptionForQuestion(pq.data) || this.primaryCaptionForQuestion(pq.data);
+  }
+
+  getVpPromptCaption(pq: PlayerQuestion | null | undefined): string {
+    if (!pq || pq.data?.type !== 'video-pronunciation') return '';
+    const primary = this.primaryCaptionForQuestion(pq.data);
+    const secondary = this.secondaryCaptionForQuestion(pq.data);
+    if (!secondary) return primary;
+    const threshold = this.secondaryCaptionDelaySecondsForQuestion(pq.data);
+    const t = Number(pq.vpCurrentTimeSec || 0);
+    return t >= threshold ? secondary : primary;
   }
 
   private afterVideoOnlyNavigation(): void {
     if (this.isVideoOnlyExercise && this.state === 'playing') {
       this.clearVpFeedbackUi();
+      this.clearVpSecondaryCaptionTimers(this.currentIndex);
       this.syncVpChatForCurrentQuestion();
       setTimeout(() => this.scrollVpChatToBottom(), 80);
     }
@@ -489,29 +590,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
-  /** After incorrect: retry audio → short pause → reset attempt → replay same clip (video-only).
-   *  On the LAST clip we skip the auto-reset so the student can choose: Try again, Replay, or
-   *  Submit the exercise — preventing an infinite stuck loop. */
+  /** After incorrect: play retry feedback only; student chooses retry or next clip. */
   private async runVpIncorrectFeedbackSequence(pq: PlayerQuestion): Promise<void> {
     if (!this.isVideoOnlyExercise) return;
     const seq = (pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1);
-    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
 
     await this.playVideoExerciseFeedbackAudioPromise(false);
     if (pq.vpAdvanceSeq !== seq) return;
-
-    // On the last clip: leave state as-is (vpResult = 'incorrect') so the
-    // "Submit Exercise" button stays visible. The student is never forced to retry.
-    if (isLastClip) return;
-
-    await this.delay(500);
-    if (pq.vpAdvanceSeq !== seq) return;
-    pq.vpSpokenText = '';
-    pq.vpResult = 'idle';
-    pq.hasRecorded = false;
-    pq.pronunciationScore = 0;
-    pq.isAnswered = false;
-    this.replayVpVideo();
   }
 
   /** Submit the video exercise immediately (used when student is stuck on the last clip). */
@@ -549,7 +634,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           const title = this.exercise?.title || 'this lesson';
           this.pushVpChat(
             'tutor',
-            `Hey! Let's practice "${title}" together. Watch each clip, then repeat the phrase when it's your turn.`
+            `Hey! Let's practice "${title}" together. Watch each clip, then repeat the phrase when it's your turn.`,
+            { kind: 'intro' }
           );
           this.syncVpChatForCurrentQuestion();
           setTimeout(() => this.scrollVpChatToBottom(), 120);
@@ -1195,7 +1281,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (pq.data.type === 'listening') return pq.data.expectedTranscript || '—';
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
-    if (pq.data.type === 'video-pronunciation') return pq.data.caption || '—';
+    if (pq.data.type === 'video-pronunciation') {
+      const first = String(pq.data.caption || '').trim();
+      const second = String(pq.data.secondaryCaption || '').trim();
+      if (first && second) {
+        const after = this.secondaryCaptionDelaySecondsForQuestion(pq.data);
+        return `${first} / after ${after}s: ${second}`;
+      }
+      return first || '—';
+    }
     return '—';
   }
 
@@ -1424,22 +1518,40 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Min match score (0–100) to treat a clip as passed and advance (practice-partner / video clips). */
   private static readonly VP_PASS_SCORE = 20;
+  private static readonly VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS = 5;
 
-  onVpLoadStart(): void {
+  private videoPassThresholdForQuestion(pq: PlayerQuestion): number {
+    const raw = Number(pq?.data?.similarityThreshold);
+    if (!Number.isFinite(raw)) return DigitalExercisePlayerComponent.VP_PASS_SCORE;
+    return Math.max(0, Math.min(100, Math.round(raw)));
+  }
+
+  onVpLoadStart(pq?: PlayerQuestion): void {
     this.vpVideoElement = null;
+    if (pq?.data?.type === 'video-pronunciation') {
+      pq.vpCurrentTimeSec = 0;
+    }
   }
 
   /** When the clip is ready — autoplay without native controls. */
-  onVpVideoReady(ev: Event): void {
+  onVpVideoReady(ev: Event, pq?: PlayerQuestion): void {
     const video = ev.target as HTMLVideoElement;
     if (!video) return;
     this.vpVideoElement = video;
-    const pq = this.playerQuestions[this.currentIndex];
-    if (pq?.data?.type === 'video-pronunciation') {
-      pq.vpPlaybackEnded = false;
+    const active = pq || this.playerQuestions[this.currentIndex];
+    if (active?.data?.type === 'video-pronunciation') {
+      active.vpPlaybackEnded = false;
+      active.vpCurrentTimeSec = 0;
     }
     video.muted = false;
     video.play().catch(() => {});
+  }
+
+  onVpVideoTimeUpdate(ev: Event, pq: PlayerQuestion): void {
+    if (!pq || pq.data?.type !== 'video-pronunciation') return;
+    const v = ev.target as HTMLVideoElement;
+    if (!v) return;
+    pq.vpCurrentTimeSec = Number.isFinite(v.currentTime) ? v.currentTime : 0;
   }
 
   /**
@@ -1455,10 +1567,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       v.pause();
       if (v.duration && !isNaN(v.duration) && v.duration > 0) {
         v.currentTime = Math.max(0, v.duration - 0.001);
+        pq.vpCurrentTimeSec = v.duration;
       }
     } catch {
       /* ignore */
     }
+    this.pushTutorTurnPromptForSpeak(this.speakTargetCaptionForQuestion(pq));
   }
 
   /** Dim layer over the video so copy + buttons read clearly on top of the last frame. */
@@ -1479,6 +1593,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq?.data?.type === 'video-pronunciation') {
       pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
       pq.vpPlaybackEnded = false;
+      pq.vpCurrentTimeSec = 0;
     }
     this.clearVpFeedbackUi();
     const v = this.vpVideoElement;
@@ -1494,12 +1609,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     if (pq.isRecording) return;
-
-    // Video-only flow: simulate listening (no real mic capture/checking).
-    if (this.isVideoOnlyExercise) {
-      this.handleVideoOnlyTapToSpeak(pq);
-      return;
-    }
 
     if (!this.speechSupported) {
       this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
@@ -1520,7 +1629,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     // ── Helper: compute pronunciation score (kept for teacher analytics) ──
     const computeScore = (transcript: string): number => {
       const best = transcript.toLowerCase().trim();
-      const target = (pq.data.caption || '').toLowerCase().trim();
+      const target = this.speakTargetCaptionForQuestion(pq).toLowerCase().trim();
       const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
       if ([target, ...variants].some(a => a === best)) return 100;
       let s = Math.round(this.calculateStringSimilarity(best, target) * 100);
@@ -1538,10 +1647,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.hasRecorded = true;
       pq.pronunciationScore = computeScore(pq.vpSpokenText || '');
 
-      const isCorrect = pq.pronunciationScore >= DigitalExercisePlayerComponent.VP_PASS_SCORE;
+      const passThreshold = this.videoPassThresholdForQuestion(pq);
+      const isCorrect = pq.pronunciationScore >= passThreshold;
       pq.vpResult = isCorrect ? 'correct' : 'incorrect';
       if (!isCorrect) pq.vpFailCount = (pq.vpFailCount || 0) + 1;
       this.markAttempted(pq);
+      if (this.isVideoOnlyExercise) {
+        this.pushVpChat('user', pq.vpSpokenText || '', { isCorrect, score: pq.pronunciationScore || 0 });
+        this.pushVpChat('tutor', isCorrect ? 'Okay' : `Not quite — target is ${passThreshold}%+. Choose retry or next clip.`);
+      }
 
       if (isCorrect) {
         if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
@@ -1568,60 +1682,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     rec.start();
   }
 
-  /** Video-only flow: tapping Speak simulates listening, then accepts attempt as correct. */
-  handleVideoOnlyTapToSpeak(pq: PlayerQuestion): void {
-    if (!this.isVideoOnlyExercise || this.state === 'submitted' || this.finishingAll || this.submitting) return;
-    if (pq.data?.type !== 'video-pronunciation' || !pq.vpPlaybackEnded) return;
-    if (pq.vpAutoAdvanceTimer) return; // already queued
-
-    // Show "listening" UI for 3s (center + chat thread)
-    pq.isRecording = true;
-    pq.vpResult = 'idle';
-    this.clearVpFeedbackUi();
-    setTimeout(() => this.scrollVpChatToBottom(), 0);
-
-    pq.vpAutoAdvanceTimer = setTimeout(() => {
-      pq.vpAutoAdvanceTimer = undefined;
-      pq.isRecording = false;
-      pq.vpResult = 'correct';
-      pq.hasRecorded = true;
-      // Student gets full mark for tap-to-speak attempt in video-only flow.
-      pq.pronunciationScore = 100;
-      // Store the prompted phrase as what was spoken for review/chat consistency.
-      pq.vpSpokenText = (pq.data?.caption || '').trim() || 'Attempted';
-      this.markAttempted(pq);
-      this.pushVpChat('user', pq.vpSpokenText || '', { isCorrect: true, score: 100 });
-      this.advanceClipAfterAttempt(pq);
-    }, 3000);
-  }
-
-  /**
-   * Advance to the next clip after an attempt (video-only, attempt-based flow).
-   * Called automatically after the simulated listening delay.
-   * The clip is submitted as-is and the exercise proceeds regardless of score.
-   */
-  private advanceClipAfterAttempt(pq: PlayerQuestion): void {
-    if (this.state === 'submitted') return;
-    pq.vpAutoAdvanceTimer = undefined;
-    this.clearVpFeedbackUi();
-
-    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
-
-    if (isLastClip) {
-      // Bulk-submit everything and show the result screen
-      this.vpOptimisticCompletion = true;
-      pq.isCorrect = true;
-      this.result = this.buildProvisionalVideoOnlyResult();
-      this.stopTimer();
-      this.state = 'submitted';
-      this.submitCurrentQuestion();
-    } else {
-      // Submit this clip then move on
-      this.submitCurrentQuestion();
-      setTimeout(() => this.nextQuestion(), 300);
-    }
-  }
-
   retryVideoPronunciation(pq: PlayerQuestion): void {
     pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
     this.clearVpFeedbackUi();
@@ -1635,31 +1695,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * True when the Skip button should be visible for the current clip:
-   * - video-only exercise
-   * - student has had ≥ 2 failed attempts (incorrect result OR speech errors)
-   * - clip is not already graded correct
-   * - not currently recording
+   * Continue after an incorrect attempt: keep student's spoken text/score,
+   * submit this clip as-is, then move forward.
    */
-  get showVpSkipButton(): boolean {
-    if (!this.isVideoOnlyExercise || this.state !== 'playing') return false;
-    const pq = this.currentQuestion;
-    if (!pq || pq.data?.type !== 'video-pronunciation') return false;
-    if (pq.isCorrect === true) return false;
-    if (pq.isRecording) return false;
-    return (pq.vpFailCount || 0) >= 2;
-  }
-
-  /**
-   * Skip the current clip: submit it as-is (score 0 / incorrect) then advance.
-   * The clip is counted as "attempted" so the exercise can still complete.
-   */
-  skipVpClip(): void {
+  goToNextClipAfterIncorrect(): void {
     if (this.submitting || this.finishingAll) return;
     const pq = this.currentQuestion;
     if (!pq) return;
 
-    // Mark as attempted with 0 score so the backend grades it as incorrect
+    // Keep what student said visible in chat/review; if somehow empty, submit as 0%.
     pq.vpSpokenText = pq.vpSpokenText || '';
     pq.pronunciationScore = pq.pronunciationScore || 0;
     pq.vpResult = 'idle';
@@ -1670,16 +1714,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
 
     if (isLastClip) {
-      // Last clip — bulk-submit everything and show result
+      // Last clip — submit full exercise
       this.finishVideoExercise();
     } else {
-      // Submit this clip individually then advance
+      // Submit this clip then advance
       this.submitCurrentQuestion();
       setTimeout(() => this.nextQuestion(), 300);
-    }
-
-    if (this.isVideoOnlyExercise) {
-      this.pushVpChat('tutor', 'Skipping to the next clip — you can always come back and practise more!');
     }
   }
 

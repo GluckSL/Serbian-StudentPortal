@@ -50,6 +50,8 @@ interface BuilderQuestion {
   // Video Pronunciation
   videoUrl?: string;
   caption?: string;
+  secondaryCaption?: string;
+  secondaryCaptionAtSeconds?: number;
   videoUploading?: boolean;
   // Common
   points: number;
@@ -241,6 +243,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       Object.assign(base, {
         videoUrl: q.videoUrl || '',
         caption: q.caption || '',
+        secondaryCaption: q.secondaryCaption || '',
+        secondaryCaptionAtSeconds: this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds),
         acceptedVariants: [...(q.acceptedVariants || [])]
       });
     } else if (q.type === 'listening') {
@@ -442,6 +446,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     return 70;
   }
 
+  private normalizeSecondaryCaptionDelaySeconds(raw: any): number {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 5;
+    return Math.max(0, Math.min(600, Math.round(n)));
+  }
+
   // ─── Question attachment helpers ───────────────────────────────────────────
 
   triggerAttachmentFile(q: BuilderQuestion): void {
@@ -581,6 +591,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       context: '',
       videoUrl: '',
       caption: '',
+      secondaryCaption: '',
+      secondaryCaptionAtSeconds: 5,
       acceptedVariants: [],
       points: 1,
       attachmentUrl: '',
@@ -792,7 +804,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.saving = true;
     const normalizedQuestions = this.questions.map((q) => ({
       ...q,
-      context: String(q.context || '').trim()
+      context: String(q.context || '').trim(),
+      secondaryCaption: q.type === 'video-pronunciation' ? String(q.secondaryCaption || '').trim() : q.secondaryCaption,
+      secondaryCaptionAtSeconds: q.type === 'video-pronunciation'
+        ? this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds)
+        : q.secondaryCaptionAtSeconds
     }));
 
     const payload: Partial<DigitalExercise> = {

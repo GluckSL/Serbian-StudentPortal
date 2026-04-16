@@ -21,6 +21,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
 const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "dashboard",
+  "analytic-dash",
   "students",
   "student-logs",
   "teachers",
@@ -38,8 +39,11 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "student-progress",
   "payments",
   "invoices",
+  "payment-approvals",
   "timetable",
   "monday-sync",
+  "support-tickets",
+  "help",
   "profile"
 ];
 const ALLOWED_ACCESS_LEVELS = ["view", "edit", "full"];

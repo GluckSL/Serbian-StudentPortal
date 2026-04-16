@@ -121,6 +121,8 @@ const DigitalExerciseSchema = new mongoose.Schema({
     // Video pronunciation (watch clip, speak caption)
     videoUrl: String,
     caption: String,
+    secondaryCaption: String,
+    secondaryCaptionAtSeconds: { type: Number, default: 5 },
     // Common
     points: { type: Number, default: 1 },
     // Per-question attachment (image, audio, PDF, video) visible only for this question
