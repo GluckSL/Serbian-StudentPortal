@@ -99,4 +99,28 @@ export class AnnouncementService {
       { withCredentials: true }
     );
   }
+
+  update(
+    announcementId: string,
+    payload: {
+      deliveryType: AnnouncementDeliveryType;
+      title: string;
+      body: string;
+      targetBatches: string[];
+      emailSubject?: string;
+      emailBody?: string;
+    }
+  ): Observable<{ success: boolean; data: AnnouncementItem; message?: string }> {
+    return this.http.put<{ success: boolean; data: AnnouncementItem; message?: string }>(
+      `${this.apiUrl}/${announcementId}`,
+      payload,
+      { withCredentials: true }
+    );
+  }
+
+  delete(announcementId: string): Observable<{ success: boolean; message?: string }> {
+    return this.http.delete<{ success: boolean; message?: string }>(`${this.apiUrl}/${announcementId}`, {
+      withCredentials: true
+    });
+  }
 }

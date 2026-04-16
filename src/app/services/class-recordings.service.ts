@@ -8,6 +8,10 @@ export interface ClassRecording {
   title: string;
   description: string;
   videoUrl: string;
+  sourceType?: 'URL' | 'HLS_UPLOAD';
+  status?: 'processing' | 'ready' | 'failed' | 'missing';
+  hlsKey?: string | null;
+  errorMessage?: string | null;
   batches: string[];
   level: string;
   plan: string;
@@ -29,6 +33,16 @@ export interface AdminClassRecording extends ClassRecording {
   r2Key?: string | null;
   isPublished?: boolean;
   publishedAt?: string | null;
+}
+
+export interface ManualUploadStatusResponse {
+  success: boolean;
+  recordingId: string;
+  sourceType: 'URL' | 'HLS_UPLOAD';
+  status: 'processing' | 'ready' | 'failed';
+  errorMessage: string | null;
+  hlsReady: boolean;
+  createdAt: string;
 }
 
 export interface ZoomWebhookAuditRow {
@@ -142,6 +156,14 @@ export class ClassRecordingsService {
     return this.http.post<any>(this.url, data, { withCredentials: true });
   }
 
+  createFromUpload(formData: FormData): Observable<{
+    success: boolean;
+    message: string;
+    recordingId: string;
+  }> {
+    return this.http.post<any>(`${this.url}/upload`, formData, { withCredentials: true });
+  }
+
   update(id: string, data: any): Observable<{ success: boolean; recording: ClassRecording }> {
     return this.http.put<any>(`${this.url}/${id}`, data, { withCredentials: true });
   }
@@ -165,6 +187,17 @@ export class ClassRecordingsService {
 
   getViews(recordingId: string): Observable<{ success: boolean; views: any[] }> {
     return this.http.get<any>(`${this.url}/${recordingId}/views`, { withCredentials: true });
+  }
+
+  getManualUploadStatus(recordingId: string): Observable<ManualUploadStatusResponse> {
+    return this.http.get<ManualUploadStatusResponse>(
+      `${this.url}/${recordingId}/upload-status`,
+      { withCredentials: true }
+    );
+  }
+
+  getManualHlsPlaylistUrl(recordingId: string): string {
+    return `${this.url}/${recordingId}/hls/playlist`;
   }
 
   getZoomViews(meetingLinkId: string): Observable<{

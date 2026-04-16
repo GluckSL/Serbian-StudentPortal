@@ -45,6 +45,9 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   webhookAuditSummary: Record<string, number> = {};
   showForm = false;
   editing: ClassRecording | null = null;
+  saving = false;
+  selectedVideoFile: File | null = null;
+  private manualUploadPollTimer: ReturnType<typeof setInterval> | null = null;
 
   form = { title: '', description: '', videoUrl: '', batches: [] as string[], level: 'A1', plan: 'ALL' };
 
@@ -161,6 +164,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.stopBackfillPolling();
     this.stopProcessingClock();
+    this.stopManualUploadPolling();
   }
 
   private startProcessingClock(): void {
@@ -239,6 +243,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   openForm(recording?: ClassRecording): void {
+    this.selectedVideoFile = null;
     if (recording) {
       this.editing = recording;
       this.form = {
@@ -256,11 +261,66 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.showForm = true;
   }
 
-  closeForm(): void { this.showForm = false; this.editing = null; }
+  closeForm(): void {
+    this.showForm = false;
+    this.editing = null;
+    this.selectedVideoFile = null;
+    this.saving = false;
+  }
+
+  onVideoFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] || null;
+    this.selectedVideoFile = file;
+    if (file) {
+      // Upload flow uses file conversion pipeline; URL is ignored when file is selected.
+      this.form.videoUrl = '';
+    }
+  }
 
   save(): void {
-    if (!this.form.title || !this.form.videoUrl || !this.form.level || this.form.batches.length === 0) {
-      this.snackBar.open('Please fill title, video URL, level, and select at least one batch', 'Close', { duration: 3000 });
+    if (this.saving) return;
+    const isCreate = !this.editing;
+    const hasUploadFile = Boolean(this.selectedVideoFile);
+    const hasVideoUrl = Boolean((this.form.videoUrl || '').trim());
+
+    if (!this.form.title || !this.form.level || this.form.batches.length === 0) {
+      this.snackBar.open('Please fill title, level, and select at least one batch', 'Close', { duration: 3000 });
+      return;
+    }
+    if (isCreate && !hasUploadFile && !hasVideoUrl) {
+      this.snackBar.open('Provide either a video URL or upload a video file', 'Close', { duration: 3000 });
+      return;
+    }
+
+    if (isCreate && hasUploadFile && this.selectedVideoFile) {
+      const fd = new FormData();
+      fd.append('title', this.form.title);
+      fd.append('description', this.form.description || '');
+      fd.append('level', this.form.level);
+      fd.append('plan', this.form.plan || 'ALL');
+      fd.append('batches', this.form.batches.join(','));
+      fd.append('video', this.selectedVideoFile);
+
+      this.saving = true;
+      this.service.createFromUpload(fd).subscribe({
+        next: (res) => {
+          this.saving = false;
+          this.snackBar.open('Upload started. Video is converting to HLS in background.', 'Close', { duration: 4500 });
+          this.closeForm();
+          this.loadRecordings();
+          if (res.recordingId) this.startManualUploadPolling(res.recordingId);
+        },
+        error: (err) => {
+          this.saving = false;
+          this.snackBar.open(err.error?.message || 'Upload failed', 'Close', { duration: 3000 });
+        }
+      });
+      return;
+    }
+
+    if (!hasVideoUrl && this.editing?.sourceType !== 'HLS_UPLOAD') {
+      this.snackBar.open('Please provide video URL', 'Close', { duration: 3000 });
       return;
     }
 
@@ -268,14 +328,45 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       ? this.service.update(this.editing._id, this.form)
       : this.service.create(this.form);
 
+    this.saving = true;
     obs.subscribe({
       next: () => {
+        this.saving = false;
         this.snackBar.open(this.editing ? 'Recording updated' : 'Recording created', 'Close', { duration: 3000 });
         this.closeForm();
         this.loadRecordings();
       },
-      error: (err) => this.snackBar.open(err.error?.message || 'Error saving', 'Close', { duration: 3000 })
+      error: (err) => {
+        this.saving = false;
+        this.snackBar.open(err.error?.message || 'Error saving', 'Close', { duration: 3000 });
+      }
     });
+  }
+
+  private startManualUploadPolling(recordingId: string): void {
+    this.stopManualUploadPolling();
+    this.manualUploadPollTimer = setInterval(() => {
+      this.service.getManualUploadStatus(recordingId).subscribe({
+        next: (s) => {
+          if (s.status === 'processing') return;
+          this.stopManualUploadPolling();
+          if (s.status === 'ready') {
+            this.snackBar.open('Video converted to HLS and is now ready.', 'Close', { duration: 5000 });
+          } else {
+            this.snackBar.open(s.errorMessage || 'Video conversion failed.', 'Close', { duration: 7000 });
+          }
+          this.loadRecordings();
+        },
+        error: () => { /* ignore poll errors */ }
+      });
+    }, 5000);
+  }
+
+  private stopManualUploadPolling(): void {
+    if (this.manualUploadPollTimer) {
+      clearInterval(this.manualUploadPollTimer);
+      this.manualUploadPollTimer = null;
+    }
   }
 
   deleteRecording(r: ClassRecording): void {
@@ -438,7 +529,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   isProcessingRecording(r: AdminClassRecording): boolean {
-    return this.isZoomRecording(r) && r.status === 'processing';
+    return r.status === 'processing';
   }
 
   getProcessingElapsedText(r: AdminClassRecording): string {

@@ -253,8 +253,15 @@
         <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3">
       </div>
       <div class="cr-field">
-        <label>Video URL * <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
-        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=...">
+        <label>Upload Video <span class="cr-hint-inline">(MP4/MOV/M4V/WEBM/OGG)</span></label>
+        <input class="cr-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.ogg" (change)="onVideoFileSelected($event)" [disabled]="!!editing">
+        <p class="cr-hint" *ngIf="selectedVideoFile">Selected: {{ selectedVideoFile.name }}</p>
+        <p class="cr-hint" *ngIf="editing">Video file upload is available while creating new recordings.</p>
+      </div>
+      <div class="cr-field" *ngIf="!editing || editing.sourceType !== 'HLS_UPLOAD'">
+        <label>Video URL <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
+        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=..." [disabled]="!!selectedVideoFile">
+        <p class="cr-hint" *ngIf="selectedVideoFile">Video URL is ignored because a file upload is selected.</p>
       </div>
       <div class="cr-field">
         <label>Description</label>
@@ -288,8 +295,8 @@
     </div>
     <div class="cr-modal__foot">
       <button class="cr-btn cr-btn--outline" (click)="closeForm()">Cancel</button>
-      <button class="cr-btn cr-btn--primary" (click)="save()">
-        {{ editing ? 'Update' : 'Create' }}
+      <button class="cr-btn cr-btn--primary" (click)="save()" [disabled]="saving">
+        {{ saving ? 'Saving...' : (editing ? 'Update' : 'Create') }}
       </button>
     </div>
   </div>

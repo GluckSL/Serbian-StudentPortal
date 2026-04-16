@@ -149,7 +149,9 @@
   <section class="ann-history">
     <div class="ann-list-head">
       <h2>All Announcements</h2>
-      <button type="button" (click)="loadAnnouncements()">Refresh</button>
+      <button type="button" [disabled]="refreshing" (click)="refreshAnnouncements()">
+        {{ refreshing ? 'Refreshing...' : 'Refresh' }}
+      </button>
     </div>
 
     <p *ngIf="loading">Loading announcements...</p>
@@ -166,6 +168,24 @@
         <span>Batches: {{ item.targetBatches.join(', ') }}</span>
         <span *ngIf="item.createdBy?.name">By: {{ item.createdBy?.name }}</span>
       </div>
+      <div class="ann-actions">
+        <button
+          type="button"
+          class="ann-action ann-action--edit"
+          [disabled]="actionAnnouncementId === item._id"
+          (click)="editAnnouncement(item)"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          class="ann-action ann-action--delete"
+          [disabled]="actionAnnouncementId === item._id"
+          (click)="deleteAnnouncement(item)"
+        >
+          {{ actionAnnouncementId === item._id ? 'Working...' : 'Delete' }}
+        </button>
+      </div>
       <div class="ann-files" *ngIf="item.attachments?.length">
         <a *ngFor="let file of item.attachments" [href]="file.fileUrl" target="_blank" rel="noreferrer">
           {{ file.fileName }}
@@ -173,4 +193,39 @@
       </div>
     </div>
   </section>
+
+  <div class="ann-modal-backdrop" *ngIf="editModalOpen">
+    <div class="ann-modal" role="dialog" aria-modal="true" aria-label="Edit Announcement">
+      <div class="ann-modal__head">
+        <h3>Edit Announcement</h3>
+        <button type="button" class="ann-modal__close" [disabled]="!!actionAnnouncementId" (click)="closeEditModal()">
+          ✕
+        </button>
+      </div>
+
+      <div class="ann-field">
+        <label>Title</label>
+        <input type="text" maxlength="150" [(ngModel)]="editForm.title" />
+      </div>
+
+      <div class="ann-field">
+        <label>Body</label>
+        <textarea rows="7" maxlength="5000" [(ngModel)]="editForm.body"></textarea>
+      </div>
+
+      <div class="ann-field">
+        <label>Target Batches (comma separated)</label>
+        <input type="text" [(ngModel)]="editForm.targetBatchesText" placeholder="e.g. 100, 101A" />
+      </div>
+
+      <div class="ann-modal__actions">
+        <button type="button" class="ann-modal__btn ann-modal__btn--cancel" [disabled]="!!actionAnnouncementId" (click)="closeEditModal()">
+          Cancel
+        </button>
+        <button type="button" class="ann-modal__btn ann-modal__btn--save" [disabled]="!!actionAnnouncementId" (click)="saveEditedAnnouncement()">
+          {{ actionAnnouncementId ? 'Saving...' : 'Save Changes' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </div>

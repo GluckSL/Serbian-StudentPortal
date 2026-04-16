@@ -47,6 +47,9 @@ export interface DisplayRecording {
   plan?: string;
   uploadedBy?: string;
   meetingLinkId?: string;
+  manualSourceType?: 'URL' | 'HLS_UPLOAD';
+  manualStatus?: 'processing' | 'ready' | 'failed' | 'missing';
+  manualErrorMessage?: string | null;
 }
 
 @Component({
@@ -131,6 +134,9 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         level: r.level,
         plan: r.plan,
         uploadedBy: r.uploadedBy?.name,
+        manualSourceType: r.sourceType || 'URL',
+        manualStatus: r.status || 'ready',
+        manualErrorMessage: r.errorMessage || null,
       }));
 
       const zoomItems: DisplayRecording[] = (zoom.recordings || []).map((r: BatchZoomRecording) => ({
@@ -271,6 +277,22 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
     if (recording.type === 'manual') {
       this.startWatching(recording.id);
+      if (recording.manualSourceType === 'HLS_UPLOAD') {
+        if (recording.manualStatus === 'processing') {
+          this.playerLoading = false;
+          this.playerError = 'Recording upload is still being processed. Please check again shortly.';
+          return;
+        }
+        if (recording.manualStatus === 'failed') {
+          this.playerLoading = false;
+          this.playerError = recording.manualErrorMessage || 'Recording conversion failed. Please contact support.';
+          return;
+        }
+        this.playerLoading = false;
+        this.playerKind = 'video';
+        this.applyZoomUrl(this.service.getManualHlsPlaylistUrl(recording.id), true);
+        return;
+      }
       const manualUrl = recording.videoUrl || '';
       if (!manualUrl) {
         this.playerLoading = false;
