@@ -1065,9 +1065,10 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
     } else if (q.type === 'video-pronunciation') {
       const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
-      isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
+      const threshold = normalizeThresholdForQuestion(q);
+      isCorrect = score >= threshold;
       pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
-      correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+      correctAnswer = { ...(correctAnswer || {}), score, threshold, aiGradingEnabled: false };
     } else {
       isCorrect = rawScore >= 100;
       pointsEarned = isCorrect ? (q.points || 1) : 0;
@@ -1291,9 +1292,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
       } else if (q.type === 'video-pronunciation') {
         const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
-        isCorrect = score >= VIDEO_PRONUNCIATION_PASS_SCORE;
+        const threshold = normalizeThresholdForQuestion(q);
+        isCorrect = score >= threshold;
         pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
-        correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+        correctAnswer = { ...(correctAnswer || {}), score, threshold, aiGradingEnabled: false };
       } else {
         isCorrect = rawScore >= 100;
         pointsEarned = isCorrect ? (q.points || 1) : 0;

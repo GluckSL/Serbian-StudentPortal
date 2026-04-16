@@ -3060,6 +3060,16 @@
   line-height: 1.3;
 }
 
+.vp-chat-lesson-pill--highlight {
+  background: #111111;
+  border-color: #111111;
+}
+
+.vp-chat-lesson-pill--highlight .material-icons,
+.vp-chat-lesson-pill--highlight .vp-chat-lesson-text {
+  color: #facc15;
+}
+
 .vp-chat-lesson-pill .material-icons {
   font-size: 1.15rem;
   color: #c2410c;
@@ -3219,6 +3229,22 @@
   max-width: 100%;
 }
 
+.vp-chat-bubble--your-turn {
+  background: #ecfdf5;
+  border-color: #86efac;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.12);
+}
+
+.vp-chat-bubble--clip-watch {
+  background: #111111;
+  border-color: #111111;
+}
+
+.vp-chat-bubble--intro {
+  background: #111111;
+  border-color: #111111;
+}
+
 .vp-chat-bubble--listening-chat {
   padding: 7px 11px;
   border-color: #fdba74;
@@ -3243,6 +3269,26 @@
   line-height: 1.38;
   color: #1c1917;
   font-weight: 500;
+}
+
+.vp-chat-bubble-text--your-turn {
+  color: #166534;
+  font-weight: 700;
+}
+
+.vp-chat-bubble-text--clip-watch {
+  color: #facc15;
+  font-weight: 700;
+}
+
+.vp-chat-bubble-text--intro {
+  color: #facc15;
+  font-weight: 700;
+}
+
+.vp-chat-caption-value {
+  color: #16a34a;
+  font-weight: 800;
 }
 
 .vp-chat-bubble-text--listening {

@@ -217,6 +217,13 @@
                 min="0" max="600" step="1" />
             </div>
 
+            <div class="vew-field vew-field--inline">
+              <label class="vew-label">Match % to mark correct</label>
+              <input type="number" [(ngModel)]="clip.similarityThreshold"
+                class="vew-input vew-input--sm vew-input--points"
+                min="0" max="100" step="1" />
+            </div>
+
             <div class="vew-field">
               <label class="vew-label">Accepted Variants <span class="vew-optional">optional</span></label>
               <p class="vew-field-hint">Alternative pronunciations that are also accepted.</p>

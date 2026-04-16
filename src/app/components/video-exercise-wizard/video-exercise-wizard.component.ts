@@ -14,6 +14,7 @@ interface VideoClip {
   caption: string;
   secondaryCaption: string;
   secondaryCaptionAtSeconds: number;
+  similarityThreshold: number;
   acceptedVariants: string[];
   videoUploading: boolean;
   points: number;
@@ -112,6 +113,7 @@ export class VideoExerciseWizardComponent {
       caption: '',
       secondaryCaption: '',
       secondaryCaptionAtSeconds: 5,
+      similarityThreshold: 20,
       acceptedVariants: [],
       videoUploading: false,
       points: 1
@@ -275,6 +277,7 @@ export class VideoExerciseWizardComponent {
         caption: c.caption,
         secondaryCaption: c.secondaryCaption.trim(),
         secondaryCaptionAtSeconds: Math.max(0, Math.min(600, Math.round(Number(c.secondaryCaptionAtSeconds) || 5))),
+        similarityThreshold: Math.max(0, Math.min(100, Math.round(Number(c.similarityThreshold) || 20))),
         acceptedVariants: c.acceptedVariants.filter(v => v.trim()),
         points: c.points
       })),
