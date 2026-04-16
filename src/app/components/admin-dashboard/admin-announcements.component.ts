@@ -40,6 +40,16 @@ export class AdminAnnouncementsComponent implements OnInit {
   loading = false;
   saving = false;
   announcements: AnnouncementItem[] = [];
+  refreshing = false;
+  actionAnnouncementId = '';
+  editModalOpen = false;
+  editForm = {
+    id: '',
+    deliveryType: 'website' as AnnouncementDeliveryType,
+    title: '',
+    body: '',
+    targetBatchesText: ''
+  };
 
   constructor(
     private http: HttpClient,
@@ -83,6 +93,21 @@ export class AdminAnnouncementsComponent implements OnInit {
       error: () => {
         this.loading = false;
         this.notify.error('Failed to load announcements.');
+      }
+    });
+  }
+
+  refreshAnnouncements(): void {
+    this.refreshing = true;
+    this.announcementService.getAll().subscribe({
+      next: (res) => {
+        this.announcements = res?.data || [];
+        this.refreshing = false;
+        this.notify.success('Announcements refreshed.');
+      },
+      error: () => {
+        this.refreshing = false;
+        this.notify.error('Failed to refresh announcements.');
       }
     });
   }
@@ -230,6 +255,81 @@ export class AdminAnnouncementsComponent implements OnInit {
 
   saveDraftPlaceholder(): void {
     this.notify.info('Draft flow can be added next.');
+  }
+
+  editAnnouncement(item: AnnouncementItem): void {
+    this.editForm = {
+      id: item._id,
+      deliveryType: item.deliveryType,
+      title: item.title || '',
+      body: item.body || '',
+      targetBatchesText: (item.targetBatches || []).join(', ')
+    };
+    this.editModalOpen = true;
+  }
+
+  closeEditModal(): void {
+    if (this.actionAnnouncementId) return;
+    this.editModalOpen = false;
+  }
+
+  saveEditedAnnouncement(): void {
+    const targetBatches = String(this.editForm.targetBatchesText || '')
+      .split(',')
+      .map((batch) => batch.trim())
+      .filter(Boolean);
+    if (!targetBatches.length) {
+      this.notify.warning('At least one target batch is required.');
+      return;
+    }
+
+    const payload = {
+      deliveryType: this.editForm.deliveryType,
+      title: String(this.editForm.title || '').trim(),
+      body: String(this.editForm.body || '').trim(),
+      targetBatches,
+      emailSubject: this.editForm.deliveryType === 'website_email' ? String(this.editForm.title || '').trim() : '',
+      emailBody: this.editForm.deliveryType === 'website_email' ? String(this.editForm.body || '').trim() : ''
+    };
+
+    if (!payload.title || !payload.body) {
+      this.notify.warning('Title and body are required.');
+      return;
+    }
+
+    this.actionAnnouncementId = this.editForm.id;
+    this.announcementService.update(this.editForm.id, payload).subscribe({
+      next: () => {
+        this.actionAnnouncementId = '';
+        this.editModalOpen = false;
+        this.notify.success('Announcement updated.');
+        this.loadAnnouncements();
+      },
+      error: (err) => {
+        this.actionAnnouncementId = '';
+        this.notify.error(err?.error?.message || 'Failed to update announcement.');
+      }
+    });
+  }
+
+  deleteAnnouncement(item: AnnouncementItem): void {
+    const shouldDelete = window.confirm(
+      `Delete announcement "${item.title}"?\n\nThis will also remove it from student announcements.`
+    );
+    if (!shouldDelete) return;
+
+    this.actionAnnouncementId = item._id;
+    this.announcementService.delete(item._id).subscribe({
+      next: () => {
+        this.actionAnnouncementId = '';
+        this.announcements = this.announcements.filter((a) => a._id !== item._id);
+        this.notify.success('Announcement deleted.');
+      },
+      error: (err) => {
+        this.actionAnnouncementId = '';
+        this.notify.error(err?.error?.message || 'Failed to delete announcement.');
+      }
+    });
   }
 
   private resetForm(): void {

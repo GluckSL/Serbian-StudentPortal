@@ -473,6 +473,117 @@
   font-size: 0.8rem;
 }
 
+.ann-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.ann-action {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ann-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.ann-action--edit:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: #818cf8;
+  color: #3730a3;
+}
+
+.ann-action--delete:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.ann-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 2000;
+  padding: 16px;
+}
+
+.ann-modal {
+  width: min(700px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+  padding: 14px;
+}
+
+.ann-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ann-modal__head h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.ann-modal__close {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.ann-modal__actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ann-modal__btn {
+  border-radius: 8px;
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ann-modal__btn:disabled,
+.ann-modal__close:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.ann-modal__btn--cancel {
+  background: #fff;
+  color: #111827;
+}
+
+.ann-modal__btn--save {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+
 .ann-files {
   margin-top: 8px;
   display: flex;

@@ -59,7 +59,7 @@ class ZoomService {
         topic,
         startTime,
         duration,
-        timezone = 'Asia/Colombo',
+        timezone = 'Asia/Kolkata',
         agenda,
         settings = {}
       } = meetingData;

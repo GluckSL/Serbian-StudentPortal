@@ -20,6 +20,8 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       plan,
       topic,
       startTime,
+      startTimes,
+      scheduleMode,
       duration,
       timezone,
       agenda,
@@ -29,14 +31,23 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       courseDay   // Optional: day in the 200-day journey
     } = req.body;
 
-    console.log('📝 Creating Zoom meeting for batch:', batch);
+    const requestedStartTimes = (Array.isArray(startTimes) && startTimes.length > 0)
+      ? startTimes
+      : (startTime ? [startTime] : []);
+    const normalizedStartTimes = [...new Set(requestedStartTimes)]
+      .filter((t) => typeof t === 'string' && t.length >= 16)
+      .sort();
+
+    console.log('📝 Creating Zoom meeting(s) for batch:', batch);
+    console.log('📅 Schedule mode:', scheduleMode || 'single');
+    console.log('🕒 Start slots:', normalizedStartTimes);
     console.log('👥 Selected students:', studentIds);
 
     // Validate required fields
-    if (!batch || !plan || !topic || !startTime || !studentIds || studentIds.length === 0 || !teacherId || !zoomHostEmail) {
+    if (!batch || !plan || !topic || normalizedStartTimes.length === 0 || !studentIds || studentIds.length === 0 || !teacherId || !zoomHostEmail) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: batch, plan, topic, startTime, studentIds, teacherId, and zoomHostEmail are required'
+        message: 'Missing required fields: batch, plan, topic, startTime/startTimes, studentIds, teacherId, and zoomHostEmail are required'
       });
     }
 
@@ -44,34 +55,6 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     const teacher = await User.findById(teacherId).select('email name role');
     if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
-    }
-
-    // Overlap detection: check if this zoom host already has a meeting at this time
-    const meetingStart = new Date(startTime);
-    const meetingEnd = new Date(meetingStart.getTime() + (duration || 60) * 60000);
-
-    const overlap = await MeetingLink.findOne({
-      hostEmail: zoomHostEmail,
-      status: { $ne: 'cancelled' },
-      startTime: { $lt: meetingEnd },
-      $expr: {
-        $gt: [
-          { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
-          meetingStart
-        ]
-      }
-    });
-
-    if (overlap) {
-      const err = new Error(`Zoom account "${zoomHostEmail}" is already booked for "${overlap.topic}" at this time.`);
-      err.statusCode = 409;
-      err.conflicts = [{
-        meetingId: overlap._id,
-        topic: overlap.topic,
-        startTime: overlap.startTime,
-        duration: overlap.duration
-      }];
-      throw err;
     }
 
     console.log('👨‍🏫 Teacher:', teacher.name, '— Zoom Host:', zoomHostEmail);
@@ -92,225 +75,241 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     }
 
     console.log(`✅ Found ${students.length} students`);
+    const createdMeetings = [];
+    const failedSchedules = [];
 
-    // Create Zoom meeting on the selected zoom account
-    const zoomResult = await zoomService.createMeeting({
-      topic,
-      startTime,
-      duration: duration || 60,
-      timezone: timezone || 'Asia/Colombo',
-      agenda: agenda || `German Language Class - Batch ${batch}`
-    }, zoomHostEmail);
+    for (const slotStartTime of normalizedStartTimes) {
+      try {
+        // Treat slotStartTime as local IST date-time string (YYYY-MM-DDTHH:mm)
+        const meetingStart = new Date(`${slotStartTime}:00+05:30`);
+        const meetingEnd = new Date(meetingStart.getTime() + (duration || 60) * 60000);
 
-    if (!zoomResult.success) {
-      throw new Error('Failed to create Zoom meeting');
-    }
-
-    const meeting = zoomResult.meeting;
-
-    console.log('✅ Zoom meeting created on account:', zoomHostEmail, meeting.id);
-
-    // Save meeting to database — all students share the same join URL (no registration)
-    const meetingLink = new MeetingLink({
-      batch,
-      plan,
-      platform: 'Zoom',
-      link: meeting.joinUrl,
-      topic: meeting.topic,
-      agenda: meeting.agenda,
-      startTime: new Date(meeting.startTime),
-      duration: meeting.duration,
-      timezone: meeting.timezone,
-      zoomMeetingId: meeting.id,
-      zoomPassword: meeting.password,
-      hostEmail: meeting.hostEmail,
-      startUrl: meeting.startUrl,
-      joinUrl: meeting.joinUrl,
-      createdBy: req.user.id,
-      assignedTeacher: teacherId,
-      courseDay: courseDay || null,
-      attendees: students.map(student => ({
-        studentId: student._id,
-        name: student.name,
-        email: student.email,
-        joinUrl: meeting.joinUrl // Same URL for all students
-      })),
-      status: 'scheduled',
-      reminderEmailSent: false,
-      emailNotificationStatus: {
-        attempted: 0,
-        successful: 0,
-        failed: 0,
-        allSent: false,
-        failedStudents: [],
-        lastAttempt: null
-      }
-    });
-
-    await meetingLink.save();
-
-    console.log('✅ Meeting saved to database (invitation emails deferred to ~10 min before start)');
-
-    // ✅ AUTO-LINK TO TIMETABLE: Find or create timetable slot
-    try {
-      const TimeTable = require('../models/TimeTable');
-      const meetingDate = new Date(meeting.startTime);
-      
-      // Get day of week (lowercase: monday, tuesday, etc.)
-      const dayOfWeek = meetingDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        timeZone: 'Asia/Colombo' 
-      }).toLowerCase();
-      
-      // Get time in HH:MM format
-      const meetingTime = meetingDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Colombo'
-      });
-
-      // Calculate end time (meeting start + duration)
-      const endDate = new Date(meetingDate.getTime() + meeting.duration * 60000);
-      const endTime = endDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Colombo'
-      });
-
-      console.log('🔍 Looking for timetable slot:', {
-        batch,
-        plan,
-        dayOfWeek,
-        meetingTime,
-        endTime,
-        meetingDate: meetingDate.toISOString()
-      });
-
-      // Find timetable that covers this date
-      let timetable = await TimeTable.findOne({
-        batch: batch,
-        plan: plan,
-        weekStartDate: { $lte: meetingDate },
-        weekEndDate: { $gte: meetingDate }
-      });
-
-      if (!timetable) {
-        // ✅ NO TIMETABLE EXISTS - CREATE ONE AUTOMATICALLY
-        console.log('📅 No timetable found - creating new timetable automatically...');
-        
-        // Calculate week start (Monday) and end (Sunday)
-        const dayOfWeekNum = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-        const daysToMonday = dayOfWeekNum === 0 ? -6 : 1 - dayOfWeekNum;
-        
-        const weekStartDate = new Date(meetingDate);
-        weekStartDate.setDate(meetingDate.getDate() + daysToMonday);
-        weekStartDate.setHours(0, 0, 0, 0);
-        
-        const weekEndDate = new Date(weekStartDate);
-        weekEndDate.setDate(weekStartDate.getDate() + 6);
-        weekEndDate.setHours(23, 59, 59, 999);
-
-        // Get teacher info for timetable
-        
-        // Get student info to determine medium and plan
-        const firstStudent = students[0];
-        console.log('👨‍🎓 Using first student for medium/plan:', firstStudent.name, firstStudent.medium, firstStudent.subscription);
-        
-        timetable = new TimeTable({
-          batch: batch,
-          medium: firstStudent.medium || 'English',
-          plan: plan,
-          weekStartDate: weekStartDate,
-          weekEndDate: weekEndDate,
-          assignedTeacher: teacherId,
-          [dayOfWeek]: [{
-            start: meetingTime,
-            end: endTime,
-            classStatus: 'Scheduled',
-            zoomMeetingId: meeting.id,
-            zoomJoinUrl: meeting.joinUrl,
-            zoomPassword: meeting.password,
-            meetingLinked: true
-          }]
+        const overlap = await MeetingLink.findOne({
+          hostEmail: zoomHostEmail,
+          status: { $ne: 'cancelled' },
+          startTime: { $lt: meetingEnd },
+          $expr: {
+            $gt: [
+              { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
+              meetingStart
+            ]
+          }
         });
 
-        await timetable.save();
-        console.log('✅ New timetable created automatically:', timetable._id);
-        console.log('   Week:', weekStartDate.toDateString(), 'to', weekEndDate.toDateString());
-        console.log('   Slot:', dayOfWeek, meetingTime, '-', endTime);
-        console.log('   Meeting linked automatically!');
-      } else {
-        // TIMETABLE EXISTS - FIND OR CREATE SLOT
-        console.log('✅ Found existing timetable:', timetable._id);
-        
-        // Check if this day has time slots
-        let daySlots = timetable[dayOfWeek];
-        
-        if (!daySlots || !Array.isArray(daySlots)) {
-          daySlots = [];
-          timetable[dayOfWeek] = daySlots;
-        }
-
-        // Find matching time slot
-        const slotIndex = daySlots.findIndex(slot => {
-          const slotTime = slot.start;
-          return slotTime === meetingTime || 
-                 Math.abs(new Date(`1970-01-01T${slotTime}`) - new Date(`1970-01-01T${meetingTime}`)) < 300000; // 5 min tolerance
-        });
-
-        if (slotIndex !== -1) {
-          // SLOT EXISTS - UPDATE IT
-          timetable[dayOfWeek][slotIndex].zoomMeetingId = meeting.id;
-          timetable[dayOfWeek][slotIndex].zoomJoinUrl = meeting.joinUrl;
-          timetable[dayOfWeek][slotIndex].zoomPassword = meeting.password;
-          timetable[dayOfWeek][slotIndex].meetingLinked = true;
-          
-          await timetable.save();
-          console.log('✅ Existing timetable slot updated with Zoom meeting info');
-        } else {
-          // NO MATCHING SLOT - CREATE NEW SLOT
-          console.log('📅 No matching slot found - adding new slot to timetable...');
-          
-          timetable[dayOfWeek].push({
-            start: meetingTime,
-            end: endTime,
-            classStatus: 'Scheduled',
-            zoomMeetingId: meeting.id,
-            zoomJoinUrl: meeting.joinUrl,
-            zoomPassword: meeting.password,
-            meetingLinked: true
+        if (overlap) {
+          failedSchedules.push({
+            startTime: slotStartTime,
+            message: `Zoom account "${zoomHostEmail}" is already booked for "${overlap.topic}" at this time.`,
+            conflicts: [{
+              meetingId: overlap._id,
+              topic: overlap.topic,
+              startTime: overlap.startTime,
+              duration: overlap.duration
+            }]
           });
-          
-          await timetable.save();
-          console.log('✅ New slot added to timetable:', dayOfWeek, meetingTime, '-', endTime);
-          console.log('   Meeting linked automatically!');
+          continue;
         }
+
+        const zoomResult = await zoomService.createMeeting({
+          topic,
+          startTime: slotStartTime,
+          duration: duration || 60,
+          timezone: timezone || 'Asia/Kolkata',
+          agenda: agenda || `German Language Class - Batch ${batch}`
+        }, zoomHostEmail);
+
+        if (!zoomResult.success) {
+          failedSchedules.push({
+            startTime: slotStartTime,
+            message: 'Failed to create Zoom meeting on Zoom API'
+          });
+          continue;
+        }
+
+        const meeting = zoomResult.meeting;
+
+        const meetingLink = new MeetingLink({
+          batch,
+          plan,
+          platform: 'Zoom',
+          link: meeting.joinUrl,
+          topic: meeting.topic,
+          agenda: meeting.agenda,
+          startTime: meetingStart,
+          duration: meeting.duration,
+          timezone: meeting.timezone,
+          zoomMeetingId: meeting.id,
+          zoomPassword: meeting.password,
+          hostEmail: meeting.hostEmail,
+          startUrl: meeting.startUrl,
+          joinUrl: meeting.joinUrl,
+          createdBy: req.user.id,
+          assignedTeacher: teacherId,
+          courseDay: courseDay || null,
+          attendees: students.map(student => ({
+            studentId: student._id,
+            name: student.name,
+            email: student.email,
+            joinUrl: meeting.joinUrl
+          })),
+          status: 'scheduled',
+          reminderEmailSent: false,
+          emailNotificationStatus: {
+            attempted: 0,
+            successful: 0,
+            failed: 0,
+            allSent: false,
+            failedStudents: [],
+            lastAttempt: null
+          }
+        });
+
+        await meetingLink.save();
+        createdMeetings.push({
+          meetingId: meetingLink._id,
+          zoomMeetingId: meeting.id,
+          topic: meeting.topic,
+          startTime: meeting.startTime,
+          duration: meeting.duration,
+          joinUrl: meeting.joinUrl,
+          startUrl: meeting.startUrl,
+          password: meeting.password,
+          attendeesCount: students.length,
+          attendees: students.map(s => ({ name: s.name, email: s.email }))
+        });
+
+        // AUTO-LINK TO TIMETABLE
+        try {
+          const TimeTable = require('../models/TimeTable');
+          const meetingDate = new Date(meeting.startTime);
+          const dayOfWeek = meetingDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            timeZone: 'Asia/Kolkata'
+          }).toLowerCase();
+          const meetingTime = meetingDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Kolkata'
+          });
+          const endDate = new Date(meetingDate.getTime() + meeting.duration * 60000);
+          const endTime = endDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Kolkata'
+          });
+
+          let timetable = await TimeTable.findOne({
+            batch: batch,
+            plan: plan,
+            weekStartDate: { $lte: meetingDate },
+            weekEndDate: { $gte: meetingDate }
+          });
+
+          if (!timetable) {
+            const dayOfWeekNum = meetingDate.getDay();
+            const daysToMonday = dayOfWeekNum === 0 ? -6 : 1 - dayOfWeekNum;
+
+            const weekStartDate = new Date(meetingDate);
+            weekStartDate.setDate(meetingDate.getDate() + daysToMonday);
+            weekStartDate.setHours(0, 0, 0, 0);
+
+            const weekEndDate = new Date(weekStartDate);
+            weekEndDate.setDate(weekStartDate.getDate() + 6);
+            weekEndDate.setHours(23, 59, 59, 999);
+
+            const firstStudent = students[0];
+
+            timetable = new TimeTable({
+              batch: batch,
+              medium: firstStudent.medium || 'English',
+              plan: plan,
+              weekStartDate: weekStartDate,
+              weekEndDate: weekEndDate,
+              assignedTeacher: teacherId,
+              [dayOfWeek]: [{
+                start: meetingTime,
+                end: endTime,
+                classStatus: 'Scheduled',
+                zoomMeetingId: meeting.id,
+                zoomJoinUrl: meeting.joinUrl,
+                zoomPassword: meeting.password,
+                meetingLinked: true
+              }]
+            });
+
+            await timetable.save();
+          } else {
+            let daySlots = timetable[dayOfWeek];
+            if (!daySlots || !Array.isArray(daySlots)) {
+              daySlots = [];
+              timetable[dayOfWeek] = daySlots;
+            }
+
+            const slotIndex = daySlots.findIndex(slot => {
+              const slotTime = slot.start;
+              return slotTime === meetingTime ||
+                Math.abs(new Date(`1970-01-01T${slotTime}`) - new Date(`1970-01-01T${meetingTime}`)) < 300000;
+            });
+
+            if (slotIndex !== -1) {
+              timetable[dayOfWeek][slotIndex].zoomMeetingId = meeting.id;
+              timetable[dayOfWeek][slotIndex].zoomJoinUrl = meeting.joinUrl;
+              timetable[dayOfWeek][slotIndex].zoomPassword = meeting.password;
+              timetable[dayOfWeek][slotIndex].meetingLinked = true;
+              await timetable.save();
+            } else {
+              timetable[dayOfWeek].push({
+                start: meetingTime,
+                end: endTime,
+                classStatus: 'Scheduled',
+                zoomMeetingId: meeting.id,
+                zoomJoinUrl: meeting.joinUrl,
+                zoomPassword: meeting.password,
+                meetingLinked: true
+              });
+              await timetable.save();
+            }
+          }
+        } catch (linkError) {
+          console.error('⚠️ Error linking to timetable (non-critical):', linkError.message);
+        }
+      } catch (slotError) {
+        failedSchedules.push({
+          startTime: slotStartTime,
+          message: slotError.message || 'Failed to create meeting for this slot'
+        });
       }
-    } catch (linkError) {
-      console.error('⚠️ Error linking to timetable (non-critical):', linkError.message);
-      // Don't fail the meeting creation if timetable linking fails
     }
+
+    if (createdMeetings.length === 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Could not create any meetings for the selected schedule.',
+        failedSchedules
+      });
+    }
+
+    const primaryMeeting = createdMeetings[0];
 
     res.status(201).json({
       success: true,
-      message: `Zoom meeting created successfully with ${students.length} attendees`,
+      message: `Created ${createdMeetings.length} meeting(s) successfully` +
+        (failedSchedules.length ? `, ${failedSchedules.length} failed.` : '.'),
       data: {
-        meetingId: meetingLink._id,
-        zoomMeetingId: meeting.id,
-        topic: meeting.topic,
-        startTime: meeting.startTime,
-        duration: meeting.duration,
-        joinUrl: meeting.joinUrl,
-        startUrl: meeting.startUrl,
-        password: meeting.password,
-        attendeesCount: students.length,
-        attendees: students.map(s => ({ name: s.name, email: s.email }))
+        ...primaryMeeting,
+        meetings: createdMeetings
+      },
+      summary: {
+        requestedCount: normalizedStartTimes.length,
+        createdCount: createdMeetings.length,
+        failedCount: failedSchedules.length,
+        failedSchedules
       },
       emailStatus: {
         deferred: true,
-        message: 'Invitation emails are sent about 10 minutes before the class starts.',
+        message: 'Invitation emails are sent about 10 minutes before each class starts.',
         attempted: 0,
         successful: 0,
         failed: 0,
@@ -381,7 +380,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     if (req.query.plan) andClauses.push({ plan: req.query.plan });
 
-    // Calendar day in Asia/Colombo — [dayStart, nextDayStart) avoids end-of-day ms bugs
+    // Calendar day in India (IST) — [dayStart, nextDayStart) avoids end-of-day ms bugs
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
       const ymd = String(date).trim();
       const dayStartColombo = new Date(`${ymd}T00:00:00.000+05:30`);
@@ -879,7 +878,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
         // Get new day of week
         const newDayOfWeek = newMeetingDate.toLocaleDateString('en-US', { 
           weekday: 'long', 
-          timeZone: 'Asia/Colombo' 
+          timeZone: 'Asia/Kolkata' 
         }).toLowerCase();
         
         // Get new time
@@ -887,7 +886,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false,
-          timeZone: 'Asia/Colombo'
+          timeZone: 'Asia/Kolkata'
         });
 
         // Calculate new end time
@@ -896,7 +895,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false,
-          timeZone: 'Asia/Colombo'
+          timeZone: 'Asia/Kolkata'
         });
 
         console.log('🔄 Updating timetable for meeting time change:', {
@@ -992,7 +991,7 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
       // Get day of week
       const dayOfWeek = meetingDate.toLocaleDateString('en-US', { 
         weekday: 'long', 
-        timeZone: 'Asia/Colombo' 
+        timeZone: 'Asia/Kolkata' 
       }).toLowerCase();
 
       console.log('🔍 Unlinking meeting from timetable:', {
@@ -1077,12 +1076,12 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
                         year: 'numeric', 
                         month: 'long', 
                         day: 'numeric',
-                        timeZone: 'Asia/Colombo'
+                        timeZone: 'Asia/Kolkata'
                       })}</p>
                       <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
                         hour: '2-digit', 
                         minute: '2-digit',
-                        timeZone: 'Asia/Colombo'
+                        timeZone: 'Asia/Kolkata'
                       })}</p>
                       <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${meeting.batch}</p>
                     </div>

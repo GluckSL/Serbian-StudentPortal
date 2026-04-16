@@ -12,26 +12,28 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config/r2');
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
+const { processManualRecordingUpload } = require('../services/recordingProcessor');
+const manualRecordingUpload = require('../config/manualRecordingUpload');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
 
 // ── In-memory HLS playlist cache ──────────────────────────────────────────────
-// Stores rewritten m3u8 (with presigned segment URLs) per meetingLinkId.
+// Stores rewritten m3u8 (with presigned segment URLs) per recording key.
 // TTL is 13 min — safely within the 15-min presigned URL lifetime.
-const _hlsCache = new Map(); // meetingLinkId → { content: string, expiresAt: number }
+const _hlsCache = new Map(); // cacheKey → { content: string, expiresAt: number }
 const HLS_CACHE_TTL_MS = 13 * 60 * 1000;
 
-function getHlsCached(meetingLinkId) {
-  const entry = _hlsCache.get(meetingLinkId);
+function getHlsCached(cacheKey) {
+  const entry = _hlsCache.get(cacheKey);
   if (!entry || Date.now() >= entry.expiresAt) {
-    _hlsCache.delete(meetingLinkId);
+    _hlsCache.delete(cacheKey);
     return null;
   }
   return entry.content;
 }
 
-function setHlsCached(meetingLinkId, content) {
-  _hlsCache.set(meetingLinkId, { content, expiresAt: Date.now() + HLS_CACHE_TTL_MS });
+function setHlsCached(cacheKey, content) {
+  _hlsCache.set(cacheKey, { content, expiresAt: Date.now() + HLS_CACHE_TTL_MS });
 }
 
 /** Drain an AWS SDK v3 stream body into a UTF-8 string. */
@@ -77,6 +79,18 @@ async function buildSignedHlsPlaylist(hlsKey) {
   );
 
   return signed.join('\n');
+}
+
+function canUserAccessManualRecording(recording, student) {
+  if (!recording?.active) return false;
+  if (!student) return false;
+  const inBatch = Array.isArray(recording.batches) &&
+    recording.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch));
+  if (!inBatch) return false;
+  if (recording.level && student.level && recording.level !== student.level) return false;
+  const studentPlan = String(student.subscription || '').toUpperCase();
+  if (recording.plan && recording.plan !== 'ALL' && studentPlan !== recording.plan) return false;
+  return true;
 }
 
 function normalizeBatch(value) {
@@ -203,7 +217,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       ...m,
       recordingType: 'MANUAL',
       source: 'MANUAL_UPLOAD',
-      status: 'ready',
+      status: m.status || 'ready',
       isPublished: true,
       publishedAt: m.createdAt,
       duration: null,
@@ -212,6 +226,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       meetingLinkId: null,
       zoomMeetingId: null,
       r2Key: null,
+      sourceType: m.sourceType || 'URL',
+      hlsKey: m.hlsKey || null,
     }));
 
     const recordings = [...manualItems, ...zoomItems].sort(
@@ -270,6 +286,8 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
     const recording = await ClassRecording.create({
       title, description, videoUrl, batches, level,
       plan: plan || 'ALL',
+      sourceType: 'URL',
+      status: 'ready',
       uploadedBy: req.user.id
     });
 
@@ -281,19 +299,186 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
   }
 });
 
+// POST /api/class-recordings/upload — Upload MP4, convert to HLS, store in R2
+router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), (req, res) => {
+  manualRecordingUpload.single('video')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      return res.status(400).json({ success: false, message: uploadErr.message || 'Upload failed.' });
+    }
+
+    try {
+      if (!R2_CONFIG_OK) {
+        return res.status(503).json({
+          success: false,
+          message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+        });
+      }
+
+      const { title, description = '', level, plan = 'ALL' } = req.body || {};
+      const rawBatches = req.body?.batches;
+      const batches = Array.isArray(rawBatches)
+        ? rawBatches
+        : String(rawBatches || '')
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean);
+
+      if (!title || !level || !batches.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title, level, and at least one batch are required.',
+        });
+      }
+      if (!req.file?.path) {
+        return res.status(400).json({ success: false, message: 'Video file is required.' });
+      }
+
+      const recording = await ClassRecording.create({
+        title: String(title).trim(),
+        description: String(description || '').trim(),
+        videoUrl: '',
+        batches,
+        level: String(level),
+        plan: String(plan || 'ALL'),
+        sourceType: 'HLS_UPLOAD',
+        status: 'processing',
+        hlsKey: null,
+        errorMessage: null,
+        uploadedBy: req.user.id,
+      });
+
+      // Immediate response; conversion runs in background.
+      res.status(202).json({
+        success: true,
+        message: 'Upload received. HLS conversion started in background.',
+        recordingId: recording._id,
+      });
+
+      processManualRecordingUpload(String(recording._id), req.file.path)
+        .then(async (result) => {
+          if (result?.success && result.hlsKey) {
+            await ClassRecording.findByIdAndUpdate(recording._id, {
+              status: 'ready',
+              hlsKey: result.hlsKey,
+              errorMessage: null,
+            });
+            return;
+          }
+          await ClassRecording.findByIdAndUpdate(recording._id, {
+            status: 'failed',
+            errorMessage: result?.error || 'Conversion failed',
+          });
+        })
+        .catch(async (err) => {
+          await ClassRecording.findByIdAndUpdate(recording._id, {
+            status: 'failed',
+            errorMessage: err.message || 'Conversion failed',
+          });
+        });
+    } catch (error) {
+      console.error('Error creating uploaded recording:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+});
+
 // PUT /api/class-recordings/:id — Update recording (Teacher/Admin)
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { title, description, videoUrl, batches, level, plan } = req.body;
+    const existing = await ClassRecording.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ success: false, message: 'Recording not found' });
+
+    const updatePayload = { title, description, batches, level, plan };
+    if (existing.sourceType !== 'HLS_UPLOAD') {
+      updatePayload.videoUrl = videoUrl;
+    }
+
     const recording = await ClassRecording.findByIdAndUpdate(
       req.params.id,
-      { title, description, videoUrl, batches, level, plan },
+      updatePayload,
       { new: true }
     );
-    if (!recording) return res.status(404).json({ success: false, message: 'Recording not found' });
     res.json({ success: true, recording });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/:id/upload-status — Poll status for manual uploaded recordings
+router.get('/:id/upload-status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const recording = await ClassRecording.findById(req.params.id)
+      .select('_id sourceType status errorMessage hlsKey createdAt')
+      .lean();
+
+    if (!recording) {
+      return res.status(404).json({ success: false, message: 'Recording not found.' });
+    }
+
+    res.json({
+      success: true,
+      recordingId: recording._id,
+      sourceType: recording.sourceType || 'URL',
+      status: recording.status || 'ready',
+      errorMessage: recording.errorMessage || null,
+      hlsReady: Boolean(recording.hlsKey),
+      createdAt: recording.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/:id/hls/playlist — signed playlist for manual uploaded recordings
+router.get('/:id/hls/playlist', verifyToken, async (req, res) => {
+  try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
+    const recording = await ClassRecording.findById(req.params.id)
+      .select('active sourceType status hlsKey level plan batches')
+      .lean();
+    if (!recording || !recording.active) {
+      return res.status(404).json({ success: false, message: 'Recording not found.' });
+    }
+    if (recording.sourceType !== 'HLS_UPLOAD' || !recording.hlsKey) {
+      return res.status(404).json({ success: false, message: 'HLS recording not found for this item.' });
+    }
+    if (recording.status === 'processing') {
+      return res.status(202).json({ success: false, message: 'Recording is still being processed.' });
+    }
+    if (recording.status !== 'ready') {
+      return res.status(500).json({ success: false, message: recording.errorMessage || 'Recording is not available.' });
+    }
+
+    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
+      const student = await User.findById(req.user.id).select('batch level subscription').lean();
+      if (!canUserAccessManualRecording(recording, student)) {
+        return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
+      }
+    }
+
+    const cacheKey = `manual:${String(req.params.id)}`;
+    const cached = getHlsCached(cacheKey);
+    if (cached) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.send(cached);
+    }
+
+    const playlist = await buildSignedHlsPlaylist(recording.hlsKey);
+    setHlsCached(cacheKey, playlist);
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(playlist);
+  } catch (error) {
+    console.error('Error serving manual HLS playlist:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -914,7 +1099,8 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) =>
     }
 
     // Serve from cache when possible
-    const cached = getHlsCached(meetingLinkId);
+    const cacheKey = `zoom:${String(meetingLinkId)}`;
+    const cached = getHlsCached(cacheKey);
     if (cached) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.setHeader('Cache-Control', 'no-cache');
@@ -923,7 +1109,7 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) =>
 
     // Build and cache the signed playlist
     const playlist = await buildSignedHlsPlaylist(zoomRecording.hlsKey);
-    setHlsCached(meetingLinkId, playlist);
+    setHlsCached(cacheKey, playlist);
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Cache-Control', 'no-cache');

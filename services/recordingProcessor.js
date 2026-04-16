@@ -446,4 +446,40 @@ function processZoomRecording(zoomMeetingId, downloadUrl, recordingStart, option
   });
 }
 
-module.exports = { processZoomRecording };
+/**
+ * Convert a locally uploaded MP4 into HLS and upload it to R2.
+ * Returns the uploaded playlist key (e.g. manual/{recordingId}/hls/playlist.m3u8).
+ */
+async function processManualRecordingUpload(recordingId, localFilePath) {
+  if (!recordingId) throw new Error('recordingId is required');
+  if (!localFilePath) throw new Error('localFilePath is required');
+
+  const hlsPrefix = `manual/${recordingId}/hls`;
+  let tmpDir = null;
+
+  try {
+    const inputStream = fs.createReadStream(localFilePath);
+    const result = await convertToHLS(inputStream, `manual-${recordingId}`);
+    tmpDir = result.tmpDir;
+
+    const hlsKey = await uploadHlsToR2(tmpDir, result.files, hlsPrefix);
+    return { success: true, hlsKey };
+  } catch (err) {
+    return { success: false, error: err.message || 'Manual upload processing failed' };
+  } finally {
+    if (tmpDir) {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch (e) {
+        console.warn(`⚠️  Could not remove temp dir ${tmpDir}: ${e.message}`);
+      }
+    }
+    try {
+      fs.rmSync(localFilePath, { force: true });
+    } catch (e) {
+      console.warn(`⚠️  Could not remove uploaded file ${localFilePath}: ${e.message}`);
+    }
+  }
+}
+
+module.exports = { processZoomRecording, processManualRecordingUpload };

@@ -3,7 +3,11 @@ const mongoose = require('mongoose');
 const classRecordingSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '', trim: true },
-  videoUrl: { type: String, required: true, trim: true },
+  videoUrl: { type: String, default: '', trim: true },
+  sourceType: { type: String, enum: ['URL', 'HLS_UPLOAD'], default: 'URL' },
+  hlsKey: { type: String, default: null, trim: true },
+  status: { type: String, enum: ['processing', 'ready', 'failed'], default: 'ready' },
+  errorMessage: { type: String, default: null, trim: true },
   batches: [{ type: String, trim: true }],
   level: { type: String, enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'], required: true },
   plan: { type: String, enum: ['SILVER', 'PLATINUM', 'ALL'], default: 'ALL' },

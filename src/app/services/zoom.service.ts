@@ -33,6 +33,8 @@ export interface CreateMeetingRequest {
   plan: string;
   topic: string;
   startTime: string;
+  startTimes?: string[];
+  scheduleMode?: 'single' | 'selected_dates' | 'weekly' | 'monthly';
   duration: number;
   timezone?: string;
   agenda?: string;

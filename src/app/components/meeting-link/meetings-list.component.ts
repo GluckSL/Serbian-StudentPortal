@@ -6,6 +6,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 @Component({
   selector: 'app-meetings-list',
@@ -22,8 +24,10 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   meetings: any[] = [];
   filteredMeetings: any[] = [];
   loading: boolean = true;
+  isDeletingSelected = false;
   error: string = '';
   userRole: string = ''; // Track user role
+  selectedMeetingIds = new Set<string>();
 
   /** Tab: scheduled | ongoing | ended (default: scheduled) */
   statusTab: 'scheduled' | 'ongoing' | 'ended' = 'scheduled';
@@ -74,11 +78,13 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
           this.error = response.message || 'Failed to load meetings';
         }
         this.loading = false;
+        this.isDeletingSelected = false;
       },
       error: (err) => {
         console.error('Error loading meetings:', err);
         this.error = err.error?.message || 'Failed to load meetings';
         this.loading = false;
+        this.isDeletingSelected = false;
       }
     });
   }
@@ -104,6 +110,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
 
       return true;
     });
+    this.pruneSelection();
   }
 
   /** Map DB row + time window → which of the three tabs this meeting belongs to */
@@ -122,6 +129,9 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     this.tabIndex = index;
     const map: Array<'scheduled' | 'ongoing' | 'ended'> = ['scheduled', 'ongoing', 'ended'];
     this.statusTab = map[index] ?? 'scheduled';
+    if (!this.canBulkDelete()) {
+      this.selectedMeetingIds.clear();
+    }
     this.applyFilters();
   }
 
@@ -141,11 +151,102 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   }
 
   tableColumns(): string[] {
-    return this.isAdmin() ? this.displayedColumnsAdmin : this.displayedColumnsTeacher;
+    const base = this.isAdmin() ? this.displayedColumnsAdmin : this.displayedColumnsTeacher;
+    return this.canBulkDelete() ? ['select', ...base] : base;
   }
 
   onFilterChange(): void {
     this.applyFilters();
+  }
+
+  canBulkDelete(): boolean {
+    return this.statusTab === 'scheduled';
+  }
+
+  isMeetingSelected(meetingId: string): boolean {
+    return this.selectedMeetingIds.has(meetingId);
+  }
+
+  toggleMeetingSelection(meetingId: string, checked: boolean): void {
+    if (checked) {
+      this.selectedMeetingIds.add(meetingId);
+    } else {
+      this.selectedMeetingIds.delete(meetingId);
+    }
+  }
+
+  areAllFilteredSelected(): boolean {
+    if (!this.filteredMeetings.length) return false;
+    return this.filteredMeetings.every((m) => this.selectedMeetingIds.has(m._id));
+  }
+
+  hasSomeFilteredSelected(): boolean {
+    if (!this.filteredMeetings.length) return false;
+    const selectedCount = this.filteredMeetings.filter((m) => this.selectedMeetingIds.has(m._id)).length;
+    return selectedCount > 0 && selectedCount < this.filteredMeetings.length;
+  }
+
+  toggleSelectAllFiltered(checked: boolean): void {
+    if (checked) {
+      this.filteredMeetings.forEach((m) => this.selectedMeetingIds.add(m._id));
+    } else {
+      this.filteredMeetings.forEach((m) => this.selectedMeetingIds.delete(m._id));
+    }
+  }
+
+  selectedCount(): number {
+    return this.selectedMeetingIds.size;
+  }
+
+  clearSelection(): void {
+    this.selectedMeetingIds.clear();
+  }
+
+  deleteSelectedMeetings(event?: Event): void {
+    event?.stopPropagation();
+    if (!this.selectedMeetingIds.size || this.isDeletingSelected) return;
+
+    const count = this.selectedMeetingIds.size;
+    const confirmed = window.confirm(`Delete ${count} selected meeting(s)? This cannot be undone.`);
+    if (!confirmed) return;
+
+    const requests = Array.from(this.selectedMeetingIds).map((id) =>
+      this.zoomService.deleteMeeting(id).pipe(
+        catchError((err) => of({ success: false, _error: err }))
+      )
+    );
+
+    this.isDeletingSelected = true;
+    this.error = '';
+
+    forkJoin(requests).subscribe({
+      next: (results: any[]) => {
+        const successCount = results.filter((r) => r?.success !== false).length;
+        const failCount = results.length - successCount;
+
+        if (successCount > 0) {
+          this.selectedMeetingIds.clear();
+          this.loadMeetings();
+        } else {
+          this.isDeletingSelected = false;
+        }
+
+        if (failCount > 0) {
+          this.error = `${failCount} meeting(s) could not be deleted.`;
+        }
+      },
+      error: () => {
+        this.error = 'Failed to delete selected meetings.';
+        this.isDeletingSelected = false;
+      }
+    });
+  }
+
+  private pruneSelection(): void {
+    const visibleIds = new Set(this.filteredMeetings.map((m) => m._id));
+    Array.from(this.selectedMeetingIds).forEach((id) => {
+      if (!visibleIds.has(id)) this.selectedMeetingIds.delete(id);
+    });
   }
 
   createMeeting(): void {
@@ -205,7 +306,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   }
 
   formatDate(date: string | Date, timeZone?: string): string {
-    const tz = timeZone || 'Asia/Colombo';
+    const tz = timeZone || 'Asia/Kolkata';
     return new Date(date).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
