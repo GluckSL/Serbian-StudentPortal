@@ -12,6 +12,7 @@ import { LevelAccessService } from '../../services/level-access.service';
 import { StudentProgressService } from '../../services/student-progress.service';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from '../../services/notification.service';
+import { NavService } from '../../shared/services/nav.service';
 
 @Component({
   selector: 'app-learning-modules',
@@ -67,7 +68,8 @@ export class LearningModulesComponent implements OnInit {
     private studentProgressService: StudentProgressService,
     private router: Router,
     private http: HttpClient,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private navService: NavService
   ) {}
 
   ngOnInit(): void {
@@ -372,10 +374,17 @@ export class LearningModulesComponent implements OnInit {
   }
 
   isTeacherOrAdmin(): boolean {
-    return this.currentUser?.role === 'TEACHER' || this.currentUser?.role === 'ADMIN' || this.currentUser?.role === 'SUB_ADMIN';
+    const role = this.currentUser?.role;
+    if (role === 'TEACHER' || role === 'ADMIN' || role === 'TEACHER_ADMIN') return true;
+    if (role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules', 'edit');
+    return false;
   }
 
   createNewModule(): void {
+    if (!this.isTeacherOrAdmin()) {
+      this.notify.error('You do not have permission to create modules.');
+      return;
+    }
     this.router.navigate(['/module-creation-choice']);
   }
 
@@ -385,6 +394,10 @@ export class LearningModulesComponent implements OnInit {
 
   editModule(module: LearningModule): void {
     if (!module._id) return;
+    if (!this.isTeacherOrAdmin()) {
+      this.notify.error('You do not have permission to edit modules.');
+      return;
+    }
     this.router.navigate(['/edit-module', module._id]);
   }
 
@@ -414,6 +427,10 @@ export class LearningModulesComponent implements OnInit {
   deleteModule(module: LearningModule): void {
     const moduleId = module._id;
     if (!moduleId) return;
+    if (!this.isTeacherOrAdmin()) {
+      this.notify.error('You do not have permission to delete modules.');
+      return;
+    }
 
     this.notify.confirm(
       'Delete Module',
@@ -441,6 +458,10 @@ export class LearningModulesComponent implements OnInit {
   toggleVisibility(module: LearningModule): void {
     const moduleId = module._id;
     if (!moduleId) return;
+    if (!this.isTeacherOrAdmin()) {
+      this.notify.error('You do not have permission to change module visibility.');
+      return;
+    }
 
     const newVisibility = !module.visibleToStudents;
 
@@ -472,7 +493,8 @@ export class LearningModulesComponent implements OnInit {
     if (!this.currentUser) return false;
     
     // Admins can delete any module
-    if (this.currentUser.role === 'ADMIN' || this.currentUser.role === 'SUB_ADMIN') return true;
+    if (this.currentUser.role === 'ADMIN' || this.currentUser.role === 'TEACHER_ADMIN') return true;
+    if (this.currentUser.role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules', 'full');
     
     // Teachers can delete modules they created
     if (this.currentUser.role === 'TEACHER') {
@@ -483,6 +505,16 @@ export class LearningModulesComponent implements OnInit {
     
     // Students cannot delete modules
     return false;
+  }
+
+  private hasSubAdminPermission(permissionId: string, requiredLevel: 'view' | 'edit' | 'full' = 'view'): boolean {
+    if (this.currentUser?.role !== 'SUB_ADMIN') return false;
+    const level = this.navService.getTabAccessLevel(
+      permissionId,
+      this.currentUser?.sidebarAccessLevels || {},
+      this.currentUser?.sidebarPermissions || []
+    );
+    return this.navService.canAccessLevel(level || undefined, requiredLevel);
   }
 
   getPaginationArray(): number[] {

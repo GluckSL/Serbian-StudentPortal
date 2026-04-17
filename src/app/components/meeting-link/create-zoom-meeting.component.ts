@@ -14,7 +14,18 @@ import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.
   imports: [CommonModule, ReactiveFormsModule, FormsModule]
 })
 export class CreateZoomMeetingComponent implements OnInit {
+  /** All classes use India Standard Time only (no user-selectable timezone). */
+  readonly meetingTimezoneIana = 'Asia/Kolkata';
+  readonly meetingTimezoneLabel = 'India (IST)';
+
   meetingForm!: FormGroup;
+  readonly scheduleModes = [
+    { value: 'single', label: 'Single Class' },
+    { value: 'selected_dates', label: 'Selected Dates' },
+    { value: 'weekly', label: 'Weekly (same time)' },
+    { value: 'monthly', label: 'Monthly (same date/time)' }
+  ] as const;
+  selectedStartTimes: string[] = [];
   
   // Student selection
   allStudents: Student[] = [];
@@ -28,8 +39,10 @@ export class CreateZoomMeetingComponent implements OnInit {
   // UI state
   isLoading = false;
   isCreatingMeeting = false;
+  isConfirmModalOpen = false;
   successMessage = '';
   errorMessage = '';
+  pendingMeetingData: any = null;
   
   // Filter options
   batches: string[] = [];
@@ -71,11 +84,12 @@ export class CreateZoomMeetingComponent implements OnInit {
       topic: ['', [Validators.required, Validators.minLength(3)]],
       startTime: [this.formatDateTimeLocal(tomorrow), Validators.required],
       duration: [60, [Validators.required, Validators.min(15), Validators.max(300)]],
-      timezone: ['Asia/Colombo', Validators.required],
       agenda: [''],
       teacherId: ['', Validators.required],
       zoomHostEmail: ['', Validators.required],
-      courseDay: [null, [Validators.min(1), Validators.max(200)]]
+      courseDay: [null, [Validators.min(1), Validators.max(200)]],
+      scheduleMode: ['single', Validators.required],
+      recurrenceCount: [4, [Validators.required, Validators.min(2), Validators.max(24)]]
     });
   }
 
@@ -138,6 +152,53 @@ export class CreateZoomMeetingComponent implements OnInit {
     return `${String(dt.getDate()).padStart(2, '0')}-${String(dt.getMonth() + 1).padStart(2, '0')}-${dt.getFullYear()} ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
   }
 
+  get scheduleMode(): string {
+    return this.meetingForm?.get('scheduleMode')?.value || 'single';
+  }
+
+  get recurrenceCount(): number {
+    const value = Number(this.meetingForm?.get('recurrenceCount')?.value);
+    return Number.isFinite(value) ? value : 1;
+  }
+
+  get selectedDateTimesPreview(): Array<{ value: string; label: string }> {
+    return [...this.selectedStartTimes]
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+      .map((v) => ({ value: v, label: this.formatDateTimeForDisplay(v) }));
+  }
+
+  get selectedTeacherLabel(): string {
+    const teacherId = this.meetingForm?.get('teacherId')?.value;
+    const teacher = this.teachers.find((t) => t._id === teacherId);
+    return teacher ? `${teacher.name} (${teacher.email})` : '-';
+  }
+
+  get selectedZoomHostLabel(): string {
+    const hostEmail = this.meetingForm?.get('zoomHostEmail')?.value;
+    const host = this.zoomAccounts.find((a) => a.email === hostEmail);
+    return host ? `${host.name} (${host.email})` : (hostEmail || '-');
+  }
+
+  get selectedPlanLabel(): string {
+    const plan = this.meetingForm?.get('plan')?.value;
+    if (plan === 'VISA_DOC_ONLY') return 'VISA & DOC ONLY';
+    return plan || '-';
+  }
+
+  get confirmStartTimesPreview(): string[] {
+    if (!this.pendingMeetingData?.startTimes) return [];
+    return this.pendingMeetingData.startTimes
+      .map((value: string) => {
+        const normalized = value.length >= 16 ? value.substring(0, 16) : value;
+        return this.formatDateTimeForDisplay(normalized);
+      });
+  }
+
+  get selectedScheduleModeLabel(): string {
+    const mode = this.scheduleModes.find((m) => m.value === this.scheduleMode);
+    return mode?.label || this.scheduleMode;
+  }
+
   openStartTimeModal(): void {
     const current = this.parseLocalDateTime(this.meetingForm.get('startTime')?.value);
     const initial = current || new Date();
@@ -173,11 +234,119 @@ export class CreateZoomMeetingComponent implements OnInit {
       return;
     }
 
-    this.meetingForm.patchValue({ startTime: this.formatDateTimeLocal(selected) });
+    const startTimeValue = this.formatDateTimeLocal(selected);
+    this.meetingForm.patchValue({ startTime: startTimeValue });
     this.meetingForm.get('startTime')?.markAsTouched();
+
+    if (this.scheduleMode === 'selected_dates') {
+      this.addSelectedDateTime(startTimeValue);
+    }
+
     this.errorMessage = '';
     this.isStartTimeModalOpen = false;
     this.onTimeChange();
+  }
+
+  onScheduleModeChange(): void {
+    this.errorMessage = '';
+    const mode = this.scheduleMode;
+    if (mode !== 'selected_dates') {
+      this.selectedStartTimes = [];
+    }
+    this.onTimeChange();
+  }
+
+  private addSelectedDateTime(value: string): void {
+    const dt = this.parseLocalDateTime(value);
+    if (!dt) return;
+    if (dt < new Date()) {
+      this.errorMessage = 'Selected date/time must be in the future.';
+      return;
+    }
+    const normalized = this.formatDateTimeLocal(dt);
+    if (!this.selectedStartTimes.includes(normalized)) {
+      this.selectedStartTimes.push(normalized);
+    }
+  }
+
+  removeSelectedDateTime(value: string): void {
+    this.selectedStartTimes = this.selectedStartTimes.filter((dt) => dt !== value);
+  }
+
+  private formatDateTimeForDisplay(localDateTime: string): string {
+    const dt = this.parseLocalDateTime(localDateTime);
+    if (!dt) return localDateTime;
+    return `${String(dt.getDate()).padStart(2, '0')}-${String(dt.getMonth() + 1).padStart(2, '0')}-${dt.getFullYear()} ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+  }
+
+  private getTimeZoneOffsetForLocalDateTime(localDateTime: string, timeZone: string): string {
+    const [datePart, timePart] = localDateTime.split('T');
+    if (!datePart || !timePart) return 'Z';
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = timePart.split(':').map(Number);
+
+    const referenceDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'shortOffset'
+    }).formatToParts(referenceDate);
+
+    const offsetPart = parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT+00:00';
+    const match = offsetPart.match(/^GMT([+-]\d{1,2})(?::?(\d{2}))?$/);
+    if (!match) return 'Z';
+
+    const offsetHoursNum = Number(match[1]);
+    const sign = offsetHoursNum >= 0 ? '+' : '-';
+    const hours = `${sign}${String(Math.abs(offsetHoursNum)).padStart(2, '0')}`;
+    const minutes = (match[2] || '00').padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+
+  private buildTimezoneAwareIso(localDateTime: string, timeZone: string): string {
+    const [datePart, timePart] = localDateTime.split('T');
+    if (!datePart || !timePart) return localDateTime;
+    const hhmm = timePart.slice(0, 5);
+    const offset = this.getTimeZoneOffsetForLocalDateTime(`${datePart}T${hhmm}`, timeZone);
+    return `${datePart}T${hhmm}:00${offset}`;
+  }
+
+  private generateScheduledStartTimes(): string[] {
+    const baseValue = this.meetingForm.get('startTime')?.value;
+    const baseDate = this.parseLocalDateTime(baseValue);
+    if (!baseDate) return [];
+
+    const mode = this.scheduleMode;
+    const selectedTimezone = this.meetingTimezoneIana;
+    const now = new Date();
+
+    let result: string[] = [];
+
+    if (mode === 'selected_dates') {
+      result = this.selectedStartTimes
+        .map((value) => this.parseLocalDateTime(value))
+        .filter((d): d is Date => !!d && d >= now)
+        .sort((a, b) => a.getTime() - b.getTime())
+        .map((d) => this.formatDateTimeLocal(d));
+    } else if (mode === 'single') {
+      result = baseDate >= now ? [this.formatDateTimeLocal(baseDate)] : [];
+    } else {
+      const count = Math.max(2, this.recurrenceCount);
+      const generated: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const next = new Date(baseDate);
+        if (mode === 'weekly') {
+          next.setDate(baseDate.getDate() + i * 7);
+        } else {
+          next.setMonth(baseDate.getMonth() + i);
+        }
+        if (next >= now) {
+          generated.push(this.formatDateTimeLocal(next));
+        }
+      }
+      result = generated;
+    }
+
+    return result;
   }
 
   loadStudents(): void {
@@ -222,10 +391,14 @@ export class CreateZoomMeetingComponent implements OnInit {
 
   /** Re-check zoom account availability when time/duration changes */
   onTimeChange(): void {
-    const startTime = this.meetingForm.get('startTime')?.value;
+    const generatedTimes = this.generateScheduledStartTimes();
+    const firstLocal = generatedTimes.length > 0
+      ? generatedTimes[0]
+      : this.meetingForm.get('startTime')?.value || null;
+    const startTime = firstLocal ? `${firstLocal}:00+05:30` : null;
     const duration = this.meetingForm.get('duration')?.value;
     if (startTime && duration) {
-      this.zoomService.getAvailableZoomHosts(new Date(startTime).toISOString(), duration).subscribe({
+      this.zoomService.getAvailableZoomHosts(startTime, duration).subscribe({
         next: (response) => {
           if (response.success) {
             this.zoomAccounts = response.data;
@@ -304,36 +477,62 @@ export class CreateZoomMeetingComponent implements OnInit {
       return;
     }
 
-    this.isCreatingMeeting = true;
+    const scheduledStartTimes = this.generateScheduledStartTimes();
+    if (scheduledStartTimes.length === 0) {
+      this.errorMessage = this.scheduleMode === 'selected_dates'
+        ? 'Please add at least one valid date/time for selected dates mode.'
+        : 'Please select a valid future start time.';
+      return;
+    }
+
     this.successMessage = '';
     this.errorMessage = '';
-
     const formValue = this.meetingForm.value;
-    const startTime = new Date(formValue.startTime).toISOString();
-
-    const meetingData = {
+    const startTime = scheduledStartTimes[0];
+    this.pendingMeetingData = {
       batch: formValue.batch,
       plan: formValue.plan,
       topic: formValue.topic,
       startTime,
+      startTimes: scheduledStartTimes,
+      scheduleMode: formValue.scheduleMode,
       duration: formValue.duration,
-      timezone: formValue.timezone,
+      timezone: this.meetingTimezoneIana,
       agenda: formValue.agenda || `German Language Class - Batch ${formValue.batch}`,
       studentIds: this.selectedStudents.map(s => s._id),
       teacherId: formValue.teacherId,
       zoomHostEmail: formValue.zoomHostEmail,
       courseDay: formValue.courseDay || null
     };
+    this.isConfirmModalOpen = true;
+  }
 
-    this.zoomService.createMeeting(meetingData).subscribe({
+  closeConfirmModal(): void {
+    if (this.isCreatingMeeting) return;
+    this.isConfirmModalOpen = false;
+    this.pendingMeetingData = null;
+  }
+
+  confirmCreateMeeting(): void {
+    if (!this.pendingMeetingData || this.isCreatingMeeting) return;
+
+    this.isCreatingMeeting = true;
+    this.successMessage = '';
+    this.errorMessage = '';
+
+    this.zoomService.createMeeting(this.pendingMeetingData).subscribe({
       next: (response) => {
         if (response.success) {
           this.isCreatingMeeting = false;
+          this.isConfirmModalOpen = false;
+          this.pendingMeetingData = null;
           const emailStatus = response.emailStatus;
+          const createdCount = response.summary?.createdCount || (response.data?.meetings?.length ?? (response.data ? 1 : 0));
+          const failedCount = response.summary?.failedCount || 0;
 
           if (emailStatus?.deferred) {
             this.successMessage =
-              `✅ Zoom meeting created with ${response.data.attendeesCount} students. ` +
+              `✅ ${createdCount} meeting(s) created with ${response.data.attendeesCount || this.selectedStudents.length} students each. ` +
               (emailStatus.message ||
                 'Students will receive the join link by email about 10 minutes before class starts.');
           } else if (emailStatus?.allSent) {
@@ -345,7 +544,11 @@ export class CreateZoomMeetingComponent implements OnInit {
             this.errorMessage = `⚠️ Meeting created but ${emailStatus.failed} out of ${emailStatus.attempted} invitation emails failed.`;
             this.successMessage = `Meeting created. ${emailStatus.successful} emails sent, ${emailStatus.failed} failed.`;
           } else {
-            this.successMessage = `✅ Zoom meeting created successfully with ${response.data.attendeesCount} students!`;
+            this.successMessage = `✅ ${createdCount} Zoom meeting(s) created successfully.`;
+          }
+
+          if (failedCount > 0) {
+            this.errorMessage = `⚠️ ${failedCount} schedule(s) failed. Please review conflicts and retry those times.`;
           }
           
           setTimeout(() => {

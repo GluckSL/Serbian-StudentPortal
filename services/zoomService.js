@@ -14,6 +14,9 @@ class ZoomService {
    */
   async getAccessToken() {
     if (this.accessToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
+      const msLeft = this.tokenExpiry - Date.now();
+      const minutesLeft = Math.max(0, Math.round(msLeft / 60000));
+      console.log(`🔁 Reusing cached Zoom access token (expires in ~${minutesLeft} min)`);
       return this.accessToken;
     }
 
@@ -37,7 +40,9 @@ class ZoomService {
     this.accessToken = response.data.access_token;
     this.tokenExpiry = Date.now() + (response.data.expires_in - 300) * 1000;
 
-    console.log('✅ Zoom access token obtained');
+    console.log(
+      `✅ Zoom access token obtained (expires_in=${response.data.expires_in}s, cached_until=${new Date(this.tokenExpiry).toISOString()})`
+    );
     return this.accessToken;
   }
 
@@ -54,7 +59,7 @@ class ZoomService {
         topic,
         startTime,
         duration,
-        timezone = 'Asia/Colombo',
+        timezone = 'Asia/Kolkata',
         agenda,
         settings = {}
       } = meetingData;

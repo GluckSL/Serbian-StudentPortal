@@ -16,7 +16,19 @@
       <button class="cr-btn cr-btn--outline" (click)="openWebhookAudit()">
         <i class="fa fa-wave-square"></i> Webhook Audit
       </button>
-      <button class="cr-btn cr-btn--secondary" (click)="runZoomBackfill()" [disabled]="backfillLoading">
+      <input
+        class="cr-input cr-input--meeting-ids"
+        type="text"
+        [(ngModel)]="backfillMeetingIdsInput"
+        placeholder="Meeting IDs (comma separated)"
+        [disabled]="backfillLoading"
+        title="Optional: enter one or more Zoom meeting IDs to backfill only those classes." />
+      <button
+        class="cr-btn cr-btn--secondary"
+        type="button"
+        (click)="runZoomBackfill()"
+        [disabled]="backfillLoading"
+        title="Re-queues meetings from Zoom (force). If Meeting IDs are provided, only those are backfilled.">
         <i class="fa fa-rotate"></i> {{ backfillLoading ? 'Backfilling...' : 'Backfill Zoom Recordings' }}
       </button>
       <button class="cr-btn cr-btn--primary" (click)="openForm()">
@@ -86,7 +98,7 @@
           <th>Views</th>
           <th>Students</th>
           <th>Avg Watch</th>
-          <th>Published</th>
+          <th>Student Access</th>
           <th>Uploaded</th>
           <th>By</th>
           <th></th>
@@ -137,13 +149,16 @@
           </td>
           <td>
             <span class="cr-published-chip"
-                  [class.cr-published-chip--yes]="r.isPublished"
-                  [class.cr-published-chip--no]="!r.isPublished && isZoomRecording(r)">
+                  [class.cr-published-chip--yes]="!isZoomRecording(r) || (r.isPublished !== false)"
+                  [class.cr-published-chip--no]="isZoomRecording(r) && r.isPublished === false">
               {{
                 isZoomRecording(r)
-                  ? (r.isPublished ? 'Published' : 'Not Published')
-                  : 'Published'
+                  ? ((r.isPublished !== false) ? 'Visible' : 'Hidden')
+                  : 'Visible'
               }}
+            </span>
+            <span class="cr-processing-note" *ngIf="isProcessingRecording(r)">
+              {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
             </span>
           </td>
           <td>
@@ -157,13 +172,23 @@
           </td>
           <td>
             <div class="cr-actions">
-              <button class="cr-icon-btn cr-icon-btn--blue" (click)="openViews(r); $event.stopPropagation()" title="View Analytics" [disabled]="isZoomRecording(r)">
+              <button
+                class="cr-icon-btn"
+                [class.cr-icon-btn--amber]="isZoomRecording(r) && (r.isPublished !== false)"
+                [class.cr-icon-btn--blue]="isZoomRecording(r) && r.isPublished === false"
+                [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === r.meetingLinkId"
+                (click)="toggleStudentVisibility(r); $event.stopPropagation()"
+                [title]="canToggleStudentVisibility(r) ? ((r.isPublished !== false) ? 'Hide from Students' : 'Show to Students') : 'Visibility toggle available only when recording status is Ready'"
+                *ngIf="isZoomRecording(r)">
+                <i class="fa" [class.fa-eye-slash]="r.isPublished !== false" [class.fa-eye]="r.isPublished === false"></i>
+              </button>
+              <button class="cr-icon-btn cr-icon-btn--blue" (click)="viewRecordingAction(r); $event.stopPropagation()" [title]="isZoomRecording(r) ? 'Open Zoom Recording' : 'View Analytics'">
                 <i class="fa fa-chart-bar"></i>
               </button>
-              <button class="cr-icon-btn cr-icon-btn--green" (click)="openForm(r)" title="Edit" [disabled]="isZoomRecording(r)">
+              <button class="cr-icon-btn cr-icon-btn--green" (click)="editRecordingAction(r)" [title]="isZoomRecording(r) ? (r.isPublished ? 'Hide from Students' : 'Show to Students') : 'Edit'">
                 <i class="fa fa-pen"></i>
               </button>
-              <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecording(r)" title="Delete" [disabled]="isZoomRecording(r)">
+              <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecordingAction(r)" title="Delete">
                 <i class="fa fa-trash"></i>
               </button>
             </div>
@@ -243,8 +268,15 @@
         <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3">
       </div>
       <div class="cr-field">
-        <label>Video URL * <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
-        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=...">
+        <label>Upload Video <span class="cr-hint-inline">(MP4/MOV/M4V/WEBM/OGG)</span></label>
+        <input class="cr-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.ogg" (change)="onVideoFileSelected($event)" [disabled]="!!editing">
+        <p class="cr-hint" *ngIf="selectedVideoFile">Selected: {{ selectedVideoFile.name }}</p>
+        <p class="cr-hint" *ngIf="editing">Video file upload is available while creating new recordings.</p>
+      </div>
+      <div class="cr-field" *ngIf="!editing || editing.sourceType !== 'HLS_UPLOAD'">
+        <label>Video URL <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
+        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=..." [disabled]="!!selectedVideoFile">
+        <p class="cr-hint" *ngIf="selectedVideoFile">Video URL is ignored because a file upload is selected.</p>
       </div>
       <div class="cr-field">
         <label>Description</label>
@@ -278,8 +310,8 @@
     </div>
     <div class="cr-modal__foot">
       <button class="cr-btn cr-btn--outline" (click)="closeForm()">Cancel</button>
-      <button class="cr-btn cr-btn--primary" (click)="save()">
-        {{ editing ? 'Update' : 'Create' }}
+      <button class="cr-btn cr-btn--primary" (click)="save()" [disabled]="saving">
+        {{ saving ? 'Saving...' : (editing ? 'Update' : 'Create') }}
       </button>
     </div>
   </div>
@@ -293,6 +325,13 @@
       <button class="cr-modal__close" (click)="closeViews()">✕</button>
     </div>
     <div class="cr-modal__body">
+      <div class="cr-audit-summary" *ngIf="viewsMeta.totalStudents">
+        <span class="cr-audit-pill">Total Students: {{ viewsMeta.totalStudents }}</span>
+        <span class="cr-audit-pill">Watched: {{ viewsMeta.watchedCount || 0 }}</span>
+        <span class="cr-audit-pill">Not Watched: {{ viewsMeta.notWatchedCount || 0 }}</span>
+        <span class="cr-audit-pill">Total Watch: {{ formatDuration(viewsMeta.totalWatchSeconds || 0) }}</span>
+        <span class="cr-audit-pill">Video Size: {{ formatBytes(viewsMeta.videoSizeBytes) }}</span>
+      </div>
       <div *ngIf="loadingViews" style="text-align:center;padding:30px;">
         <div class="cr-spinner"></div>
       </div>
@@ -307,6 +346,7 @@
             <th>Email</th>
             <th>Batch</th>
             <th>Level</th>
+            <th>Viewed</th>
             <th>Started At</th>
             <th>Watch Duration</th>
             <th>Last Active</th>
@@ -323,12 +363,44 @@
             <td><span class="cr-cell-sub">{{ v.student?.email || '—' }}</span></td>
             <td><span class="cr-level-chip">{{ v.student?.batch || '—' }}</span></td>
             <td><span class="cr-level-chip">{{ v.student?.level || '—' }}</span></td>
+            <td><span class="cr-level-chip">{{ (v.viewed === false || !v.watchDuration) ? 'No' : 'Yes' }}</span></td>
             <td><span class="cr-cell-sub">{{ formatDateTime(v.startedAt) }}</span></td>
             <td><span class="cr-duration">{{ formatDuration(v.watchDuration) }}</span></td>
             <td><span class="cr-cell-sub">{{ formatDateTime(v.lastUpdatedAt) }}</span></td>
           </tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Zoom Edit Modal ── -->
+<div class="cr-overlay" *ngIf="showZoomEditModal" (click)="closeZoomEdit()">
+  <div class="cr-modal" (click)="$event.stopPropagation()">
+    <div class="cr-modal__head">
+      <h3>Edit Zoom Recording</h3>
+      <button class="cr-modal__close" (click)="closeZoomEdit()">✕</button>
+    </div>
+    <div class="cr-modal__body">
+      <div class="cr-field">
+        <label>Title *</label>
+        <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.title" placeholder="Recording title">
+      </div>
+      <div class="cr-field">
+        <label>Batch</label>
+        <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.batch" placeholder="Batch">
+      </div>
+      <div class="cr-field">
+        <label>Teacher</label>
+        <select class="cr-select" [(ngModel)]="zoomEditForm.teacherId">
+          <option value="">Keep existing teacher</option>
+          <option *ngFor="let t of zoomTeachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
+        </select>
+      </div>
+    </div>
+    <div class="cr-modal__foot">
+      <button class="cr-btn cr-btn--outline" (click)="closeZoomEdit()">Cancel</button>
+      <button class="cr-btn cr-btn--primary" (click)="saveZoomEdit()">Save</button>
     </div>
   </div>
 </div>

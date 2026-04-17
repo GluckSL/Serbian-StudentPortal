@@ -266,7 +266,9 @@
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
                 <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
-                <span *ngSwitchCase="'video-pronunciation'">{{ q.caption || 'No caption' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})</span>
+                <span *ngSwitchCase="'video-pronunciation'">
+                  {{ q.caption || 'No caption' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})
+                </span>
               </ng-container>
             </span>
           </div>
@@ -572,70 +574,80 @@
               </button>
             </div>
 
-            <!-- AI Grading Config -->
-            <div class="qa-grading-config" *ngIf="q.worksheetKind !== 'true-false'">
-              <div class="qa-grading-title">
-                <span class="material-icons">auto_awesome</span>
-                AI Grading Settings
-              </div>
-              <div class="qa-grading-row">
-
-                <!-- Threshold -->
-                <div class="qa-grading-field">
-                  <label>Minimum % to pass</label>
-                  <div class="threshold-control">
-                    <div class="threshold-display">
-                      <div>
-                        <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
-                        <span class="threshold-val-unit">%</span>
-                      </div>
-                      <span class="threshold-label">match required to pass</span>
-                    </div>
-                    <input
-                      type="range" min="50" max="100" step="5"
-                      [ngModel]="q.similarityThreshold ?? 70"
-                      (ngModelChange)="setThreshold(q, $event)"
-                      class="threshold-slider"
-                      [style.--val]="((q.similarityThreshold ?? 70) - 50) / 50 * 100 + '%'"
-                    />
-                    <div class="threshold-presets">
-                      <button *ngFor="let p of [50,60,70,80,90,100]"
-                        type="button"
-                        class="preset-btn"
-                        [class.active]="(q.similarityThreshold ?? 70) === p"
-                        (click)="q.similarityThreshold = p">
-                        {{ p }}%
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Scoring mode -->
-                <div class="qa-grading-field">
-                  <label>Marks awarded</label>
-                  <div class="scoring-mode-opts">
-                    <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
-                      <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
-                      <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
-                      <div class="scoring-opt-text">
-                        <span class="scoring-opt-name">Full marks if passed</span>
-                        <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
-                      </div>
-                    </label>
-                    <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
-                      <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
-                      <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
-                      <div class="scoring-opt-text">
-                        <span class="scoring-opt-name">Proportional marks</span>
-                        <span class="scoring-opt-desc">Scaled by AI score (85% → 0.85 × pts)</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-              </div>
-            </div>
           </ng-container>
+
+          <!-- Grading Config (all question types) -->
+          <div class="qa-grading-config">
+            <div class="qa-grading-title">
+              <span class="material-icons">auto_awesome</span>
+              Grading Settings
+            </div>
+            <div class="field-group full" style="margin-bottom:10px;">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.aiGradingEnabled" />
+                Use AI/advanced grading for this question
+              </label>
+            </div>
+            <p class="hint-text" *ngIf="q.aiGradingEnabled === false" style="margin-top:-4px;">
+              AI/advanced grading is off. This question will use strict normal grading.
+            </p>
+            <div class="qa-grading-row" *ngIf="q.aiGradingEnabled !== false">
+
+              <!-- Threshold -->
+              <div class="qa-grading-field">
+                <label>Minimum % to pass</label>
+                <div class="threshold-control">
+                  <div class="threshold-display">
+                    <div>
+                      <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
+                      <span class="threshold-val-unit">%</span>
+                    </div>
+                    <span class="threshold-label">match required to pass</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    [ngModel]="q.similarityThreshold ?? 70"
+                    (ngModelChange)="setThreshold(q, $event)"
+                    class="threshold-slider"
+                    [style.--val]="(q.similarityThreshold ?? 70) + '%'"
+                  />
+                  <div class="threshold-presets">
+                    <button *ngFor="let p of [20,40,60,70,80,90,100]"
+                      type="button"
+                      class="preset-btn"
+                      [class.active]="(q.similarityThreshold ?? 70) === p"
+                      (click)="q.similarityThreshold = p">
+                      {{ p }}%
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scoring mode -->
+              <div class="qa-grading-field">
+                <label>Marks awarded</label>
+                <div class="scoring-mode-opts">
+                  <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
+                    <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
+                    <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                    <div class="scoring-opt-text">
+                      <span class="scoring-opt-name">Full marks if passed</span>
+                      <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                    </div>
+                  </label>
+                  <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
+                    <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
+                    <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                    <div class="scoring-opt-text">
+                      <span class="scoring-opt-name">Proportional marks</span>
+                      <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+          </div>
 
           <!-- Pronunciation Editor -->
           <ng-container *ngIf="q.type === 'pronunciation'">
@@ -739,7 +751,7 @@
       </div>
       <p class="video-info-hint">
         <span class="material-icons">info</span>
-        Students watch each video clip, then speak the caption aloud. Correct pronunciation advances to the next video.
+        Students watch each video clip, then speak the caption aloud. You can add an optional second caption that appears later in the same clip.
       </p>
     </div>
 
@@ -852,6 +864,31 @@
             </div>
 
             <div class="field-group">
+              <label class="field-label">Second caption <span class="label-optional">opt.</span></label>
+              <input
+                type="text"
+                [(ngModel)]="vq.secondaryCaption"
+                class="field-input field-input--sm"
+                placeholder="e.g. Ich fahre mit der Bahn."
+                autocomplete="off"
+              />
+              <p class="hint-text">If filled, this replaces the first caption in student view after the delay below.</p>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Second caption delay (seconds)</label>
+              <input
+                type="number"
+                [(ngModel)]="vq.secondaryCaptionAtSeconds"
+                class="field-input field-input--number field-input--sm"
+                min="0"
+                max="600"
+                step="1"
+              />
+              <p class="hint-text">Default is 5 seconds.</p>
+            </div>
+
+            <div class="field-group">
               <label class="field-label">Context <span class="label-optional">opt.</span></label>
               <textarea
                 [(ngModel)]="vq.context"
@@ -875,6 +912,19 @@
                   <span class="material-icons">add</span> Add variant
                 </button>
               </div>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Match % to mark correct</label>
+              <input
+                type="number"
+                [(ngModel)]="vq.similarityThreshold"
+                class="field-input field-input--number field-input--sm"
+                min="0"
+                max="100"
+                step="1"
+              />
+              <p class="hint-text">Admin controls strictness (e.g. 60 means 60%+ is correct).</p>
             </div>
 
             <div class="field-group field-group--points">
@@ -1007,6 +1057,10 @@
             </div>
             <div *ngIf="!q.videoUrl" class="pq-no-video">No video uploaded</div>
             <div class="pq-caption"><span class="material-icons">record_voice_over</span> Student speaks: <strong>{{ q.caption || '—' }}</strong></div>
+            <div class="pq-caption" *ngIf="q.secondaryCaption">
+              <span class="material-icons">schedule</span>
+              After {{ q.secondaryCaptionAtSeconds ?? 5 }}s: <strong>{{ q.secondaryCaption }}</strong>
+            </div>
             <div *ngIf="q.acceptedVariants && q.acceptedVariants.length > 0" class="pq-variants">
               Also accepted: {{ q.acceptedVariants.join(', ') }}
             </div>

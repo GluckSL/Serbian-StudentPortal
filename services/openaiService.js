@@ -361,14 +361,24 @@ Instructions:
    - Advanced variations of the concepts
    - Cultural context and real-world applications
    
-   When BOTH conditions are met, use completion phrases:
-   - For English modules/native: Use phrases like "Thank you for practicing", "Have a fantastic day", "Feel free to reach out", "Practice again", "Good bye", "See you next time"
-   - For German modules/native: Use phrases like "Vielen Dank fürs Üben", "Haben Sie einen schönen Tag", "Auf Wiedersehen", "Bis zum nächsten Mal", "Tschüss", "Gut gemacht"
-   - For Tamil native language: Use phrases like "பயிற்சிக்கு நன்றி", "நல்ல நாள் இருக்கட்டும்", "வாழ்த்துக்கள்", "அடுத்த முறை சந்திப்போம்"
-   - For Sinhala native language: Use phrases like "පුහුණුවීමට ස්තූතියි", "හොඳ දිනයක් වේවා", "සුභපැතුම්", "ඊළඟ වතාවේ හමුවෙමු"
+   When BOTH conditions are met, you MUST include at least one of these EXACT completion signal phrases in your final message (the system uses these to detect completion):
+   - "objectives completed"
+   - "learning goals achieved"
+   - "practice complete"
+   - "all topics covered"
+   - "module finished"
+   - "well done completing"
+   - For German native: "Lernziele abgeschlossen" or "Modul beendet" or "Ziele erreicht" or "Alle Themen behandelt" or "Übung abgeschlossen"
+   
+   You may ALSO include farewell expressions, but farewell phrases alone are NOT enough:
+   - For English: "Thank you for practicing", "Have a fantastic day", "See you next time"
+   - For German: "Vielen Dank fürs Üben", "Auf Wiedersehen", "Bis zum nächsten Mal", "Tschüss", "Gut gemacht"
+   - For Tamil: "பயிற்சிக்கு நன்றி", "நல்ல நாள் இருக்கட்டும்", "அடுத்த முறை சந்திப்போம்"
+   - For Sinhala: "පුහුණුවීමට ස්තූතියි", "හොඳ දිනයක් වේවා", "ඊළඟ වතාවේ හමුවෙමු"
    - Include farewell expressions appropriate to ${targetLang} or ${nativeLang} culture
    - Encourage future practice or learning
-   - The system will automatically detect these patterns and complete the module
+   - The system will automatically detect the completion signal phrases and mark the module as completed
+   - Example: "Great work today! All topics covered and practice complete. Vielen Dank fürs Üben! Bis zum nächsten Mal!"
 
 Language-Specific Guidelines:
 ${this.getLanguageSpecificGuidelines(targetLang, nativeLang)}
@@ -439,7 +449,7 @@ ${scenario.studentGuidance || rolePlayInstructions.studentGuidance || `You are p
 SESSION STATES - FOLLOW THIS FLOW:
 
 1. INTRODUCTION STATE (when session starts):
-   - Greet the student warmly in ${nativeLang}
+   - Greet the student warmly in English
    - Explain the role-play scenario: "${scenario.situation}"
    - Describe the setting: "${scenario.setting || 'Not specified'}"
    - Clearly state: "I will be the ${scenario.aiRole} and you will be the ${scenario.studentRole}"
@@ -469,20 +479,29 @@ SESSION STATES - FOLLOW THIS FLOW:
      * More challenging vocabulary or grammar
      * Cultural context discussions
    - When BOTH objective completion AND 15+ minutes are met:
-     * Break character and congratulate the student in ${nativeLang}
+     * Break character and congratulate the student in English
      * Summarize what was accomplished
      * Provide positive feedback on their performance
-     * Use completion phrases appropriate to the native language for congratulations:
-       - English: "Thank you for practicing with me today!", "Have a fantastic day!", "Feel free to reach out if you have questions", "Good bye!", "See you next time!"
-       - German: "Vielen Dank fürs Üben heute!", "Haben Sie einen schönen Tag!", "Auf Wiedersehen!", "Bis zum nächsten Mal!", "Tschüss!", "Gut gemacht!"
-       - Tamil: "பயிற்சிக்கு நன்றி!", "நல்ல நாள் இருக்கட்டும்!", "வாழ்த்துக்கள்!", "அடுத்த முறை சந்திப்போம்!"
-       - Sinhala: "පුහුණුවීමට ස්තූතියි!", "හොඳ දිනයක් වේවා!", "සුභපැතුම්!", "ඊළඟ වතාවේ හමුවෙමු!"
-     * Include appropriate ${nativeLang} farewell expressions for the completion state
+     * ⚠️ CRITICAL: You MUST include at least one of these EXACT completion signal phrases in your final message (the system uses these to detect completion):
+       - "objectives completed"
+       - "learning goals achieved"
+       - "practice complete"
+       - "all topics covered"
+       - "module finished"
+       - "well done completing"
+       - For German native: "Lernziele abgeschlossen" or "Modul beendet" or "Ziele erreicht" or "Alle Themen behandelt" or "Übung abgeschlossen"
+     * You may ALSO include farewell expressions appropriate to ${nativeLang} culture:
+       - English: "Thank you for practicing with me today!", "Have a fantastic day!", "See you next time!"
+       - German: "Vielen Dank fürs Üben heute!", "Auf Wiedersehen!", "Bis zum nächsten Mal!", "Tschüss!", "Gut gemacht!"
+       - Tamil: "பயிற்சிக்கு நன்றி!", "நல்ல நாள் இருக்கட்டும்!", "அடுத்த முறை சந்திப்போம்!"
+       - Sinhala: "පුහුණුවීමට ස්තූතියි!", "හොඳ දිනයක් වේවා!", "ඊළඟ වතාවේ හමුවෙමු!"
+     * But farewell phrases alone are NOT enough — you MUST include at least one completion signal phrase from the list above
      * The system will automatically detect these completion signals and mark the module as completed
+     * Example completion message: "Great job! You've done really well today — practice complete! All topics covered. Vielen Dank fürs Üben! Bis zum nächsten Mal!"
 
 4. MANUAL STOP (if student says "stop", "end", "finish", "quit"):
    - Break character immediately
-   - Thank them for practicing in ${nativeLang}
+   - Thank them for practicing in English
    - Provide encouragement about their progress
    - End the session gracefully
 
@@ -505,9 +524,9 @@ ${conversationFlow.length > 0 ?
 IMPORTANT: Always respond in plain text, not JSON format. Be natural and conversational.
 
 LANGUAGE INSTRUCTIONS:
-- INTRODUCTION STATE: Respond in ${nativeLang} (for explanations)
+- INTRODUCTION STATE: Respond in English (for explanations)
 - ROLE-PLAY STATE: Respond ONLY in ${targetLang} (the language being learned)
-- COMPLETION STATE: Respond in ${nativeLang} (for congratulations)
+- COMPLETION STATE: Respond in English (for congratulations and completion signals)
 
 CRITICAL RULES:
 1. START in INTRODUCTION state - explain everything before role-playing

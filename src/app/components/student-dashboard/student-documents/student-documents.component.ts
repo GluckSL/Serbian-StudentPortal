@@ -28,6 +28,7 @@ export class StudentDocumentsComponent implements OnInit {
   // Upload form
   selectedFile: File | null = null;
   selectedDocumentType: string = '';
+  selectedDocumentTypeId: string = '';
   documentName: string = '';
   documentDescription: string = '';
   
@@ -37,6 +38,7 @@ export class StudentDocumentsComponent implements OnInit {
   showUploadForm = false;
   selectedDocument: StudentDocument | null = null;
   showDocumentDetails = false;
+  uploadingRequirementType: string | null = null;
   
   // Filters
   filterStatus: string = 'ALL';
@@ -104,11 +106,14 @@ export class StudentDocumentsComponent implements OnInit {
 
   // Document type selection - auto-fill document name
   onDocumentTypeChange(): void {
-    if (this.selectedDocumentType && !this.documentName) {
-      // Auto-fill document name with the label of selected type
+    if (this.selectedDocumentType) {
       const requirement = this.requirements.find(r => r.type === this.selectedDocumentType);
       if (requirement) {
+        this.selectedDocumentTypeId = requirement.id;
+        // Auto-fill document name with the label of selected type
+        if (!this.documentName) {
         this.documentName = requirement.label;
+        }
       }
     }
   }
@@ -116,32 +121,48 @@ export class StudentDocumentsComponent implements OnInit {
   // File selection
   onFileSelected(event: any): void {
     const file = event.target.files[0];
-    if (file) {
-      // Validate file size (10MB max)
-      if (file.size > 10 * 1024 * 1024) {
-        this.showError('File size must be less than 10MB');
-        event.target.value = '';
-        return;
-      }
-      
-      // Validate file type
-      const allowedTypes = [
-        'application/pdf',
-        'image/jpeg',
-        'image/jpg',
-        'image/png',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      ];
-      
-      if (!allowedTypes.includes(file.type)) {
-        this.showError('Invalid file type. Only PDF, JPG, PNG, DOC, and DOCX files are allowed.');
-        event.target.value = '';
-        return;
-      }
-      
-      this.selectedFile = file;
+    if (file) this.validateAndSetFile(file, event.target);
+  }
+
+  onFileDropped(event: DragEvent): void {
+    event.preventDefault();
+    const droppedFile = event.dataTransfer?.files?.[0];
+    if (droppedFile) {
+      this.validateAndSetFile(droppedFile);
     }
+  }
+
+  allowDrop(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  validateAndSetFile(file: File, inputEl?: HTMLInputElement): void {
+    const validationError = this.validateFile(file);
+    if (validationError) {
+      this.showError(validationError);
+      if (inputEl) inputEl.value = '';
+      return;
+    }
+
+    this.selectedFile = file;
+  }
+
+  validateFile(file: File): string | null {
+    if (file.size > 10 * 1024 * 1024) {
+      return 'File size must be less than 10MB';
+    }
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      return 'Invalid file type. Only PDF, JPG, PNG, DOC, and DOCX files are allowed.';
+    }
+    return null;
   }
 
   // Upload document
@@ -157,6 +178,7 @@ export class StudentDocumentsComponent implements OnInit {
     try {
       const formData = new FormData();
       formData.append('document', this.selectedFile);
+      formData.append('documentTypeId', this.selectedDocumentTypeId);
       formData.append('documentType', this.selectedDocumentType);
       formData.append('documentName', this.documentName);
       formData.append('description', this.documentDescription);
@@ -197,15 +219,7 @@ export class StudentDocumentsComponent implements OnInit {
 
   // Download document
   async downloadDocument(document: StudentDocument): Promise<void> {
-    try {
-      const blob = await this.documentService.downloadDocument(document._id).toPromise();
-      if (blob) {
-        this.documentService.triggerFileDownload(blob, document.fileName);
-      }
-    } catch (error) {
-      console.error('Error downloading document:', error);
-      this.showError('Error downloading document');
-    }
+    this.documentService.triggerServerDownload(document._id);
   }
 
   // View document details
@@ -231,6 +245,7 @@ export class StudentDocumentsComponent implements OnInit {
   resetUploadForm(): void {
     this.selectedFile = null;
     this.selectedDocumentType = '';
+    this.selectedDocumentTypeId = '';
     this.documentName = '';
     this.documentDescription = '';
     this.showUploadForm = false;
@@ -280,6 +295,86 @@ export class StudentDocumentsComponent implements OnInit {
     return this.documents.some(doc => doc.documentType === type);
   }
 
+  getLatestDocumentForType(type: string): StudentDocument | null {
+    const docsByType = this.documents
+      .filter(doc => doc.documentType === type)
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    return docsByType.length > 0 ? docsByType[0] : null;
+  }
+
+  getRequirementStatus(type: string): 'NOT_UPLOADED' | 'PENDING' | 'VERIFIED' | 'REJECTED' {
+    const latest = this.getLatestDocumentForType(type);
+    if (!latest) return 'NOT_UPLOADED';
+    return latest.status;
+  }
+
+  startUploadForRequirement(requirement: DocumentRequirement): void {
+    this.showUploadForm = true;
+    this.selectedDocumentType = requirement.type;
+    this.selectedDocumentTypeId = requirement.id;
+    this.documentName = requirement.label;
+  }
+
+  uploadFromRequirementRow(requirement: DocumentRequirement, isReplace = false): void {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+    picker.onchange = async () => {
+      const file = picker.files && picker.files.length > 0 ? picker.files[0] : null;
+      if (!file) return;
+
+      const validationError = this.validateFile(file);
+      if (validationError) {
+        this.showError(validationError);
+        return;
+      }
+
+      this.uploadingRequirementType = requirement.type;
+      this.clearMessages();
+      try {
+        const latestDoc = this.getLatestDocumentForType(requirement.type);
+        const formData = new FormData();
+        formData.append('document', file);
+        formData.append('documentTypeId', requirement.id);
+        formData.append('documentType', requirement.type);
+        formData.append('documentName', latestDoc?.documentName || requirement.label);
+        formData.append('description', isReplace ? 'Re-uploaded by student as a replacement version' : '');
+
+        const response = await this.documentService.uploadDocument(formData).toPromise();
+        if (response?.success) {
+          this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
+          await this.loadDocuments();
+          await this.loadStats();
+        }
+      } catch (error: any) {
+        this.showError(error?.error?.message || 'Failed to upload document');
+      } finally {
+        this.uploadingRequirementType = null;
+      }
+    };
+    picker.click();
+  }
+
+  getRequirementStatusText(type: string): string {
+    const status = this.getRequirementStatus(type);
+    if (status === 'NOT_UPLOADED') return 'Not Uploaded';
+    if (status === 'PENDING') return 'Pending';
+    if (status === 'VERIFIED') return 'Verified';
+    return 'Rejected';
+  }
+
+  getRequirementStatusBadgeClass(type: string): string {
+    const status = this.getRequirementStatus(type);
+    if (status === 'NOT_UPLOADED') return 'bg-secondary';
+    return this.getStatusBadgeClass(status);
+  }
+
+  getRequirementReuploadReason(type: string): string {
+    const latest = this.getLatestDocumentForType(type);
+    if (!latest || latest.status !== 'REJECTED') return '';
+    return (latest.verificationNotes || latest.remarks || '').trim();
+  }
+
   // Get document count by type
   getDocumentCountByType(type: string): number {
     return this.documents.filter(doc => doc.documentType === type).length;
@@ -294,7 +389,7 @@ export class StudentDocumentsComponent implements OnInit {
   // Get requirement label by type
   getRequirementLabel(type: string): string {
     const requirement = this.requirements.find(r => r.type === type);
-    return requirement ? requirement.label : type;
+    return requirement ? (requirement.name || requirement.label) : type;
   }
 
   // Helper methods

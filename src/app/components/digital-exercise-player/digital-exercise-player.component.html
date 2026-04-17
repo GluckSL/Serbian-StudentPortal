@@ -378,8 +378,9 @@
                 webkit-playsinline
                 preload="auto"
                 disablePictureInPicture
-                (loadeddata)="onVpVideoReady($event)"
-                (loadstart)="onVpLoadStart()"
+                (loadeddata)="onVpVideoReady($event, currentQuestion)"
+                (loadstart)="onVpLoadStart(currentQuestion)"
+                (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
                 (ended)="onVpVideoEnded($event, currentQuestion)"
               ></video>
 
@@ -394,7 +395,7 @@
                   </div>
                   <div class="vp-stage-overlay-text vp-stage-overlay-text--in-frame">
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.context">{{ currentQuestion.data.context }}</p>
-                    <h2 class="vp-stage-phrase">{{ currentQuestion.data.caption }}</h2>
+                    <h2 class="vp-stage-phrase">{{ getVpPromptCaption(currentQuestion) }}</h2>
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.acceptedVariants?.length">
                       Also accepted: {{ currentQuestion.data.acceptedVariants.join(', ') }}
                     </p>
@@ -421,8 +422,8 @@
                     <button
                       type="button"
                       class="vp-stage-mic-btn vp-stage-mic-btn--glass"
-                      [disabled]="!isVideoOnlyExercise && !speechSupported"
-                      (click)="isVideoOnlyExercise ? handleVideoOnlyTapToSpeak(currentQuestion) : startVideoPronunciation(currentQuestion)"
+                      [disabled]="!speechSupported"
+                      (click)="startVideoPronunciation(currentQuestion)"
                       title="Speak"
                     >
                       <span class="material-icons">mic</span>
@@ -438,18 +439,24 @@
                   <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
                     <div class="vp-stage-feedback" [class.ok]="currentQuestion.vpResult === 'correct'" [class.bad]="currentQuestion.vpResult === 'incorrect'">
                       <span class="material-icons">{{ currentQuestion.vpResult === 'correct' ? 'check_circle' : 'cancel' }}</span>
-                      <!-- Video-only: "Got it!" for any attempt; mixed exercises: "Correct!" / "Try again" -->
+                      <!-- Video-only + mixed exercises: show result after speech recognition check -->
                       <span>{{ currentQuestion.vpResult === 'correct' ? (isVideoOnlyExercise ? 'Got it!' : 'Correct!') : 'Try again' }}</span>
                     </div>
                     <p class="vp-stage-feedback-caption" *ngIf="vpFeedbackCaption">{{ vpFeedbackCaption }}</p>
                     <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'incorrect'">
-                      <button type="button" class="vp-stage-pill vp-stage-pill--ghost" (click)="replayVpVideo()">
-                        <span class="material-icons">replay</span> Replay
-                      </button>
                       <button type="button" class="vp-stage-retry-btn" (click)="retryVideoPronunciation(currentQuestion)">
                         <span class="material-icons">refresh</span> Try again
                       </button>
-                      <!-- Last clip: give the student a way out instead of an infinite retry loop -->
+                      <button
+                        *ngIf="!isLastQuestion"
+                        type="button"
+                        class="vp-stage-pill vp-stage-pill--ghost"
+                        (click)="goToNextClipAfterIncorrect()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">skip_next</span>
+                        Go to next clip
+                      </button>
                       <button
                         *ngIf="isLastQuestion"
                         type="button"
@@ -499,24 +506,7 @@
           </div>
         </header>
 
-        <!-- Skip button — appears after 2 failed attempts -->
-        <div class="vp-skip-bar" *ngIf="showVpSkipButton">
-          <div class="vp-skip-hint">
-            <span class="material-icons">info_outline</span>
-            Having trouble? You can skip this clip.
-          </div>
-          <button
-            type="button"
-            class="vp-skip-btn"
-            (click)="skipVpClip()"
-            [disabled]="submitting || finishingAll"
-          >
-            <span class="material-icons">skip_next</span>
-            {{ submitting || finishingAll ? 'Skipping…' : 'Skip clip' }}
-          </button>
-        </div>
-
-        <div class="vp-chat-lesson-pill" *ngIf="exercise?.category || exercise?.title">
+        <div class="vp-chat-lesson-pill vp-chat-lesson-pill--highlight" *ngIf="exercise?.category || exercise?.title">
           <span class="material-icons">menu_book</span>
           <span class="vp-chat-lesson-text">{{ exercise?.title || 'Lesson' }}<ng-container *ngIf="exercise?.category"> · {{ exercise?.category }}</ng-container></span>
         </div>
@@ -534,8 +524,23 @@
                 </div>
                 <div class="vp-chat-msg-stack">
                   <span class="vp-chat-bot-label">Tutor</span>
-                  <div class="vp-chat-bubble vp-chat-bubble--cream">
-                    <p class="vp-chat-bubble-text">{{ m.text }}</p>
+                  <div
+                    class="vp-chat-bubble vp-chat-bubble--cream"
+                    [class.vp-chat-bubble--your-turn]="m.kind === 'your-turn'"
+                    [class.vp-chat-bubble--clip-watch]="m.kind === 'clip-watch'"
+                    [class.vp-chat-bubble--intro]="m.kind === 'intro'"
+                  >
+                    <p
+                      class="vp-chat-bubble-text"
+                      [class.vp-chat-bubble-text--your-turn]="m.kind === 'your-turn'"
+                      [class.vp-chat-bubble-text--clip-watch]="m.kind === 'clip-watch'"
+                      [class.vp-chat-bubble-text--intro]="m.kind === 'intro'"
+                    >
+                      <ng-container *ngIf="getTutorCaptionParts(m.text) as parts; else plainTutorText">
+                        {{ parts.before }}<span class="vp-chat-caption-value">{{ parts.value }}</span>{{ parts.after }}
+                      </ng-container>
+                      <ng-template #plainTutorText>{{ m.text }}</ng-template>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -781,6 +786,7 @@
                     class="blank-input"
                     [(ngModel)]="currentQuestion.fillAnswers![pi]"
                     (ngModelChange)="markAttempted(currentQuestion)"
+                    (focus)="setActiveSpecialInputTarget({ type: 'fill-blank', blankIndex: pi })"
                     [placeholder]="'blank ' + (pi + 1)"
                     [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
                     [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
@@ -796,6 +802,20 @@
           <div class="hint-label" *ngIf="currentQuestion.data.hint">
             <span class="material-icons">lightbulb</span>
             Hint: {{ currentQuestion.data.hint }}
+          </div>
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
+              </button>
+            </div>
           </div>
           <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
@@ -864,6 +884,7 @@
               placeholder="Type what you hear..."
               [(ngModel)]="currentQuestion.listeningText"
               (ngModelChange)="markAttempted(currentQuestion)"
+              (focus)="setActiveSpecialInputTarget({ type: 'listening' })"
               [disabled]="hasCurrentSubmitted"
             ></textarea>
             <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
@@ -876,6 +897,20 @@
               >
                 <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
                 {{ currentQuestion.isRecording ? 'Stop' : 'Speak' }}
+              </button>
+            </div>
+          </div>
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
               </button>
             </div>
           </div>
@@ -892,7 +927,7 @@
                 <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.context">
                   {{ currentQuestion.data.context }}
                 </div>
-                <div class="vp-caption vp-caption--mobile">{{ currentQuestion.data.caption }}</div>
+                <div class="vp-caption vp-caption--mobile">{{ getVpPromptCaption(currentQuestion) }}</div>
                 <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.acceptedVariants?.length > 0">
                   Also ok: {{ currentQuestion.data.acceptedVariants.join(', ') }}
                 </div>
@@ -907,8 +942,9 @@
                   webkit-playsinline
                   preload="auto"
                   disablePictureInPicture
-                  (loadeddata)="onVpVideoReady($event)"
-                  (loadstart)="onVpLoadStart()"
+                  (loadeddata)="onVpVideoReady($event, currentQuestion)"
+                  (loadstart)="onVpLoadStart(currentQuestion)"
+                  (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
                   (ended)="onVpVideoEnded($event, currentQuestion)"
                 ></video>
               </div>
@@ -929,7 +965,7 @@
                     <span class="material-icons">replay</span>
                     <span>Replay</span>
                   </button>
-                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="isVideoOnlyExercise ? handleVideoOnlyTapToSpeak(currentQuestion) : startVideoPronunciation(currentQuestion)" [disabled]="!isVideoOnlyExercise && !speechSupported">
+                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="startVideoPronunciation(currentQuestion)" [disabled]="!speechSupported">
                     <span class="material-icons">mic</span>
                     <span>Speak</span>
                   </button>
@@ -1031,8 +1067,23 @@
               placeholder="Write your answer here..."
               [(ngModel)]="currentQuestion.qaResponse"
               (ngModelChange)="markAttempted(currentQuestion)"
+              (focus)="setActiveSpecialInputTarget({ type: 'question-answer' })"
               [disabled]="hasCurrentSubmitted"
             ></textarea>
+            <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+              <div class="special-char-label">Special letters</div>
+              <div class="special-char-list" role="group" aria-label="German special letters">
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
           </ng-template>
 
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">

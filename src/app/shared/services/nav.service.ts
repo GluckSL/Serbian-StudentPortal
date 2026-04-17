@@ -13,9 +13,35 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+export type AccessLevel = 'view' | 'edit' | 'full';
+
 @Injectable({ providedIn: 'root' })
 export class NavService {
   private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['dashboard', 'profile'];
+  private readonly SUB_ADMIN_ROUTE_ALIASES: Record<string, string[]> = {
+    modules: [
+      '/learning-modules',
+      '/module-creation-choice',
+      '/create-module',
+      '/create-module-ai',
+      '/create-roleplay-module',
+      '/edit-module',
+      '/ai-tutor-chat'
+    ],
+    exercises: [
+      '/admin/digital-exercises',
+      '/admin/digital-exercises/create',
+      '/admin/digital-exercises/create-video',
+      '/admin/digital-exercises/generate-ai',
+      '/admin/digital-exercises/generate-listening-manual'
+    ],
+    'manage-classes': [
+      '/teacher/meetings'
+    ],
+    journey: [
+      '/admin/journey'
+    ]
+  };
 
   // ── ADMIN ──────────────────────────────────────────────────────────────
   private readonly ADMIN_NAV: NavGroup[] = [
@@ -99,6 +125,7 @@ export class NavService {
     {
       group: 'Support',
       items: [
+        { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: '🎫', route: '/admin/support-tickets', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: '❓', route: '/help', subGroup: null }
       ]
@@ -151,6 +178,7 @@ export class NavService {
     {
       group: 'Help',
       items: [
+        { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
       ]
     },
@@ -180,7 +208,8 @@ export class NavService {
     {
       group: 'My Course',
       items: [
-        { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null }
+        { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null },
+        { id: 'student-announcements', label: 'Announcements', icon: '📢', route: '/student/announcements', subGroup: null }
       ]
     },
     {
@@ -221,16 +250,22 @@ export class NavService {
     }
   ];
 
-  getNavForRole(role: string, sidebarPermissions: string[] = [], teacherTabPermissions: string[] = []): NavGroup[] {
+  getNavForRole(
+    role: string,
+    sidebarPermissions: string[] = [],
+    teacherTabPermissions: string[] = [],
+    sidebarAccessLevels: Record<string, AccessLevel> = {},
+    teacherTabAccessLevels: Record<string, AccessLevel> = {}
+  ): NavGroup[] {
     switch (role) {
       case 'ADMIN':
       case 'TEACHER_ADMIN':
         return this.ADMIN_NAV;
       case 'SUB_ADMIN':
-        return this.getSubAdminNav(sidebarPermissions);
+        return this.getSubAdminNav(sidebarPermissions, sidebarAccessLevels);
       case 'TEACHER':
-        return teacherTabPermissions.length > 0
-          ? this.getTeacherNavWithTabs(teacherTabPermissions)
+        return (teacherTabPermissions.length > 0 || Object.keys(teacherTabAccessLevels || {}).length > 0)
+          ? this.getTeacherNavWithTabs(teacherTabPermissions, teacherTabAccessLevels)
           : this.TEACHER_NAV;
       case 'STUDENT':
         return this.STUDENT_NAV;
@@ -261,22 +296,71 @@ export class NavService {
     }));
   }
 
-  // ── Teacher Tab Permissions (view-only admin tabs for TEACHER role) ───────
-
-  normalizeTeacherTabPermissions(permissions: string[] = []): string[] {
+  normalizeAccessLevels(accessLevels: Record<string, any> | null | undefined): Record<string, AccessLevel> {
     const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
-    return Array.from(new Set((permissions || []).filter(id => validIds.has(id))));
+    const normalized: Record<string, AccessLevel> = {};
+    if (!accessLevels || typeof accessLevels !== 'object') return normalized;
+
+    for (const [tabId, level] of Object.entries(accessLevels)) {
+      if (!validIds.has(tabId)) continue;
+      if (level === 'view' || level === 'edit' || level === 'full') {
+        normalized[tabId] = level;
+      }
+    }
+    return normalized;
   }
 
-  canTeacherAccessAdminRoute(route: string, teacherTabPermissions: string[] = []): boolean {
-    const allowedIds = new Set(this.normalizeTeacherTabPermissions(teacherTabPermissions));
+  canAccessLevel(current: AccessLevel | undefined, required: AccessLevel): boolean {
+    const rank: Record<AccessLevel, number> = { view: 1, edit: 2, full: 3 };
+    if (!current) return false;
+    return rank[current] >= rank[required];
+  }
+
+  getTabAccessLevel(
+    tabId: string,
+    accessLevels: Record<string, AccessLevel> = {},
+    fallbackPermissions: string[] = []
+  ): AccessLevel | null {
+    const normalized = this.normalizeAccessLevels(accessLevels);
+    if (normalized[tabId]) return normalized[tabId];
+    return (fallbackPermissions || []).includes(tabId) ? 'view' : null;
+  }
+
+  // ── Teacher tab permissions (view/edit/full) ───────────────────────────────
+
+  normalizeTeacherTabPermissions(
+    permissions: string[] = [],
+    teacherTabAccessLevels: Record<string, AccessLevel> = {}
+  ): string[] {
+    const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
+    const fromLegacyList = (permissions || []).filter(id => validIds.has(id));
+    const fromAccessLevels = Object.entries(this.normalizeAccessLevels(teacherTabAccessLevels))
+      .filter(([, level]) => this.canAccessLevel(level, 'view'))
+      .map(([id]) => id)
+      .filter((id) => validIds.has(id));
+    return Array.from(new Set([...fromLegacyList, ...fromAccessLevels]));
+  }
+
+  canTeacherAccessAdminRoute(
+    route: string,
+    teacherTabPermissions: string[] = [],
+    teacherTabAccessLevels: Record<string, AccessLevel> = {}
+  ): boolean {
+    const allowedIds = new Set(
+      this.normalizeTeacherTabPermissions(teacherTabPermissions, teacherTabAccessLevels)
+    );
     const allowedItems = this.getAllAdminNavItems().filter(item => allowedIds.has(item.id));
     const normalizedRoute = this.normalizeRoute(route);
     return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
   }
 
-  private getTeacherNavWithTabs(teacherTabPermissions: string[]): NavGroup[] {
-    const allowedIds = new Set(this.normalizeTeacherTabPermissions(teacherTabPermissions));
+  private getTeacherNavWithTabs(
+    teacherTabPermissions: string[],
+    teacherTabAccessLevels: Record<string, AccessLevel> = {}
+  ): NavGroup[] {
+    const allowedIds = new Set(
+      this.normalizeTeacherTabPermissions(teacherTabPermissions, teacherTabAccessLevels)
+    );
 
     const baseNav: NavGroup[] = this.TEACHER_NAV.map((g) => ({
       ...g,
@@ -301,7 +385,7 @@ export class NavService {
     const assignedAdminGroups: NavGroup[] = this.ADMIN_NAV
       .map((group) => ({
         ...group,
-        group: `${group.group} (View Only)`,
+        group: `${group.group} (Assigned Access)`,
         items: group.items.filter((item) => allowedIds.has(item.id) && item.id !== 'journey')
       }))
       .filter((group) => group.items.length > 0);
@@ -311,11 +395,21 @@ export class NavService {
 
   // ── Sub-Admin permissions ─────────────────────────────────────────────────
 
-  normalizeSidebarPermissions(sidebarPermissions: string[] = []): string[] {
+  normalizeSidebarPermissions(
+    sidebarPermissions: string[] = [],
+    sidebarAccessLevels: Record<string, AccessLevel> = {}
+  ): string[] {
     const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
+    const normalizedAccessLevels = this.normalizeAccessLevels(sidebarAccessLevels);
     const normalized = Array.from(
       new Set(
-        (sidebarPermissions || []).filter(permissionId => validIds.has(permissionId))
+        [
+          ...(sidebarPermissions || []).filter(permissionId => validIds.has(permissionId)),
+          ...Object.entries(normalizedAccessLevels)
+            .filter(([, level]) => this.canAccessLevel(level, 'view'))
+            .map(([permissionId]) => permissionId)
+            .filter(permissionId => validIds.has(permissionId))
+        ]
       )
     );
 
@@ -328,18 +422,31 @@ export class NavService {
     return normalized;
   }
 
-  canSubAdminAccessRoute(route: string, sidebarPermissions: string[] = []): boolean {
-    const normalizedPermissions = this.normalizeSidebarPermissions(sidebarPermissions);
+  canSubAdminAccessRoute(
+    route: string,
+    sidebarPermissions: string[] = [],
+    sidebarAccessLevels: Record<string, AccessLevel> = {}
+  ): boolean {
+    const normalizedPermissions = this.normalizeSidebarPermissions(sidebarPermissions, sidebarAccessLevels);
     const allowedItems = this.getAllAdminNavItems().filter(item =>
       normalizedPermissions.includes(item.id)
     );
 
     const normalizedRoute = this.normalizeRoute(route);
-    return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
+    return allowedItems.some(item => {
+      if (this.routeMatches(item.route, normalizedRoute)) return true;
+      const aliases = this.SUB_ADMIN_ROUTE_ALIASES[item.id] || [];
+      return aliases.some(alias => this.routeMatches(alias, normalizedRoute));
+    });
   }
 
-  private getSubAdminNav(sidebarPermissions: string[]): NavGroup[] {
-    const allowedPermissionIds = new Set(this.normalizeSidebarPermissions(sidebarPermissions));
+  private getSubAdminNav(
+    sidebarPermissions: string[],
+    sidebarAccessLevels: Record<string, AccessLevel> = {}
+  ): NavGroup[] {
+    const allowedPermissionIds = new Set(
+      this.normalizeSidebarPermissions(sidebarPermissions, sidebarAccessLevels)
+    );
     return this.ADMIN_NAV
       .map(group => ({
         ...group,

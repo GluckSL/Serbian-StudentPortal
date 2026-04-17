@@ -18,9 +18,17 @@ const zoomRecordingSchema = new mongoose.Schema(
       required: true,
     },
 
-    // R2 object key: {meetingLinkId}/{timestamp}.mp4
-    // e.g. "64f1a2b3c4d5e6f7a8b9c0d1/2026-04-13T09-00-00.mp4"
+    // R2 object key for raw/legacy MP4: {meetingLinkId}/{timestamp}.mp4
+    // Null for HLS-only recordings (hlsKey is set instead).
     r2Key: {
+      type: String,
+      default: null,
+    },
+
+    // R2 object key for the HLS master playlist: {meetingLinkId}/hls/playlist.m3u8
+    // When set, the recording is served as HLS (fast streaming, <1s startup).
+    // Segments live alongside the playlist: {meetingLinkId}/hls/seg000.ts, etc.
+    hlsKey: {
       type: String,
       default: null,
     },

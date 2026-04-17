@@ -4,20 +4,100 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const ClassRecording = require('../models/ClassRecording');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
+const ZoomRecordingView = require('../models/ZoomRecordingView');
 const MeetingLink = require('../models/MeetingLink');
 const ZoomWebhookAudit = require('../models/ZoomWebhookAudit');
 const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
-const { r2Client, R2_BUCKET } = require('../config/r2');
-const { backfillZoomRecordings } = require('../services/zoomRecordingBackfillService');
+const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
+const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config/r2');
+const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
+const { processManualRecordingUpload } = require('../services/recordingProcessor');
+const manualRecordingUpload = require('../config/manualRecordingUpload');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
+
+// ── In-memory HLS playlist cache ──────────────────────────────────────────────
+// Stores rewritten m3u8 (with presigned segment URLs) per recording key.
+// TTL is 13 min — safely within the 15-min presigned URL lifetime.
+const _hlsCache = new Map(); // cacheKey → { content: string, expiresAt: number }
+const HLS_CACHE_TTL_MS = 13 * 60 * 1000;
+
+function getHlsCached(cacheKey) {
+  const entry = _hlsCache.get(cacheKey);
+  if (!entry || Date.now() >= entry.expiresAt) {
+    _hlsCache.delete(cacheKey);
+    return null;
+  }
+  return entry.content;
+}
+
+function setHlsCached(cacheKey, content) {
+  _hlsCache.set(cacheKey, { content, expiresAt: Date.now() + HLS_CACHE_TTL_MS });
+}
+
+/** Drain an AWS SDK v3 stream body into a UTF-8 string. */
+async function streamToString(body) {
+  const chunks = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+/**
+ * Fetch the raw HLS playlist from R2, then replace every `.ts` line with
+ * a presigned R2 URL valid for SIGNED_URL_EXPIRY_SECONDS.
+ * The browser (or hls.js) can then fetch segments directly from R2,
+ * bypassing the Express server entirely — zero extra backend load during playback.
+ */
+async function buildSignedHlsPlaylist(hlsKey) {
+  if (!R2_CONFIG_OK) {
+    throw new Error(`R2 is not configured: ${r2ConfigIssues.join(', ')}`);
+  }
+  const { GetObjectCommand: GetObj } = require('@aws-sdk/client-s3');
+
+  // Fetch raw m3u8 text from R2
+  const obj = await r2Client.send(new GetObj({ Bucket: R2_BUCKET, Key: hlsKey }));
+  const raw = await streamToString(obj.Body);
+
+  // The HLS directory prefix (everything before /playlist.m3u8)
+  const hlsDir = hlsKey.substring(0, hlsKey.lastIndexOf('/'));
+
+  // Replace each segment filename line with a presigned URL
+  const lines = raw.split('\n');
+  const signed = await Promise.all(
+    lines.map(async (line) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.endsWith('.ts')) {
+        const segKey = `${hlsDir}/${trimmed}`;
+        const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: segKey });
+        return getSignedUrl(r2Client, cmd, { expiresIn: SIGNED_URL_EXPIRY_SECONDS });
+      }
+      return line;
+    })
+  );
+
+  return signed.join('\n');
+}
+
+function canUserAccessManualRecording(recording, student) {
+  if (!recording?.active) return false;
+  if (!student) return false;
+  const inBatch = Array.isArray(recording.batches) &&
+    recording.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch));
+  if (!inBatch) return false;
+  if (recording.level && student.level && recording.level !== student.level) return false;
+  const studentPlan = String(student.subscription || '').toUpperCase();
+  if (recording.plan && recording.plan !== 'ALL' && studentPlan !== recording.plan) return false;
+  return true;
+}
 
 function normalizeBatch(value) {
   return String(value || '')
     .toLowerCase()
     .trim()
+    .replace(/^batch\s+/, '')
     .replace(/\s+/g, ' ');
 }
 
@@ -32,7 +112,10 @@ function isSameBatch(studentBatch, meetingBatch) {
   if (a === b) return true;
   // Allow meeting batch names that extend student batch labels,
   // e.g. "Batch 35" vs "Batch 35 - A1 German Class"
-  return b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`);
+  return (
+    b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`) ||
+    a.startsWith(`${b} -`) || a.startsWith(`${b}:`) || a.startsWith(`${b} |`)
+  );
 }
 
 // GET /api/class-recordings — Teacher/Admin: all recordings; Student: filtered
@@ -52,18 +135,23 @@ router.get('/', verifyToken, async (req, res) => {
       .select('batch level subscription').lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-    const filter = {
+    const baseFilter = {
       active: true,
       level: student.level,
-      batches: student.batch,
       plan: { $in: [student.subscription, 'ALL'] }
     };
 
-    const recordings = await ClassRecording.find(filter)
+    const recordings = await ClassRecording.find(baseFilter)
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 }).lean();
 
-    res.json({ success: true, recordings });
+    // Strict student-batch visibility guard: only same batch recordings.
+    const filteredRecordings = recordings.filter((r) =>
+      Array.isArray(r.batches) &&
+      r.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch))
+    );
+
+    res.json({ success: true, recordings: filteredRecordings });
   } catch (error) {
     console.error('Error fetching class recordings:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -80,7 +168,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       .lean();
 
     // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
-    // Admin sees all states so they can decide what to publish.
+    // Admin/teacher list includes all states so rows do not disappear while processing;
+    // publish flags control student visibility.
     const zoomRecordings = await ZoomRecording.find({})
       .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt')
       .sort({ createdAt: -1 })
@@ -88,7 +177,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
 
     const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
     const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
-      .select('_id topic batch startTime duration')
+      .select('_id topic batch startTime duration assignedTeacher')
+      .populate('assignedTeacher', 'name')
       .lean();
 
     const meetingMap = {};
@@ -112,8 +202,9 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
         // zoom-specific extras for admin UI
         meetingLinkId: z.meetingLinkId,
         zoomMeetingId: z.zoomMeetingId || null,
+        assignedTeacherId: meeting.assignedTeacher?._id || null,
         status: z.status,
-        isPublished: Boolean(z.isPublished),
+        isPublished: z.isPublished !== false,
         publishedAt: z.publishedAt || null,
         r2Key: z.r2Key,
         duration: z.duration,
@@ -126,7 +217,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       ...m,
       recordingType: 'MANUAL',
       source: 'MANUAL_UPLOAD',
-      status: 'ready',
+      status: m.status || 'ready',
       isPublished: true,
       publishedAt: m.createdAt,
       duration: null,
@@ -135,6 +226,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       meetingLinkId: null,
       zoomMeetingId: null,
       r2Key: null,
+      sourceType: m.sourceType || 'URL',
+      hlsKey: m.hlsKey || null,
     }));
 
     const recordings = [...manualItems, ...zoomItems].sort(
@@ -193,6 +286,8 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
     const recording = await ClassRecording.create({
       title, description, videoUrl, batches, level,
       plan: plan || 'ALL',
+      sourceType: 'URL',
+      status: 'ready',
       uploadedBy: req.user.id
     });
 
@@ -204,19 +299,186 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
   }
 });
 
+// POST /api/class-recordings/upload — Upload MP4, convert to HLS, store in R2
+router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), (req, res) => {
+  manualRecordingUpload.single('video')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      return res.status(400).json({ success: false, message: uploadErr.message || 'Upload failed.' });
+    }
+
+    try {
+      if (!R2_CONFIG_OK) {
+        return res.status(503).json({
+          success: false,
+          message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+        });
+      }
+
+      const { title, description = '', level, plan = 'ALL' } = req.body || {};
+      const rawBatches = req.body?.batches;
+      const batches = Array.isArray(rawBatches)
+        ? rawBatches
+        : String(rawBatches || '')
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean);
+
+      if (!title || !level || !batches.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title, level, and at least one batch are required.',
+        });
+      }
+      if (!req.file?.path) {
+        return res.status(400).json({ success: false, message: 'Video file is required.' });
+      }
+
+      const recording = await ClassRecording.create({
+        title: String(title).trim(),
+        description: String(description || '').trim(),
+        videoUrl: '',
+        batches,
+        level: String(level),
+        plan: String(plan || 'ALL'),
+        sourceType: 'HLS_UPLOAD',
+        status: 'processing',
+        hlsKey: null,
+        errorMessage: null,
+        uploadedBy: req.user.id,
+      });
+
+      // Immediate response; conversion runs in background.
+      res.status(202).json({
+        success: true,
+        message: 'Upload received. HLS conversion started in background.',
+        recordingId: recording._id,
+      });
+
+      processManualRecordingUpload(String(recording._id), req.file.path)
+        .then(async (result) => {
+          if (result?.success && result.hlsKey) {
+            await ClassRecording.findByIdAndUpdate(recording._id, {
+              status: 'ready',
+              hlsKey: result.hlsKey,
+              errorMessage: null,
+            });
+            return;
+          }
+          await ClassRecording.findByIdAndUpdate(recording._id, {
+            status: 'failed',
+            errorMessage: result?.error || 'Conversion failed',
+          });
+        })
+        .catch(async (err) => {
+          await ClassRecording.findByIdAndUpdate(recording._id, {
+            status: 'failed',
+            errorMessage: err.message || 'Conversion failed',
+          });
+        });
+    } catch (error) {
+      console.error('Error creating uploaded recording:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+});
+
 // PUT /api/class-recordings/:id — Update recording (Teacher/Admin)
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { title, description, videoUrl, batches, level, plan } = req.body;
+    const existing = await ClassRecording.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ success: false, message: 'Recording not found' });
+
+    const updatePayload = { title, description, batches, level, plan };
+    if (existing.sourceType !== 'HLS_UPLOAD') {
+      updatePayload.videoUrl = videoUrl;
+    }
+
     const recording = await ClassRecording.findByIdAndUpdate(
       req.params.id,
-      { title, description, videoUrl, batches, level, plan },
+      updatePayload,
       { new: true }
     );
-    if (!recording) return res.status(404).json({ success: false, message: 'Recording not found' });
     res.json({ success: true, recording });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/:id/upload-status — Poll status for manual uploaded recordings
+router.get('/:id/upload-status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const recording = await ClassRecording.findById(req.params.id)
+      .select('_id sourceType status errorMessage hlsKey createdAt')
+      .lean();
+
+    if (!recording) {
+      return res.status(404).json({ success: false, message: 'Recording not found.' });
+    }
+
+    res.json({
+      success: true,
+      recordingId: recording._id,
+      sourceType: recording.sourceType || 'URL',
+      status: recording.status || 'ready',
+      errorMessage: recording.errorMessage || null,
+      hlsReady: Boolean(recording.hlsKey),
+      createdAt: recording.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/:id/hls/playlist — signed playlist for manual uploaded recordings
+router.get('/:id/hls/playlist', verifyToken, async (req, res) => {
+  try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
+    const recording = await ClassRecording.findById(req.params.id)
+      .select('active sourceType status hlsKey level plan batches')
+      .lean();
+    if (!recording || !recording.active) {
+      return res.status(404).json({ success: false, message: 'Recording not found.' });
+    }
+    if (recording.sourceType !== 'HLS_UPLOAD' || !recording.hlsKey) {
+      return res.status(404).json({ success: false, message: 'HLS recording not found for this item.' });
+    }
+    if (recording.status === 'processing') {
+      return res.status(202).json({ success: false, message: 'Recording is still being processed.' });
+    }
+    if (recording.status !== 'ready') {
+      return res.status(500).json({ success: false, message: recording.errorMessage || 'Recording is not available.' });
+    }
+
+    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
+      const student = await User.findById(req.user.id).select('batch level subscription').lean();
+      if (!canUserAccessManualRecording(recording, student)) {
+        return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
+      }
+    }
+
+    const cacheKey = `manual:${String(req.params.id)}`;
+    const cached = getHlsCached(cacheKey);
+    if (cached) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.send(cached);
+    }
+
+    const playlist = await buildSignedHlsPlaylist(recording.hlsKey);
+    setHlsCached(cacheKey, playlist);
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(playlist);
+  } catch (error) {
+    console.error('Error serving manual HLS playlist:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -273,6 +535,137 @@ router.get('/:id/views', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
   }
 });
 
+// POST /api/class-recordings/zoom/:meetingLinkId/view — Student starts watching a Zoom recording
+router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    const view = await ZoomRecordingView.create({
+      meetingLinkId,
+      student: req.user.id,
+      watchDuration: 0,
+    });
+    res.json({ success: true, viewId: view._id });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/class-recordings/zoom/view/:viewId — Update Zoom watch duration
+router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
+  try {
+    const { watchDuration } = req.body || {};
+    await ZoomRecordingView.findByIdAndUpdate(req.params.viewId, {
+      watchDuration: watchDuration || 0,
+      lastUpdatedAt: new Date(),
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/class-recordings/zoom/:meetingLinkId/views — Admin analytics for one Zoom recording
+router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+
+    const [meeting, zoomRec, zoomViews] = await Promise.all([
+      MeetingLink.findById(meetingLinkId).select('batch').lean(),
+      ZoomRecording.findOne({ meetingLinkId }).select('r2Key').lean(),
+      ZoomRecordingView.find({ meetingLinkId })
+        .populate('student', 'name email batch level')
+        .sort({ startedAt: -1 })
+        .lean(),
+    ]);
+
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found.' });
+    }
+
+    const watchMap = {};
+    for (const v of zoomViews) {
+      const sid = v?.student?._id ? String(v.student._id) : null;
+      if (!sid) continue;
+      if (!watchMap[sid]) watchMap[sid] = [];
+      watchMap[sid].push(v);
+    }
+
+    const allStudents = await User.find({ role: 'STUDENT' })
+      .select('name email batch level')
+      .lean();
+
+    const batchStudents = allStudents.filter((s) =>
+      isSameBatch(s.batch, meeting.batch) || isSameBatch(meeting.batch, s.batch)
+    );
+
+    const rows = [];
+    for (const student of batchStudents) {
+      const sid = String(student._id);
+      const sessions = watchMap[sid] || [];
+      if (!sessions.length) {
+        rows.push({
+          student: {
+            name: student.name || 'Unknown',
+            email: student.email || '',
+            batch: student.batch || '',
+            level: student.level || '',
+          },
+          watchDuration: 0,
+          startedAt: null,
+          lastUpdatedAt: null,
+          viewed: false,
+        });
+        continue;
+      }
+
+      const latest = sessions[0];
+      rows.push({
+        student: {
+          name: student.name || 'Unknown',
+          email: student.email || '',
+          batch: student.batch || '',
+          level: student.level || '',
+        },
+        watchDuration: Number(latest.watchDuration || 0),
+        startedAt: latest.startedAt || null,
+        lastUpdatedAt: latest.lastUpdatedAt || null,
+        viewed: true,
+      });
+    }
+
+    let videoSizeBytes = 0;
+    if (zoomRec?.r2Key) {
+      try {
+        const head = await r2Client.send(new HeadObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: zoomRec.r2Key,
+        }));
+        videoSizeBytes = Number(head.ContentLength || 0);
+      } catch (e) {
+        videoSizeBytes = 0;
+      }
+    }
+
+    const watchedCount = rows.filter((r) => r.viewed).length;
+    const totalWatchSeconds = rows.reduce((sum, r) => sum + Number(r.watchDuration || 0), 0);
+
+    return res.json({
+      success: true,
+      views: rows,
+      summary: {
+        totalStudents: rows.length,
+        watchedCount,
+        notWatchedCount: rows.length - watchedCount,
+        totalWatchSeconds,
+        videoSizeBytes,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching zoom recording views:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Zoom Auto-Recorded Sessions (ingested via webhook → R2)
 // ---------------------------------------------------------------------------
@@ -290,6 +683,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const { role, id: userId } = req.user;
 
     let batchFilter;
+    let studentBatchValue = null;
 
     if (['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
       // Staff can optionally filter by batch via query param, otherwise get all
@@ -302,18 +696,28 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
       if (!student || !student.batch) {
         return res.status(400).json({ success: false, message: 'Student batch not set on your profile.' });
       }
+      studentBatchValue = String(student.batch);
+      const batchToken = escapeRegex(studentBatchValue);
       batchFilter = {
         batch: {
-          $regex: `^${escapeRegex(String(student.batch))}(\\b|\\s*[-:|])`,
+          // Broad pre-filter: batch token can appear in labels like
+          // "35", "Batch 35", "Batch 35 - A1 German Class", etc.
+          $regex: `(^|\\s|-)${batchToken}(\\b|\\s*[-:|])`,
           $options: 'i',
         },
       };
     }
 
     // 1. Find all MeetingLinks for this batch
-    const meetingLinks = await MeetingLink.find(batchFilter)
-      .select('_id topic batch startTime duration')
+    let meetingLinks = await MeetingLink.find(batchFilter)
+      .select('_id topic batch startTime duration status attendance assignedTeacher')
+      .populate('assignedTeacher', 'name')
       .lean();
+
+    // Final guard for students: normalize and compare batch labels safely.
+    if (studentBatchValue) {
+      meetingLinks = meetingLinks.filter((m) => isSameBatch(studentBatchValue, m.batch));
+    }
 
     if (!meetingLinks.length) {
       return res.json({ success: true, recordings: [] });
@@ -321,11 +725,11 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
 
     const meetingLinkIds = meetingLinks.map((m) => m._id);
 
-    // 2. Find all ready ZoomRecordings for those meetings
+    // 2. Find only READY + visible ZoomRecordings for students.
     const zoomRecordings = await ZoomRecording.find({
       meetingLinkId: { $in: meetingLinkIds },
       status: 'ready',
-      isPublished: true,
+      isPublished: { $ne: false },
     })
       .select('meetingLinkId r2Key duration status createdAt isPublished')
       .lean();
@@ -337,14 +741,37 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     // Merge recording with its meeting info and sort by class date descending
     const recordings = zoomRecordings.map((rec) => {
       const meeting = meetingMap[rec.meetingLinkId.toString()] || {};
+      const startTime = meeting.startTime ? new Date(meeting.startTime) : null;
+      const durationMinutes = Number(meeting.duration || 0);
+      const computedEnd = startTime && durationMinutes > 0
+        ? new Date(startTime.getTime() + durationMinutes * 60 * 1000)
+        : null;
+      const attempted = meeting.status === 'ended' || (computedEnd ? Date.now() >= computedEnd.getTime() : false);
+      const myAttendance = Array.isArray(meeting.attendance)
+        ? meeting.attendance.find((a) => String(a?.studentId || '') === String(userId))
+        : null;
+      const attendanceStatus = myAttendance
+        ? (
+            myAttendance.attended === true ||
+            myAttendance.status === 'attended' ||
+            Number(myAttendance.attendancePercent || 0) >= 75
+              ? 'Attended'
+              : (attempted ? 'Not Attended' : 'Pending')
+          )
+        : (attempted ? 'Not Attempted' : 'Pending');
+
       return {
         meetingLinkId: rec.meetingLinkId,
         r2Key: rec.r2Key,
         duration: rec.duration,
+        status: rec.status,
         createdAt: rec.createdAt,
-        isPublished: Boolean(rec.isPublished),
+        isPublished: rec.isPublished !== false,
         topic: meeting.topic || 'Class Recording',
         batch: meeting.batch || '',
+        teacherName: meeting.assignedTeacher?.name || 'Teacher',
+        attempted,
+        attendanceStatus,
         classDate: meeting.startTime || rec.createdAt,
         meetingDuration: meeting.duration || null,
       };
@@ -369,30 +796,150 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
  *  - limit: 200
  *  - includeFailed: true
  *  - force: false
+ *  - meetingIds: ["81190533282", "81221622942"] or "81190533282,81221622942"
  */
-router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const {
-      batch = null,
-      limit = 100,
-      includeFailed = true,
-      force = false,
-    } = req.body || {};
+/**
+ * POST /api/class-recordings/zoom/backfill
+ *
+ * Starts a backfill in the background and responds 202 immediately so
+ * Cloudflare's proxy timeout is never hit. Poll GET /zoom/backfill/status
+ * to track progress.
+ */
+router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  const {
+    batch = null,
+    limit = 100,
+    includeFailed = true,
+    force = false,
+    meetingIds = [],
+  } = req.body || {};
 
-    const result = await backfillZoomRecordings({
-      batch,
-      limit,
-      includeFailed,
-      force,
+  const status = getBackfillStatus();
+  if (status.running) {
+    return res.status(409).json({
+      success: false,
+      message: 'A backfill is already running. Poll GET /api/class-recordings/zoom/backfill/status for updates.',
+      startedAt: status.startedAt,
+      params: status.params,
     });
+  }
+
+  // Respond immediately — scanning + downloading can take minutes.
+  res.status(202).json({
+    success: true,
+    message: 'Backfill started in background. Poll GET /api/class-recordings/zoom/backfill/status for results.',
+    params: { batch, limit, includeFailed, force, meetingIds },
+  });
+
+  // Fire-and-forget: runs entirely outside the HTTP request lifecycle.
+  backfillZoomRecordings({ batch, limit, includeFailed, force, meetingIds }).catch((err) => {
+    console.error('❌ Backfill top-level error:', err.message);
+  });
+});
+
+/**
+ * GET /api/class-recordings/zoom/backfill/status
+ *
+ * Returns the state of the most recently triggered backfill job.
+ * Use this to poll after calling POST /zoom/backfill.
+ */
+router.get('/zoom/backfill/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  const status = getBackfillStatus();
+  res.json({ success: true, ...status });
+});
+
+/**
+ * POST /api/class-recordings/zoom/publish
+ *
+ * Toggle Zoom recording visibility for students.
+ * Body:
+ *  - meetingLinkIds: string[]
+ *  - isPublished: boolean
+ */
+router.post('/zoom/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkIds, isPublished } = req.body || {};
+    if (!Array.isArray(meetingLinkIds) || meetingLinkIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'meetingLinkIds array is required.' });
+    }
+
+    const publishState = Boolean(isPublished);
+    // Only ready recordings are eligible for student visibility toggling.
+    const result = await ZoomRecording.updateMany(
+      { meetingLinkId: { $in: meetingLinkIds }, status: 'ready' },
+      {
+        $set: {
+          isPublished: publishState,
+          publishedAt: publishState ? new Date() : null,
+        },
+      }
+    );
 
     return res.json({
       success: true,
-      message: 'Backfill scan completed. Queued recordings will continue processing in background.',
-      ...result,
+      message: publishState ? 'Recording(s) visible to students.' : 'Recording(s) hidden from students.',
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
     });
   } catch (error) {
-    console.error('Error running zoom recording backfill:', error);
+    console.error('Error updating Zoom publish state:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * PUT /api/class-recordings/zoom/:meetingLinkId/meta
+ *
+ * Edit metadata of a Zoom class recording (title/topic, teacher, batch).
+ */
+router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    const { title, batch, teacherId } = req.body || {};
+
+    const meeting = await MeetingLink.findById(meetingLinkId);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found.' });
+    }
+
+    if (typeof title === 'string' && title.trim()) {
+      meeting.topic = title.trim();
+    }
+    if (typeof batch === 'string' && batch.trim()) {
+      meeting.batch = batch.trim();
+    }
+    if (teacherId) {
+      const teacher = await User.findById(teacherId).select('_id role').lean();
+      if (!teacher || !['TEACHER', 'TEACHER_ADMIN', 'ADMIN'].includes(teacher.role)) {
+        return res.status(400).json({ success: false, message: 'Invalid teacher selected.' });
+      }
+      meeting.assignedTeacher = teacher._id;
+    }
+
+    await meeting.save();
+    return res.json({ success: true, message: 'Zoom recording details updated.' });
+  } catch (error) {
+    console.error('Error updating zoom recording metadata:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * DELETE /api/class-recordings/zoom/:meetingLinkId
+ *
+ * Remove a Zoom auto-recording entry for a class.
+ */
+router.delete('/zoom/:meetingLinkId', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    const removed = await ZoomRecording.findOneAndDelete({ meetingLinkId });
+    if (!removed) {
+      return res.status(404).json({ success: false, message: 'Zoom recording not found.' });
+    }
+    await ZoomRecordingView.deleteMany({ meetingLinkId });
+    return res.json({ success: true, message: 'Zoom recording deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting zoom recording:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -479,7 +1026,7 @@ router.get('/zoom/debug/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
         meetingDuration: meeting.duration || null,
         zoomMeetingId: zoom?.zoomMeetingId || null,
         status: zoom?.status || 'missing',
-        isPublished: Boolean(zoom?.isPublished),
+        isPublished: zoom?.isPublished !== false,
         r2Key: zoom?.r2Key || null,
         recordingDuration: zoom?.duration || null,
         errorMessage: zoom?.errorMessage || null,
@@ -539,15 +1086,98 @@ router.get('/zoom/webhook-audit', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
 });
 
 /**
+ * GET /api/class-recordings/zoom/:meetingLinkId/hls/playlist
+ *
+ * Serves the HLS master playlist (.m3u8) with every segment line replaced by
+ * a short-lived presigned R2 URL.  Once the client has this playlist, it fetches
+ * segments directly from R2 — the Express server is NOT involved during playback.
+ *
+ * The playlist is cached in-memory for 13 minutes so repeated seeks / refreshes
+ * don't re-sign hundreds of URLs on every request.
+ *
+ * Access control is identical to the MP4 signed-URL endpoint.
+ */
+router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) => {
+  try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
+    const { meetingLinkId } = req.params;
+    const { role, id: userId } = req.user;
+
+    const zoomRecording = await ZoomRecording.findOne({ meetingLinkId })
+      .select('hlsKey status isPublished').lean();
+
+    if (!zoomRecording || !zoomRecording.hlsKey) {
+      return res.status(404).json({ success: false, message: 'HLS recording not found for this class.' });
+    }
+    if (zoomRecording.status === 'processing') {
+      return res.status(202).json({ success: false, message: 'Recording is still being processed.' });
+    }
+    if (zoomRecording.status !== 'ready') {
+      return res.status(500).json({ success: false, message: 'Recording is not available.' });
+    }
+
+    // Student access control
+    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+      if (zoomRecording.isPublished === false) {
+        return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
+      }
+      const [meetingLink, student] = await Promise.all([
+        MeetingLink.findById(meetingLinkId).select('batch').lean(),
+        User.findById(userId).select('batch').lean(),
+      ]);
+      if (!meetingLink || !student || !isSameBatch(student.batch, meetingLink.batch)) {
+        return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
+      }
+    }
+
+    // Serve from cache when possible
+    const cacheKey = `zoom:${String(meetingLinkId)}`;
+    const cached = getHlsCached(cacheKey);
+    if (cached) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.send(cached);
+    }
+
+    // Build and cache the signed playlist
+    const playlist = await buildSignedHlsPlaylist(zoomRecording.hlsKey);
+    setHlsCached(cacheKey, playlist);
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(playlist);
+
+  } catch (error) {
+    console.error('Error serving HLS playlist:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/class-recordings/zoom/:meetingLinkId
  *
  * Returns a short-lived R2 presigned URL for the recording of a given class.
+ * For HLS recordings (hlsKey set) it also returns hlsMode:true so the client
+ * knows to use the /hls/playlist endpoint instead of the MP4 URL.
  * Access rules:
  *  - ADMIN / TEACHER_ADMIN / TEACHER: always allowed
  *  - STUDENT: must belong to the same batch as the MeetingLink (attended or not)
  */
 router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
   try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
     const { meetingLinkId } = req.params;
     const { role, id: userId } = req.user;
 
@@ -567,8 +1197,8 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
 
     // 2. Authorisation check for students — batch-based + published only
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
-      if (!zoomRecording.isPublished) {
-        return res.status(403).json({ success: false, message: 'This recording has not been published yet.' });
+      if (zoomRecording.isPublished === false) {
+        return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
       }
 
       const [meetingLink, student] = await Promise.all([
@@ -585,22 +1215,33 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       }
     }
 
-    // 3. Generate a presigned URL from R2 (15-minute TTL)
-    const command = new GetObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: zoomRecording.r2Key,
-    });
+    // 3. For HLS recordings — no MP4 presigned URL needed; client uses /hls/playlist endpoint.
+    //    For legacy MP4 recordings (hlsKey absent, r2Key present) — generate presigned URL.
+    const hlsMode = !!zoomRecording.hlsKey;
+    let signedUrl = null;
 
-    const signedUrl = await getSignedUrl(r2Client, command, {
-      expiresIn: SIGNED_URL_EXPIRY_SECONDS,
-    });
+    if (!hlsMode && zoomRecording.r2Key) {
+      const command = new GetObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: zoomRecording.r2Key,
+      });
+      signedUrl = await getSignedUrl(r2Client, command, { expiresIn: SIGNED_URL_EXPIRY_SECONDS });
+    }
+
+    if (!hlsMode && !signedUrl) {
+      return res.status(500).json({
+        success: false,
+        message: 'Recording is missing both hlsKey and r2Key.',
+      });
+    }
 
     res.json({
       success: true,
-      signedUrl,
+      hlsMode,                                  // true → use /hls/playlist endpoint
+      signedUrl,                                // null for HLS recordings; MP4 URL for legacy
       duration: zoomRecording.duration,
       createdAt: zoomRecording.createdAt,
-      isPublished: Boolean(zoomRecording.isPublished),
+      isPublished: zoomRecording.isPublished !== false,
       r2Key: zoomRecording.r2Key,
     });
   } catch (error) {

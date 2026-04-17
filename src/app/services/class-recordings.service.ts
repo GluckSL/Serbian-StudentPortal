@@ -8,6 +8,10 @@ export interface ClassRecording {
   title: string;
   description: string;
   videoUrl: string;
+  sourceType?: 'URL' | 'HLS_UPLOAD';
+  status?: 'processing' | 'ready' | 'failed' | 'missing';
+  hlsKey?: string | null;
+  errorMessage?: string | null;
   batches: string[];
   level: string;
   plan: string;
@@ -25,9 +29,20 @@ export interface AdminClassRecording extends ClassRecording {
   classDuration?: number | null;
   meetingLinkId?: string | null;
   zoomMeetingId?: string | null;
+  assignedTeacherId?: string | null;
   r2Key?: string | null;
   isPublished?: boolean;
   publishedAt?: string | null;
+}
+
+export interface ManualUploadStatusResponse {
+  success: boolean;
+  recordingId: string;
+  sourceType: 'URL' | 'HLS_UPLOAD';
+  status: 'processing' | 'ready' | 'failed';
+  errorMessage: string | null;
+  hlsReady: boolean;
+  createdAt: string;
 }
 
 export interface ZoomWebhookAuditRow {
@@ -45,10 +60,14 @@ export interface ZoomWebhookAuditRow {
 
 export interface ZoomRecordingResponse {
   success: boolean;
-  signedUrl: string;
+  /** True when the recording was converted to HLS. Use hlsPlaylistUrl for playback. */
+  hlsMode: boolean;
+  /** Presigned MP4 URL — only present for legacy recordings where hlsMode is false. */
+  signedUrl: string | null;
   duration: number | null;
   createdAt: string;
-  r2Key: string;
+  isPublished?: boolean;
+  r2Key: string | null;
 }
 
 export interface ZoomRecordingStatusResponse {
@@ -62,10 +81,15 @@ export interface ZoomRecordingStatusResponse {
 export interface BatchZoomRecording {
   meetingLinkId: string;
   r2Key: string;
+  status?: 'processing' | 'ready' | 'failed';
   duration: number | null;
   createdAt: string;
+  isPublished?: boolean;
   topic: string;
   batch: string;
+  teacherName?: string;
+  attempted?: boolean;
+  attendanceStatus?: 'Attended' | 'Not Attended' | 'Not Attempted' | 'Pending';
   classDate: string;
   meetingDuration: number | null;
 }
@@ -89,11 +113,24 @@ export class ClassRecordingsService {
     limit?: number;
     includeFailed?: boolean;
     force?: boolean;
+    meetingIds?: string[];
   }): Observable<any> {
     return this.http.post<any>(`${this.url}/zoom/backfill`, payload || {}, { withCredentials: true });
   }
 
-  publishZoomRecordings(meetingLinkIds: string[], isPublished = true): Observable<any> {
+  getZoomBackfillStatus(): Observable<any> {
+    return this.http.get<any>(`${this.url}/zoom/backfill/status`, { withCredentials: true });
+  }
+
+  publishZoomRecordings(
+    meetingLinkIds: string[],
+    isPublished = true
+  ): Observable<{
+    success: boolean;
+    message: string;
+    matched: number;
+    modified: number;
+  }> {
     return this.http.post<any>(
       `${this.url}/zoom/publish`,
       { meetingLinkIds, isPublished },
@@ -122,12 +159,24 @@ export class ClassRecordingsService {
     return this.http.post<any>(this.url, data, { withCredentials: true });
   }
 
+  createFromUpload(formData: FormData): Observable<{
+    success: boolean;
+    message: string;
+    recordingId: string;
+  }> {
+    return this.http.post<any>(`${this.url}/upload`, formData, { withCredentials: true });
+  }
+
   update(id: string, data: any): Observable<{ success: boolean; recording: ClassRecording }> {
     return this.http.put<any>(`${this.url}/${id}`, data, { withCredentials: true });
   }
 
   delete(id: string): Observable<{ success: boolean; message: string }> {
     return this.http.delete<any>(`${this.url}/${id}`, { withCredentials: true });
+  }
+
+  deleteZoomRecording(meetingLinkId: string): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<any>(`${this.url}/zoom/${meetingLinkId}`, { withCredentials: true });
   }
 
   // View tracking
@@ -141,6 +190,31 @@ export class ClassRecordingsService {
 
   getViews(recordingId: string): Observable<{ success: boolean; views: any[] }> {
     return this.http.get<any>(`${this.url}/${recordingId}/views`, { withCredentials: true });
+  }
+
+  getManualUploadStatus(recordingId: string): Observable<ManualUploadStatusResponse> {
+    return this.http.get<ManualUploadStatusResponse>(
+      `${this.url}/${recordingId}/upload-status`,
+      { withCredentials: true }
+    );
+  }
+
+  getManualHlsPlaylistUrl(recordingId: string): string {
+    return `${this.url}/${recordingId}/hls/playlist`;
+  }
+
+  getZoomViews(meetingLinkId: string): Observable<{
+    success: boolean;
+    views: any[];
+    summary?: {
+      totalStudents: number;
+      watchedCount: number;
+      notWatchedCount: number;
+      totalWatchSeconds: number;
+      videoSizeBytes: number;
+    };
+  }> {
+    return this.http.get<any>(`${this.url}/zoom/${meetingLinkId}/views`, { withCredentials: true });
   }
 
   getAnalyticsSummary(): Observable<{ success: boolean; summary: Record<string, any> }> {
@@ -160,6 +234,23 @@ export class ClassRecordingsService {
       `${this.url}/zoom/${meetingLinkId}`,
       { withCredentials: true }
     );
+  }
+
+  /**
+   * Returns the URL of the authenticated HLS playlist endpoint for a recording.
+   * The backend serves a rewritten .m3u8 where every segment line is a
+   * presigned R2 URL, so hls.js fetches segments directly from R2.
+   */
+  getHlsPlaylistUrl(meetingLinkId: string): string {
+    return `${this.url}/zoom/${meetingLinkId}/hls/playlist`;
+  }
+
+  startZoomView(meetingLinkId: string): Observable<{ success: boolean; viewId: string }> {
+    return this.http.post<any>(`${this.url}/zoom/${meetingLinkId}/view`, {}, { withCredentials: true });
+  }
+
+  updateZoomViewDuration(viewId: string, watchDuration: number): Observable<any> {
+    return this.http.put<any>(`${this.url}/zoom/view/${viewId}`, { watchDuration }, { withCredentials: true });
   }
 
   /**
@@ -183,5 +274,17 @@ export class ClassRecordingsService {
       `${this.url}/zoom/my-batch${params}`,
       { withCredentials: true }
     );
+  }
+
+  updateZoomRecordingMeta(meetingLinkId: string, payload: {
+    title?: string;
+    batch?: string;
+    teacherId?: string;
+  }): Observable<{ success: boolean; message: string }> {
+    return this.http.put<any>(`${this.url}/zoom/${meetingLinkId}/meta`, payload, { withCredentials: true });
+  }
+
+  getZoomTeachers(): Observable<{ success: boolean; data: Array<{ _id: string; name: string; email: string }> }> {
+    return this.http.get<any>(`${environment.apiUrl}/zoom/teachers`, { withCredentials: true });
   }
 }

@@ -25,10 +25,10 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Batches a TEACHER may view: assignedBatches + batches of students assigned to them */
+/** Batches a TEACHER/TEACHER_ADMIN may view: assignedBatches + batches of students assigned to them */
 async function buildTeacherAllowedBatchSet(teacherId) {
   const teacher = await User.findById(teacherId).select('assignedBatches role').lean();
-  if (!teacher || teacher.role !== 'TEACHER') return null;
+  if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) return null;
   const set = new Set();
   for (const b of teacher.assignedBatches || []) {
     const n = String(b || '').trim();
@@ -60,13 +60,13 @@ function teacherAllowedForBatch(allowedSet, batchName) {
 }
 
 async function teacherCanAccessBatch(req, batchName) {
-  if (req.user.role !== 'TEACHER') return true;
+  if (req.user.role !== 'TEACHER' && req.user.role !== 'TEACHER_ADMIN') return true;
   const set = await buildTeacherAllowedBatchSet(req.user.id);
   return teacherAllowedForBatch(set, batchName);
 }
 
 async function teacherCanAccessStudent(req, studentId) {
-  if (req.user.role !== 'TEACHER') return true;
+  if (req.user.role !== 'TEACHER' && req.user.role !== 'TEACHER_ADMIN') return true;
   const st = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('batch assignedTeacher').lean();
   if (!st) return false;
   if (String(st.assignedTeacher || '') === String(req.user.id)) return true;
@@ -188,7 +188,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
 
     let allBatchNames = Array.from(new Set([...(studentBatchNames || []), ...(configBatchNames || [])]));
 
-    if (req.user.role === 'TEACHER') {
+    if (req.user.role === 'TEACHER' || req.user.role === 'TEACHER_ADMIN') {
       const allowed = await buildTeacherAllowedBatchSet(req.user.id);
       if (!allowed || allowed.size === 0) {
         allBatchNames = [];
@@ -323,12 +323,14 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const length = cfg.journeyLength;
     const activeBatchDay = computeBatchDay(cfg);
 
+    // IMPORTANT: classes must be filtered by the requested batch, otherwise teachers can see other batches.
+    const batchRegex = new RegExp(`^${escapeRegExp(batchName)}$`, 'i');
     const [modules, exercises, classes] = await Promise.all([
       LearningModule.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
       DigitalExercise.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
-      MeetingLink.find({ courseDay: { $gte: 1, $lte: length } })
+      MeetingLink.find({ batch: batchRegex, courseDay: { $gte: 1, $lte: length }, status: { $ne: 'cancelled' } })
         .select('topic batch courseDay startTime duration').sort({ courseDay: 1 }).lean()
     ]);
 

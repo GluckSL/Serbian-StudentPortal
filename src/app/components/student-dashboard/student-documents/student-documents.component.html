@@ -119,7 +119,7 @@
               (change)="onFileSelected($event)"
               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               [disabled]="isUploading">
-            <label for="fileInput" class="file-input-label">
+            <label for="fileInput" class="file-input-label" (dragover)="allowDrop($event)" (drop)="onFileDropped($event)">
               <i class="fas fa-cloud-upload-alt"></i>
               <span *ngIf="!selectedFile">Choose file or drag here</span>
               <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
@@ -160,34 +160,64 @@
       <i class="fas fa-check-circle" style="font-size: 48px; color: #4caf50; margin-bottom: 12px; display: block;"></i>
       <p style="font-size: 16px; margin: 0;">No document requirements for your program.</p>
     </div>
-    <div class="requirements-grid">
-      <div 
-        *ngFor="let req of requirements" 
-        class="requirement-card"
-        [class.completed]="isRequiredDocumentUploaded(req.type)"
-        [class.required]="req.required">
-        <div class="requirement-header">
-          <div class="requirement-icon">
-            <i class="fas" [class.fa-check-circle]="isRequiredDocumentUploaded(req.type)"
-               [class.fa-circle]="!isRequiredDocumentUploaded(req.type)"></i>
-          </div>
-          <div class="requirement-info">
-            <h4>{{ req.label }}</h4>
-            <span class="badge" [class.bg-danger]="req.required" [class.bg-secondary]="!req.required">
-              {{ req.required ? 'Required' : 'Optional' }}
-            </span>
-          </div>
-        </div>
-        <p class="requirement-description">{{ req.description }}</p>
-        <div class="requirement-status">
-          <span *ngIf="isRequiredDocumentUploaded(req.type)" class="text-success">
-            <i class="fas fa-check"></i> {{ getDocumentCountByType(req.type) }} uploaded
-          </span>
-          <span *ngIf="!isRequiredDocumentUploaded(req.type)" class="text-muted">
-            <i class="fas fa-times"></i> Not uploaded
-          </span>
-        </div>
-      </div>
+    <div class="requirements-table-wrap" *ngIf="requirements.length > 0">
+      <table class="requirements-table">
+        <thead>
+          <tr>
+            <th>Document Type</th>
+            <th>Requirement</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let req of requirements" [class.required-row]="req.required">
+            <td>
+              <div class="doc-title">{{ req.label }}</div>
+              <div class="doc-desc">{{ req.description }}</div>
+            </td>
+            <td>
+              <span class="badge" [class.bg-danger]="req.required" [class.bg-secondary]="!req.required">
+                {{ req.required ? 'Required' : 'Optional' }}
+              </span>
+              <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="getRequirementStatusBadgeClass(req.type)">
+                {{ getRequirementStatusText(req.type) }}
+              </span>
+              <small class="reupload-reason" *ngIf="getRequirementReuploadReason(req.type)">
+                Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
+              </small>
+            </td>
+            <td>
+              <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyAction">
+                <div class="action-btn-group">
+                  <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentDetails(latestDoc)">
+                    <i class="fas fa-eye"></i> View
+                  </button>
+                  <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(latestDoc)">
+                    <i class="fas fa-download"></i> Download
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger"
+                          (click)="uploadFromRequirementRow(req, true)"
+                          [disabled]="uploadingRequirementType === req.type">
+                    <i class="fas fa-sync-alt"></i> Replace
+                  </button>
+                </div>
+              </ng-container>
+              <ng-template #uploadOnlyAction>
+                <button class="btn btn-sm btn-outline-primary"
+                        (click)="uploadFromRequirementRow(req)"
+                        [disabled]="uploadingRequirementType === req.type">
+                  <i class="fas fa-upload"></i>
+                  {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
+                </button>
+              </ng-template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 

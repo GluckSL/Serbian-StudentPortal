@@ -1,137 +1,237 @@
-<!-- student-recordings.component.html -->
 <div class="sr" [class.sr--embedded]="embedded" *ngIf="!loading; else loadingTpl">
-
-  <!-- ── Page Header ── -->
   <div class="sr-header" *ngIf="!embedded">
-    <div>
+    <div class="sr-header__text">
       <h2 class="sr-header__title">Class Recordings</h2>
       <p class="sr-header__sub">{{ filteredRecordings.length }} recording{{ filteredRecordings.length !== 1 ? 's' : '' }} available for your batch</p>
     </div>
+    <button
+      type="button"
+      class="sr-header-filter sr-filter-btn"
+      [matMenuTriggerFor]="srFilterMenu"
+      aria-haspopup="menu"
+      aria-label="Filter recordings">
+      Filter
+    </button>
   </div>
 
-  <!-- ── Search ── -->
-  <div class="sr-filters-wrap">
-    <input class="sr-input" type="text" placeholder="Search recordings…"
-           [(ngModel)]="searchQuery" (input)="applySearch()">
+  <div class="sr-filters-wrap" [class.sr-filters-wrap--inline]="embedded">
+    <input
+      class="sr-input"
+      [class.sr-input--grow]="embedded"
+      type="text"
+      placeholder="Search recordings..."
+      [(ngModel)]="searchQuery"
+      (input)="applySearch()">
+    <button
+      *ngIf="embedded"
+      type="button"
+      class="sr-inline-filter sr-filter-btn"
+      [matMenuTriggerFor]="srFilterMenu"
+      aria-haspopup="menu"
+      aria-label="Filter recordings">
+      Filter
+    </button>
   </div>
 
-  <!-- ── Empty ── -->
+  <mat-menu #srFilterMenu="matMenu" xPosition="after" panelClass="sr-recordings-filter-menu">
+    <button mat-menu-item (click)="setRecordingFilter('all')">All recordings</button>
+    <button mat-menu-item (click)="setRecordingFilter('attended')">Attended</button>
+    <button mat-menu-item (click)="setRecordingFilter('not_attended')">Not attended</button>
+    <mat-divider></mat-divider>
+    <button mat-menu-item (click)="setRecordingFilter('date_newest')">Date · Newest first</button>
+    <button mat-menu-item (click)="setRecordingFilter('date_oldest')">Date · Oldest first</button>
+  </mat-menu>
+
   <div *ngIf="!filteredRecordings.length" class="sr-empty">
     <span class="sr-empty__icon">&#127909;</span>
-    <h3>No recordings available yet</h3>
-    <p *ngIf="searchQuery">Try a different search term.</p>
-    <p *ngIf="!searchQuery">Your teacher hasn't uploaded any recordings for your batch and level yet.</p>
+    <h3 *ngIf="!allRecordings.length">No recordings available yet</h3>
+    <h3 *ngIf="allRecordings.length">No matching recordings</h3>
+    <p *ngIf="searchQuery.trim()">Try a different search term.</p>
+    <p *ngIf="!searchQuery.trim() && recordingFilter !== 'all' && allRecordings.length">No recordings match this filter.</p>
+    <p *ngIf="!searchQuery.trim() && recordingFilter === 'all' && !allRecordings.length">Your teacher hasn't uploaded any recordings for your batch and level yet.</p>
+    <button *ngIf="recordingFilter !== 'all'" type="button" class="sr-empty__clear" (click)="setRecordingFilter('all')">Clear filter</button>
   </div>
 
-  <!-- ── Card Grid ── -->
-  <div class="sr-grid" *ngIf="filteredRecordings.length">
-    <div class="sr-card" *ngFor="let r of filteredRecordings">
-
-      <!-- ══ ZOOM RECORDING CARD ══ -->
-      <ng-container *ngIf="r.type === 'zoom'">
-
-        <!-- Zoom player overlay -->
-        <div class="sr-card__video sr-card__video--zoom" (click)="playZoomRecording(r.meetingLinkId!)">
-
-          <!-- Loading state -->
-          <div *ngIf="activeZoomId === r.meetingLinkId && zoomLoading" class="zoom-state zoom-state--loading">
-            <div class="zoom-spinner"></div>
-            <span>Loading…</span>
-          </div>
-
-          <!-- Error state -->
-          <div *ngIf="activeZoomId === r.meetingLinkId && zoomError && !zoomLoading" class="zoom-state zoom-state--error">
-            <span>&#9888;</span>
-            <p>{{ zoomError }}</p>
-            <button class="zoom-retry-btn" (click)="$event.stopPropagation(); closeZoomPlayer()">Dismiss</button>
-          </div>
-
-          <!-- Video player -->
-          <div *ngIf="activeZoomId === r.meetingLinkId && activeZoomUrl && !zoomLoading"
-               class="zoom-player-wrap" (click)="$event.stopPropagation()">
-            <video class="zoom-video"
-                   [src]="activeZoomUrl"
-                   controls
-                   preload="metadata"
-                   controlsList="nodownload"
-                   (contextmenu)="$event.preventDefault()"
-                   autoplay>
-            </video>
-            <button class="zoom-close-btn" (click)="closeZoomPlayer()" title="Close">&#10005;</button>
-          </div>
-
-          <!-- Thumbnail / play prompt (default state) -->
-          <div *ngIf="activeZoomId !== r.meetingLinkId" class="zoom-thumb">
-            <div class="zoom-thumb__icon">&#9654;</div>
-            <p class="zoom-thumb__label">Play Recording</p>
-          </div>
+  <!-- Mobile: stacked cards (title + play only in header; meta grid below) -->
+  <div class="sr-cards" *ngIf="filteredRecordings.length">
+    <article class="sr-rec-card" *ngFor="let r of filteredRecordings">
+      <div class="sr-rec-card__head">
+        <h3 class="sr-rec-card__title">{{ r.title }}</h3>
+        <div class="sr-rec-card__actions">
+          <span class="sr-rec-card__att">
+            <span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span>
+          </span>
+          <button
+            type="button"
+            class="sr-rec-card__play"
+            (click)="playRecording(r)"
+            (mouseenter)="onPlayButtonHover(r)"
+            (touchstart)="onPlayButtonHover(r)"
+            aria-label="Play recording">
+            <i class="fa fa-play" aria-hidden="true"></i>
+          </button>
         </div>
-
-        <!-- Card body -->
-        <div class="sr-card__body">
-          <div class="sr-card__meta">
-            <span class="sr-zoom-chip">&#128252; Zoom</span>
-            <span class="sr-batch-chip" *ngIf="r.batch">{{ r.batch }}</span>
-          </div>
-          <h3 class="sr-card__title">{{ r.title }}</h3>
-          <div class="sr-card__footer">
-            <span class="sr-card__date">&#128198; {{ formatDate(r.date) }}</span>
-            <span class="sr-card__duration" *ngIf="r.duration">&#9205; {{ formatDuration(r.duration) }}</span>
-          </div>
+      </div>
+      <div class="sr-rec-card__rule" role="presentation"></div>
+      <div class="sr-rec-card__meta">
+        <div class="sr-rec-card__cell">
+          <span class="sr-rec-card__label">Teacher</span>
+          <span class="sr-rec-card__value">{{ r.teacherName || 'Teacher' }}</span>
         </div>
-
-      </ng-container>
-
-      <!-- ══ MANUAL (UPLOADED) RECORDING CARD ══ -->
-      <ng-container *ngIf="r.type === 'manual'">
-
-        <div class="sr-card__video" (click)="startWatching(r.id)">
-          <iframe *ngIf="!isGoogleDrive(r.videoUrl!)"
-                  [src]="getSafeUrl(r.videoUrl!)" frameborder="0" allowfullscreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  title="{{ r.title }}"></iframe>
-          <iframe *ngIf="isGoogleDrive(r.videoUrl!)"
-                  [src]="getSafeUrl(r.videoUrl!)" allow="autoplay" allowfullscreen
-                  title="{{ r.title }}"></iframe>
-          <div class="sr-card__play-overlay" [class.sr-card__play-overlay--active]="activeRecordingId === r.id">
-            <span>&#9654;</span>
-          </div>
+        <div class="sr-rec-card__cell">
+          <span class="sr-rec-card__label">Date &amp; time</span>
+          <span class="sr-rec-card__value">{{ formatDate(r.date) }}</span>
+          <span class="sr-rec-card__value sr-rec-card__value--line2">{{ formatTime(r.date) }}</span>
         </div>
-
-        <!-- Fallback for Google Drive -->
-        <div class="sr-drive-fallback" *ngIf="isGoogleDrive(r.videoUrl!)">
-          <a [href]="getGoogleDriveOpenUrl(r.videoUrl!)" target="_blank" rel="noopener">
-            &#128279; Can't see the video? Open in Google Drive
-          </a>
+        <div class="sr-rec-card__cell">
+          <span class="sr-rec-card__label">Duration</span>
+          <span class="sr-rec-card__value">{{ r.duration != null ? formatDuration(r.duration) : '—' }}</span>
         </div>
+      </div>
+    </article>
+  </div>
 
-        <div class="sr-card__body">
-          <div class="sr-card__meta">
-            <span class="sr-level-chip" *ngIf="r.level">{{ r.level }}</span>
-            <span class="sr-plan-chip" *ngIf="r.plan && r.plan !== 'ALL'">{{ r.plan }}</span>
-            <span class="sr-batch-chip" *ngIf="r.batch">{{ r.batch }}</span>
-            <span class="sr-watching-badge" *ngIf="activeRecordingId === r.id">
-              <span style="font-size:7px;color:#ef4444;">&#9679;</span> Watching
+  <div class="sr-table-wrap" *ngIf="filteredRecordings.length">
+    <table class="sr-table">
+      <thead>
+        <tr>
+          <th>Class Title</th>
+          <th>Teacher</th>
+          <th>Date &amp; Time</th>
+          <th>Attendance</th>
+          <th class="sr-col-action">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of filteredRecordings">
+          <td>
+            <div class="sr-title">{{ r.title }}</div>
+            <div class="sr-subline">
+              <span class="sr-chip sr-chip--type">{{ r.type === 'zoom' ? 'Zoom' : 'Manual' }}</span>
+              <span class="sr-chip" *ngIf="r.batch">{{ r.batch }}</span>
+              <span class="sr-chip" *ngIf="r.duration">{{ formatDuration(r.duration) }}</span>
+            </div>
+          </td>
+          <td>{{ r.teacherName || 'Teacher' }}</td>
+          <td>
+            <div class="sr-date">{{ formatDate(r.date) }}</div>
+            <div class="sr-time">{{ formatTime(r.date) }}</div>
+          </td>
+          <td><span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span></td>
+          <td class="sr-col-action">
+            <div class="sr-actions">
+              <!--
+                (mouseenter) fires on hover — silently pre-fetches the signed URL
+                so the cache is warm by the time the user clicks (~200 ms later).
+              -->
+              <button
+                class="sr-icon-btn sr-icon-btn--play"
+                (click)="playRecording(r)"
+                (mouseenter)="onPlayButtonHover(r)"
+                title="Play">
+                <i class="fa fa-play"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Player modal ─────────────────────────────────────────────────────── -->
+<div class="sr-overlay" *ngIf="showPlayerModal" (click)="closePlayer()">
+  <div class="sr-player-modal" (click)="$event.stopPropagation()">
+    <div class="sr-player-head">
+      <h3>{{ playerTitle }}</h3>
+      <button class="sr-close" (click)="closePlayer()">&#10005;</button>
+    </div>
+    <div class="sr-player-body">
+
+      <!-- Phase 1: fetching signed URL / HLS playlist path from API -->
+      <div *ngIf="playerLoading" class="sr-vload-root" role="status" aria-live="polite" aria-busy="true">
+        <div class="sr-vload-card">
+          <div class="sr-vload-badge">
+            <span class="sr-vload-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </span>
+            <span>Secure session</span>
           </div>
-          <h3 class="sr-card__title">{{ r.title }}</h3>
-          <p class="sr-card__desc" *ngIf="r.description">{{ r.description }}</p>
-          <div class="sr-card__footer">
-            <span class="sr-card__date">&#128198; {{ formatDate(r.date) }}</span>
-            <span class="sr-card__uploader" *ngIf="r.uploadedBy">&#128100; {{ r.uploadedBy }}</span>
+          <h3 class="sr-vload-title">Getting your recording</h3>
+          <p class="sr-vload-sub">Verifying access and preparing the player. Please wait.</p>
+          <div class="sr-vload-progress" aria-hidden="true"><div class="sr-vload-progress__bar"></div></div>
+          <p class="sr-vload-foot">Protected playback · Your link is private to you</p>
+        </div>
+      </div>
+
+      <div *ngIf="!playerLoading && playerError" class="sr-player-state sr-player-state--error">
+        <p>{{ playerError }}</p>
+      </div>
+
+      <!--
+        Phase 2+: <video> element shown immediately once a URL is available.
+        For HLS: hls.js attaches via ViewChild (playerHlsUrl is set, [attr.src] is null).
+        For MP4: [attr.src] is bound directly; browser starts buffering immediately.
+        The buffering overlay sits on top while the initial buffer fills.
+      -->
+      <div
+        *ngIf="!playerLoading && !playerError && playerKind === 'video' && (playerVideoUrl || playerHlsUrl)"
+        class="sr-video-wrap">
+
+        <video
+          #srVideoEl
+          class="sr-video"
+          [attr.src]="playerHlsUrl ? null : playerVideoUrl"
+          controls
+          controlsList="nodownload noplaybackrate"
+          (contextmenu)="$event.preventDefault()"
+          playsinline
+          preload="auto"
+          (canplay)="onVideoCanPlay()"
+          (waiting)="onVideoWaiting()"
+          (playing)="onVideoPlaying()"
+          (error)="onVideoError()">
+        </video>
+
+        <!-- Buffering / startup: production card (mobile-first) -->
+        <div
+          *ngIf="videoBuffering"
+          class="sr-vload-overlay"
+          role="status"
+          aria-live="polite"
+          aria-busy="true">
+          <div class="sr-vload-card sr-vload-card--on-video">
+            <div class="sr-vload-badge">
+              <span class="sr-vload-badge__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <span>Secure stream</span>
+            </div>
+            <h3 class="sr-vload-title">Almost ready</h3>
+            <p class="sr-vload-sub">Loading the first segment so playback can start. Your connection is encrypted end-to-end.</p>
+            <div class="sr-vload-progress" aria-hidden="true"><div class="sr-vload-progress__bar"></div></div>
+            <p class="sr-vload-foot">Adaptive HD · Works on mobile data</p>
           </div>
         </div>
+      </div>
 
-      </ng-container>
-
+      <iframe
+        *ngIf="!playerLoading && !playerError && playerKind === 'iframe' && playerIframeUrl"
+        class="sr-iframe"
+        [src]="playerIframeUrl"
+        allowfullscreen
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture">
+      </iframe>
+    </div>
+    <div class="sr-player-foot" *ngIf="!playerLoading && !playerError">
+      Use the fullscreen button in the player controls to maximize.
     </div>
   </div>
-
 </div>
 
 <ng-template #loadingTpl>
   <div class="sr sr--loading">
     <div class="sr-spinner"></div>
-    <p>Loading recordings…</p>
+    <p>Loading recordings...</p>
   </div>
 </ng-template>

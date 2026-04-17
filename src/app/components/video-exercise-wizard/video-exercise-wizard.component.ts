@@ -12,6 +12,9 @@ import { resolveMediaUrl } from '../../utils/media-url';
 interface VideoClip {
   videoUrl: string;
   caption: string;
+  secondaryCaption: string;
+  secondaryCaptionAtSeconds: number;
+  similarityThreshold: number;
   acceptedVariants: string[];
   videoUploading: boolean;
   points: number;
@@ -105,7 +108,16 @@ export class VideoExerciseWizardComponent {
   // ── Clip helpers ─────────────────────────────────────────────────────────
 
   private newClip(): VideoClip {
-    return { videoUrl: '', caption: '', acceptedVariants: [], videoUploading: false, points: 1 };
+    return {
+      videoUrl: '',
+      caption: '',
+      secondaryCaption: '',
+      secondaryCaptionAtSeconds: 5,
+      similarityThreshold: 20,
+      acceptedVariants: [],
+      videoUploading: false,
+      points: 1
+    };
   }
 
   addClip(): void {
@@ -263,6 +275,9 @@ export class VideoExerciseWizardComponent {
         type: 'video-pronunciation',
         videoUrl: c.videoUrl,
         caption: c.caption,
+        secondaryCaption: c.secondaryCaption.trim(),
+        secondaryCaptionAtSeconds: Math.max(0, Math.min(600, Math.round(Number(c.secondaryCaptionAtSeconds) || 5))),
+        similarityThreshold: Math.max(0, Math.min(100, Math.round(Number(c.similarityThreshold) || 20))),
         acceptedVariants: c.acceptedVariants.filter(v => v.trim()),
         points: c.points
       })),

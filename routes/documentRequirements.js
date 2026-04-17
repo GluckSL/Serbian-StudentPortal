@@ -10,23 +10,47 @@ const DocumentRequirement = require('../models/DocumentRequirement');
 // Optional query params: ?activeOnly=true&service=Work Visa
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const { activeOnly, service } = req.query;
+    const { activeOnly, service, requiredOnly } = req.query;
     
     const filter = activeOnly === 'true' ? { active: true } : {};
     
-    // Filter by applicable service if provided
+    if (requiredOnly === 'true') {
+      filter.$or = [{ isRequired: true }, { required: true }];
+    }
+
+    // Filter by applicable service/program if provided
     if (service) {
       const normalized = service.trim().replace(/[\s\-]+/g, '[\\s\\-]*');
-      filter.applicableServices = new RegExp('^' + normalized + '$', 'i');
+      const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { applicableServices: serviceRegex },
+          { programKeys: serviceRegex },
+          { applicableServices: { $size: 0 } },
+          { programKeys: { $size: 0 } }
+        ]
+      });
     }
     
     const requirements = await DocumentRequirement.find(filter)
       .sort({ order: 1, label: 1 })
       .lean();
     
+    const mapped = requirements.map((r) => ({
+      ...r,
+      id: r._id,
+      name: r.name || r.label,
+      label: r.label || r.name,
+      isRequired: typeof r.isRequired === 'boolean' ? r.isRequired : !!r.required,
+      required: typeof r.required === 'boolean' ? r.required : !!r.isRequired,
+      allowMultiple: !!r.allowMultiple,
+      programKeys: Array.isArray(r.programKeys) && r.programKeys.length > 0 ? r.programKeys : (r.applicableServices || [])
+    }));
+
     res.json({
       success: true,
-      requirements
+      requirements: mapped
     });
   } catch (error) {
     console.error('❌ Error fetching document requirements:', error);
@@ -41,19 +65,34 @@ router.get('/', verifyToken, async (req, res) => {
 // POST /api/document-requirements - Create new document requirement (Admin only)
 router.post('/', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
-    const { type, label, description, required, category, order } = req.body;
+    const {
+      type,
+      label,
+      name,
+      description,
+      required,
+      isRequired,
+      allowMultiple,
+      category,
+      order,
+      applicableServices,
+      programKeys
+    } = req.body;
     
     // Validate required fields
-    if (!type || !label || !description) {
+    if ((!type && !label && !name) || !description) {
       return res.status(400).json({
         success: false,
-        message: 'Type, label, and description are required'
+        message: 'Name/label/type and description are required'
       });
     }
+
+    const canonicalName = (name || label || type || '').trim();
+    const canonicalType = (type || canonicalName).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     
     // Check if type already exists
     const existing = await DocumentRequirement.findOne({ 
-      type: type.toUpperCase().replace(/\s+/g, '_') 
+      type: canonicalType
     });
     
     if (existing) {
@@ -65,12 +104,17 @@ router.post('/', verifyToken, checkRole(['ADMIN']), async (req, res) => {
     
     // Create new requirement
     const requirement = new DocumentRequirement({
-      type: type.toUpperCase().replace(/\s+/g, '_'),
-      label: label.trim(),
+      type: canonicalType,
+      name: canonicalName,
+      label: canonicalName,
       description: description.trim(),
-      required: required || false,
+      required: typeof required === 'boolean' ? required : !!isRequired,
+      isRequired: typeof isRequired === 'boolean' ? isRequired : !!required,
+      allowMultiple: !!allowMultiple,
       category: category || 'OTHER',
       order: order || 0,
+      applicableServices: Array.isArray(applicableServices) ? applicableServices : [],
+      programKeys: Array.isArray(programKeys) ? programKeys : (Array.isArray(applicableServices) ? applicableServices : []),
       createdBy: req.user.id
     });
     
@@ -97,7 +141,19 @@ router.post('/', verifyToken, checkRole(['ADMIN']), async (req, res) => {
 router.put('/:id', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { label, description, required, category, order, active } = req.body;
+    const {
+      label,
+      name,
+      description,
+      required,
+      isRequired,
+      allowMultiple,
+      category,
+      order,
+      active,
+      applicableServices,
+      programKeys
+    } = req.body;
     
     const requirement = await DocumentRequirement.findById(id);
     
@@ -110,11 +166,16 @@ router.put('/:id', verifyToken, checkRole(['ADMIN']), async (req, res) => {
     
     // Update fields
     if (label !== undefined) requirement.label = label.trim();
+    if (name !== undefined) requirement.name = name.trim();
     if (description !== undefined) requirement.description = description.trim();
     if (required !== undefined) requirement.required = required;
+    if (isRequired !== undefined) requirement.isRequired = isRequired;
+    if (allowMultiple !== undefined) requirement.allowMultiple = allowMultiple;
     if (category !== undefined) requirement.category = category;
     if (order !== undefined) requirement.order = order;
     if (active !== undefined) requirement.active = active;
+    if (applicableServices !== undefined) requirement.applicableServices = Array.isArray(applicableServices) ? applicableServices : [];
+    if (programKeys !== undefined) requirement.programKeys = Array.isArray(programKeys) ? programKeys : [];
     requirement.updatedBy = req.user.id;
     
     await requirement.save();
@@ -176,115 +237,129 @@ router.post('/seed', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const defaultRequirements = [
       {
-        type: 'CV',
-        label: 'CV',
-        description: 'Current curriculum vitae or resume',
+        type: 'MISCELLANEOUS',
+        name: 'Other Certificates',
+        label: 'Other Certificates',
+        description: 'Any additional certificates relevant for evaluation',
         required: true,
-        category: 'PROFESSIONAL',
+        isRequired: true,
+        allowMultiple: false,
+        category: 'OTHER',
         order: 1
       },
       {
-        type: 'O_LEVEL_CERTIFICATE',
-        label: 'O Level Certificate',
-        description: 'Ordinary Level examination certificate',
+        type: 'BIRTH_CERTIFICATE',
+        name: 'Birth Certificate',
+        label: 'Birth Certificate',
+        description: 'Official birth certificate',
         required: true,
-        category: 'ACADEMIC',
+        isRequired: true,
+        allowMultiple: false,
+        category: 'IDENTIFICATION',
         order: 2
       },
       {
-        type: 'A_LEVEL_CERTIFICATE',
-        label: 'A Level Certificate',
-        description: 'Advanced Level examination certificate',
+        type: 'EXTRACURRICULAR_CERTIFICATE',
+        name: 'Extra-curricular Certificate',
+        label: 'Extra-curricular Certificate',
+        description: 'Upload one or more: Diploma in English, Diploma in Sinhala, Diploma in IT',
         required: true,
+        isRequired: true,
+        allowMultiple: true,
         category: 'ACADEMIC',
         order: 3
       },
       {
-        type: 'ACADEMIC_TRANSCRIPT',
-        label: 'Academic Transcript',
-        description: 'Official academic transcripts from educational institutions',
+        type: 'EXPERIENCE_LETTER',
+        name: 'Work Related Certificate',
+        label: 'Work Related Certificate',
+        description: 'Experience letters or related work certificates',
         required: true,
-        category: 'ACADEMIC',
+        isRequired: true,
+        allowMultiple: false,
+        category: 'PROFESSIONAL',
         order: 4
       },
       {
-        type: 'PASSPORT',
-        label: 'Passport',
-        description: 'Valid passport copy (photo and details page)',
+        type: 'LANGUAGE_CERTIFICATE',
+        name: 'Language Certificate',
+        label: 'Language Certificate',
+        description: 'Language proficiency certificate',
         required: true,
-        category: 'IDENTIFICATION',
+        isRequired: true,
+        allowMultiple: false,
+        category: 'ACADEMIC',
         order: 5
       },
       {
-        type: 'BROWN_CERTIFICATE',
-        label: 'Brown Certificate',
-        description: 'Brown certificate (if applicable)',
-        required: false,
-        category: 'ACADEMIC',
+        type: 'PASSPORT',
+        name: 'Passport Copy',
+        label: 'Passport Copy',
+        description: 'Valid passport copy',
+        required: true,
+        isRequired: true,
+        allowMultiple: false,
+        category: 'IDENTIFICATION',
         order: 6
       },
       {
-        type: 'DEGREE_DIPLOMA',
-        label: 'Degree / Diploma',
-        description: 'University degree or diploma certificate (if no degree, not required)',
-        required: false,
+        type: 'ACADEMIC_TRANSCRIPT',
+        name: 'Degree Transcript',
+        label: 'Degree Transcript',
+        description: 'Academic transcript / degree transcript',
+        required: true,
+        isRequired: true,
+        allowMultiple: false,
         category: 'ACADEMIC',
         order: 7
       },
       {
-        type: 'EXPERIENCE_LETTER',
-        label: 'Experience Letter',
-        description: 'Work experience letters from previous employers',
-        required: false,
-        category: 'PROFESSIONAL',
+        type: 'A_LEVEL_CERTIFICATE',
+        name: 'A/L Certificate',
+        label: 'A/L Certificate',
+        description: 'Advanced level certificate',
+        required: true,
+        isRequired: true,
+        allowMultiple: false,
+        category: 'ACADEMIC',
         order: 8
       },
       {
-        type: 'LANGUAGE_CERTIFICATE',
-        label: 'Language Certificate',
-        description: 'Language proficiency certificates (IELTS, TOEFL, etc.)',
-        required: false,
-        category: 'ACADEMIC',
+        type: 'CV',
+        name: 'CV',
+        label: 'CV',
+        description: 'Curriculum vitae',
+        required: true,
+        isRequired: true,
+        allowMultiple: false,
+        category: 'PROFESSIONAL',
         order: 9
-      },
-      {
-        type: 'EXTRACURRICULAR_CERTIFICATE',
-        label: 'Extra-curricular Certificate',
-        description: 'Certificates for extra-curricular activities, sports, or achievements',
-        required: false,
-        category: 'OTHER',
-        order: 10
-      },
-      {
-        type: 'AFFIDAVIT',
-        label: 'Affidavit',
-        description: 'Affidavit (only if name differs across documents)',
-        required: false,
-        category: 'LEGAL',
-        order: 11
-      },
-      {
-        type: 'POLICE_CLEARANCE',
-        label: 'Police Clearance',
-        description: 'Police clearance certificate (mandatory for Au Pair roles; preferred for others)',
-        required: false,
-        category: 'LEGAL',
-        order: 12
       }
     ];
     
     let created = 0;
     let skipped = 0;
     
-    for (const req of defaultRequirements) {
-      const existing = await DocumentRequirement.findOne({ type: req.type });
+    for (const requirementSeed of defaultRequirements) {
+      const existing = await DocumentRequirement.findOne({ type: requirementSeed.type });
       if (!existing) {
         await DocumentRequirement.create({
-          ...req,
+          ...requirementSeed,
           createdBy: req.user.id
         });
         created++;
       } else {
+        existing.name = requirementSeed.name;
+        existing.label = requirementSeed.label;
+        existing.description = requirementSeed.description;
+        existing.required = requirementSeed.required;
+        existing.isRequired = requirementSeed.isRequired;
+        existing.allowMultiple = requirementSeed.allowMultiple;
+        existing.category = requirementSeed.category;
+        existing.order = requirementSeed.order;
+        existing.active = true;
+        existing.updatedBy = req.user.id;
+        await existing.save();
         skipped++;
       }
     }

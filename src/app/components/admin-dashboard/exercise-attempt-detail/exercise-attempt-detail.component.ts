@@ -6,6 +6,7 @@ import {
   AttemptReviewRow,
   StaffAttemptReviewResponse
 } from '../../../services/digital-exercise.service';
+import { finalize, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-exercise-attempt-detail',
@@ -19,6 +20,8 @@ export class ExerciseAttemptDetailComponent implements OnInit {
   attemptId = '';
   loading = true;
   error = '';
+  actionError = '';
+  updatingQuestionIndex: number | null = null;
   data: StaffAttemptReviewResponse | null = null;
 
   constructor(
@@ -35,16 +38,7 @@ export class ExerciseAttemptDetailComponent implements OnInit {
       this.loading = false;
       return;
     }
-    this.exerciseService.getAttemptReviewForStaff(this.exerciseId, this.attemptId).subscribe({
-      next: (res) => {
-        this.data = res;
-        this.loading = false;
-      },
-      error: (err) => {
-        this.loading = false;
-        this.error = err?.error?.error || 'Could not load attempt';
-      }
-    });
+    this.loadAttempt();
   }
 
   backToCompletions(): void {
@@ -87,5 +81,48 @@ export class ExerciseAttemptDetailComponent implements OnInit {
 
   wrongRows(rows: AttemptReviewRow[]): AttemptReviewRow[] {
     return rows.filter((r) => !r.isCorrect);
+  }
+
+  isUpdatingRow(row: AttemptReviewRow): boolean {
+    return this.updatingQuestionIndex === row.questionIndex;
+  }
+
+  markAsCorrect(row: AttemptReviewRow): void {
+    if (!this.exerciseId || !this.attemptId || this.updatingQuestionIndex !== null) return;
+    this.actionError = '';
+    this.updatingQuestionIndex = row.questionIndex;
+
+    this.exerciseService
+      .overrideAttemptQuestion(this.exerciseId, this.attemptId, row.questionIndex, true)
+      .pipe(
+        switchMap(() => this.exerciseService.getAttemptReviewForStaff(this.exerciseId, this.attemptId)),
+        finalize(() => {
+          this.updatingQuestionIndex = null;
+        })
+      )
+      .subscribe({
+        next: (res) => {
+          this.data = res;
+          this.error = '';
+        },
+        error: (err) => {
+          this.actionError = err?.error?.error || 'Could not update this answer';
+        }
+      });
+  }
+
+  private loadAttempt(): void {
+    this.loading = true;
+    this.error = '';
+    this.exerciseService.getAttemptReviewForStaff(this.exerciseId, this.attemptId).subscribe({
+      next: (res) => {
+        this.data = res;
+        this.loading = false;
+      },
+      error: (err) => {
+        this.loading = false;
+        this.error = err?.error?.error || 'Could not load attempt';
+      }
+    });
   }
 }

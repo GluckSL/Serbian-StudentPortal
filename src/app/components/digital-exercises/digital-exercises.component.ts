@@ -4,15 +4,19 @@ import { Component, OnInit, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
+import { MaterialModule } from '../../shared/material.module';
 
 type TabType = 'completed' | 'pending' | 'new';
 
 @Component({
   selector: 'app-digital-exercises',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './digital-exercises.component.html',
   styleUrls: ['./digital-exercises.component.css']
 })
@@ -54,13 +58,29 @@ export class DigitalExercisesComponent implements OnInit {
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
+  /** Shorter on ≤640px so placeholder fits; full copy on larger viewports. */
+  searchInputPlaceholder = 'Search exercises by title or topic...';
+
   private searchTimer: any;
 
   constructor(
     private exerciseService: DigitalExerciseService,
     private authService: AuthService,
-    private router: Router
-  ) {}
+    private router: Router,
+    breakpointObserver: BreakpointObserver
+  ) {
+    breakpointObserver
+      .observe('(max-width: 640px)')
+      .pipe(
+        map((r) => r.matches),
+        takeUntilDestroyed()
+      )
+      .subscribe((compact) => {
+        this.searchInputPlaceholder = compact
+          ? 'Search by title or topic'
+          : 'Search exercises by title or topic...';
+      });
+  }
 
   ngOnInit(): void {
     this.authService.currentUser$.subscribe(user => {

@@ -19,6 +19,18 @@
         <i class="fas fa-list-alt"></i>
         My Tickets
       </button>
+      <button
+        class="sf-action"
+        [class.sf-action--highlight]="announcementBadgeCount > 0"
+        type="button"
+        (click)="openModal('announcements')"
+      >
+        <i class="fas fa-bullhorn"></i>
+        Announcements
+        <span *ngIf="announcementBadgeCount > 0" class="sf-badge" aria-label="New announcements">
+          {{ announcementBadgeCount > 9 ? '9+' : announcementBadgeCount }}
+        </span>
+      </button>
       <a class="sf-action link" href="mailto:support@gluckglobal.com" (click)="close()">
         <i class="fas fa-envelope"></i>
         Email Support
@@ -28,24 +40,31 @@
 
   <button class="sf-fab" type="button" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open help and support">
     <i class="fas" [class.fa-comment-dots]="!open" [class.fa-times]="open"></i>
+    <span
+      *ngIf="announcementBadgeCount > 0"
+      class="sf-fab__badge"
+      [attr.aria-label]="'New announcements (' + announcementBadgeCount + ')'"
+    ></span>
   </button>
 </div>
 
 <!-- Modal -->
 <div class="sf-modalOverlay" *ngIf="modalOpen" (click)="closeModal()"></div>
-<div class="sf-modal" *ngIf="modalOpen" role="dialog" aria-label="Help and support">
+<div class="sf-modal" *ngIf="modalOpen" role="dialog" aria-label="Help and support" [class.sf-modal--announcement]="activeTab==='announcements'">
   <div class="sf-modal__hdr">
-    <div class="sf-modal__title">
+    <div class="sf-modal__title" *ngIf="activeTab !== 'announcements'">
       <i class="fas fa-headset"></i> Help &amp; Support
     </div>
+    <div class="sf-ann-hdr-title" *ngIf="activeTab === 'announcements'">Announcement</div>
     <button class="sf-modal__x" type="button" (click)="closeModal()" aria-label="Close">
       <span aria-hidden="true">×</span>
     </button>
   </div>
 
-  <div class="sf-modal__tabs">
+  <div class="sf-modal__tabs" *ngIf="activeTab !== 'announcements'">
     <button class="sf-tab" [class.active]="activeTab==='submit'" (click)="setTab('submit')">Raise Ticket</button>
     <button class="sf-tab" [class.active]="activeTab==='tickets'" (click)="setTab('tickets')" [disabled]="!isLoggedIn">My Tickets</button>
+    <button class="sf-tab" (click)="setTab('announcements')">Announcements</button>
   </div>
 
   <div class="sf-modal__body">
@@ -139,6 +158,25 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div *ngIf="activeTab==='announcements'" class="sf-announcement-only">
+      <div *ngIf="!isLoggedIn && !loadingAnnouncements && (!selectedAnnouncement)" class="sf-hint">
+        Please login to view announcements.
+      </div>
+      <div *ngIf="loadingAnnouncements" class="sf-hint">
+        <i class="fas fa-spinner fa-spin"></i> Loading…
+      </div>
+      <div *ngIf="!loadingAnnouncements && isLoggedIn && !selectedAnnouncement" class="sf-hint">
+        No announcements yet.
+      </div>
+
+      <ng-container *ngIf="selectedAnnouncement as a">
+        <div class="sf-ann-detail sf-ann-detail--announcement">
+          <div class="sf-ann-detail__title">{{ a.title }}</div>
+          <div class="sf-ann-detail__body">{{ a.body }}</div>
+        </div>
+      </ng-container>
     </div>
   </div>
 </div>
