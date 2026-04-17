@@ -142,9 +142,9 @@ class AiTutorService {
   
   static generateConversationResponse(message, module) {
     const conversationStarters = [
-      `Hello! Let's practice ${module.targetLanguage} conversation. How are you today?`,
-      `Great to see you! Let's have a conversation in ${module.targetLanguage}. What would you like to talk about?`,
-      `Welcome! I'm here to help you practice ${module.targetLanguage}. Let's start a conversation!`
+      `Hallo! Lass uns ein Gespraech auf ${module.targetLanguage} ueben. Wie geht es dir heute?`,
+      `Schoen, dich zu sehen! Lass uns auf ${module.targetLanguage} sprechen. Worueber moechtest du reden?`,
+      `Willkommen! Ich helfe dir, ${module.targetLanguage} zu ueben. Lass uns mit einem Gespraech starten!`
     ];
     
     return {
@@ -276,7 +276,7 @@ router.post('/start-teacher-test', verifyToken, checkRole(['TEACHER', 'ADMIN']),
       const scenario = module.content.rolePlayScenario;
       
       welcomeResponse = {
-        content: `Welcome to the Role-Play Session! You will be the ${scenario.studentRole}, I will be the ${scenario.aiRole}. Say "Let's start" to begin or "stop" to end the session.`,
+        content: `Willkommen zur Rollenspiel-Sitzung! Du bist ${scenario.studentRole}, ich bin ${scenario.aiRole}. Sage "Los geht's" oder "Beginnen wir", um zu starten, oder "Stopp", um die Sitzung zu beenden.`,
         messageType: 'role-play-intro',
         metadata: {
           sessionState: 'introduction',
