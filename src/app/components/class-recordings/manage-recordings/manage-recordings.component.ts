@@ -212,7 +212,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.recordings = (res.recordings || []).map((r: AdminClassRecording) => ({
           ...r,
-          isPublished: this.isZoomRecording(r) ? r.isPublished !== false : true,
+          isPublished: r.isPublished !== false,
         }));
         this.applyFilters();
         this.loading = false;
@@ -525,7 +525,20 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   canToggleStudentVisibility(r: AdminClassRecording): boolean {
-    return this.isZoomRecording(r) && !!r.meetingLinkId && r.status === 'ready';
+    if (r.status !== 'ready') return false;
+    if (this.isZoomRecording(r)) {
+      return !!r.meetingLinkId;
+    }
+    const id = String(r._id || '');
+    return Boolean(id && !id.startsWith('zoom-'));
+  }
+
+  /** Stable key for disabling the eye button while a publish request is in flight. */
+  visibilityActionKey(r: AdminClassRecording): string {
+    if (this.isZoomRecording(r) && r.meetingLinkId) {
+      return String(r.meetingLinkId);
+    }
+    return String(r._id || '');
   }
 
   isProcessingRecording(r: AdminClassRecording): boolean {
@@ -578,10 +591,11 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   toggleStudentVisibility(r: AdminClassRecording): void {
-    if (!this.canToggleStudentVisibility(r) || !r.meetingLinkId || this.publishLoadingId) return;
+    if (!this.canToggleStudentVisibility(r) || this.publishLoadingId) return;
 
     const nextState = !(r.isPublished !== false);
     const action = nextState ? 'Show to students' : 'Hide from students';
+    const busyKey = this.visibilityActionKey(r);
     this.notify.confirm(
       'Student Visibility',
       `${action} for "${r.title}"?`,
@@ -589,8 +603,11 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       'Cancel'
     ).subscribe((ok) => {
       if (!ok) return;
-      this.publishLoadingId = String(r.meetingLinkId);
-      this.service.publishZoomRecordings([String(r.meetingLinkId)], nextState).subscribe({
+      this.publishLoadingId = busyKey;
+      const req = this.isZoomRecording(r) && r.meetingLinkId
+        ? this.service.publishZoomRecordings([String(r.meetingLinkId)], nextState)
+        : this.service.publishManualRecordings([String(r._id)], nextState);
+      req.subscribe({
         next: () => {
           this.publishLoadingId = null;
           this.snackBar.open(
