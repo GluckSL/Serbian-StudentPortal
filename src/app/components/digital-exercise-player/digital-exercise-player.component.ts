@@ -5,15 +5,21 @@ import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
-  DigitalExerciseService, DigitalExercise, ExerciseQuestion,
-  QuestionResponse, SubmitResult
+  DigitalExerciseService, DigitalExercise,
+  QuestionResponse, SubmitResult, SubmitQuestionResult
 } from '../../services/digital-exercise.service';
+import {
+  DigitalExercisePlayerDraftService,
+  DigitalExerciseDraftItem,
+  DigitalExerciseDraftPayload
+} from '../../services/digital-exercise-player-draft.service';
 import { resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns, splitFillBlankSentence } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
 import { take } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -138,6 +144,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   readonly specialCharacters: string[] = ['ä', 'ö', 'ü', 'ß', 'Ä', 'Ö', 'Ü'];
   private activeSpecialInputTarget: SpecialInputTarget | null = null;
 
+  /** For localStorage draft keying (per user + exercise). */
+  private draftUserId = '';
+  private draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly onVisibilityChange = (): void => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      this.flushDraftSave();
+    }
+  };
+
   @ViewChild('vpChatScroll') vpChatScroll?: ElementRef<HTMLDivElement>;
 
   constructor(
@@ -146,16 +161,28 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     private location: Location,
     public exerciseService: DigitalExerciseService,
     private snackBar: MatSnackBar,
-    private authService: AuthService
+    private authService: AuthService,
+    private exerciseDraft: DigitalExercisePlayerDraftService
   ) {}
 
   ngOnInit(): void {
     this.exerciseId = this.route.snapshot.paramMap.get('id') || '';
     this.checkSpeechSupport();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
     this.loadExercise();
   }
 
   ngOnDestroy(): void {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    if (this.draftSaveTimer) {
+      clearTimeout(this.draftSaveTimer);
+      this.draftSaveTimer = null;
+    }
+    this.flushDraftSave();
     this.stopTimer();
     if (this.recognition) {
       try { this.recognition.stop(); } catch {}
@@ -174,6 +201,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   loadExercise(): void {
     this.state = 'loading';
     this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
+      this.draftUserId = (user?._id && String(user._id)) || '';
       const asStudent = user?.role === 'STUDENT';
       this.exerciseService.getExercise(this.exerciseId, { asStudent }).subscribe({
         next: (exercise) => {
@@ -612,6 +640,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.finishingAll = false;
         this.applyResultFeedback(result);
         this.state = 'submitted';
+        this.clearExerciseDraftStorage();
       },
       error: (e) => {
         this.finishingAll = false;
@@ -640,12 +669,293 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           this.syncVpChatForCurrentQuestion();
           setTimeout(() => this.scrollVpChatToBottom(), 120);
         }
+        void this.maybeRestoreDraftAfterStart();
       },
       error: (err) => {
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
         this.state = 'error';
       }
     });
+  }
+
+  private clearExerciseDraftStorage(): void {
+    if (!this.draftUserId) return;
+    this.exerciseDraft.clear(this.draftUserId, this.exerciseId);
+  }
+
+  private scheduleDraftSave(): void {
+    if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer);
+    this.draftSaveTimer = setTimeout(() => {
+      this.draftSaveTimer = null;
+      this.writeDraftToStorage();
+    }, 450);
+  }
+
+  private flushDraftSave(): void {
+    if (this.draftSaveTimer) {
+      clearTimeout(this.draftSaveTimer);
+      this.draftSaveTimer = null;
+    }
+    this.writeDraftToStorage();
+  }
+
+  private buildDraftItems(): DigitalExerciseDraftItem[] {
+    return this.playerQuestions.map((pq) => {
+      const typ = pq.data?.type || '';
+      const serverGraded = pq.isCorrect === true || pq.isCorrect === false;
+      const base: DigitalExerciseDraftItem = { typ, serverGraded, isAnswered: pq.isAnswered };
+      if (typ === 'mcq') return { ...base, selectedOption: pq.selectedOption };
+      if (typ === 'matching') {
+        const matchingSelections = (pq.matchingLeft || [])
+          .map((l, li) => ({
+            leftIndex: li,
+            rightValue:
+              l.matchedRightIndex != null && pq.matchingRight && l.matchedRightIndex < pq.matchingRight.length
+                ? pq.matchingRight[l.matchedRightIndex].value
+                : ''
+          }))
+          .filter((x) => x.rightValue !== '');
+        return { ...base, matchingSelections };
+      }
+      if (typ === 'fill-blank') return { ...base, fillAnswers: [...(pq.fillAnswers || [])] };
+      if (typ === 'pronunciation') {
+        return {
+          ...base,
+          spokenText: pq.spokenText,
+          pronunciationScore: pq.pronunciationScore,
+          hasRecorded: pq.hasRecorded
+        };
+      }
+      if (typ === 'question-answer') return { ...base, qaResponse: pq.qaResponse };
+      if (typ === 'listening') return { ...base, listeningText: pq.listeningText };
+      if (typ === 'video-pronunciation') {
+        return {
+          ...base,
+          vpSpokenText: pq.vpSpokenText,
+          vpResult: pq.vpResult,
+          vpPlaybackEnded: pq.vpPlaybackEnded,
+          vpFailCount: pq.vpFailCount,
+          spokenText: pq.spokenText,
+          pronunciationScore: pq.pronunciationScore,
+          hasRecorded: pq.hasRecorded
+        };
+      }
+      return base;
+    });
+  }
+
+  private writeDraftToStorage(): void {
+    if (this.state !== 'playing' || !this.attemptId || !this.draftUserId || !this.exerciseId) return;
+    if (!this.playerQuestions.length) return;
+    const elapsedSeconds = Math.min(
+      86400,
+      Math.max(0, Math.floor((Date.now() - this.startTime) / 1000))
+    );
+    const payload: DigitalExerciseDraftPayload = {
+      v: 1,
+      savedAt: Date.now(),
+      expiresAt: Date.now() + 30 * 60 * 1000,
+      userId: this.draftUserId,
+      exerciseId: this.exerciseId,
+      questionCount: this.playerQuestions.length,
+      currentIndex: this.currentIndex,
+      elapsedSeconds,
+      items: this.buildDraftItems()
+    };
+    this.exerciseDraft.write(payload);
+  }
+
+  private applyDraftItemToQuestion(pq: PlayerQuestion, item: DigitalExerciseDraftItem): void {
+    if (!item || item.typ !== pq.data?.type) return;
+    if (pq.data.type === 'mcq' && item.selectedOption !== undefined) {
+      pq.selectedOption = item.selectedOption ?? undefined;
+    } else if (pq.data.type === 'matching' && item.matchingSelections?.length) {
+      this.resetMatching(pq);
+      for (const row of item.matchingSelections) {
+        const li = row.leftIndex;
+        const rv = row.rightValue;
+        if (li < 0 || !pq.matchingLeft?.[li] || !pq.matchingRight) continue;
+        const pick = pq.matchingRight.findIndex((r) => r.value === rv && r.matchedLeftIndex === null);
+        if (pick < 0) continue;
+        pq.matchingLeft[li].matchedRightIndex = pick;
+        pq.matchingRight[pick].matchedLeftIndex = li;
+      }
+    } else if (pq.data.type === 'fill-blank' && item.fillAnswers?.length) {
+      const n = pq.fillAnswers?.length || 0;
+      for (let i = 0; i < n; i++) {
+        if (item.fillAnswers[i] !== undefined) pq.fillAnswers![i] = item.fillAnswers[i];
+      }
+    } else if (pq.data.type === 'pronunciation') {
+      if (item.spokenText !== undefined) pq.spokenText = item.spokenText;
+      if (item.pronunciationScore !== undefined) pq.pronunciationScore = item.pronunciationScore;
+      if (item.hasRecorded !== undefined) pq.hasRecorded = item.hasRecorded;
+    } else if (pq.data.type === 'question-answer' && item.qaResponse !== undefined) {
+      pq.qaResponse = item.qaResponse;
+    } else if (pq.data.type === 'listening' && item.listeningText !== undefined) {
+      pq.listeningText = item.listeningText;
+    } else if (pq.data.type === 'video-pronunciation') {
+      if (item.vpSpokenText !== undefined) pq.vpSpokenText = item.vpSpokenText;
+      if (item.vpResult !== undefined) pq.vpResult = item.vpResult;
+      if (item.vpPlaybackEnded !== undefined) pq.vpPlaybackEnded = item.vpPlaybackEnded;
+      if (item.vpFailCount !== undefined) pq.vpFailCount = item.vpFailCount;
+      if (item.spokenText !== undefined) pq.spokenText = item.spokenText;
+      if (item.pronunciationScore !== undefined) pq.pronunciationScore = item.pronunciationScore;
+      if (item.hasRecorded !== undefined) pq.hasRecorded = item.hasRecorded;
+    }
+    if (item.isAnswered) pq.isAnswered = true;
+  }
+
+  private applyDraftPayloadToQuestions(draft: DigitalExerciseDraftPayload): void {
+    draft.items.forEach((item, i) => {
+      const pq = this.playerQuestions[i];
+      if (pq) this.applyDraftItemToQuestion(pq, item);
+    });
+  }
+
+  private buildQuestionResponseForIndex(i: number): QuestionResponse | null {
+    const pq = this.playerQuestions[i];
+    if (!pq || !this.isQuestionAnswered(pq)) return null;
+    const resp: QuestionResponse = { questionIndex: i };
+    if (pq.data.type === 'mcq') {
+      resp.selectedOptionIndex = pq.selectedOption;
+    } else if (pq.data.type === 'matching') {
+      resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => {
+        const rightIndex = l.matchedRightIndex ?? -1;
+        const rightValue =
+          rightIndex >= 0 && pq.matchingRight && rightIndex < pq.matchingRight.length
+            ? pq.matchingRight[rightIndex].value
+            : null;
+        return { leftIndex: li, rightIndex, rightValue };
+      });
+    } else if (pq.data.type === 'fill-blank') {
+      resp.fillBlankResponses = pq.fillAnswers || [];
+    } else if (pq.data.type === 'pronunciation') {
+      resp.spokenText = pq.spokenText || '';
+      resp.pronunciationScore = pq.pronunciationScore || 0;
+    } else if (pq.data.type === 'question-answer') {
+      resp.qaResponse = pq.qaResponse || '';
+    } else if (pq.data.type === 'listening') {
+      resp.listeningText = pq.listeningText || '';
+    } else if (pq.data.type === 'video-pronunciation') {
+      resp.spokenText = pq.vpSpokenText || '';
+      resp.pronunciationScore = pq.pronunciationScore || 0;
+    }
+    return resp;
+  }
+
+  private applyPerQuestionSubmitResult(pq: PlayerQuestion, res: SubmitQuestionResult): void {
+    pq.isCorrect = res.isCorrect;
+    pq.feedback = this.buildFeedbackFromCorrectAnswer(pq.data, res.correctAnswer, pq);
+    if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
+      pq.data._correctAnswers = res.correctAnswer.answers;
+    }
+    if (pq.data.type === 'mcq' && res.correctAnswer?.correctAnswerIndex !== undefined) {
+      pq.data.correctAnswerIndex = res.correctAnswer.correctAnswerIndex;
+    }
+    if (pq.data.type === 'matching' && res.correctAnswer?.pairs) {
+      pq.data._correctPairs = res.correctAnswer.pairs;
+    }
+    if (res.allSubmitted) {
+      this.vpOptimisticCompletion = false;
+      this.result = {
+        scorePercentage: res.scorePercentage,
+        earnedPoints: res.earnedPoints,
+        totalPoints: res.totalPoints,
+        passed: res.passed,
+        answerDetails: this.playerQuestions.map((p, idx) => ({
+          questionIndex: idx,
+          type: p.data.type,
+          isCorrect: p.isCorrect ?? false,
+          pointsEarned: p.isCorrect ? (p.data.points || 1) : 0,
+          correctAnswer: null
+        }))
+      };
+      if (this.state !== 'submitted') {
+        this.stopTimer();
+        this.state = 'submitted';
+      }
+      this.clearExerciseDraftStorage();
+    }
+  }
+
+  private draftItemHasUserInput(it: DigitalExerciseDraftItem): boolean {
+    if (it.selectedOption !== undefined && it.selectedOption !== null) return true;
+    if (it.matchingSelections && it.matchingSelections.length > 0) return true;
+    if (it.fillAnswers?.some((x) => String(x ?? '').trim() !== '')) return true;
+    if (String(it.qaResponse ?? '').trim() !== '') return true;
+    if (String(it.listeningText ?? '').trim() !== '') return true;
+    if (String(it.spokenText ?? '').trim() !== '') return true;
+    if (String(it.vpSpokenText ?? '').trim() !== '') return true;
+    if (it.hasRecorded) return true;
+    return false;
+  }
+
+  private async maybeRestoreDraftAfterStart(): Promise<void> {
+    if (!this.draftUserId || !this.exerciseId || !this.attemptId || this.playerQuestions.length === 0) return;
+    const draft = this.exerciseDraft.read(this.draftUserId, this.exerciseId, this.playerQuestions.length);
+    if (!draft) return;
+
+    this.submitting = true;
+    try {
+      this.applyDraftPayloadToQuestions(draft);
+      const gradedIndices: number[] = [];
+      draft.items.forEach((it, i) => {
+        if (it.serverGraded && this.playerQuestions[i]) gradedIndices.push(i);
+      });
+      gradedIndices.sort((a, b) => a - b);
+
+      for (const i of gradedIndices) {
+        const pq = this.playerQuestions[i];
+        const resp = this.buildQuestionResponseForIndex(i);
+        if (!resp) continue;
+        this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+        const res = await firstValueFrom(
+          this.exerciseService.submitQuestion(
+            this.exerciseId,
+            this.attemptId,
+            i,
+            resp,
+            this.elapsedSeconds
+          )
+        );
+        this.applyPerQuestionSubmitResult(pq, res);
+        if (res.allSubmitted) {
+          return;
+        }
+      }
+
+      const maxIx = this.playerQuestions.length - 1;
+      this.currentIndex = Math.min(Math.max(0, draft.currentIndex), maxIx);
+      if (!this.isVideoOnlyExercise) {
+        const cap = Math.min(Math.max(0, draft.elapsedSeconds), 86400);
+        this.startTime = Date.now() - cap * 1000;
+        this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+      }
+      if (this.isVideoOnlyExercise) {
+        this.afterVideoOnlyNavigation();
+        setTimeout(() => this.scrollVpChatToBottom(), 120);
+      }
+      const showRestoreToast =
+        gradedIndices.length > 0 ||
+        draft.currentIndex > 0 ||
+        draft.elapsedSeconds > 2 ||
+        draft.items.some((it) => this.draftItemHasUserInput(it));
+      if (showRestoreToast) {
+        this.snackBar.open(
+          'Your answers were restored from this browser (kept for 30 minutes after your last change).',
+          'Close',
+          { duration: 5000 }
+        );
+      }
+    } catch {
+      this.snackBar.open(
+        'Saved answers were found but could not all be synced. Continue and submit as usual.',
+        'Close',
+        { duration: 6000 }
+      );
+    } finally {
+      this.submitting = false;
+    }
   }
 
   // ─── Navigation ──────────────────────────────────────────────────────────────
@@ -672,6 +982,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.currentIndex > 0) {
       this.currentIndex--;
       this.afterVideoOnlyNavigation();
+      this.scheduleDraftSave();
     }
   }
 
@@ -679,12 +990,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.currentIndex < this.playerQuestions.length - 1) {
       this.currentIndex++;
       this.afterVideoOnlyNavigation();
+      this.scheduleDraftSave();
     }
   }
 
   goToQuestion(index: number): void {
     this.currentIndex = index;
     this.afterVideoOnlyNavigation();
+    this.scheduleDraftSave();
   }
 
   isQuestionAnswered(pq: PlayerQuestion): boolean {
@@ -912,30 +1225,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.submitting = true;
     this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
 
-    const resp: QuestionResponse = { questionIndex: this.currentIndex };
-    if (pq.data.type === 'mcq') {
-      resp.selectedOptionIndex = pq.selectedOption;
-    } else if (pq.data.type === 'matching') {
-      resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => {
-        const rightIndex = l.matchedRightIndex ?? -1;
-        const rightValue =
-          rightIndex >= 0 && pq.matchingRight && rightIndex < pq.matchingRight.length
-            ? pq.matchingRight[rightIndex].value
-            : null;
-        return { leftIndex: li, rightIndex, rightValue };
-      });
-    } else if (pq.data.type === 'fill-blank') {
-      resp.fillBlankResponses = pq.fillAnswers || [];
-    } else if (pq.data.type === 'pronunciation') {
-      resp.spokenText = pq.spokenText || '';
-      resp.pronunciationScore = pq.pronunciationScore || 0;
-    } else if (pq.data.type === 'question-answer') {
-      resp.qaResponse = pq.qaResponse || '';
-    } else if (pq.data.type === 'listening') {
-      resp.listeningText = pq.listeningText || '';
-    } else if (pq.data.type === 'video-pronunciation') {
-      resp.spokenText = pq.vpSpokenText || '';
-      resp.pronunciationScore = pq.pronunciationScore || 0;
+    const resp = this.buildQuestionResponseForIndex(this.currentIndex);
+    if (!resp) {
+      this.submitting = false;
+      this.snackBar.open('Please answer the question before submitting.', 'Close', { duration: 3000 });
+      return;
     }
 
     this.exerciseService.submitQuestion(
@@ -946,38 +1240,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.elapsedSeconds
     ).subscribe({
       next: (res) => {
-        pq.isCorrect = res.isCorrect;
-        pq.feedback = this.buildFeedbackFromCorrectAnswer(pq.data, res.correctAnswer, pq);
-        if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
-          pq.data._correctAnswers = res.correctAnswer.answers;
-        }
-        if (pq.data.type === 'mcq' && res.correctAnswer?.correctAnswerIndex !== undefined) {
-          pq.data.correctAnswerIndex = res.correctAnswer.correctAnswerIndex;
-        }
-        if (pq.data.type === 'matching' && res.correctAnswer?.pairs) {
-          pq.data._correctPairs = res.correctAnswer.pairs;
-        }
+        this.applyPerQuestionSubmitResult(pq, res);
         this.submitting = false;
-
-        if (res.allSubmitted) {
-          this.vpOptimisticCompletion = false;
-          this.result = {
-            scorePercentage: res.scorePercentage,
-            earnedPoints: res.earnedPoints,
-            totalPoints: res.totalPoints,
-            passed: res.passed,
-            answerDetails: this.playerQuestions.map((p, i) => ({
-              questionIndex: i,
-              type: p.data.type,
-              isCorrect: p.isCorrect ?? false,
-              pointsEarned: p.isCorrect ? (p.data.points || 1) : 0,
-              correctAnswer: null
-            }))
-          };
-          if (this.state !== 'submitted') {
-            this.stopTimer();
-            this.state = 'submitted';
-          }
+        if (!res.allSubmitted) {
+          this.scheduleDraftSave();
         }
       },
       error: (err) => {
@@ -1035,6 +1301,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.finishingAll = false;
         this.applyResultFeedback(result);
         this.state = 'submitted';
+        this.clearExerciseDraftStorage();
       },
       error: (e) => {
         this.finishingAll = false;
@@ -1112,6 +1379,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.submitting = false;
         this.applyResultFeedback(result);
         this.state = 'submitted';
+        this.clearExerciseDraftStorage();
       },
       error: (e) => {
         this.submitting = false;
@@ -1201,6 +1469,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   tryAgain(): void {
+    this.clearExerciseDraftStorage();
     this.result = null;
     this.initPlayerQuestions();
     this.currentIndex = 0;
@@ -1725,6 +1994,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   markAttempted(pq: PlayerQuestion): void {
     pq.isAnswered = true;
+    this.scheduleDraftSave();
   }
 
   isMatchCorrect(pq: PlayerQuestion, leftIndex: number): boolean {
