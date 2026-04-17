@@ -63,6 +63,7 @@ const invoiceManagementRoutes = require('./routes/invoiceManagement');
 const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
 const announcementRoutes = require('./routes/announcements');
+const crmStudentPortalRoutes = require('./routes/crmStudentPortal');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -81,6 +82,7 @@ const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
 const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
 const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
+const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -182,6 +184,7 @@ app.use('/api/invoices', invoiceManagementRoutes);
 app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/crm-student-portal', crmStudentPortalRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -267,6 +270,7 @@ app.listen(PORT, () => {
   scheduleMissedActivitiesAlerts();
   scheduleWeeklyReports();
   scheduleConsecutiveAbsenceAlerts();
+  scheduleStudentPortalCrmFullSync();
 });
 
 

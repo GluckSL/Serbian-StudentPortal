@@ -8,6 +8,7 @@ const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
+const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
 
 /**
  * Create a Zoom meeting with selected students
@@ -165,6 +166,13 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
         });
 
         await meetingLink.save();
+
+        scheduleDispatchEvent({
+          event: 'REMINDER_CREATED',
+          entity: { ...sanitizeMeetingLink(meetingLink), type: 'MeetingLink' },
+          metaOverrides: { syncMode: 'live' }
+        });
+
         createdMeetings.push({
           meetingId: meetingLink._id,
           zoomMeetingId: meeting.id,
@@ -951,6 +959,12 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
       }
     }
 
+    scheduleDispatchEvent({
+      event: 'REMINDER_UPDATED',
+      entity: { ...sanitizeMeetingLink(meeting), type: 'MeetingLink' },
+      metaOverrides: { syncMode: 'live' }
+    });
+
     res.status(200).json({
       success: true,
       message: 'Meeting updated successfully',
@@ -1131,6 +1145,12 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
     if (meeting.zoomMeetingId) {
       await zoomService.deleteMeeting(meeting.zoomMeetingId);
     }
+
+    scheduleDispatchEvent({
+      event: 'REMINDER_DELETED',
+      entity: { ...sanitizeMeetingLink(meeting), type: 'MeetingLink' },
+      metaOverrides: { syncMode: 'live' }
+    });
 
     // Delete from database
     await MeetingLink.findByIdAndDelete(id);

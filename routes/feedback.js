@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const Feedback = require('../models/Feedback');
 const { checkRole } = require('../middleware/auth');
+const { scheduleDispatchEvent, sanitizeFeedbackDoc } = require('../services/studentPortalCrmWebhook');
 
 // Add feedback (STUDENT only)
 router.post('/', async (req, res) => {
@@ -14,6 +15,13 @@ router.post('/', async (req, res) => {
     });
 
     const saved = await feedback.save();
+
+    scheduleDispatchEvent({
+      event: 'FEEDBACK_CREATED',
+      entity: { ...sanitizeFeedbackDoc(saved), type: 'Feedback' },
+      metaOverrides: { syncMode: 'live' }
+    });
+
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
     console.error('Error adding feedback:', err.message);
