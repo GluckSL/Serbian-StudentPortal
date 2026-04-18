@@ -83,6 +83,7 @@ async function buildSignedHlsPlaylist(hlsKey) {
 
 function canUserAccessManualRecording(recording, student) {
   if (!recording?.active) return false;
+  if (recording.isPublished === false) return false;
   if (!student) return false;
   const inBatch = Array.isArray(recording.batches) &&
     recording.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch));
@@ -137,6 +138,7 @@ router.get('/', verifyToken, async (req, res) => {
 
     const baseFilter = {
       active: true,
+      isPublished: { $ne: false },
       level: student.level,
       plan: { $in: [student.subscription, 'ALL'] }
     };
@@ -218,8 +220,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       recordingType: 'MANUAL',
       source: 'MANUAL_UPLOAD',
       status: m.status || 'ready',
-      isPublished: true,
-      publishedAt: m.createdAt,
+      isPublished: m.isPublished !== false,
+      publishedAt: m.publishedAt || (m.isPublished !== false ? m.createdAt : null),
       duration: null,
       classDate: m.createdAt,
       classDuration: null,
@@ -345,6 +347,8 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
         hlsKey: null,
         errorMessage: null,
         uploadedBy: req.user.id,
+        isPublished: false,
+        publishedAt: null,
       });
 
       // Immediate response; conversion runs in background.
@@ -380,6 +384,42 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       return res.status(500).json({ success: false, message: error.message });
     }
   });
+});
+
+/**
+ * POST /api/class-recordings/manual/publish
+ *
+ * Toggle student visibility for manually uploaded / URL class recordings.
+ * Body: { recordingIds: string[], isPublished: boolean }
+ */
+router.post('/manual/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { recordingIds, isPublished } = req.body || {};
+    if (!Array.isArray(recordingIds) || recordingIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'recordingIds array is required.' });
+    }
+
+    const publishState = Boolean(isPublished);
+    const result = await ClassRecording.updateMany(
+      { _id: { $in: recordingIds }, status: 'ready', active: true },
+      {
+        $set: {
+          isPublished: publishState,
+          publishedAt: publishState ? new Date() : null,
+        },
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: publishState ? 'Recording(s) visible to students.' : 'Recording(s) hidden from students.',
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    console.error('Error updating manual publish state:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // PUT /api/class-recordings/:id — Update recording (Teacher/Admin)
@@ -441,7 +481,7 @@ router.get('/:id/hls/playlist', verifyToken, async (req, res) => {
     }
 
     const recording = await ClassRecording.findById(req.params.id)
-      .select('active sourceType status hlsKey level plan batches')
+      .select('active sourceType status hlsKey level plan batches isPublished')
       .lean();
     if (!recording || !recording.active) {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
@@ -498,6 +538,16 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER
 // POST /api/class-recordings/:id/view — Student starts watching (creates view session)
 router.post('/:id/view', verifyToken, async (req, res) => {
   try {
+    if (req.user.role === 'STUDENT') {
+      const recording = await ClassRecording.findById(req.params.id)
+        .select('active batches level plan isPublished')
+        .lean();
+      const student = await User.findById(req.user.id).select('batch level subscription').lean();
+      if (!recording || !canUserAccessManualRecording(recording, student)) {
+        return res.status(403).json({ success: false, message: 'Recording not available.' });
+      }
+    }
+
     const view = await RecordingView.create({
       recording: req.params.id,
       student: req.user.id,

@@ -17,6 +17,9 @@ export interface ClassRecording {
   plan: string;
   uploadedBy: { _id: string; name: string };
   active: boolean;
+  /** When false, students do not see this recording (manual uploads start unpublished until you publish). */
+  isPublished?: boolean;
+  publishedAt?: string | null;
   createdAt: string;
 }
 
@@ -134,6 +137,22 @@ export class ClassRecordingsService {
     return this.http.post<any>(
       `${this.url}/zoom/publish`,
       { meetingLinkIds, isPublished },
+      { withCredentials: true }
+    );
+  }
+
+  publishManualRecordings(
+    recordingIds: string[],
+    isPublished = true
+  ): Observable<{
+    success: boolean;
+    message: string;
+    matched: number;
+    modified: number;
+  }> {
+    return this.http.post<any>(
+      `${this.url}/manual/publish`,
+      { recordingIds, isPublished },
       { withCredentials: true }
     );
   }

@@ -8,10 +8,10 @@
       <p class="cr-header__sub">{{ filteredRecordings.length }} of {{ recordings.length }} recordings</p>
     </div>
     <div class="cr-header__actions">
-      <button class="cr-btn cr-btn--success" (click)="publishSelectedZoom()"
-              [disabled]="publishLoading || !selectedZoomMeetingIds.length">
+      <button class="cr-btn cr-btn--success" (click)="publishSelectedForStudents()"
+              [disabled]="publishLoading || selectedPublishCount() === 0">
         <i class="fa fa-upload"></i>
-        {{ publishLoading ? 'Publishing...' : ('Publish Selected (' + selectedZoomMeetingIds.length + ')') }}
+        {{ publishLoading ? 'Publishing...' : ('Publish Selected (' + selectedPublishCount() + ')') }}
       </button>
       <button class="cr-btn cr-btn--outline" (click)="openWebhookAudit()">
         <i class="fa fa-wave-square"></i> Webhook Audit
@@ -110,9 +110,9 @@
             <input
               type="checkbox"
               class="cr-publish-checkbox"
-              [checked]="isSelectedZoom(r.meetingLinkId)"
-              [disabled]="!isZoomReadyUnpublished(r)"
-              (change)="toggleZoomSelection(r.meetingLinkId)"
+              [checked]="isPublishRowSelected(r)"
+              [disabled]="!isReadyUnpublished(r)"
+              (change)="togglePublishRowSelection(r)"
             />
           </td>
           <td>
@@ -149,13 +149,9 @@
           </td>
           <td>
             <span class="cr-published-chip"
-                  [class.cr-published-chip--yes]="!isZoomRecording(r) || (r.isPublished !== false)"
-                  [class.cr-published-chip--no]="isZoomRecording(r) && r.isPublished === false">
-              {{
-                isZoomRecording(r)
-                  ? ((r.isPublished !== false) ? 'Visible' : 'Hidden')
-                  : 'Visible'
-              }}
+                  [class.cr-published-chip--yes]="r.isPublished !== false"
+                  [class.cr-published-chip--no]="r.isPublished === false">
+              {{ (r.isPublished !== false) ? 'Visible' : 'Hidden' }}
             </span>
             <span class="cr-processing-note" *ngIf="isProcessingRecording(r)">
               {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
@@ -174,12 +170,11 @@
             <div class="cr-actions">
               <button
                 class="cr-icon-btn"
-                [class.cr-icon-btn--amber]="isZoomRecording(r) && (r.isPublished !== false)"
-                [class.cr-icon-btn--blue]="isZoomRecording(r) && r.isPublished === false"
-                [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === r.meetingLinkId"
+                [class.cr-icon-btn--amber]="r.isPublished !== false"
+                [class.cr-icon-btn--blue]="r.isPublished === false"
+                [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === publishRowActionId(r)"
                 (click)="toggleStudentVisibility(r); $event.stopPropagation()"
-                [title]="canToggleStudentVisibility(r) ? ((r.isPublished !== false) ? 'Hide from Students' : 'Show to Students') : 'Visibility toggle available only when recording status is Ready'"
-                *ngIf="isZoomRecording(r)">
+                [title]="canToggleStudentVisibility(r) ? ((r.isPublished !== false) ? 'Hide from Students' : 'Show to Students') : 'Visibility toggle is available when the recording is Ready'">
                 <i class="fa" [class.fa-eye-slash]="r.isPublished !== false" [class.fa-eye]="r.isPublished === false"></i>
               </button>
               <button class="cr-icon-btn cr-icon-btn--blue" (click)="viewRecordingAction(r); $event.stopPropagation()" [title]="isZoomRecording(r) ? 'Open Zoom Recording' : 'View Analytics'">
