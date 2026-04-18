@@ -125,7 +125,7 @@
 
   <div class="insight-cards" *ngIf="!isLoading && !loadError">
     <div class="insight-card">
-      <span>Total time</span>
+      <span>Portal time (est.)</span>
       <strong>{{ formatMinutes(timeSummary.totalMinutes) }}</strong>
     </div>
     <div class="insight-card">
@@ -133,7 +133,7 @@
       <strong>{{ timeSummary.activeStudents }}</strong>
     </div>
     <div class="insight-card">
-      <span>Avg/student</span>
+      <span>Avg portal/student</span>
       <strong>{{ formatMinutes(timeSummary.avgMinutesPerStudent) }}</strong>
     </div>
     <div class="insight-card">
@@ -166,7 +166,7 @@
     <div class="analytics-tab-panel" *ngIf="analyticsTab === 'overview'">
       <div class="overview-grid">
         <div class="overview-item">
-          <span>Total time spent in selected range</span>
+          <span>Estimated time in portal (activity span, selected range)</span>
           <strong>{{ formatMinutes(timeSummary.totalMinutes) }}</strong>
         </div>
         <div class="overview-item">
@@ -178,7 +178,7 @@
           <strong>{{ timeSummary.topStudent }}</strong>
         </div>
         <div class="overview-item">
-          <span>Average time per student</span>
+          <span>Average portal time per student</span>
           <strong>{{ formatMinutes(timeSummary.avgMinutesPerStudent) }}</strong>
         </div>
       </div>
@@ -186,7 +186,7 @@
 
     <div class="analytics-tab-panel" *ngIf="analyticsTab === 'student'">
       <div class="group-table-card">
-        <h6 class="group-table-title">Student-wise time</h6>
+        <h6 class="group-table-title">Student-wise portal time (est.)</h6>
         <div class="table-responsive">
           <table class="table table-sm mb-0">
             <thead>
@@ -194,7 +194,7 @@
                 <th>Student</th>
                 <th class="text-center">Pages</th>
                 <th class="text-center">Visits</th>
-                <th class="text-end">Time</th>
+                <th class="text-end">Portal time</th>
               </tr>
             </thead>
             <tbody>
@@ -229,7 +229,7 @@
 
         <div class="student-drill-kpis">
           <div class="drill-kpi">
-            <span>Total time</span>
+            <span>Portal time (est.)</span>
             <strong>{{ formatMinutes(studentDrilldown.totalMinutes) }}</strong>
           </div>
           <div class="drill-kpi">

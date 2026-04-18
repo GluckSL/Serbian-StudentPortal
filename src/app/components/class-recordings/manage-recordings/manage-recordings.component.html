@@ -151,7 +151,7 @@
             <span class="cr-published-chip"
                   [class.cr-published-chip--yes]="r.isPublished !== false"
                   [class.cr-published-chip--no]="r.isPublished === false">
-              {{ (r.isPublished !== false) ? 'Visible' : 'Hidden' }}
+              {{ r.isPublished !== false ? 'Visible' : 'Hidden' }}
             </span>
             <span class="cr-processing-note" *ngIf="isProcessingRecording(r)">
               {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
@@ -172,9 +172,9 @@
                 class="cr-icon-btn"
                 [class.cr-icon-btn--amber]="r.isPublished !== false"
                 [class.cr-icon-btn--blue]="r.isPublished === false"
-                [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === publishRowActionId(r)"
+                [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === visibilityActionKey(r)"
                 (click)="toggleStudentVisibility(r); $event.stopPropagation()"
-                [title]="canToggleStudentVisibility(r) ? ((r.isPublished !== false) ? 'Hide from Students' : 'Show to Students') : 'Visibility toggle is available when the recording is Ready'">
+                [title]="canToggleStudentVisibility(r) ? (r.isPublished !== false ? 'Hide from Students' : 'Show to Students') : 'Visibility toggle is available when the recording status is Ready'">
                 <i class="fa" [class.fa-eye-slash]="r.isPublished !== false" [class.fa-eye]="r.isPublished === false"></i>
               </button>
               <button class="cr-icon-btn cr-icon-btn--blue" (click)="viewRecordingAction(r); $event.stopPropagation()" [title]="isZoomRecording(r) ? 'Open Zoom Recording' : 'View Analytics'">

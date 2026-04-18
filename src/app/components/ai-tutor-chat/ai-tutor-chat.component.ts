@@ -491,11 +491,11 @@ export class AiTutorChatComponent implements OnInit, OnDestroy {
           
           // Role-play details removed - using simplified interface
           
-          // If waiting for trigger (role-play intro), set speech recognition to English
-          // so "Let's start" is recognized correctly instead of being misheard as German
+          // If waiting for trigger (role-play intro), listen in German
+          // so "Los geht's"/"Beginnen wir" can be recognized reliably
           if (response.welcomeMessage.metadata?.waitingForTrigger && this.speechRecognition) {
-            this.speechRecognition.lang = 'en-US';
-            console.log('🎤 Speech recognition set to English for trigger detection');
+            this.speechRecognition.lang = 'de-DE';
+            console.log('🎤 Speech recognition set to German for trigger detection');
           }
           
           // Speak the welcome message if voice is enabled
@@ -1162,13 +1162,13 @@ Keep practicing! 🌟`,
       this.speechRecognition.maxAlternatives = 1; // Only need the best match
       
       // Set language based on session state
-      // During role-play intro (waiting for "Let's start"), use English so trigger is recognized correctly
+      // During role-play intro (waiting for "Los geht's"), use German for trigger detection
       const lastMessage = this.localMessages[this.localMessages.length - 1];
       const isWaitingForTrigger = (lastMessage?.metadata as any)?.waitingForTrigger === true;
       
       if (isWaitingForTrigger) {
-        this.speechRecognition.lang = 'en-US';
-        console.log('🎤 Speech recognition set to English (waiting for trigger)');
+        this.speechRecognition.lang = 'de-DE';
+        console.log('🎤 Speech recognition set to German (waiting for trigger)');
       } else {
         const langCode = this.module ? this.getLanguageCode(this.module.targetLanguage) : 'en-US';
         this.speechRecognition.lang = langCode;
@@ -1414,14 +1414,14 @@ Keep practicing! 🌟`,
       this.showSpeechError = false;
       
       // Set speech recognition language based on session state
-      // During role-play intro (waiting for trigger), use English so "Let's start" is recognized correctly
+      // During role-play intro (waiting for trigger), use German so start phrases are recognized correctly
       const lastMessage = this.localMessages[this.localMessages.length - 1];
       const isWaitingForTrigger = (lastMessage?.messageType as string) === 'role-play-intro' 
         || (lastMessage?.metadata as any)?.waitingForTrigger === true
         || (lastMessage?.metadata as any)?.sessionState === 'introduction';
       
       const newLang = isWaitingForTrigger
-        ? 'en-US'
+        ? 'de-DE'
         : (this.module ? this.getLanguageCode(this.module.targetLanguage) : 'en-US');
       
       // Update speech recognition language

@@ -17,7 +17,7 @@ export interface ClassRecording {
   plan: string;
   uploadedBy: { _id: string; name: string };
   active: boolean;
-  /** When false, students do not see this recording (manual uploads start unpublished until you publish). */
+  /** When false, hidden from student class recordings (manual uploads / URL). */
   isPublished?: boolean;
   publishedAt?: string | null;
   createdAt: string;

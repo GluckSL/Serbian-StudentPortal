@@ -726,12 +726,6 @@
                 (click)="selectLeft(currentQuestion, li)"
               >
                 {{ item.value }}
-                <span
-                  class="match-badge"
-                  *ngIf="item.matchedRightIndex !== null"
-                >
-                  {{ isMatchCorrect(currentQuestion, li) ? '✓' : '✕' }}
-                </span>
               </button>
             </div>
             <div class="matching-connector">
