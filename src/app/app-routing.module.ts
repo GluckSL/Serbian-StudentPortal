@@ -10,6 +10,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
 import { ProfileComponent } from './components/profile/profile.component';
 import { CreateCourseComponent } from './components/courses/course-create.component';
+import { RemindersComponent } from './components/admin-dashboard/reminders/reminders.component';
 
 export const routes: Routes = [
   // Default route
@@ -256,6 +257,12 @@ export const routes: Routes = [
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/whatsapp-announcement', loadComponent: () => import('./components/admin-dashboard/whatsapp-announcement/whatsapp-announcement.component').then(m => m.WhatsappAnnouncementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  {
+    path: 'admin/reminders',
+    component: RemindersComponent,
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
   { path: 'admin/announcements', loadComponent: () => import('./components/admin-dashboard/admin-announcements.component').then(m => m.AdminAnnouncementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   // Journey Management
