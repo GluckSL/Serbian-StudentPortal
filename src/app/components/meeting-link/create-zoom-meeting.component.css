@@ -231,6 +231,24 @@ textarea.form-control {
   font-size: 11px;
 }
 
+.confirm-time-item--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.confirm-time-item--row span {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirm-time-remove {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  line-height: 1.2;
+}
+
 .confirm-time-item:last-child {
   border-bottom: none;
 }

@@ -123,17 +123,22 @@
                 </select>
               </div>
               <div class="col-6 mb-3" *ngIf="scheduleMode === 'weekly' || scheduleMode === 'monthly'">
-                <label class="form-label">Occurrences *</label>
+                <label class="form-label">{{ scheduleMode === 'weekly' ? 'Weeks *' : 'Occurrences *' }}</label>
                 <input
                   type="number"
                   class="form-control"
                   formControlName="recurrenceCount"
-                  min="2"
+                  min="1"
                   max="24"
                   (change)="onTimeChange()"
                   placeholder="4"
                 >
-                <small class="text-muted">How many classes to create at once</small>
+                <small class="text-muted" *ngIf="scheduleMode === 'weekly'">
+                  Same time each day from your chosen date through Sunday, then full Mon–Sun for each extra week.
+                </small>
+                <small class="text-muted" *ngIf="scheduleMode === 'monthly'">
+                  How many monthly repeats to create (same date/time each month).
+                </small>
               </div>
             </div>
 
@@ -370,8 +375,23 @@
 
       <div class="mt-2">
         <label class="form-label">Scheduled Times</label>
-        <div class="confirm-time-list" *ngIf="confirmStartTimesPreview.length > 0">
-          <div class="confirm-time-item" *ngFor="let dt of confirmStartTimesPreview">{{ dt }}</div>
+        <small class="text-muted d-block mb-1" *ngIf="confirmPendingSlots.length > 1">
+          Tap <i class="fas fa-times" aria-hidden="true"></i> to drop a slot you do not need.
+        </small>
+        <div class="confirm-time-list" *ngIf="confirmPendingSlots.length > 0">
+          <div class="confirm-time-item confirm-time-item--row" *ngFor="let slot of confirmPendingSlots">
+            <span>{{ slot.label }}</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger confirm-time-remove"
+              (click)="removePendingStartTime(slot.raw)"
+              [disabled]="isCreatingMeeting || confirmPendingSlots.length <= 1"
+              title="Remove this time"
+              aria-label="Remove this scheduled time"
+            >
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -383,7 +403,7 @@
 
     <div class="dt-modal-footer">
       <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()" [disabled]="isCreatingMeeting">Cancel</button>
-      <button type="button" class="btn btn-primary" (click)="confirmCreateMeeting()" [disabled]="isCreatingMeeting">
+      <button type="button" class="btn btn-primary" (click)="confirmCreateMeeting()" [disabled]="isCreatingMeeting || confirmPendingSlots.length === 0">
         <span *ngIf="!isCreatingMeeting"><i class="fas fa-check me-1"></i>Confirm & Create</span>
         <span *ngIf="isCreatingMeeting"><span class="spinner-border spinner-border-sm me-1"></span>Scheduling...</span>
       </button>
