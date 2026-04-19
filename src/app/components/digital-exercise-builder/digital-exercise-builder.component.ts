@@ -300,6 +300,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       type: qType as any,
       points: 1,
       context: '',
+      instruction: '',
+      example: '',
       worksheetKind: isWorksheetKind ? type : null,
       attachmentUrl: '',
       answerExplanation: '',

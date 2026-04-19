@@ -110,7 +110,7 @@
       <span class="col-details">EXERCISE DETAILS</span>
       <span class="col-level">LEVEL</span>
       <span class="col-cat">CATEGORY</span>
-      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAY</span>
+      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAY / SEQ</span>
       <span class="col-vol">VOLUME</span>
       <span class="col-dur">DURATION</span>
       <span class="col-priority">STATUS</span>
@@ -129,8 +129,9 @@
       </div>
       <div class="row-category">{{ ex.category }}</div>
       <div class="row-day" *ngIf="userRole === 'STUDENT'">
-        <span class="journey-day-pill" *ngIf="ex.courseDay != null">{{ ex.courseDay }}</span>
-        <span class="journey-day-pill journey-day-pill--any" *ngIf="ex.courseDay == null">Any</span>
+        <span class="journey-day-pill" [class.journey-day-pill--any]="ex.courseDay == null">
+          {{ journeyDaySequenceLabel(ex) }}
+        </span>
       </div>
       <div class="row-volume">
         <span class="vol-num">{{ ex.questions.length || 0 }}</span>
@@ -178,7 +179,14 @@
           >
             {{ ex.studentAttempt ? 'Retry' : 'Start' }}
           </button>
-          <button *ngIf="isExerciseJourneyLocked(ex)" type="button" class="btn-start btn-start--locked" disabled>
+          <button
+            *ngIf="isExerciseJourneyLocked(ex)"
+            type="button"
+            class="btn-start btn-start--locked"
+            [class.btn-start--unlock-link]="!isExerciseDayLocked(ex) && canOpenPrerequisiteExercise(ex)"
+            [disabled]="isExerciseDayLocked(ex) || !canOpenPrerequisiteExercise(ex)"
+            (click)="openPrerequisiteExercise(ex)"
+          >
             {{ journeyUnlockButtonLabel(ex) }}
           </button>
         </div>

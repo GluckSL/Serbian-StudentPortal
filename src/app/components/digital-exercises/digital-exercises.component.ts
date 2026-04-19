@@ -307,25 +307,65 @@ export class DigitalExercisesComponent implements OnInit {
     return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty || this.todayOnly);
   }
 
-  isExerciseJourneyLocked(ex: DigitalExercise): boolean {
+  isExerciseDayLocked(ex: DigitalExercise): boolean {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
-    if (role !== 'STUDENT') {
-      return false;
-    }
-    // Day-based lock
+    if (role !== 'STUDENT') return false;
     const cd = ex.courseDay;
-    if (cd != null && cd !== undefined) {
-      const n = Number(cd);
-      if (Number.isFinite(n) && n > this.studentCourseDay) return true;
+    if (cd == null || cd === undefined) return false;
+    const n = Number(cd);
+    return Number.isFinite(n) && n > this.studentCourseDay;
+  }
+
+  isExerciseSequenceLocked(ex: DigitalExercise): boolean {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role !== 'STUDENT') return false;
+    return !!ex.sequenceLocked;
+  }
+
+  isExerciseJourneyLocked(ex: DigitalExercise): boolean {
+    return this.isExerciseDayLocked(ex) || this.isExerciseSequenceLocked(ex);
+  }
+
+  private getPrerequisiteExercise(ex: DigitalExercise): DigitalExercise | null {
+    if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return null;
+    const prev = String(ex.previousSequenceLetter || '').trim().toLowerCase();
+    if (!prev) return null;
+    const day = this.exerciseCourseDayNum(ex);
+
+    const match = this.exercises.find((item) => {
+      const sameDay = this.exerciseCourseDayNum(item) === day;
+      const sameSequence = String(item.sequenceLetter || '').trim().toLowerCase() === prev;
+      return sameDay && sameSequence;
+    });
+
+    return match || null;
+  }
+
+  canOpenPrerequisiteExercise(ex: DigitalExercise): boolean {
+    return !!this.getPrerequisiteExercise(ex)?._id;
+  }
+
+  openPrerequisiteExercise(ex: DigitalExercise): void {
+    const prerequisite = this.getPrerequisiteExercise(ex);
+    if (!prerequisite?._id) return;
+    this.startExercise(prerequisite);
+  }
+
+  journeyDaySequenceLabel(ex: DigitalExercise): string {
+    const day = this.exerciseCourseDayNum(ex);
+    const seq = String(ex.sequenceLetter || '').trim().toUpperCase();
+    if (day == null) {
+      return seq ? `Any-${seq}` : 'Any';
     }
-    // Sequence lock (server set this)
-    if (ex.sequenceLocked) return true;
-    return false;
+    return seq ? `${day}-${seq}` : String(day);
   }
 
   journeyUnlockButtonLabel(ex: DigitalExercise): string {
-    if (ex.sequenceLocked && ex.previousSequenceLetter) {
-      return `Complete ${ex.previousSequenceLetter.toUpperCase()} first`;
+    if (this.isExerciseSequenceLocked(ex) && ex.previousSequenceLetter) {
+      const previous = String(ex.previousSequenceLetter || '').trim().toUpperCase();
+      const day = this.exerciseCourseDayNum(ex);
+      const previousLabel = day != null ? `${day}-${previous}` : previous;
+      return `First complete ${previousLabel}`;
     }
     const cd = ex.courseDay;
     return cd != null ? `Unlock on day ${cd}` : 'Locked';

@@ -18,6 +18,7 @@ const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
 
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { crmTokenAuth } = require('../middleware/crmTokenAuth');
 
 const router = express.Router();
 
@@ -93,20 +94,6 @@ function formatDate(date) {
   try {
     return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Colombo' });
   } catch { return ''; }
-}
-
-// ─── CRM token middleware ────────────────────────────────────────────────────
-
-function crmTokenAuth(req, res, next) {
-  const token = req.headers['x-crm-token'] || req.headers['X-CRM-Token'];
-  const expected = process.env.REMINDERS_CRM_TOKEN;
-  if (!expected) {
-    return res.status(503).json({ success: false, message: 'CRM polling not configured on server.' });
-  }
-  if (!token || token !== expected) {
-    return res.status(401).json({ success: false, message: 'Invalid or missing X-CRM-Token header.' });
-  }
-  next();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
