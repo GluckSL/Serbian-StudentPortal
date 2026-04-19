@@ -82,6 +82,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 /* Student: icon + details + level + category + day + volume + duration + status + action */
@@ -827,6 +829,17 @@
   max-width: 118px;
   box-sizing: border-box;
   box-shadow: none !important;
+}
+
+.row-action .btn-start--locked.btn-start--unlock-link {
+  background: #ede9fe !important;
+  color: #5b21b6 !important;
+  border: 1px solid #c4b5fd !important;
+  cursor: pointer !important;
+}
+
+.row-action .btn-start--locked.btn-start--unlock-link:hover {
+  background: #ddd6fe !important;
 }
 
 .row-action .btn-start {
