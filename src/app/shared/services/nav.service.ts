@@ -125,9 +125,17 @@ export class NavService {
     {
       group: 'Support',
       items: [
+        { id: 'whatsapp-announcement', label: 'WhatsApp Announcement', icon: '💬', route: '/admin/whatsapp-announcement', subGroup: null },
+        { id: 'reminders', label: 'Reminders', icon: '⏰', route: '/admin/reminders', subGroup: null },
         { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: '🎫', route: '/admin/support-tickets', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: '❓', route: '/help', subGroup: null }
+      ]
+    },
+    {
+      group: 'System',
+      items: [
+        { id: 'test-accounts', label: 'Test Accounts', icon: '🧪', route: '/admin/test-accounts', subGroup: null }
       ]
     },
     {

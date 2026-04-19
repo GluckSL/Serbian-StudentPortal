@@ -14,6 +14,8 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
 const { resignExercise, resignExercises } = require('../config/presign');
+const { sanitizeQuestions } = require('../utils/sanitizeHtml');
+const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -99,6 +101,7 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'videoRetryFeedback',
   'tags',
   'courseDay',
+  'sequenceLetter',
   'visibleToStudents'
 ];
 
@@ -107,7 +110,9 @@ const VIDEO_PRONUNCIATION_PASS_SCORE = 20;
 
 function normalizeQuestionContexts(rawQuestions) {
   if (!Array.isArray(rawQuestions)) return rawQuestions;
-  return rawQuestions.map((q) => ({
+  // Sanitize HTML in text fields, then normalise context whitespace
+  const sanitized = sanitizeQuestions(rawQuestions);
+  return sanitized.map((q) => ({
     ...q,
     context: String(q?.context || '').trim()
   }));
@@ -320,9 +325,17 @@ function buildPerQuestionReview(exercise, attempt) {
 }
 
 async function refreshExerciseCompletionStats(exerciseId) {
-  const completedCount = await ExerciseAttempt.countDocuments({ exerciseId, status: 'completed' });
+  // Exclude test accounts from stats
+  const testUserIds = await User.find({ isTestAccount: true }).distinct('_id');
+  const studentFilter = testUserIds.length ? { $nin: testUserIds } : undefined;
+
+  const baseFilter = { exerciseId, status: 'completed' };
+  if (studentFilter) baseFilter.studentId = studentFilter;
+
+  const oid = new mongoose.Types.ObjectId(exerciseId);
+  const completedCount = await ExerciseAttempt.countDocuments(baseFilter);
   const avgResult = await ExerciseAttempt.aggregate([
-    { $match: { exerciseId: new mongoose.Types.ObjectId(exerciseId), status: 'completed' } },
+    { $match: { ...baseFilter, exerciseId: oid } },
     { $group: { _id: null, avg: { $avg: '$scorePercentage' } } }
   ]);
 
@@ -391,6 +404,52 @@ function exerciseUnlockedForStudentDay(exercise, studentDay) {
   const n = Number(cd);
   if (!Number.isFinite(n)) return true;
   return n <= studentDay;
+}
+
+/**
+ * For a student, check if a sequenced exercise is locked because a prior
+ * letter on the same courseDay hasn't been passed yet.
+ *
+ * @param {string} studentId
+ * @param {object} exercise  — lean DigitalExercise doc
+ * @returns {Promise<{locked: boolean, previousLetter: string|null, previousTitle: string|null}>}
+ */
+async function checkSequenceLock(studentId, exercise) {
+  const sl = exercise.sequenceLetter;
+  if (!sl || !exercise.courseDay) return { locked: false, previousLetter: null, previousTitle: null };
+
+  // Find all exercises on the same day with a letter strictly before ours
+  const priorExercises = await DigitalExercise.find({
+    courseDay: exercise.courseDay,
+    sequenceLetter: { $lt: sl, $ne: null, $exists: true },
+    visibleToStudents: true,
+    isDeleted: { $ne: true }
+  }).select('_id sequenceLetter title').lean();
+
+  if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
+
+  // Check if each prior exercise has a passing attempt (≥60%) by this student
+  const priorIds = priorExercises.map((e) => e._id);
+  const completedAttempts = await ExerciseAttempt.find({
+    studentId,
+    exerciseId: { $in: priorIds },
+    status: 'completed',
+    scorePercentage: { $gte: 60 }
+  }).select('exerciseId').lean();
+
+  const passedIds = new Set(completedAttempts.map((a) => a.exerciseId.toString()));
+  const unpassedPriors = priorExercises.filter((e) => !passedIds.has(e._id.toString()));
+
+  if (!unpassedPriors.length) return { locked: false, previousLetter: null, previousTitle: null };
+
+  // Return the first (alphabetically earliest) unpassed letter
+  unpassedPriors.sort((a, b) => (a.sequenceLetter || '').localeCompare(b.sequenceLetter || ''));
+  const firstUnpassed = unpassedPriors[0];
+  return {
+    locked: true,
+    previousLetter: firstUnpassed.sequenceLetter,
+    previousTitle: firstUnpassed.title || null
+  };
 }
 
 // ─── PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ───────────────────────────────────
@@ -506,6 +565,21 @@ router.get('/', verifyToken, async (req, res) => {
       exercises.forEach(ex => {
         ex.studentAttempt = attemptMap[ex._id.toString()] || null;
       });
+
+      // Attach sequence lock status for exercises that have a sequenceLetter
+      const sequencedExercises = exercises.filter(
+        (ex) => ex.sequenceLetter && ex.courseDay
+      );
+      if (sequencedExercises.length) {
+        const lockResults = await Promise.all(
+          sequencedExercises.map((ex) => checkSequenceLock(req.user.id, ex))
+        );
+        sequencedExercises.forEach((ex, idx) => {
+          const lockInfo = lockResults[idx];
+          ex.sequenceLocked = lockInfo.locked;
+          ex.previousSequenceLetter = lockInfo.locked ? lockInfo.previousLetter : null;
+        });
+      }
     }
 
     await resignExercises(exercises);
@@ -556,6 +630,16 @@ router.get('/:id', verifyToken, async (req, res) => {
           code: 'COURSE_DAY_LOCKED',
           studentCourseDay: access.courseDay,
           exerciseCourseDay: exercise.courseDay
+        });
+      }
+      // Sequence gate: must complete prior letter(s) first
+      const seqLock = await checkSequenceLock(req.user.id, exercise);
+      if (seqLock.locked) {
+        return res.status(403).json({
+          error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first before attempting this one.`,
+          code: 'SEQUENCE_LOCKED',
+          previousLetter: seqLock.previousLetter,
+          previousTitle: seqLock.previousTitle
         });
       }
       if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
@@ -898,6 +982,15 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED'
+        });
+      }
+      // Sequence gate
+      const seqLock = await checkSequenceLock(req.user.id, exercise.toObject ? exercise.toObject() : exercise);
+      if (seqLock.locked) {
+        return res.status(403).json({
+          error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first.`,
+          code: 'SEQUENCE_LOCKED',
+          previousLetter: seqLock.previousLetter
         });
       }
       if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
@@ -1580,7 +1673,7 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
 
     const total = await ExerciseAttempt.countDocuments(filter);
     const attempts = await ExerciseAttempt.find(filter)
-      .populate('studentId', 'name email batch level')
+      .populate('studentId', 'name email batch level isTestAccount')
       .sort({ completedAt: -1 })
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit))
@@ -1618,6 +1711,8 @@ router.get('/analytics/daily-overview', verifyToken, checkRole(['ADMIN', 'TEACHE
         }
       },
       { $unwind: '$student' },
+      // Exclude test accounts from analytics overview
+      { $match: { 'student.isTestAccount': { $ne: true } } },
       {
         $lookup: {
           from: 'digitalexercises',

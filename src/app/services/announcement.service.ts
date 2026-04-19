@@ -34,6 +34,7 @@ export interface AnnouncementTargetStudent {
   regNo: string;
   email: string;
   batch: string;
+  isTestAccount?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

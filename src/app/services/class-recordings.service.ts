@@ -125,7 +125,10 @@ export class ClassRecordingsService {
     return this.http.get<any>(`${this.url}/zoom/backfill/status`, { withCredentials: true });
   }
 
-  publishZoomRecordings(meetingLinkIds: string[], isPublished: boolean): Observable<{
+  publishZoomRecordings(
+    meetingLinkIds: string[],
+    isPublished = true
+  ): Observable<{
     success: boolean;
     message: string;
     matched: number;
@@ -138,7 +141,10 @@ export class ClassRecordingsService {
     );
   }
 
-  publishManualRecordings(recordingIds: string[], isPublished: boolean): Observable<{
+  publishManualRecordings(
+    recordingIds: string[],
+    isPublished = true
+  ): Observable<{
     success: boolean;
     message: string;
     matched: number;

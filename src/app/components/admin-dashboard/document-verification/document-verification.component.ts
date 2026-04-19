@@ -12,6 +12,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { EMPTY, expand, reduce } from 'rxjs';
 import { Router } from '@angular/router';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 interface StudentDocument {
   _id: string;
@@ -57,7 +58,8 @@ interface DocumentStats {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    MaterialModule
+    MaterialModule,
+    TestAccountBadgeComponent
   ],
   templateUrl: './document-verification.component.html',
   styleUrls: ['./document-verification.component.css']

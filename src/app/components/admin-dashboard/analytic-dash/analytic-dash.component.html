@@ -461,7 +461,7 @@
                     >
                   </td>
                   <td class="sticky-col-name"><span class="reg-number">{{ student.regNo || '—' }}</span></td>
-                  <td class="crm-col-name"><div class="student-name">{{ student.name }}</div></td>
+                  <td class="crm-col-name"><div class="student-name">{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div></td>
                   <td *ngIf="isCrmColVisible('email')" class="crm-cell text-secondary">{{ crmCellDisplay(student, 'email') }}</td>
                   <td *ngIf="isCrmColVisible('phone')" class="crm-cell">{{ crmCellDisplay(student, 'phoneNumber') }}</td>
                   <td *ngIf="isCrmColVisible('whatsapp')" class="crm-cell">{{ crmCellDisplay(student, 'whatsappNumber') }}</td>

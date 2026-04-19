@@ -9,6 +9,7 @@ import { ChartConfiguration } from 'chart.js';
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
 import { AuthService } from '../../../services/auth.service';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 interface BatchSummary {
   batchName: string;
@@ -55,6 +56,8 @@ interface StudentRow {
   currentCourseDay: number;
   enrollmentDate: string | null;
   accountCreatedAt: string | null;
+  /** When true, show Test badge (excluded from batch analytics). */
+  isTestAccount?: boolean;
   editDay?: number;
   saving?: boolean;
   checkingTasks?: boolean;
@@ -76,7 +79,7 @@ interface TimelineDay {
 @Component({
   selector: 'app-journey-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgChartsModule],
+  imports: [CommonModule, FormsModule, NgChartsModule, TestAccountBadgeComponent],
   template: `
 <div class="journey-root">
 
@@ -557,7 +560,10 @@ interface TimelineDay {
         <tbody>
           <tr *ngFor="let s of batchStudents">
             <td>
-              <div class="j-student-name">{{ s.name }}</div>
+              <div class="j-student-name-row">
+                <span class="j-student-name">{{ s.name }}</span>
+                <app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge>
+              </div>
               <div class="j-student-email">{{ s.email }}</div>
             </td>
             <td><span class="j-badge j-badge-secondary">{{ s.regNo }}</span></td>
@@ -1972,6 +1978,7 @@ interface TimelineDay {
       padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;
     }
     .j-table tbody tr:hover { background: #f8fafc; }
+    .j-student-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
     .j-student-name { font-weight: 600; color: #0f172a; }
     .j-student-email { color: #94a3b8; font-size: 10px; }
 

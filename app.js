@@ -63,6 +63,9 @@ const invoiceManagementRoutes = require('./routes/invoiceManagement');
 const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
 const announcementRoutes = require('./routes/announcements');
+const crmStudentPortalRoutes = require('./routes/crmStudentPortal');
+const reminderRoutes = require('./routes/reminders');
+const testAccountRoutes = require('./routes/testAccounts');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -74,6 +77,14 @@ const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 const { scheduleZoomMeetingReminderEmails } = require('./jobs/zoomMeetingReminderEmails');
+
+// WhatsApp CRM notification jobs
+const { scheduleClassReminders } = require('./jobs/whatsapp/classReminder');
+const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
+const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
+const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
+const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
+const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -175,6 +186,9 @@ app.use('/api/invoices', invoiceManagementRoutes);
 app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/reminders', reminderRoutes);
+app.use('/api/test-accounts', testAccountRoutes);
+app.use('/api/crm-student-portal', crmStudentPortalRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -253,6 +267,14 @@ app.listen(PORT, () => {
   scheduleAutoFetchAttendance();
   scheduleJourneyDayRollover();
   scheduleZoomMeetingReminderEmails();
+
+  // WhatsApp CRM notification jobs
+  scheduleClassReminders();
+  scheduleAbsenceAlerts();
+  scheduleMissedActivitiesAlerts();
+  scheduleWeeklyReports();
+  scheduleConsecutiveAbsenceAlerts();
+  scheduleStudentPortalCrmFullSync();
 });
 
 

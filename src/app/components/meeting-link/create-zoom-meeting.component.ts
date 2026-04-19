@@ -5,13 +5,14 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } 
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.service';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 @Component({
   selector: 'app-create-zoom-meeting',
   standalone: true,
   templateUrl: './create-zoom-meeting.component.html',
   styleUrls: ['./create-zoom-meeting.component.css'],
-  imports: [CommonModule, ReactiveFormsModule, FormsModule]
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, TestAccountBadgeComponent]
 })
 export class CreateZoomMeetingComponent implements OnInit {
   /** All classes use India Standard Time only (no user-selectable timezone). */
@@ -22,7 +23,7 @@ export class CreateZoomMeetingComponent implements OnInit {
   readonly scheduleModes = [
     { value: 'single', label: 'Single Class' },
     { value: 'selected_dates', label: 'Selected Dates' },
-    { value: 'weekly', label: 'Weekly (same time)' },
+    { value: 'weekly', label: 'Weekly (same time Mon–Sun)' },
     { value: 'monthly', label: 'Monthly (same date/time)' }
   ] as const;
   selectedStartTimes: string[] = [];
@@ -89,7 +90,7 @@ export class CreateZoomMeetingComponent implements OnInit {
       zoomHostEmail: ['', Validators.required],
       courseDay: [null, [Validators.min(1), Validators.max(200)]],
       scheduleMode: ['single', Validators.required],
-      recurrenceCount: [4, [Validators.required, Validators.min(2), Validators.max(24)]]
+      recurrenceCount: [4, [Validators.required, Validators.min(1), Validators.max(24)]]
     });
   }
 
@@ -185,13 +186,20 @@ export class CreateZoomMeetingComponent implements OnInit {
     return plan || '-';
   }
 
-  get confirmStartTimesPreview(): string[] {
+  get confirmPendingSlots(): Array<{ raw: string; label: string }> {
     if (!this.pendingMeetingData?.startTimes) return [];
-    return this.pendingMeetingData.startTimes
-      .map((value: string) => {
-        const normalized = value.length >= 16 ? value.substring(0, 16) : value;
-        return this.formatDateTimeForDisplay(normalized);
-      });
+    return this.pendingMeetingData.startTimes.map((value: string) => {
+      const normalized = value.length >= 16 ? value.substring(0, 16) : value;
+      return { raw: value, label: this.formatDateTimeForDisplay(normalized) };
+    });
+  }
+
+  removePendingStartTime(raw: string): void {
+    if (!this.pendingMeetingData?.startTimes || this.isCreatingMeeting) return;
+    const times: string[] = this.pendingMeetingData.startTimes.filter((t: string) => t !== raw);
+    if (times.length === 0) return;
+    this.pendingMeetingData.startTimes = times;
+    this.pendingMeetingData.startTime = times[0];
   }
 
   get selectedScheduleModeLabel(): string {
@@ -302,6 +310,79 @@ export class CreateZoomMeetingComponent implements OnInit {
     return `${hours}:${minutes}`;
   }
 
+  private addCalendarDays(date: Date, days: number): Date {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  /** Monday 00:00 of the calendar week that contains `date` (week = Mon–Sun). */
+  private getMondayOfWeekContaining(date: Date): Date {
+    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+    const dow = monday.getDay(); // 0 Sun .. 6 Sat
+    const daysFromMonday = dow === 0 ? -6 : 1 - dow;
+    monday.setDate(monday.getDate() + daysFromMonday);
+    return monday;
+  }
+
+  /** Sunday (calendar date) of the week that contains `date`. */
+  private getSundayOfWeekContaining(date: Date): Date {
+    return this.addCalendarDays(this.getMondayOfWeekContaining(date), 6);
+  }
+
+  private sameLocalClock(target: Date, clockSource: Date): Date {
+    const d = new Date(target);
+    d.setHours(clockSource.getHours(), clockSource.getMinutes(), 0, 0);
+    return d;
+  }
+
+  private isSameCalendarDay(a: Date, b: Date): boolean {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+
+  /**
+   * Weekly: same clock time every day from the chosen date through Sunday of that week,
+   * then full Mon–Sun weeks for each additional "occurrence" (week count).
+   */
+  private generateWeeklyStartTimes(baseDate: Date, now: Date, weekCount: number): string[] {
+    const generated: string[] = [];
+    const sundayFirstWeek = this.sameLocalClock(this.getSundayOfWeekContaining(baseDate), baseDate);
+
+    let cursor = this.sameLocalClock(
+      new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()),
+      baseDate
+    );
+
+    while (true) {
+      if (cursor >= now) {
+        generated.push(this.formatDateTimeLocal(cursor));
+      }
+      if (this.isSameCalendarDay(cursor, sundayFirstWeek)) {
+        break;
+      }
+      cursor = this.sameLocalClock(this.addCalendarDays(cursor, 1), baseDate);
+    }
+
+    const mondayFirstWeek = this.getMondayOfWeekContaining(baseDate);
+    const mondayWithClock = this.sameLocalClock(mondayFirstWeek, baseDate);
+
+    for (let w = 1; w < weekCount; w++) {
+      const weekMonday = this.addCalendarDays(mondayWithClock, w * 7);
+      for (let i = 0; i < 7; i++) {
+        const slot = this.sameLocalClock(this.addCalendarDays(weekMonday, i), baseDate);
+        if (slot >= now) {
+          generated.push(this.formatDateTimeLocal(slot));
+        }
+      }
+    }
+
+    return generated;
+  }
+
   private buildTimezoneAwareIso(localDateTime: string, timeZone: string): string {
     const [datePart, timePart] = localDateTime.split('T');
     if (!datePart || !timePart) return localDateTime;
@@ -330,20 +411,20 @@ export class CreateZoomMeetingComponent implements OnInit {
     } else if (mode === 'single') {
       result = baseDate >= now ? [this.formatDateTimeLocal(baseDate)] : [];
     } else {
-      const count = Math.max(2, this.recurrenceCount);
+      const count = Math.max(1, this.recurrenceCount);
       const generated: string[] = [];
-      for (let i = 0; i < count; i++) {
-        const next = new Date(baseDate);
-        if (mode === 'weekly') {
-          next.setDate(baseDate.getDate() + i * 7);
-        } else {
+      if (mode === 'weekly') {
+        result = this.generateWeeklyStartTimes(baseDate, now, count);
+      } else {
+        for (let i = 0; i < count; i++) {
+          const next = new Date(baseDate);
           next.setMonth(baseDate.getMonth() + i);
+          if (next >= now) {
+            generated.push(this.formatDateTimeLocal(next));
+          }
         }
-        if (next >= now) {
-          generated.push(this.formatDateTimeLocal(next));
-        }
+        result = generated;
       }
-      result = generated;
     }
 
     return result;
@@ -515,6 +596,11 @@ export class CreateZoomMeetingComponent implements OnInit {
 
   confirmCreateMeeting(): void {
     if (!this.pendingMeetingData || this.isCreatingMeeting) return;
+    const slots = this.pendingMeetingData.startTimes as string[] | undefined;
+    if (!slots || slots.length === 0) {
+      this.errorMessage = 'Add at least one scheduled time before confirming.';
+      return;
+    }
 
     this.isCreatingMeeting = true;
     this.successMessage = '';

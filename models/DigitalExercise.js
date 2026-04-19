@@ -83,6 +83,9 @@ const DigitalExerciseSchema = new mongoose.Schema({
     type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation'], required: true },
     // Common optional context shown above the question to students.
     context: { type: String, default: '' },
+    // Instruction and example shown in a highlighted banner above the question body.
+    // Instruction = what to do; example = worked sample (optional).
+    example: { type: String, default: '' },
     // MCQ fields
     question: String,
     imageUrl: String,
@@ -163,6 +166,20 @@ const DigitalExerciseSchema = new mongoose.Schema({
    */
   courseDay: { type: Number, default: null, min: 1, max: 200 },
 
+  /**
+   * Optional within-day sequence letter (a, b, c …).
+   * When set, students must complete every exercise with an earlier letter on the
+   * same courseDay (with score ≥ 60 %) before this one unlocks.
+   * Null / empty = ungated (always accessible once the day unlocks).
+   */
+  sequenceLetter: {
+    type: String,
+    default: null,
+    trim: true,
+    lowercase: true,
+    match: /^[a-z]$/
+  },
+
   // Visibility and state
   isActive: { type: Boolean, default: true },
   visibleToStudents: { type: Boolean, default: false },
@@ -194,5 +211,6 @@ DigitalExerciseSchema.index({ level: 1, category: 1, isActive: 1 });
 DigitalExerciseSchema.index({ createdBy: 1 });
 DigitalExerciseSchema.index({ visibleToStudents: 1, isActive: 1, isDeleted: 1 });
 DigitalExerciseSchema.index({ courseDay: 1, visibleToStudents: 1, isDeleted: 1 });
+DigitalExerciseSchema.index({ courseDay: 1, sequenceLetter: 1 });
 
 module.exports = mongoose.model('DigitalExercise', DigitalExerciseSchema);

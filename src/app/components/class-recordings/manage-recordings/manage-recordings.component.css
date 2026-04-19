@@ -74,6 +74,8 @@
 .cr-btn--primary:hover  { background: #03396c; }
 .cr-btn--secondary { background: #334155; color: #fff; }
 .cr-btn--secondary:hover { background: #1e293b; }
+.cr-btn--success { background: #166534; color: #fff; }
+.cr-btn--success:hover { background: #14532d; }
 .cr-btn--outline  { background: #fff; color: #334155; border: 1px solid #d1d5db; }
 .cr-btn--outline:hover  { background: #f8fafc; }
 .cr-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -300,6 +302,34 @@
   font-weight: 600;
   background: #dbeafe;
   color: #1d4ed8;
+}
+
+.cr-publish-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.cr-published-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.cr-published-chip--yes {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.cr-published-chip--no {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .cr-type-chip {

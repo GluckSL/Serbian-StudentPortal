@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StudentDocumentsService } from '../../../services/student-documents.service';
 import { MaterialModule } from '../../../shared/material.module';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 interface StudentDocRow {
   type: string;
@@ -20,7 +21,7 @@ interface StudentDocRow {
 @Component({
   selector: 'app-student-document-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule, MaterialModule, TestAccountBadgeComponent],
   templateUrl: './student-document-profile.component.html',
   styleUrls: ['./student-document-profile.component.css']
 })
@@ -35,7 +36,8 @@ export class StudentDocumentProfileComponent implements OnInit {
     subscription: '',
     servicesOpted: '',
     qualifications: '',
-    languageLevelOpted: ''
+    languageLevelOpted: '',
+    isTestAccount: false
   };
 
   requirements: any[] = [];
@@ -62,7 +64,8 @@ export class StudentDocumentProfileComponent implements OnInit {
       subscription: qp.get('subscription') || '',
       servicesOpted: qp.get('servicesOpted') || '',
       qualifications: qp.get('qualifications') || '',
-      languageLevelOpted: qp.get('languageLevelOpted') || ''
+      languageLevelOpted: qp.get('languageLevelOpted') || '',
+      isTestAccount: qp.get('isTestAccount') === 'true'
     };
     this.loadData();
   }
@@ -89,6 +92,9 @@ export class StudentDocumentProfileComponent implements OnInit {
                 this.student.servicesOpted = this.student.servicesOpted || base.servicesOpted || '';
                 this.student.qualifications = this.student.qualifications || base.qualifications || '';
                 this.student.languageLevelOpted = this.student.languageLevelOpted || base.languageLevelOpted || '';
+                if (typeof base.isTestAccount === 'boolean') {
+                  this.student.isTestAccount = base.isTestAccount;
+                }
               }
               this.rows = this.createRows(this.documents);
             }

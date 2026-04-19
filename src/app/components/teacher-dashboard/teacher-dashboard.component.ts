@@ -7,12 +7,13 @@ import { RouterModule } from '@angular/router';
 import { TeacherService } from '../../services/teacher.service';
 import { AuthService } from '../../services/auth.service';
 import { TourService } from '../../services/tour.service';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 
 @Component({
   selector: 'app-teacher-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TestAccountBadgeComponent],
   templateUrl: './teacher-dashboard.component.html',
   styleUrls: ['./teacher-dashboard.component.css']
 })

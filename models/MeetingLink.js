@@ -96,6 +96,12 @@ const meetingLinkSchema = new mongoose.Schema({
   reminderEmailSent: { type: Boolean, default: false },
   reminderEmailSentAt: Date,
 
+  // WhatsApp CRM notification flags
+  reminderWhatsappSent: { type: Boolean, default: false },
+  reminderWhatsappSentAt: Date,
+  absenceWhatsappSent: { type: Boolean, default: false },
+  absenceWhatsappSentAt: Date,
+
   // Email notification status
   emailNotificationStatus: {
     attempted: { type: Number, default: 0 },

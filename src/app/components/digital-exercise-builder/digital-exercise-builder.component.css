@@ -623,6 +623,16 @@
   padding-right: 16px;
 }
 
+/* Sequence letter input — compact 1-char field */
+.field-input--seq {
+  width: 56px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
 .day-suffix {
   display: flex;
   align-items: center;
@@ -1980,6 +1990,34 @@ textarea.field-input.field-input--desc {
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+/* ── Instruction & Example input block ── */
+.instruction-example-block {
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.instruction-example-block .field-label {
+  color: #1d4ed8;
+}
+
+/* ── Rich-text input overrides for option rows and pair rows ── */
+/* Option rows: RTE sits inside .option-row alongside the radio and remove button */
+.option-row .option-rte { flex: 1; min-width: 0; }
+.option-row .option-rte .rte-wrapper { border-radius: 6px; }
+
+/* Pair rows: RTE fills each column cell */
+.pair-row .pair-rte { min-width: 0; width: 100%; }
+.pair-row .pair-rte .rte-wrapper { border-radius: 6px; width: 100%; }
+
+/* Ensure explanation-field-wrap works with RTE */
+.explanation-field-wrap { display: flex; gap: 8px; align-items: flex-start; }
+.explanation-field-wrap app-rich-text-input { flex: 1; }
 
 /* footer */
 .footer-right { display: flex; gap: 12px; align-items: center; }

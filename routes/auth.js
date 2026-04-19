@@ -13,6 +13,11 @@ const StudentLogs = require("../models/StudentLogs");
 const UserActivityLog = require("../models/UserActivityLog");
 const router = express.Router();
 const transporter = require("../config/emailConfig");
+const {
+  scheduleDispatchEvent,
+  sanitizeUserDoc,
+  userEventForRole
+} = require("../services/studentPortalCrmWebhook");
 
 //const auth = require("../middleware/auth");
 const { verifyToken, isAdmin } = require('../middleware/auth');
@@ -44,6 +49,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "monday-sync",
   "support-tickets",
   "announcements",
+  "whatsapp-announcement",
   "help",
   "profile"
 ];
@@ -844,6 +850,15 @@ router.post("/signup", async (req, res) => {
       };
     }
 
+    const createdEvent = userEventForRole(user.role, "CREATED");
+    if (createdEvent) {
+      scheduleDispatchEvent({
+        event: createdEvent,
+        entity: { ...sanitizeUserDoc(user), type: "User" },
+        metaOverrides: { syncMode: "live" }
+      });
+    }
+
     res.status(201).json(responsePayload);
   } catch (err) {
     console.error("Signup error:", err);
@@ -1340,6 +1355,15 @@ router.put("/:id", async (req, res) => {
       { new: true, runValidators: true }
     );
 
+    const updatedEvent = userEventForRole(updatedUser.role, "UPDATED");
+    if (updatedEvent) {
+      scheduleDispatchEvent({
+        event: updatedEvent,
+        entity: { ...sanitizeUserDoc(updatedUser), type: "User" },
+        metaOverrides: { syncMode: "live" }
+      });
+    }
+
     res.status(200).json({
       message: "User updated successfully.",
       data: updatedUser
@@ -1369,6 +1393,16 @@ router.delete("/:id", async (req, res) => {
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found." });
     }
+
+    const deletedEvent = userEventForRole(deletedUser.role, "DELETED");
+    if (deletedEvent) {
+      scheduleDispatchEvent({
+        event: deletedEvent,
+        entity: { ...sanitizeUserDoc(deletedUser), type: "User" },
+        metaOverrides: { syncMode: "live" }
+      });
+    }
+
     res.status(200).json({ message: "User deleted successfully." });
   } catch (error) {
     res.status(500).json({ message: "Internal server error." });
@@ -1663,6 +1697,12 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
         newUser.courseStartDates[levelStartField] = new Date();
 
         await newUser.save();
+
+        scheduleDispatchEvent({
+          event: "STUDENT_CREATED",
+          entity: { ...sanitizeUserDoc(newUser), type: "User" },
+          metaOverrides: { syncMode: "live" }
+        });
 
         // Send welcome email if requested
         if (sendEmails) {

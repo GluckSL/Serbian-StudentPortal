@@ -8,6 +8,11 @@
       <p class="cr-header__sub">{{ filteredRecordings.length }} of {{ recordings.length }} recordings</p>
     </div>
     <div class="cr-header__actions">
+      <button class="cr-btn cr-btn--success" (click)="publishSelectedForStudents()"
+              [disabled]="publishLoading || selectedPublishCount() === 0">
+        <i class="fa fa-upload"></i>
+        {{ publishLoading ? 'Publishing...' : ('Publish Selected (' + selectedPublishCount() + ')') }}
+      </button>
       <button class="cr-btn cr-btn--outline" (click)="openWebhookAudit()">
         <i class="fa fa-wave-square"></i> Webhook Audit
       </button>
@@ -84,6 +89,7 @@
     <table *ngIf="filteredRecordings.length" class="cr-table">
       <thead>
         <tr>
+          <th>Publish</th>
           <th>Type</th>
           <th>Title</th>
           <th>Level</th>
@@ -100,6 +106,15 @@
       </thead>
       <tbody>
         <tr *ngFor="let r of filteredRecordings" class="cr-row">
+          <td>
+            <input
+              type="checkbox"
+              class="cr-publish-checkbox"
+              [checked]="isPublishRowSelected(r)"
+              [disabled]="!isReadyUnpublished(r)"
+              (change)="togglePublishRowSelection(r)"
+            />
+          </td>
           <td>
             <span class="cr-type-chip" [class.cr-type-chip--zoom]="isZoomRecording(r)">
               {{ isZoomRecording(r) ? 'Zoom' : 'Manual' }}

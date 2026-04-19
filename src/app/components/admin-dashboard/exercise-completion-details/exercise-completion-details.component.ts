@@ -2,6 +2,7 @@
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
 
@@ -25,6 +26,7 @@ interface StudentSummary {
   email?: string;
   batch?: string;
   level?: string;
+  isTestAccount?: boolean;
   attempts: number;
   bestScore: number;
   lastAttemptAt: string;
@@ -43,7 +45,7 @@ interface QuestionStats {
 @Component({
   selector: 'app-exercise-completion-details',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TestAccountBadgeComponent],
   templateUrl: './exercise-completion-details.component.html',
   styleUrls: ['./exercise-completion-details.component.css']
 })
@@ -124,6 +126,7 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         email: student?.email,
         batch: student?.batch || first.studentBatch,
         level: student?.level,
+        isTestAccount: !!(student && student.isTestAccount),
         attempts: data.attempts.length,
         bestScore: best,
         lastAttemptAt: last.completedAt

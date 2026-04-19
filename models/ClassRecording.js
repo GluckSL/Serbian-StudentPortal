@@ -13,7 +13,7 @@ const classRecordingSchema = new mongoose.Schema({
   plan: { type: String, enum: ['SILVER', 'PLATINUM', 'ALL'], default: 'ALL' },
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   active: { type: Boolean, default: true },
-  /** When false, recording stays in admin lists but is hidden from student class recordings. */
+  /** When false, recording stays in admin lists but is hidden from student class recordings (same idea as Zoom publish). */
   isPublished: { type: Boolean, default: true },
   publishedAt: { type: Date, default: null }
 }, { timestamps: true });

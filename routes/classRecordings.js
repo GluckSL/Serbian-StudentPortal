@@ -171,8 +171,8 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       .lean();
 
     // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
-    // Admin/teacher list should include all states so rows do not "disappear"
-    // while processing or after failures.
+    // Admin/teacher list includes all states so rows do not disappear while processing;
+    // publish flags control student visibility.
     const zoomRecordings = await ZoomRecording.find({})
       .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt')
       .sort({ createdAt: -1 })
@@ -222,7 +222,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
       source: 'MANUAL_UPLOAD',
       status: m.status || 'ready',
       isPublished: m.isPublished !== false,
-      publishedAt: m.publishedAt || null,
+      publishedAt: m.publishedAt || (m.isPublished !== false ? m.createdAt : null),
       duration: null,
       classDate: m.createdAt,
       classDuration: null,
@@ -348,6 +348,8 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
         hlsKey: null,
         errorMessage: null,
         uploadedBy: req.user.id,
+        isPublished: false,
+        publishedAt: null,
       });
 
       // Immediate response; conversion runs in background.
@@ -383,6 +385,42 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       return res.status(500).json({ success: false, message: error.message });
     }
   });
+});
+
+/**
+ * POST /api/class-recordings/manual/publish
+ *
+ * Toggle student visibility for manually uploaded / URL class recordings.
+ * Body: { recordingIds: string[], isPublished: boolean }
+ */
+router.post('/manual/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { recordingIds, isPublished } = req.body || {};
+    if (!Array.isArray(recordingIds) || recordingIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'recordingIds array is required.' });
+    }
+
+    const publishState = Boolean(isPublished);
+    const result = await ClassRecording.updateMany(
+      { _id: { $in: recordingIds }, status: 'ready', active: true },
+      {
+        $set: {
+          isPublished: publishState,
+          publishedAt: publishState ? new Date() : null,
+        },
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: publishState ? 'Recording(s) visible to students.' : 'Recording(s) hidden from students.',
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    console.error('Error updating manual publish state:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // PUT /api/class-recordings/:id — Update recording (Teacher/Admin)
@@ -1003,6 +1041,44 @@ router.delete('/zoom/:meetingLinkId', verifyToken, checkRole(['ADMIN', 'TEACHER_
 });
 
 /**
+ * POST /api/class-recordings/zoom/publish
+ *
+ * Publish/unpublish selected Zoom recordings for student visibility.
+ * Body:
+ *  - meetingLinkIds: string[]
+ *  - isPublished: boolean (default true)
+ */
+router.post('/zoom/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { meetingLinkIds, isPublished = true } = req.body || {};
+    if (!Array.isArray(meetingLinkIds) || meetingLinkIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'meetingLinkIds array is required.' });
+    }
+
+    const update = {
+      isPublished: Boolean(isPublished),
+      publishedAt: isPublished ? new Date() : null,
+      publishedBy: isPublished ? req.user.id : null,
+    };
+
+    const result = await ZoomRecording.updateMany(
+      { meetingLinkId: { $in: meetingLinkIds } },
+      { $set: update }
+    );
+
+    return res.json({
+      success: true,
+      message: isPublished ? 'Recordings published successfully.' : 'Recordings unpublished successfully.',
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    console.error('Error publishing zoom recordings:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * GET /api/class-recordings/zoom/debug/status
  *
  * Temporary admin/teacher debug endpoint to inspect ingestion status by batch.
@@ -1215,7 +1291,7 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       return res.status(500).json({ success: false, message: 'Recording processing failed. Please contact support.' });
     }
 
-    // 2. Authorisation check for students — batch-based (attended or not)
+    // 2. Authorisation check for students — batch-based + published only
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
       if (zoomRecording.isPublished === false) {
         return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });

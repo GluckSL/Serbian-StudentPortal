@@ -2,11 +2,12 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 @Component({
   selector: 'app-external-meetings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
   templateUrl: './external-meetings.component.html',
   styleUrls: ['./external-meetings.component.css']
 })

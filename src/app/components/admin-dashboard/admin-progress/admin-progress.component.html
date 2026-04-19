@@ -100,7 +100,7 @@
               </label>
             </td>
             <td class="ap-name-cell">
-              <span class="ap-name">{{ s.name }}</span>
+              <span class="ap-name">{{ s.name }}<app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge></span>
               <span class="ap-sub">{{ s.regNo }}</span>
             </td>
             <td>{{ s.batch || '—' }}</td>
@@ -209,7 +209,7 @@
             <span class="sp-badge" [class.sp-badge--green]="jProfile.studentStatus === 'ONGOING'" [class.sp-badge--gray]="jProfile.studentStatus !== 'ONGOING'">{{ jProfile.studentStatus === 'ONGOING' ? 'Active' : jProfile.studentStatus }}</span>
           </div>
           <table class="sp-table"><tbody>
-            <tr><td class="sp-table__label">Student ID</td><td>{{ jProfile.regNo }}</td><td class="sp-table__label">Name</td><td>{{ jProfile.name }}</td></tr>
+            <tr><td class="sp-table__label">Student ID</td><td>{{ jProfile.regNo }}</td><td class="sp-table__label">Name</td><td><span class="ap-name">{{ jProfile.name }}<app-test-account-badge [show]="!!jProfile.isTestAccount"></app-test-account-badge></span></td></tr>
             <tr><td class="sp-table__label">Batch</td><td>{{ jProfile.batch || '—' }}</td><td class="sp-table__label">Teacher</td><td>{{ jProfile.teacher || '—' }}</td></tr>
             <tr><td class="sp-table__label">Service</td><td>{{ jProfile.servicesOpted || '—' }}</td><td class="sp-table__label">Visa Route</td><td>{{ jVisa.route || 'Not set' }}</td></tr>
             <tr><td class="sp-table__label">Level Path</td><td>{{ jLevelPath }}</td><td class="sp-table__label">Enrolled</td><td>{{ formatDate(jProfile.enrollmentDate) }}</td></tr>

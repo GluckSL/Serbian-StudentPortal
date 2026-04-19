@@ -13,6 +13,7 @@ export interface Student {
   level: string;
   subscription: string;
   studentStatus: string;
+  isTestAccount?: boolean;
 }
 
 export interface ZoomMeeting {

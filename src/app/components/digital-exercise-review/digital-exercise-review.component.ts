@@ -6,11 +6,12 @@ import {
   AttemptReviewRow,
   MyExerciseReviewResponse
 } from '../../services/digital-exercise.service';
+import { SafeHtmlPipe } from '../../pipes/safe-html.pipe';
 
 @Component({
   selector: 'app-digital-exercise-review',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SafeHtmlPipe],
   templateUrl: './digital-exercise-review.component.html',
   styleUrls: ['./digital-exercise-review.component.css']
 })

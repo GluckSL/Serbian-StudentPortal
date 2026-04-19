@@ -673,7 +673,7 @@
         <mat-autocomplete #autoStudent="matAutocomplete" (optionSelected)="selectStudent($event.option.value)">
           <mat-option *ngFor="let student of filteredStudents" [value]="student">
             <div class="student-option">
-              <strong>{{ student.name }}</strong>
+              <strong>{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
               <small>{{ student.email }}</small>
               <small *ngIf="student.regNo">Reg: {{ student.regNo }}</small>
             </div>
@@ -752,7 +752,7 @@
         <mat-autocomplete #autoMarkStudent="matAutocomplete" (optionSelected)="selectMarkVerifiedStudent($event.option.value)">
           <mat-option *ngFor="let student of markVerifiedFilteredStudents" [value]="student">
             <div class="student-option">
-              <strong>{{ student.name }}</strong>
+              <strong>{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
               <small>{{ student.email }}</small>
               <small *ngIf="student.regNo">Reg: {{ student.regNo }}</small>
             </div>

@@ -1,0 +1,244 @@
+/* test-accounts.component.css */
+
+.ta-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  padding: 24px 24px 48px;
+  box-sizing: border-box;
+}
+
+/* ── Header ── */
+.ta-header {
+  margin-bottom: 28px;
+}
+
+.ta-header-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.ta-header-icon {
+  font-size: 36px;
+  color: #7c3aed;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.ta-header-title h1 {
+  margin: 0 0 4px;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #111827;
+}
+
+.ta-header-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+  max-width: 640px;
+  line-height: 1.55;
+}
+
+/* ── Body layout ── */
+.ta-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .ta-body { grid-template-columns: 1fr; }
+}
+
+/* ── Panels ── */
+.ta-panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ta-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+
+.ta-panel-head .material-icons { color: #7c3aed; font-size: 22px; }
+.ta-panel-head h2 { margin: 0; font-size: 1rem; font-weight: 700; color: #111827; }
+.ta-count { font-weight: 500; color: #6b7280; }
+
+/* ── States ── */
+.ta-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.ta-spinner {
+  width: 20px; height: 20px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: ta-spin 0.7s linear infinite;
+}
+
+@keyframes ta-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.ta-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px;
+  color: #9ca3af;
+  text-align: center;
+  font-size: 0.9rem;
+  gap: 8px;
+}
+
+.ta-empty .material-icons { font-size: 36px; }
+.ta-empty p { margin: 0; }
+.ta-empty--hint { padding: 24px 20px; }
+
+/* ── List ── */
+.ta-list { padding: 8px 0; }
+
+.ta-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background .1s;
+}
+
+.ta-item:last-child { border-bottom: none; }
+.ta-item:hover { background: #fafafa; }
+
+.ta-item-info { flex: 1; min-width: 0; }
+.ta-item-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #111827;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ta-badge-test {
+  background: #7c3aed;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.ta-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ta-chip {
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.ta-chip--email {
+  background: #ede9fe;
+  color: #5b21b6;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Buttons ── */
+.ta-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .15s, background .15s;
+  flex-shrink: 0;
+}
+
+.ta-btn .material-icons { font-size: 16px; }
+
+.ta-btn--remove {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.ta-btn--remove:hover:not(:disabled) { background: #fecaca; }
+
+.ta-btn--add {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.ta-btn--add:hover:not(:disabled) { background: #ddd6fe; }
+.ta-btn--add:disabled { opacity: 0.6; cursor: not-allowed; }
+.ta-btn--remove:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Search box ── */
+.ta-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid #f3f4f6;
+  padding: 0 16px;
+  position: relative;
+}
+
+.ta-search-icon {
+  color: #9ca3af;
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.ta-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 14px 0;
+  font-size: 0.9rem;
+  color: #111827;
+  background: transparent;
+}
+
+.ta-search-input::placeholder { color: #9ca3af; }
+
+.ta-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.ta-search-clear:hover { color: #374151; }
+.ta-search-clear .material-icons { font-size: 18px; }

@@ -20,6 +20,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
 import { take } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
+import { SafeHtmlPipe } from '../../pipes/safe-html.pipe';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -82,7 +83,7 @@ type SpecialInputTarget =
 @Component({
   selector: 'app-digital-exercise-player',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe],
   templateUrl: './digital-exercise-player.component.html',
   styleUrls: ['./digital-exercise-player.component.css']
 })
@@ -210,7 +211,20 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           // Start immediately when user clicks "Start" from the list page.
           this.startExercise();
         },
-        error: () => { this.state = 'error'; }
+        error: (err) => {
+          const code = err?.error?.code;
+          if (code === 'SEQUENCE_LOCKED') {
+            const prev = err?.error?.previousLetter?.toUpperCase() || '';
+            this.snackBar.open(
+              `Complete exercise ${prev} first before attempting this one.`,
+              'OK',
+              { duration: 5000 }
+            );
+            this.router.navigate(['/digital-exercises']);
+            return;
+          }
+          this.state = 'error';
+        }
       });
     });
   }
@@ -672,6 +686,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         void this.maybeRestoreDraftAfterStart();
       },
       error: (err) => {
+        const code = err?.error?.code;
+        if (code === 'SEQUENCE_LOCKED') {
+          const prev = err?.error?.previousLetter?.toUpperCase() || '';
+          this.snackBar.open(
+            `Complete exercise ${prev} first before attempting this one.`,
+            'OK',
+            { duration: 5000 }
+          );
+          this.router.navigate(['/digital-exercises']);
+          return;
+        }
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
         this.state = 'error';
       }

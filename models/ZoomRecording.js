@@ -52,15 +52,21 @@ const zoomRecordingSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Controls student visibility for this recording.
+    // Visibility control: students can only access published recordings
     isPublished: {
       type: Boolean,
-      default: true,
+      default: false,
     },
 
     publishedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
+    },
+
+    publishedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
 
     // Original Zoom download URL (stored for retry capability)

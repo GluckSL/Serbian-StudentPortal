@@ -83,6 +83,13 @@ const UserSchema = new mongoose.Schema({
   /** Monday.com Documentation payment status; column id from MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS */
   documentationPaymentStatus: { type: String, default: "", required: false },
 
+  /**
+   * Marks this student as a test/internal account.
+   * When true, this user is excluded from all batch analytics and completion %
+   * calculations so test usage doesn't skew real student progress metrics.
+   */
+  isTestAccount: { type: Boolean, default: false, index: true },
+
   /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
   currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
 
@@ -99,6 +106,10 @@ const UserSchema = new mongoose.Schema({
     progressPercent: { type: Number, default: 0 },
     lastUpdated: { type: Date, default: Date.now }
   }],
+
+  // WhatsApp consecutive-absence alert state
+  consecutiveAbsenceAlertSentAt: { type: Date, default: null },
+  consecutiveAbsenceAlertStreak: { type: Number, default: null },
 });
 
 module.exports = mongoose.model("User", UserSchema);

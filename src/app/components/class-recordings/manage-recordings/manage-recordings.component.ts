@@ -11,6 +11,7 @@ import {
   ZoomWebhookAuditRow,
 } from '../../../services/class-recordings.service';
 import { NotificationService } from '../../../services/notification.service';
+import { forkJoin, of } from 'rxjs';
 
 @Component({
   selector: 'app-manage-recordings',
@@ -33,6 +34,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   loading = false;
   backfillLoading = false;
+  publishLoading = false;
   backfillStatusMessage = '';
   backfillMeetingIdsInput = '';
   private backfillPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -45,6 +47,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   webhookAuditSummary: Record<string, number> = {};
   showForm = false;
   editing: ClassRecording | null = null;
+  selectedZoomMeetingIds: string[] = [];
+  selectedManualRecordingIds: string[] = [];
   saving = false;
   selectedVideoFile: File | null = null;
   private manualUploadPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -215,6 +219,20 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
           isPublished: r.isPublished !== false,
         }));
         this.applyFilters();
+        const currentZoomIds = new Set(
+          this.recordings
+            .filter((r) => this.isZoomRecording(r) && r.meetingLinkId)
+            .map((r) => String(r.meetingLinkId))
+        );
+        this.selectedZoomMeetingIds = this.selectedZoomMeetingIds.filter((id) => currentZoomIds.has(id));
+        const currentManualIds = new Set(
+          this.recordings
+            .filter((r) => !this.isZoomRecording(r) && r._id)
+            .map((r) => String(r._id))
+        );
+        this.selectedManualRecordingIds = this.selectedManualRecordingIds.filter((id) =>
+          currentManualIds.has(id)
+        );
         this.loading = false;
       },
       error: () => { this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 }); this.loading = false; }
@@ -306,7 +324,11 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       this.service.createFromUpload(fd).subscribe({
         next: (res) => {
           this.saving = false;
-          this.snackBar.open('Upload started. Video is converting to HLS in background.', 'Close', { duration: 4500 });
+          this.snackBar.open(
+            'Upload started — converting to HLS. When status is Ready, use Publish or the eye icon so students can see it.',
+            'Close',
+            { duration: 6000 }
+          );
           this.closeForm();
           this.loadRecordings();
           if (res.recordingId) this.startManualUploadPolling(res.recordingId);
@@ -351,7 +373,11 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
           if (s.status === 'processing') return;
           this.stopManualUploadPolling();
           if (s.status === 'ready') {
-            this.snackBar.open('Video converted to HLS and is now ready.', 'Close', { duration: 5000 });
+            this.snackBar.open(
+              'Video converted to HLS and is ready. Use Publish Selected or the eye icon so students can see it.',
+              'Close',
+              { duration: 6000 }
+            );
           } else {
             this.snackBar.open(s.errorMessage || 'Video conversion failed.', 'Close', { duration: 7000 });
           }
@@ -524,6 +550,66 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     return r.recordingType === 'ZOOM' || r.source === 'ZOOM_AUTO';
   }
 
+  /** Ready recordings that are still hidden from students (bulk publish selection). */
+  isReadyUnpublished(r: AdminClassRecording): boolean {
+    return r.status === 'ready' && r.isPublished === false;
+  }
+
+  isPublishRowSelected(r: AdminClassRecording): boolean {
+    if (this.isZoomRecording(r)) {
+      return r.meetingLinkId ? this.selectedZoomMeetingIds.includes(String(r.meetingLinkId)) : false;
+    }
+    return r._id ? this.selectedManualRecordingIds.includes(String(r._id)) : false;
+  }
+
+  togglePublishRowSelection(r: AdminClassRecording): void {
+    if (this.isZoomRecording(r)) {
+      const meetingLinkId = r.meetingLinkId;
+      if (!meetingLinkId) return;
+      const id = String(meetingLinkId);
+      const index = this.selectedZoomMeetingIds.indexOf(id);
+      if (index >= 0) this.selectedZoomMeetingIds.splice(index, 1);
+      else this.selectedZoomMeetingIds.push(id);
+      return;
+    }
+    if (!r._id) return;
+    const id = String(r._id);
+    const index = this.selectedManualRecordingIds.indexOf(id);
+    if (index >= 0) this.selectedManualRecordingIds.splice(index, 1);
+    else this.selectedManualRecordingIds.push(id);
+  }
+
+  selectedPublishCount(): number {
+    return this.selectedZoomMeetingIds.length + this.selectedManualRecordingIds.length;
+  }
+
+  publishSelectedForStudents(): void {
+    const zoomIds = this.selectedZoomMeetingIds;
+    const manualIds = this.selectedManualRecordingIds;
+    if (this.publishLoading || (!zoomIds.length && !manualIds.length)) return;
+    this.publishLoading = true;
+    const zoom$ = zoomIds.length
+      ? this.service.publishZoomRecordings(zoomIds, true)
+      : of({ modified: 0 });
+    const manual$ = manualIds.length
+      ? this.service.publishManualRecordings(manualIds, true)
+      : of({ modified: 0 });
+    forkJoin([zoom$, manual$]).subscribe({
+      next: ([zr, mr]) => {
+        this.publishLoading = false;
+        const total = (zr.modified || 0) + (mr.modified || 0);
+        this.snackBar.open(`Published ${total} recording(s).`, 'Close', { duration: 4000 });
+        this.selectedZoomMeetingIds = [];
+        this.selectedManualRecordingIds = [];
+        this.loadRecordings();
+      },
+      error: (err) => {
+        this.publishLoading = false;
+        this.snackBar.open(err.error?.message || 'Failed to publish recordings', 'Close', { duration: 4000 });
+      },
+    });
+  }
+
   canToggleStudentVisibility(r: AdminClassRecording): boolean {
     if (r.status !== 'ready') return false;
     if (this.isZoomRecording(r)) {
@@ -571,7 +657,6 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   private estimateProcessingSeconds(r: AdminClassRecording): number {
     const classMinutes = Number(r.classDuration || 0);
     if (classMinutes > 0) {
-      // Rough estimate: ~25s processing per class minute, clamped to practical bounds.
       return Math.min(75 * 60, Math.max(5 * 60, Math.round(classMinutes * 25)));
     }
     const videoSeconds = Number(r.duration || 0);
@@ -620,7 +705,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.publishLoadingId = null;
           this.snackBar.open(err.error?.message || 'Failed to update visibility', 'Close', { duration: 3000 });
-        }
+        },
       });
     });
   }

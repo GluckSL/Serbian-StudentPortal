@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const AiTutorSession = require('../models/AiTutorSession'); // CHANGED: Use AiTutorSession
 const LearningModule = require('../models/LearningModule');
 const User = require('../models/User');
@@ -65,8 +66,8 @@ router.get('/module-usage', verifyToken, checkRole(['ADMIN', 'TEACHER']), async 
       { $unwind: '$student' },
       { $unwind: '$module' },
       
-      // NEW: Filter to show only STUDENTS (exclude TEACHER and ADMIN roles)
-      ...(studentsOnly === 'true' ? [{ $match: { 'student.role': 'STUDENT' } }] : []),
+      // Filter to show only STUDENTS (exclude TEACHER/ADMIN and test accounts)
+      ...(studentsOnly === 'true' ? [{ $match: { 'student.role': 'STUDENT', ...EXCLUDE_TEST_LOOKUP } }] : []),
       
       // NEW: Filter by student name (case-insensitive)
       ...(studentName ? [{ $match: { 'student.name': { $regex: studentName, $options: 'i' } } }] : []),
@@ -182,8 +183,8 @@ router.get('/module-usage', verifyToken, checkRole(['ADMIN', 'TEACHER']), async 
         }
       },
       { $unwind: '$student' },
-      // NEW: Apply studentsOnly filter to summary as well
-      ...(studentsOnly === 'true' ? [{ $match: { 'student.role': 'STUDENT' } }] : []),
+      // Apply studentsOnly filter to summary as well (exclude test accounts)
+      ...(studentsOnly === 'true' ? [{ $match: { 'student.role': 'STUDENT', ...EXCLUDE_TEST_LOOKUP } }] : []),
       ...(batch ? [{ $match: { 'student.batch': batch } }] : []),
       ...(level ? [{ $match: { 'student.level': level } }] : []),
       ...(teacherId ? [{ $match: { 'student.assignedTeacher': new mongoose.Types.ObjectId(teacherId) } }] : []),

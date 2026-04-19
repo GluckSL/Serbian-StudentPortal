@@ -10,6 +10,7 @@ import {
 } from '../../services/announcement.service';
 import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 interface BatchSummary {
   batchName: string;
@@ -18,7 +19,7 @@ interface BatchSummary {
 @Component({
   selector: 'app-admin-announcements',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
   templateUrl: './admin-announcements.component.html',
   styleUrls: ['./admin-announcements.component.css']
 })
