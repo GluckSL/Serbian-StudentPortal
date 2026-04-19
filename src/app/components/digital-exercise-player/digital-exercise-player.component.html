@@ -847,7 +847,7 @@
             <div class="word-translation" *ngIf="currentQuestion.data.translation">
               = {{ currentQuestion.data.translation }}
             </div>
-            <button class="btn-audio" *ngIf="currentQuestion.data.audioUrl" (click)="playAudio(currentQuestion.data.audioUrl)">
+            <button class="btn-audio" (click)="playWordAudio(currentQuestion)">
               <span class="material-icons">volume_up</span> Listen
             </button>
           </div>
@@ -857,12 +857,17 @@
               class="btn-record"
               [class.recording]="currentQuestion.isRecording"
               [class.has-result]="currentQuestion.hasRecorded"
-              (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : startRecording(currentQuestion)"
+              (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : speakThenRecord(currentQuestion)"
               [disabled]="hasCurrentSubmitted"
             >
               <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
               <span>{{ currentQuestion.isRecording ? 'Stop' : (currentQuestion.hasRecorded ? 'Re-record' : 'Speak') }}</span>
             </button>
+
+            <div class="pronunciation-listening" *ngIf="currentQuestion.isRecording">
+              <span class="material-icons">mic</span>
+              Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+            </div>
           </div>
 
           <div class="pronunciation-result" *ngIf="currentQuestion.hasRecorded || hasCurrentSubmitted">
