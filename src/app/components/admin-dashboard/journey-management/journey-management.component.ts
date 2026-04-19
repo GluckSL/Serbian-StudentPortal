@@ -4,6 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { environment } from '../../../../environments/environment';
@@ -1541,6 +1542,7 @@ interface TimelineDay {
             class="j-tr-clickable"
             (click)="openGoStudentDetail(s)"
             style="cursor:pointer;"
+            title="Open student journey in a new tab"
           >
             <td>
               <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
@@ -1563,200 +1565,6 @@ interface TimelineDay {
           </tr>
         </tbody>
       </table>
-    </div>
-  </div>
-
-  <!-- ══ GO STUDENT DETAIL MODAL ══════════════════════════════════════════════ -->
-  <div class="j-modal-backdrop" *ngIf="showGoDetail" (click)="closeGoDetail()">
-    <div class="j-modal-card gs-detail-modal" role="dialog" aria-label="GO student detail" (click)="$event.stopPropagation()">
-
-      <!-- Header -->
-      <div class="j-modal-header" style="padding:18px 20px 10px;">
-        <div>
-          <h3 style="margin:0;">{{ goDetailData?.student?.name }}</h3>
-          <div style="font-size:12px;color:#64748b;margin-top:3px;">
-            {{ goDetailData?.student?.email }} &nbsp;·&nbsp;
-            <span class="gs-plan-badge">{{ goDetailData?.student?.subscription }}</span> &nbsp;·&nbsp;
-            <span class="gs-status-go">GO</span> &nbsp;·&nbsp;
-            Day {{ goDetailData?.student?.currentDay }}
-          </div>
-        </div>
-        <button type="button" class="j-modal-close" (click)="closeGoDetail()">×</button>
-      </div>
-
-      <!-- Loading inside modal -->
-      <div *ngIf="goDetailLoading" style="padding:40px;text-align:center;">
-        <div class="spinner-border text-primary"></div>
-      </div>
-
-      <ng-container *ngIf="!goDetailLoading && goDetailData">
-        <!-- Inner tabs -->
-        <div class="jp-inner-tabs" style="padding:0 20px;margin-top:4px;">
-          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'recordings'" (click)="goDetailTab = 'recordings'">Class Recordings</button>
-          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'modules'" (click)="goDetailTab = 'modules'">Modules</button>
-          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'exercises'" (click)="goDetailTab = 'exercises'">Digital Exercises</button>
-          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'progress'" (click)="goDetailTab = 'progress'">Progress</button>
-        </div>
-
-        <div class="jp-modal-body" style="overflow-y:auto;flex:1;padding:16px 20px;">
-
-          <!-- ── CLASS RECORDINGS ── -->
-          <ng-container *ngIf="goDetailTab === 'recordings'">
-            <div *ngIf="(goDetailData.recordings?.length || 0) + (goDetailData.zoomRecordings?.length || 0) === 0" class="j-empty" style="min-height:100px;">
-              <p>No class recordings found.</p>
-            </div>
-            <div *ngFor="let r of goDetailData.recordings" class="gs-rec-row" [class.gs-locked]="r.locked">
-              <div class="gs-rec-info">
-                <span class="gs-lock-icon">{{ r.locked ? '🔒' : '▶' }}</span>
-                <div>
-                  <div class="gs-rec-title">{{ r.title }}</div>
-                  <div class="gs-rec-meta">
-                    <span *ngIf="r.courseDay">Day {{ r.courseDay }}</span>
-                    <span *ngIf="r.locked" class="gs-badge-locked">Locked</span>
-                    <span *ngIf="!r.locked && r.watched" class="gs-badge-watched">
-                      Watched · {{ (r.watchDuration / 60) | number:'1.0-0' }} min
-                    </span>
-                    <span *ngIf="!r.locked && !r.watched" class="gs-badge-unwatched">Not watched</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div *ngFor="let zr of goDetailData.zoomRecordings" class="gs-rec-row" [class.gs-locked]="zr.locked">
-              <div class="gs-rec-info">
-                <span class="gs-lock-icon">{{ zr.locked ? '🔒' : '🎬' }}</span>
-                <div>
-                  <div class="gs-rec-title">{{ zr.topic }}</div>
-                  <div class="gs-rec-meta">
-                    <span *ngIf="zr.courseDay">Day {{ zr.courseDay }}</span>
-                    <span *ngIf="zr.locked" class="gs-badge-locked">Locked</span>
-                    <span *ngIf="!zr.locked && zr.watched" class="gs-badge-watched">
-                      Watched · {{ (zr.watchDuration / 60) | number:'1.0-0' }} min
-                    </span>
-                    <span *ngIf="!zr.locked && !zr.watched" class="gs-badge-unwatched">Not watched</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ng-container>
-
-          <!-- ── MODULES ── -->
-          <ng-container *ngIf="goDetailTab === 'modules'">
-            <div *ngIf="(goDetailData.modules?.length || 0) === 0" class="j-empty" style="min-height:100px;"><p>No modules found.</p></div>
-            <div *ngFor="let m of goDetailData.modules" class="gs-item-row" [class.gs-locked]="m.locked">
-              <div style="display:flex;align-items:center;gap:8px;flex:1;">
-                <span style="font-size:16px;">{{ m.locked ? '🔒' : '📘' }}</span>
-                <div style="flex:1;">
-                  <div class="gs-item-title">{{ m.title }}</div>
-                  <div class="gs-item-meta">
-                    <span *ngIf="m.courseDay">Day {{ m.courseDay }}</span>
-                    <span *ngIf="m.level">· {{ m.level }}</span>
-                    <span *ngIf="m.category">· {{ m.category }}</span>
-                  </div>
-                </div>
-              </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <span *ngIf="m.locked" class="gs-badge-locked">Locked</span>
-                <ng-container *ngIf="!m.locked">
-                  <span class="jp-status-chip"
-                    [class.jp-status-done]="m.status === 'completed'"
-                    [class.jp-status-wip]="m.status === 'in-progress' || m.status === 'in_progress'"
-                    [class.jp-status-ns]="m.status === 'not_started' || m.status === 'not-started'">
-                    {{ m.status === 'not_started' || m.status === 'not-started' ? 'Not started' : m.status === 'in-progress' || m.status === 'in_progress' ? 'In progress' : 'Completed' }}
-                  </span>
-                  <div *ngIf="m.progressPercent > 0" style="font-size:11px;color:#64748b;margin-top:2px;">{{ m.progressPercent }}%</div>
-                </ng-container>
-              </div>
-            </div>
-          </ng-container>
-
-          <!-- ── DIGITAL EXERCISES ── -->
-          <ng-container *ngIf="goDetailTab === 'exercises'">
-            <div *ngIf="(goDetailData.exercises?.length || 0) === 0" class="j-empty" style="min-height:100px;"><p>No exercises found.</p></div>
-            <div *ngFor="let e of goDetailData.exercises" class="gs-item-row" [class.gs-locked]="e.locked">
-              <div style="display:flex;align-items:center;gap:8px;flex:1;">
-                <span style="font-size:16px;">{{ e.locked ? '🔒' : '🏋️' }}</span>
-                <div style="flex:1;">
-                  <div class="gs-item-title">{{ e.title }}</div>
-                  <div class="gs-item-meta">
-                    <span *ngIf="e.courseDay">Day {{ e.courseDay }}</span>
-                    <span *ngIf="e.sequenceLetter">· {{ e.sequenceLetter }}</span>
-                    <span *ngIf="e.level">· {{ e.level }}</span>
-                  </div>
-                </div>
-              </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <span *ngIf="e.locked" class="gs-badge-locked">Locked</span>
-                <ng-container *ngIf="!e.locked">
-                  <span *ngIf="!e.attempted" class="jp-status-chip jp-status-ns">Not attempted</span>
-                  <ng-container *ngIf="e.attempted">
-                    <span class="jp-score-chip"
-                      [class.jp-score-good]="e.scorePercent >= 70"
-                      [class.jp-score-mid]="e.scorePercent >= 40 && e.scorePercent < 70"
-                      [class.jp-score-low]="e.scorePercent < 40">
-                      {{ e.scorePercent }}%
-                    </span>
-                    <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ e.earnedPoints }}/{{ e.totalPoints }} pts</div>
-                  </ng-container>
-                </ng-container>
-              </div>
-            </div>
-          </ng-container>
-
-          <!-- ── PROGRESS ── -->
-          <ng-container *ngIf="goDetailTab === 'progress'">
-            <div class="j-ro-summary" style="margin-bottom:16px;">
-              <div class="j-ro-card">
-                <div class="j-ro-icon" style="background:#e0f2fe;">📅</div>
-                <div><div class="j-ro-val">{{ goDetailData.progress?.currentDay }}</div><div class="j-ro-lbl">Current Day</div></div>
-              </div>
-              <div class="j-ro-card">
-                <div class="j-ro-icon" style="background:#dcfce7;">🏋️</div>
-                <div><div class="j-ro-val">{{ goDetailData.progress?.attemptedExercises }}/{{ goDetailData.progress?.totalExercises }}</div><div class="j-ro-lbl">Exercises</div></div>
-              </div>
-              <div class="j-ro-card">
-                <div class="j-ro-icon" style="background:#fef3c7;">📘</div>
-                <div><div class="j-ro-val">{{ goDetailData.progress?.completedModules }}/{{ goDetailData.progress?.totalModules }}</div><div class="j-ro-lbl">Modules</div></div>
-              </div>
-              <div class="j-ro-card">
-                <div class="j-ro-icon" style="background:#ede9fe;">📊</div>
-                <div><div class="j-ro-val">{{ goDetailData.progress?.overallPercent }}%</div><div class="j-ro-lbl">Overall</div></div>
-              </div>
-            </div>
-
-            <!-- Day breakdown table -->
-            <table class="j-table" style="font-size:12px;" *ngIf="(goDetailData.progress?.dayBreakdown?.length || 0) > 0">
-              <thead>
-                <tr>
-                  <th>Day</th>
-                  <th>Exercises</th>
-                  <th>Modules</th>
-                  <th>Avg Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let d of goDetailData.progress?.dayBreakdown">
-                  <td><span class="j-day-pill" style="display:inline-block;">Day {{ d.day }}</span></td>
-                  <td>{{ d.exercisesAttempted }}/{{ d.exercisesTotal }}</td>
-                  <td>{{ d.modulesCompleted }}/{{ d.modulesTotal }}</td>
-                  <td>
-                    <span class="jp-score-chip"
-                      [class.jp-score-good]="d.avgScore >= 70"
-                      [class.jp-score-mid]="d.avgScore >= 40 && d.avgScore < 70"
-                      [class.jp-score-low]="d.avgScore > 0 && d.avgScore < 40">
-                      {{ d.avgScore > 0 ? d.avgScore + '%' : '—' }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </ng-container>
-
-        </div><!-- /jp-modal-body -->
-      </ng-container>
-
-      <div class="j-modal-footer">
-        <button type="button" class="j-btn j-btn-outline" (click)="closeGoDetail()">Close</button>
-      </div>
     </div>
   </div>
 
@@ -3388,15 +3196,11 @@ export class JourneyManagementComponent implements OnInit {
   goLoading = false;
   goStudents: any[] = [];
 
-  showGoDetail = false;
-  goDetailLoading = false;
-  goDetailData: any = null;
-  goDetailTab: 'recordings' | 'modules' | 'exercises' | 'progress' = 'recordings';
-
   constructor(
     private http: HttpClient,
     private notify: NotificationService,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {
     this.isJourneyReadOnly = this.authService.getSnapshotUser()?.role === 'TEACHER';
   }
@@ -3479,27 +3283,8 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   openGoStudentDetail(student: any): void {
-    this.showGoDetail = true;
-    this.goDetailTab = 'recordings';
-    this.goDetailData = null;
-    this.goDetailLoading = true;
-    this.http.get<any>(`${environment.apiUrl}/go-students/${student._id}/detail`, { withCredentials: true }).subscribe({
-      next: (r) => {
-        this.goDetailData = r;
-        this.goDetailLoading = false;
-      },
-      error: (e) => {
-        this.goDetailLoading = false;
-        this.notify.error(e?.error?.message || 'Failed to load student details.');
-        this.showGoDetail = false;
-      }
-    });
-  }
-
-  closeGoDetail(): void {
-    this.showGoDetail = false;
-    this.goDetailData = null;
-    this.goDetailLoading = false;
+    const url = this.router.serializeUrl(this.router.createUrlTree(['/admin/journey/go', student._id]));
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   private loadTeachers(): void {

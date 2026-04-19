@@ -84,6 +84,39 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
   }
 });
 
+// ─── PATCH /api/go-students/:studentId/journey-day ─────────────────────────────
+// Set the student's journey day (what they can access in the portal); clears pending auto-advance flags.
+router.patch('/:studentId/journey-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    let day = Number(req.body?.currentCourseDay);
+    if (!Number.isFinite(day)) {
+      return res.status(400).json({ message: 'currentCourseDay must be a number.' });
+    }
+    day = Math.floor(day);
+
+    const goBatchCfg = await BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean();
+    const maxDay =
+      goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
+    if (day < 1 || day > maxDay) {
+      return res.status(400).json({ message: `Journey day must be between 1 and ${maxDay}.` });
+    }
+
+    const student = await User.findOne({ _id: studentId, role: 'STUDENT', goStatus: 'GO' });
+    if (!student) return res.status(404).json({ message: 'GO student not found.' });
+
+    student.currentCourseDay = day;
+    student.pendingJourneyDayAdvance = false;
+    student.pendingJourneyDayAdvanceForDay = null;
+    await student.save();
+
+    res.json({ message: 'Journey day updated.', currentCourseDay: day });
+  } catch (err) {
+    console.error('go-students PATCH /:id/journey-day', err);
+    res.status(500).json({ message: 'Failed to update journey day.', error: err.message });
+  }
+});
+
 // ─── DELETE /api/go-students/:studentId/remove ────────────────────────────────
 // Remove a student from GO batch (clear goStatus)
 router.delete('/:studentId/remove', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
@@ -113,6 +146,10 @@ router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
       .select('name regNo email level batch subscription goStatus goJoiningDate currentCourseDay')
       .lean();
     if (!student) return res.status(404).json({ message: 'GO student not found.' });
+
+    const goBatchCfg = await BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean();
+    const journeyLength =
+      goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
 
     const currentDay = student.currentCourseDay || 1;
 
@@ -298,6 +335,7 @@ router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
     const totalModules = modules.length;
 
     res.json({
+      journeyLength,
       student: {
         _id: student._id,
         name: student.name,
