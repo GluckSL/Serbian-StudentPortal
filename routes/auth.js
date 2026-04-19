@@ -1348,6 +1348,16 @@ router.put("/:id", async (req, res) => {
       updateData.reasonForWithdrawing = "";
     }
 
+    // Silver students may omit batch — persist as null so Mongo does not keep an empty string.
+    if (existingUser.role === "STUDENT") {
+      const resolvedSub = String(
+        (subscription !== undefined ? subscription : existingUser.subscription) || ""
+      ).toUpperCase();
+      if (resolvedSub === "SILVER" && batch !== undefined && !String(batch || "").trim()) {
+        updateData.batch = null;
+      }
+    }
+
     // 6ï¸âƒ£ Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,

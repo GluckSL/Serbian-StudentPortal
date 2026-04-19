@@ -8,9 +8,11 @@ const BatchConfig = require('../models/BatchConfig');
 const LearningModule = require('../models/LearningModule');
 const DigitalExercise = require('../models/DigitalExercise');
 const MeetingLink = require('../models/MeetingLink');
+const ClassRecording = require('../models/ClassRecording');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -108,7 +110,11 @@ function computeBatchDay(cfg) {
  * Check whether a student has completed all tasks scheduled for a given day.
  * Returns { complete, breakdown: { exercises, classes } }
  */
-async function checkDayCompletion(studentId, batchName, day) {
+async function checkDayCompletion(studentId, batchNameOrNames, day) {
+  const batchNames = Array.isArray(batchNameOrNames)
+    ? batchNameOrNames.map((b) => String(b || '').trim()).filter(Boolean)
+    : (batchNameOrNames ? [String(batchNameOrNames).trim()] : []);
+
   // --- Exercises for this day ---
   const exercises = await DigitalExercise.find({
     isDeleted: { $ne: true },
@@ -137,12 +143,18 @@ async function checkDayCompletion(studentId, batchName, day) {
       courseDay: day
     }));
 
-  // --- Live classes for this day & batch ---
-  const classes = await MeetingLink.find({
-    batch: batchName,
-    courseDay: day,
-    status: { $ne: 'cancelled' }
-  }).select('_id topic attendance').lean();
+  // --- Live classes for this day & batch(es) ---
+  let classes = [];
+  if (batchNames.length) {
+    const batchOr = batchNames.map((n) => ({
+      batch: new RegExp(`^${escapeRegExp(n)}$`, 'i')
+    }));
+    classes = await MeetingLink.find({
+      $or: batchOr,
+      courseDay: day,
+      status: { $ne: 'cancelled' }
+    }).select('_id topic attendance').lean();
+  }
 
   let classDone = 0;
   const classTotal = classes.length;
@@ -326,18 +338,25 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // IMPORTANT: classes must be filtered by the requested batch, otherwise teachers can see other batches.
     const batchRegex = new RegExp(`^${escapeRegExp(batchName)}$`, 'i');
-    const [modules, exercises, classes] = await Promise.all([
+    const [modules, exercises, classes, recordings] = await Promise.all([
       LearningModule.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
       DigitalExercise.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
       MeetingLink.find({ batch: batchRegex, courseDay: { $gte: 1, $lte: length }, status: { $ne: 'cancelled' } })
-        .select('topic batch courseDay startTime duration').sort({ courseDay: 1 }).lean()
+        .select('topic batch courseDay startTime duration').sort({ courseDay: 1 }).lean(),
+      // Include unpublished recordings: admins schedule content before publishing to students.
+      ClassRecording.find({
+        active: true,
+        courseDay: { $gte: 1, $lte: length },
+        batches: batchRegex
+      })
+        .select('title level plan courseDay batches isPublished').sort({ courseDay: 1 }).lean()
     ]);
 
     const timeline = {};
     for (let d = 1; d <= length; d++) {
-      timeline[d] = { day: d, modules: [], exercises: [], classes: [] };
+      timeline[d] = { day: d, modules: [], exercises: [], classes: [], recordings: [] };
     }
     modules.forEach(m => {
       if (timeline[m.courseDay]) timeline[m.courseDay].modules.push({ _id: m._id, title: m.title, category: m.category, level: m.level });
@@ -348,9 +367,21 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     classes.forEach(c => {
       if (timeline[c.courseDay]) timeline[c.courseDay].classes.push({ _id: c._id, topic: c.topic, batch: c.batch, startTime: c.startTime, duration: c.duration });
     });
+    recordings.forEach(rec => {
+      if (timeline[rec.courseDay]) {
+        timeline[rec.courseDay].recordings.push({
+          _id: rec._id,
+          title: rec.title,
+          level: rec.level,
+          plan: rec.plan || 'ALL',
+          courseDay: rec.courseDay,
+          isPublished: rec.isPublished !== false
+        });
+      }
+    });
 
     const days = Object.values(timeline).filter(
-      d => d.day <= length && (d.modules.length || d.exercises.length || d.classes.length || d.day === activeBatchDay)
+      d => d.day <= length && (d.modules.length || d.exercises.length || d.classes.length || d.recordings.length || d.day === activeBatchDay)
     );
 
     res.json({
@@ -518,11 +549,12 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
       return res.status(403).json({ message: 'You do not have access to this student.' });
     }
     const student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
-      .select('name regNo batch currentCourseDay').lean();
+      .select('name regNo batch currentCourseDay goStatus subscription').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
     const day = student.currentCourseDay || 1;
-    const result = await checkDayCompletion(student._id, student.batch, day);
+    const batchKeys = allStudentBatchStringsForContent(student);
+    const result = await checkDayCompletion(student._id, batchKeys, day);
 
     res.json({
       studentId: student._id,
@@ -542,17 +574,22 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
   try {
     const { force = false } = req.body || {};
     const student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
-      .select('name regNo batch currentCourseDay').lean();
+      .select('name regNo batch currentCourseDay goStatus subscription').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    const cfg = await getOrCreateConfig(student.batch);
+    const batchKeys = allStudentBatchStringsForContent(student);
+    if (!batchKeys.length) {
+      return res.status(400).json({ message: 'Student has no batch assigned; cannot advance journey day.' });
+    }
+    const cfgBatch = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
+    const cfg = await getOrCreateConfig(cfgBatch);
     const currentDay = student.currentCourseDay || 1;
 
     if (currentDay >= cfg.journeyLength) {
       return res.json({ advanced: false, message: 'Student has already completed the journey.', currentDay });
     }
 
-    const { complete, breakdown, incompleteTasks } = await checkDayCompletion(student._id, student.batch, currentDay);
+    const { complete, breakdown, incompleteTasks } = await checkDayCompletion(student._id, batchKeys, currentDay);
 
     if (!complete && !force) {
       return res.json({
@@ -1220,7 +1257,7 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
     }
 
     const student = await User.findOne({ _id: studentId, role: 'STUDENT' })
-      .select('name regNo email level batch currentCourseDay').lean();
+      .select('name regNo email level batch currentCourseDay goStatus subscription').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
     // --- Exercise attempts with question responses ---
@@ -1276,10 +1313,15 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
     }));
 
     // --- Live classes ---
-    const meetings = await MeetingLink.find({
-      batch: new RegExp(`^${escapeRegExp(student.batch)}$`, 'i'),
-      status: { $ne: 'cancelled' }
-    }).select('topic startTime duration courseDay attendance status').lean();
+    const journeyKeys = allStudentBatchStringsForContent(student);
+    const meetings = journeyKeys.length
+      ? await MeetingLink.find({
+          $or: journeyKeys.map((k) => ({
+            batch: new RegExp(`^${escapeRegExp(k)}$`, 'i')
+          })),
+          status: { $ne: 'cancelled' }
+        }).select('topic startTime duration courseDay attendance status').lean()
+      : [];
 
     const liveClasses = meetings.map(m => {
       const attendEntry = (m.attendance || []).find(a => String(a.studentId || a.userId) === String(studentId));

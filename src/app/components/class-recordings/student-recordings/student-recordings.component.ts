@@ -3,6 +3,8 @@ import {
   OnInit,
   OnDestroy,
   AfterViewChecked,
+  OnChanges,
+  SimpleChanges,
   Input,
   ViewChild,
   ElementRef,
@@ -50,6 +52,8 @@ export interface DisplayRecording {
   manualSourceType?: 'URL' | 'HLS_UPLOAD';
   manualStatus?: 'processing' | 'ready' | 'failed' | 'missing';
   manualErrorMessage?: string | null;
+  /** Set when recording is tagged to a journey day (GO / batch). */
+  courseDay?: number | null;
 }
 
 @Component({
@@ -59,8 +63,10 @@ export interface DisplayRecording {
   templateUrl: './student-recordings.component.html',
   styleUrls: ['./student-recordings.component.css'],
 })
-export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewChecked {
+export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewChecked, OnChanges {
   @Input() embedded = false;
+  /** When set (1–200), only list recordings tagged with this journey `courseDay` (Journey tab / GO). */
+  @Input() courseDayFilter: number | null = null;
 
   @ViewChild('srVideoEl') srVideoEl?: ElementRef<HTMLVideoElement>;
 
@@ -111,6 +117,18 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     private authService: AuthService
   ) {}
 
+  /** True when parent pins this list to a single journey day (hides search / sort chrome). */
+  get journeyDayFilterActive(): boolean {
+    const d = Number(this.courseDayFilter);
+    return Number.isFinite(d) && d >= 1 && d <= 200;
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['courseDayFilter'] && this.allRecordings.length) {
+      this.applyListFilters();
+    }
+  }
+
   ngOnInit(): void {
     this.loading = true;
     this.currentUserBatch = String(this.serviceUserBatch() || '');
@@ -137,6 +155,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         manualSourceType: r.sourceType || 'URL',
         manualStatus: r.status || 'ready',
         manualErrorMessage: r.errorMessage || null,
+        courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
       }));
 
       const zoomItems: DisplayRecording[] = (zoom.recordings || []).map((r: BatchZoomRecording) => ({
@@ -151,6 +170,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         attempted: typeof r.attempted === 'boolean' ? r.attempted : null,
         attendanceStatus: r.attendanceStatus || 'Pending',
         meetingLinkId: r.meetingLinkId,
+        courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
       }));
 
       // Batch visibility is already enforced by backend endpoints for students.
@@ -214,6 +234,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       default:
         list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         break;
+    }
+    if (this.journeyDayFilterActive) {
+      const day = Number(this.courseDayFilter);
+      list = list.filter((r) => Number(r.courseDay) === day);
     }
     this.filteredRecordings = list;
   }

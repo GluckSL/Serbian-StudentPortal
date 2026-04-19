@@ -569,6 +569,19 @@
         </table>
       </div>
     </div>
+
+    <div class="mc-journey-recordings mc-day-section-card" *ngIf="isGoBatchStudent">
+      <div class="mc-journey-recordings__head">
+        <h4>Class recordings</h4>
+        <p>
+          Lesson recordings for <strong>Day {{ selectedJourneyDay }}</strong> (same list as My class, filtered by journey day).
+        </p>
+      </div>
+      <app-student-recordings
+        [embedded]="true"
+        [courseDayFilter]="selectedJourneyDay"
+      />
+    </div>
   </div>
 </div>
 

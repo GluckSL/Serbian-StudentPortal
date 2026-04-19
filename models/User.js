@@ -1,7 +1,6 @@
 // models/User.js
 
 const mongoose = require("mongoose");
-const { readBuilderProgram } = require("typescript");
 
 const completionDates = new mongoose.Schema({
   A1CompletionDate: { type: Date },
@@ -37,7 +36,13 @@ const UserSchema = new mongoose.Schema({
   },
   subscription: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: function() { return this.role === "STUDENT"; } },
   level: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: function() { return this.role === "STUDENT"; }},
-  batch: { type: String, required: function() { return this.role === "STUDENT"; }},
+  batch: {
+    type: String,
+    required: function () {
+      if (this.role !== "STUDENT") return false;
+      return String(this.subscription || "").toUpperCase() !== "SILVER";
+    }
+  },
   medium: { type: [String], required: function() { return this.role === "STUDENT" || this.role === "TEACHER"; }},
   conversationId: { type: String, default: "" },
   assignedCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: function() { return this.role === "TEACHER"; } }], // Courses assigned to the user
@@ -110,6 +115,10 @@ const UserSchema = new mongoose.Schema({
   // WhatsApp consecutive-absence alert state
   consecutiveAbsenceAlertSentAt: { type: Date, default: null },
   consecutiveAbsenceAlertStreak: { type: Number, default: null },
+
+  // GO Silver batch fields
+  goStatus: { type: String, enum: ['GO'], default: undefined },
+  goJoiningDate: { type: Date, default: null },
 });
 
 module.exports = mongoose.model("User", UserSchema);

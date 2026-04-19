@@ -209,6 +209,13 @@ export class RichTextInputComponent implements ControlValueAccessor, AfterViewIn
 
   onBlur(): void {
     this.focused = false;
+    // Flush latest HTML so ngModel always has the value even if the last edit did not emit `input` (IME / browser quirks).
+    if (this.editorRef?.nativeElement) {
+      const raw = this.editorRef.nativeElement.innerHTML;
+      const cleaned = sanitizeQuestionHtml(raw);
+      this._value = cleaned;
+      this.onChange(cleaned);
+    }
     this.onTouched();
   }
 

@@ -1911,6 +1911,32 @@
   max-width: 220px;
 }
 
+.mc-journey-recordings {
+  margin-top: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 10px 4px;
+}
+
+.mc-journey-recordings__head {
+  margin: 0 0 8px;
+}
+
+.mc-journey-recordings__head h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.mc-journey-recordings__head p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 .mc-jc-empty {
   border: 1px dashed #cbd5e1;
   border-radius: 9px;

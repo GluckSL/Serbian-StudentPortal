@@ -5,6 +5,7 @@
 
 const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
+const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
 
 function normalizeCourseDay(d) {
   const n = parseInt(String(d), 10);
@@ -31,10 +32,11 @@ async function syncPendingFlagsFromMeeting(meetingDoc) {
 
 async function tryMarkStudentPending(studentId, meetingBatch, meetingCourseDay) {
   const student = await User.findById(studentId)
-    .select('role batch currentCourseDay pendingJourneyDayAdvance')
+    .select('role batch goStatus subscription currentCourseDay pendingJourneyDayAdvance')
     .lean();
   if (!student || student.role !== 'STUDENT') return;
-  if (String(student.batch || '') !== String(meetingBatch)) return;
+  const keys = allStudentBatchStringsForContent(student);
+  if (!keys.length || !keys.some((k) => batchesAlign(k, meetingBatch))) return;
   const currentDay = normalizeCourseDay(student.currentCourseDay);
   if (meetingCourseDay !== currentDay) return;
   if (student.pendingJourneyDayAdvance) return;
@@ -55,12 +57,17 @@ async function tryMarkStudentPending(studentId, meetingBatch, meetingCourseDay) 
  */
 async function recomputePendingForStudent(studentId) {
   const student = await User.findById(studentId)
-    .select('role batch currentCourseDay pendingJourneyDayAdvance')
+    .select('role batch goStatus subscription currentCourseDay pendingJourneyDayAdvance')
     .lean();
-  if (!student || student.role !== 'STUDENT' || !student.batch) return;
+  if (!student || student.role !== 'STUDENT') return;
+  const keys = allStudentBatchStringsForContent(student);
+  if (!keys.length) return;
   const currentDay = normalizeCourseDay(student.currentCourseDay);
+  const batchOr = keys.map((k) => ({
+    batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+  }));
   const meetings = await MeetingLink.find({
-    batch: student.batch,
+    $or: batchOr,
     courseDay: currentDay,
     status: { $ne: 'cancelled' }
   })

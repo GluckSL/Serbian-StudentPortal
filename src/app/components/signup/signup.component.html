@@ -143,20 +143,6 @@
         </select>
       </div>
 
-      <!-- Batch -->
-      <div class="mb-3" *ngIf="role === 'STUDENT'">
-        <label for="batch" class="form-label">Batch</label>
-        <input
-          type="text"
-          id="batch"
-          name="batch"
-          [(ngModel)]="batch"
-          required
-          class="form-control"
-          placeholder="e.g., Batch 2024-01"
-        />
-      </div>
-
       <!-- Assign Courses for Teacher -->
       <div *ngIf="role === 'TEACHER'" class="assign-courses-section">
         <label class="form-label mb-3 fw-semibold">Assign Courses</label>
@@ -244,6 +230,24 @@
           <option value="PLATINUM">Platinum</option>
           <option value="VISA_DOC_ONLY">Visa and Documentation Only</option>
         </select>
+      </div>
+
+      <!-- Batch (optional for Silver / GO Silver) — after plan so “optional” updates immediately -->
+      <div class="mb-3" *ngIf="role === 'STUDENT'">
+        <label for="batch" class="form-label">
+          Batch
+          <span *ngIf="isSilverStudent" class="text-muted fw-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          id="batch"
+          name="batch"
+          [(ngModel)]="batch"
+          [required]="!isSilverStudent"
+          class="form-control"
+          placeholder="e.g., Batch 2024-01"
+        />
+        <small *ngIf="isSilverStudent" class="text-muted">Silver students can use the GO journey without a legacy batch name.</small>
       </div>
 
       <!-- Level -->

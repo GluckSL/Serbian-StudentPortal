@@ -59,6 +59,7 @@ const digitalExercisesRoutes = require('./routes/digitalExercises');
 const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
+const goStudentsRoutes = require('./routes/goStudents');
 const invoiceManagementRoutes = require('./routes/invoiceManagement');
 const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
@@ -182,6 +183,7 @@ app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);
+app.use('/api/go-students', goStudentsRoutes);
 
 app.use('/api/invoices', invoiceManagementRoutes);
 app.use('/api/payment-submissions', paymentSubmissionsRoutes);
