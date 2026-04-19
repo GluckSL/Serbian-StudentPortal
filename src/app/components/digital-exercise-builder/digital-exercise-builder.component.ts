@@ -21,8 +21,8 @@ interface BuilderQuestion {
   options?: string[];
   correctAnswerIndex?: number;
   explanation?: string;
-  // Common instruction / example banner (all types)
-  example?: string;
+  /** Worked sample banner; persisted on API as `example` (avoid in-memory name `example` for ngModel). */
+  workedExample?: string;
   // Matching (instruction reused as generic banner for other types too)
   instruction?: string;
   // Within-day sequence letter (a/b/c…); stored at exercise level, not question level
@@ -206,7 +206,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       context: q.context || '',
       // Persisted on every question type; shown in player banner (non-matching) and editor.
       instruction: q.instruction || '',
-      example: q.example || '',
+      workedExample: q.example || '',
       attachmentUrl: q.attachmentUrl || '',
       answerExplanation: q.answerExplanation || '',
       worksheetKind: q.worksheetKind || null,
@@ -301,7 +301,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       points: 1,
       context: '',
       instruction: '',
-      example: '',
+      workedExample: '',
       worksheetKind: isWorksheetKind ? type : null,
       attachmentUrl: '',
       answerExplanation: '',
@@ -820,7 +820,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       context: String(q.context || '').trim(),
       // Always send strings so JSON never drops keys; server persists banner fields for all types.
       instruction: String(q.instruction ?? ''),
-      example: String(q.example ?? ''),
+      example: String(q.workedExample ?? ''),
       secondaryCaption: q.type === 'video-pronunciation' ? String(q.secondaryCaption || '').trim() : q.secondaryCaption,
       secondaryCaptionAtSeconds: q.type === 'video-pronunciation'
         ? this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds)
