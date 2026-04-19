@@ -973,6 +973,25 @@
   50% { opacity: 0.5; }
 }
 
+.pron-countdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 800;
+  animation: countdown-pop 1s ease-in-out infinite;
+}
+@keyframes countdown-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
 .btn-record {
   display: flex;
   align-items: center;
