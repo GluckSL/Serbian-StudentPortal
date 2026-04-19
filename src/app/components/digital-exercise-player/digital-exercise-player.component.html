@@ -856,8 +856,8 @@
             <button
               class="btn-record"
               [class.recording]="currentQuestion.isRecording"
-              [class.has-result]="currentQuestion.hasRecorded"
-              (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : speakThenRecord(currentQuestion)"
+              [class.has-result]="currentQuestion.hasRecorded && !currentQuestion.isRecording"
+              (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : startRecording(currentQuestion)"
               [disabled]="hasCurrentSubmitted"
             >
               <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>

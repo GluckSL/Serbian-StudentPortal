@@ -185,6 +185,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     this.flushDraftSave();
     this.stopTimer();
+    this.clearRecordingTimers();
     if (this.recognition) {
       try { this.recognition.stop(); } catch {}
     }
@@ -1117,50 +1118,57 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   // ─── Pronunciation Interaction ────────────────────────────────────────────────
 
-  /** Play TTS of the word, then start recording once speech synthesis ends. */
-  speakThenRecord(pq: PlayerQuestion): void {
-    if (pq.isRecording) return;
-    if (!this.speechSupported) {
-      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
-      return;
-    }
-    const word = pq.data.word || '';
-    if ('speechSynthesis' in window && word) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(word);
-      const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
-      utterance.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
-      utterance.rate = 0.85;
-      utterance.onend = () => setTimeout(() => this.startRecording(pq), 600);
-      utterance.onerror = () => this.startRecording(pq);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      this.startRecording(pq);
-    }
+  recordingCountdown = 0;
+  private recordingCountdownInterval: any = null;
+  private recordingForceStopTimer: any = null;
+
+  private clearRecordingTimers(): void {
+    if (this.recordingCountdownInterval) { clearInterval(this.recordingCountdownInterval); this.recordingCountdownInterval = null; }
+    if (this.recordingForceStopTimer) { clearTimeout(this.recordingForceStopTimer); this.recordingForceStopTimer = null; }
+    this.recordingCountdown = 0;
   }
 
-  startRecording(pq: PlayerQuestion, isAutoRetry = false): void {
+  startRecording(pq: PlayerQuestion): void {
     if (!this.speechSupported) {
       this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
       return;
     }
     if (pq.isRecording) return;
+    this.clearRecordingTimers();
 
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     this.recognition = new SpeechRecognition();
 
     const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
     this.recognition.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
-    this.recognition.continuous = false;
+    this.recognition.continuous = true;
     this.recognition.interimResults = false;
     this.recognition.maxAlternatives = 3;
 
     pq.isRecording = true;
+    this.recordingCountdown = 3;
+
+    // Tick the countdown every second
+    this.recordingCountdownInterval = setInterval(() => {
+      this.recordingCountdown--;
+      if (this.recordingCountdown <= 0) {
+        this.clearRecordingTimers();
+      }
+    }, 1000);
+
+    // Force-stop after 3 seconds so whatever was said gets processed
+    this.recordingForceStopTimer = setTimeout(() => {
+      this.clearRecordingTimers();
+      if (this.recognition) {
+        try { this.recognition.stop(); } catch {}
+      }
+    }, 3000);
 
     this.recognition.onresult = (event: any) => {
+      this.clearRecordingTimers();
       const results = event.results[0];
-      const best = results[0].transcript.toLowerCase().trim();
       pq.spokenText = results[0].transcript;
+      const best = results[0].transcript.toLowerCase().trim();
 
       const target = pq.data.word.toLowerCase().trim();
       const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
@@ -1185,26 +1193,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     };
 
     this.recognition.onerror = (event: any) => {
+      this.clearRecordingTimers();
       pq.isRecording = false;
       if (event.error === 'not-allowed') {
         this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
-      } else if (event.error === 'no-speech') {
-        if (!isAutoRetry) {
-          // Silently retry once — gives the user a second chance without showing an error
-          setTimeout(() => this.startRecording(pq, true), 300);
-        } else {
-          pq.hasRecorded = false;
-          this.snackBar.open('No speech detected — speak clearly into your microphone and try again.', 'Close', { duration: 4000 });
-        }
       }
+      // Ignore no-speech — the 3s force-stop already handles the timeout cleanly
     };
 
-    this.recognition.onend = () => { pq.isRecording = false; };
+    this.recognition.onend = () => {
+      this.clearRecordingTimers();
+      pq.isRecording = false;
+    };
 
     this.recognition.start();
   }
 
   stopRecording(pq: PlayerQuestion): void {
+    this.clearRecordingTimers();
     if (this.recognition) {
       try { this.recognition.stop(); } catch {}
     }
