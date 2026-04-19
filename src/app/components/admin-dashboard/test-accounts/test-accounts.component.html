@@ -1,0 +1,125 @@
+<div class="ta-page">
+  <header class="ta-header">
+    <div class="ta-header-title">
+      <span class="ta-header-icon material-icons">science</span>
+      <div>
+        <h1>Test Accounts</h1>
+        <p class="ta-header-desc">
+          Students flagged here are excluded from all batch analytics and completion % calculations.
+          Their exercise attempts are still recorded — they just don't count in progress metrics.
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <div class="ta-body">
+
+    <!-- ── LEFT: Current test accounts ── -->
+    <section class="ta-panel ta-panel--list">
+      <div class="ta-panel-head">
+        <span class="material-icons">list_alt</span>
+        <h2>Current test accounts <span class="ta-count">({{ accounts.length }})</span></h2>
+      </div>
+
+      <div class="ta-loading" *ngIf="loadingAccounts">
+        <div class="ta-spinner"></div>
+        <span>Loading…</span>
+      </div>
+
+      <div class="ta-empty" *ngIf="!loadingAccounts && accounts.length === 0">
+        <span class="material-icons">check_circle_outline</span>
+        <p>No test accounts flagged yet.</p>
+      </div>
+
+      <div class="ta-list" *ngIf="!loadingAccounts && accounts.length > 0">
+        <div class="ta-item" *ngFor="let acc of accounts">
+          <div class="ta-item-info">
+            <div class="ta-item-name">{{ acc.name }}</div>
+            <div class="ta-item-meta">
+              <span class="ta-chip">{{ acc.regNo }}</span>
+              <span class="ta-chip" *ngIf="acc.batch">Batch {{ acc.batch }}</span>
+              <span class="ta-chip" *ngIf="acc.level">{{ acc.level }}</span>
+              <span class="ta-chip ta-chip--email">{{ acc.email }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="ta-btn ta-btn--remove"
+            [disabled]="unmarkingId === acc._id"
+            (click)="removeMark(acc)"
+            matTooltip="Remove test account flag — this student will count in analytics again"
+          >
+            <span class="material-icons">{{ unmarkingId === acc._id ? 'sync' : 'remove_circle_outline' }}</span>
+            {{ unmarkingId === acc._id ? 'Removing…' : 'Remove' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RIGHT: Search + Add ── -->
+    <section class="ta-panel ta-panel--search">
+      <div class="ta-panel-head">
+        <span class="material-icons">person_search</span>
+        <h2>Add a test account</h2>
+      </div>
+
+      <div class="ta-search-box">
+        <span class="material-icons ta-search-icon">search</span>
+        <input
+          type="text"
+          class="ta-search-input"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="onSearchChange()"
+          placeholder="Search by name, registration no, or email…"
+          autocomplete="off"
+        />
+        <button *ngIf="searchQuery" type="button" class="ta-search-clear" (click)="clearSearch()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="ta-loading" *ngIf="searching">
+        <div class="ta-spinner"></div>
+        <span>Searching…</span>
+      </div>
+
+      <div class="ta-empty" *ngIf="!searching && searchQuery.trim() && searchResults.length === 0">
+        <span class="material-icons">search_off</span>
+        <p>No students found for "{{ searchQuery }}"</p>
+      </div>
+
+      <div class="ta-empty ta-empty--hint" *ngIf="!searchQuery.trim() && !searching">
+        <span class="material-icons">info_outline</span>
+        <p>Search for a student to flag them as a test account.</p>
+      </div>
+
+      <div class="ta-list" *ngIf="!searching && searchResults.length > 0">
+        <div class="ta-item" *ngFor="let r of searchResults">
+          <div class="ta-item-info">
+            <div class="ta-item-name">
+              {{ r.name }}
+              <span class="ta-badge-test" *ngIf="isAlreadyTest(r)">TEST</span>
+            </div>
+            <div class="ta-item-meta">
+              <span class="ta-chip">{{ r.regNo }}</span>
+              <span class="ta-chip" *ngIf="r.batch">Batch {{ r.batch }}</span>
+              <span class="ta-chip" *ngIf="r.level">{{ r.level }}</span>
+              <span class="ta-chip ta-chip--email">{{ r.email }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="ta-btn ta-btn--add"
+            [disabled]="isAlreadyTest(r) || markingId === r._id"
+            (click)="markAsTest(r)"
+            [matTooltip]="isAlreadyTest(r) ? 'Already flagged as test account' : 'Flag as test account (excludes from analytics)'"
+          >
+            <span class="material-icons">{{ markingId === r._id ? 'sync' : (isAlreadyTest(r) ? 'check' : 'add_circle_outline') }}</span>
+            {{ markingId === r._id ? 'Adding…' : (isAlreadyTest(r) ? 'Added' : 'Add') }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>

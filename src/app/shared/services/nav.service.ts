@@ -133,6 +133,12 @@ export class NavService {
       ]
     },
     {
+      group: 'System',
+      items: [
+        { id: 'test-accounts', label: 'Test Accounts', icon: '🧪', route: '/admin/test-accounts', subGroup: null }
+      ]
+    },
+    {
       group: 'Profile',
       items: [
         { id: 'profile', label: 'Profile', icon: '👤', route: '/profile', subGroup: null }

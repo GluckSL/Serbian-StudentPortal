@@ -123,6 +123,23 @@
               <span class="day-suffix" aria-hidden="true">/200</span>
             </div>
           </div>
+          <div class="field-group field-group--day">
+            <label class="field-label" for="ex-seq-letter">
+              Sequence
+              <span class="label-optional">(a, b, c… order within day)</span>
+            </label>
+            <input
+              id="ex-seq-letter"
+              type="text"
+              class="field-input field-input--seq"
+              [(ngModel)]="sequenceLetter"
+              placeholder="e.g. a"
+              maxlength="1"
+              pattern="[a-zA-Z]"
+              autocomplete="off"
+              title="Single letter a–z. Students must complete earlier letters first."
+            />
+          </div>
           <div class="field-group field-group--desc">
             <label class="field-label required" for="ex-desc">Description</label>
             <div class="field-input-wrap">
@@ -347,12 +364,11 @@
               Answer Explanation <span class="label-optional">(shown to students in review)</span>
             </label>
             <div class="explanation-field-wrap">
-              <textarea
+              <app-rich-text-input
                 [(ngModel)]="q.answerExplanation"
-                class="field-input"
-                rows="3"
+                [rows]="3"
                 placeholder="Explain why the correct answer is right…"
-              ></textarea>
+              ></app-rich-text-input>
               <button
                 type="button"
                 class="btn-use-ai"
@@ -366,11 +382,39 @@
             </div>
           </div>
 
+          <!-- Instruction & Example (common to all question types) -->
+          <div class="instruction-example-block">
+            <div class="field-group full">
+              <label class="field-label">
+                <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:4px;">info</span>
+                Instruction
+                <span class="label-optional">(shown in a blue banner above the question for students)</span>
+              </label>
+              <app-rich-text-input
+                [(ngModel)]="q.instruction"
+                [rows]="2"
+                placeholder="e.g. Choose the correct option. / Fill in the blank with the right word."
+              ></app-rich-text-input>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">
+                <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:4px;">lightbulb_outline</span>
+                Example
+                <span class="label-optional">(optional worked sample shown below instruction)</span>
+              </label>
+              <app-rich-text-input
+                [(ngModel)]="q.example"
+                [rows]="2"
+                placeholder="e.g. Question: 'The sky is ___.' → Answer: blue"
+              ></app-rich-text-input>
+            </div>
+          </div>
+
           <!-- MCQ Editor -->
           <ng-container *ngIf="q.type === 'mcq'">
             <div class="field-group full">
               <label class="field-label required">Question Text</label>
-              <textarea [(ngModel)]="q.question" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
+              <app-rich-text-input [(ngModel)]="q.question" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
             </div>
             <div class="field-group full">
               <label class="field-label">Image URL (optional)</label>
@@ -385,8 +429,7 @@
                 <label class="radio-label">
                   <input type="radio" [name]="'correct-' + i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
                 </label>
-                <input type="text" [(ngModel)]="q.options![oi]" class="option-input" [placeholder]="'Option ' + (oi + 1)"
-                  (keydown)="$event.stopPropagation()" />
+                <app-rich-text-input [(ngModel)]="q.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
                 <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Remove option">
                   <span class="material-icons">close</span>
                 </button>
@@ -397,16 +440,12 @@
             </div>
             <div class="field-group full">
               <label class="field-label">Explanation (shown after answer)</label>
-              <input type="text" [(ngModel)]="q.explanation" class="field-input" placeholder="Explain why the correct answer is right..." />
+              <app-rich-text-input [(ngModel)]="q.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
             </div>
           </ng-container>
 
           <!-- Matching Editor -->
           <ng-container *ngIf="q.type === 'matching'">
-            <div class="field-group full">
-              <label class="field-label">Instruction</label>
-              <input type="text" [(ngModel)]="q.instruction" class="field-input" />
-            </div>
             <div class="pairs-section">
               <div class="pairs-header">
                 <span class="col-label">Left Column</span>
@@ -414,9 +453,9 @@
                 <span></span>
               </div>
               <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index">
-                <input type="text" [(ngModel)]="pair.left" class="pair-input" [placeholder]="'Left ' + (pi+1)" />
+                <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi+1)" class="pair-rte"></app-rich-text-input>
                 <span class="pair-arrow">↔</span>
-                <input type="text" [(ngModel)]="pair.right" class="pair-input" [placeholder]="'Right ' + (pi+1)" />
+                <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi+1)" class="pair-rte"></app-rich-text-input>
                 <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 2" matTooltip="Remove pair">
                   <span class="material-icons">close</span>
                 </button>
@@ -439,8 +478,8 @@
                 </button>
               </div>
               <p class="hint-text">Use <code>_</code> or <code>___</code> for each blank (each gap is a run of underscores), or click the button above.</p>
-              <textarea [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" class="field-input" rows="2"
-                placeholder="The cat _ on the mat. She _ happy."></textarea>
+              <app-rich-text-input [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" [rows]="2"
+                placeholder="The cat _ on the mat. She _ happy."></app-rich-text-input>
               <div class="blank-count">{{ getBlankCount(q) }} blank(s) detected</div>
             </div>
             <div class="answers-section" *ngIf="getBlankCount(q) > 0">
@@ -473,7 +512,7 @@
             </div>
             <div class="field-group full">
               <label class="field-label required">Question</label>
-              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. What is the name of the person?" />
+              <app-rich-text-input [(ngModel)]="q.prompt" placeholder="e.g. What is the name of the person?"></app-rich-text-input>
             </div>
             <div class="field-group full">
               <label class="field-label required">Audio</label>
@@ -508,7 +547,7 @@
             </div>
             <div class="field-group full">
               <label class="field-label required">Question</label>
-              <textarea [(ngModel)]="q.prompt" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
+              <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
             </div>
             <!-- True/False Story Paragraph -->
             <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
@@ -729,6 +768,11 @@
           <label class="field-label">Journey Day</label>
           <input type="number" class="field-input field-input--sm field-input--day" min="1" max="200" step="1"
             [ngModel]="courseDayAsNumber" (ngModelChange)="onCourseDayNumberInput($event)" placeholder="Any" />
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label">Sequence</label>
+          <input type="text" class="field-input field-input--sm field-input--seq"
+            [(ngModel)]="sequenceLetter" placeholder="e.g. a" maxlength="1" autocomplete="off" />
         </div>
         <div class="field-group field-group--sm">
           <label class="field-label required">CEFR</label>

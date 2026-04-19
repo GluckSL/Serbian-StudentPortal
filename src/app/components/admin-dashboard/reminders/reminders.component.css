@@ -717,7 +717,15 @@
 }
 
 .rem-student-item__info { flex: 1; min-width: 0; }
-.rem-student-item__name { font-size: 13px; font-weight: 600; color: var(--rem-text); }
+.rem-student-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rem-text);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .rem-student-item__meta { display: flex; gap: 8px; margin-top: 2px; }
 
 .rem-student-item__reg,
@@ -986,7 +994,15 @@
 }
 
 .rem-drawer__row-info { flex: 1; min-width: 0; }
-.rem-drawer__row-name { font-size: 13px; font-weight: 700; color: var(--rem-text); }
+.rem-drawer__row-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rem-text);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .rem-drawer__row-phone {
   font-size: 12px;
   color: var(--rem-success);

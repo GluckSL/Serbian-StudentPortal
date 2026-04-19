@@ -265,6 +265,9 @@ export const routes: Routes = [
   },
   { path: 'admin/announcements', loadComponent: () => import('./components/admin-dashboard/admin-announcements.component').then(m => m.AdminAnnouncementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
+  // Test Accounts management
+  { path: 'admin/test-accounts', loadComponent: () => import('./components/admin-dashboard/test-accounts/test-accounts.component').then(m => m.TestAccountsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN'] } },
+
   // Journey Management
   { path: 'admin/journey', loadComponent: () => import('./components/admin-dashboard/journey-management/journey-management.component').then(m => m.JourneyManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 

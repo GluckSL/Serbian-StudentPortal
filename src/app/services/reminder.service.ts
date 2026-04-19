@@ -30,6 +30,7 @@ export interface ReminderRecipient {
   status: 'queued' | 'in_progress' | 'sent' | 'failed';
   sentAt: string | null;
   error: string;
+  isTestAccount?: boolean;
 }
 
 export interface Reminder {
@@ -59,6 +60,7 @@ export interface BatchPreviewStudent {
   phone: string;
   level: string;
   studentStatus: string;
+  isTestAccount?: boolean;
 }
 
 export interface BatchPreviewMeeting {

@@ -11,6 +11,7 @@ const MeetingLink = require('../models/MeetingLink');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -198,7 +199,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     }
 
     const counts = await User.aggregate([
-      { $match: { role: 'STUDENT', batch: { $in: allBatchNames } } },
+      { $match: { role: 'STUDENT', batch: { $in: allBatchNames }, ...EXCLUDE_TEST } },
       { $group: { _id: '$batch', count: { $sum: 1 } } }
     ]);
     const countMap = {};
@@ -263,7 +264,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
     const students = await User.find({ role: 'STUDENT', batch: batchName })
-      .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt')
+      .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount')
       .sort({ name: 1 })
       .lean();
 
@@ -637,7 +638,7 @@ router.get('/:batchName/progress/day/:day/exercise-analytics', verifyToken, chec
     }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
-    const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT', ...EXCLUDE_TEST })
       .select('_id name regNo').sort({ name: 1 }).lean();
     if (!students.length) {
       return res.json({ day: dayNum, exercises: [], students: [] });
@@ -727,7 +728,7 @@ router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TE
     }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
-    const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT', ...EXCLUDE_TEST })
       .select('_id name regNo email').sort({ name: 1 }).lean();
     if (!students.length) {
       return res.json({
@@ -863,8 +864,8 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
 
-    // All students in batch
-    const students = await User.find({ batch: batchRegex, role: 'STUDENT' })
+    // All students in batch (test accounts excluded from analytics)
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT', ...EXCLUDE_TEST })
       .select('_id name regNo email level currentCourseDay').lean();
 
     if (!students.length) {

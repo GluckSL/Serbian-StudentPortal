@@ -12,13 +12,14 @@ import {
 } from '../../../services/reminder.service';
 import { NotificationService } from '../../../services/notification.service';
 import { environment } from '../../../../environments/environment';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 interface BatchSummary { batchName: string; studentCount?: number; }
 
 @Component({
   selector: 'app-reminders',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
   templateUrl: './reminders.component.html',
   styleUrls: ['./reminders.component.css']
 })

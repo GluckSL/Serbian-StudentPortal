@@ -454,7 +454,7 @@
               {{ (s.name || '?').charAt(0).toUpperCase() }}
             </div>
             <div class="rem-student-item__info">
-              <div class="rem-student-item__name">{{ s.name }}</div>
+              <div class="rem-student-item__name">{{ s.name }}<app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge></div>
               <div class="rem-student-item__meta">
                 <span class="rem-student-item__reg">{{ s.regNo }}</span>
                 <span class="rem-student-item__level">{{ s.level }}</span>
@@ -540,7 +540,7 @@
           {{ (rc.name || '?').charAt(0).toUpperCase() }}
         </div>
         <div class="rem-drawer__row-info">
-          <div class="rem-drawer__row-name">{{ rc.name }}</div>
+          <div class="rem-drawer__row-name">{{ rc.name }}<app-test-account-badge [show]="!!rc.isTestAccount"></app-test-account-badge></div>
           <div class="rem-drawer__row-phone">
             <i class="fab fa-whatsapp" *ngIf="rc.phone"></i>
             {{ rc.phone || '—' }}

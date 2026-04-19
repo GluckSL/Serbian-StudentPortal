@@ -226,7 +226,7 @@ router.get(
         role: 'STUDENT',
         isActive: true
       })
-        .select('name regNo email batch')
+        .select('name regNo email batch isTestAccount')
         .lean();
 
       const matched = students
@@ -236,7 +236,8 @@ router.get(
           name: s.name || '',
           regNo: s.regNo || '',
           email: s.email || '',
-          batch: s.batch || ''
+          batch: s.batch || '',
+          isTestAccount: !!s.isTestAccount
         }));
 
       console.info('[announcements][target-students] preview', {

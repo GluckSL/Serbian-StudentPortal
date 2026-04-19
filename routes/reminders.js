@@ -230,7 +230,7 @@ router.get('/batch/:batchName/preview', verifyToken, checkRole(['ADMIN', 'TEACHE
 
     const [students, meetings] = await Promise.all([
       User.find({ role: 'STUDENT', batch: batchName })
-        .select('name regNo whatsappNumber phoneNumber level studentStatus')
+        .select('name regNo whatsappNumber phoneNumber level studentStatus isTestAccount')
         .sort({ name: 1 })
         .lean(),
 
@@ -250,7 +250,8 @@ router.get('/batch/:batchName/preview', verifyToken, checkRole(['ADMIN', 'TEACHE
       regNo: s.regNo || '',
       phone: s.whatsappNumber || s.phoneNumber || '',
       level: s.level || '',
-      studentStatus: s.studentStatus || ''
+      studentStatus: s.studentStatus || '',
+      isTestAccount: !!s.isTestAccount
     }));
 
     return res.json({ success: true, data: { students: mappedStudents, meetings } });
@@ -338,7 +339,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
 
     // Fetch students for this batch
     const students = await User.find({ role: 'STUDENT', batch: batchName })
-      .select('name regNo whatsappNumber phoneNumber batch')
+      .select('name regNo whatsappNumber phoneNumber batch isTestAccount')
       .lean();
 
     if (!students.length) {
@@ -393,6 +394,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
             studentId: s._id,
             name: s.name || '',
             phone,
+            isTestAccount: !!s.isTestAccount,
             messageBody: renderMessage(resolvedBody, {
               studentName: s.name || '',
               batch: batchName,
@@ -431,6 +433,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
           studentId: s._id,
           name: s.name || '',
           phone,
+          isTestAccount: !!s.isTestAccount,
           messageBody: renderMessage(resolvedBody, {
             studentName: s.name || '',
             batch: batchName,

@@ -135,7 +135,7 @@
         </div>
         <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetStudents.length">
           <div class="ann-targets__item" *ngFor="let student of targetStudents | slice:0:8">
-            <div class="ann-targets__name">{{ student.name }}</div>
+            <div class="ann-targets__name">{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div>
             <div class="ann-targets__meta">{{ student.regNo }} | {{ student.batch }}</div>
           </div>
           <div class="ann-targets__more" *ngIf="targetStudents.length > 8">

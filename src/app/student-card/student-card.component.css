@@ -10,3 +10,10 @@
   background-position: center;
   border-radius: 50%;
 }
+
+.student-card__title-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}

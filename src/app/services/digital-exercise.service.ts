@@ -10,6 +10,16 @@ export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' |
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
   context?: string;
+  /** Instruction banner (light-blue) shown above the question body for the student. */
+  instruction?: string;
+  /** Optional worked example shown below the instruction banner. */
+  example?: string;
+  /** Per-question attachment URL (image / audio / video / PDF). */
+  attachmentUrl?: string;
+  /** Teacher explanation shown in review. */
+  answerExplanation?: string;
+  /** Story paragraph for true-false reading passage. */
+  storyParagraph?: string;
   /** Toggle advanced/AI grading behavior for this question. */
   aiGradingEnabled?: boolean;
 }
@@ -140,6 +150,14 @@ export interface DigitalExercise {
   updatedAt?: Date;
   /** 1–200: assigned course day; omit/null = general exercise for any unlocked day */
   courseDay?: number | null;
+  /**
+   * Within-day sequence letter (a, b, c…).
+   * Students must pass all prior letters before this unlocks.
+   */
+  sequenceLetter?: string | null;
+  /** Set by server for student list response when sequence-locked */
+  sequenceLocked?: boolean;
+  previousSequenceLetter?: string | null;
   stats?: { completions: number; avgScore: number; uniqueStudents: number };
   studentAttempt?: ExerciseAttempt | null;
 }

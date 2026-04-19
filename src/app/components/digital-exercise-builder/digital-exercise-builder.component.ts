@@ -9,6 +9,7 @@ import { resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
+import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
 interface BuilderQuestion {
   type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
@@ -20,8 +21,12 @@ interface BuilderQuestion {
   options?: string[];
   correctAnswerIndex?: number;
   explanation?: string;
-  // Matching
+  // Common instruction / example banner (all types)
+  example?: string;
+  // Matching (instruction reused as generic banner for other types too)
   instruction?: string;
+  // Within-day sequence letter (a/b/c…); stored at exercise level, not question level
+  // (kept here only for the builder's per-exercise form; not saved on question)
   pairs?: Array<{ left: string; right: string }>;
   // Fill-blank
   sentence?: string;
@@ -72,7 +77,7 @@ interface VideoFeedbackAudioRow {
 @Component({
   selector: 'app-digital-exercise-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule, MaterialModule, RichTextInputComponent],
   templateUrl: './digital-exercise-builder.component.html',
   styleUrls: ['./digital-exercise-builder.component.css']
 })
@@ -94,6 +99,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   tags = '';
   /** Empty = not tied to a journey day (visible whenever published + student filters). */
   courseDayStr = '';
+  /** Within-day sequence letter (single a–z char). Empty = ungated. */
+  sequenceLetter = '';
   visibleToStudents = false;
 
   questions: BuilderQuestion[] = [];
@@ -170,6 +177,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           exercise.courseDay != null && exercise.courseDay !== undefined
             ? String(exercise.courseDay)
             : '';
+        this.sequenceLetter = exercise.sequenceLetter || '';
         this.visibleToStudents = exercise.visibleToStudents || false;
         this.questions = (exercise.questions || []).map(q => this.mapQuestionFromApi(q));
         this.videoSuccessFeedbackRows = (exercise.videoSuccessFeedback || []).map((x) => ({
@@ -811,6 +819,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         : q.secondaryCaptionAtSeconds
     }));
 
+    // Normalize sequenceLetter: single lowercase letter a-z, or null
+    const rawLetter = this.sequenceLetter.trim().toLowerCase();
+    const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
+
     const payload: Partial<DigitalExercise> = {
       title: this.title.trim(),
       description: this.description.trim(),
@@ -822,6 +834,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       estimatedDuration: this.estimatedDuration,
       tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
       courseDay,
+      sequenceLetter,
       visibleToStudents: this.visibleToStudents,
       questions: normalizedQuestions as any,
       videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),

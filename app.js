@@ -65,6 +65,7 @@ const supportTicketRoutes = require('./routes/supportTickets');
 const announcementRoutes = require('./routes/announcements');
 const crmStudentPortalRoutes = require('./routes/crmStudentPortal');
 const reminderRoutes = require('./routes/reminders');
+const testAccountRoutes = require('./routes/testAccounts');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -186,6 +187,7 @@ app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/crm-student-portal', crmStudentPortalRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');

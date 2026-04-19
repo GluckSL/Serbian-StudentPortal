@@ -563,6 +563,20 @@
 
 .q-points { font-size: 0.85rem; font-weight: 600; color: #64748b; flex-shrink: 0; }
 
+/* Context + instruction + example: padded to align with .q-body */
+.q-guidance-stack {
+  padding: 16px 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.q-guidance-stack .q-context-box,
+.q-guidance-stack .q-instruction-banner,
+.q-guidance-stack .q-example-banner {
+  margin: 0;
+}
+
 .q-context-box {
   margin: 0;
   padding: 12px 14px;
@@ -1952,7 +1966,7 @@
     padding-left: 12px;
   }
   .question-card .q-body { padding: 20px 20px 18px; }
-  .q-context-box { margin: 0; }
+  .question-card .q-guidance-stack { padding: 14px 20px 0; }
   .mcq-options { grid-template-columns: 1fr; }
   .question-card .question-nav-btns { flex-wrap: wrap; gap: 10px; padding: 16px 20px; }
   .question-card .question-nav-btns .btn-nav { flex: 1; min-width: 0; }
@@ -3877,3 +3891,70 @@
   .intro-title { font-size: 1.4rem; }
   .q-dot { width: 28px; height: 28px; font-size: 0.7rem; }
 }
+
+/* ── Instruction & Example banners ── */
+.q-instruction-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #e8f3ff;
+  border-left: 4px solid #4ba3ff;
+  border-radius: 0 6px 6px 0;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.q-instruction-label {
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #1d6fb5;
+}
+.q-instruction-text { color: #1e3a5f; }
+
+.q-example-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f0f7ff;
+  border-left: 4px solid #93c5fd;
+  border-radius: 0 6px 6px 0;
+  padding: 8px 14px;
+  margin: 0 0 12px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.q-example-label {
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #3b82f6;
+}
+.q-example-text { color: #1e40af; font-style: italic; }
+
+/* ── Rich-text formatting pass-through ── */
+/* Allow <b>,<strong>,<i>,<em>,<mark>,<u> inside rendered question text */
+.q-text b, .q-text strong,
+.qa-prompt b, .qa-prompt strong,
+.sentence-part b, .sentence-part strong,
+.review-q-text b, .review-q-text strong { font-weight: 700; }
+
+.q-text i, .q-text em,
+.qa-prompt i, .qa-prompt em,
+.sentence-part i, .sentence-part em,
+.review-q-text i, .review-q-text em { font-style: italic; }
+
+.q-text mark, .qa-prompt mark, .sentence-part mark,
+.review-q-text mark, .opt-text mark, .review-explanation-text mark {
+  background: #fef08a;
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.q-text u, .qa-prompt u, .sentence-part u,
+.review-q-text u, .opt-text u { text-decoration: underline; }

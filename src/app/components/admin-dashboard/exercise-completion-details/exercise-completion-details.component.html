@@ -58,7 +58,7 @@
           <tbody>
             <tr *ngFor="let s of studentSummaries">
               <td>
-                <span class="student-name">{{ s.name }}</span>
+                <span class="student-name">{{ s.name }}<app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge></span>
                 <span class="student-email" *ngIf="s.email">{{ s.email }}</span>
               </td>
               <td>{{ s.batch || '—' }}</td>

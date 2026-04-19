@@ -19,7 +19,7 @@
   <mat-card class="student-meta">
     <mat-card-content>
       <div class="meta-grid">
-        <div><strong>Name:</strong> {{ student.name || '-' }}</div>
+        <div><strong>Name:</strong> {{ student.name || '-' }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div>
         <div><strong>Email:</strong> {{ student.email || '-' }}</div>
         <div><strong>CRM Status:</strong> {{ student.studentStatus || '-' }}</div>
         <div><strong>Package:</strong> {{ student.subscription || '-' }}</div>

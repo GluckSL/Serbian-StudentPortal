@@ -90,7 +90,7 @@
       <thead><tr><th>Student</th><th>Status</th><th>Duration</th><th>Confidence</th><th>Zoom Name</th></tr></thead>
       <tbody>
         <tr *ngFor="let a of linkResult.data.attendance" [class.em-row--attended]="a.attended" [class.em-row--absent]="!a.attended && !a.durationMinutes" [class.em-row--late]="!a.attended && a.durationMinutes > 0">
-          <td><div class="em-student-name">{{ a.name }}</div><div class="em-student-email">{{ a.email }}</div></td>
+          <td><div class="em-student-name">{{ a.name }}<app-test-account-badge [show]="!!a.isTestAccount"></app-test-account-badge></div><div class="em-student-email">{{ a.email }}</div></td>
           <td><span class="em-badge" [class.em-badge--green]="a.attended" [class.em-badge--red]="a.status === 'absent'" [class.em-badge--yellow]="a.status === 'late'">{{ a.status }}</span></td>
           <td>{{ a.durationMinutes }} min ({{ a.attendancePercent }}%)</td>
           <td>{{ a.confidence }}% ({{ a.matchMethod }})</td>

@@ -131,6 +131,18 @@ export class DigitalExercisesComponent implements OnInit {
     let list: DigitalExercise[];
     if (isStudent) {
       list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+      // Sort: within the same courseDay, order by sequenceLetter (null last)
+      list = [...list].sort((a, b) => {
+        const dayA = a.courseDay ?? 9999;
+        const dayB = b.courseDay ?? 9999;
+        if (dayA !== dayB) return dayA - dayB;
+        const la = a.sequenceLetter || '';
+        const lb = b.sequenceLetter || '';
+        if (!la && !lb) return 0;
+        if (!la) return 1;
+        if (!lb) return -1;
+        return la.localeCompare(lb);
+      });
     } else {
       list = this.applyTabFilterLegacy(this.exercises, this.activeTab);
     }
@@ -300,14 +312,21 @@ export class DigitalExercisesComponent implements OnInit {
     if (role !== 'STUDENT') {
       return false;
     }
+    // Day-based lock
     const cd = ex.courseDay;
-    if (cd == null || cd === undefined) return false;
-    const n = Number(cd);
-    if (!Number.isFinite(n)) return false;
-    return n > this.studentCourseDay;
+    if (cd != null && cd !== undefined) {
+      const n = Number(cd);
+      if (Number.isFinite(n) && n > this.studentCourseDay) return true;
+    }
+    // Sequence lock (server set this)
+    if (ex.sequenceLocked) return true;
+    return false;
   }
 
   journeyUnlockButtonLabel(ex: DigitalExercise): string {
+    if (ex.sequenceLocked && ex.previousSequenceLetter) {
+      return `Complete ${ex.previousSequenceLetter.toUpperCase()} first`;
+    }
     const cd = ex.courseDay;
     return cd != null ? `Unlock on day ${cd}` : 'Locked';
   }

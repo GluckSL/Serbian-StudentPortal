@@ -237,7 +237,7 @@
                       [checked]="isStudentSelected(student)" (click)="$event.stopPropagation()">
                   </div>
                   <div class="flex-grow-1">
-                    <div class="fw-bold">{{ student.name }}</div>
+                    <div class="fw-bold">{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div>
                     <small class="text-muted">{{ student.email }}</small>
                     <div class="mt-1">
                       <span class="badge bg-primary me-1">{{ student.batch }}</span>
@@ -261,7 +261,7 @@
                 <div *ngFor="let student of selectedStudents"
                   class="d-flex align-items-center justify-content-between bg-light mb-1">
                   <div>
-                    <small class="fw-bold">{{ student.name }}</small>
+                    <small class="fw-bold">{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></small>
                     <small class="text-muted d-block">{{ student.email }}</small>
                   </div>
                   <button type="button" class="btn btn-sm btn-outline-danger"

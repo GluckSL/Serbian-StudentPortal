@@ -141,7 +141,14 @@
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: #fafbff; }
 
-.student-name { display: block; font-weight: 600; color: #111827; }
+.student-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-weight: 600;
+  color: #111827;
+}
 .student-email { display: block; font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
 
 .level-badge {

@@ -27,7 +27,8 @@ const recipientSchema = new mongoose.Schema(
     meetingTopic: { type: String, default: '' },
     meetingStartTime: { type: Date, default: null },
     sentAt: { type: Date, default: null },
-    error: { type: String, default: '' }
+    error: { type: String, default: '' },
+    isTestAccount: { type: Boolean, default: false }
   },
   { _id: true, timestamps: false }
 );

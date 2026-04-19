@@ -16,6 +16,7 @@ import { HttpHeaders } from '@angular/common/http';
 import {TeacherService} from '../../services/teacher.service';
 import { environment } from '../../../environments/environment';
 import { BulkStudentUploadComponent } from './bulk-student-upload.component';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
@@ -101,7 +102,8 @@ interface StudentListResponse {
     MaterialModule,
     NgChartsModule,
     RouterModule,
-    BulkStudentUploadComponent
+    BulkStudentUploadComponent,
+    TestAccountBadgeComponent
   ],
   templateUrl: './admin-dashboard.component.html',
   styleUrls: ['./admin-dashboard.component.css']

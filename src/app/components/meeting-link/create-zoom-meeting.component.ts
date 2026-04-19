@@ -5,13 +5,14 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } 
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.service';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 @Component({
   selector: 'app-create-zoom-meeting',
   standalone: true,
   templateUrl: './create-zoom-meeting.component.html',
   styleUrls: ['./create-zoom-meeting.component.css'],
-  imports: [CommonModule, ReactiveFormsModule, FormsModule]
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, TestAccountBadgeComponent]
 })
 export class CreateZoomMeetingComponent implements OnInit {
   /** All classes use India Standard Time only (no user-selectable timezone). */

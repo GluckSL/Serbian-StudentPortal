@@ -130,7 +130,10 @@
                   </td>
                   <td>
                     <div class="student-info">
-                      <div class="student-name">{{ student.name }}</div>
+                      <div class="student-name">
+                        {{ student.name }}
+                        <app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge>
+                      </div>
                       <div class="student-email">{{ student.email }}</div>
                     </div>
                   </td>

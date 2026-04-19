@@ -7,6 +7,7 @@ const LearningModule = require('../models/LearningModule');
 const AiTutorSession = require('../models/AiTutorSession');
 const mongoose = require('mongoose');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { EXCLUDE_TEST } = require('../utils/analyticsFilters');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const StudentDocument = require('../models/StudentDocument');
 const DigitalExercise = require('../models/DigitalExercise');
@@ -952,7 +953,8 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
         teacher: student.assignedTeacher?.name || student.teacherIncharge || 'Not assigned',
         servicesOpted: student.servicesOpted || '', languageLevelOpted: student.languageLevelOpted || '',
         currentLevel: student.level, studentStatus: student.studentStatus,
-        enrollmentDate: student.enrollmentDate || student.createdAt
+        enrollmentDate: student.enrollmentDate || student.createdAt,
+        isTestAccount: !!student.isTestAccount
       },
       levelProgression, lessonsByLevel, totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
@@ -977,8 +979,8 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
 
     const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-    // Get all students
-    const students = await User.find({ role: 'STUDENT' })
+    // Get all students (test accounts excluded from analytics export)
+    const students = await User.find({ role: 'STUDENT', ...EXCLUDE_TEST })
       .select('name email regNo batch level servicesOpted languageLevelOpted studentStatus assignedTeacher enrollmentDate courseStartDates courseCompletionDates')
       .populate('assignedTeacher', 'name')
       .lean();

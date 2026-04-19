@@ -10,6 +10,7 @@ import { MaterialModule } from '../../../shared/material.module';
 import { TeacherService } from '../../../services/teacher.service';
 import { environment } from '../../../../environments/environment';
 import { BulkStudentUploadComponent } from '../bulk-student-upload.component';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { NotificationService } from '../../../services/notification.service';
@@ -94,7 +95,8 @@ interface StudentListResponse {
     ReactiveFormsModule,
     MaterialModule,
     RouterModule,
-    BulkStudentUploadComponent
+    BulkStudentUploadComponent,
+    TestAccountBadgeComponent
   ],
   templateUrl: './analytic-dash.component.html',
   styleUrls: ['./analytic-dash.component.css']
