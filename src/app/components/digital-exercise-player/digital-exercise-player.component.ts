@@ -1117,7 +1117,29 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   // ─── Pronunciation Interaction ────────────────────────────────────────────────
 
-  startRecording(pq: PlayerQuestion): void {
+  /** Play TTS of the word, then start recording once speech synthesis ends. */
+  speakThenRecord(pq: PlayerQuestion): void {
+    if (pq.isRecording) return;
+    if (!this.speechSupported) {
+      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
+      return;
+    }
+    const word = pq.data.word || '';
+    if ('speechSynthesis' in window && word) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(word);
+      const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
+      utterance.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
+      utterance.rate = 0.85;
+      utterance.onend = () => setTimeout(() => this.startRecording(pq), 600);
+      utterance.onerror = () => this.startRecording(pq);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      this.startRecording(pq);
+    }
+  }
+
+  startRecording(pq: PlayerQuestion, isAutoRetry = false): void {
     if (!this.speechSupported) {
       this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
       return;
@@ -1140,7 +1162,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const best = results[0].transcript.toLowerCase().trim();
       pq.spokenText = results[0].transcript;
 
-      // Calculate pronunciation score
       const target = pq.data.word.toLowerCase().trim();
       const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
       const allAccepted = [target, ...variants];
@@ -1149,11 +1170,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (allAccepted.some(a => a === best)) {
         score = 100;
       } else {
-        // Fuzzy match
         const similarity = this.calculateStringSimilarity(best, target);
         score = Math.round(similarity * 100);
-
-        // Check alternatives
         for (const alt of variants) {
           const altSim = this.calculateStringSimilarity(best, alt);
           score = Math.max(score, Math.round(altSim * 100));
@@ -1171,8 +1189,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (event.error === 'not-allowed') {
         this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
       } else if (event.error === 'no-speech') {
-        pq.hasRecorded = false;
-        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+        if (!isAutoRetry) {
+          // Silently retry once — gives the user a second chance without showing an error
+          setTimeout(() => this.startRecording(pq, true), 300);
+        } else {
+          pq.hasRecorded = false;
+          this.snackBar.open('No speech detected — speak clearly into your microphone and try again.', 'Close', { duration: 4000 });
+        }
       }
     };
 
@@ -1198,6 +1221,29 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!url) return;
     const audio = new Audio(url);
     audio.play().catch(() => {});
+  }
+
+  speakWordTTS(text: string): void {
+    if (!text) return;
+    if (!('speechSynthesis' in window)) {
+      this.snackBar.open('Text-to-speech is not supported in this browser.', 'Close', { duration: 3000 });
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
+    utterance.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
+    utterance.rate = 0.85;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  playWordAudio(pq: PlayerQuestion): void {
+    if (pq.data.audioUrl) {
+      this.playAudio(this.getMediaFullUrl(pq.data.audioUrl));
+    } else {
+      this.speakWordTTS(pq.data.word || '');
+    }
   }
 
   getPronunciationClass(score: number): string {

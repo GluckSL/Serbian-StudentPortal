@@ -956,7 +956,22 @@
 }
 .btn-audio:hover { background: #4f46e5; color: white; }
 
-.pronunciation-controls { display: flex; justify-content: center; }
+.pronunciation-controls { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+.pronunciation-listening {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ef4444;
+  font-size: 0.95rem;
+  font-weight: 600;
+  animation: pulse-text 1.2s ease-in-out infinite;
+}
+.pronunciation-listening .material-icons { font-size: 1.1rem; }
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 
 .btn-record {
   display: flex;
