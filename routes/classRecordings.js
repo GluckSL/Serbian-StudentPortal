@@ -15,6 +15,7 @@ const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
 const { processManualRecordingUpload } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
+const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
 
@@ -82,42 +83,51 @@ async function buildSignedHlsPlaylist(hlsKey) {
   return signed.join('\n');
 }
 
+/** Plans a student may see for manual ClassRecording rows (GO-Silver journey uploads are sometimes tagged PLATINUM). */
+function allowedRecordingPlansForStudent(student) {
+  const sub = String(student?.subscription || '').toUpperCase();
+  if (String(student?.goStatus || '') === 'GO' && sub === 'SILVER') {
+    return ['SILVER', 'ALL', 'PLATINUM'];
+  }
+  return [sub, 'ALL'].filter(Boolean);
+}
+
+function normalizedStudentCourseDay(student) {
+  const v = student && student.currentCourseDay;
+  if (v != null && v !== undefined && Number.isFinite(Number(v))) {
+    return Math.min(200, Math.max(1, Math.floor(Number(v))));
+  }
+  return 1;
+}
+
+/** ClassRecording or MeetingLink: available when courseDay is unset or <= student's journey day. */
+function journeyCourseDayUnlockedForStudent(doc, student) {
+  const studentDay = normalizedStudentCourseDay(student);
+  const raw = doc && doc.courseDay;
+  if (raw == null || raw === undefined) return true;
+  const cd = Number(raw);
+  if (!Number.isFinite(cd)) return true;
+  return cd <= studentDay;
+}
+
 function canUserAccessManualRecording(recording, student) {
   if (!recording?.active) return false;
   if (recording.isPublished === false) return false;
   if (!student) return false;
-  const inBatch = Array.isArray(recording.batches) &&
-    recording.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch));
+  const batchKeys = allStudentBatchStringsForContent(student);
+  const inBatch = batchKeys.length > 0 && Array.isArray(recording.batches) &&
+    recording.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b)));
   if (!inBatch) return false;
+  if (!journeyCourseDayUnlockedForStudent(recording, student)) return false;
   if (recording.level && student.level && recording.level !== student.level) return false;
-  const studentPlan = String(student.subscription || '').toUpperCase();
-  if (recording.plan && recording.plan !== 'ALL' && studentPlan !== recording.plan) return false;
-  return true;
-}
-
-function normalizeBatch(value) {
-  return String(value || '')
-    .toLowerCase()
-    .trim()
-    .replace(/^batch\s+/, '')
-    .replace(/\s+/g, ' ');
+  const recPlan = String(recording.plan || 'ALL').toUpperCase();
+  if (!recPlan || recPlan === 'ALL') return true;
+  const allowed = allowedRecordingPlansForStudent(student).map((p) => String(p).toUpperCase());
+  return allowed.includes(recPlan);
 }
 
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function isSameBatch(studentBatch, meetingBatch) {
-  const a = normalizeBatch(studentBatch);
-  const b = normalizeBatch(meetingBatch);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  // Allow meeting batch names that extend student batch labels,
-  // e.g. "Batch 35" vs "Batch 35 - A1 German Class"
-  return (
-    b.startsWith(`${a} -`) || b.startsWith(`${a}:`) || b.startsWith(`${a} |`) ||
-    a.startsWith(`${b} -`) || a.startsWith(`${b}:`) || a.startsWith(`${b} |`)
-  );
 }
 
 // GET /api/class-recordings — Teacher/Admin: all recordings; Student: filtered
@@ -132,27 +142,33 @@ router.get('/', verifyToken, async (req, res) => {
       return res.json({ success: true, recordings });
     }
 
-    // STUDENT — filter by their batch, level, plan
+    // STUDENT — filter by their batch, level, plan, journey day
     const student = await User.findById(req.user.id)
-      .select('batch level subscription').lean();
+      .select('batch level subscription goStatus currentCourseDay').lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
+    const studentLevel = String(student.level || 'A1').toUpperCase();
     const baseFilter = {
       active: true,
       isPublished: { $ne: false },
-      level: student.level,
-      plan: { $in: [student.subscription, 'ALL'] }
+      level: studentLevel,
+      plan: { $in: allowedRecordingPlansForStudent(student) }
     };
 
     const recordings = await ClassRecording.find(baseFilter)
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 }).lean();
 
-    // Strict student-batch visibility guard: only same batch recordings.
-    const filteredRecordings = recordings.filter((r) =>
-      Array.isArray(r.batches) &&
-      r.batches.some((b) => isSameBatch(student.batch, b) || isSameBatch(b, student.batch))
-    );
+    const batchKeys = allStudentBatchStringsForContent(student);
+    // Match legacy User.batch and GO-SILVER tags (Silver GO often has both).
+    const filteredRecordings = batchKeys.length
+      ? recordings.filter(
+          (r) =>
+            Array.isArray(r.batches) &&
+            r.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b))) &&
+            journeyCourseDayUnlockedForStudent(r, student)
+        )
+      : [];
 
     res.json({ success: true, recordings: filteredRecordings });
   } catch (error) {
@@ -426,19 +442,42 @@ router.post('/manual/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
 // PUT /api/class-recordings/:id — Update recording (Teacher/Admin)
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const { title, description, videoUrl, batches, level, plan } = req.body;
+    const { title, description, videoUrl, batches, level, plan, courseDay, addBatch, isPublished } = req.body || {};
     const existing = await ClassRecording.findById(req.params.id).lean();
     if (!existing) return res.status(404).json({ success: false, message: 'Recording not found' });
 
-    const updatePayload = { title, description, batches, level, plan };
-    if (existing.sourceType !== 'HLS_UPLOAD') {
+    const updatePayload = {};
+    if (title !== undefined) updatePayload.title = title;
+    if (description !== undefined) updatePayload.description = description;
+    if (level !== undefined) updatePayload.level = level;
+    if (plan !== undefined) updatePayload.plan = plan;
+    if (existing.sourceType !== 'HLS_UPLOAD' && videoUrl !== undefined) {
       updatePayload.videoUrl = videoUrl;
+    }
+    if (Array.isArray(batches)) {
+      updatePayload.batches = batches.map((b) => String(b).trim()).filter(Boolean);
+    } else if (addBatch !== undefined && addBatch !== null && String(addBatch).trim() !== '') {
+      const tag = String(addBatch).trim();
+      updatePayload.batches = Array.from(new Set([...(existing.batches || []).map(String), tag]));
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
+      if (courseDay === null || courseDay === '') {
+        updatePayload.courseDay = null;
+      } else {
+        const n = parseInt(String(courseDay), 10);
+        updatePayload.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'isPublished')) {
+      const pub = Boolean(isPublished);
+      updatePayload.isPublished = pub;
+      updatePayload.publishedAt = pub ? (existing.publishedAt || new Date()) : null;
     }
 
     const recording = await ClassRecording.findByIdAndUpdate(
       req.params.id,
-      updatePayload,
-      { new: true }
+      { $set: updatePayload },
+      { new: true, runValidators: true }
     );
     res.json({ success: true, recording });
   } catch (error) {
@@ -482,7 +521,7 @@ router.get('/:id/hls/playlist', verifyToken, async (req, res) => {
     }
 
     const recording = await ClassRecording.findById(req.params.id)
-      .select('active sourceType status hlsKey level plan batches isPublished')
+      .select('active sourceType status hlsKey level plan batches isPublished courseDay')
       .lean();
     if (!recording || !recording.active) {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
@@ -498,7 +537,7 @@ router.get('/:id/hls/playlist', verifyToken, async (req, res) => {
     }
 
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
-      const student = await User.findById(req.user.id).select('batch level subscription').lean();
+      const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
       if (!canUserAccessManualRecording(recording, student)) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
       }
@@ -544,7 +583,7 @@ router.post('/:id/view', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
     }
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
-      const student = await User.findById(req.user.id).select('batch level subscription').lean();
+      const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
       if (!canUserAccessManualRecording(recording, student)) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
       }
@@ -590,6 +629,21 @@ router.get('/:id/views', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
 router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
   try {
     const { meetingLinkId } = req.params;
+    const { role, id: userId } = req.user;
+    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+      const [meetingLink, student] = await Promise.all([
+        MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
+        User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
+      ]);
+      const keys = allStudentBatchStringsForContent(student);
+      const batchOk = meetingLink && keys.some((k) => batchesAlign(k, meetingLink.batch));
+      if (!meetingLink || !student || !keys.length || !batchOk) {
+        return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
+      }
+      if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) {
+        return res.status(403).json({ success: false, message: 'This recording unlocks on a later journey day.' });
+      }
+    }
     const view = await ZoomRecordingView.create({
       meetingLinkId,
       student: req.user.id,
@@ -642,11 +696,11 @@ router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACH
     }
 
     const allStudents = await User.find({ role: 'STUDENT' })
-      .select('name email batch level')
+      .select('name email batch level goStatus subscription')
       .lean();
 
     const batchStudents = allStudents.filter((s) =>
-      isSameBatch(s.batch, meeting.batch) || isSameBatch(meeting.batch, s.batch)
+      allStudentBatchStringsForContent(s).some((k) => batchesAlign(k, meeting.batch))
     );
 
     const rows = [];
@@ -734,7 +788,10 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const { role, id: userId } = req.user;
 
     let batchFilter;
-    let studentBatchValue = null;
+    /** For students: all profile + GO-SILVER batch tokens (Silver GO may have both). */
+    let studentBatchKeys = null;
+    /** Set for students only; used for journey-day filtering on meeting links. */
+    let studentForJourney = null;
 
     if (['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
       // Staff can optionally filter by batch via query param, otherwise get all
@@ -742,32 +799,36 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
         ? { batch: { $regex: `^${escapeRegex(String(req.query.batch))}`, $options: 'i' } }
         : {};
     } else {
-      // Student: derive batch from their profile
-      const student = await User.findById(userId).select('batch').lean();
-      if (!student || !student.batch) {
-        return res.status(400).json({ success: false, message: 'Student batch not set on your profile.' });
+      studentForJourney = await User.findById(userId).select('batch goStatus subscription currentCourseDay').lean();
+      studentBatchKeys = allStudentBatchStringsForContent(studentForJourney);
+      if (!studentBatchKeys.length) {
+        return res.json({ success: true, recordings: [] });
       }
-      studentBatchValue = String(student.batch);
-      const batchToken = escapeRegex(studentBatchValue);
       batchFilter = {
-        batch: {
-          // Broad pre-filter: batch token can appear in labels like
-          // "35", "Batch 35", "Batch 35 - A1 German Class", etc.
-          $regex: `(^|\\s|-)${batchToken}(\\b|\\s*[-:|])`,
-          $options: 'i',
-        },
+        $or: studentBatchKeys.map((token) => {
+          const batchToken = escapeRegex(token);
+          return {
+            batch: {
+              $regex: `(^|\\s|-)${batchToken}(\\b|\\s*[-:|])`,
+              $options: 'i',
+            }
+          };
+        })
       };
     }
 
     // 1. Find all MeetingLinks for this batch
     let meetingLinks = await MeetingLink.find(batchFilter)
-      .select('_id topic batch startTime duration status attendance assignedTeacher')
+      .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
       .populate('assignedTeacher', 'name')
       .lean();
 
     // Final guard for students: normalize and compare batch labels safely.
-    if (studentBatchValue) {
-      meetingLinks = meetingLinks.filter((m) => isSameBatch(studentBatchValue, m.batch));
+    if (studentBatchKeys && studentBatchKeys.length && studentForJourney) {
+      meetingLinks = meetingLinks.filter((m) =>
+        studentBatchKeys.some((k) => batchesAlign(k, m.batch)) &&
+        journeyCourseDayUnlockedForStudent(m, studentForJourney)
+      );
     }
 
     if (!meetingLinks.length) {
@@ -825,6 +886,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
         attendanceStatus,
         classDate: meeting.startTime || rec.createdAt,
         meetingDuration: meeting.duration || null,
+        courseDay: meeting.courseDay != null ? meeting.courseDay : null,
       };
     }).sort((a, b) => new Date(b.classDate) - new Date(a.classDate));
 
@@ -1224,11 +1286,16 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) =>
         return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
       }
       const [meetingLink, student] = await Promise.all([
-        MeetingLink.findById(meetingLinkId).select('batch').lean(),
-        User.findById(userId).select('batch').lean(),
+        MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
+        User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
       ]);
-      if (!meetingLink || !student || !isSameBatch(student.batch, meetingLink.batch)) {
+      const keys = allStudentBatchStringsForContent(student);
+      const batchOk = keys.some((k) => batchesAlign(k, meetingLink.batch));
+      if (!meetingLink || !student || !keys.length || !batchOk) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
+      }
+      if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) {
+        return res.status(403).json({ success: false, message: 'This recording unlocks on a later journey day.' });
       }
     }
 
@@ -1298,16 +1365,21 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       }
 
       const [meetingLink, student] = await Promise.all([
-        MeetingLink.findById(meetingLinkId).select('batch').lean(),
-        User.findById(userId).select('batch').lean(),
+        MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
+        User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
       ]);
 
       if (!meetingLink) {
         return res.status(404).json({ success: false, message: 'Class not found.' });
       }
 
-      if (!student || !isSameBatch(student.batch, meetingLink.batch)) {
+      const keysZ = allStudentBatchStringsForContent(student);
+      const batchOkZ = keysZ.some((k) => batchesAlign(k, meetingLink.batch));
+      if (!student || !keysZ.length || !batchOkZ) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
+      }
+      if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) {
+        return res.status(403).json({ success: false, message: 'This recording unlocks on a later journey day.' });
       }
     }
 

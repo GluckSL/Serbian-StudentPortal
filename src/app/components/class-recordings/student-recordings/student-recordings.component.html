@@ -14,7 +14,7 @@
     </button>
   </div>
 
-  <div class="sr-filters-wrap" [class.sr-filters-wrap--inline]="embedded">
+  <div class="sr-filters-wrap" [class.sr-filters-wrap--inline]="embedded" *ngIf="!journeyDayFilterActive">
     <input
       class="sr-input"
       [class.sr-input--grow]="embedded"
@@ -45,11 +45,13 @@
   <div *ngIf="!filteredRecordings.length" class="sr-empty">
     <span class="sr-empty__icon">&#127909;</span>
     <h3 *ngIf="!allRecordings.length">No recordings available yet</h3>
-    <h3 *ngIf="allRecordings.length">No matching recordings</h3>
+    <h3 *ngIf="journeyDayFilterActive && allRecordings.length">No class recordings for Day {{ courseDayFilter }}</h3>
+    <h3 *ngIf="!journeyDayFilterActive && allRecordings.length">No matching recordings</h3>
+    <p *ngIf="journeyDayFilterActive && allRecordings.length">Recordings must have a journey day tag to appear here. Use <strong>My class</strong> to browse all recordings.</p>
     <p *ngIf="searchQuery.trim()">Try a different search term.</p>
-    <p *ngIf="!searchQuery.trim() && recordingFilter !== 'all' && allRecordings.length">No recordings match this filter.</p>
+    <p *ngIf="!searchQuery.trim() && recordingFilter !== 'all' && allRecordings.length && !journeyDayFilterActive">No recordings match this filter.</p>
     <p *ngIf="!searchQuery.trim() && recordingFilter === 'all' && !allRecordings.length">Your teacher hasn't uploaded any recordings for your batch and level yet.</p>
-    <button *ngIf="recordingFilter !== 'all'" type="button" class="sr-empty__clear" (click)="setRecordingFilter('all')">Clear filter</button>
+    <button *ngIf="recordingFilter !== 'all' && !journeyDayFilterActive" type="button" class="sr-empty__clear" (click)="setRecordingFilter('all')">Clear filter</button>
   </div>
 
   <!-- Mobile: stacked cards (title + play only in header; meta grid below) -->

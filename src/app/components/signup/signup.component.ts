@@ -17,6 +17,11 @@ import { NotificationService } from '../../services/notification.service';
   styleUrls: ['./signup.component.css']
 })
 export class SignupComponent {
+  /** Silver-plan students may omit batch (e.g. GO Silver journey without a legacy batch label). */
+  get isSilverStudent(): boolean {
+    return String(this.subscription || '').toUpperCase() === 'SILVER';
+  }
+
   name: string = '';
   email: string = '';
   role: string = 'STUDENT'; // default role
@@ -171,8 +176,15 @@ export class SignupComponent {
   onSubmit() {
 
     if (this.role === 'STUDENT') {
-      if (!this.medium || !this.subscription || !this.batch) {
-        this.notify.warning('Batch, Medium, and Subscription are required for students!');
+      const mediumOk = Array.isArray(this.medium) ? this.medium.length > 0 : !!String(this.medium || '').trim();
+      const batchRequired = !this.isSilverStudent;
+      const batchOk = !batchRequired || !!String(this.batch || '').trim();
+      if (!mediumOk || !this.subscription || !batchOk) {
+        this.notify.warning(
+          this.isSilverStudent
+            ? 'Medium and Subscription are required for students.'
+            : 'Batch, Medium, and Subscription are required for students.'
+        );
         return;
       }
       if (!this.assignedTeacher) {
@@ -198,7 +210,8 @@ export class SignupComponent {
     };
 
     if (this.role === 'STUDENT') {
-      user.batch = this.batch;
+      const batchTrim = String(this.batch || '').trim();
+      user.batch = batchTrim || undefined;
       user.medium = this.medium;
       user.conversationId = this.conversationId;
       user.subscription = this.subscription;

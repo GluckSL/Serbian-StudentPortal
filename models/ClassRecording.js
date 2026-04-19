@@ -15,9 +15,20 @@ const classRecordingSchema = new mongoose.Schema({
   active: { type: Boolean, default: true },
   /** When false, recording stays in admin lists but is hidden from student class recordings (same idea as Zoom publish). */
   isPublished: { type: Boolean, default: true },
-  publishedAt: { type: Date, default: null }
+  publishedAt: { type: Date, default: null },
+  /** 200-day journey: which day this recording is scheduled for (optional). */
+  courseDay: {
+    type: Number,
+    default: null,
+    required: false,
+    validate: {
+      validator(v) { return v == null || (Number.isFinite(v) && v >= 1 && v <= 200); },
+      message: 'courseDay must be between 1 and 200 or unset'
+    }
+  }
 }, { timestamps: true });
 
 classRecordingSchema.index({ active: 1, level: 1, batches: 1 });
+classRecordingSchema.index({ courseDay: 1, active: 1, isPublished: 1 });
 
 module.exports = mongoose.model('ClassRecording', classRecordingSchema);

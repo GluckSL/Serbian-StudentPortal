@@ -40,6 +40,9 @@ export class NavService {
     ],
     journey: [
       '/admin/journey'
+    ],
+    'go-students': [
+      '/admin/go-students'
     ]
   };
 
@@ -66,7 +69,8 @@ export class NavService {
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',             subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: '🏋️', route: '/admin/digital-exercises',   subGroup: null },
-        { id: 'journey',           label: 'Journey',            icon: '📅', route: '/admin/journey',             subGroup: null }
+        { id: 'journey',           label: 'Journey',            icon: '📅', route: '/admin/journey',             subGroup: null },
+        { id: 'go-students',       label: 'GO Students',        icon: '🚀', route: '/admin/go-students',         subGroup: null }
       ]
     },
     {

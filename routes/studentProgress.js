@@ -804,7 +804,10 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     const VisaTracking = require('../models/VisaTracking');
     const studentId = req.params.studentId;
 
-    const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
+    const student = await User.findById(studentId)
+      .select('-password')
+      .populate('assignedTeacher', 'name')
+      .lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
     // Level progression
@@ -954,7 +957,11 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
         servicesOpted: student.servicesOpted || '', languageLevelOpted: student.languageLevelOpted || '',
         currentLevel: student.level, studentStatus: student.studentStatus,
         enrollmentDate: student.enrollmentDate || student.createdAt,
-        isTestAccount: !!student.isTestAccount
+        isTestAccount: !!student.isTestAccount,
+        currentCourseDay: student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay))
+          ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+          : 1,
+        goStatus: student.goStatus || null
       },
       levelProgression, lessonsByLevel, totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },

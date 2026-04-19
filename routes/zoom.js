@@ -9,6 +9,7 @@ const { verifyToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
+const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 
 /**
  * Create a Zoom meeting with selected students
@@ -489,7 +490,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
     const studentId = req.user.id;
 
     const student = await User.findById(studentId)
-    .select('batch subscription currentCourseDay email');
+    .select('batch subscription currentCourseDay email goStatus');
 
     if(!student) {
       return res.status(404).json({
@@ -502,16 +503,22 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
       : 1;
 
-    // Find meetings for student's batch & plan
-    const meetings = await MeetingLink.find({
-      //'attendees.studentId': studentId,
-      batch: student.batch,
-      plan: student.subscription
-    })
-      .populate('createdBy', 'name email')
-      .populate('assignedTeacher', 'name email')
-      //.populate('attendees.studentId', 'name email batch level subscription')
-      .sort({ startTime: -1 });
+    const batchKeys = allStudentBatchStringsForContent(student);
+    let meetings = [];
+    if (batchKeys.length) {
+      const batchOr = batchKeys.map((k) => ({
+        batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+      }));
+      meetings = await MeetingLink.find({
+        $and: [
+          { plan: { $in: [student.subscription, 'ALL'] } },
+          { $or: batchOr }
+        ]
+      })
+        .populate('createdBy', 'name email')
+        .populate('assignedTeacher', 'name email')
+        .sort({ startTime: -1 });
+    }
 
     /** Pull saved attendance row for this student (same data as teacher/admin attendance report). */
     function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
@@ -549,13 +556,12 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       };
     }
 
-    const weekEndDay = Math.min(200, studentDay + 6);
-    // Show meetings with no day, already unlocked, or within the next 6 journey days (join blocked until day).
+    // Only meetings with no journey day or days the student has reached (no future preview in the list).
     const gatedMeetings = meetings.filter((m) => {
       if (m.courseDay == null || m.courseDay === undefined) return true;
       const cd = Number(m.courseDay);
       if (!Number.isFinite(cd)) return true;
-      return cd <= studentDay || (cd > studentDay && cd <= weekEndDay);
+      return cd <= studentDay;
     });
 
     // Calculate meeting status for each meeting
@@ -811,7 +817,8 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
       duration,
       timezone,
       agenda,
-      settings
+      settings,
+      courseDay
     } = req.body;
 
     // Find meeting in database
@@ -874,6 +881,14 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
     if (duration) meeting.duration = duration;
     if (timezone) meeting.timezone = timezone;
     if (agenda) meeting.agenda = agenda;
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
+      if (courseDay === null || courseDay === '') {
+        meeting.courseDay = null;
+      } else {
+        const n = parseInt(String(courseDay), 10);
+        meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      }
+    }
 
     await meeting.save();
 

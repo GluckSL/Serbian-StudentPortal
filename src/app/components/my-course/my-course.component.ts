@@ -239,7 +239,7 @@ export class MyCourseComponent implements OnInit {
 
     if (studentLevel) {
       this.learningModulesService
-        .getAccessibleModules(studentLevel, { page: 1, limit: 8 })
+        .getAccessibleModules(studentLevel, { page: 1, limit: 500 })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (res) => {
@@ -475,6 +475,12 @@ export class MyCourseComponent implements OnInit {
       courseDay: Number(x.courseDay),
       daysUntilUnlock: Math.max(0, Number(x.daysUntilUnlock) || 0)
     };
+  }
+
+  /** Silver GO (and other GO-tagged students) see journey-day recordings on the Journey tab. */
+  get isGoBatchStudent(): boolean {
+    const u = this.authService.getSnapshotUser();
+    return String(u?.goStatus || '').toUpperCase() === 'GO';
   }
 
   get journeyCourseDay(): number {

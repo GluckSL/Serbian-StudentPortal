@@ -7,12 +7,10 @@ import {
   StaffAttemptReviewResponse
 } from '../../../services/digital-exercise.service';
 import { finalize, switchMap } from 'rxjs';
-import { SafeHtmlPipe } from '../../../pipes/safe-html.pipe';
-
 @Component({
   selector: 'app-exercise-attempt-detail',
   standalone: true,
-  imports: [CommonModule, SafeHtmlPipe],
+  imports: [CommonModule],
   templateUrl: './exercise-attempt-detail.component.html',
   styleUrls: ['./exercise-attempt-detail.component.css']
 })

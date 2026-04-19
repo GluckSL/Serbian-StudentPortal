@@ -21,6 +21,8 @@ export interface ClassRecording {
   isPublished?: boolean;
   publishedAt?: string | null;
   createdAt: string;
+  /** Journey day tag (GO / batch journey); used to group recordings per day. */
+  courseDay?: number | null;
 }
 
 export interface AdminClassRecording extends ClassRecording {
@@ -95,6 +97,8 @@ export interface BatchZoomRecording {
   attendanceStatus?: 'Attended' | 'Not Attended' | 'Not Attempted' | 'Pending';
   classDate: string;
   meetingDuration: number | null;
+  /** From MeetingLink — aligns with manual recordings for journey-by-day UI. */
+  courseDay?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

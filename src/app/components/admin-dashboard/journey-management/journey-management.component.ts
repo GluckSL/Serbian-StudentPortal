@@ -74,6 +74,7 @@ interface TimelineDay {
   modules: { _id: string; title: string; category: string; level: string }[];
   exercises: { _id: string; title: string; category: string; level: string }[];
   classes: { _id: string; topic: string; batch: string; startTime: string; duration: number }[];
+  recordings?: { _id: string; title: string; level: string; plan?: string }[];
 }
 
 @Component({
@@ -195,14 +196,24 @@ interface TimelineDay {
     </div>
   </div>
 
+  <!-- ══ Plan Tabs (Platinum / Silver) ══════════════════════════════════════ -->
+  <div class="j-plan-tab-bar">
+    <button type="button" class="j-plan-tab" [class.j-plan-tab--active]="planTab === 'platinum'" (click)="switchPlanTab('platinum')">
+      <span class="j-plan-tab-icon">💎</span> Platinum
+    </button>
+    <button type="button" class="j-plan-tab" [class.j-plan-tab--active]="planTab === 'silver'" (click)="switchPlanTab('silver')">
+      <span class="j-plan-tab-icon">🥈</span> Silver
+    </button>
+  </div>
+
   <!-- ══ Loading ══════════════════════════════════════════ -->
-  <div *ngIf="loading" class="j-loading">
+  <div *ngIf="loading && planTab === 'platinum'" class="j-loading">
     <div class="spinner-border text-primary"></div>
     <p>Loading journeys…</p>
   </div>
 
   <!-- ══ BATCH OVERVIEW (level 1) ══════════════════════════════════════════ -->
-  <div *ngIf="!loading && !selectedBatch" class="j-content">
+  <div *ngIf="!loading && !selectedBatch && planTab === 'platinum'" class="j-content">
 
     <div *ngIf="batches.length === 0" class="j-empty">
       <i class="fas fa-layer-group fa-3x"></i>
@@ -357,7 +368,7 @@ interface TimelineDay {
   </div>
 
   <!-- ══ BATCH DETAIL (level 2) ══════════════════════════════════════════ -->
-  <div *ngIf="!loading && selectedBatch" class="j-content">
+  <div *ngIf="!loading && selectedBatch && planTab === 'platinum'" class="j-content">
 
     <!-- Back -->
     <button class="j-btn j-btn-outline j-back-btn" (click)="closeBatch()">
@@ -707,6 +718,7 @@ interface TimelineDay {
               <span class="j-chip j-chip-module" *ngIf="d.modules.length">{{ d.modules.length }} module(s)</span>
               <span class="j-chip j-chip-exercise" *ngIf="d.exercises.length">{{ d.exercises.length }} exercise(s)</span>
               <span class="j-chip j-chip-class" *ngIf="d.classes.length">{{ d.classes.length }} class(es)</span>
+              <span class="j-chip j-chip-class" *ngIf="d.recordings?.length" style="background:#ede9fe;color:#5b21b6;">{{ d.recordings?.length ?? 0 }} recording(s)</span>
             </div>
           </div>
 
@@ -746,6 +758,18 @@ interface TimelineDay {
                 <span class="j-class-time" *ngIf="c.startTime">
                   {{ c.startTime | date:'dd MMM yyyy, HH:mm' }} · {{ c.duration }} min
                 </span>
+              </div>
+            </div>
+
+            <!-- Class recordings (manual uploads with courseDay + batch) -->
+            <div *ngIf="d.recordings?.length" class="j-content-group">
+              <div class="j-content-group-label">
+                <i class="fas fa-film"></i> Class Recordings
+              </div>
+              <div class="j-content-item" *ngFor="let rec of (d.recordings || [])">
+                <span class="j-badge j-badge-primary">{{ rec.level }}</span>
+                <span class="j-badge j-badge-secondary">{{ rec.plan || 'ALL' }}</span>
+                <span class="j-content-title">{{ rec.title }}</span>
               </div>
             </div>
           </div>
@@ -1457,6 +1481,285 @@ interface TimelineDay {
       </div>
     </div>
   </div>
+  <!-- ══ SILVER TAB ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="planTab === 'silver'" class="j-content">
+
+    <!-- Add student bar -->
+    <div class="gs-add-bar">
+      <div class="gs-add-title">
+        <span class="gs-plan-badge">SILVER</span>
+        <span>GO Batch — Silver Students</span>
+      </div>
+      <div class="gs-add-row">
+        <div class="j-search-wrap" style="flex:1;max-width:400px;">
+          <i class="fas fa-envelope j-search-icon"></i>
+          <input
+            type="email"
+            class="j-search-input"
+            [(ngModel)]="goEmailInput"
+            placeholder="Enter student email to add to GO batch…"
+            autocomplete="off"
+            (keyup.enter)="addGoStudent()"
+          />
+        </div>
+        <button type="button" class="j-btn j-btn-primary" [disabled]="goAdding" (click)="addGoStudent()">
+          <i class="fas" [class.fa-spinner]="goAdding" [class.fa-user-plus]="!goAdding"></i>
+          {{ goAdding ? 'Adding…' : 'Add' }}
+        </button>
+      </div>
+      <p *ngIf="goAddError" class="gs-add-error">{{ goAddError }}</p>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="goLoading" class="j-loading" style="min-height:200px;">
+      <div class="spinner-border text-primary"></div>
+      <p>Loading GO students…</p>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!goLoading && goStudents.length === 0" class="j-empty">
+      <i class="fas fa-users fa-3x"></i>
+      <p>No Silver students added to GO batch yet. Add one using the field above.</p>
+    </div>
+
+    <!-- Students table -->
+    <div *ngIf="!goLoading && goStudents.length > 0" class="j-batch-table-wrap" style="margin-top:0;">
+      <table class="j-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Student ID</th>
+            <th>Status</th>
+            <th>Plan</th>
+            <th>Joining Date</th>
+            <th>Journey Day</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            *ngFor="let s of goStudents"
+            class="j-tr-clickable"
+            (click)="openGoStudentDetail(s)"
+            style="cursor:pointer;"
+          >
+            <td>
+              <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
+              <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
+            </td>
+            <td style="font-family:monospace;font-size:12px;">{{ s.regNo }}</td>
+            <td>
+              <span class="gs-status-go">{{ s.goStatus }}</span>
+            </td>
+            <td>
+              <span class="gs-plan-badge">{{ s.subscription }}</span>
+            </td>
+            <td>
+              <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
+              <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
+            </td>
+            <td>
+              <div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay || 1 }}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ GO STUDENT DETAIL MODAL ══════════════════════════════════════════════ -->
+  <div class="j-modal-backdrop" *ngIf="showGoDetail" (click)="closeGoDetail()">
+    <div class="j-modal-card gs-detail-modal" role="dialog" aria-label="GO student detail" (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="j-modal-header" style="padding:18px 20px 10px;">
+        <div>
+          <h3 style="margin:0;">{{ goDetailData?.student?.name }}</h3>
+          <div style="font-size:12px;color:#64748b;margin-top:3px;">
+            {{ goDetailData?.student?.email }} &nbsp;·&nbsp;
+            <span class="gs-plan-badge">{{ goDetailData?.student?.subscription }}</span> &nbsp;·&nbsp;
+            <span class="gs-status-go">GO</span> &nbsp;·&nbsp;
+            Day {{ goDetailData?.student?.currentDay }}
+          </div>
+        </div>
+        <button type="button" class="j-modal-close" (click)="closeGoDetail()">×</button>
+      </div>
+
+      <!-- Loading inside modal -->
+      <div *ngIf="goDetailLoading" style="padding:40px;text-align:center;">
+        <div class="spinner-border text-primary"></div>
+      </div>
+
+      <ng-container *ngIf="!goDetailLoading && goDetailData">
+        <!-- Inner tabs -->
+        <div class="jp-inner-tabs" style="padding:0 20px;margin-top:4px;">
+          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'recordings'" (click)="goDetailTab = 'recordings'">Class Recordings</button>
+          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'modules'" (click)="goDetailTab = 'modules'">Modules</button>
+          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'exercises'" (click)="goDetailTab = 'exercises'">Digital Exercises</button>
+          <button class="jp-inner-tab" [class.jp-inner-tab--on]="goDetailTab === 'progress'" (click)="goDetailTab = 'progress'">Progress</button>
+        </div>
+
+        <div class="jp-modal-body" style="overflow-y:auto;flex:1;padding:16px 20px;">
+
+          <!-- ── CLASS RECORDINGS ── -->
+          <ng-container *ngIf="goDetailTab === 'recordings'">
+            <div *ngIf="(goDetailData.recordings?.length || 0) + (goDetailData.zoomRecordings?.length || 0) === 0" class="j-empty" style="min-height:100px;">
+              <p>No class recordings found.</p>
+            </div>
+            <div *ngFor="let r of goDetailData.recordings" class="gs-rec-row" [class.gs-locked]="r.locked">
+              <div class="gs-rec-info">
+                <span class="gs-lock-icon">{{ r.locked ? '🔒' : '▶' }}</span>
+                <div>
+                  <div class="gs-rec-title">{{ r.title }}</div>
+                  <div class="gs-rec-meta">
+                    <span *ngIf="r.courseDay">Day {{ r.courseDay }}</span>
+                    <span *ngIf="r.locked" class="gs-badge-locked">Locked</span>
+                    <span *ngIf="!r.locked && r.watched" class="gs-badge-watched">
+                      Watched · {{ (r.watchDuration / 60) | number:'1.0-0' }} min
+                    </span>
+                    <span *ngIf="!r.locked && !r.watched" class="gs-badge-unwatched">Not watched</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div *ngFor="let zr of goDetailData.zoomRecordings" class="gs-rec-row" [class.gs-locked]="zr.locked">
+              <div class="gs-rec-info">
+                <span class="gs-lock-icon">{{ zr.locked ? '🔒' : '🎬' }}</span>
+                <div>
+                  <div class="gs-rec-title">{{ zr.topic }}</div>
+                  <div class="gs-rec-meta">
+                    <span *ngIf="zr.courseDay">Day {{ zr.courseDay }}</span>
+                    <span *ngIf="zr.locked" class="gs-badge-locked">Locked</span>
+                    <span *ngIf="!zr.locked && zr.watched" class="gs-badge-watched">
+                      Watched · {{ (zr.watchDuration / 60) | number:'1.0-0' }} min
+                    </span>
+                    <span *ngIf="!zr.locked && !zr.watched" class="gs-badge-unwatched">Not watched</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- ── MODULES ── -->
+          <ng-container *ngIf="goDetailTab === 'modules'">
+            <div *ngIf="(goDetailData.modules?.length || 0) === 0" class="j-empty" style="min-height:100px;"><p>No modules found.</p></div>
+            <div *ngFor="let m of goDetailData.modules" class="gs-item-row" [class.gs-locked]="m.locked">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                <span style="font-size:16px;">{{ m.locked ? '🔒' : '📘' }}</span>
+                <div style="flex:1;">
+                  <div class="gs-item-title">{{ m.title }}</div>
+                  <div class="gs-item-meta">
+                    <span *ngIf="m.courseDay">Day {{ m.courseDay }}</span>
+                    <span *ngIf="m.level">· {{ m.level }}</span>
+                    <span *ngIf="m.category">· {{ m.category }}</span>
+                  </div>
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <span *ngIf="m.locked" class="gs-badge-locked">Locked</span>
+                <ng-container *ngIf="!m.locked">
+                  <span class="jp-status-chip"
+                    [class.jp-status-done]="m.status === 'completed'"
+                    [class.jp-status-wip]="m.status === 'in-progress' || m.status === 'in_progress'"
+                    [class.jp-status-ns]="m.status === 'not_started' || m.status === 'not-started'">
+                    {{ m.status === 'not_started' || m.status === 'not-started' ? 'Not started' : m.status === 'in-progress' || m.status === 'in_progress' ? 'In progress' : 'Completed' }}
+                  </span>
+                  <div *ngIf="m.progressPercent > 0" style="font-size:11px;color:#64748b;margin-top:2px;">{{ m.progressPercent }}%</div>
+                </ng-container>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- ── DIGITAL EXERCISES ── -->
+          <ng-container *ngIf="goDetailTab === 'exercises'">
+            <div *ngIf="(goDetailData.exercises?.length || 0) === 0" class="j-empty" style="min-height:100px;"><p>No exercises found.</p></div>
+            <div *ngFor="let e of goDetailData.exercises" class="gs-item-row" [class.gs-locked]="e.locked">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                <span style="font-size:16px;">{{ e.locked ? '🔒' : '🏋️' }}</span>
+                <div style="flex:1;">
+                  <div class="gs-item-title">{{ e.title }}</div>
+                  <div class="gs-item-meta">
+                    <span *ngIf="e.courseDay">Day {{ e.courseDay }}</span>
+                    <span *ngIf="e.sequenceLetter">· {{ e.sequenceLetter }}</span>
+                    <span *ngIf="e.level">· {{ e.level }}</span>
+                  </div>
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <span *ngIf="e.locked" class="gs-badge-locked">Locked</span>
+                <ng-container *ngIf="!e.locked">
+                  <span *ngIf="!e.attempted" class="jp-status-chip jp-status-ns">Not attempted</span>
+                  <ng-container *ngIf="e.attempted">
+                    <span class="jp-score-chip"
+                      [class.jp-score-good]="e.scorePercent >= 70"
+                      [class.jp-score-mid]="e.scorePercent >= 40 && e.scorePercent < 70"
+                      [class.jp-score-low]="e.scorePercent < 40">
+                      {{ e.scorePercent }}%
+                    </span>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ e.earnedPoints }}/{{ e.totalPoints }} pts</div>
+                  </ng-container>
+                </ng-container>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- ── PROGRESS ── -->
+          <ng-container *ngIf="goDetailTab === 'progress'">
+            <div class="j-ro-summary" style="margin-bottom:16px;">
+              <div class="j-ro-card">
+                <div class="j-ro-icon" style="background:#e0f2fe;">📅</div>
+                <div><div class="j-ro-val">{{ goDetailData.progress?.currentDay }}</div><div class="j-ro-lbl">Current Day</div></div>
+              </div>
+              <div class="j-ro-card">
+                <div class="j-ro-icon" style="background:#dcfce7;">🏋️</div>
+                <div><div class="j-ro-val">{{ goDetailData.progress?.attemptedExercises }}/{{ goDetailData.progress?.totalExercises }}</div><div class="j-ro-lbl">Exercises</div></div>
+              </div>
+              <div class="j-ro-card">
+                <div class="j-ro-icon" style="background:#fef3c7;">📘</div>
+                <div><div class="j-ro-val">{{ goDetailData.progress?.completedModules }}/{{ goDetailData.progress?.totalModules }}</div><div class="j-ro-lbl">Modules</div></div>
+              </div>
+              <div class="j-ro-card">
+                <div class="j-ro-icon" style="background:#ede9fe;">📊</div>
+                <div><div class="j-ro-val">{{ goDetailData.progress?.overallPercent }}%</div><div class="j-ro-lbl">Overall</div></div>
+              </div>
+            </div>
+
+            <!-- Day breakdown table -->
+            <table class="j-table" style="font-size:12px;" *ngIf="(goDetailData.progress?.dayBreakdown?.length || 0) > 0">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Exercises</th>
+                  <th>Modules</th>
+                  <th>Avg Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let d of goDetailData.progress?.dayBreakdown">
+                  <td><span class="j-day-pill" style="display:inline-block;">Day {{ d.day }}</span></td>
+                  <td>{{ d.exercisesAttempted }}/{{ d.exercisesTotal }}</td>
+                  <td>{{ d.modulesCompleted }}/{{ d.modulesTotal }}</td>
+                  <td>
+                    <span class="jp-score-chip"
+                      [class.jp-score-good]="d.avgScore >= 70"
+                      [class.jp-score-mid]="d.avgScore >= 40 && d.avgScore < 70"
+                      [class.jp-score-low]="d.avgScore > 0 && d.avgScore < 40">
+                      {{ d.avgScore > 0 ? d.avgScore + '%' : '—' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </ng-container>
+
+        </div><!-- /jp-modal-body -->
+      </ng-container>
+
+      <div class="j-modal-footer">
+        <button type="button" class="j-btn j-btn-outline" (click)="closeGoDetail()">Close</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /root -->
   `,
   styles: [`
@@ -2847,6 +3150,123 @@ interface TimelineDay {
       font-size: 13px;
     }
     .jp-detail-loading .spinner-border { vertical-align: middle; margin-right: 8px; }
+
+    /* ── Plan tabs (Platinum / Silver) ── */
+    .j-plan-tab-bar {
+      display: flex;
+      gap: 4px;
+      padding: 14px 24px 0;
+      background: transparent;
+    }
+    .j-plan-tab {
+      padding: 8px 22px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px 10px 0 0;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .j-plan-tab:hover { background: #e8f4fc; color: #005b96; border-color: #93c5fd; }
+    .j-plan-tab--active {
+      background: #fff;
+      border-color: #005b96;
+      border-bottom-color: #fff;
+      color: #005b96;
+      box-shadow: 0 -2px 8px rgba(0,91,150,.08);
+      position: relative;
+      z-index: 1;
+    }
+    .j-plan-tab-icon { font-size: 15px; }
+
+    /* ── GO Silver specific styles ── */
+    .gs-add-bar {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.04);
+    }
+    .gs-add-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 12px;
+    }
+    .gs-add-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .gs-add-error {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: #dc2626;
+    }
+    .gs-plan-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .gs-status-go {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #dcfce7;
+      color: #16a34a;
+    }
+    .j-tr-clickable:hover td { background: #f0f9ff; }
+    .gs-detail-modal {
+      max-width: 700px !important;
+      max-height: min(90vh, 800px) !important;
+      display: flex;
+      flex-direction: column;
+    }
+    .gs-rec-row {
+      display: flex;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .gs-rec-row:last-child { border-bottom: none; }
+    .gs-rec-row.gs-locked { opacity: 0.55; }
+    .gs-rec-info { display: flex; align-items: flex-start; gap: 10px; flex: 1; }
+    .gs-lock-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .gs-rec-title { font-size: 13px; font-weight: 600; color: #0f172a; }
+    .gs-rec-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap; font-size: 11px; color: #64748b; }
+    .gs-badge-locked { background: #fef2f2; color: #dc2626; padding: 1px 7px; border-radius: 8px; font-weight: 600; font-size: 10px; }
+    .gs-badge-watched { background: #dcfce7; color: #16a34a; padding: 1px 7px; border-radius: 8px; font-weight: 600; font-size: 10px; }
+    .gs-badge-unwatched { background: #f1f5f9; color: #64748b; padding: 1px 7px; border-radius: 8px; font-weight: 600; font-size: 10px; }
+    .gs-item-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #f1f5f9;
+      gap: 8px;
+    }
+    .gs-item-row:last-child { border-bottom: none; }
+    .gs-item-row.gs-locked { opacity: 0.55; }
+    .gs-item-title { font-size: 13px; font-weight: 600; color: #0f172a; }
+    .gs-item-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
   `]
 })
 export class JourneyManagementComponent implements OnInit {
@@ -2958,6 +3378,21 @@ export class JourneyManagementComponent implements OnInit {
   /** True when logged in as TEACHER (journey tab is view-only). */
   isJourneyReadOnly = false;
 
+  // ── Plan tabs (Platinum / Silver) ──────────────────────────────────────────
+  planTab: 'platinum' | 'silver' = 'platinum';
+
+  // ── GO Silver state ─────────────────────────────────────────────────────────
+  goEmailInput = '';
+  goAdding = false;
+  goAddError = '';
+  goLoading = false;
+  goStudents: any[] = [];
+
+  showGoDetail = false;
+  goDetailLoading = false;
+  goDetailData: any = null;
+  goDetailTab: 'recordings' | 'modules' | 'exercises' | 'progress' = 'recordings';
+
   constructor(
     private http: HttpClient,
     private notify: NotificationService,
@@ -2996,6 +3431,75 @@ export class JourneyManagementComponent implements OnInit {
     this.assigningTeacher = false;
     this.assignBatchName = '';
     this.selectedTeacherId = '';
+  }
+
+  // ── Plan tab switch ─────────────────────────────────────────────────────────
+  switchPlanTab(tab: 'platinum' | 'silver'): void {
+    this.planTab = tab;
+    if (tab === 'silver' && this.goStudents.length === 0) {
+      this.loadGoStudents();
+    }
+  }
+
+  // ── GO Silver methods ───────────────────────────────────────────────────────
+  loadGoStudents(): void {
+    this.goLoading = true;
+    this.http.get<any>(`${environment.apiUrl}/go-students`, { withCredentials: true }).subscribe({
+      next: (r) => {
+        this.goStudents = r.students || [];
+        this.goLoading = false;
+      },
+      error: (e) => {
+        this.goLoading = false;
+        this.notify.error(e?.error?.message || 'Failed to load GO students.');
+      }
+    });
+  }
+
+  addGoStudent(): void {
+    const email = (this.goEmailInput || '').trim();
+    this.goAddError = '';
+    if (!email) {
+      this.goAddError = 'Please enter a student email.';
+      return;
+    }
+    this.goAdding = true;
+    this.http.post<any>(`${environment.apiUrl}/go-students/add`, { email }, { withCredentials: true }).subscribe({
+      next: (r) => {
+        this.goAdding = false;
+        this.goEmailInput = '';
+        this.notify.success(r.message || 'Student added to GO batch.');
+        this.goStudents = [r.student, ...this.goStudents];
+      },
+      error: (e) => {
+        this.goAdding = false;
+        this.goAddError = e?.error?.message || 'Failed to add student.';
+      }
+    });
+  }
+
+  openGoStudentDetail(student: any): void {
+    this.showGoDetail = true;
+    this.goDetailTab = 'recordings';
+    this.goDetailData = null;
+    this.goDetailLoading = true;
+    this.http.get<any>(`${environment.apiUrl}/go-students/${student._id}/detail`, { withCredentials: true }).subscribe({
+      next: (r) => {
+        this.goDetailData = r;
+        this.goDetailLoading = false;
+      },
+      error: (e) => {
+        this.goDetailLoading = false;
+        this.notify.error(e?.error?.message || 'Failed to load student details.');
+        this.showGoDetail = false;
+      }
+    });
+  }
+
+  closeGoDetail(): void {
+    this.showGoDetail = false;
+    this.goDetailData = null;
+    this.goDetailLoading = false;
   }
 
   private loadTeachers(): void {
