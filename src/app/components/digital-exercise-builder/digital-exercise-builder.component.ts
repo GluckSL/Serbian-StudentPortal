@@ -204,6 +204,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       type: q.type,
       points: q.points || 1,
       context: q.context || '',
+      // Persisted on every question type; shown in player banner (non-matching) and editor.
+      instruction: q.instruction || '',
+      example: q.example || '',
       attachmentUrl: q.attachmentUrl || '',
       answerExplanation: q.answerExplanation || '',
       worksheetKind: q.worksheetKind || null,
@@ -813,6 +816,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     const normalizedQuestions = this.questions.map((q) => ({
       ...q,
       context: String(q.context || '').trim(),
+      // Always send strings so JSON never drops keys; server persists banner fields for all types.
+      instruction: String(q.instruction ?? ''),
+      example: String(q.example ?? ''),
       secondaryCaption: q.type === 'video-pronunciation' ? String(q.secondaryCaption || '').trim() : q.secondaryCaption,
       secondaryCaptionAtSeconds: q.type === 'video-pronunciation'
         ? this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds)
