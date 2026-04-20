@@ -34,6 +34,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "modules",
   "exercises",
   "journey",
+  "go-students",
   "manage-classes",
   "attendance",
   "import-meeting",
@@ -50,6 +51,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "support-tickets",
   "announcements",
   "whatsapp-announcement",
+  "reminders",
   "help",
   "profile"
 ];
