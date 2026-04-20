@@ -27,16 +27,21 @@
    Page shell
    ============================================================ */
 .rem-page {
-  padding: 20px 24px 40px;
-  background: var(--rem-bg-page);
+  padding: 22px 24px 42px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
   min-height: 100vh;
 }
 
 .rem-page-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: var(--rem-radius);
+  padding: 14px 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
 .rem-page-header__icon {
@@ -65,6 +70,41 @@
   margin: 2px 0 0;
 }
 
+.rem-page-header__stats {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rem-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.rem-stat-chip i {
+  font-size: 8px;
+}
+
+.rem-stat-chip--active {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.rem-stat-chip--inactive {
+  color: #64748b;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
 /* ============================================================
    Two-column layout
    ============================================================ */
@@ -84,6 +124,13 @@
 
 @media (max-width: 960px) {
   .rem-layout { grid-template-columns: 1fr; }
+  .rem-page-header {
+    flex-wrap: wrap;
+  }
+  .rem-page-header__stats {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 /* ============================================================
@@ -93,7 +140,7 @@
   background: var(--rem-bg-card);
   border: 1px solid var(--rem-border);
   border-radius: var(--rem-radius);
-  box-shadow: var(--rem-shadow);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
   padding: 16px 18px;
 }
 
@@ -265,7 +312,7 @@
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: opacity .15s, background .15s;
+  transition: opacity .15s, background .15s, transform .15s, border-color .15s;
   white-space: nowrap;
 }
 
@@ -309,6 +356,15 @@
 }
 
 .btn-rem--icon:hover:not(:disabled) { background: var(--rem-border); }
+
+.btn-rem--status-toggle {
+  color: var(--rem-primary);
+}
+
+.btn-rem--status-toggle:hover:not(:disabled) {
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+}
 
 .btn-rem--sm { padding: 6px 12px; font-size: 12px; }
 .btn-rem--xs { padding: 3px 8px; font-size: 11px; }
@@ -773,6 +829,9 @@
   padding: 8px 14px;
   border-bottom: 1px solid var(--rem-border);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .rem-table td {
@@ -811,7 +870,11 @@
   white-space: nowrap;
 }
 
-.rem-table__actions { display: flex; gap: 4px; justify-content: center; }
+.rem-table__actions { display: flex; gap: 6px; justify-content: center; }
+
+.rem-table__row--inactive td {
+  background: #f8fafc;
+}
 
 .rem-count { font-weight: 700; }
 .rem-count--sent    { color: var(--rem-success); }
@@ -1028,7 +1091,7 @@
    Active / Inactive status badges
    ============================================================ */
 .badge-status--active   { background: #dcfce7; color: #166534; }
-.badge-status--inactive { background: #f1f5f9; color: #64748b; }
+.badge-status--inactive { background: #fee2e2; color: #b91c1c; }
 
 /* ============================================================
    Edit button variant

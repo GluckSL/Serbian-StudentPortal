@@ -23,6 +23,8 @@ interface BatchSummary { batchName: string; studentCount?: number; }
   styleUrls: ['./reminders.component.css']
 })
 export class RemindersComponent implements OnInit {
+  private readonly indiaTimeZone = 'Asia/Kolkata';
+  private readonly indiaOffsetMinutes = 330;
 
   // ── Loading / error flags ────────────────────────────────────────────────
   loadingReminders = false;
@@ -36,7 +38,7 @@ export class RemindersComponent implements OnInit {
   adHocBody  = '';
   sendWarnings: string[] = [];
 
-  /** ISO string from datetime-local input (for scheduled delivery) */
+  /** datetime-local value (interpreted as India time) */
   scheduledFor = '';
   showSchedulePicker = false;
 
@@ -46,6 +48,7 @@ export class RemindersComponent implements OnInit {
   // ── All Reminders list ───────────────────────────────────────────────────
   reminders: Reminder[] = [];
   historySearch = '';
+  togglingActivityId = '';
 
   // ── Right panel: batch dropdown ───────────────────────────────────────────
   batches: BatchSummary[] = [];
@@ -166,7 +169,15 @@ export class RemindersComponent implements OnInit {
       targetBatch: this.selectedBatch,
       deliveryMode
     };
-    if (deliveryMode === 'scheduled') payload.scheduledFor = this.scheduledFor;
+    let scheduledForIso = '';
+    if (deliveryMode === 'scheduled') {
+      scheduledForIso = this.indiaInputToIso(this.scheduledFor);
+      if (!scheduledForIso) {
+        this.notify.warning('Invalid schedule date/time. Please select a valid India time.');
+        return;
+      }
+      payload.scheduledFor = scheduledForIso;
+    }
 
     this.sendingReminder = true;
     this.sendWarnings = [];
@@ -175,7 +186,7 @@ export class RemindersComponent implements OnInit {
         this.sendingReminder = false;
         this.sendWarnings = res.warnings || [];
         if (deliveryMode === 'scheduled') {
-          this.notify.success(`Reminder scheduled for ${this.formatDateTime(this.scheduledFor)} in batch "${this.selectedBatch}".`);
+          this.notify.success(`Reminder scheduled for ${this.formatDateTime(scheduledForIso)} (India time) in batch "${this.selectedBatch}".`);
         } else {
           this.notify.success(`Reminder queued for ${res.data.totalRecipients} students in batch "${this.selectedBatch}".`);
         }
@@ -200,6 +211,14 @@ export class RemindersComponent implements OnInit {
     return this.reminders.filter(
       (r) => r.title.toLowerCase().includes(q) || r.targetBatch.toLowerCase().includes(q)
     );
+  }
+
+  get activeReminderCount(): number {
+    return this.reminders.filter((r) => this.isReminderActive(r)).length;
+  }
+
+  get inactiveReminderCount(): number {
+    return this.reminders.length - this.activeReminderCount;
   }
 
   deleteReminder(r: Reminder): void {
@@ -234,6 +253,36 @@ export class RemindersComponent implements OnInit {
     });
   }
 
+  isReminderActive(reminder: Reminder): boolean {
+    return reminder.isActive !== false;
+  }
+
+  activityLabel(reminder: Reminder): string {
+    return this.isReminderActive(reminder) ? 'Active' : 'Inactive';
+  }
+
+  activityBadgeClass(reminder: Reminder): string {
+    return this.isReminderActive(reminder) ? 'badge-status--active' : 'badge-status--inactive';
+  }
+
+  toggleReminderActivity(reminder: Reminder): void {
+    const nextIsActive = !this.isReminderActive(reminder);
+    this.togglingActivityId = reminder._id;
+    this.reminderSvc.setReminderActivity(reminder._id, nextIsActive).subscribe({
+      next: (res) => {
+        this.togglingActivityId = '';
+        this.reminders = this.reminders.map((item) =>
+          item._id === reminder._id ? { ...item, isActive: res.data?.isActive ?? nextIsActive } : item
+        );
+        this.notify.success(res.message || `Reminder marked as ${nextIsActive ? 'active' : 'inactive'}.`);
+      },
+      error: (err) => {
+        this.togglingActivityId = '';
+        this.notify.error(err?.error?.message || 'Failed to update reminder status.');
+      }
+    });
+  }
+
   // ── Edit reminder ─────────────────────────────────────────────────────────
 
   openEditReminder(r: Reminder, event: Event): void {
@@ -241,9 +290,7 @@ export class RemindersComponent implements OnInit {
     this.editingReminder = r;
     this.editTitle = r.title;
     this.editBody  = r.body;
-    this.editScheduledFor = r.scheduledFor
-      ? new Date(r.scheduledFor).toISOString().slice(0, 16)
-      : '';
+    this.editScheduledFor = this.isoToIndiaInput(r.scheduledFor);
   }
 
   cancelEditReminder(): void {
@@ -259,11 +306,19 @@ export class RemindersComponent implements OnInit {
       this.notify.warning('Title and body are required.');
       return;
     }
+    const editScheduledForIso = this.editScheduledFor
+      ? this.indiaInputToIso(this.editScheduledFor)
+      : null;
+    if (this.editScheduledFor && !editScheduledForIso) {
+      this.notify.warning('Invalid schedule date/time. Please select a valid India time.');
+      return;
+    }
+
     this.savingEdit = true;
     this.reminderSvc.updateReminder(this.editingReminder._id, {
       title: this.editTitle.trim(),
       body: this.editBody.trim(),
-      scheduledFor: this.editScheduledFor || null
+      scheduledFor: editScheduledForIso
     }).subscribe({
       next: () => {
         this.savingEdit = false;
@@ -310,13 +365,13 @@ export class RemindersComponent implements OnInit {
 
   formatDate(v: string | null | undefined): string {
     if (!v) return '—';
-    try { return new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+    try { return new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: this.indiaTimeZone }); }
     catch { return String(v); }
   }
 
   formatDateTime(v: string | null | undefined): string {
     if (!v) return '—';
-    try { return new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+    try { return new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: this.indiaTimeZone }); }
     catch { return String(v); }
   }
 
@@ -337,8 +392,58 @@ export class RemindersComponent implements OnInit {
 
   /** Minimum datetime for schedule picker — now + 1 min */
   get minScheduleDateTime(): string {
-    const d = new Date(Date.now() + 60000);
-    return d.toISOString().slice(0, 16);
+    return this.isoToIndiaInput(new Date(Date.now() + 60000).toISOString());
+  }
+
+  private indiaInputToIso(value: string | null | undefined): string {
+    const raw = String(value || '').trim();
+    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+    if (!m) return '';
+
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    const hour = Number(m[4]);
+    const minute = Number(m[5]);
+
+    if (
+      !Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day) ||
+      !Number.isFinite(hour) || !Number.isFinite(minute) ||
+      month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59
+    ) {
+      return '';
+    }
+
+    const utcMs = Date.UTC(year, month - 1, day, hour, minute) - (this.indiaOffsetMinutes * 60 * 1000);
+    return new Date(utcMs).toISOString();
+  }
+
+  private isoToIndiaInput(value: string | null | undefined): string {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const date = new Date(raw);
+    if (isNaN(date.getTime())) return '';
+
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: this.indiaTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value || '';
+    const yyyy = get('year');
+    const mm = get('month');
+    const dd = get('day');
+    const hh = get('hour');
+    const min = get('minute');
+    if (!yyyy || !mm || !dd || !hh || !min) return '';
+
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
   }
 
   trackById(_: number, item: { _id: string }): string { return item._id; }

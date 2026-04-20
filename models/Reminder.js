@@ -68,6 +68,11 @@ const reminderSchema = new mongoose.Schema(
       default: 'queued',
       index: true
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
     totalRecipients: { type: Number, default: 0 },
     sentCount: { type: Number, default: 0 },
     failedCount: { type: Number, default: 0 },

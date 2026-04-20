@@ -85,14 +85,14 @@ function renderMessage(body, { studentName = '', batch = '', classTime = '', cla
 function formatTime(date) {
   if (!date) return '';
   try {
-    return new Date(date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Colombo' });
+    return new Date(date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
   } catch { return ''; }
 }
 
 function formatDate(date) {
   if (!date) return '';
   try {
-    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Colombo' });
+    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
   } catch { return ''; }
 }
 
@@ -104,6 +104,40 @@ function normalizeBatchKey(value) {
     .toLowerCase()
     .replace(/\bbatch\b/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+function parseScheduledForAsIndia(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  // If timezone is explicitly provided, respect it.
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(raw)) {
+    const parsed = new Date(raw);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // Fallback: interpret bare datetime as Asia/Kolkata wall-clock time.
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6] || '0');
+
+  if (
+    !Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day) ||
+    !Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second)
+  ) {
+    return null;
+  }
+
+  const indiaOffsetMinutes = 330;
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, second) - (indiaOffsetMinutes * 60 * 1000);
+  const parsed = new Date(utcMs);
+  return isNaN(parsed.getTime()) ? null : parsed;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -314,8 +348,8 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       if (!rawScheduledFor) {
         return res.status(422).json({ success: false, message: 'scheduledFor datetime is required for scheduled reminders.' });
       }
-      scheduledForDate = new Date(rawScheduledFor);
-      if (isNaN(scheduledForDate.getTime())) {
+      scheduledForDate = parseScheduledForAsIndia(rawScheduledFor);
+      if (!scheduledForDate || isNaN(scheduledForDate.getTime())) {
         return res.status(422).json({ success: false, message: 'Invalid scheduledFor datetime.' });
       }
       if (scheduledForDate <= new Date()) {
@@ -434,8 +468,8 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (re
       if (rawScheduledFor === null || rawScheduledFor === '') {
         reminder.scheduledFor = null;
       } else {
-        const d = new Date(rawScheduledFor);
-        if (isNaN(d.getTime())) {
+        const d = parseScheduledForAsIndia(rawScheduledFor);
+        if (!d || isNaN(d.getTime())) {
           return res.status(422).json({ success: false, message: 'Invalid scheduledFor datetime.' });
         }
         reminder.scheduledFor = d;
@@ -492,6 +526,37 @@ router.post('/:id/resend-failed', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
   }
 });
 
+// PATCH /api/reminders/:id/activity  — activate / deactivate reminder
+router.patch('/:id/activity', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const { isActive } = req.body || {};
+
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'isActive must be a boolean.' });
+    }
+
+    const updated = await Reminder.findByIdAndUpdate(
+      id,
+      { $set: { isActive } },
+      { new: true, runValidators: true }
+    )
+      .populate('createdBy', 'name role')
+      .lean();
+
+    if (!updated) return res.status(404).json({ success: false, message: 'Reminder not found.' });
+
+    return res.json({
+      success: true,
+      message: `Reminder marked as ${isActive ? 'active' : 'inactive'}.`,
+      data: updated
+    });
+  } catch (err) {
+    console.error('[reminders] PATCH /:id/activity', err);
+    return res.status(500).json({ success: false, message: 'Failed to update reminder activity.' });
+  }
+});
+
 // DELETE /api/reminders/:id
 router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -517,7 +582,10 @@ router.get('/crm/pending', crmTokenAuth, async (req, res) => {
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
 
     // Find reminders that have queued recipients
-    const reminders = await Reminder.find({ status: { $in: ['queued', 'scheduled', 'in_progress'] } })
+    const reminders = await Reminder.find({
+      isActive: { $ne: false },
+      status: { $in: ['queued', 'scheduled', 'in_progress'] }
+    })
       .select('_id title body attachments targetBatch recipients')
       .lean();
 

@@ -26,6 +26,7 @@ export interface Reminder {
   scheduledFor?: string | null;
   createdBy: { name: string; role: string } | null;
   status: 'queued' | 'scheduled' | 'in_progress' | 'completed' | 'failed';
+  isActive?: boolean;
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
@@ -123,6 +124,14 @@ export class ReminderService {
     return this.http.post<{ success: boolean; message: string; requeued: number }>(
       `${this.base}/${id}/resend-failed`,
       {},
+      { withCredentials: true }
+    );
+  }
+
+  setReminderActivity(id: string, isActive: boolean): Observable<{ success: boolean; message: string; data: Reminder }> {
+    return this.http.patch<{ success: boolean; message: string; data: Reminder }>(
+      `${this.base}/${id}/activity`,
+      { isActive },
       { withCredentials: true }
     );
   }

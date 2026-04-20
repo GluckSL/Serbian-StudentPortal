@@ -10,6 +10,10 @@
       <h1 class="rem-page-header__title">Reminders</h1>
       <p class="rem-page-header__sub">Send WhatsApp reminders to batch students via the CRM</p>
     </div>
+    <div class="rem-page-header__stats" *ngIf="reminders.length">
+      <span class="rem-stat-chip rem-stat-chip--active"><i class="fas fa-circle"></i> {{ activeReminderCount }} Active</span>
+      <span class="rem-stat-chip rem-stat-chip--inactive"><i class="fas fa-circle"></i> {{ inactiveReminderCount }} Inactive</span>
+    </div>
   </div>
 
   <!-- ── Main two-column layout ─────────────────────────────────────── -->
@@ -132,8 +136,8 @@
             <i class="fas fa-history rem-card__icon"></i>
             <span class="rem-card__title">All Reminders</span>
           </div>
-          <button class="btn-rem btn-rem--ghost btn-rem--sm" (click)="loadReminders()" title="Refresh">
-            <i class="fas fa-sync-alt" [class.fa-spin]="loadingReminders"></i>
+          <button class="btn-rem btn-rem--ghost btn-rem--sm" (click)="loadReminders()" title="Refresh reminders">
+            <i class="fas fa-sync-alt" [class.fa-spin]="loadingReminders"></i> Refresh
           </button>
         </div>
 
@@ -162,15 +166,15 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let r of filteredReminders; trackBy: trackById">
+              <tr *ngFor="let r of filteredReminders; trackBy: trackById" [class.rem-table__row--inactive]="!isReminderActive(r)">
                 <td class="rem-table__title">
                   <span class="rem-table__title-text">{{ r.title }}</span>
                   <span *ngIf="r.deliveryMode === 'scheduled'" class="rem-table__tpl-tag">scheduled</span>
                 </td>
                 <td><span class="rem-batch-badge rem-batch-badge--sm">{{ r.targetBatch }}</span></td>
                 <td>
-                  <span class="badge-status" [ngClass]="statusBadgeClass(r.status)">
-                    {{ statusLabel(r.status) }}
+                  <span class="badge-status" [ngClass]="activityBadgeClass(r)">
+                    {{ activityLabel(r) }}
                   </span>
                 </td>
                 <td class="rem-table__date">{{ formatDate(r.createdAt) }}</td>
@@ -183,13 +187,13 @@
                       <i class="fas fa-pencil-alt"></i>
                     </button>
                     <button
-                      class="btn-rem btn-rem--icon btn-rem--warning"
-                      title="Resend failed"
-                      (click)="resendFailed(r)"
-                      [disabled]="r.failedCount === 0 || resendingId === r._id"
+                      class="btn-rem btn-rem--icon btn-rem--status-toggle"
+                      [title]="isReminderActive(r) ? 'Set Inactive' : 'Set Active'"
+                      (click)="toggleReminderActivity(r)"
+                      [disabled]="togglingActivityId === r._id"
                     >
-                      <i class="fas fa-spinner fa-spin" *ngIf="resendingId === r._id"></i>
-                      <i class="fas fa-redo" *ngIf="resendingId !== r._id"></i>
+                      <i class="fas fa-spinner fa-spin" *ngIf="togglingActivityId === r._id"></i>
+                      <i class="fas" [ngClass]="isReminderActive(r) ? 'fa-toggle-on' : 'fa-toggle-off'" *ngIf="togglingActivityId !== r._id"></i>
                     </button>
                     <button
                       class="btn-rem btn-rem--icon btn-rem--danger"
