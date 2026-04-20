@@ -61,6 +61,7 @@ const reminderSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    scheduledFor: { type: Date, default: null, index: true },
     status: {
       type: String,
       enum: ['queued', 'scheduled', 'in_progress', 'completed', 'failed'],

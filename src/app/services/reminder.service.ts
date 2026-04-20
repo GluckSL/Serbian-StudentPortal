@@ -3,24 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export interface ReminderAttachment {
-  fileName: string;
-  fileUrl: string;
-  mimeType: string;
-  fileSize: number;
-}
-
-export interface ReminderTemplate {
-  _id: string;
-  title: string;
-  body: string;
-  attachments: ReminderAttachment[];
-  createdBy: { name: string; role: string } | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface ReminderRecipient {
   _id: string;
   studentId: string;
@@ -28,6 +10,7 @@ export interface ReminderRecipient {
   phone: string;
   messageBody: string;
   status: 'queued' | 'in_progress' | 'sent' | 'failed';
+  scheduledFor?: string | null;
   sentAt: string | null;
   error: string;
   isTestAccount?: boolean;
@@ -35,13 +18,12 @@ export interface ReminderRecipient {
 
 export interface Reminder {
   _id: string;
-  templateId: { _id: string; title: string } | null;
   title: string;
   body: string;
-  attachments: ReminderAttachment[];
   targetBatch: string;
   deliveryMode?: 'instant' | 'scheduled';
   scheduleScope?: 'one' | 'all' | 'multi';
+  scheduledFor?: string | null;
   createdBy: { name: string; role: string } | null;
   status: 'queued' | 'scheduled' | 'in_progress' | 'completed' | 'failed';
   totalRecipients: number;
@@ -86,38 +68,6 @@ export class ReminderService {
 
   constructor(private http: HttpClient) {}
 
-  // ── Templates ──────────────────────────────────────────────────────────────
-
-  getTemplates(): Observable<{ success: boolean; data: ReminderTemplate[] }> {
-    return this.http.get<{ success: boolean; data: ReminderTemplate[] }>(
-      `${this.base}/templates`,
-      { withCredentials: true }
-    );
-  }
-
-  createTemplate(form: FormData): Observable<{ success: boolean; data: ReminderTemplate }> {
-    return this.http.post<{ success: boolean; data: ReminderTemplate }>(
-      `${this.base}/templates`,
-      form,
-      { withCredentials: true }
-    );
-  }
-
-  updateTemplate(id: string, body: { title: string; body: string }): Observable<{ success: boolean; data: ReminderTemplate }> {
-    return this.http.put<{ success: boolean; data: ReminderTemplate }>(
-      `${this.base}/templates/${id}`,
-      body,
-      { withCredentials: true }
-    );
-  }
-
-  deleteTemplate(id: string): Observable<{ success: boolean; message: string }> {
-    return this.http.delete<{ success: boolean; message: string }>(
-      `${this.base}/templates/${id}`,
-      { withCredentials: true }
-    );
-  }
-
   // ── Batch preview ──────────────────────────────────────────────────────────
 
   getBatchPreview(batchName: string): Observable<{ success: boolean; data: BatchPreview }> {
@@ -144,16 +94,26 @@ export class ReminderService {
   }
 
   createReminder(payload: {
-    templateId?: string;
-    title?: string;
-    body?: string;
+    title: string;
+    body: string;
     targetBatch: string;
     deliveryMode?: 'instant' | 'scheduled';
-    scheduleScope?: 'one' | 'all' | 'multi';
-    meetingIds?: string[];
+    scheduledFor?: string;
   }): Observable<{ success: boolean; data: Reminder; warnings: string[] }> {
     return this.http.post<{ success: boolean; data: Reminder; warnings: string[] }>(
       `${this.base}`,
+      payload,
+      { withCredentials: true }
+    );
+  }
+
+  updateReminder(id: string, payload: {
+    title: string;
+    body: string;
+    scheduledFor?: string | null;
+  }): Observable<{ success: boolean; data: Reminder }> {
+    return this.http.put<{ success: boolean; data: Reminder }>(
+      `${this.base}/${id}`,
       payload,
       { withCredentials: true }
     );

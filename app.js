@@ -190,6 +190,8 @@ app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/reminders', reminderRoutes);
+const allRemindersRoutes = require('./routes/allReminders');
+app.use('/api/allreminders', allRemindersRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/crm-student-portal', crmStudentPortalRoutes);

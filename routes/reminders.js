@@ -291,35 +291,36 @@ router.get('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (re
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const {
-      templateId,
       title: bodyTitle,
       body: bodyBody,
       targetBatch,
       deliveryMode: rawDeliveryMode,
-      scheduleScope: rawScheduleScope,
-      meetingIds: rawMeetingIds
+      scheduledFor: rawScheduledFor
     } = req.body;
 
-    let resolvedTitle = String(bodyTitle || '').trim();
-    let resolvedBody = String(bodyBody || '').trim();
-    let resolvedAttachments = [];
+    const resolvedTitle = String(bodyTitle || '').trim();
+    const resolvedBody = String(bodyBody || '').trim();
     const deliveryMode = String(rawDeliveryMode || 'instant').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'instant';
-    const scopeRaw = String(rawScheduleScope || 'one').trim().toLowerCase();
-    const scheduleScope = scopeRaw === 'all' || scopeRaw === 'multi' ? scopeRaw : 'one';
-
-    if (templateId) {
-      const tpl = await ReminderTemplate.findOne({ _id: templateId, isActive: true }).lean();
-      if (!tpl) return res.status(404).json({ success: false, message: 'Template not found.' });
-      resolvedTitle = resolvedTitle || tpl.title;
-      resolvedBody = resolvedBody || tpl.body;
-      resolvedAttachments = tpl.attachments || [];
-    }
 
     if (!resolvedTitle || !resolvedBody) {
       return res.status(400).json({ success: false, message: 'Title and body are required.' });
     }
     if (!targetBatch || !String(targetBatch).trim()) {
       return res.status(400).json({ success: false, message: 'targetBatch is required.' });
+    }
+
+    let scheduledForDate = null;
+    if (deliveryMode === 'scheduled') {
+      if (!rawScheduledFor) {
+        return res.status(422).json({ success: false, message: 'scheduledFor datetime is required for scheduled reminders.' });
+      }
+      scheduledForDate = new Date(rawScheduledFor);
+      if (isNaN(scheduledForDate.getTime())) {
+        return res.status(422).json({ success: false, message: 'Invalid scheduledFor datetime.' });
+      }
+      if (scheduledForDate <= new Date()) {
+        return res.status(422).json({ success: false, message: 'scheduledFor must be a future datetime.' });
+      }
     }
 
     const batchName = String(targetBatch).trim();
@@ -333,127 +334,64 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       return res.status(422).json({ success: false, message: `No students found in batch "${batchName}".` });
     }
 
+    // For instant: look up nearest upcoming class for placeholder rendering
     const now = new Date();
-    let selectedMeetings = [];
-    if (deliveryMode === 'scheduled') {
-      const meetingIdStrings = Array.isArray(rawMeetingIds)
-        ? rawMeetingIds.map((v) => String(v || '').trim()).filter(Boolean)
-        : [];
+    const upcomingClass = await MeetingLink.findOne({
+      batch: new RegExp(`^${batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      status: { $in: ['scheduled', 'started'] },
+      startTime: { $gte: now }
+    })
+      .sort({ startTime: 1 })
+      .select('topic startTime duration')
+      .lean();
 
-      if (!meetingIdStrings.length) {
-        return res.status(422).json({ success: false, message: 'Select at least one scheduled class to schedule reminders.' });
-      }
-
-      const validIds = meetingIdStrings.filter((id) => mongoose.Types.ObjectId.isValid(id));
-      if (!validIds.length) {
-        return res.status(422).json({ success: false, message: 'Invalid meeting selection.' });
-      }
-
-      selectedMeetings = await MeetingLink.find({
-        _id: { $in: validIds.map((id) => new mongoose.Types.ObjectId(id)) },
-        batch: new RegExp(`^${batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-        status: { $in: ['scheduled', 'started'] }
-      })
-        .select('_id topic startTime duration')
-        .sort({ startTime: 1 })
-        .lean();
-
-      selectedMeetings = selectedMeetings.filter((m) => m.startTime && new Date(m.startTime) > now);
-      if (!selectedMeetings.length) {
-        return res.status(422).json({ success: false, message: 'No upcoming classes found in your selection.' });
-      }
-    }
+    const classTime = upcomingClass ? formatTime(upcomingClass.startTime) : (scheduledForDate ? formatTime(scheduledForDate) : '');
+    const classDate = upcomingClass ? formatDate(upcomingClass.startTime) : (scheduledForDate ? formatDate(scheduledForDate) : '');
+    const topic = upcomingClass ? String(upcomingClass.topic || '') : '';
 
     const recipients = [];
     const missingPhoneSet = new Set();
 
-    if (deliveryMode === 'scheduled') {
-      for (const meeting of selectedMeetings) {
-        const classTime = formatTime(meeting.startTime);
-        const classDate = formatDate(meeting.startTime);
-        const topic = String(meeting.topic || '');
+    for (const s of students) {
+      const phone = s.whatsappNumber || s.phoneNumber || '';
+      if (!phone) missingPhoneSet.add(`${s.name} (${s.regNo}) has no phone number`);
 
-        for (const s of students) {
-          const phone = s.whatsappNumber || s.phoneNumber || '';
-          if (!phone) missingPhoneSet.add(`${s.name} (${s.regNo}) has no phone number`);
-
-          recipients.push({
-            studentId: s._id,
-            name: s.name || '',
-            phone,
-            isTestAccount: !!s.isTestAccount,
-            messageBody: renderMessage(resolvedBody, {
-              studentName: s.name || '',
-              batch: batchName,
-              classTime,
-              classDate,
-              topic
-            }),
-            status: phone ? 'queued' : 'failed',
-            scheduledFor: meeting.startTime ? new Date(meeting.startTime) : null,
-            meetingId: meeting._id,
-            meetingTopic: topic,
-            meetingStartTime: meeting.startTime ? new Date(meeting.startTime) : null,
-            error: phone ? '' : 'No WhatsApp/phone number on record'
-          });
-        }
-      }
-    } else {
-      const upcomingClass = await MeetingLink.findOne({
-        batch: new RegExp(`^${batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-        status: { $in: ['scheduled', 'started'] },
-        startTime: { $gte: now }
-      })
-        .sort({ startTime: 1 })
-        .select('topic startTime duration')
-        .lean();
-
-      const classTime = upcomingClass ? formatTime(upcomingClass.startTime) : '';
-      const classDate = upcomingClass ? formatDate(upcomingClass.startTime) : '';
-      const topic = upcomingClass ? String(upcomingClass.topic || '') : '';
-
-      for (const s of students) {
-        const phone = s.whatsappNumber || s.phoneNumber || '';
-        if (!phone) missingPhoneSet.add(`${s.name} (${s.regNo}) has no phone number`);
-
-        recipients.push({
-          studentId: s._id,
-          name: s.name || '',
-          phone,
-          isTestAccount: !!s.isTestAccount,
-          messageBody: renderMessage(resolvedBody, {
-            studentName: s.name || '',
-            batch: batchName,
-            classTime,
-            classDate,
-            topic
-          }),
-          status: phone ? 'queued' : 'failed',
-          scheduledFor: null,
-          meetingId: null,
-          meetingTopic: topic,
-          meetingStartTime: upcomingClass?.startTime ? new Date(upcomingClass.startTime) : null,
-          error: phone ? '' : 'No WhatsApp/phone number on record'
-        });
-      }
+      recipients.push({
+        studentId: s._id,
+        name: s.name || '',
+        phone,
+        isTestAccount: !!s.isTestAccount,
+        messageBody: renderMessage(resolvedBody, {
+          studentName: s.name || '',
+          batch: batchName,
+          classTime,
+          classDate,
+          topic
+        }),
+        status: phone ? 'queued' : 'failed',
+        scheduledFor: deliveryMode === 'scheduled' ? scheduledForDate : null,
+        meetingId: upcomingClass ? upcomingClass._id : null,
+        meetingTopic: topic,
+        meetingStartTime: upcomingClass?.startTime ? new Date(upcomingClass.startTime) : null,
+        error: phone ? '' : 'No WhatsApp/phone number on record'
+      });
     }
 
-    const sentCount = 0;
     const failedCount = recipients.filter((r) => r.status === 'failed').length;
     const pendingCount = recipients.filter((r) => r.status === 'queued').length;
 
     const reminder = await Reminder.create({
-      templateId: templateId || null,
       title: resolvedTitle,
       body: resolvedBody,
-      attachments: resolvedAttachments,
+      attachments: [],
       targetBatch: batchName,
       deliveryMode,
-      scheduleScope,
+      scheduleScope: 'all',
+      scheduledFor: scheduledForDate,
       createdBy: req.user.id,
       status: pendingCount > 0 ? (deliveryMode === 'scheduled' ? 'scheduled' : 'queued') : 'failed',
       totalRecipients: recipients.length,
-      sentCount,
+      sentCount: 0,
       failedCount,
       pendingCount,
       recipients
@@ -461,7 +399,6 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
 
     const populated = await Reminder.findById(reminder._id)
       .populate('createdBy', 'name role')
-      .populate('templateId', 'title')
       .lean();
 
     return res.status(201).json({
@@ -472,6 +409,53 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
   } catch (err) {
     console.error('[reminders] POST /', err);
     return res.status(500).json({ success: false, message: 'Failed to create reminder.' });
+  }
+});
+
+// PUT /api/reminders/:id  — edit title, body, scheduledFor
+router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const title = String(req.body.title || '').trim();
+    const body = String(req.body.body || '').trim();
+    const rawScheduledFor = req.body.scheduledFor;
+
+    if (!title || !body) {
+      return res.status(400).json({ success: false, message: 'Title and body are required.' });
+    }
+
+    const reminder = await Reminder.findById(id);
+    if (!reminder) return res.status(404).json({ success: false, message: 'Reminder not found.' });
+
+    reminder.title = title;
+    reminder.body = body;
+
+    if (rawScheduledFor !== undefined) {
+      if (rawScheduledFor === null || rawScheduledFor === '') {
+        reminder.scheduledFor = null;
+      } else {
+        const d = new Date(rawScheduledFor);
+        if (isNaN(d.getTime())) {
+          return res.status(422).json({ success: false, message: 'Invalid scheduledFor datetime.' });
+        }
+        reminder.scheduledFor = d;
+        // Update per-recipient scheduledFor as well
+        for (const r of reminder.recipients) {
+          r.scheduledFor = d;
+        }
+      }
+    }
+
+    await reminder.save();
+
+    const updated = await Reminder.findById(id)
+      .populate('createdBy', 'name role')
+      .lean();
+
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('[reminders] PUT /:id', err);
+    return res.status(500).json({ success: false, message: 'Failed to update reminder.' });
   }
 });
 

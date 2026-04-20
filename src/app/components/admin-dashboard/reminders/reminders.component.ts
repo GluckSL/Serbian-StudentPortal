@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import {
   ReminderService,
-  ReminderTemplate,
   Reminder,
   ReminderRecipient,
   BatchPreviewStudent,
@@ -26,37 +25,25 @@ interface BatchSummary { batchName: string; studentCount?: number; }
 export class RemindersComponent implements OnInit {
 
   // ── Loading / error flags ────────────────────────────────────────────────
-  loadingTemplates = false;
   loadingReminders = false;
   loadingBatches   = false;
   loadingPreview   = false;
-  saving           = false;
   sendingReminder  = false;
   deletingId       = '';
 
-  // ── Left panel: templates ────────────────────────────────────────────────
-  templates: ReminderTemplate[] = [];
-  selectedTemplateId = '';
-  showCreateTemplate = false;
-  editingTemplate: ReminderTemplate | null = null;
-
-  newTemplate = { title: '', body: '' };
-  selectedFiles: File[] = [];
-
-  // Helper tokens for textarea hint
-  readonly TOKENS = ['{{studentName}}', '{{batch}}', '{{classTime}}', '{{classDate}}', '{{topic}}'];
-
-  /** Literal placeholders (avoid `{{ }}` in HTML attributes — Angular parses them as bindings). */
-  readonly templateBodyPlaceholder =
-    'Hi {{studentName}}, your class is on {{classDate}} at {{classTime}}…';
-  readonly adHocBodyPlaceholder = 'Hi {{studentName}}…';
-
-  // ── Left panel: send reminder ────────────────────────────────────────────
+  // ── Create Reminder form ─────────────────────────────────────────────────
   adHocTitle = '';
   adHocBody  = '';
   sendWarnings: string[] = [];
 
-  // ── Left panel: history table ────────────────────────────────────────────
+  /** ISO string from datetime-local input (for scheduled delivery) */
+  scheduledFor = '';
+  showSchedulePicker = false;
+
+  readonly adHocBodyPlaceholder = 'Hi {{studentName}}…';
+  readonly TOKENS = ['{{studentName}}', '{{batch}}', '{{classTime}}', '{{classDate}}', '{{topic}}'];
+
+  // ── All Reminders list ───────────────────────────────────────────────────
   reminders: Reminder[] = [];
   historySearch = '';
 
@@ -66,7 +53,13 @@ export class RemindersComponent implements OnInit {
 
   previewStudents: BatchPreviewStudent[] = [];
   previewMeetings: BatchPreviewMeeting[] = [];
-  selectedMeetingIds: string[] = [];
+
+  // ── Edit reminder modal ──────────────────────────────────────────────────
+  editingReminder: Reminder | null = null;
+  editTitle = '';
+  editBody  = '';
+  editScheduledFor = '';
+  savingEdit = false;
 
   // ── Recipient drawer modal ───────────────────────────────────────────────
   drawerOpen       = false;
@@ -83,26 +76,17 @@ export class RemindersComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadTemplates();
     this.loadReminders();
     this.loadBatches();
   }
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
-  loadTemplates(): void {
-    this.loadingTemplates = true;
-    this.reminderSvc.getTemplates().subscribe({
-      next: (res) => { this.templates = res.data || []; this.loadingTemplates = false; },
-      error: () => { this.loadingTemplates = false; this.notify.error('Failed to load templates.'); }
-    });
-  }
-
   loadReminders(): void {
     this.loadingReminders = true;
     this.reminderSvc.getReminders().subscribe({
       next: (res) => { this.reminders = res.data || []; this.loadingReminders = false; },
-      error: () => { this.loadingReminders = false; this.notify.error('Failed to load reminder history.'); }
+      error: () => { this.loadingReminders = false; this.notify.error('Failed to load reminders.'); }
     });
   }
 
@@ -117,109 +101,11 @@ export class RemindersComponent implements OnInit {
     });
   }
 
-  // ── Template CRUD ─────────────────────────────────────────────────────────
-
-  openCreateTemplate(): void {
-    this.showCreateTemplate = true;
-    this.editingTemplate = null;
-    this.newTemplate = { title: '', body: '' };
-    this.selectedFiles = [];
-  }
-
-  openEditTemplate(tpl: ReminderTemplate, event: Event): void {
-    event.stopPropagation();
-    this.showCreateTemplate = true;
-    this.editingTemplate = tpl;
-    this.newTemplate = { title: tpl.title, body: tpl.body };
-    this.selectedFiles = [];
-  }
-
-  cancelTemplate(): void {
-    this.showCreateTemplate = false;
-    this.editingTemplate = null;
-  }
-
-  onFileChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.selectedFiles = input.files ? Array.from(input.files) : [];
-  }
-
-  insertToken(token: string): void {
-    this.newTemplate.body = (this.newTemplate.body || '') + token;
-  }
-
-  saveTemplate(): void {
-    if (!this.newTemplate.title.trim() || !this.newTemplate.body.trim()) {
-      this.notify.warning('Title and body are required.');
-      return;
-    }
-
-    if (this.editingTemplate) {
-      this.saving = true;
-      this.reminderSvc.updateTemplate(this.editingTemplate._id, {
-        title: this.newTemplate.title.trim(),
-        body: this.newTemplate.body.trim()
-      }).subscribe({
-        next: () => {
-          this.saving = false;
-          this.notify.success('Template updated.');
-          this.cancelTemplate();
-          this.loadTemplates();
-        },
-        error: (err) => {
-          this.saving = false;
-          this.notify.error(err?.error?.message || 'Failed to update template.');
-        }
-      });
-    } else {
-      const form = new FormData();
-      form.append('title', this.newTemplate.title.trim());
-      form.append('body', this.newTemplate.body.trim());
-      for (const f of this.selectedFiles) form.append('attachments', f);
-
-      this.saving = true;
-      this.reminderSvc.createTemplate(form).subscribe({
-        next: () => {
-          this.saving = false;
-          this.notify.success('Template created.');
-          this.cancelTemplate();
-          this.loadTemplates();
-        },
-        error: (err) => {
-          this.saving = false;
-          this.notify.error(err?.error?.message || 'Failed to create template.');
-        }
-      });
-    }
-  }
-
-  deleteTemplate(tpl: ReminderTemplate, event: Event): void {
-    event.stopPropagation();
-    if (!confirm(`Delete template "${tpl.title}"?`)) return;
-    this.reminderSvc.deleteTemplate(tpl._id).subscribe({
-      next: () => {
-        this.notify.success('Template deleted.');
-        if (this.selectedTemplateId === tpl._id) this.selectedTemplateId = '';
-        this.loadTemplates();
-      },
-      error: (err) => this.notify.error(err?.error?.message || 'Failed to delete template.')
-    });
-  }
-
-  selectTemplate(id: string): void {
-    this.selectedTemplateId = this.selectedTemplateId === id ? '' : id;
-  }
-
-  get activeTemplate(): ReminderTemplate | null {
-    return this.templates.find((t) => t._id === this.selectedTemplateId) || null;
-  }
-
   // ── Batch dropdown ───────────────────────────────────────────────────────
 
   onBatchSelectChange(value: string): void {
     const v = String(value || '').trim();
     this.selectedBatch = v;
-    this.selectedMeetingIds = [];
     if (!v) {
       this.previewStudents = [];
       this.previewMeetings = [];
@@ -244,55 +130,17 @@ export class RemindersComponent implements OnInit {
 
   // ── Send reminder ─────────────────────────────────────────────────────────
 
-  canSendBase(): boolean {
-    return !!this.selectedBatch && (!!this.selectedTemplateId || (!!this.adHocTitle.trim() && !!this.adHocBody.trim()));
-  }
-
   canSendInstant(): boolean {
-    return this.canSendBase();
+    return !!this.selectedBatch && !!this.adHocTitle.trim() && !!this.adHocBody.trim();
   }
 
   canSchedule(): boolean {
-    return this.canSendBase() && this.selectedMeetingIds.length > 0;
+    return !!this.selectedBatch && !!this.adHocTitle.trim() && !!this.adHocBody.trim() && !!this.scheduledFor;
   }
 
-  /** True when every listed meeting is selected (for “select all” checkbox). */
-  get allMeetingsSelected(): boolean {
-    const n = this.previewMeetings.length;
-    return n > 0 && this.selectedMeetingIds.length === n;
-  }
-
-  /** How selection is summarized on the saved reminder (one / all / multi). */
-  meetingScheduleScopeForPayload(): 'one' | 'all' | 'multi' {
-    const total = this.previewMeetings.length;
-    const sel = this.selectedMeetingIds.length;
-    if (sel === 0 || total === 0) return 'one';
-    if (sel === total) return 'all';
-    if (sel === 1) return 'one';
-    return 'multi';
-  }
-
-  toggleSelectAllMeetings(checked: boolean): void {
-    if (checked) {
-      this.selectedMeetingIds = this.previewMeetings.map((m) => String(m._id));
-    } else {
-      this.selectedMeetingIds = [];
-    }
-  }
-
-  isMeetingSelected(meetingId: string): boolean {
-    return this.selectedMeetingIds.includes(String(meetingId));
-  }
-
-  toggleMeetingSelection(meetingId: string, checked: boolean): void {
-    const id = String(meetingId);
-    if (!checked) {
-      this.selectedMeetingIds = this.selectedMeetingIds.filter((x) => x !== id);
-      return;
-    }
-    if (!this.selectedMeetingIds.includes(id)) {
-      this.selectedMeetingIds = [...this.selectedMeetingIds, id];
-    }
+  toggleSchedulePicker(): void {
+    this.showSchedulePicker = !this.showSchedulePicker;
+    if (!this.showSchedulePicker) this.scheduledFor = '';
   }
 
   sendInstant(): void {
@@ -304,25 +152,21 @@ export class RemindersComponent implements OnInit {
   }
 
   sendReminder(deliveryMode: 'instant' | 'scheduled'): void {
-    if (!this.selectedBatch) { this.notify.warning('Select a batch first (right panel).'); return; }
-    if (!this.selectedTemplateId && (!this.adHocTitle.trim() || !this.adHocBody.trim())) {
-      this.notify.warning('Select a template or fill in title + body.'); return;
+    if (!this.selectedBatch) { this.notify.warning('Select a batch first.'); return; }
+    if (!this.adHocTitle.trim() || !this.adHocBody.trim()) {
+      this.notify.warning('Title and message body are required.'); return;
     }
-    if (deliveryMode === 'scheduled' && this.selectedMeetingIds.length === 0) {
-      this.notify.warning('Select one or more meetings to schedule.');
-      return;
+    if (deliveryMode === 'scheduled' && !this.scheduledFor) {
+      this.notify.warning('Please select a date and time to schedule the reminder.'); return;
     }
 
-    const payload: any = { targetBatch: this.selectedBatch };
-    if (this.selectedTemplateId) {
-      payload.templateId = this.selectedTemplateId;
-    } else {
-      payload.title = this.adHocTitle.trim();
-      payload.body  = this.adHocBody.trim();
-    }
-    payload.deliveryMode = deliveryMode;
-    payload.scheduleScope = this.meetingScheduleScopeForPayload();
-    if (deliveryMode === 'scheduled') payload.meetingIds = [...this.selectedMeetingIds];
+    const payload: { title: string; body: string; targetBatch: string; deliveryMode?: 'instant' | 'scheduled'; scheduledFor?: string } = {
+      title: this.adHocTitle.trim(),
+      body: this.adHocBody.trim(),
+      targetBatch: this.selectedBatch,
+      deliveryMode
+    };
+    if (deliveryMode === 'scheduled') payload.scheduledFor = this.scheduledFor;
 
     this.sendingReminder = true;
     this.sendWarnings = [];
@@ -331,14 +175,14 @@ export class RemindersComponent implements OnInit {
         this.sendingReminder = false;
         this.sendWarnings = res.warnings || [];
         if (deliveryMode === 'scheduled') {
-          this.notify.success(`Reminder scheduled for ${this.selectedMeetingIds.length} meeting(s) in batch "${this.selectedBatch}".`);
+          this.notify.success(`Reminder scheduled for ${this.formatDateTime(this.scheduledFor)} in batch "${this.selectedBatch}".`);
         } else {
           this.notify.success(`Reminder queued for ${res.data.totalRecipients} students in batch "${this.selectedBatch}".`);
         }
         this.adHocTitle = '';
         this.adHocBody  = '';
-        this.selectedTemplateId = '';
-        this.selectedMeetingIds = [];
+        this.scheduledFor = '';
+        this.showSchedulePicker = false;
         this.loadReminders();
       },
       error: (err) => {
@@ -348,7 +192,7 @@ export class RemindersComponent implements OnInit {
     });
   }
 
-  // ── History ───────────────────────────────────────────────────────────────
+  // ── All Reminders (history) ───────────────────────────────────────────────
 
   get filteredReminders(): Reminder[] {
     const q = this.historySearch.trim().toLowerCase();
@@ -390,6 +234,50 @@ export class RemindersComponent implements OnInit {
     });
   }
 
+  // ── Edit reminder ─────────────────────────────────────────────────────────
+
+  openEditReminder(r: Reminder, event: Event): void {
+    event.stopPropagation();
+    this.editingReminder = r;
+    this.editTitle = r.title;
+    this.editBody  = r.body;
+    this.editScheduledFor = r.scheduledFor
+      ? new Date(r.scheduledFor).toISOString().slice(0, 16)
+      : '';
+  }
+
+  cancelEditReminder(): void {
+    this.editingReminder = null;
+    this.editTitle = '';
+    this.editBody  = '';
+    this.editScheduledFor = '';
+  }
+
+  saveEditReminder(): void {
+    if (!this.editingReminder) return;
+    if (!this.editTitle.trim() || !this.editBody.trim()) {
+      this.notify.warning('Title and body are required.');
+      return;
+    }
+    this.savingEdit = true;
+    this.reminderSvc.updateReminder(this.editingReminder._id, {
+      title: this.editTitle.trim(),
+      body: this.editBody.trim(),
+      scheduledFor: this.editScheduledFor || null
+    }).subscribe({
+      next: () => {
+        this.savingEdit = false;
+        this.notify.success('Reminder updated.');
+        this.cancelEditReminder();
+        this.loadReminders();
+      },
+      error: (err) => {
+        this.savingEdit = false;
+        this.notify.error(err?.error?.message || 'Failed to update reminder.');
+      }
+    });
+  }
+
   // ── Recipient drawer ──────────────────────────────────────────────────────
 
   openDrawer(reminderId: string): void {
@@ -426,53 +314,31 @@ export class RemindersComponent implements OnInit {
     catch { return String(v); }
   }
 
-  formatTime(v: string | null | undefined): string {
-    if (!v) return '—';
-    try { return new Date(v).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Colombo' }); }
-    catch { return String(v); }
-  }
-
   formatDateTime(v: string | null | undefined): string {
     if (!v) return '—';
     try { return new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
     catch { return String(v); }
   }
 
-  statusBadgeClass(status: string): string {
-    const map: Record<string, string> = {
-      queued: 'badge-status--queued',
-      scheduled: 'badge-status--scheduled',
-      in_progress: 'badge-status--in-progress',
-      completed: 'badge-status--completed',
-      sent: 'badge-status--completed',
-      failed: 'badge-status--failed'
-    };
-    return map[status] || 'badge-status--queued';
+  /** Map any DB status → Active / Inactive for display */
+  statusLabel(status: string): string {
+    const active = new Set(['queued', 'scheduled', 'in_progress']);
+    return active.has(status) ? 'Active' : 'Inactive';
   }
 
-  statusLabel(status: string): string {
-    const map: Record<string, string> = {
-      queued: 'Queued',
-      scheduled: 'Scheduled',
-      in_progress: 'Sending',
-      completed: 'Completed',
-      sent: 'Sent',
-      failed: 'Failed'
-    };
-    return map[status] || status;
+  statusBadgeClass(status: string): string {
+    const active = new Set(['queued', 'scheduled', 'in_progress']);
+    return active.has(status) ? 'badge-status--active' : 'badge-status--inactive';
   }
 
   planBadgeClass(plan: string | undefined): string {
     return String(plan || '').trim().toLowerCase() || 'unknown';
   }
 
-  formatBytes(size: number | undefined): string {
-    const v = Number(size || 0);
-    if (!v) return '0 B';
-    const u = ['B', 'KB', 'MB'];
-    let i = 0; let n = v;
-    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-    return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+  /** Minimum datetime for schedule picker — now + 1 min */
+  get minScheduleDateTime(): string {
+    const d = new Date(Date.now() + 60000);
+    return d.toISOString().slice(0, 16);
   }
 
   trackById(_: number, item: { _id: string }): string { return item._id; }
