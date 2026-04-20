@@ -19,18 +19,39 @@ const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentB
 
 const GO_BATCH_NAME = 'GO-SILVER';
 
+function toGoStudentRow(student) {
+  return {
+    _id: student._id,
+    name: student.name,
+    regNo: student.regNo,
+    email: student.email,
+    subscription: student.subscription,
+    goStatus: student.goStatus,
+    goJoiningDate: student.goJoiningDate,
+    currentCourseDay: student.currentCourseDay,
+    batch: student.batch || '',
+    level: student.level || '',
+    studentStatus: student.studentStatus || ''
+  };
+}
+
 // ─── POST /api/go-students/add ────────────────────────────────────────────────
 // Find a SILVER student by email and mark them as GO
 router.post('/add', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email || !email.trim()) {
-      return res.status(400).json({ message: 'Email is required.' });
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const studentId = String(req.body?.studentId || '').trim();
+    if (!email && !studentId) {
+      return res.status(400).json({ message: 'Provide studentId or email.' });
     }
 
-    const student = await User.findOne({ email: email.trim().toLowerCase(), role: 'STUDENT' });
+    const query = { role: 'STUDENT' };
+    if (studentId) query._id = studentId;
+    else query.email = email;
+
+    const student = await User.findOne(query);
     if (!student) {
-      return res.status(404).json({ message: 'No student found with that email.' });
+      return res.status(404).json({ message: 'Student not found.' });
     }
     if (student.subscription !== 'SILVER') {
       return res.status(400).json({ message: `Student is on the ${student.subscription} plan. Only SILVER students can be added to GO batch.` });
@@ -52,16 +73,7 @@ router.post('/add', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (r
 
     res.json({
       message: 'Student added to GO batch successfully.',
-      student: {
-        _id: student._id,
-        name: student.name,
-        regNo: student.regNo,
-        email: student.email,
-        subscription: student.subscription,
-        goStatus: student.goStatus,
-        goJoiningDate: student.goJoiningDate,
-        currentCourseDay: student.currentCourseDay
-      }
+      student: toGoStudentRow(student)
     });
   } catch (err) {
     console.error('go-students POST /add', err);
@@ -81,6 +93,56 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
   } catch (err) {
     console.error('go-students GET /', err);
     res.status(500).json({ message: 'Failed to fetch GO students.', error: err.message });
+  }
+});
+
+// ─── GET /api/go-students/silver ──────────────────────────────────────────────
+// List Silver students that are not yet in GO, with search + batch filters.
+router.get('/silver', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const q = String(req.query?.q || '').trim();
+    const batch = String(req.query?.batch || '').trim();
+    const query = {
+      role: 'STUDENT',
+      subscription: 'SILVER',
+      $or: [{ goStatus: { $exists: false } }, { goStatus: { $ne: 'GO' } }]
+    };
+
+    if (batch && batch.toLowerCase() !== 'all') {
+      query.batch = batch;
+    }
+
+    if (q) {
+      const safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.$and = [
+        {
+          $or: [
+            { name: new RegExp(safe, 'i') },
+            { email: new RegExp(safe, 'i') },
+            { regNo: new RegExp(safe, 'i') }
+          ]
+        }
+      ];
+    }
+
+    const students = await User.find(query)
+      .select('name regNo email subscription currentCourseDay level batch studentStatus')
+      .sort({ name: 1 })
+      .lean();
+
+    const batches = await User.distinct('batch', {
+      role: 'STUDENT',
+      subscription: 'SILVER',
+      batch: { $exists: true, $nin: ['', null] }
+    });
+
+    res.json({
+      students,
+      batches: (batches || []).filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }))
+    });
+  } catch (err) {
+    console.error('go-students GET /silver', err);
+    res.status(500).json({ message: 'Failed to fetch Silver students.', error: err.message });
   }
 });
 
@@ -129,7 +191,22 @@ router.delete('/:studentId/remove', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
     student.goJoiningDate = null;
     await student.save();
 
-    res.json({ message: 'Student removed from GO batch.' });
+    res.json({
+      message: 'Student moved back to Silver batch.',
+      student: {
+        _id: student._id,
+        name: student.name,
+        regNo: student.regNo,
+        email: student.email,
+        subscription: student.subscription,
+        goStatus: student.goStatus,
+        goJoiningDate: student.goJoiningDate,
+        currentCourseDay: student.currentCourseDay,
+        batch: student.batch || '',
+        level: student.level || '',
+        studentStatus: student.studentStatus || ''
+      }
+    });
   } catch (err) {
     console.error('go-students DELETE /:id/remove', err);
     res.status(500).json({ message: 'Failed to remove student from GO batch.', error: err.message });

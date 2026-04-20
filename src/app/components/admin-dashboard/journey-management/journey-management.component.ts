@@ -70,6 +70,18 @@ interface StudentRow {
   advancing?: boolean;
 }
 
+interface SilverStudentRow {
+  _id: string;
+  name: string;
+  regNo: string;
+  email: string;
+  batch?: string;
+  level?: string;
+  studentStatus?: string;
+  subscription: string;
+  currentCourseDay?: number;
+}
+
 interface TimelineDay {
   day: number;
   modules: { _id: string; title: string; category: string; level: string }[];
@@ -1484,87 +1496,199 @@ interface TimelineDay {
   </div>
   <!-- ══ SILVER TAB ══════════════════════════════════════════════════════════ -->
   <div *ngIf="planTab === 'silver'" class="j-content">
-
-    <!-- Add student bar -->
     <div class="gs-add-bar">
       <div class="gs-add-title">
         <span class="gs-plan-badge">SILVER</span>
-        <span>GO Batch — Silver Students</span>
+        <span>GO Batch management</span>
       </div>
-      <div class="gs-add-row">
-        <div class="j-search-wrap" style="flex:1;max-width:400px;">
-          <i class="fas fa-envelope j-search-icon"></i>
-          <input
-            type="email"
-            class="j-search-input"
-            [(ngModel)]="goEmailInput"
-            placeholder="Enter student email to add to GO batch…"
-            autocomplete="off"
-            (keyup.enter)="addGoStudent()"
-          />
-        </div>
-        <button type="button" class="j-btn j-btn-primary" [disabled]="goAdding" (click)="addGoStudent()">
-          <i class="fas" [class.fa-spinner]="goAdding" [class.fa-user-plus]="!goAdding"></i>
-          {{ goAdding ? 'Adding…' : 'Add' }}
+      <div class="gs-silver-tab-bar">
+        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'go'" (click)="silverTab = 'go'">
+          GO Students
+        </button>
+        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'silver'" (click)="silverTab = 'silver'">
+          Silver Students
         </button>
       </div>
-      <p *ngIf="goAddError" class="gs-add-error">{{ goAddError }}</p>
     </div>
 
-    <!-- Loading -->
-    <div *ngIf="goLoading" class="j-loading" style="min-height:200px;">
-      <div class="spinner-border text-primary"></div>
-      <p>Loading GO students…</p>
+    <div *ngIf="silverTab === 'go'">
+      <div class="gs-add-bar gs-add-bar--compact">
+        <div class="gs-add-row">
+          <div class="j-search-wrap" style="flex:1;max-width:400px;">
+            <i class="fas fa-envelope j-search-icon"></i>
+            <input
+              type="email"
+              class="j-search-input"
+              [(ngModel)]="goEmailInput"
+              placeholder="Enter student email to add to GO batch…"
+              autocomplete="off"
+              (keyup.enter)="addGoStudent()"
+            />
+          </div>
+          <button type="button" class="j-btn j-btn-primary" [disabled]="goAdding" (click)="addGoStudent()">
+            <i class="fas" [class.fa-spinner]="goAdding" [class.fa-user-plus]="!goAdding"></i>
+            {{ goAdding ? 'Adding…' : 'Add' }}
+          </button>
+        </div>
+        <p *ngIf="goAddError" class="gs-add-error">{{ goAddError }}</p>
+      </div>
+
+      <div *ngIf="goLoading" class="j-loading" style="min-height:200px;">
+        <div class="spinner-border text-primary"></div>
+        <p>Loading GO students…</p>
+      </div>
+
+      <div *ngIf="!goLoading && goStudents.length === 0" class="j-empty">
+        <i class="fas fa-users fa-3x"></i>
+        <p>No Silver students added to GO batch yet.</p>
+      </div>
+
+      <div *ngIf="!goLoading && goStudents.length > 0" class="j-batch-table-wrap" style="margin-top:0;">
+        <table class="j-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Student ID</th>
+              <th>Batch</th>
+              <th>Status</th>
+              <th>Plan</th>
+              <th>Joining Date</th>
+              <th>Journey Day</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of goStudents">
+              <td>
+                <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
+                <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
+              </td>
+              <td style="font-family:monospace;font-size:12px;">{{ s.regNo }}</td>
+              <td>{{ s.batch || '—' }}</td>
+              <td><span class="gs-status-go">{{ s.goStatus }}</span></td>
+              <td><span class="gs-plan-badge">{{ s.subscription }}</span></td>
+              <td>
+                <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
+                <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
+              </td>
+              <td>
+                <div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay || 1 }}</div>
+              </td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <button type="button" class="j-btn j-btn-outline j-btn-sm" (click)="openGoStudentDetail(s)">
+                    <i class="fas fa-external-link-alt"></i> Open
+                  </button>
+                  <button
+                    type="button"
+                    class="j-btn j-btn-sm"
+                    style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;"
+                    [disabled]="isGoRemoving(s._id)"
+                    (click)="removeFromGo(s)"
+                  >
+                    <i class="fas" [class.fa-spinner]="isGoRemoving(s._id)" [class.fa-undo]="!isGoRemoving(s._id)"></i>
+                    {{ isGoRemoving(s._id) ? 'Updating…' : 'Make Silver' }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- Empty state -->
-    <div *ngIf="!goLoading && goStudents.length === 0" class="j-empty">
-      <i class="fas fa-users fa-3x"></i>
-      <p>No Silver students added to GO batch yet. Add one using the field above.</p>
-    </div>
+    <div *ngIf="silverTab === 'silver'">
+      <div class="gs-filter-row">
+        <div class="j-search-wrap" style="flex:1;min-width:240px;">
+          <i class="fas fa-search j-search-icon"></i>
+          <input
+            type="search"
+            class="j-search-input"
+            [(ngModel)]="silverSearch"
+            placeholder="Search by name, email, or student ID…"
+            autocomplete="off"
+          />
+        </div>
+        <select class="j-select gs-batch-select" [(ngModel)]="silverBatchFilter">
+          <option value="all">All batches</option>
+          <option *ngFor="let b of silverBatchOptions" [value]="b">{{ b }}</option>
+        </select>
+        <button type="button" class="j-btn j-btn-outline" (click)="loadSilverStudents()">
+          <i class="fas fa-sync-alt"></i> Refresh list
+        </button>
+      </div>
 
-    <!-- Students table -->
-    <div *ngIf="!goLoading && goStudents.length > 0" class="j-batch-table-wrap" style="margin-top:0;">
-      <table class="j-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Student ID</th>
-            <th>Status</th>
-            <th>Plan</th>
-            <th>Joining Date</th>
-            <th>Journey Day</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            *ngFor="let s of goStudents"
-            class="j-tr-clickable"
-            (click)="openGoStudentDetail(s)"
-            style="cursor:pointer;"
-            title="Open student journey in a new tab"
-          >
-            <td>
-              <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
-              <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
-            </td>
-            <td style="font-family:monospace;font-size:12px;">{{ s.regNo }}</td>
-            <td>
-              <span class="gs-status-go">{{ s.goStatus }}</span>
-            </td>
-            <td>
-              <span class="gs-plan-badge">{{ s.subscription }}</span>
-            </td>
-            <td>
-              <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
-              <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
-            </td>
-            <td>
-              <div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay || 1 }}</div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div *ngIf="silverLoading" class="j-loading" style="min-height:200px;">
+        <div class="spinner-border text-primary"></div>
+        <p>Loading Silver students…</p>
+      </div>
+
+      <div *ngIf="!silverLoading && filteredSilverStudents.length === 0" class="j-empty">
+        <i class="fas fa-user-friends fa-3x"></i>
+        <p>No Silver students match this filter.</p>
+      </div>
+
+      <div *ngIf="!silverLoading && filteredSilverStudents.length > 0" class="j-batch-table-wrap" style="margin-top:0;">
+        <table class="j-table">
+          <thead>
+            <tr>
+              <th style="width:42px;" class="text-center">
+                <input
+                  type="checkbox"
+                  [checked]="areAllVisibleSilverChecked"
+                  (change)="toggleSelectAllVisibleSilver($event)"
+                  aria-label="Select all visible Silver students"
+                />
+              </th>
+              <th>Name</th>
+              <th>Student ID</th>
+              <th>Batch</th>
+              <th>Status</th>
+              <th>Plan</th>
+              <th>Journey Day</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of filteredSilverStudents">
+              <td class="text-center">
+                <input
+                  type="checkbox"
+                  [checked]="isSilverSelected(s._id)"
+                  (change)="toggleSilverSelection(s._id, $event)"
+                  aria-label="Select student to move to GO"
+                />
+              </td>
+              <td>
+                <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
+                <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
+              </td>
+              <td style="font-family:monospace;font-size:12px;">{{ s.regNo || '—' }}</td>
+              <td>{{ s.batch || '—' }}</td>
+              <td>
+                <span class="j-badge" [ngClass]="{
+                  'j-badge-success': s.studentStatus === 'ONGOING',
+                  'j-badge-danger': s.studentStatus === 'WITHDREW',
+                  'j-badge-secondary': s.studentStatus === 'COMPLETED' || s.studentStatus === 'UNCERTAIN'
+                }">{{ s.studentStatus || '—' }}</span>
+              </td>
+              <td><span class="gs-plan-badge">{{ s.subscription }}</span></td>
+              <td><div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay || 1 }}</div></td>
+              <td>
+                <button
+                  type="button"
+                  class="j-btn j-btn-primary j-btn-sm"
+                  [disabled]="!isSilverSelected(s._id) || isSilverAdding(s._id)"
+                  (click)="addGoStudentById(s)"
+                >
+                  <i class="fas" [class.fa-spinner]="isSilverAdding(s._id)" [class.fa-rocket]="!isSilverAdding(s._id)"></i>
+                  {{ isSilverAdding(s._id) ? 'Adding…' : 'Go' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -3011,11 +3135,56 @@ interface TimelineDay {
       color: #0f172a;
       margin-bottom: 12px;
     }
+    .gs-silver-tab-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+    .gs-silver-tab {
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .gs-silver-tab:hover {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+    .gs-silver-tab--active {
+      background: #005b96;
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, .2);
+    }
+    .gs-add-bar--compact {
+      margin-top: -8px;
+      padding-top: 14px;
+      padding-bottom: 14px;
+    }
     .gs-add-row {
       display: flex;
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
+    }
+    .gs-filter-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .gs-batch-select {
+      min-width: 180px;
+      max-width: 260px;
     }
     .gs-add-error {
       margin: 8px 0 0;
@@ -3190,11 +3359,20 @@ export class JourneyManagementComponent implements OnInit {
   planTab: 'platinum' | 'silver' = 'platinum';
 
   // ── GO Silver state ─────────────────────────────────────────────────────────
+  silverTab: 'go' | 'silver' = 'go';
   goEmailInput = '';
   goAdding = false;
   goAddError = '';
   goLoading = false;
   goStudents: any[] = [];
+  silverLoading = false;
+  silverStudents: SilverStudentRow[] = [];
+  silverSearch = '';
+  silverBatchFilter = 'all';
+  silverSelectedIds = new Set<string>();
+  silverAddingIds = new Set<string>();
+  goRemovingIds = new Set<string>();
+  silverBatchList: string[] = [];
 
   constructor(
     private http: HttpClient,
@@ -3213,6 +3391,38 @@ export class JourneyManagementComponent implements OnInit {
       String(t.name || '').toLowerCase().includes(q) ||
       String(t.email || '').toLowerCase().includes(q)
     );
+  }
+
+  get silverBatchOptions(): string[] {
+    if (this.silverBatchList.length > 0) return this.silverBatchList;
+    const set = new Set<string>();
+    (this.silverStudents || []).forEach((s) => {
+      const batch = String(s.batch || '').trim();
+      if (batch) set.add(batch);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }
+
+  get filteredSilverStudents(): SilverStudentRow[] {
+    let list = [...(this.silverStudents || [])];
+    const q = String(this.silverSearch || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter((s) =>
+        String(s.name || '').toLowerCase().includes(q) ||
+        String(s.email || '').toLowerCase().includes(q) ||
+        String(s.regNo || '').toLowerCase().includes(q)
+      );
+    }
+    if (this.silverBatchFilter !== 'all') {
+      list = list.filter((s) => String(s.batch || '') === this.silverBatchFilter);
+    }
+    return list;
+  }
+
+  get areAllVisibleSilverChecked(): boolean {
+    const list = this.filteredSilverStudents;
+    if (!list.length) return false;
+    return list.every((s) => this.silverSelectedIds.has(s._id));
   }
 
   closeCreateBatch(): void {
@@ -3243,6 +3453,9 @@ export class JourneyManagementComponent implements OnInit {
     if (tab === 'silver' && this.goStudents.length === 0) {
       this.loadGoStudents();
     }
+    if (tab === 'silver' && this.silverStudents.length === 0) {
+      this.loadSilverStudents();
+    }
   }
 
   // ── GO Silver methods ───────────────────────────────────────────────────────
@@ -3272,14 +3485,110 @@ export class JourneyManagementComponent implements OnInit {
       next: (r) => {
         this.goAdding = false;
         this.goEmailInput = '';
-        this.notify.success(r.message || 'Student added to GO batch.');
-        this.goStudents = [r.student, ...this.goStudents];
+        this.notify.success(r?.message || 'Student added to GO batch.');
+        this.afterGoStudentAdded(r?.student);
       },
       error: (e) => {
         this.goAdding = false;
         this.goAddError = e?.error?.message || 'Failed to add student.';
       }
     });
+  }
+
+  loadSilverStudents(): void {
+    this.silverLoading = true;
+    this.http.get<any>(`${environment.apiUrl}/go-students/silver`, { withCredentials: true }).subscribe({
+      next: (r) => {
+        this.silverStudents = r?.students || [];
+        this.silverBatchList = r?.batches || [];
+        this.silverLoading = false;
+        this.silverSelectedIds.clear();
+      },
+      error: (e) => {
+        this.silverLoading = false;
+        this.notify.error(e?.error?.message || 'Failed to load Silver students.');
+      }
+    });
+  }
+
+  isSilverSelected(studentId: string): boolean {
+    return this.silverSelectedIds.has(studentId);
+  }
+
+  toggleSilverSelection(studentId: string, event: Event): void {
+    const checked = !!(event?.target as HTMLInputElement)?.checked;
+    if (checked) this.silverSelectedIds.add(studentId);
+    else this.silverSelectedIds.delete(studentId);
+  }
+
+  toggleSelectAllVisibleSilver(event: Event): void {
+    const checked = !!(event?.target as HTMLInputElement)?.checked;
+    if (checked) this.filteredSilverStudents.forEach((s) => this.silverSelectedIds.add(s._id));
+    else this.filteredSilverStudents.forEach((s) => this.silverSelectedIds.delete(s._id));
+  }
+
+  isSilverAdding(studentId: string): boolean {
+    return this.silverAddingIds.has(studentId);
+  }
+
+  isGoRemoving(studentId: string): boolean {
+    return this.goRemovingIds.has(studentId);
+  }
+
+  removeFromGo(student: any): void {
+    const studentId = String(student?._id || '');
+    if (!studentId) return;
+    this.goRemovingIds.add(studentId);
+    this.http.delete<any>(
+      `${environment.apiUrl}/go-students/${encodeURIComponent(studentId)}/remove`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        this.goRemovingIds.delete(studentId);
+        this.notify.success(r?.message || 'Student moved back to Silver.');
+        this.goStudents = this.goStudents.filter((s) => String(s?._id) !== studentId);
+        const removedStudent = r?.student;
+        if (removedStudent?.subscription === 'SILVER') {
+          const exists = this.silverStudents.some((s) => String(s._id) === String(removedStudent._id));
+          if (!exists) this.silverStudents = [removedStudent, ...this.silverStudents];
+        }
+      },
+      error: (e) => {
+        this.goRemovingIds.delete(studentId);
+        this.notify.error(e?.error?.message || 'Failed to move student to Silver.');
+      }
+    });
+  }
+
+  addGoStudentById(student: SilverStudentRow): void {
+    if (!student?._id) return;
+    if (!this.silverSelectedIds.has(student._id)) {
+      this.notify.error('Select the checkbox first, then click Go.');
+      return;
+    }
+    this.silverAddingIds.add(student._id);
+    this.http.post<any>(
+      `${environment.apiUrl}/go-students/add`,
+      { studentId: student._id },
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        this.silverAddingIds.delete(student._id);
+        this.notify.success(r?.message || 'Student moved to GO batch.');
+        this.afterGoStudentAdded(r?.student);
+      },
+      error: (e) => {
+        this.silverAddingIds.delete(student._id);
+        this.notify.error(e?.error?.message || 'Failed to move student to GO batch.');
+      }
+    });
+  }
+
+  private afterGoStudentAdded(student: any): void {
+    if (!student?._id) return;
+    this.goStudents = [student, ...this.goStudents.filter((s) => String(s?._id) !== String(student._id))];
+    this.silverStudents = this.silverStudents.filter((s) => String(s._id) !== String(student._id));
+    this.silverSelectedIds.delete(String(student._id));
   }
 
   openGoStudentDetail(student: any): void {

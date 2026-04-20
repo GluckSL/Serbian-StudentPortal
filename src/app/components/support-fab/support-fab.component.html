@@ -20,6 +20,7 @@
         My Tickets
       </button>
       <button
+        *ngIf="showAnnouncementsTab"
         class="sf-action"
         [class.sf-action--highlight]="announcementBadgeCount > 0"
         type="button"
@@ -41,7 +42,7 @@
   <button class="sf-fab" type="button" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open help and support">
     <i class="fas" [class.fa-comment-dots]="!open" [class.fa-times]="open"></i>
     <span
-      *ngIf="announcementBadgeCount > 0"
+      *ngIf="showAnnouncementsTab && announcementBadgeCount > 0"
       class="sf-fab__badge"
       [attr.aria-label]="'New announcements (' + announcementBadgeCount + ')'"
     ></span>
@@ -64,7 +65,7 @@
   <div class="sf-modal__tabs" *ngIf="activeTab !== 'announcements'">
     <button class="sf-tab" [class.active]="activeTab==='submit'" (click)="setTab('submit')">Raise Ticket</button>
     <button class="sf-tab" [class.active]="activeTab==='tickets'" (click)="setTab('tickets')" [disabled]="!isLoggedIn">My Tickets</button>
-    <button class="sf-tab" (click)="setTab('announcements')">Announcements</button>
+    <button *ngIf="showAnnouncementsTab" class="sf-tab" (click)="setTab('announcements')">Announcements</button>
   </div>
 
   <div class="sf-modal__body">

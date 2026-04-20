@@ -36,6 +36,16 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   private announcementReqSeq = 0;
   private autoOpenedAnnouncementId: string | null = null;
 
+  get showAnnouncementsTab(): boolean {
+    if (!this.currentUser) return true;
+    const role = String(this.currentUser?.role || '').toUpperCase();
+    if (role !== 'STUDENT') return true;
+    const subscription = String(this.currentUser?.subscription || '').toUpperCase();
+    const goStatus = String(this.currentUser?.goStatus || '').toUpperCase();
+    // For Silver / GO students, hide announcement tab in support modal.
+    return !(subscription === 'SILVER' || goStatus === 'GO');
+  }
+
   readonly categories = [
     { value: 'login', label: 'Login / Access Issue' },
     { value: 'payment', label: 'Payment Problem' },
@@ -96,6 +106,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   }
 
   openModal(tab: 'submit' | 'tickets' | 'announcements' = 'submit'): void {
+    if (!this.showAnnouncementsTab && tab === 'announcements') tab = 'submit';
     this.refreshAnnouncementBadge();
     this.activeTab = tab;
     this.modalOpen = true;
@@ -112,6 +123,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   }
 
   setTab(tab: 'submit' | 'tickets' | 'announcements'): void {
+    if (!this.showAnnouncementsTab && tab === 'announcements') return;
     this.refreshAnnouncementBadge();
     this.activeTab = tab;
     if (tab !== 'announcements') this.selectedAnnouncement = null;
@@ -199,6 +211,13 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   }
 
   loadAnnouncements(): void {
+    if (!this.showAnnouncementsTab) {
+      this.loadingAnnouncements = false;
+      this.announcements = [];
+      this.selectedAnnouncement = null;
+      this.announcementBadgeCount = 0;
+      return;
+    }
     this.loadingAnnouncements = true;
     this.selectedAnnouncement = null;
     this.announcementService.getForStudent().subscribe({
@@ -227,6 +246,10 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   }
 
   private refreshAnnouncementBadge(): void {
+    if (!this.showAnnouncementsTab) {
+      this.announcementBadgeCount = 0;
+      return;
+    }
     const reqId = ++this.announcementReqSeq;
     console.info('[support-fab] refresh announcements badge:start', {
       reqId,
@@ -257,6 +280,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   }
 
   private maybeAutoOpenLatestAnnouncement(list: AnnouncementItem[]): void {
+    if (!this.showAnnouncementsTab) return;
     const latest = list[0];
     const latestId = latest?._id || null;
     if (!latestId) return;

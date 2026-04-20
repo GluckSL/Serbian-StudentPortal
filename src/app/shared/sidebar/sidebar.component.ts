@@ -36,13 +36,26 @@ export class SidebarComponent implements OnInit {
         this.userName = user.name || '';
         this.userEmail = user.email || '';
         this.sidebarPermissions = user.sidebarPermissions || [];
-        this.navGroups = this.navService.getNavForRole(
+        let groups = this.navService.getNavForRole(
           this.userRole,
           this.sidebarPermissions,
           user.teacherTabPermissions || [],
           user.sidebarAccessLevels || {},
           user.teacherTabAccessLevels || {}
         );
+        if (this.userRole === 'STUDENT') {
+          const subscription = String(user.subscription || '').toUpperCase();
+          const goStatus = String(user.goStatus || '').toUpperCase();
+          if (subscription === 'SILVER' || goStatus === 'GO') {
+            groups = groups
+              .map((g) => ({
+                ...g,
+                items: (g.items || []).filter((item) => item.id !== 'student-announcements')
+              }))
+              .filter((g) => (g.items || []).length > 0);
+          }
+        }
+        this.navGroups = groups;
       }
     });
   }

@@ -16,6 +16,7 @@ const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomR
 const { processManualRecordingUpload } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
+const { markPendingAdvanceForStudentDay } = require('../services/journeyDayAdvance.service');
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
 
@@ -658,11 +659,56 @@ router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
 // PUT /api/class-recordings/zoom/view/:viewId — Update Zoom watch duration
 router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
   try {
-    const { watchDuration } = req.body || {};
-    await ZoomRecordingView.findByIdAndUpdate(req.params.viewId, {
-      watchDuration: watchDuration || 0,
+    const watchDurationSec = Math.max(0, Number(req.body?.watchDuration || 0));
+    const view = await ZoomRecordingView.findByIdAndUpdate(req.params.viewId, {
+      watchDuration: watchDurationSec,
       lastUpdatedAt: new Date(),
+    }, {
+      new: true,
+      select: 'meetingLinkId student watchDuration'
     });
+
+    if (view?.meetingLinkId && view?.student) {
+      const [meeting, zoomRec] = await Promise.all([
+        MeetingLink.findById(view.meetingLinkId).select('batch courseDay duration status').lean(),
+        ZoomRecording.findOne({ meetingLinkId: view.meetingLinkId }).select('duration').lean()
+      ]);
+
+      const recordingDurationSec = Number(
+        zoomRec?.duration != null
+          ? zoomRec.duration
+          : (meeting?.duration != null ? Number(meeting.duration) * 60 : 0)
+      );
+      const day = Number(meeting?.courseDay);
+      const isEligibleGate =
+        !!meeting &&
+        meeting.status !== 'cancelled' &&
+        Number.isFinite(day) &&
+        day >= 1 &&
+        Number.isFinite(recordingDurationSec) &&
+        recordingDurationSec > 0 &&
+        watchDurationSec >= Math.ceil(recordingDurationSec * 0.75);
+
+      if (isEligibleGate) {
+        const dayInt = Math.floor(day);
+        const nextDay = Math.min(200, dayInt + 1);
+        const advancedNow = await User.updateOne(
+          { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
+          {
+            $set: {
+              currentCourseDay: nextDay,
+              pendingJourneyDayAdvance: false,
+              pendingJourneyDayAdvanceForDay: null
+            }
+          }
+        );
+        // If day moved meanwhile, keep existing behavior and mark pending eligibility.
+        if (!advancedNow?.modifiedCount) {
+          await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
+        }
+      }
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

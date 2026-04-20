@@ -52,6 +52,15 @@ async function tryMarkStudentPending(studentId, meetingBatch, meetingCourseDay) 
 }
 
 /**
+ * Mark a student as pending day-advance for the provided batch/day gate.
+ * Useful when completion comes from recordings, not just live attendance.
+ */
+async function markPendingAdvanceForStudentDay(studentId, batchName, courseDay) {
+  if (!studentId || !batchName || courseDay == null || !Number.isFinite(Number(courseDay))) return;
+  await tryMarkStudentPending(String(studentId), String(batchName), normalizeCourseDay(courseDay));
+}
+
+/**
  * Ensure pending flag matches Zoom attendance (e.g. after page load / delayed sync).
  * Only when at least one live class exists for this batch + day (otherwise no class gate).
  */
@@ -152,5 +161,6 @@ module.exports = {
   syncPendingFlagsFromMeeting,
   recomputePendingForStudent,
   applyJourneyDayRollovers,
-  normalizeCourseDay
+  normalizeCourseDay,
+  markPendingAdvanceForStudentDay
 };
