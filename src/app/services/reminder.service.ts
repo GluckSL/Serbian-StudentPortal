@@ -22,6 +22,10 @@ export interface Reminder {
   body: string;
   targetBatch: string;
   deliveryMode?: 'instant' | 'scheduled';
+  /** Set on create; CRM uses for dashboards. */
+  scheduleTimeKind?: 'instant' | 'minutes_before_class' | 'fixed_datetime';
+  /** When scheduleTimeKind is minutes_before_class. */
+  minutesBeforeClass?: number | null;
   scheduleScope?: 'one' | 'all' | 'multi';
   scheduledFor?: string | null;
   createdBy: { name: string; role: string } | null;

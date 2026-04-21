@@ -50,6 +50,19 @@ const reminderSchema = new mongoose.Schema(
       default: 'instant',
       index: true
     },
+    /**
+     * How send time was chosen (for CRM / reporting).
+     * instant — send when created; minutes_before_class — scheduledFor = classStart − minutesBeforeClass;
+     * fixed_datetime — scheduledFor from explicit wall-clock (API / legacy).
+     */
+    scheduleTimeKind: {
+      type: String,
+      enum: ['instant', 'minutes_before_class', 'fixed_datetime'],
+      default: 'instant',
+      index: true
+    },
+    /** When scheduleTimeKind is minutes_before_class: offset in minutes before the anchored class. */
+    minutesBeforeClass: { type: Number, default: null },
     scheduleScope: {
       type: String,
       enum: ['one', 'all', 'multi'],

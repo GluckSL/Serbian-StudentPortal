@@ -366,16 +366,21 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       .lean();
 
     let scheduledForDate = null;
+    let scheduleTimeKind = 'instant';
+    let storedMinutesBeforeClass = null;
+
     if (deliveryMode === 'scheduled') {
-      let minutesBeforeClass = null;
+      let parsedMinutesBefore = null;
       if (rawMinutesBefore !== undefined && rawMinutesBefore !== null && String(rawMinutesBefore).trim() !== '') {
         const parsed = parseInt(String(rawMinutesBefore), 10);
-        if (Number.isFinite(parsed) && parsed >= 0) minutesBeforeClass = parsed;
+        if (Number.isFinite(parsed) && parsed >= 0) parsedMinutesBefore = parsed;
       }
 
-      if (minutesBeforeClass !== null) {
+      if (parsedMinutesBefore !== null) {
+        scheduleTimeKind = 'minutes_before_class';
+        storedMinutesBeforeClass = parsedMinutesBefore;
         const maxLead = 60 * 24 * 14; // 14 days — avoids typos like 999999
-        if (minutesBeforeClass > maxLead) {
+        if (parsedMinutesBefore > maxLead) {
           return res.status(422).json({
             success: false,
             message: `minutesBeforeClass cannot exceed ${maxLead} (14 days).`
@@ -388,7 +393,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
           });
         }
         const startMs = new Date(upcomingClass.startTime).getTime();
-        scheduledForDate = new Date(startMs - minutesBeforeClass * 60 * 1000);
+        scheduledForDate = new Date(startMs - parsedMinutesBefore * 60 * 1000);
         if (scheduledForDate <= now) {
           return res.status(422).json({
             success: false,
@@ -396,6 +401,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
           });
         }
       } else {
+        scheduleTimeKind = 'fixed_datetime';
         if (!rawScheduledFor) {
           return res.status(422).json({
             success: false,
@@ -453,6 +459,8 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       attachments: [],
       targetBatch: batchName,
       deliveryMode,
+      scheduleTimeKind,
+      minutesBeforeClass: storedMinutesBeforeClass,
       scheduleScope: 'all',
       scheduledFor: scheduledForDate,
       createdBy: req.user.id,
@@ -621,12 +629,29 @@ router.get('/crm/pending', crmTokenAuth, async (req, res) => {
       isActive: { $ne: false },
       status: { $in: ['queued', 'scheduled', 'in_progress'] }
     })
-      .select('_id title body attachments targetBatch deliveryMode scheduledFor status recipients')
+      .select(
+        '_id title body attachments targetBatch deliveryMode scheduledFor status scheduleTimeKind minutesBeforeClass recipients'
+      )
       .lean();
+
+    const resolveScheduleTimeKind = (doc) => {
+      if (doc.scheduleTimeKind) return doc.scheduleTimeKind;
+      if (doc.deliveryMode !== 'scheduled') return 'instant';
+      if (doc.minutesBeforeClass != null && Number.isFinite(Number(doc.minutesBeforeClass))) {
+        return 'minutes_before_class';
+      }
+      return 'fixed_datetime';
+    };
 
     const flat = [];
     const now = new Date();
     for (const reminder of reminders) {
+      const scheduleTimeKind = resolveScheduleTimeKind(reminder);
+      const minutesBeforeStored =
+        reminder.minutesBeforeClass !== undefined && reminder.minutesBeforeClass !== null
+          ? reminder.minutesBeforeClass
+          : null;
+
       for (const r of reminder.recipients || []) {
         const dueAt = r.scheduledFor ? new Date(r.scheduledFor) : null;
         const isDueNow = !dueAt || dueAt <= now;
@@ -645,7 +670,9 @@ router.get('/crm/pending', crmTokenAuth, async (req, res) => {
             reminder: {
               deliveryMode: reminder.deliveryMode,
               scheduledFor: reminder.scheduledFor,
-              status: reminder.status
+              status: reminder.status,
+              scheduleTimeKind,
+              minutesBeforeClass: minutesBeforeStored
             },
             recipient: {
               _id: r._id,
@@ -693,10 +720,22 @@ router.get('/crm/pending', crmTokenAuth, async (req, res) => {
 
     const enriched = flat.map((item) => {
       const ctx = batchCtx.get(item.targetBatch) || { participants: [], classSchedules: [] };
+      const nextClass = ctx.classSchedules[0] || null;
       return {
         ...item,
         participants: ctx.participants,
-        classSchedules: ctx.classSchedules
+        classSchedules: ctx.classSchedules,
+        /** Earliest upcoming/started class for this batch (same anchor used for minutes-before scheduling). */
+        nextUpcomingClass: nextClass,
+        /** Human-readable scheduling hint for CRM dashboards. */
+        scheduleSummary:
+          item.reminder.scheduleTimeKind === 'minutes_before_class' &&
+          item.reminder.minutesBeforeClass != null &&
+          nextClass?.startTime
+            ? `Send ${item.reminder.minutesBeforeClass} min before class at ${nextClass.startTime}`
+            : item.reminder.scheduledFor
+              ? `Send at ${item.reminder.scheduledFor}`
+              : null
       };
     });
 

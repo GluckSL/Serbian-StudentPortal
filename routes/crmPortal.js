@@ -10,7 +10,30 @@
 const express = require('express');
 const User = require('../models/User');
 const Reminder = require('../models/Reminder');
+const MeetingLink = require('../models/MeetingLink');
 const { crmTokenAuth } = require('../middleware/crmTokenAuth');
+
+async function batchParticipantsAndSchedules(batchName) {
+  const name = String(batchName || '').trim();
+  if (!name) return { participants: [], classSchedules: [] };
+  const batchEsc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const [participants, classSchedules] = await Promise.all([
+    User.find({ role: 'STUDENT', batch: name })
+      .select('-password')
+      .sort({ name: 1 })
+      .lean(),
+    MeetingLink.find({
+      batch: new RegExp(`^${batchEsc}$`, 'i'),
+      status: { $in: ['scheduled', 'started'] }
+    })
+      .sort({ startTime: 1 })
+      .limit(100)
+      .populate('assignedTeacher', 'name email regNo role medium assignedBatches')
+      .populate('createdBy', 'name email role regNo')
+      .lean()
+  ]);
+  return { participants, classSchedules };
+}
 
 const router = express.Router();
 
@@ -227,6 +250,55 @@ router.get('/reminders', async (req, res) => {
   } catch (err) {
     console.error('[crm] GET /reminders', err);
     res.status(500).json({ success: false, message: 'Failed to fetch reminders', error: err.message });
+  }
+});
+
+// ─── GET /api/crm/reminders/:id — one reminder + recipients + batch participants & classes
+router.get('/reminders/:id', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const id = String(req.params.id || '').trim();
+    const reminder = await Reminder.findById(id)
+      .populate('createdBy', 'name role email regNo')
+      .populate('templateId', 'title body isActive')
+      .lean();
+
+    if (!reminder) {
+      return res.status(404).json({ success: false, message: 'Reminder not found.' });
+    }
+
+    const { participants, classSchedules } = await batchParticipantsAndSchedules(reminder.targetBatch);
+    const nextUpcomingClass = classSchedules[0] || null;
+
+    const scheduleTimeKind =
+      reminder.scheduleTimeKind ||
+      (reminder.deliveryMode !== 'scheduled'
+        ? 'instant'
+        : reminder.minutesBeforeClass != null && Number.isFinite(Number(reminder.minutesBeforeClass))
+          ? 'minutes_before_class'
+          : 'fixed_datetime');
+
+    res.json({
+      success: true,
+      data: {
+        ...reminder,
+        scheduleTimeKind,
+        participants,
+        classSchedules,
+        nextUpcomingClass,
+        scheduleSummary:
+          scheduleTimeKind === 'minutes_before_class' &&
+          reminder.minutesBeforeClass != null &&
+          nextUpcomingClass?.startTime
+            ? `Send ${reminder.minutesBeforeClass} min before class at ${nextUpcomingClass.startTime}`
+            : reminder.scheduledFor
+              ? `Send at ${reminder.scheduledFor}`
+              : null
+      }
+    });
+  } catch (err) {
+    console.error('[crm] GET /reminders/:id', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch reminder', error: err.message });
   }
 });
 
