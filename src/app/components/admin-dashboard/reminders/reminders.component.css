@@ -1148,13 +1148,95 @@
   background: #fff;
 }
 
+.rem-input--minutes {
+  width: 120px;
+  max-width: 40%;
+  padding: 8px 12px;
+  border: 1px solid var(--rem-border);
+  border-radius: var(--rem-radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rem-text);
+  background: #fff;
+}
+
+.rem-schedule-manual__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.rem-schedule-manual__suffix {
+  font-size: 13px;
+  color: var(--rem-text-muted);
+}
+
 .rem-schedule-picker__preview {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 13px;
   color: var(--rem-primary);
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.rem-schedule-picker__preview i {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.rem-schedule-picker__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--rem-text-muted);
+  line-height: 1.45;
+}
+
+.rem-schedule-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rem-schedule-chip {
+  border: 1px solid #a5b4fc;
+  background: #fff;
+  color: var(--rem-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.rem-schedule-chip:hover {
+  background: #eef2ff;
+  border-color: var(--rem-primary);
+}
+
+.rem-schedule-chip--active {
+  background: var(--rem-primary);
+  color: #fff;
+  border-color: var(--rem-primary);
+}
+
+.rem-schedule-chip--manual {
+  border-style: dashed;
+}
+
+.rem-schedule-manual {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #c7d2fe;
+}
+
+.rem-label--sub {
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--rem-text);
 }
 
 /* ============================================================

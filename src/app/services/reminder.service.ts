@@ -99,7 +99,10 @@ export class ReminderService {
     body: string;
     targetBatch: string;
     deliveryMode?: 'instant' | 'scheduled';
+    /** Wall-clock India / ISO datetime when not using minutesBeforeClass */
     scheduledFor?: string;
+    /** Send at (class start − minutes). Omit when using manual scheduledFor. */
+    minutesBeforeClass?: number;
   }): Observable<{ success: boolean; data: Reminder; warnings: string[] }> {
     return this.http.post<{ success: boolean; data: Reminder; warnings: string[] }>(
       `${this.base}`,

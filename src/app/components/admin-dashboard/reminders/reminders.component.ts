@@ -38,9 +38,23 @@ export class RemindersComponent implements OnInit {
   adHocBody  = '';
   sendWarnings: string[] = [];
 
-  /** datetime-local value (interpreted as India time) */
-  scheduledFor = '';
   showSchedulePicker = false;
+
+  /**
+   * relative: preset chips (next class start − relativeMinutes).
+   * manual: type any number of minutes before class (same server rule as presets).
+   */
+  scheduleTiming: 'relative' | 'manual' = 'relative';
+  relativeMinutes = 60;
+  /** Plain text for number input — minutes before next class when scheduleTiming === 'manual' */
+  customMinutesBefore = '';
+
+  readonly relativeOptions: { minutes: number; label: string; shortLabel: string }[] = [
+    { minutes: 10, label: '10 minutes before class', shortLabel: '10 min before' },
+    { minutes: 30, label: '30 minutes before class', shortLabel: '30 min before' },
+    { minutes: 60, label: '1 hour before class', shortLabel: '1 hour before' },
+    { minutes: 360, label: '6 hours before class', shortLabel: '6 hours before' }
+  ];
 
   readonly adHocBodyPlaceholder = 'Hi {{studentName}}…';
   readonly TOKENS = ['{{studentName}}', '{{batch}}', '{{classTime}}', '{{classDate}}', '{{topic}}'];
@@ -138,12 +152,74 @@ export class RemindersComponent implements OnInit {
   }
 
   canSchedule(): boolean {
-    return !!this.selectedBatch && !!this.adHocTitle.trim() && !!this.adHocBody.trim() && !!this.scheduledFor;
+    if (!this.selectedBatch || !this.adHocTitle.trim() || !this.adHocBody.trim()) return false;
+    if (!this.previewMeetings.length) return false;
+    if (this.scheduleTiming === 'manual') {
+      const n = this.parsedCustomMinutesBefore();
+      return n !== null && n >= 1;
+    }
+    return this.relativeMinutes >= 0;
   }
 
   toggleSchedulePicker(): void {
     this.showSchedulePicker = !this.showSchedulePicker;
-    if (!this.showSchedulePicker) this.scheduledFor = '';
+    if (!this.showSchedulePicker) {
+      this.customMinutesBefore = '';
+      this.scheduleTiming = 'relative';
+      this.relativeMinutes = 60;
+    } else {
+      this.scheduleTiming = 'relative';
+      this.relativeMinutes = 60;
+      this.customMinutesBefore = '';
+    }
+  }
+
+  /** Integer minutes from custom field, or null if empty/invalid. */
+  parsedCustomMinutesBefore(): number | null {
+    const raw = String(this.customMinutesBefore || '').trim();
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n < 1) return null;
+    return n;
+  }
+
+  /** Minutes used for preview + submit when scheduling (preset or custom). */
+  private effectiveScheduleMinutes(): number {
+    if (this.scheduleTiming === 'manual') {
+      return this.parsedCustomMinutesBefore() ?? 0;
+    }
+    return this.relativeMinutes;
+  }
+
+  /** Shown under schedule options (relative uses next class from preview). */
+  get schedulePreviewText(): string {
+    if (!this.showSchedulePicker) return '';
+    const m = this.previewMeetings[0];
+    if (!m?.startTime) {
+      return 'No upcoming class for this batch. Add a class in the timetable first.';
+    }
+    const mins = this.effectiveScheduleMinutes();
+    if (this.scheduleTiming === 'manual' && (!this.customMinutesBefore.trim() || mins < 1)) {
+      return 'Enter how many minutes before class (e.g. 23).';
+    }
+    const startMs = new Date(m.startTime).getTime();
+    const sendAt = new Date(startMs - mins * 60 * 1000);
+    const opt = this.relativeOptions.find((o) => o.minutes === mins);
+    const when = opt?.shortLabel || `${mins} min before`;
+    if (sendAt.getTime() <= Date.now()) {
+      return `Next class ${this.formatDateTime(m.startTime)} — with "${when}", send time would be in the past. Use fewer minutes.`;
+    }
+    return `Next class ${this.formatDateTime(m.startTime)} → sends ${this.formatDateTime(sendAt.toISOString())} (${when}).`;
+  }
+
+  setScheduleRelative(minutes: number): void {
+    this.scheduleTiming = 'relative';
+    this.relativeMinutes = minutes;
+    this.customMinutesBefore = '';
+  }
+
+  setScheduleManual(): void {
+    this.scheduleTiming = 'manual';
   }
 
   sendInstant(): void {
@@ -159,24 +235,33 @@ export class RemindersComponent implements OnInit {
     if (!this.adHocTitle.trim() || !this.adHocBody.trim()) {
       this.notify.warning('Title and message body are required.'); return;
     }
-    if (deliveryMode === 'scheduled' && !this.scheduledFor) {
-      this.notify.warning('Please select a date and time to schedule the reminder.'); return;
+    if (deliveryMode === 'scheduled' && !this.previewMeetings.length) {
+      this.notify.warning('No upcoming class for this batch. Add a class in the timetable first.');
+      return;
+    }
+    if (deliveryMode === 'scheduled' && this.scheduleTiming === 'manual') {
+      const cm = this.parsedCustomMinutesBefore();
+      if (cm === null) {
+        this.notify.warning('Enter a valid number of minutes before class (e.g. 23).');
+        return;
+      }
     }
 
-    const payload: { title: string; body: string; targetBatch: string; deliveryMode?: 'instant' | 'scheduled'; scheduledFor?: string } = {
+    const payload: {
+      title: string;
+      body: string;
+      targetBatch: string;
+      deliveryMode?: 'instant' | 'scheduled';
+      minutesBeforeClass?: number;
+    } = {
       title: this.adHocTitle.trim(),
       body: this.adHocBody.trim(),
       targetBatch: this.selectedBatch,
       deliveryMode
     };
-    let scheduledForIso = '';
     if (deliveryMode === 'scheduled') {
-      scheduledForIso = this.indiaInputToIso(this.scheduledFor);
-      if (!scheduledForIso) {
-        this.notify.warning('Invalid schedule date/time. Please select a valid India time.');
-        return;
-      }
-      payload.scheduledFor = scheduledForIso;
+      payload.minutesBeforeClass =
+        this.scheduleTiming === 'manual' ? (this.parsedCustomMinutesBefore() as number) : this.relativeMinutes;
     }
 
     this.sendingReminder = true;
@@ -186,14 +271,21 @@ export class RemindersComponent implements OnInit {
         this.sendingReminder = false;
         this.sendWarnings = res.warnings || [];
         if (deliveryMode === 'scheduled') {
-          this.notify.success(`Reminder scheduled for ${this.formatDateTime(scheduledForIso)} (India time) in batch "${this.selectedBatch}".`);
+          const at = res.data?.scheduledFor ? this.formatDateTime(res.data.scheduledFor) : '';
+          this.notify.success(
+            at
+              ? `Reminder scheduled for ${at} (India time) in batch "${this.selectedBatch}".`
+              : `Reminder scheduled in batch "${this.selectedBatch}".`
+          );
         } else {
           this.notify.success(`Reminder queued for ${res.data.totalRecipients} students in batch "${this.selectedBatch}".`);
         }
         this.adHocTitle = '';
         this.adHocBody  = '';
-        this.scheduledFor = '';
+        this.customMinutesBefore = '';
         this.showSchedulePicker = false;
+        this.scheduleTiming = 'relative';
+        this.relativeMinutes = 60;
         this.loadReminders();
       },
       error: (err) => {

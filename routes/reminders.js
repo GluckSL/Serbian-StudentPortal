@@ -329,7 +329,8 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       body: bodyBody,
       targetBatch,
       deliveryMode: rawDeliveryMode,
-      scheduledFor: rawScheduledFor
+      scheduledFor: rawScheduledFor,
+      minutesBeforeClass: rawMinutesBefore
     } = req.body;
 
     const resolvedTitle = String(bodyTitle || '').trim();
@@ -343,20 +344,6 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       return res.status(400).json({ success: false, message: 'targetBatch is required.' });
     }
 
-    let scheduledForDate = null;
-    if (deliveryMode === 'scheduled') {
-      if (!rawScheduledFor) {
-        return res.status(422).json({ success: false, message: 'scheduledFor datetime is required for scheduled reminders.' });
-      }
-      scheduledForDate = parseScheduledForAsIndia(rawScheduledFor);
-      if (!scheduledForDate || isNaN(scheduledForDate.getTime())) {
-        return res.status(422).json({ success: false, message: 'Invalid scheduledFor datetime.' });
-      }
-      if (scheduledForDate <= new Date()) {
-        return res.status(422).json({ success: false, message: 'scheduledFor must be a future datetime.' });
-      }
-    }
-
     const batchName = String(targetBatch).trim();
 
     // Fetch students for this batch
@@ -368,7 +355,6 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       return res.status(422).json({ success: false, message: `No students found in batch "${batchName}".` });
     }
 
-    // For instant: look up nearest upcoming class for placeholder rendering
     const now = new Date();
     const upcomingClass = await MeetingLink.findOne({
       batch: new RegExp(`^${batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
@@ -378,6 +364,53 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req,
       .sort({ startTime: 1 })
       .select('topic startTime duration')
       .lean();
+
+    let scheduledForDate = null;
+    if (deliveryMode === 'scheduled') {
+      let minutesBeforeClass = null;
+      if (rawMinutesBefore !== undefined && rawMinutesBefore !== null && String(rawMinutesBefore).trim() !== '') {
+        const parsed = parseInt(String(rawMinutesBefore), 10);
+        if (Number.isFinite(parsed) && parsed >= 0) minutesBeforeClass = parsed;
+      }
+
+      if (minutesBeforeClass !== null) {
+        const maxLead = 60 * 24 * 14; // 14 days — avoids typos like 999999
+        if (minutesBeforeClass > maxLead) {
+          return res.status(422).json({
+            success: false,
+            message: `minutesBeforeClass cannot exceed ${maxLead} (14 days).`
+          });
+        }
+        if (!upcomingClass?.startTime) {
+          return res.status(422).json({
+            success: false,
+            message: 'No upcoming class found for this batch. Add a scheduled class in the timetable first.'
+          });
+        }
+        const startMs = new Date(upcomingClass.startTime).getTime();
+        scheduledForDate = new Date(startMs - minutesBeforeClass * 60 * 1000);
+        if (scheduledForDate <= now) {
+          return res.status(422).json({
+            success: false,
+            message: 'That offset would send the reminder in the past for the next class. Pick a shorter lead time or a later class.'
+          });
+        }
+      } else {
+        if (!rawScheduledFor) {
+          return res.status(422).json({
+            success: false,
+            message: 'Send minutesBeforeClass (any number of minutes before the next class) or scheduledFor for a fixed date & time.'
+          });
+        }
+        scheduledForDate = parseScheduledForAsIndia(rawScheduledFor);
+        if (!scheduledForDate || isNaN(scheduledForDate.getTime())) {
+          return res.status(422).json({ success: false, message: 'Invalid scheduledFor datetime.' });
+        }
+        if (scheduledForDate <= now) {
+          return res.status(422).json({ success: false, message: 'scheduledFor must be a future datetime.' });
+        }
+      }
+    }
 
     const classTime = upcomingClass ? formatTime(upcomingClass.startTime) : (scheduledForDate ? formatTime(scheduledForDate) : '');
     const classDate = upcomingClass ? formatDate(upcomingClass.startTime) : (scheduledForDate ? formatDate(scheduledForDate) : '');
@@ -574,19 +607,21 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
 // CRM POLLER — protected by X-CRM-Token
 // ═══════════════════════════════════════════════════════════════════════════
 
-// GET /api/reminders/pending?limit=50
+// GET /api/reminders/crm/pending?limit=100
 // Returns queued recipients across all reminders, marks them in_progress atomically.
+// Each row includes full `recipient`, all batch `participants` (students, no passwords),
+// and `classSchedules` (upcoming/started MeetingLink rows for the batch).
 router.get('/crm/pending', crmTokenAuth, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
+    const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 200);
 
     // Find reminders that have queued recipients
     const reminders = await Reminder.find({
       isActive: { $ne: false },
       status: { $in: ['queued', 'scheduled', 'in_progress'] }
     })
-      .select('_id title body attachments targetBatch recipients')
+      .select('_id title body attachments targetBatch deliveryMode scheduledFor status recipients')
       .lean();
 
     const flat = [];
@@ -599,16 +634,71 @@ router.get('/crm/pending', crmTokenAuth, async (req, res) => {
           flat.push({
             reminderId: reminder._id,
             recipientId: r._id,
+            studentId: r.studentId,
             phone: r.phone,
             name: r.name,
             messageBody: r.messageBody,
             title: reminder.title,
+            body: reminder.body,
             attachments: reminder.attachments,
-            targetBatch: reminder.targetBatch
+            targetBatch: reminder.targetBatch,
+            reminder: {
+              deliveryMode: reminder.deliveryMode,
+              scheduledFor: reminder.scheduledFor,
+              status: reminder.status
+            },
+            recipient: {
+              _id: r._id,
+              studentId: r.studentId,
+              name: r.name,
+              phone: r.phone,
+              messageBody: r.messageBody,
+              status: r.status,
+              scheduledFor: r.scheduledFor,
+              meetingId: r.meetingId,
+              meetingTopic: r.meetingTopic,
+              meetingStartTime: r.meetingStartTime,
+              sentAt: r.sentAt,
+              error: r.error,
+              isTestAccount: !!r.isTestAccount
+            }
           });
         }
       }
     }
+
+    const uniqueBatches = [...new Set(flat.map((f) => String(f.targetBatch || '').trim()).filter(Boolean))];
+    const batchCtx = new Map();
+    await Promise.all(
+      uniqueBatches.map(async (batchName) => {
+        const batchEsc = batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const [participants, classSchedules] = await Promise.all([
+          User.find({ role: 'STUDENT', batch: batchName })
+            .select('-password')
+            .sort({ name: 1 })
+            .lean(),
+          MeetingLink.find({
+            batch: new RegExp(`^${batchEsc}$`, 'i'),
+            status: { $in: ['scheduled', 'started'] }
+          })
+            .sort({ startTime: 1 })
+            .limit(100)
+            .populate('assignedTeacher', 'name email regNo role medium assignedBatches')
+            .populate('createdBy', 'name email role regNo')
+            .lean()
+        ]);
+        batchCtx.set(batchName, { participants, classSchedules });
+      })
+    );
+
+    const enriched = flat.map((item) => {
+      const ctx = batchCtx.get(item.targetBatch) || { participants: [], classSchedules: [] };
+      return {
+        ...item,
+        participants: ctx.participants,
+        classSchedules: ctx.classSchedules
+      };
+    });
 
     // Atomically mark each as in_progress
     for (const item of flat) {
@@ -618,7 +708,7 @@ router.get('/crm/pending', crmTokenAuth, async (req, res) => {
       );
     }
 
-    return res.json({ success: true, count: flat.length, data: flat });
+    return res.json({ success: true, count: enriched.length, data: enriched });
   } catch (err) {
     console.error('[reminders] GET /crm/pending', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch pending reminders.' });

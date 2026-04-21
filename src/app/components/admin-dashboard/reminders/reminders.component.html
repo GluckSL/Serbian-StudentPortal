@@ -72,20 +72,56 @@
           </div>
         </div>
 
-        <!-- Schedule datetime picker (shown when Schedule is toggled) -->
+        <!-- Schedule: minutes before next class (presets or custom number) -->
         <div *ngIf="showSchedulePicker" class="rem-schedule-picker">
           <label class="rem-label">
-            <i class="fas fa-calendar-alt"></i> Select date &amp; time to send
+            <i class="fas fa-clock"></i> When to send
           </label>
-          <input
-            type="datetime-local"
-            class="rem-input rem-input--datetime"
-            [(ngModel)]="scheduledFor"
-            [min]="minScheduleDateTime"
-          />
-          <div *ngIf="scheduledFor" class="rem-schedule-picker__preview">
-            <i class="fas fa-clock"></i>
-            Will be sent on <strong>{{ formatDateTime(scheduledFor) }}</strong>
+          <p class="rem-schedule-picker__hint">
+            All options use the <strong>next upcoming class</strong> for this batch (same as the list on the right). Example: class at 7:00 PM with <strong>60 minutes</strong> before → sends at 6:00 PM. Under <strong>Custom</strong>, type any number of minutes (e.g. 23).
+          </p>
+          <div class="rem-schedule-chips" role="group" aria-label="Time before class">
+            <button
+              type="button"
+              *ngFor="let opt of relativeOptions"
+              class="rem-schedule-chip"
+              [class.rem-schedule-chip--active]="scheduleTiming === 'relative' && relativeMinutes === opt.minutes"
+              (click)="setScheduleRelative(opt.minutes)"
+            >
+              {{ opt.label }}
+            </button>
+            <button
+              type="button"
+              class="rem-schedule-chip rem-schedule-chip--manual"
+              [class.rem-schedule-chip--active]="scheduleTiming === 'manual'"
+              (click)="setScheduleManual()"
+            >
+              Custom (type minutes)
+            </button>
+          </div>
+          <div *ngIf="scheduleTiming === 'manual'" class="rem-schedule-manual">
+            <label class="rem-label rem-label--sub" for="rem-custom-minutes">
+              <i class="fas fa-keyboard"></i> Minutes before class
+            </label>
+            <div class="rem-schedule-manual__row">
+              <input
+                id="rem-custom-minutes"
+                type="number"
+                class="rem-input rem-input--minutes"
+                [(ngModel)]="customMinutesBefore"
+                min="1"
+                max="20160"
+                step="1"
+                inputmode="numeric"
+                placeholder="e.g. 23"
+                autocomplete="off"
+              />
+              <span class="rem-schedule-manual__suffix">minutes before the next class</span>
+            </div>
+          </div>
+          <div *ngIf="schedulePreviewText" class="rem-schedule-picker__preview">
+            <i class="fas fa-info-circle"></i>
+            <span>{{ schedulePreviewText }}</span>
           </div>
         </div>
 
