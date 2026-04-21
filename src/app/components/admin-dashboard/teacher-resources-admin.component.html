@@ -1,7 +1,7 @@
 <div class="teacher-resources-admin">
   <div class="page-header">
     <h2>Teacher Resources</h2>
-    <p>Upload and manage files by teacher and day.</p>
+    <p>Upload and manage resources with batch, level and plan targeting.</p>
   </div>
 
   <section class="upload-card">
@@ -10,9 +10,9 @@
       <span class="hint">All file types supported (max 50 MB)</span>
     </div>
 
-    <div class="form-grid">
+    <div class="form-grid form-grid--upload">
       <div class="form-field">
-        <label>Teacher</label>
+        <label>Teacher <span class="required">*</span></label>
         <select [(ngModel)]="selectedTeacherId">
           <option value="">Select teacher</option>
           <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
@@ -20,16 +20,46 @@
       </div>
 
       <div class="form-field">
-        <label>Title</label>
+        <label>Title <span class="required">*</span></label>
         <input type="text" [(ngModel)]="title" placeholder="Enter title" />
       </div>
 
       <div class="form-field">
-        <label>Day</label>
+        <label>Day <span class="required">*</span></label>
         <input type="text" [(ngModel)]="day" placeholder="Example: Day 1" />
       </div>
 
       <div class="form-field">
+        <label>Batch</label>
+        <input type="text" [(ngModel)]="batch" placeholder="Example: April Intake" />
+      </div>
+
+      <div class="form-field">
+        <label>Level</label>
+        <input type="text" [(ngModel)]="level" placeholder="Example: A1 / Beginner" />
+      </div>
+
+      <div class="form-field">
+        <label>Plan</label>
+        <input type="text" [(ngModel)]="plan" placeholder="Example: Weekend Plan" />
+      </div>
+
+      <div class="form-field">
+        <label>Resource Type</label>
+        <input type="text" [(ngModel)]="resourceType" placeholder="Example: Worksheet / PPT / Quiz" />
+      </div>
+
+      <div class="form-field">
+        <label>Topic</label>
+        <input type="text" [(ngModel)]="topic" placeholder="Example: Basic Introductions" />
+      </div>
+
+      <div class="form-field form-field--wide">
+        <label>Description</label>
+        <textarea [(ngModel)]="description" rows="3" placeholder="Short details for teachers"></textarea>
+      </div>
+
+      <div class="form-field form-field--wide">
         <label>File</label>
         <div class="file-picker">
           <input id="resource-file" type="file" (change)="onFileSelected($event)" />
@@ -49,19 +79,63 @@
   <section class="list-card">
     <div class="card-head">
       <h3>Uploaded Resources</h3>
-      <span class="hint">{{ resources.length }} files</span>
+      <span class="hint">{{ filteredResources.length }} of {{ resources.length }} files</span>
+    </div>
+
+    <div class="filter-grid">
+      <div class="form-field">
+        <label>Search</label>
+        <input type="text" [(ngModel)]="searchTerm" placeholder="Search title, day, file, topic..." />
+      </div>
+      <div class="form-field">
+        <label>Teacher</label>
+        <select [(ngModel)]="filterTeacherId" (change)="loadResources()">
+          <option value="">All teachers</option>
+          <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Batch</label>
+        <select [(ngModel)]="filterBatch" (change)="loadResources()">
+          <option value="">All batches</option>
+          <option *ngFor="let value of availableBatches" [value]="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Level</label>
+        <select [(ngModel)]="filterLevel" (change)="loadResources()">
+          <option value="">All levels</option>
+          <option *ngFor="let value of availableLevels" [value]="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Plan</label>
+        <select [(ngModel)]="filterPlan" (change)="loadResources()">
+          <option value="">All plans</option>
+          <option *ngFor="let value of availablePlans" [value]="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button type="button" class="btn-outline" (click)="clearFilters()">Reset Filters</button>
+      </div>
     </div>
 
     <div *ngIf="loading" class="empty-msg">Loading resources...</div>
-    <div *ngIf="!loading && resources.length === 0" class="empty-msg">No resources uploaded yet.</div>
+    <div *ngIf="!loading && filteredResources.length === 0" class="empty-msg">No resources found for selected filters.</div>
 
-    <div *ngIf="!loading && resources.length > 0" class="table-wrap">
+    <div *ngIf="!loading && filteredResources.length > 0" class="table-wrap">
       <table class="resource-table">
         <thead>
           <tr>
             <th>Teacher</th>
             <th>Title</th>
             <th>Day</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Plan</th>
+            <th>Type</th>
+            <th>Topic</th>
+            <th>Description</th>
             <th>File</th>
             <th>Size</th>
             <th>Uploaded</th>
@@ -69,13 +143,19 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let item of resources">
+          <tr *ngFor="let item of filteredResources">
             <td>{{ teacherName(item) }}</td>
             <td>{{ item.title }}</td>
             <td>{{ item.day }}</td>
+            <td>{{ item.batch || '-' }}</td>
+            <td>{{ item.level || '-' }}</td>
+            <td>{{ item.plan || '-' }}</td>
+            <td>{{ item.resourceType || '-' }}</td>
+            <td>{{ item.topic || '-' }}</td>
+            <td class="description-col">{{ item.description || '-' }}</td>
             <td class="file-col">{{ item.originalName }}</td>
             <td>{{ getFileSizeLabel(item.fileSize) }}</td>
-            <td>{{ item.uploadedAt | date: 'mediumDate' }}</td>
+            <td>{{ item.uploadedAt | date: 'medium' }}</td>
             <td class="action-col">
               <button type="button" class="btn-play" (click)="play(item)">Play</button>
               <button type="button" class="btn-delete" (click)="delete(item)">Delete</button>

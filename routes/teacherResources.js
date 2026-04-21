@@ -40,7 +40,17 @@ router.post(
   async (req, res) => {
     let uploadedKey = null;
     try {
-      const { teacherId, title, day } = req.body;
+      const {
+        teacherId,
+        title,
+        day,
+        batch = '',
+        level = '',
+        plan = '',
+        resourceType = '',
+        topic = '',
+        description = ''
+      } = req.body;
       if (!teacherId || !title || !day) {
         return res.status(400).json({ success: false, message: 'teacherId, title and day are required' });
       }
@@ -58,6 +68,12 @@ router.post(
         teacherId,
         title: String(title).trim(),
         day: String(day).trim(),
+        batch: String(batch || '').trim(),
+        level: String(level || '').trim(),
+        plan: String(plan || '').trim(),
+        resourceType: String(resourceType || '').trim(),
+        topic: String(topic || '').trim(),
+        description: String(description || '').trim(),
         fileName: req.file.key || req.file.filename,
         originalName: req.file.originalname,
         fileUrl: req.file.location || req.file.path,
@@ -93,6 +109,9 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     } else if (req.query.teacherId) {
       query.teacherId = req.query.teacherId;
     }
+    if (req.query.batch) query.batch = String(req.query.batch).trim();
+    if (req.query.level) query.level = String(req.query.level).trim();
+    if (req.query.plan) query.plan = String(req.query.plan).trim();
 
     const rows = await TeacherResource.find(query)
       .populate('teacherId', 'name email')

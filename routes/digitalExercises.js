@@ -452,6 +452,77 @@ async function checkSequenceLock(studentId, exercise) {
   };
 }
 
+/**
+ * Batch sequence-lock calculation for list payloads to avoid N+1 queries.
+ * Mutates `exercises` in-place by setting:
+ *   - sequenceLocked: boolean
+ *   - previousSequenceLetter: string | null
+ */
+async function attachSequenceLockStatusForList(studentId, exercises) {
+  const sequenced = (exercises || []).filter(
+    (ex) => ex?.sequenceLetter && ex?.courseDay != null && ex?.courseDay !== undefined
+  );
+  if (!sequenced.length) return;
+
+  const courseDays = Array.from(
+    new Set(
+      sequenced
+        .map((ex) => Number(ex.courseDay))
+        .filter((n) => Number.isFinite(n))
+    )
+  );
+  if (!courseDays.length) return;
+
+  const dayExercises = await DigitalExercise.find({
+    courseDay: { $in: courseDays },
+    sequenceLetter: { $ne: null, $exists: true },
+    visibleToStudents: true,
+    isActive: true,
+    isDeleted: { $ne: true }
+  })
+    .select('_id courseDay sequenceLetter title')
+    .lean();
+
+  if (!dayExercises.length) {
+    sequenced.forEach((ex) => {
+      ex.sequenceLocked = false;
+      ex.previousSequenceLetter = null;
+    });
+    return;
+  }
+
+  const allDayExerciseIds = dayExercises.map((d) => d._id);
+  const completedAttempts = await ExerciseAttempt.find({
+    studentId,
+    exerciseId: { $in: allDayExerciseIds },
+    status: 'completed',
+    scorePercentage: { $gte: 60 }
+  })
+    .select('exerciseId')
+    .lean();
+  const passedIds = new Set(completedAttempts.map((a) => String(a.exerciseId)));
+
+  const byDay = {};
+  dayExercises.forEach((item) => {
+    const key = String(item.courseDay);
+    if (!byDay[key]) byDay[key] = [];
+    byDay[key].push(item);
+  });
+  Object.keys(byDay).forEach((k) => {
+    byDay[k].sort((a, b) => String(a.sequenceLetter || '').localeCompare(String(b.sequenceLetter || '')));
+  });
+
+  sequenced.forEach((ex) => {
+    const key = String(ex.courseDay);
+    const sameDay = byDay[key] || [];
+    const currentLetter = String(ex.sequenceLetter || '').toLowerCase();
+    const priors = sameDay.filter((item) => String(item.sequenceLetter || '').toLowerCase() < currentLetter);
+    const firstUnpassed = priors.find((item) => !passedIds.has(String(item._id)));
+    ex.sequenceLocked = !!firstUnpassed;
+    ex.previousSequenceLetter = firstUnpassed ? firstUnpassed.sequenceLetter : null;
+  });
+}
+
 // ─── PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ───────────────────────────────────
 
 // GET /api/digital-exercises  — Browse exercises
@@ -519,7 +590,33 @@ router.get('/', verifyToken, async (req, res) => {
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .populate('createdBy', 'name email')
-      .select('-questions.correctAnswerIndex -questions.answers -questions.pairs') // hide answers for student browsing
+      // Keep browse payload lightweight: include only question type metadata.
+      .select(
+        [
+          'title',
+          'description',
+          'targetLanguage',
+          'nativeLanguage',
+          'level',
+          'category',
+          'difficulty',
+          'estimatedDuration',
+          'sharedAudioUrl',
+          'tags',
+          'isActive',
+          'visibleToStudents',
+          'publishedAt',
+          'createdBy',
+          'totalAttempts',
+          'totalCompletions',
+          'averageScore',
+          'courseDay',
+          'sequenceLetter',
+          'createdAt',
+          'updatedAt',
+          'questions.type'
+        ].join(' ')
+      )
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit))
@@ -528,11 +625,58 @@ router.get('/', verifyToken, async (req, res) => {
     // For students: attach attempt summary (best score) + wrong/correct counts for analytics
     if (req.user.role === 'STUDENT') {
       const exerciseIds = exercises.map(e => e._id);
-      const attempts = await ExerciseAttempt.find({
-        studentId: req.user.id,
-        exerciseId: { $in: exerciseIds },
-        status: 'completed'
-      }).select('exerciseId scorePercentage completedAt attemptNumber responses').lean();
+      const studentIdForMatch = mongoose.Types.ObjectId.isValid(String(req.user.id))
+        ? new mongoose.Types.ObjectId(String(req.user.id))
+        : req.user.id;
+      const attempts = await ExerciseAttempt.aggregate([
+        {
+          $match: {
+            studentId: studentIdForMatch,
+            exerciseId: { $in: exerciseIds },
+            status: 'completed'
+          }
+        },
+        {
+          $addFields: {
+            correctCount: {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ['$responses', []] },
+                  as: 'r',
+                  cond: { $eq: ['$$r.isCorrect', true] }
+                }
+              }
+            },
+            wrongCount: {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ['$responses', []] },
+                  as: 'r',
+                  cond: { $eq: ['$$r.isCorrect', false] }
+                }
+              }
+            }
+          }
+        },
+        { $sort: { exerciseId: 1, scorePercentage: -1, completedAt: -1, attemptNumber: -1, _id: -1 } },
+        {
+          $group: {
+            _id: '$exerciseId',
+            best: {
+              $first: {
+                _id: '$_id',
+                exerciseId: '$exerciseId',
+                scorePercentage: '$scorePercentage',
+                completedAt: '$completedAt',
+                attemptNumber: '$attemptNumber',
+                wrongCount: '$wrongCount',
+                correctCount: '$correctCount'
+              }
+            }
+          }
+        },
+        { $replaceRoot: { newRoot: '$best' } }
+      ]);
 
       const exerciseById = {};
       exercises.forEach((e) => { exerciseById[e._id.toString()] = e; });
@@ -542,42 +686,25 @@ router.get('/', verifyToken, async (req, res) => {
         const key = a.exerciseId.toString();
         const ex = exerciseById[key];
         const totalQ = Array.isArray(ex?.questions) ? ex.questions.length : 0;
-        const resp = a.responses || [];
-        const wrongCount = resp.filter(r => !r.isCorrect).length;
-        const correctCount = resp.filter(r => r.isCorrect).length;
         const summary = {
           _id: a._id,
           exerciseId: a.exerciseId,
           scorePercentage: a.scorePercentage,
           completedAt: a.completedAt,
           attemptNumber: a.attemptNumber,
-          wrongCount,
-          correctCount,
+          wrongCount: Number(a.wrongCount) || 0,
+          correctCount: Number(a.correctCount) || 0,
           totalQuestions: totalQ
         };
-        if (!attemptMap[key] || a.scorePercentage > attemptMap[key].scorePercentage) {
-          attemptMap[key] = summary;
-        }
+        attemptMap[key] = summary;
       });
 
       exercises.forEach(ex => {
         ex.studentAttempt = attemptMap[ex._id.toString()] || null;
       });
 
-      // Attach sequence lock status for exercises that have a sequenceLetter
-      const sequencedExercises = exercises.filter(
-        (ex) => ex.sequenceLetter && ex.courseDay
-      );
-      if (sequencedExercises.length) {
-        const lockResults = await Promise.all(
-          sequencedExercises.map((ex) => checkSequenceLock(req.user.id, ex))
-        );
-        sequencedExercises.forEach((ex, idx) => {
-          const lockInfo = lockResults[idx];
-          ex.sequenceLocked = lockInfo.locked;
-          ex.previousSequenceLetter = lockInfo.locked ? lockInfo.previousLetter : null;
-        });
-      }
+      // Attach sequence lock status in one batched pass.
+      await attachSequenceLockStatusForList(req.user.id, exercises);
     }
 
     await resignExercises(exercises);

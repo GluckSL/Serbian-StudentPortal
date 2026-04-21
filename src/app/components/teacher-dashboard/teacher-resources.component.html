@@ -1,24 +1,85 @@
 <div class="teacher-resources-page">
   <div class="page-head">
     <h2>Resources</h2>
-    <p>Files shared for your classes.</p>
+    <p>Resources shared for your classes with batch and plan details.</p>
   </div>
 
   <div *ngIf="loading" class="empty-state">Loading resources...</div>
   <div *ngIf="!loading && resources.length === 0" class="empty-state">No resources available yet.</div>
 
-  <div class="cards" *ngIf="!loading && resources.length > 0">
-    <div class="resource-card" *ngFor="let item of resources">
-      <div class="card-top">
-        <span class="ext-badge">{{ getExtension(item.originalName) }}</span>
-        <small>{{ item.uploadedAt | date: 'mediumDate' }}</small>
+  <section class="resource-panel" *ngIf="!loading && resources.length > 0">
+    <div class="filter-grid">
+      <div class="filter-item">
+        <label>Search</label>
+        <input type="text" [(ngModel)]="searchTerm" placeholder="Search title, topic, file..." />
       </div>
-      <h3>{{ item.title }}</h3>
-      <p>{{ item.day }}</p>
-      <div class="file-name">{{ item.originalName }}</div>
-      <button type="button" (click)="play(item)">Play</button>
+      <div class="filter-item">
+        <label>Batch</label>
+        <select [(ngModel)]="selectedBatch">
+          <option value="">All batches</option>
+          <option *ngFor="let value of availableBatches" [value]="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label>Level</label>
+        <select [(ngModel)]="selectedLevel">
+          <option value="">All levels</option>
+          <option *ngFor="let value of availableLevels" [value]="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label>Plan</label>
+        <select [(ngModel)]="selectedPlan">
+          <option value="">All plans</option>
+          <option *ngFor="let value of availablePlans" [value]="value">{{ value }}</option>
+        </select>
+      </div>
+      <div class="filter-item filter-item--action">
+        <button type="button" class="btn-reset" (click)="resetFilters()">Reset</button>
+      </div>
     </div>
-  </div>
+
+    <div *ngIf="filteredResources.length === 0" class="empty-state">No resources match your current filters.</div>
+
+    <div class="table-wrap" *ngIf="filteredResources.length > 0">
+      <table class="resource-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Day</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Plan</th>
+            <th>Type</th>
+            <th>Topic</th>
+            <th>Description</th>
+            <th>File</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of filteredResources">
+            <td>{{ item.title }}</td>
+            <td>{{ item.day }}</td>
+            <td>{{ item.batch || '-' }}</td>
+            <td>{{ item.level || '-' }}</td>
+            <td>{{ item.plan || '-' }}</td>
+            <td>{{ item.resourceType || getExtension(item.originalName) }}</td>
+            <td>{{ item.topic || '-' }}</td>
+            <td class="description-col">{{ item.description || '-' }}</td>
+            <td class="file-col">{{ item.originalName }}</td>
+            <td>{{ getFileSizeLabel(item.fileSize) }}</td>
+            <td>{{ item.uploadedAt | date: 'medium' }}</td>
+            <td>
+              <button type="button" class="btn-play" (click)="play(item)">Open</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <div class="preview-overlay" *ngIf="activePreviewUrl" #previewContainer>
     <div class="preview-topbar">

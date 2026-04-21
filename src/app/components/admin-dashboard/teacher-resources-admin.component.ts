@@ -19,10 +19,21 @@ export class TeacherResourcesAdminComponent implements OnInit {
   selectedTeacherId = '';
   title = '';
   day = '';
+  batch = '';
+  level = '';
+  plan = '';
+  resourceType = '';
+  topic = '';
+  description = '';
   file: File | null = null;
   selectedFileName = 'No file chosen';
   uploading = false;
   loading = false;
+  searchTerm = '';
+  filterTeacherId = '';
+  filterBatch = '';
+  filterLevel = '';
+  filterPlan = '';
   activePreviewUrl: SafeResourceUrl | null = null;
   activePreviewTitle = '';
 
@@ -38,6 +49,50 @@ export class TeacherResourcesAdminComponent implements OnInit {
     this.loadResources();
   }
 
+  get filteredResources(): TeacherResource[] {
+    const term = this.searchTerm.trim().toLowerCase();
+    if (!term) return this.resources;
+    return this.resources.filter((item) => {
+      const teacher = this.teacherName(item).toLowerCase();
+      const haystack = [
+        item.title,
+        item.day,
+        item.batch,
+        item.level,
+        item.plan,
+        item.topic,
+        item.resourceType,
+        item.description,
+        item.originalName,
+        teacher
+      ]
+        .map((x) => String(x || '').toLowerCase())
+        .join(' ');
+      return haystack.includes(term);
+    });
+  }
+
+  get availableBatches(): string[] {
+    const set = new Set(
+      this.resources.map((item) => String(item.batch || '').trim()).filter((x) => x.length > 0)
+    );
+    return Array.from(set).sort();
+  }
+
+  get availableLevels(): string[] {
+    const set = new Set(
+      this.resources.map((item) => String(item.level || '').trim()).filter((x) => x.length > 0)
+    );
+    return Array.from(set).sort();
+  }
+
+  get availablePlans(): string[] {
+    const set = new Set(
+      this.resources.map((item) => String(item.plan || '').trim()).filter((x) => x.length > 0)
+    );
+    return Array.from(set).sort();
+  }
+
   loadTeachers(): void {
     this.teacherService.getAllTeachers().subscribe({
       next: (res) => (this.teachers = res?.data || []),
@@ -47,7 +102,14 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   loadResources(): void {
     this.loading = true;
-    this.teacherResourcesService.list().subscribe({
+    this.teacherResourcesService
+      .list({
+        teacherId: this.filterTeacherId || undefined,
+        batch: this.filterBatch || undefined,
+        level: this.filterLevel || undefined,
+        plan: this.filterPlan || undefined
+      })
+      .subscribe({
       next: (res) => {
         this.resources = res?.data || [];
         this.loading = false;
@@ -56,7 +118,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
         this.loading = false;
         this.notify.error('Failed to load resources');
       }
-    });
+      });
   }
 
   onFileSelected(event: Event): void {
@@ -78,6 +140,12 @@ export class TeacherResourcesAdminComponent implements OnInit {
         teacherId: this.selectedTeacherId,
         title: this.title.trim(),
         day: this.day.trim(),
+        batch: this.batch.trim(),
+        level: this.level.trim(),
+        plan: this.plan.trim(),
+        resourceType: this.resourceType.trim(),
+        topic: this.topic.trim(),
+        description: this.description.trim(),
         file: this.file
       })
       .subscribe({
@@ -86,6 +154,12 @@ export class TeacherResourcesAdminComponent implements OnInit {
           this.notify.success('Resource uploaded');
           this.title = '';
           this.day = '';
+          this.batch = '';
+          this.level = '';
+          this.plan = '';
+          this.resourceType = '';
+          this.topic = '';
+          this.description = '';
           this.file = null;
           this.selectedFileName = 'No file chosen';
           this.loadResources();
@@ -134,6 +208,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
   }
 
   delete(item: TeacherResource): void {
+    if (!confirm(`Delete resource "${item.title}"?`)) return;
     this.teacherResourcesService.delete(item._id).subscribe({
       next: () => {
         this.notify.success('Resource deleted');
@@ -158,5 +233,14 @@ export class TeacherResourcesAdminComponent implements OnInit {
       unitIndex++;
     }
     return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  }
+
+  clearFilters(): void {
+    this.searchTerm = '';
+    this.filterTeacherId = '';
+    this.filterBatch = '';
+    this.filterLevel = '';
+    this.filterPlan = '';
+    this.loadResources();
   }
 }

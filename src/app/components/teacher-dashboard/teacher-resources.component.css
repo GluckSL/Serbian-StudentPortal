@@ -17,70 +17,114 @@
   color: #64748b;
 }
 
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
-}
-
-.resource-card {
+.resource-panel {
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   border: 1px solid #dbe5f0;
   border-radius: 14px;
-  padding: 14px 14px 12px;
+  padding: 14px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
 }
 
-.resource-card h3 {
-  margin: 8px 0 8px;
-  font-size: 1.05rem;
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.resource-card p {
-  margin: 0 0 8px;
-  color: #334155;
+.filter-item label {
+  display: block;
+  font-size: 0.82rem;
+  color: #475569;
+  margin-bottom: 5px;
+  font-weight: 600;
 }
 
-.card-top {
+input,
+select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 10px;
+  font: inherit;
+  background: #fff;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.filter-item--action {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
 }
 
-.ext-badge {
-  display: inline-block;
-  background: #e0e7ff;
-  color: #1e3a8a;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  padding: 4px 8px;
+.btn-reset {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-weight: 600;
 }
 
-.file-name {
-  font-size: 0.85rem;
+.table-wrap {
+  overflow: auto;
+}
+
+.resource-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1500px;
+}
+
+.resource-table th,
+.resource-table td {
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  padding: 10px 10px;
+}
+
+.resource-table th {
+  background: #f8fafc;
+  font-size: 0.78rem;
+  text-transform: uppercase;
   color: #64748b;
+}
+
+.file-col {
+  max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.resource-card button {
-  margin-top: 12px;
-  padding: 9px 12px;
+.description-col {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-play {
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
   background: #2563eb;
   color: #fff;
   font-weight: 600;
 }
 
 .empty-state {
-  background: #fff;
   border: 1px dashed #cbd5e1;
   border-radius: 10px;
   padding: 16px;
   color: #64748b;
+  margin-bottom: 12px;
 }
 
 .preview-overlay {
@@ -131,4 +175,16 @@
   width: 100%;
   border: none;
   background: #fff;
+}
+
+@media (max-width: 1100px) {
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
 }

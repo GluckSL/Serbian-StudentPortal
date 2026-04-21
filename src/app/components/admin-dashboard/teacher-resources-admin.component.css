@@ -51,6 +51,10 @@
   gap: 12px;
 }
 
+.form-grid--upload {
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
 .form-field label {
   display: block;
   font-size: 0.83rem;
@@ -59,20 +63,32 @@
   font-weight: 600;
 }
 
+.required {
+  color: #dc2626;
+}
+
 select,
-input {
+input,
+textarea {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
-  height: 40px;
-  padding: 0 10px;
+  min-height: 40px;
+  padding: 8px 10px;
   outline: none;
+  font: inherit;
+  background: #fff;
 }
 
 select:focus,
-input:focus {
+input:focus,
+textarea:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.form-field--wide {
+  grid-column: 1 / -1;
 }
 
 .file-picker {
@@ -121,6 +137,27 @@ input:focus {
   cursor: not-allowed;
 }
 
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+.btn-outline {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  font-weight: 600;
+}
+
 .empty-msg {
   border: 1px dashed #cbd5e1;
   border-radius: 10px;
@@ -131,7 +168,7 @@ input:focus {
 .resource-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 900px;
+  min-width: 1700px;
 }
 
 .resource-table th,
@@ -149,7 +186,14 @@ input:focus {
 }
 
 .file-col {
-  max-width: 220px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.description-col {
+  max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -236,6 +280,10 @@ input:focus {
 
 @media (max-width: 900px) {
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-grid {
     grid-template-columns: 1fr;
   }
 }
