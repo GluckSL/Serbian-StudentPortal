@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const s3Client = require('../config/s3');
 const TeacherResource = require('../models/TeacherResource');
 const User = require('../models/User');
@@ -111,6 +111,43 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
   } catch (err) {
     console.error('teacherResources list error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch resources', error: err.message });
+  }
+});
+
+router.get('/:id/preview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const row = await TeacherResource.findById(req.params.id).lean();
+    if (!row) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    // Teachers can only preview resources assigned to themselves.
+    if (req.user?.role === 'TEACHER' && String(row.teacherId) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const key = (row.fileName || '').replace(/^\//, '').trim();
+    if (!key || !process.env.S3_BUCKET) {
+      return res.status(400).json({ success: false, message: 'Invalid storage object' });
+    }
+
+    const fileName = String(row.originalName || 'preview').replace(/["\r\n]/g, '_');
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: key
+    });
+    const out = await s3Client.send(command);
+
+    res.setHeader('Content-Type', row.mimeType || out.ContentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+
+    if (!out.Body) {
+      return res.status(500).json({ success: false, message: 'Preview stream is empty' });
+    }
+    out.Body.pipe(res);
+  } catch (err) {
+    console.error('teacherResources preview error:', err);
+    res.status(500).json({ success: false, message: 'Failed to preview resource', error: err.message });
   }
 });
 

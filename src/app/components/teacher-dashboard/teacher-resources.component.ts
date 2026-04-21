@@ -53,7 +53,7 @@ export class TeacherResourcesComponent implements OnInit {
 
     const url = useOfficeViewer
       ? this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl)
-      : basePreviewUrl;
+      : this.teacherResourcesService.getSecurePreviewUrl(item._id);
     this.activePreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     this.activePreviewTitle = item.title;
   }

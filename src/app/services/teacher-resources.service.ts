@@ -46,6 +46,10 @@ export class TeacherResourcesService {
     return this.http.delete(`${this.baseUrl}/${id}`, { withCredentials: true });
   }
 
+  getSecurePreviewUrl(resourceId: string): string {
+    return `${this.baseUrl}/${resourceId}/preview`;
+  }
+
   getOfficeViewerUrl(fileUrl: string): string {
     return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`;
   }
