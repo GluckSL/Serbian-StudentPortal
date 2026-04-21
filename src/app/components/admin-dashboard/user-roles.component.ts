@@ -1016,7 +1016,7 @@ export class UserRolesComponent implements OnInit {
             user.sidebarPermissions || [],
             user.sidebarAccessLevels || {}
           ),
-          teacherTabPermissions: user.role === 'TEACHER'
+          teacherTabPermissions: this.isTeacherAssignableRole(user.role)
             ? this.navService.normalizeTeacherTabPermissions(
               user.teacherTabPermissions || [],
               user.teacherTabAccessLevels || {}
@@ -1048,11 +1048,11 @@ export class UserRolesComponent implements OnInit {
       );
       user.teacherTabAccessLevels = {};
       user.teacherTabPermissions = [];
-    } else if (user.newRole === 'TEACHER') {
+    } else if (this.isTeacherAssignableRole(user.newRole)) {
       user.sidebarAccessLevels = {};
       user.sidebarPermissions = [];
       user.teacherTabAccessLevels = this.normalizeTeacherAccessLevelsForRole(
-        'TEACHER',
+        user.newRole,
         user.teacherTabAccessLevels || {},
         user.teacherTabPermissions || []
       );
@@ -1160,7 +1160,7 @@ export class UserRolesComponent implements OnInit {
   }
 
   isTeacherRole(user: ManagedUser): boolean {
-    return user.newRole === 'TEACHER' || user.role === 'TEACHER';
+    return this.isTeacherAssignableRole(user.newRole) || this.isTeacherAssignableRole(user.role);
   }
 
   isTeacherTabDetailsOpen(user: ManagedUser): boolean {
@@ -1262,6 +1262,10 @@ export class UserRolesComponent implements OnInit {
     return level === 'view' || level === 'edit' || level === 'full';
   }
 
+  private isTeacherAssignableRole(role: string | undefined | null): boolean {
+    return role === 'TEACHER' || role === 'TEACHER_ADMIN';
+  }
+
   private normalizeAccessLevelsForRole(
     role: string,
     accessLevels: Record<string, any>,
@@ -1291,7 +1295,7 @@ export class UserRolesComponent implements OnInit {
     accessLevels: Record<string, any>,
     fallbackPermissions: string[] = []
   ): Record<string, AccessLevel> {
-    if (role !== 'TEACHER') return {};
+    if (!this.isTeacherAssignableRole(role)) return {};
     const normalized = this.navService.normalizeAccessLevels(accessLevels || {});
     const hasExplicitAccessLevels = Object.keys(normalized).length > 0;
     if (!hasExplicitAccessLevels) {
@@ -1319,7 +1323,7 @@ export class UserRolesComponent implements OnInit {
     teacherTabPermissions: string[],
     teacherTabAccessLevels: Record<string, AccessLevel> = {}
   ): string[] {
-    if (role !== 'TEACHER') return [];
+    if (!this.isTeacherAssignableRole(role)) return [];
     const hasExplicitAccessLevels = Object.keys(teacherTabAccessLevels || {}).length > 0;
     return hasExplicitAccessLevels
       ? this.navService.normalizeTeacherTabPermissions(Object.keys(teacherTabAccessLevels || {}), teacherTabAccessLevels)
@@ -1363,10 +1367,10 @@ export class UserRolesComponent implements OnInit {
         ? this.navService.normalizeSidebarPermissions(Object.keys(payload.sidebarAccessLevels || {}), payload.sidebarAccessLevels)
         : [];
 
-      payload.teacherTabAccessLevels = user.newRole === 'TEACHER'
-        ? this.normalizeTeacherAccessLevelsForRole('TEACHER', user.teacherTabAccessLevels || {}, user.teacherTabPermissions || [])
+      payload.teacherTabAccessLevels = this.isTeacherAssignableRole(user.newRole)
+        ? this.normalizeTeacherAccessLevelsForRole(user.newRole, user.teacherTabAccessLevels || {}, user.teacherTabPermissions || [])
         : {};
-      payload.teacherTabPermissions = user.newRole === 'TEACHER'
+      payload.teacherTabPermissions = this.isTeacherAssignableRole(user.newRole)
         ? this.navService.normalizeTeacherTabPermissions(Object.keys(payload.teacherTabAccessLevels || {}), payload.teacherTabAccessLevels)
         : [];
 

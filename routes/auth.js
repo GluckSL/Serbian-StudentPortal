@@ -1305,7 +1305,7 @@ router.put("/:id", async (req, res) => {
     }
 
     // Teacher tab permissions (supports both legacy list and access levels map)
-    if (role === "TEACHER") {
+    if (role === "TEACHER" || role === "TEACHER_ADMIN") {
       const hasTeacherAccessLevelsPayload = typeof teacherTabAccessLevels !== "undefined";
       const teacherAccessLevelSeed = hasTeacherAccessLevelsPayload
         ? normalizeAccessLevels(teacherTabAccessLevels)
