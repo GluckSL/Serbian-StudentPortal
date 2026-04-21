@@ -223,7 +223,7 @@ router.get('/students', async (req, res) => {
   }
 });
 
-// ─── GET /api/crm/reminders — list (no per-recipient payload); same fields as admin list
+// ─── GET /api/crm/reminders — list + recipients + schedule context
 router.get('/reminders', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -238,13 +238,74 @@ router.get('/reminders', async (req, res) => {
       .limit(limit)
       .populate('createdBy', 'name role')
       .populate('templateId', 'title')
-      .select('-recipients')
       .lean();
+
+    const recipientStudentIds = [
+      ...new Set(
+        reminders
+          .flatMap((r) => (r.recipients || []).map((rc) => rc?.studentId).filter(Boolean))
+          .map((id) => String(id))
+      )
+    ];
+    const recipientStudents = recipientStudentIds.length
+      ? await User.find({ _id: { $in: recipientStudentIds } })
+        .select('-password')
+        .lean()
+      : [];
+    const recipientStudentMap = new Map(recipientStudents.map((s) => [String(s._id), s]));
+
+    const uniqueBatches = [...new Set(reminders.map((r) => String(r.targetBatch || '').trim()).filter(Boolean))];
+    const batchCtx = new Map();
+    await Promise.all(
+      uniqueBatches.map(async (batchName) => {
+        const ctx = await batchParticipantsAndSchedules(batchName);
+        batchCtx.set(batchName, ctx);
+      })
+    );
+
+    const mapped = reminders.map((reminder) => {
+      const { classSchedules, participants } = batchCtx.get(reminder.targetBatch) || { classSchedules: [], participants: [] };
+      const nextUpcomingClass = classSchedules[0] || null;
+      const scheduleTimeKind =
+        reminder.scheduleTimeKind ||
+        (reminder.deliveryMode !== 'scheduled'
+          ? 'instant'
+          : reminder.minutesBeforeClass != null && Number.isFinite(Number(reminder.minutesBeforeClass))
+            ? 'minutes_before_class'
+            : 'fixed_datetime');
+
+      const recipientsDetailed = (reminder.recipients || []).map((rc) => {
+        const student = recipientStudentMap.get(String(rc.studentId || '')) || null;
+        return {
+          ...rc,
+          student,
+          batch: student?.batch || reminder.targetBatch || null,
+          regNo: student?.regNo || null
+        };
+      });
+
+      return {
+        ...reminder,
+        scheduleTimeKind,
+        recipientsDetailed,
+        participants,
+        classSchedules,
+        nextUpcomingClass,
+        scheduleSummary:
+          scheduleTimeKind === 'minutes_before_class' &&
+          reminder.minutesBeforeClass != null &&
+          nextUpcomingClass?.startTime
+            ? `Send ${reminder.minutesBeforeClass} min before class at ${nextUpcomingClass.startTime}`
+            : reminder.scheduledFor
+              ? `Send at ${reminder.scheduledFor}`
+              : null
+      };
+    });
 
     const pages = Math.max(1, Math.ceil(total / limit));
     res.json({
       success: true,
-      data: reminders,
+      data: mapped,
       pagination: { total, page, limit, pages }
     });
   } catch (err) {
