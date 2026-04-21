@@ -3,15 +3,21 @@
  * Auth: header X-CRM-Token must equal process.env.REMINDERS_CRM_TOKEN
  * (same secret as GET /api/reminders/crm/pending).
  *
- * These mirror data shown on admin Teachers / Students views (JSON API),
+ * These mirror data shown on admin Teachers / Students / Reminders views (JSON API),
  * not the SPA URLs https://gluckstudentsportal.com/teachers (frontend).
  */
 
 const express = require('express');
 const User = require('../models/User');
+const Reminder = require('../models/Reminder');
 const { crmTokenAuth } = require('../middleware/crmTokenAuth');
 
 const router = express.Router();
+
+function toPositiveInt(value, fallback) {
+  const parsed = parseInt(String(value), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 /** Same whitelist as routes/admin.js for student filters */
 const ADV_STUDENT_FILTER_FIELDS = {
@@ -61,17 +67,28 @@ router.get('/summary', async (_req, res) => {
   }
 });
 
-// ─── GET /api/crm/teachers — same shape as GET /api/admin/teachers ──────────
-router.get('/teachers', async (_req, res) => {
+// ─── GET /api/crm/teachers — same shape as GET /api/admin/teachers (+ pagination) ─
+router.get('/teachers', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const teachers = await User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
+    const page = toPositiveInt(req.query.page, 1);
+    const limit = Math.min(toPositiveInt(req.query.limit, 100), 500);
+    const skip = (page - 1) * limit;
+
+    const teacherQuery = { role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } };
+    const total = await User.countDocuments(teacherQuery);
+
+    const teachers = await User.find(teacherQuery)
       .populate('assignedCourses', 'title')
       .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
+    const teacherIds = teachers.map((t) => t._id);
     const studentCounts = await User.aggregate([
-      { $match: { role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } } },
+      { $match: { role: 'STUDENT', assignedTeacher: { $in: teacherIds } } },
       { $group: { _id: '$assignedTeacher', count: { $sum: 1 } } }
     ]);
     const countMap = {};
@@ -84,7 +101,13 @@ router.get('/teachers', async (_req, res) => {
       studentCount: countMap[t._id.toString()] || 0
     }));
 
-    res.json({ success: true, data: teachersWithCount, count: teachersWithCount.length });
+    const pages = Math.max(1, Math.ceil(total / limit));
+    res.json({
+      success: true,
+      data: teachersWithCount,
+      count: total,
+      pagination: { total, page, limit, pages }
+    });
   } catch (err) {
     console.error('[crm] GET /teachers', err);
     res.status(500).json({ success: false, message: 'Failed to fetch teachers', error: err.message });
@@ -95,11 +118,6 @@ router.get('/teachers', async (_req, res) => {
 router.get('/students', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const toPositiveInt = (value, fallback) => {
-      const parsed = parseInt(String(value), 10);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-    };
-
     const page = toPositiveInt(req.query.page, 1);
     const limit = Math.min(toPositiveInt(req.query.limit, 100), 500);
     const skip = (page - 1) * limit;
@@ -179,6 +197,36 @@ router.get('/students', async (req, res) => {
   } catch (err) {
     console.error('[crm] GET /students', err);
     res.status(500).json({ success: false, message: 'Failed to fetch students', error: err.message });
+  }
+});
+
+// ─── GET /api/crm/reminders — list (no per-recipient payload); same fields as admin list
+router.get('/reminders', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const page = toPositiveInt(req.query.page, 1);
+    const limit = Math.min(toPositiveInt(req.query.limit, 100), 500);
+    const skip = (page - 1) * limit;
+
+    const total = await Reminder.countDocuments({});
+    const reminders = await Reminder.find({})
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('createdBy', 'name role')
+      .populate('templateId', 'title')
+      .select('-recipients')
+      .lean();
+
+    const pages = Math.max(1, Math.ceil(total / limit));
+    res.json({
+      success: true,
+      data: reminders,
+      pagination: { total, page, limit, pages }
+    });
+  } catch (err) {
+    console.error('[crm] GET /reminders', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch reminders', error: err.message });
   }
 });
 
