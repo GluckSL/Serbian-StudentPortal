@@ -86,22 +86,18 @@
     </div>
   </section>
 
-  <div class="preview-overlay" *ngIf="activePreviewUrl">
+  <div class="preview-overlay" *ngIf="activePreviewUrl" #previewContainer>
     <div class="preview-topbar">
       <strong>{{ activePreviewTitle }}</strong>
-      <button class="close-btn" type="button" (click)="closePreview()">Close</button>
-    </div>
-    <iframe [src]="activePreviewUrl" title="Resource preview"></iframe>
-  </div>
-  <div class="preview-overlay" *ngIf="activePreviewHtml">
-    <div class="preview-topbar">
-      <strong>{{ activePreviewTitle }}</strong>
-      <button class="close-btn" type="button" (click)="closePreview()">Close</button>
+      <div class="topbar-actions">
+        <button class="fullscreen-btn" type="button" (click)="toggleFullscreen(previewContainer)">Fullscreen</button>
+        <button class="close-btn" type="button" (click)="closePreview()">Close</button>
+      </div>
     </div>
     <iframe
-      [srcdoc]="activePreviewHtml"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
-      title="HTML preview"
+      [src]="activePreviewUrl"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+      title="Resource preview"
     ></iframe>
   </div>
 </div>

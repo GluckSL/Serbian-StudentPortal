@@ -136,9 +136,15 @@ router.get('/:id/preview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TE
     });
     const out = await s3Client.send(command);
 
-    res.setHeader('Content-Type', row.mimeType || out.ContentType || 'application/octet-stream');
+    const originalName = String(row.originalName || '').toLowerCase();
+    const forceHtml = originalName.endsWith('.html') || originalName.endsWith('.htm');
+    const contentType = forceHtml
+      ? 'text/html; charset=utf-8'
+      : (row.mimeType || out.ContentType || 'application/octet-stream');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-popups");
     res.setHeader('Cache-Control', 'private, max-age=300');
 
     if (!out.Body) {

@@ -202,8 +202,24 @@ input:focus {
   padding: 0 4px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fullscreen-btn {
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
 .close-btn {
   background: #fff;
+  color: #111827;
   border: none;
   border-radius: 8px;
   padding: 8px 14px;
