@@ -33,6 +33,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "user-roles",
   "modules",
   "exercises",
+  "teacher-resources",
   "journey",
   "go-students",
   "manage-classes",

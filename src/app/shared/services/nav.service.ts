@@ -45,6 +45,9 @@ export class NavService {
       '/admin/go-students'
     ]
   };
+  private readonly TEACHER_ROUTE_ALIASES: Record<string, string[]> = {
+    'teacher-resources': ['/teacher/resources']
+  };
 
   // ── ADMIN ──────────────────────────────────────────────────────────────
   private readonly ADMIN_NAV: NavGroup[] = [
@@ -165,8 +168,7 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/learning-modules',         subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null },
-        { id: 'teacher-resources', label: 'Resources', icon: '🗂️', route: '/teacher/resources', subGroup: null }
+        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null }
       ]
     },
     {
@@ -365,7 +367,11 @@ export class NavService {
     );
     const allowedItems = this.getAllAdminNavItems().filter(item => allowedIds.has(item.id));
     const normalizedRoute = this.normalizeRoute(route);
-    return allowedItems.some(item => this.routeMatches(item.route, normalizedRoute));
+    return allowedItems.some(item => {
+      if (this.routeMatches(item.route, normalizedRoute)) return true;
+      const aliases = this.TEACHER_ROUTE_ALIASES[item.id] || [];
+      return aliases.some(alias => this.routeMatches(alias, normalizedRoute));
+    });
   }
 
   private getTeacherNavWithTabs(
@@ -400,7 +406,13 @@ export class NavService {
       .map((group) => ({
         ...group,
         group: `${group.group} (Assigned Access)`,
-        items: group.items.filter((item) => allowedIds.has(item.id) && item.id !== 'journey')
+        items: group.items
+          .filter((item) => allowedIds.has(item.id) && item.id !== 'journey')
+          .map((item) =>
+            item.id === 'teacher-resources'
+              ? { ...item, label: 'Resources', route: '/teacher/resources' }
+              : item
+          )
       }))
       .filter((group) => group.items.length > 0);
 
