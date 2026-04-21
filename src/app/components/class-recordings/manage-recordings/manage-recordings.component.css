@@ -436,6 +436,8 @@
 .cr-icon-btn--blue:hover  { background: #bfdbfe; }
 .cr-icon-btn--green { background: #dcfce7; color: #16a34a; }
 .cr-icon-btn--green:hover { background: #bbf7d0; }
+.cr-icon-btn--violet { background: #ede9fe; color: #6d28d9; }
+.cr-icon-btn--violet:hover { background: #ddd6fe; }
 .cr-icon-btn--red   { background: #fee2e2; color: #dc2626; }
 .cr-icon-btn--red:hover   { background: #fecaca; }
 .cr-icon-btn--amber { background: #fef3c7; color: #b45309; }

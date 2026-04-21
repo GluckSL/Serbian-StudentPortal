@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import { MaterialModule } from '../../../shared/material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
@@ -69,14 +70,21 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   zoomTeachers: Array<{ _id: string; name: string; email?: string }> = [];
   showZoomEditModal = false;
   zoomEditingMeetingLinkId: string | null = null;
-  zoomEditForm = { title: '', batch: '', teacherId: '' };
+  zoomEditForm = {
+    title: '',
+    batches: [] as string[],
+    level: '',
+    plan: 'ALL',
+    teacherId: '',
+  };
   viewsMeta: { totalStudents?: number; watchedCount?: number; notWatchedCount?: number; totalWatchSeconds?: number; videoSizeBytes?: number } = {};
 
   constructor(
     private service: ClassRecordingsService,
     private snackBar: MatSnackBar,
     private sanitizer: DomSanitizer,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -473,7 +481,9 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.zoomEditingMeetingLinkId = String(r.meetingLinkId);
     this.zoomEditForm = {
       title: r.title || '',
-      batch: (r.batches && r.batches[0]) || '',
+      batches: Array.isArray(r.batches) ? [...r.batches] : [],
+      level: r.level && r.level !== 'ZOOM' ? r.level : '',
+      plan: r.plan || 'ALL',
       teacherId: r.assignedTeacherId ? String(r.assignedTeacherId) : '',
     };
     this.showZoomEditModal = true;
@@ -482,7 +492,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   closeZoomEdit(): void {
     this.showZoomEditModal = false;
     this.zoomEditingMeetingLinkId = null;
-    this.zoomEditForm = { title: '', batch: '', teacherId: '' };
+    this.zoomEditForm = { title: '', batches: [], level: '', plan: 'ALL', teacherId: '' };
   }
 
   saveZoomEdit(): void {
@@ -491,9 +501,15 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       this.snackBar.open('Title is required', 'Close', { duration: 2500 });
       return;
     }
+    if (!this.zoomEditForm.batches.length) {
+      this.snackBar.open('Select at least one batch', 'Close', { duration: 2500 });
+      return;
+    }
     this.service.updateZoomRecordingMeta(this.zoomEditingMeetingLinkId, {
       title: this.zoomEditForm.title.trim(),
-      batch: this.zoomEditForm.batch.trim(),
+      batches: Array.from(new Set(this.zoomEditForm.batches.map((b) => String(b).trim()).filter(Boolean))),
+      level: this.zoomEditForm.level || null,
+      plan: this.zoomEditForm.plan || 'ALL',
       teacherId: this.zoomEditForm.teacherId || undefined,
     }).subscribe({
       next: () => {
@@ -503,6 +519,34 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       },
       error: (err) => this.snackBar.open(err.error?.message || 'Failed to update Zoom recording', 'Close', { duration: 3000 }),
     });
+  }
+
+  toggleZoomEditBatch(batch: string): void {
+    const idx = this.zoomEditForm.batches.indexOf(batch);
+    if (idx >= 0) this.zoomEditForm.batches.splice(idx, 1);
+    else this.zoomEditForm.batches.push(batch);
+  }
+
+  playRecordingAction(r: AdminClassRecording): void {
+    if (this.isZoomRecording(r)) {
+      if (!r.meetingLinkId) {
+        this.snackBar.open('Meeting link not found for this recording.', 'Close', { duration: 3000 });
+        return;
+      }
+      const url = this.router.serializeUrl(this.router.createUrlTree(['/class-recording', String(r.meetingLinkId)]));
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (r.sourceType === 'HLS_UPLOAD') {
+      const playlistUrl = this.service.getManualHlsPlaylistUrl(String(r._id));
+      window.open(playlistUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (!r.videoUrl) {
+      this.snackBar.open('No video URL found for this recording.', 'Close', { duration: 2500 });
+      return;
+    }
+    window.open(r.videoUrl, '_blank', 'noopener,noreferrer');
   }
 
   getEmbedUrl(url: string): string {

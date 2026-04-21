@@ -127,6 +127,37 @@ function canUserAccessManualRecording(recording, student) {
   return allowed.includes(recPlan);
 }
 
+function normalizeZoomAccessSettings(zoomRecording, meetingLink) {
+  const accessBatches = Array.isArray(zoomRecording?.accessBatches)
+    ? zoomRecording.accessBatches.map((b) => String(b).trim()).filter(Boolean)
+    : [];
+  const batches = accessBatches.length
+    ? accessBatches
+    : (meetingLink?.batch ? [String(meetingLink.batch)] : []);
+  const level = zoomRecording?.accessLevel ? String(zoomRecording.accessLevel).toUpperCase() : null;
+  const plan = String(zoomRecording?.accessPlan || 'ALL').toUpperCase();
+  return { batches, level, plan };
+}
+
+function canUserAccessZoomRecording(zoomRecording, meetingLink, student) {
+  if (!zoomRecording || zoomRecording.isPublished === false) return false;
+  if (!student || !meetingLink) return false;
+  if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) return false;
+
+  const { batches, level, plan } = normalizeZoomAccessSettings(zoomRecording, meetingLink);
+  const studentBatchKeys = allStudentBatchStringsForContent(student);
+  const inBatch = studentBatchKeys.length > 0 &&
+    batches.length > 0 &&
+    batches.some((b) => studentBatchKeys.some((k) => batchesAlign(k, b)));
+  if (!inBatch) return false;
+
+  if (level && student.level && String(student.level).toUpperCase() !== level) return false;
+  if (!plan || plan === 'ALL') return true;
+
+  const allowed = allowedRecordingPlansForStudent(student).map((p) => String(p).toUpperCase());
+  return allowed.includes(plan);
+}
+
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -191,7 +222,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
     // Admin/teacher list includes all states so rows do not disappear while processing;
     // publish flags control student visibility.
     const zoomRecordings = await ZoomRecording.find({})
-      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt')
+      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt accessBatches accessLevel accessPlan')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -206,6 +237,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
 
     const zoomItems = zoomRecordings.map((z) => {
       const meeting = meetingMap[z.meetingLinkId.toString()] || {};
+      const access = normalizeZoomAccessSettings(z, meeting);
       return {
         _id: `zoom-${z.meetingLinkId.toString()}`,
         recordingType: 'ZOOM',
@@ -213,9 +245,9 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
         title: meeting.topic || 'Zoom Class Recording',
         description: '',
         videoUrl: '',
-        level: 'ZOOM',
-        plan: 'ALL',
-        batches: meeting.batch ? [meeting.batch] : [],
+        level: access.level || '',
+        plan: access.plan || 'ALL',
+        batches: access.batches,
         uploadedBy: { _id: null, name: 'Zoom Webhook' },
         active: true,
         createdAt: z.createdAt,
@@ -632,17 +664,16 @@ router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
     const { meetingLinkId } = req.params;
     const { role, id: userId } = req.user;
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
-      const [meetingLink, student] = await Promise.all([
+      const [meetingLink, zoomRecording, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
+        ZoomRecording.findOne({ meetingLinkId }).select('accessBatches accessLevel accessPlan isPublished').lean(),
         User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
       ]);
-      const keys = allStudentBatchStringsForContent(student);
-      const batchOk = meetingLink && keys.some((k) => batchesAlign(k, meetingLink.batch));
-      if (!meetingLink || !student || !keys.length || !batchOk) {
-        return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
-      }
-      if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) {
-        return res.status(403).json({ success: false, message: 'This recording unlocks on a later journey day.' });
+      if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
+        return res.status(403).json({
+          success: false,
+          message: 'This recording is not available for your profile.',
+        });
       }
     }
     const view = await ZoomRecordingView.create({
@@ -722,7 +753,7 @@ router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACH
 
     const [meeting, zoomRec, zoomViews] = await Promise.all([
       MeetingLink.findById(meetingLinkId).select('batch').lean(),
-      ZoomRecording.findOne({ meetingLinkId }).select('r2Key').lean(),
+      ZoomRecording.findOne({ meetingLinkId }).select('r2Key accessBatches accessLevel accessPlan').lean(),
       ZoomRecordingView.find({ meetingLinkId })
         .populate('student', 'name email batch level')
         .sort({ startedAt: -1 })
@@ -745,9 +776,17 @@ router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACH
       .select('name email batch level goStatus subscription')
       .lean();
 
-    const batchStudents = allStudents.filter((s) =>
-      allStudentBatchStringsForContent(s).some((k) => batchesAlign(k, meeting.batch))
-    );
+    const access = normalizeZoomAccessSettings(zoomRec, meeting);
+    const batchStudents = allStudents.filter((s) => {
+      const keys = allStudentBatchStringsForContent(s);
+      if (!keys.length || !access.batches.length) return false;
+      const inBatch = access.batches.some((b) => keys.some((k) => batchesAlign(k, b)));
+      if (!inBatch) return false;
+      if (access.level && s.level && String(s.level).toUpperCase() !== access.level) return false;
+      if (!access.plan || access.plan === 'ALL') return true;
+      const allowed = allowedRecordingPlansForStudent(s).map((p) => String(p).toUpperCase());
+      return allowed.includes(access.plan);
+    });
 
     const rows = [];
     for (const student of batchStudents) {
@@ -832,109 +871,85 @@ router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACH
 router.get('/zoom/my-batch', verifyToken, async (req, res) => {
   try {
     const { role, id: userId } = req.user;
-
-    let batchFilter;
-    /** For students: all profile + GO-SILVER batch tokens (Silver GO may have both). */
-    let studentBatchKeys = null;
-    /** Set for students only; used for journey-day filtering on meeting links. */
-    let studentForJourney = null;
-
-    if (['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
-      // Staff can optionally filter by batch via query param, otherwise get all
-      batchFilter = req.query.batch
-        ? { batch: { $regex: `^${escapeRegex(String(req.query.batch))}`, $options: 'i' } }
-        : {};
-    } else {
-      studentForJourney = await User.findById(userId).select('batch goStatus subscription currentCourseDay').lean();
-      studentBatchKeys = allStudentBatchStringsForContent(studentForJourney);
-      if (!studentBatchKeys.length) {
-        return res.json({ success: true, recordings: [] });
-      }
-      batchFilter = {
-        $or: studentBatchKeys.map((token) => {
-          const batchToken = escapeRegex(token);
-          return {
-            batch: {
-              $regex: `(^|\\s|-)${batchToken}(\\b|\\s*[-:|])`,
-              $options: 'i',
-            }
-          };
-        })
-      };
+    const isStaff = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role);
+    const student = isStaff
+      ? null
+      : await User.findById(userId).select('batch level subscription goStatus currentCourseDay').lean();
+    if (!isStaff && !student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
-    // 1. Find all MeetingLinks for this batch
-    let meetingLinks = await MeetingLink.find(batchFilter)
+    const query = isStaff
+      ? { status: 'ready' }
+      : { status: 'ready', isPublished: { $ne: false } };
+    const zoomRecordings = await ZoomRecording.find(query)
+      .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
+      .lean();
+    if (!zoomRecordings.length) return res.json({ success: true, recordings: [] });
+
+    const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
+    const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
       .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
       .populate('assignedTeacher', 'name')
       .lean();
-
-    // Final guard for students: normalize and compare batch labels safely.
-    if (studentBatchKeys && studentBatchKeys.length && studentForJourney) {
-      meetingLinks = meetingLinks.filter((m) =>
-        studentBatchKeys.some((k) => batchesAlign(k, m.batch)) &&
-        journeyCourseDayUnlockedForStudent(m, studentForJourney)
-      );
-    }
-
-    if (!meetingLinks.length) {
-      return res.json({ success: true, recordings: [] });
-    }
-
-    const meetingLinkIds = meetingLinks.map((m) => m._id);
-
-    // 2. Find only READY + visible ZoomRecordings for students.
-    const zoomRecordings = await ZoomRecording.find({
-      meetingLinkId: { $in: meetingLinkIds },
-      status: 'ready',
-      isPublished: { $ne: false },
-    })
-      .select('meetingLinkId r2Key duration status createdAt isPublished')
-      .lean();
-
-    // Build a lookup map for meeting link metadata
     const meetingMap = {};
-    meetingLinks.forEach((m) => { meetingMap[m._id.toString()] = m; });
+    meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
 
-    // Merge recording with its meeting info and sort by class date descending
-    const recordings = zoomRecordings.map((rec) => {
-      const meeting = meetingMap[rec.meetingLinkId.toString()] || {};
-      const startTime = meeting.startTime ? new Date(meeting.startTime) : null;
-      const durationMinutes = Number(meeting.duration || 0);
-      const computedEnd = startTime && durationMinutes > 0
-        ? new Date(startTime.getTime() + durationMinutes * 60 * 1000)
-        : null;
-      const attempted = meeting.status === 'ended' || (computedEnd ? Date.now() >= computedEnd.getTime() : false);
-      const myAttendance = Array.isArray(meeting.attendance)
-        ? meeting.attendance.find((a) => String(a?.studentId || '') === String(userId))
-        : null;
-      const attendanceStatus = myAttendance
-        ? (
-            myAttendance.attended === true ||
-            myAttendance.status === 'attended' ||
-            Number(myAttendance.attendancePercent || 0) >= 75
-              ? 'Attended'
-              : (attempted ? 'Not Attended' : 'Pending')
-          )
-        : (attempted ? 'Not Attempted' : 'Pending');
+    const batchQuery = req.query.batch ? String(req.query.batch).trim() : '';
+    const recordings = zoomRecordings
+      .filter((rec) => {
+        const meeting = meetingMap[String(rec.meetingLinkId)];
+        if (!meeting) return false;
+        if (!isStaff) {
+          return canUserAccessZoomRecording(rec, meeting, student);
+        }
+        if (!batchQuery) return true;
+        const access = normalizeZoomAccessSettings(rec, meeting);
+        return access.batches.some((b) => batchesAlign(batchQuery, b));
+      })
+      .map((rec) => {
+        const meeting = meetingMap[String(rec.meetingLinkId)] || {};
+        const access = normalizeZoomAccessSettings(rec, meeting);
+        const startTime = meeting.startTime ? new Date(meeting.startTime) : null;
+        const durationMinutes = Number(meeting.duration || 0);
+        const computedEnd = startTime && durationMinutes > 0
+          ? new Date(startTime.getTime() + durationMinutes * 60 * 1000)
+          : null;
+        const attempted = meeting.status === 'ended' || (computedEnd ? Date.now() >= computedEnd.getTime() : false);
+        const myAttendance = Array.isArray(meeting.attendance)
+          ? meeting.attendance.find((a) => String(a?.studentId || '') === String(userId))
+          : null;
+        const attendanceStatus = myAttendance
+          ? (
+              myAttendance.attended === true ||
+              myAttendance.status === 'attended' ||
+              Number(myAttendance.attendancePercent || 0) >= 75
+                ? 'Attended'
+                : (attempted ? 'Not Attended' : 'Pending')
+            )
+          : (attempted ? 'Not Attempted' : 'Pending');
 
-      return {
-        meetingLinkId: rec.meetingLinkId,
-        r2Key: rec.r2Key,
-        duration: rec.duration,
-        status: rec.status,
-        createdAt: rec.createdAt,
-        isPublished: rec.isPublished !== false,
-        topic: meeting.topic || 'Class Recording',
-        batch: meeting.batch || '',
-        teacherName: meeting.assignedTeacher?.name || 'Teacher',
-        attempted,
-        attendanceStatus,
-        classDate: meeting.startTime || rec.createdAt,
-        meetingDuration: meeting.duration || null,
-        courseDay: meeting.courseDay != null ? meeting.courseDay : null,
-      };
-    }).sort((a, b) => new Date(b.classDate) - new Date(a.classDate));
+        return {
+          meetingLinkId: rec.meetingLinkId,
+          r2Key: rec.r2Key,
+          duration: rec.duration,
+          status: rec.status,
+          createdAt: rec.createdAt,
+          isPublished: rec.isPublished !== false,
+          topic: meeting.topic || 'Class Recording',
+          batch: access.batches.join(', '),
+          batches: access.batches,
+          level: access.level,
+          plan: access.plan,
+          teacherName: meeting.assignedTeacher?.name || 'Teacher',
+          attempted,
+          attendanceStatus,
+          classDate: meeting.startTime || rec.createdAt,
+          meetingDuration: meeting.duration || null,
+          courseDay: meeting.courseDay != null ? meeting.courseDay : null,
+        };
+      })
+      .sort((a, b) => new Date(b.classDate) - new Date(a.classDate));
 
     res.json({ success: true, recordings });
   } catch (error) {
@@ -1099,7 +1114,7 @@ router.post('/manual/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
 router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { meetingLinkId } = req.params;
-    const { title, batch, teacherId } = req.body || {};
+    const { title, batch, batches, level, plan, teacherId } = req.body || {};
 
     const meeting = await MeetingLink.findById(meetingLinkId);
     if (!meeting) {
@@ -1109,7 +1124,13 @@ router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHE
     if (typeof title === 'string' && title.trim()) {
       meeting.topic = title.trim();
     }
-    if (typeof batch === 'string' && batch.trim()) {
+    const nextBatches = Array.isArray(batches)
+      ? batches.map((b) => String(b).trim()).filter(Boolean)
+      : (typeof batch === 'string' && batch.trim() ? [batch.trim()] : []);
+
+    if (nextBatches.length === 1) {
+      meeting.batch = nextBatches[0];
+    } else if (typeof batch === 'string' && batch.trim()) {
       meeting.batch = batch.trim();
     }
     if (teacherId) {
@@ -1121,6 +1142,18 @@ router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHE
     }
 
     await meeting.save();
+    const zoomSet = {
+      ...(nextBatches.length ? { accessBatches: Array.from(new Set(nextBatches)) } : {}),
+      ...(Object.prototype.hasOwnProperty.call(req.body || {}, 'level')
+        ? { accessLevel: level ? String(level).toUpperCase() : null }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(req.body || {}, 'plan')
+        ? { accessPlan: String(plan || 'ALL').toUpperCase() }
+        : {}),
+    };
+    if (Object.keys(zoomSet).length > 0) {
+      await ZoomRecording.updateOne({ meetingLinkId }, { $set: zoomSet });
+    }
     return res.json({ success: true, message: 'Zoom recording details updated.' });
   } catch (error) {
     console.error('Error updating zoom recording metadata:', error);
@@ -1314,7 +1347,7 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) =>
     const { role, id: userId } = req.user;
 
     const zoomRecording = await ZoomRecording.findOne({ meetingLinkId })
-      .select('hlsKey status isPublished').lean();
+      .select('hlsKey status isPublished accessBatches accessLevel accessPlan').lean();
 
     if (!zoomRecording || !zoomRecording.hlsKey) {
       return res.status(404).json({ success: false, message: 'HLS recording not found for this class.' });
@@ -1328,20 +1361,15 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) =>
 
     // Student access control
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
-      if (zoomRecording.isPublished === false) {
-        return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
-      }
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
-        User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
+        User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),
       ]);
-      const keys = allStudentBatchStringsForContent(student);
-      const batchOk = keys.some((k) => batchesAlign(k, meetingLink.batch));
-      if (!meetingLink || !student || !keys.length || !batchOk) {
-        return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
-      }
-      if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) {
-        return res.status(403).json({ success: false, message: 'This recording unlocks on a later journey day.' });
+      if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
+        return res.status(403).json({
+          success: false,
+          message: 'This recording is not available for your profile.',
+        });
       }
     }
 
@@ -1406,26 +1434,18 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
 
     // 2. Authorisation check for students — batch-based + published only
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
-      if (zoomRecording.isPublished === false) {
-        return res.status(403).json({ success: false, message: 'This recording is hidden by your teacher.' });
-      }
-
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
-        User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
+        User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),
       ]);
-
       if (!meetingLink) {
         return res.status(404).json({ success: false, message: 'Class not found.' });
       }
-
-      const keysZ = allStudentBatchStringsForContent(student);
-      const batchOkZ = keysZ.some((k) => batchesAlign(k, meetingLink.batch));
-      if (!student || !keysZ.length || !batchOkZ) {
-        return res.status(403).json({ success: false, message: 'This recording is not available for your batch.' });
-      }
-      if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) {
-        return res.status(403).json({ success: false, message: 'This recording unlocks on a later journey day.' });
+      if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
+        return res.status(403).json({
+          success: false,
+          message: 'This recording is not available for your profile.',
+        });
       }
     }
 

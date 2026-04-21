@@ -95,9 +95,6 @@
           <th>Level</th>
           <th>Plan</th>
           <th>Batches</th>
-          <th>Views</th>
-          <th>Students</th>
-          <th>Avg Watch</th>
           <th>Student Access</th>
           <th>Uploaded</th>
           <th>By</th>
@@ -139,15 +136,6 @@
             </div>
           </td>
           <td>
-            <span class="cr-cell-main">{{ getStats(r._id).views }}</span>
-          </td>
-          <td>
-            <span class="cr-cell-main">{{ getStats(r._id).students }}</span>
-          </td>
-          <td>
-            <span class="cr-cell-sub">{{ getStats(r._id).avgTime }}</span>
-          </td>
-          <td>
             <span class="cr-published-chip"
                   [class.cr-published-chip--yes]="r.isPublished !== false"
                   [class.cr-published-chip--no]="r.isPublished === false">
@@ -180,7 +168,10 @@
               <button class="cr-icon-btn cr-icon-btn--blue" (click)="viewRecordingAction(r); $event.stopPropagation()" [title]="isZoomRecording(r) ? 'Open Zoom Recording' : 'View Analytics'">
                 <i class="fa fa-chart-bar"></i>
               </button>
-              <button class="cr-icon-btn cr-icon-btn--green" (click)="editRecordingAction(r)" [title]="isZoomRecording(r) ? (r.isPublished ? 'Hide from Students' : 'Show to Students') : 'Edit'">
+              <button class="cr-icon-btn cr-icon-btn--violet" (click)="playRecordingAction(r)" title="Play">
+                <i class="fa fa-play"></i>
+              </button>
+              <button class="cr-icon-btn cr-icon-btn--green" (click)="editRecordingAction(r)" title="Edit">
                 <i class="fa fa-pen"></i>
               </button>
               <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecordingAction(r)" title="Delete">
@@ -382,8 +373,27 @@
         <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.title" placeholder="Recording title">
       </div>
       <div class="cr-field">
-        <label>Batch</label>
-        <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.batch" placeholder="Batch">
+        <label>Level</label>
+        <select class="cr-select" [(ngModel)]="zoomEditForm.level">
+          <option value="">All Levels</option>
+          <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+        </select>
+      </div>
+      <div class="cr-field">
+        <label>Plan</label>
+        <select class="cr-select" [(ngModel)]="zoomEditForm.plan">
+          <option *ngFor="let p of plans" [value]="p.value">{{ p.label }}</option>
+        </select>
+      </div>
+      <div class="cr-field">
+        <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
+        <div class="cr-batch-grid">
+          <label class="cr-batch-chip" *ngFor="let b of availableBatches"
+                 [class.cr-batch-chip--active]="zoomEditForm.batches.includes(b)">
+            <input type="checkbox" [checked]="zoomEditForm.batches.includes(b)" (change)="toggleZoomEditBatch(b)" hidden>
+            {{ b }}
+          </label>
+        </div>
       </div>
       <div class="cr-field">
         <label>Teacher</label>

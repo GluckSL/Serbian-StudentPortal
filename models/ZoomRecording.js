@@ -74,6 +74,22 @@ const zoomRecordingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+
+    // Access filters for student visibility (same concept as manual recordings)
+    accessBatches: {
+      type: [String],
+      default: [],
+    },
+    accessLevel: {
+      type: String,
+      enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', null],
+      default: null,
+    },
+    accessPlan: {
+      type: String,
+      enum: ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY', 'ALL'],
+      default: 'ALL',
+    },
   },
   { timestamps: true }
 );

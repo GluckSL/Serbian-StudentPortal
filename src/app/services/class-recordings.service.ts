@@ -97,6 +97,9 @@ export interface BatchZoomRecording {
   attendanceStatus?: 'Attended' | 'Not Attended' | 'Not Attempted' | 'Pending';
   classDate: string;
   meetingDuration: number | null;
+  batches?: string[];
+  level?: string | null;
+  plan?: string;
   /** From MeetingLink — aligns with manual recordings for journey-by-day UI. */
   courseDay?: number | null;
 }
@@ -302,6 +305,9 @@ export class ClassRecordingsService {
   updateZoomRecordingMeta(meetingLinkId: string, payload: {
     title?: string;
     batch?: string;
+    batches?: string[];
+    level?: string | null;
+    plan?: string;
     teacherId?: string;
   }): Observable<{ success: boolean; message: string }> {
     return this.http.put<any>(`${this.url}/zoom/${meetingLinkId}/meta`, payload, { withCredentials: true });
