@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { TeacherService } from '../../services/teacher.service';
 import { TeacherResourcesService, TeacherResource } from '../../services/teacher-resources.service';
@@ -25,10 +26,12 @@ export class TeacherResourcesAdminComponent implements OnInit {
   loading = false;
   activePreviewUrl: SafeResourceUrl | null = null;
   activePreviewTitle = '';
+  activePreviewHtml: string | null = null;
 
   constructor(
     private teacherService: TeacherService,
     private teacherResourcesService: TeacherResourcesService,
+    private http: HttpClient,
     private sanitizer: DomSanitizer,
     private notify: NotificationService
   ) {}
@@ -101,9 +104,27 @@ export class TeacherResourcesAdminComponent implements OnInit {
     const basePreviewUrl = item.previewUrl || item.fileUrl;
     const useOfficeViewer = this.teacherResourcesService.isOfficeViewerPreferred(item.originalName);
     const useDirectPreview = this.teacherResourcesService.isDirectPreviewable(item.originalName);
+    const isHtml = /\.html?$/i.test(item.originalName || '');
 
     if (!useOfficeViewer && !useDirectPreview) {
       this.notify.warning('Preview is not available for this file type.');
+      return;
+    }
+
+    this.activePreviewTitle = item.title;
+    this.activePreviewUrl = null;
+    this.activePreviewHtml = null;
+
+    if (isHtml) {
+      const previewUrl = this.teacherResourcesService.getSecurePreviewUrl(item._id);
+      this.http.get(previewUrl, { responseType: 'text', withCredentials: true }).subscribe({
+        next: (html) => {
+          this.activePreviewHtml = html || '<p>No preview content.</p>';
+        },
+        error: () => {
+          this.notify.error('Failed to load HTML preview.');
+        }
+      });
       return;
     }
 
@@ -111,11 +132,11 @@ export class TeacherResourcesAdminComponent implements OnInit {
       ? this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl)
       : this.teacherResourcesService.getSecurePreviewUrl(item._id);
     this.activePreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-    this.activePreviewTitle = item.title;
   }
 
   closePreview(): void {
     this.activePreviewUrl = null;
+    this.activePreviewHtml = null;
     this.activePreviewTitle = '';
   }
 
