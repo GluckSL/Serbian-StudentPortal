@@ -286,6 +286,7 @@ router.get('/reminders', async (req, res) => {
 
       return {
         ...reminder,
+        recipients: reminder.recipients || [],
         scheduleTimeKind,
         recipientsDetailed,
         participants,

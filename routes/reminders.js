@@ -295,9 +295,87 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, 
       .limit(200)
       .populate('createdBy', 'name role')
       .populate('templateId', 'title')
-      .select('-recipients') // exclude heavy sub-docs from list view
       .lean();
-    return res.json({ success: true, data: reminders });
+
+    const recipientStudentIds = [
+      ...new Set(
+        reminders
+          .flatMap((r) => (r.recipients || []).map((rc) => rc?.studentId).filter(Boolean))
+          .map((id) => String(id))
+      )
+    ];
+    const recipientStudents = recipientStudentIds.length
+      ? await User.find({ _id: { $in: recipientStudentIds } })
+        .select('-password')
+        .lean()
+      : [];
+    const recipientStudentMap = new Map(recipientStudents.map((s) => [String(s._id), s]));
+
+    const uniqueBatches = [...new Set(reminders.map((r) => String(r.targetBatch || '').trim()).filter(Boolean))];
+    const batchCtx = new Map();
+    await Promise.all(
+      uniqueBatches.map(async (batchName) => {
+        const batchEsc = batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const [participants, classSchedules] = await Promise.all([
+          User.find({ role: 'STUDENT', batch: batchName })
+            .select('-password')
+            .sort({ name: 1 })
+            .lean(),
+          MeetingLink.find({
+            batch: new RegExp(`^${batchEsc}$`, 'i'),
+            status: { $in: ['scheduled', 'started'] }
+          })
+            .sort({ startTime: 1 })
+            .limit(100)
+            .populate('assignedTeacher', 'name email regNo role medium assignedBatches')
+            .populate('createdBy', 'name email role regNo')
+            .lean()
+        ]);
+        batchCtx.set(batchName, { participants, classSchedules });
+      })
+    );
+
+    const mapped = reminders.map((reminder) => {
+      const { classSchedules, participants } = batchCtx.get(reminder.targetBatch) || { classSchedules: [], participants: [] };
+      const nextUpcomingClass = classSchedules[0] || null;
+      const scheduleTimeKind =
+        reminder.scheduleTimeKind ||
+        (reminder.deliveryMode !== 'scheduled'
+          ? 'instant'
+          : reminder.minutesBeforeClass != null && Number.isFinite(Number(reminder.minutesBeforeClass))
+            ? 'minutes_before_class'
+            : 'fixed_datetime');
+
+      const recipientsDetailed = (reminder.recipients || []).map((rc) => {
+        const student = recipientStudentMap.get(String(rc.studentId || '')) || null;
+        return {
+          ...rc,
+          student,
+          batch: student?.batch || reminder.targetBatch || null,
+          regNo: student?.regNo || null
+        };
+      });
+
+      return {
+        ...reminder,
+        recipients: reminder.recipients || [],
+        scheduleTimeKind,
+        recipientsDetailed,
+        participants,
+        classSchedules,
+        nextUpcomingClass,
+        scheduleSummary:
+          scheduleTimeKind === 'minutes_before_class' &&
+          reminder.minutesBeforeClass != null &&
+          nextUpcomingClass?.startTime
+            ? `Send ${reminder.minutesBeforeClass} min before class at ${nextUpcomingClass.startTime}`
+            : reminder.scheduledFor
+              ? `Send at ${reminder.scheduledFor}`
+              : null
+      };
+    });
+
+    return res.json({ success: true, data: mapped });
   } catch (err) {
     console.error('[reminders] GET /', err);
     return res.status(500).json({ success: false, message: 'Failed to load reminders.' });
