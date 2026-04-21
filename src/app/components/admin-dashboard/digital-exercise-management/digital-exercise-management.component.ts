@@ -239,6 +239,9 @@ import { MaterialModule } from '../../../shared/material.module';
             </button>
           </td>
           <td class="actions-cell">
+            <button class="btn-icon btn-test" (click)="testExercise(ex)" matTooltip="Test as student">
+              <span class="material-icons">play_arrow</span>
+            </button>
             <button class="btn-icon btn-view" (click)="viewCompletions(ex)" matTooltip="View completions">
               <span class="material-icons">bar_chart</span>
             </button>
@@ -653,6 +656,7 @@ import { MaterialModule } from '../../../shared/material.module';
     .btn-edit:hover { border-color: #005b96; color: #005b96; }
     .btn-delete:hover { border-color: #e11d48; color: #e11d48; }
     .btn-view:hover { border-color: #28a745; color: #28a745; }
+    .btn-test:hover { border-color: #7c3aed; color: #7c3aed; }
 
     /* ── Empty State ── */
     .empty-state { padding: 40px 20px; text-align: center; color: #94a3b8; }
@@ -978,6 +982,14 @@ export class DigitalExerciseManagementComponent implements OnInit {
   viewCompletions(exercise: DigitalExercise): void {
     const id = exercise._id ?? (exercise as any).id;
     if (id) this.router.navigate(['/admin/digital-exercises', id, 'completions']);
+  }
+
+  testExercise(exercise: DigitalExercise): void {
+    const id = exercise._id ?? (exercise as any).id;
+    if (!id) return;
+    this.router.navigate(['/digital-exercises', id, 'play'], {
+      queryParams: { asStudent: 'true', tester: 'admin' }
+    });
   }
 
   changePage(page: number): void {

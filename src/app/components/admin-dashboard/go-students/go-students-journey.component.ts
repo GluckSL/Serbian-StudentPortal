@@ -182,7 +182,7 @@ interface PickerItem {
             <span *ngIf="d.modules.length" class="gs-chip gs-chip-mod">{{ d.modules.length }} module(s)</span>
             <span *ngIf="d.exercises.length" class="gs-chip gs-chip-ex">{{ d.exercises.length }} exercise(s)</span>
             <span *ngIf="d.classes.length" class="gs-chip gs-chip-cls">{{ d.classes.length }} class(es)</span>
-            <span *ngIf="d.recordings?.length" class="gs-chip gs-chip-rec">{{ d.recordings?.length ?? 0 }} recording(s)</span>
+            <span *ngIf="d.recordings.length" class="gs-chip gs-chip-rec">{{ d.recordings.length }} recording(s)</span>
           </div>
           <button type="button" class="gs-btn-day-add" (click)="openAddModal(d.day)">
             <i class="fas fa-plus"></i> Add
@@ -236,9 +236,9 @@ interface PickerItem {
           </div>
 
           <!-- Class recordings (manual uploads linked by course day + GO-SILVER batch) -->
-          <div *ngIf="d.recordings?.length" class="gs-content-group">
+          <div *ngIf="d.recordings.length" class="gs-content-group">
             <div class="gs-group-label"><i class="fas fa-film"></i> Class Recordings</div>
-            <div class="gs-content-item" *ngFor="let rec of (d.recordings || [])">
+            <div class="gs-content-item" *ngFor="let rec of d.recordings">
               <span class="gs-badge gs-badge-blue">{{ rec.level }}</span>
               <span class="gs-badge gs-badge-gray">{{ rec.plan || 'ALL' }}</span>
               <span *ngIf="rec.isPublished === false" class="gs-badge gs-badge-draft">Draft</span>
@@ -251,7 +251,7 @@ interface PickerItem {
           </div>
 
           <p
-            *ngIf="!(d.modules.length || d.exercises.length || d.classes.length || (d.recordings?.length || 0))"
+            *ngIf="!(d.modules.length || d.exercises.length || d.classes.length || d.recordings.length)"
             class="gs-day-empty-hint"
           >
             No content yet. Use <strong>Add</strong> to link modules, exercises, or recordings.
@@ -787,7 +787,7 @@ export class GoStudentsJourneyComponent implements OnInit {
   }
 
   get totalRecordings(): number {
-    return this.timelineDays.reduce((s, d) => s + (d.recordings?.length || 0), 0);
+    return this.timelineDays.reduce((s, d) => s + d.recordings.length, 0);
   }
 
   /** API timeline days plus pinned empty slots (for building days with no content yet). */

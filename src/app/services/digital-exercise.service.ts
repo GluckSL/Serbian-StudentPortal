@@ -320,8 +320,8 @@ export class DigitalExerciseService {
   }
 
   getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {
-    const params = new HttpParams();
-    if (opts.asStudent) params.set('asStudent', 'true');
+    let params = new HttpParams();
+    if (opts.asStudent) params = params.set('asStudent', 'true');
     return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { params, withCredentials: true });
   }
 

@@ -92,6 +92,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   exercise: DigitalExercise | null = null;
   exerciseId = '';
   attemptId = '';
+  private currentUserRole = '';
 
   playerQuestions: PlayerQuestion[] = [];
   currentIndex = 0;
@@ -125,6 +126,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return !!qs?.length && qs.every((q: { type?: string }) => q.type === 'video-pronunciation');
   }
 
+  get isStaffTester(): boolean {
+    return ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'].includes(this.currentUserRole);
+  }
+
   // Speech recognition
   private recognition: any = null;
   private listeningRecognition: any = null;
@@ -136,6 +141,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Admin-uploaded praise / retry clip (video exercises). */
   private vpFeedbackAudioEl: HTMLAudioElement | null = null;
+  /** Hard timeout to stop stuck speech-recognition sessions. */
+  private vpRecognitionForceStopTimer: ReturnType<typeof setTimeout> | null = null;
   /** Optional line from admin (e.g. “Try again”) shown under feedback while clip may play. */
   vpFeedbackCaption: string | null = null;
 
@@ -190,6 +197,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.recognition) {
       try { this.recognition.stop(); } catch {}
     }
+    this.clearVpRecognitionForceStopTimer();
     this.stopVpFeedbackAudio();
     this.playerQuestions.forEach(pq => {
       if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
@@ -221,8 +229,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   loadExercise(): void {
     this.state = 'loading';
     this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
+      this.currentUserRole = String(user?.role || '');
       this.draftUserId = (user?._id && String(user._id)) || '';
-      const asStudent = user?.role === 'STUDENT';
+      const forceStudentView = this.route.snapshot.queryParamMap.get('asStudent') === 'true';
+      const asStudent = user?.role === 'STUDENT' || forceStudentView;
       this.exerciseService.getExercise(this.exerciseId, { asStudent }).subscribe({
         next: (exercise) => {
           this.exercise = exercise;
@@ -1146,6 +1156,166 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.recordingCountdown = 0;
   }
 
+  private static readonly VP_PASS_SCORE = 20;
+  private static readonly VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS = 5;
+  private static readonly VP_MAX_FAILED_ATTEMPTS_PER_CLIP = 3;
+
+  private normalizeSpeechText(raw: string): string {
+    return String(raw || '')
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private numberTokenVariantsMap(lang: string): Record<string, string[]> {
+    if (lang === 'de-DE') {
+      return {
+        '0': ['null'],
+        '1': ['eins', 'ein', 'eine'],
+        '2': ['zwei'],
+        '3': ['drei'],
+        '4': ['vier'],
+        '5': ['funf', 'fuenf'],
+        '6': ['sechs'],
+        '7': ['sieben'],
+        '8': ['acht'],
+        '9': ['neun'],
+        '10': ['zehn'],
+        '11': ['elf'],
+        '12': ['zwolf', 'zwoelf']
+      };
+    }
+    return {
+      '0': ['zero'],
+      '1': ['one', 'a', 'an'],
+      '2': ['two', 'to', 'too'],
+      '3': ['three'],
+      '4': ['four', 'for'],
+      '5': ['five'],
+      '6': ['six'],
+      '7': ['seven'],
+      '8': ['eight', 'ate'],
+      '9': ['nine'],
+      '10': ['ten'],
+      '11': ['eleven'],
+      '12': ['twelve']
+    };
+  }
+
+  private canonicalizeNumberTokens(text: string, lang: string): string {
+    const normalized = this.normalizeSpeechText(text);
+    if (!normalized) return '';
+    const tokenMap = this.numberTokenVariantsMap(lang);
+    const reverseMap: Record<string, string> = {};
+    Object.entries(tokenMap).forEach(([digit, words]) => {
+      reverseMap[digit] = digit;
+      words.forEach((w) => { reverseMap[w] = digit; });
+    });
+    return normalized
+      .split(' ')
+      .map((tok) => reverseMap[tok] || tok)
+      .join(' ')
+      .trim();
+  }
+
+  private buildNumberAwareVariants(text: string, lang: string): string[] {
+    const base = this.normalizeSpeechText(text);
+    if (!base) return [''];
+    const map = this.numberTokenVariantsMap(lang);
+    const tokens = base.split(' ').filter(Boolean);
+    let variants = new Set<string>([tokens.join(' ')]);
+
+    tokens.forEach((tok, i) => {
+      const next = new Set<string>();
+      const direct = map[tok] || [];
+      const reverse = Object.entries(map)
+        .filter(([, words]) => words.includes(tok))
+        .map(([digit]) => digit);
+      const subs = [...direct, ...reverse];
+      if (!subs.length) return;
+      for (const phrase of variants) {
+        next.add(phrase);
+        const arr = phrase.split(' ');
+        for (const sub of subs) {
+          const updated = [...arr];
+          updated[i] = sub;
+          next.add(updated.join(' '));
+        }
+      }
+      variants = next;
+    });
+
+    return [...variants].filter(Boolean);
+  }
+
+  private scoreTranscriptAgainstTarget(transcript: string, target: string): number {
+    const a = this.normalizeSpeechText(transcript);
+    const b = this.normalizeSpeechText(target);
+    if (!a || !b) return 0;
+    if (a === b) return 100;
+    if (a.includes(b) || b.includes(a)) {
+      const coverage = Math.round((Math.min(a.length, b.length) / Math.max(a.length, b.length)) * 100);
+      return Math.max(88, coverage);
+    }
+    const lev = Math.round(this.calculateStringSimilarity(a, b) * 100);
+    const aTokens = new Set(a.split(' ').filter(Boolean));
+    const bTokens = new Set(b.split(' ').filter(Boolean));
+    const overlap = [...aTokens].filter((t) => bTokens.has(t)).length;
+    const tokenScore = bTokens.size ? Math.round((overlap / bTokens.size) * 100) : 0;
+    return Math.max(lev, tokenScore);
+  }
+
+  private getPronunciationScoreForTranscript(
+    transcript: string,
+    target: string,
+    variants: string[],
+    lang: string
+  ): number {
+    const allTargets = [target, ...(variants || [])]
+      .map((t) => this.normalizeSpeechText(t))
+      .filter(Boolean);
+    if (!allTargets.length) return 0;
+
+    let best = 0;
+    for (const t of allTargets) {
+      const expanded = this.buildNumberAwareVariants(t, lang);
+      for (const candidate of expanded) {
+        best = Math.max(best, this.scoreTranscriptAgainstTarget(transcript, candidate));
+        // Treat numeric words/digits as equivalent before scoring.
+        const canonTranscript = this.canonicalizeNumberTokens(transcript, lang);
+        const canonCandidate = this.canonicalizeNumberTokens(candidate, lang);
+        best = Math.max(best, this.scoreTranscriptAgainstTarget(canonTranscript, canonCandidate));
+      }
+    }
+    return best;
+  }
+
+  private flattenSpeechResultCandidates(event: any): string[] {
+    const out: string[] = [];
+    const results = event?.results;
+    if (!results) return out;
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (!result) continue;
+      const full = String(result[0]?.transcript || '').trim();
+      if (full) out.push(full);
+      for (let j = 0; j < result.length; j++) {
+        const alt = String(result[j]?.transcript || '').trim();
+        if (alt) out.push(alt);
+      }
+    }
+    return [...new Set(out)];
+  }
+
+  private clearVpRecognitionForceStopTimer(): void {
+    if (!this.vpRecognitionForceStopTimer) return;
+    clearTimeout(this.vpRecognitionForceStopTimer);
+    this.vpRecognitionForceStopTimer = null;
+  }
+
   startRecording(pq: PlayerQuestion): void {
     if (!this.speechSupported) {
       this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
@@ -1184,25 +1354,20 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     this.recognition.onresult = (event: any) => {
       this.clearRecordingTimers();
-      const results = event.results[0];
-      pq.spokenText = results[0].transcript;
-      const best = results[0].transcript.toLowerCase().trim();
-
-      const target = pq.data.word.toLowerCase().trim();
-      const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
-      const allAccepted = [target, ...variants];
-
+      const lang = this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
+      const target = String(pq.data.word || '');
+      const variants = Array.isArray(pq.data.acceptedVariants) ? pq.data.acceptedVariants : [];
+      const candidates = this.flattenSpeechResultCandidates(event);
+      let bestTranscript = '';
       let score = 0;
-      if (allAccepted.some(a => a === best)) {
-        score = 100;
-      } else {
-        const similarity = this.calculateStringSimilarity(best, target);
-        score = Math.round(similarity * 100);
-        for (const alt of variants) {
-          const altSim = this.calculateStringSimilarity(best, alt);
-          score = Math.max(score, Math.round(altSim * 100));
+      for (const cand of candidates) {
+        const candScore = this.getPronunciationScoreForTranscript(cand, target, variants, lang);
+        if (candScore > score) {
+          score = candScore;
+          bestTranscript = cand;
         }
       }
+      pq.spokenText = bestTranscript || candidates[0] || '';
 
       pq.pronunciationScore = score;
       pq.hasRecorded = true;
@@ -1880,10 +2045,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   // ─── Video Pronunciation Interaction ──────────────────────────────────────────
 
-  /** Min match score (0–100) to treat a clip as passed and advance (practice-partner / video clips). */
-  private static readonly VP_PASS_SCORE = 20;
-  private static readonly VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS = 5;
-
   private videoPassThresholdForQuestion(pq: PlayerQuestion): number {
     const raw = Number(pq?.data?.similarityThreshold);
     if (!Number.isFinite(raw)) return DigitalExercisePlayerComponent.VP_PASS_SCORE;
@@ -1970,6 +2131,22 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     v.play().catch(() => {});
   }
 
+  get isVpVideoPaused(): boolean {
+    const v = this.vpVideoElement;
+    if (!v) return true;
+    return !!v.paused;
+  }
+
+  toggleVpVideoPlayback(): void {
+    const v = this.vpVideoElement;
+    if (!v) return;
+    if (v.paused) {
+      v.play().catch(() => {});
+    } else {
+      try { v.pause(); } catch {}
+    }
+  }
+
   startVideoPronunciation(pq: PlayerQuestion): void {
     void this.startVideoPronunciationInternal(pq);
   }
@@ -2002,33 +2179,67 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.recognition = rec;
     const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
     rec.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = false;
     rec.maxAlternatives = 3;
     pq.isRecording = true;
     pq.vpResult = 'idle';
     this.clearVpFeedbackUi();
 
-    // ── Helper: compute pronunciation score (kept for teacher analytics) ──
-    const computeScore = (transcript: string): number => {
-      const best = transcript.toLowerCase().trim();
-      const target = this.speakTargetCaptionForQuestion(pq).toLowerCase().trim();
-      const variants = (pq.data.acceptedVariants || []).map((v: string) => v.toLowerCase().trim());
-      if ([target, ...variants].some(a => a === best)) return 100;
-      let s = Math.round(this.calculateStringSimilarity(best, target) * 100);
-      for (const alt of variants) {
-        s = Math.max(s, Math.round(this.calculateStringSimilarity(best, alt) * 100));
+    const target = this.speakTargetCaptionForQuestion(pq);
+    const variants = Array.isArray(pq.data.acceptedVariants) ? pq.data.acceptedVariants : [];
+    const lang = this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
+    let gotUsableResult = false;
+
+    const handleFailure = (reason: 'no-speech' | 'audio-capture' | 'not-allowed' | 'start-failed'): void => {
+      pq.isRecording = false;
+      this.clearVpRecognitionForceStopTimer();
+      if (this.recognition === rec) this.recognition = null;
+      pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+      pq.pronunciationScore = 0;
+      pq.vpSpokenText = '';
+      pq.hasRecorded = true;
+      pq.vpResult = 'incorrect';
+      pq.isAnswered = true;
+      this.markAttempted(pq);
+
+      if (reason === 'not-allowed') {
+        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+      } else if (reason === 'audio-capture') {
+        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
+      } else if (reason === 'start-failed') {
+        this.snackBar.open('Microphone could not be started. Please try again.', 'Close', { duration: 4000 });
+      } else {
+        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
       }
-      return s;
+
+      if ((pq.vpFailCount || 0) >= DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP) {
+        this.pushVpChat(
+          'tutor',
+          `I could not hear enough input after ${DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP} tries. You can retry or move to the next clip.`
+        );
+      }
     };
 
     // ── Mixed / non-video-only exercise: keep correct/incorrect evaluation ──
     rec.onresult = (event: any) => {
-      const best = event.results[0][0].transcript.toLowerCase().trim();
-      pq.vpSpokenText = event.results[0][0].transcript;
+      const candidates = this.flattenSpeechResultCandidates(event);
+      let bestTranscript = '';
+      let bestScore = 0;
+      for (const cand of candidates) {
+        const s = this.getPronunciationScoreForTranscript(cand, target, variants, lang);
+        if (s > bestScore) {
+          bestScore = s;
+          bestTranscript = cand;
+        }
+      }
+      gotUsableResult = true;
+      pq.vpSpokenText = bestTranscript || candidates[0] || '';
       pq.isRecording = false;
       pq.hasRecorded = true;
-      pq.pronunciationScore = computeScore(pq.vpSpokenText || '');
+      pq.pronunciationScore = bestScore;
+      this.clearVpRecognitionForceStopTimer();
+      try { rec.stop(); } catch {}
 
       const passThreshold = this.videoPassThresholdForQuestion(pq);
       const isCorrect = pq.pronunciationScore >= passThreshold;
@@ -2050,31 +2261,32 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     };
 
     rec.onerror = (event: any) => {
-      pq.isRecording = false;
-      if (this.recognition === rec) this.recognition = null;
-      if (event.error === 'not-allowed') {
-        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
-        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
-      } else if (event.error === 'audio-capture') {
-        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
-        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
-      } else if (event.error === 'no-speech') {
-        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
-        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
-      }
+      const code = String(event?.error || '');
+      if (code === 'not-allowed') handleFailure('not-allowed');
+      else if (code === 'audio-capture') handleFailure('audio-capture');
+      else if (code === 'no-speech') handleFailure('no-speech');
     };
 
     rec.onend = () => {
+      this.clearVpRecognitionForceStopTimer();
+      if (!gotUsableResult && pq.isRecording) {
+        handleFailure('no-speech');
+        return;
+      }
       pq.isRecording = false;
       if (this.recognition === rec) this.recognition = null;
     };
 
     try {
       rec.start();
+      this.clearVpRecognitionForceStopTimer();
+      this.vpRecognitionForceStopTimer = setTimeout(() => {
+        this.clearVpRecognitionForceStopTimer();
+        if (!pq.isRecording) return;
+        try { rec.stop(); } catch {}
+      }, 8000);
     } catch {
-      pq.isRecording = false;
-      if (this.recognition === rec) this.recognition = null;
-      this.snackBar.open('Microphone could not be started. Please try again.', 'Close', { duration: 4000 });
+      handleFailure('start-failed');
     }
   }
 
@@ -2088,6 +2300,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.pronunciationScore = 0;
     pq.isAnswered = false;
     this.replayVpVideo();
+  }
+
+  speakAgainVideoPronunciation(pq: PlayerQuestion): void {
+    pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
+    this.clearVpFeedbackUi();
+    if (pq.vpAutoAdvanceTimer) {
+      clearTimeout(pq.vpAutoAdvanceTimer);
+      pq.vpAutoAdvanceTimer = undefined;
+    }
+    pq.vpSpokenText = '';
+    pq.vpResult = 'idle';
+    pq.hasRecorded = false;
+    pq.pronunciationScore = 0;
+    pq.isAnswered = false;
+    // Keep the clip on the last frame and listen again immediately.
+    pq.vpPlaybackEnded = true;
+    this.startVideoPronunciation(pq);
   }
 
   /**

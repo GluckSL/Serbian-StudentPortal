@@ -320,11 +320,14 @@
           <div class="vp-detail-card vp-detail-card--clips">
             <span class="vp-detail-card-label">Clips · {{ playerQuestions.length }} total</span>
             <div class="vp-clip-cells">
-              <span
+              <button
                 *ngFor="let _ of playerQuestions; let i = index"
                 class="{{ vpClipCellClass(i) }}"
+                [class.vp-clip-cell--jumpable]="isStaffTester"
                 [attr.title]="'Clip ' + (i + 1)"
-              >{{ i + 1 }}</span>
+                [disabled]="!isStaffTester"
+                (click)="isStaffTester && goToQuestion(i)"
+              >{{ i + 1 }}</button>
             </div>
           </div>
           <div class="vp-detail-card vp-detail-card--ring">
@@ -388,12 +391,15 @@
               <div class="vp-stage-scrim" *ngIf="vpPostPlayScrimVisible" aria-hidden="true"></div>
 
               <div class="vp-stage-frame-ui">
-                <div class="vp-stage-ui-head" *ngIf="vpPostPlayScrimVisible">
-                  <div class="vp-stage-turn-row" *ngIf="!showVpFinalSubmit">
+                <div class="vp-stage-ui-head">
+                  <div class="vp-stage-turn-row" *ngIf="vpPostPlayScrimVisible && !showVpFinalSubmit">
                     <span class="vp-stage-kicker">Your turn</span>
                     <span class="material-icons vp-stage-kicker-mic">mic</span>
                   </div>
-                  <div class="vp-stage-overlay-text vp-stage-overlay-text--in-frame">
+                  <div
+                    class="vp-stage-overlay-text vp-stage-overlay-text--in-frame"
+                    [class.vp-stage-overlay-text--playing]="!vpPostPlayScrimVisible"
+                  >
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.context">{{ currentQuestion.data.context }}</p>
                     <h2 class="vp-stage-phrase">{{ getVpPromptCaption(currentQuestion) }}</h2>
                     <p class="vp-stage-sub" *ngIf="currentQuestion.data.acceptedVariants?.length">
@@ -443,8 +449,8 @@
                     </div>
                     <p class="vp-stage-feedback-caption" *ngIf="vpFeedbackCaption">{{ vpFeedbackCaption }}</p>
                     <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'incorrect'">
-                      <button type="button" class="vp-stage-retry-btn" (click)="retryVideoPronunciation(currentQuestion)">
-                        <span class="material-icons">refresh</span> Try again
+                      <button type="button" class="vp-stage-retry-btn" (click)="speakAgainVideoPronunciation(currentQuestion)">
+                        <span class="material-icons">mic</span> Speak again
                       </button>
                       <button
                         *ngIf="!isLastQuestion"
@@ -477,6 +483,12 @@
                   <button type="button" class="vp-stage-foot-pill" (click)="replayVpVideo()">
                     <span class="material-icons">replay</span>
                     Replay
+                  </button>
+                </div>
+                <div class="vp-stage-admin-controls" *ngIf="isStaffTester && !currentQuestion.isRecording">
+                  <button type="button" class="vp-stage-admin-pill" (click)="toggleVpVideoPlayback()">
+                    <span class="material-icons">{{ isVpVideoPaused ? 'play_arrow' : 'pause' }}</span>
+                    {{ isVpVideoPaused ? 'Play' : 'Pause' }}
                   </button>
                 </div>
               </div>
@@ -1019,9 +1031,9 @@
                     <strong>Try again</strong>
                     <span class="vp-spoken">"{{ currentQuestion.vpSpokenText }}"</span>
                   </div>
-                  <button type="button" class="vp-mob-btn vp-mob-btn--retry" (click)="retryVideoPronunciation(currentQuestion)">
-                    <span class="material-icons">refresh</span>
-                    <span>Try again</span>
+                  <button type="button" class="vp-mob-btn vp-mob-btn--retry" (click)="speakAgainVideoPronunciation(currentQuestion)">
+                    <span class="material-icons">mic</span>
+                    <span>Speak again</span>
                   </button>
                   <!-- Last clip: submit exercise even if incorrect -->
                   <button
