@@ -1221,6 +1221,36 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       .trim();
   }
 
+  private normalizeNumbersForDisplay(transcript: string, target: string, lang: string): string {
+    const spoken = this.normalizeSpeechText(transcript);
+    const tgt = this.normalizeSpeechText(target);
+    if (!spoken) return '';
+    if (!tgt) return transcript.trim();
+
+    const tokenMap = this.numberTokenVariantsMap(lang);
+    const reverseMap: Record<string, string> = {};
+    Object.entries(tokenMap).forEach(([digit, words]) => {
+      reverseMap[digit] = digit;
+      words.forEach((w) => { reverseMap[w] = digit; });
+    });
+
+    const spokenTokens = spoken.split(' ');
+    const targetTokens = tgt.split(' ');
+    const out = [...spokenTokens];
+    const n = Math.min(spokenTokens.length, targetTokens.length);
+    for (let i = 0; i < n; i++) {
+      const s = spokenTokens[i];
+      const t = targetTokens[i];
+      const sCanon = reverseMap[s] || s;
+      const tCanon = reverseMap[t] || t;
+      const targetIsWordNumber = !!reverseMap[t] && !/^\d+$/.test(t);
+      if (sCanon === tCanon && targetIsWordNumber) {
+        out[i] = t;
+      }
+    }
+    return out.join(' ').trim();
+  }
+
   private buildNumberAwareVariants(text: string, lang: string): string[] {
     const base = this.normalizeSpeechText(text);
     if (!base) return [''];
@@ -1367,7 +1397,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           bestTranscript = cand;
         }
       }
-      pq.spokenText = bestTranscript || candidates[0] || '';
+      const rawTranscript = bestTranscript || candidates[0] || '';
+      pq.spokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
 
       pq.pronunciationScore = score;
       pq.hasRecorded = true;
@@ -2234,7 +2265,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         }
       }
       gotUsableResult = true;
-      pq.vpSpokenText = bestTranscript || candidates[0] || '';
+      const rawTranscript = bestTranscript || candidates[0] || '';
+      pq.vpSpokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
       pq.isRecording = false;
       pq.hasRecorded = true;
       pq.pronunciationScore = bestScore;
