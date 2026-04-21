@@ -130,6 +130,7 @@ textarea:focus {
   border-radius: 10px;
   padding: 10px 18px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .upload-action button:disabled {
@@ -156,6 +157,7 @@ textarea:focus {
   min-height: 40px;
   padding: 0 12px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .empty-msg {
@@ -204,6 +206,7 @@ textarea:focus {
 }
 
 .btn-play,
+.btn-edit,
 .btn-delete {
   border: none;
   border-radius: 8px;
@@ -221,6 +224,18 @@ textarea:focus {
   margin-left: 6px;
   background: #dc2626;
   color: #fff;
+}
+
+.btn-edit {
+  margin-left: 6px;
+  background: #0f766e;
+  color: #fff;
+}
+
+.upload-action--edit {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .table-wrap {

@@ -35,7 +35,7 @@
         </select>
       </div>
       <div class="filter-item filter-item--action">
-        <button type="button" class="btn-reset" (click)="resetFilters()">Reset</button>
+        <button type="button" class="btn-reset" (click)="resetFilters()">Reset Filters</button>
       </div>
     </div>
 
@@ -54,25 +54,21 @@
             <th>Topic</th>
             <th>Description</th>
             <th>File</th>
-            <th>Size</th>
-            <th>Uploaded</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let item of filteredResources">
-            <td>{{ item.title }}</td>
-            <td>{{ item.day }}</td>
-            <td>{{ item.batch || '-' }}</td>
-            <td>{{ item.level || '-' }}</td>
-            <td>{{ item.plan || '-' }}</td>
-            <td>{{ item.resourceType || getExtension(item.originalName) }}</td>
-            <td>{{ item.topic || '-' }}</td>
-            <td class="description-col">{{ item.description || '-' }}</td>
-            <td class="file-col">{{ item.originalName }}</td>
-            <td>{{ getFileSizeLabel(item.fileSize) }}</td>
-            <td>{{ item.uploadedAt | date: 'medium' }}</td>
-            <td>
+            <td data-label="Title">{{ item.title }}</td>
+            <td data-label="Day">{{ item.day }}</td>
+            <td data-label="Batch">{{ item.batch || '-' }}</td>
+            <td data-label="Level">{{ item.level || '-' }}</td>
+            <td data-label="Plan">{{ item.plan || '-' }}</td>
+            <td data-label="Type">{{ item.resourceType || getExtension(item.originalName) }}</td>
+            <td data-label="Topic">{{ item.topic || '-' }}</td>
+            <td data-label="Description" class="description-col">{{ item.description || '-' }}</td>
+            <td data-label="File" class="file-col">{{ item.originalName }}</td>
+            <td data-label="Action">
               <button type="button" class="btn-play" (click)="play(item)">Open</button>
             </td>
           </tr>

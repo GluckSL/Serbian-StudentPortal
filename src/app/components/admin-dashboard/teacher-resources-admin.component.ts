@@ -36,6 +36,19 @@ export class TeacherResourcesAdminComponent implements OnInit {
   filterPlan = '';
   activePreviewUrl: SafeResourceUrl | null = null;
   activePreviewTitle = '';
+  editingResourceId = '';
+  editTeacherId = '';
+  editTitle = '';
+  editDay = '';
+  editBatch = '';
+  editLevel = '';
+  editPlan = '';
+  editResourceType = '';
+  editTopic = '';
+  editDescription = '';
+  editFile: File | null = null;
+  editSelectedFileName = '';
+  savingEdit = false;
 
   constructor(
     private teacherService: TeacherService,
@@ -218,9 +231,87 @@ export class TeacherResourcesAdminComponent implements OnInit {
     });
   }
 
+  startEdit(item: TeacherResource): void {
+    this.editingResourceId = item._id;
+    this.editTeacherId = this.teacherIdValue(item.teacherId);
+    this.editTitle = item.title || '';
+    this.editDay = item.day || '';
+    this.editBatch = item.batch || '';
+    this.editLevel = item.level || '';
+    this.editPlan = item.plan || '';
+    this.editResourceType = item.resourceType || '';
+    this.editTopic = item.topic || '';
+    this.editDescription = item.description || '';
+    this.editFile = null;
+    this.editSelectedFileName = '';
+  }
+
+  cancelEdit(): void {
+    this.editingResourceId = '';
+    this.editTeacherId = '';
+    this.editTitle = '';
+    this.editDay = '';
+    this.editBatch = '';
+    this.editLevel = '';
+    this.editPlan = '';
+    this.editResourceType = '';
+    this.editTopic = '';
+    this.editDescription = '';
+    this.editFile = null;
+    this.editSelectedFileName = '';
+    this.savingEdit = false;
+  }
+
+  onEditFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const picked = input.files?.[0] || null;
+    this.editFile = picked;
+    this.editSelectedFileName = picked ? picked.name : '';
+  }
+
+  saveEdit(): void {
+    if (!this.editingResourceId) return;
+    if (!this.editTeacherId || !this.editTitle.trim() || !this.editDay.trim()) {
+      this.notify.warning('Teacher, title and day are required');
+      return;
+    }
+    this.savingEdit = true;
+    this.teacherResourcesService
+      .update(this.editingResourceId, {
+        teacherId: this.editTeacherId.trim(),
+        title: this.editTitle.trim(),
+        day: this.editDay.trim(),
+        batch: this.editBatch.trim(),
+        level: this.editLevel.trim(),
+        plan: this.editPlan.trim(),
+        resourceType: this.editResourceType.trim(),
+        topic: this.editTopic.trim(),
+        description: this.editDescription.trim(),
+        file: this.editFile
+      })
+      .subscribe({
+        next: () => {
+          this.savingEdit = false;
+          this.notify.success('Resource updated');
+          this.cancelEdit();
+          this.loadResources();
+        },
+        error: (err) => {
+          this.savingEdit = false;
+          this.notify.error(err?.error?.message || 'Update failed');
+        }
+      });
+  }
+
   teacherName(item: TeacherResource): string {
     const t = item.teacherId as any;
     return typeof t === 'object' ? t.name : 'Teacher';
+  }
+
+  teacherIdValue(value: TeacherResource['teacherId']): string {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value._id || '';
   }
 
   getFileSizeLabel(size: number | undefined): string {

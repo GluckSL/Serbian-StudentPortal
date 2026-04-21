@@ -61,15 +61,25 @@ select:focus {
 .filter-item--action {
   display: flex;
   align-items: flex-end;
+  justify-content: flex-end;
 }
 
 .btn-reset {
   min-height: 38px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #fff;
   border-radius: 10px;
-  padding: 0 12px;
+  padding: 0 14px;
   font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.btn-reset:hover {
+  transform: translateY(-1px);
+  background: #1e293b;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.22);
 }
 
 .table-wrap {
@@ -79,7 +89,7 @@ select:focus {
 .resource-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1500px;
+  min-width: 1280px;
 }
 
 .resource-table th,
@@ -90,10 +100,15 @@ select:focus {
 }
 
 .resource-table th {
-  background: #f8fafc;
+  background: #0f172a;
   font-size: 0.78rem;
   text-transform: uppercase;
-  color: #64748b;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+.resource-table tbody tr:hover {
+  background: #f8fafc;
 }
 
 .file-col {
@@ -117,6 +132,14 @@ select:focus {
   background: #2563eb;
   color: #fff;
   font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.btn-play:hover {
+  transform: translateY(-1px) scale(1.02);
+  background: #1d4ed8;
+  box-shadow: 0 10px 18px rgba(29, 78, 216, 0.26);
 }
 
 .empty-state {
@@ -158,6 +181,13 @@ select:focus {
   border-radius: 8px;
   padding: 8px 12px;
   font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fullscreen-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(29, 78, 216, 0.3);
 }
 
 .close-btn {
@@ -168,6 +198,13 @@ select:focus {
   padding: 8px 12px;
   border-radius: 8px;
   border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.close-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.2);
 }
 
 .preview-overlay iframe {
@@ -184,7 +221,89 @@ select:focus {
 }
 
 @media (max-width: 700px) {
+  .teacher-resources-page {
+    padding: 12px;
+  }
+
+  .resource-panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
   .filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .filter-item--action {
+    justify-content: stretch;
+  }
+
+  .btn-reset {
+    width: 100%;
+  }
+
+  .resource-table {
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .resource-table thead {
+    display: none;
+  }
+
+  .resource-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .resource-table tr {
+    display: block;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 8px 10px;
+    background: #fff;
+  }
+
+  .resource-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px dashed #e2e8f0;
+    padding: 9px 0;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .resource-table td:last-child {
+    border-bottom: none;
+    padding-bottom: 2px;
+  }
+
+  .resource-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #0f172a;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-align: left;
+    flex: 0 0 42%;
+  }
+
+  .description-col,
+  .file-col {
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .resource-table td[data-label='Action'] {
+    align-items: center;
+  }
+
+  .resource-table td[data-label='Action'] .btn-play {
+    width: 100%;
   }
 }

@@ -26,6 +26,16 @@ const upload = multer({
 
 const uploadSingle = upload.single('file');
 
+function toSortedUniqueStringList(values) {
+  return Array.from(
+    new Set(
+      (values || [])
+        .map((v) => String(v || '').trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
 router.post(
   '/upload',
   verifyToken,
@@ -103,11 +113,14 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
   try {
     const role = req.user?.role;
     const query = {};
+    let scopedTeacherId = null;
 
     if (role === 'TEACHER') {
       query.teacherId = req.user.id;
+      scopedTeacherId = req.user.id;
     } else if (req.query.teacherId) {
       query.teacherId = req.query.teacherId;
+      scopedTeacherId = req.query.teacherId;
     }
     if (req.query.batch) query.batch = String(req.query.batch).trim();
     if (req.query.level) query.level = String(req.query.level).trim();
@@ -126,7 +139,43 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       })
     );
 
-    res.json({ success: true, data: rows });
+    // Build dropdown options from both uploaded resource metadata and teacher's class/student metadata.
+    // This ensures filters are populated even when older resources were uploaded without batch/level/plan.
+    const resourceScopeQuery = { ...query };
+    delete resourceScopeQuery.batch;
+    delete resourceScopeQuery.level;
+    delete resourceScopeQuery.plan;
+
+    const [resourceBatches, resourceLevels, resourcePlans] = await Promise.all([
+      TeacherResource.distinct('batch', { ...resourceScopeQuery, batch: { $exists: true, $nin: [null, ''] } }),
+      TeacherResource.distinct('level', { ...resourceScopeQuery, level: { $exists: true, $nin: [null, ''] } }),
+      TeacherResource.distinct('plan', { ...resourceScopeQuery, plan: { $exists: true, $nin: [null, ''] } })
+    ]);
+
+    let studentBatches = [];
+    let studentLevels = [];
+    let studentPlans = [];
+    if (scopedTeacherId) {
+      const students = await User.find({
+        role: 'STUDENT',
+        assignedTeacher: scopedTeacherId
+      })
+        .select('batch level subscription')
+        .lean();
+      studentBatches = students.map((s) => s.batch);
+      studentLevels = students.map((s) => s.level);
+      studentPlans = students.map((s) => s.subscription);
+    }
+
+    res.json({
+      success: true,
+      data: rows,
+      filters: {
+        batches: toSortedUniqueStringList([...resourceBatches, ...studentBatches]),
+        levels: toSortedUniqueStringList([...resourceLevels, ...studentLevels]),
+        plans: toSortedUniqueStringList([...resourcePlans, ...studentPlans])
+      }
+    });
   } catch (err) {
     console.error('teacherResources list error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch resources', error: err.message });
@@ -175,6 +224,88 @@ router.get('/:id/preview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TE
     res.status(500).json({ success: false, message: 'Failed to preview resource', error: err.message });
   }
 });
+
+router.patch(
+  '/:id',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  (req, res, next) => {
+    uploadSingle(req, res, (err) => {
+      if (!err) return next();
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(status).json({ success: false, message: err.message || 'Update failed' });
+    });
+  },
+  async (req, res) => {
+    let uploadedKey = null;
+    try {
+      const row = await TeacherResource.findById(req.params.id);
+      if (!row) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+      const has = (k) => Object.prototype.hasOwnProperty.call(req.body || {}, k);
+
+      if (has('teacherId')) {
+        const teacherId = String(req.body.teacherId || '').trim();
+        if (!teacherId) return res.status(400).json({ success: false, message: 'teacherId cannot be empty' });
+        const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).lean();
+        if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+        row.teacherId = teacherId;
+      }
+
+      if (has('title')) {
+        const title = String(req.body.title || '').trim();
+        if (!title) return res.status(400).json({ success: false, message: 'title cannot be empty' });
+        row.title = title;
+      }
+      if (has('day')) {
+        const day = String(req.body.day || '').trim();
+        if (!day) return res.status(400).json({ success: false, message: 'day cannot be empty' });
+        row.day = day;
+      }
+      if (has('batch')) row.batch = String(req.body.batch || '').trim();
+      if (has('level')) row.level = String(req.body.level || '').trim();
+      if (has('plan')) row.plan = String(req.body.plan || '').trim();
+      if (has('resourceType')) row.resourceType = String(req.body.resourceType || '').trim();
+      if (has('topic')) row.topic = String(req.body.topic || '').trim();
+      if (has('description')) row.description = String(req.body.description || '').trim();
+
+      const previousFileName = row.fileName;
+      if (req.file) {
+        uploadedKey = req.file.key || null;
+        row.fileName = req.file.key || req.file.filename;
+        row.originalName = req.file.originalname;
+        row.fileUrl = req.file.location || req.file.path;
+        row.mimeType = req.file.mimetype;
+        row.fileSize = req.file.size;
+      }
+
+      await row.save();
+
+      if (req.file && previousFileName && process.env.S3_BUCKET && previousFileName !== row.fileName) {
+        try {
+          await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: previousFileName }));
+        } catch (_) {
+          // best effort cleanup of replaced file
+        }
+      }
+
+      const out = row.toObject();
+      out.fileUrl = await presignStoredS3Url(out.fileName, out.fileUrl);
+      out.previewUrl = await presignS3InlineUrl(out.fileName, out.fileUrl, out.originalName);
+      res.json({ success: true, data: out });
+    } catch (err) {
+      if (uploadedKey && process.env.S3_BUCKET) {
+        try {
+          await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: uploadedKey }));
+        } catch (_) {
+          // best effort rollback for newly uploaded replacement file
+        }
+      }
+      console.error('teacherResources update error:', err);
+      res.status(500).json({ success: false, message: 'Update failed', error: err.message });
+    }
+  }
+);
 
 router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {

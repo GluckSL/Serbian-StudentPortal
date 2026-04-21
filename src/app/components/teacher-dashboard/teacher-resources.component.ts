@@ -19,6 +19,9 @@ export class TeacherResourcesComponent implements OnInit {
   selectedBatch = '';
   selectedLevel = '';
   selectedPlan = '';
+  filterBatches: string[] = [];
+  filterLevels: string[] = [];
+  filterPlans: string[] = [];
   activePreviewUrl: SafeResourceUrl | null = null;
   activePreviewTitle = '';
 
@@ -33,23 +36,20 @@ export class TeacherResourcesComponent implements OnInit {
   }
 
   get availableBatches(): string[] {
-    const set = new Set(
-      this.resources.map((item) => String(item.batch || '').trim()).filter((x) => x.length > 0)
-    );
+    if (this.filterBatches.length > 0) return this.filterBatches;
+    const set = new Set(this.resources.map((item) => String(item.batch || '').trim()).filter((x) => x.length > 0));
     return Array.from(set).sort();
   }
 
   get availableLevels(): string[] {
-    const set = new Set(
-      this.resources.map((item) => String(item.level || '').trim()).filter((x) => x.length > 0)
-    );
+    if (this.filterLevels.length > 0) return this.filterLevels;
+    const set = new Set(this.resources.map((item) => String(item.level || '').trim()).filter((x) => x.length > 0));
     return Array.from(set).sort();
   }
 
   get availablePlans(): string[] {
-    const set = new Set(
-      this.resources.map((item) => String(item.plan || '').trim()).filter((x) => x.length > 0)
-    );
+    if (this.filterPlans.length > 0) return this.filterPlans;
+    const set = new Set(this.resources.map((item) => String(item.plan || '').trim()).filter((x) => x.length > 0));
     return Array.from(set).sort();
   }
 
@@ -82,6 +82,9 @@ export class TeacherResourcesComponent implements OnInit {
     this.teacherResourcesService.list().subscribe({
       next: (res) => {
         this.resources = res?.data || [];
+        this.filterBatches = Array.isArray(res?.filters?.batches) ? res.filters.batches : [];
+        this.filterLevels = Array.isArray(res?.filters?.levels) ? res.filters.levels : [];
+        this.filterPlans = Array.isArray(res?.filters?.plans) ? res.filters.plans : [];
         this.loading = false;
       },
       error: () => {
@@ -138,17 +141,5 @@ export class TeacherResourcesComponent implements OnInit {
     const fileName = String(name || '');
     const idx = fileName.lastIndexOf('.');
     return idx > -1 ? fileName.slice(idx + 1).toUpperCase() : 'FILE';
-  }
-
-  getFileSizeLabel(size: number | undefined): string {
-    if (!size) return '-';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let value = size;
-    let unitIndex = 0;
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex++;
-    }
-    return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
   }
 }

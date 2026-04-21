@@ -158,11 +158,85 @@
             <td>{{ item.uploadedAt | date: 'medium' }}</td>
             <td class="action-col">
               <button type="button" class="btn-play" (click)="play(item)">Play</button>
+              <button type="button" class="btn-edit" (click)="startEdit(item)">Edit</button>
               <button type="button" class="btn-delete" (click)="delete(item)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section class="upload-card" *ngIf="editingResourceId">
+    <div class="card-head">
+      <h3>Edit Resource</h3>
+      <span class="hint">Update metadata or replace the file.</span>
+    </div>
+
+    <div class="form-grid form-grid--upload">
+      <div class="form-field">
+        <label>Teacher <span class="required">*</span></label>
+        <select [(ngModel)]="editTeacherId">
+          <option value="">Select teacher</option>
+          <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label>Title <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="editTitle" placeholder="Enter title" />
+      </div>
+
+      <div class="form-field">
+        <label>Day <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="editDay" placeholder="Example: Day 1" />
+      </div>
+
+      <div class="form-field">
+        <label>Batch</label>
+        <input type="text" [(ngModel)]="editBatch" placeholder="Example: April Intake" />
+      </div>
+
+      <div class="form-field">
+        <label>Level</label>
+        <input type="text" [(ngModel)]="editLevel" placeholder="Example: A1 / Beginner" />
+      </div>
+
+      <div class="form-field">
+        <label>Plan</label>
+        <input type="text" [(ngModel)]="editPlan" placeholder="Example: Weekend Plan" />
+      </div>
+
+      <div class="form-field">
+        <label>Resource Type</label>
+        <input type="text" [(ngModel)]="editResourceType" placeholder="Example: Worksheet / PPT / Quiz" />
+      </div>
+
+      <div class="form-field">
+        <label>Topic</label>
+        <input type="text" [(ngModel)]="editTopic" placeholder="Example: Basic Introductions" />
+      </div>
+
+      <div class="form-field form-field--wide">
+        <label>Description</label>
+        <textarea [(ngModel)]="editDescription" rows="3" placeholder="Short details for teachers"></textarea>
+      </div>
+
+      <div class="form-field form-field--wide">
+        <label>Replace File (Optional)</label>
+        <div class="file-picker">
+          <input id="resource-edit-file" type="file" (change)="onEditFileSelected($event)" />
+          <label class="file-btn" for="resource-edit-file">Choose replacement file</label>
+          <span class="file-name">{{ editSelectedFileName || 'Keep existing file' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-action upload-action--edit">
+      <button type="button" class="btn-outline" [disabled]="savingEdit" (click)="cancelEdit()">Cancel</button>
+      <button type="button" [disabled]="savingEdit" (click)="saveEdit()">
+        {{ savingEdit ? 'Saving...' : 'Save Changes' }}
+      </button>
     </div>
   </section>
 
