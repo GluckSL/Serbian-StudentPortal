@@ -69,6 +69,7 @@ export class NavService {
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',             subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: '🏋️', route: '/admin/digital-exercises',   subGroup: null },
+        { id: 'teacher-resources', label: 'Teacher Resources', icon: '🗂️', route: '/admin/teacher-resources', subGroup: null },
         { id: 'journey',           label: 'Journey',            icon: '📅', route: '/admin/journey',             subGroup: null },
         { id: 'go-students',       label: 'GO Students',        icon: '🚀', route: '/admin/go-students',         subGroup: null }
       ]
@@ -164,7 +165,8 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/learning-modules',         subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null }
+        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null },
+        { id: 'teacher-resources', label: 'Resources', icon: '🗂️', route: '/teacher/resources', subGroup: null }
       ]
     },
     {

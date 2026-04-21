@@ -1,0 +1,96 @@
+<div class="teacher-resources-admin">
+  <div class="page-header">
+    <h2>Teacher Resources</h2>
+    <p>Upload and manage files by teacher and day.</p>
+  </div>
+
+  <section class="upload-card">
+    <div class="card-head">
+      <h3>Upload Resource</h3>
+      <span class="hint">All file types supported (max 50 MB)</span>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label>Teacher</label>
+        <select [(ngModel)]="selectedTeacherId">
+          <option value="">Select teacher</option>
+          <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label>Title</label>
+        <input type="text" [(ngModel)]="title" placeholder="Enter title" />
+      </div>
+
+      <div class="form-field">
+        <label>Day</label>
+        <input type="text" [(ngModel)]="day" placeholder="Example: Day 1" />
+      </div>
+
+      <div class="form-field">
+        <label>File</label>
+        <div class="file-picker">
+          <input id="resource-file" type="file" (change)="onFileSelected($event)" />
+          <label class="file-btn" for="resource-file">Choose file</label>
+          <span class="file-name">{{ selectedFileName }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-action">
+      <button type="button" [disabled]="uploading" (click)="upload()">
+        {{ uploading ? 'Uploading...' : 'Upload Resource' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="list-card">
+    <div class="card-head">
+      <h3>Uploaded Resources</h3>
+      <span class="hint">{{ resources.length }} files</span>
+    </div>
+
+    <div *ngIf="loading" class="empty-msg">Loading resources...</div>
+    <div *ngIf="!loading && resources.length === 0" class="empty-msg">No resources uploaded yet.</div>
+
+    <div *ngIf="!loading && resources.length > 0" class="table-wrap">
+      <table class="resource-table">
+        <thead>
+          <tr>
+            <th>Teacher</th>
+            <th>Title</th>
+            <th>Day</th>
+            <th>File</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of resources">
+            <td>{{ teacherName(item) }}</td>
+            <td>{{ item.title }}</td>
+            <td>{{ item.day }}</td>
+            <td class="file-col">{{ item.originalName }}</td>
+            <td>{{ getFileSizeLabel(item.fileSize) }}</td>
+            <td>{{ item.uploadedAt | date: 'mediumDate' }}</td>
+            <td class="action-col">
+              <button type="button" class="btn-play" (click)="play(item)">Play</button>
+              <button type="button" class="btn-delete" (click)="delete(item)">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="preview-overlay" *ngIf="activePreviewUrl">
+    <div class="preview-topbar">
+      <strong>{{ activePreviewTitle }}</strong>
+      <button class="close-btn" type="button" (click)="closePreview()">Close</button>
+    </div>
+    <iframe [src]="activePreviewUrl" title="Resource preview"></iframe>
+  </div>
+</div>

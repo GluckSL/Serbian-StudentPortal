@@ -217,6 +217,9 @@ app.use('/api/class-doubts', classDoubtRoutes);
 const classSubmissionRoutes = require('./routes/classSubmissions');
 app.use('/api/class-submissions', classSubmissionRoutes);
 
+const teacherResourceRoutes = require('./routes/teacherResources');
+app.use('/api/teacher-resources', teacherResourceRoutes);
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
   try {

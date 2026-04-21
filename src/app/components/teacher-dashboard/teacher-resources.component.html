@@ -1,0 +1,30 @@
+<div class="teacher-resources-page">
+  <div class="page-head">
+    <h2>Resources</h2>
+    <p>Files shared for your classes.</p>
+  </div>
+
+  <div *ngIf="loading" class="empty-state">Loading resources...</div>
+  <div *ngIf="!loading && resources.length === 0" class="empty-state">No resources available yet.</div>
+
+  <div class="cards" *ngIf="!loading && resources.length > 0">
+    <div class="resource-card" *ngFor="let item of resources">
+      <div class="card-top">
+        <span class="ext-badge">{{ getExtension(item.originalName) }}</span>
+        <small>{{ item.uploadedAt | date: 'mediumDate' }}</small>
+      </div>
+      <h3>{{ item.title }}</h3>
+      <p>{{ item.day }}</p>
+      <div class="file-name">{{ item.originalName }}</div>
+      <button type="button" (click)="play(item)">Play</button>
+    </div>
+  </div>
+
+  <div class="preview-overlay" *ngIf="activePreviewUrl">
+    <div class="preview-topbar">
+      <strong>{{ activePreviewTitle }}</strong>
+      <button class="close-btn" type="button" (click)="closePreview()">Close</button>
+    </div>
+    <iframe [src]="activePreviewUrl" title="PPT preview"></iframe>
+  </div>
+</div>

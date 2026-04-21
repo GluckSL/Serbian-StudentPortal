@@ -132,6 +132,49 @@ async function presignS3DownloadUrl(fileName, fileUrl, originalName) {
 }
 
 /**
+ * Presigned URL with inline disposition for browser preview/iframe usage.
+ * This helps avoid forced downloads when object metadata contains attachment disposition.
+ */
+async function presignS3InlineUrl(fileName, fileUrl, originalName) {
+  const base = String(originalName || 'preview').replace(/["\r\n]/g, '_');
+  const star = encodeURIComponent(base);
+  const disp = `inline; filename="${base}"; filename*=UTF-8''${star}`;
+
+  if (!USE_SIGNED) {
+    return fileUrl || null;
+  }
+
+  const clean = fileName && String(fileName).replace(/^\//, '').trim();
+  if (clean) {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: process.env.S3_BUCKET,
+        Key: clean,
+        ResponseContentDisposition: disp
+      });
+      return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
+    } catch (err) {
+      console.error('[presign] presignS3InlineUrl (key) failed:', clean, err.message);
+    }
+  }
+
+  if (!fileUrl) return null;
+  const key = extractKey(fileUrl);
+  if (!key) return null;
+  try {
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: key,
+      ResponseContentDisposition: disp
+    });
+    return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
+  } catch (err) {
+    console.error('[presign] presignS3InlineUrl (url) failed:', err.message);
+    return null;
+  }
+}
+
+/**
  * Walk all media URL fields in a plain exercise object and replace S3 URLs
  * with presigned versions.  Mutates in place (safe since callers use .lean()).
  */
@@ -176,6 +219,7 @@ module.exports = {
   presignS3ObjectKey,
   presignStoredS3Url,
   presignS3DownloadUrl,
+  presignS3InlineUrl,
   resignExercise,
   resignExercises,
   isS3Url,
