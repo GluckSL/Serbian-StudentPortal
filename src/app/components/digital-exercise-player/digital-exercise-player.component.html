@@ -422,7 +422,6 @@
                     <button
                       type="button"
                       class="vp-stage-mic-btn vp-stage-mic-btn--glass"
-                      [disabled]="!speechSupported"
                       (click)="startVideoPronunciation(currentQuestion)"
                       title="Speak"
                     >
@@ -987,7 +986,7 @@
                     <span class="material-icons">replay</span>
                     <span>Replay</span>
                   </button>
-                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="startVideoPronunciation(currentQuestion)" [disabled]="!speechSupported">
+                  <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="startVideoPronunciation(currentQuestion)">
                     <span class="material-icons">mic</span>
                     <span>Speak</span>
                   </button>

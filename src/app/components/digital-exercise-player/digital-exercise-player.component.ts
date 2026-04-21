@@ -128,6 +128,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   // Speech recognition
   private recognition: any = null;
   private listeningRecognition: any = null;
+  private speechRecognitionCtor: any = null;
   speechSupported = false;
 
   /** Current video-pronunciation element (for autoplay / replay). */
@@ -197,7 +198,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private checkSpeechSupport(): void {
-    this.speechSupported = !!(('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window));
+    this.speechRecognitionCtor =
+      (window as any).webkitSpeechRecognition ||
+      (window as any).SpeechRecognition ||
+      null;
+    this.speechSupported = !!this.speechRecognitionCtor;
+  }
+
+  private async ensureMicrophoneAccess(): Promise<boolean> {
+    const mediaDevices = (navigator as any)?.mediaDevices;
+    if (!mediaDevices?.getUserMedia) return true;
+    try {
+      const stream = await mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+      return true;
+    } catch {
+      this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+      return false;
+    }
   }
 
   loadExercise(): void {
@@ -1898,6 +1916,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const v = ev.target as HTMLVideoElement;
     if (!v) return;
     pq.vpCurrentTimeSec = Number.isFinite(v.currentTime) ? v.currentTime : 0;
+    const duration = Number(v.duration);
+    if (Number.isFinite(duration) && duration > 0 && duration - v.currentTime <= 0.08 && !pq.vpPlaybackEnded) {
+      this.onVpVideoEnded(ev, pq);
+    }
   }
 
   /**
@@ -1949,6 +1971,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   startVideoPronunciation(pq: PlayerQuestion): void {
+    void this.startVideoPronunciationInternal(pq);
+  }
+
+  private async startVideoPronunciationInternal(pq: PlayerQuestion): Promise<void> {
     if (this.state === 'submitted') return;
     if (pq.data?.type === 'video-pronunciation' && !pq.vpPlaybackEnded) {
       this.snackBar.open('Finish watching the clip first, then tap Speak.', 'Close', { duration: 3000 });
@@ -1961,8 +1987,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    const SpeechRecognition = this.speechRecognitionCtor;
+    if (!SpeechRecognition) {
+      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
+      return;
+    }
+    const hasMicAccess = await this.ensureMicrophoneAccess();
+    if (!hasMicAccess) return;
+    if (this.recognition) {
+      try { this.recognition.stop(); } catch {}
+      this.recognition = null;
+    }
     const rec = new SpeechRecognition();
+    this.recognition = rec;
     const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
     rec.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
     rec.continuous = false;
@@ -2014,18 +2051,31 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     rec.onerror = (event: any) => {
       pq.isRecording = false;
+      if (this.recognition === rec) this.recognition = null;
       if (event.error === 'not-allowed') {
         pq.vpFailCount = (pq.vpFailCount || 0) + 1;
         this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+      } else if (event.error === 'audio-capture') {
+        pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
       } else if (event.error === 'no-speech') {
         pq.vpFailCount = (pq.vpFailCount || 0) + 1;
         this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
       }
     };
 
-    rec.onend = () => { pq.isRecording = false; };
+    rec.onend = () => {
+      pq.isRecording = false;
+      if (this.recognition === rec) this.recognition = null;
+    };
 
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      pq.isRecording = false;
+      if (this.recognition === rec) this.recognition = null;
+      this.snackBar.open('Microphone could not be started. Please try again.', 'Close', { duration: 4000 });
+    }
   }
 
   retryVideoPronunciation(pq: PlayerQuestion): void {
