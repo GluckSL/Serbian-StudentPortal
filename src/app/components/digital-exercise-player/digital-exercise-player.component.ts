@@ -143,6 +143,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private vpFeedbackAudioEl: HTMLAudioElement | null = null;
   /** Hard timeout to stop stuck speech-recognition sessions. */
   private vpRecognitionForceStopTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Fallback finalizer used when browser doesn't emit onend promptly after manual stop. */
+  private vpManualStopFinalize: (() => void) | null = null;
   /** Optional line from admin (e.g. “Try again”) shown under feedback while clip may play. */
   vpFeedbackCaption: string | null = null;
 
@@ -1286,16 +1288,25 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const b = this.normalizeSpeechText(target);
     if (!a || !b) return 0;
     if (a === b) return 100;
+    const aTokens = a.split(' ').filter(Boolean);
+    const bTokens = b.split(' ').filter(Boolean);
+    const aTokenSet = new Set(aTokens);
+    const bTokenSet = new Set(bTokens);
+    const overlap = [...aTokenSet].filter((t) => bTokenSet.has(t)).length;
+    const recall = bTokenSet.size ? overlap / bTokenSet.size : 0; // How much of target was spoken.
+    const precision = aTokenSet.size ? overlap / aTokenSet.size : 0; // How much spoken text matches target.
+    const tokenF1 = (precision + recall) > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+
     if (a.includes(b) || b.includes(a)) {
       const coverage = Math.round((Math.min(a.length, b.length) / Math.max(a.length, b.length)) * 100);
-      return Math.max(88, coverage);
+      // Prevent inflated scores for short partial matches of long target sentences.
+      return Math.round(coverage * (0.35 + 0.65 * recall));
     }
     const lev = Math.round(this.calculateStringSimilarity(a, b) * 100);
-    const aTokens = new Set(a.split(' ').filter(Boolean));
-    const bTokens = new Set(b.split(' ').filter(Boolean));
-    const overlap = [...aTokens].filter((t) => bTokens.has(t)).length;
-    const tokenScore = bTokens.size ? Math.round((overlap / bTokens.size) * 100) : 0;
-    return Math.max(lev, tokenScore);
+    const tokenScore = Math.round(tokenF1 * 100);
+    const blended = Math.max(lev, tokenScore);
+    // Strongly weight target coverage so 1/5 words cannot look "almost correct".
+    return Math.round(blended * (0.3 + 0.7 * recall));
   }
 
   private getPronunciationScoreForTranscript(
@@ -1352,8 +1363,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     if (pq.isRecording) return;
-    this.clearRecordingTimers();
-
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     this.recognition = new SpeechRecognition();
 
@@ -1364,71 +1373,61 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.recognition.maxAlternatives = 3;
 
     pq.isRecording = true;
-    this.recordingCountdown = 3;
-
-    // Tick the countdown every second
-    this.recordingCountdownInterval = setInterval(() => {
-      this.recordingCountdown--;
-      if (this.recordingCountdown <= 0) {
-        this.clearRecordingTimers();
-      }
-    }, 1000);
-
-    // Force-stop after 3 seconds so whatever was said gets processed
-    this.recordingForceStopTimer = setTimeout(() => {
-      this.clearRecordingTimers();
-      if (this.recognition) {
-        try { this.recognition.stop(); } catch {}
-      }
-    }, 3000);
+    let bestTranscript = '';
+    let bestScore = 0;
+    let gotUsableResult = false;
+    const lang = this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
+    const target = String(pq.data.word || '');
+    const variants = Array.isArray(pq.data.acceptedVariants) ? pq.data.acceptedVariants : [];
 
     this.recognition.onresult = (event: any) => {
-      this.clearRecordingTimers();
-      const lang = this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
-      const target = String(pq.data.word || '');
-      const variants = Array.isArray(pq.data.acceptedVariants) ? pq.data.acceptedVariants : [];
       const candidates = this.flattenSpeechResultCandidates(event);
-      let bestTranscript = '';
-      let score = 0;
       for (const cand of candidates) {
         const candScore = this.getPronunciationScoreForTranscript(cand, target, variants, lang);
-        if (candScore > score) {
-          score = candScore;
+        if (candScore > bestScore) {
+          bestScore = candScore;
           bestTranscript = cand;
         }
       }
-      const rawTranscript = bestTranscript || candidates[0] || '';
-      pq.spokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
-
-      pq.pronunciationScore = score;
-      pq.hasRecorded = true;
-      pq.isRecording = false;
-      this.markAttempted(pq);
+      if (candidates.length > 0) {
+        gotUsableResult = true;
+        const previewTranscript = bestTranscript || candidates[0] || '';
+        pq.spokenText = this.normalizeNumbersForDisplay(previewTranscript, target, lang) || previewTranscript;
+      }
     };
 
     this.recognition.onerror = (event: any) => {
-      this.clearRecordingTimers();
       pq.isRecording = false;
+      this.recognition = null;
       if (event.error === 'not-allowed') {
         this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
       }
-      // Ignore no-speech — the 3s force-stop already handles the timeout cleanly
+      if (event.error === 'audio-capture') {
+        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
+      }
     };
 
     this.recognition.onend = () => {
-      this.clearRecordingTimers();
       pq.isRecording = false;
+      this.recognition = null;
+      if (!gotUsableResult) {
+        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+        return;
+      }
+      const rawTranscript = bestTranscript || pq.spokenText || '';
+      pq.spokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
+      pq.pronunciationScore = bestScore;
+      pq.hasRecorded = true;
+      this.markAttempted(pq);
     };
 
     this.recognition.start();
   }
 
   stopRecording(pq: PlayerQuestion): void {
-    this.clearRecordingTimers();
     if (this.recognition) {
       try { this.recognition.stop(); } catch {}
     }
-    pq.isRecording = false;
   }
 
   resetPronunciation(pq: PlayerQuestion): void {
@@ -2220,12 +2219,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const target = this.speakTargetCaptionForQuestion(pq);
     const variants = Array.isArray(pq.data.acceptedVariants) ? pq.data.acceptedVariants : [];
     const lang = this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
+    let bestTranscript = '';
+    let bestScore = 0;
     let gotUsableResult = false;
+    let finalized = false;
 
     const handleFailure = (reason: 'no-speech' | 'audio-capture' | 'not-allowed' | 'start-failed'): void => {
+      if (finalized) return;
+      finalized = true;
       pq.isRecording = false;
-      this.clearVpRecognitionForceStopTimer();
       if (this.recognition === rec) this.recognition = null;
+      if (this.vpManualStopFinalize) this.vpManualStopFinalize = null;
       pq.vpFailCount = (pq.vpFailCount || 0) + 1;
       pq.pronunciationScore = 0;
       pq.vpSpokenText = '';
@@ -2243,6 +2247,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       } else {
         this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
       }
+      if (this.isVideoOnlyExercise) {
+        this.pushVpChat('tutor', 'I could not hear your full sentence. Please tap Speak and try again.');
+      }
 
       if ((pq.vpFailCount || 0) >= DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP) {
         this.pushVpChat(
@@ -2252,27 +2259,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
     };
 
-    // ── Mixed / non-video-only exercise: keep correct/incorrect evaluation ──
-    rec.onresult = (event: any) => {
-      const candidates = this.flattenSpeechResultCandidates(event);
-      let bestTranscript = '';
-      let bestScore = 0;
-      for (const cand of candidates) {
-        const s = this.getPronunciationScoreForTranscript(cand, target, variants, lang);
-        if (s > bestScore) {
-          bestScore = s;
-          bestTranscript = cand;
-        }
-      }
-      gotUsableResult = true;
-      const rawTranscript = bestTranscript || candidates[0] || '';
-      pq.vpSpokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
+    const finalizeSuccess = (): void => {
+      if (finalized) return;
+      finalized = true;
       pq.isRecording = false;
+      if (this.recognition === rec) this.recognition = null;
+      if (this.vpManualStopFinalize) this.vpManualStopFinalize = null;
+      if (!gotUsableResult) {
+        handleFailure('no-speech');
+        return;
+      }
       pq.hasRecorded = true;
       pq.pronunciationScore = bestScore;
-      this.clearVpRecognitionForceStopTimer();
-      try { rec.stop(); } catch {}
-
       const passThreshold = this.videoPassThresholdForQuestion(pq);
       const isCorrect = pq.pronunciationScore >= passThreshold;
       pq.vpResult = isCorrect ? 'correct' : 'incorrect';
@@ -2292,6 +2290,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
     };
 
+    this.vpManualStopFinalize = finalizeSuccess;
+
+    // ── Mixed / non-video-only exercise: keep correct/incorrect evaluation ──
+    rec.onresult = (event: any) => {
+      const candidates = this.flattenSpeechResultCandidates(event);
+      for (const cand of candidates) {
+        const s = this.getPronunciationScoreForTranscript(cand, target, variants, lang);
+        if (s > bestScore) {
+          bestScore = s;
+          bestTranscript = cand;
+        }
+      }
+      if (candidates.length > 0) {
+        gotUsableResult = true;
+        const rawTranscript = bestTranscript || candidates[0] || '';
+        pq.vpSpokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
+        pq.pronunciationScore = bestScore;
+      }
+    };
+
     rec.onerror = (event: any) => {
       const code = String(event?.error || '');
       if (code === 'not-allowed') handleFailure('not-allowed');
@@ -2300,26 +2318,37 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     };
 
     rec.onend = () => {
-      this.clearVpRecognitionForceStopTimer();
-      if (!gotUsableResult && pq.isRecording) {
-        handleFailure('no-speech');
-        return;
-      }
-      pq.isRecording = false;
-      if (this.recognition === rec) this.recognition = null;
+      finalizeSuccess();
     };
 
     try {
       rec.start();
-      this.clearVpRecognitionForceStopTimer();
-      this.vpRecognitionForceStopTimer = setTimeout(() => {
-        this.clearVpRecognitionForceStopTimer();
-        if (!pq.isRecording) return;
-        try { rec.stop(); } catch {}
-      }, 8000);
     } catch {
       handleFailure('start-failed');
     }
+  }
+
+  stopVideoPronunciation(pq: PlayerQuestion): void {
+    if (!pq?.isRecording) return;
+    try {
+      this.recognition?.stop();
+    } catch {
+      pq.isRecording = false;
+      this.recognition = null;
+      if (this.vpManualStopFinalize) {
+        const finalize = this.vpManualStopFinalize;
+        this.vpManualStopFinalize = null;
+        finalize();
+      }
+      return;
+    }
+    // Some browsers don't dispatch onend reliably on manual stop; finalize anyway.
+    setTimeout(() => {
+      if (!pq.isRecording || !this.vpManualStopFinalize) return;
+      const finalize = this.vpManualStopFinalize;
+      this.vpManualStopFinalize = null;
+      finalize();
+    }, 750);
   }
 
   retryVideoPronunciation(pq: PlayerQuestion): void {

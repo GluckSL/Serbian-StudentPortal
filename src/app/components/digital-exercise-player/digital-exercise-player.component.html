@@ -439,6 +439,14 @@
                   <div class="vp-stage-listening" *ngIf="currentQuestion.isRecording">
                     <span class="material-icons vp-stage-listening-icon">mic</span>
                     <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                    <button
+                      type="button"
+                      class="vp-stage-retry-btn"
+                      (click)="stopVideoPronunciation(currentQuestion)"
+                    >
+                      <span class="material-icons">stop</span>
+                      Stop
+                    </button>
                   </div>
 
                   <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
@@ -1013,6 +1021,14 @@
                 <div class="vp-mob-listening" *ngIf="currentQuestion.isRecording">
                   <span class="material-icons vp-mob-pulse">mic</span>
                   <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span> — speak now</span>
+                  <button
+                    type="button"
+                    class="vp-mob-btn vp-mob-btn--retry"
+                    (click)="stopVideoPronunciation(currentQuestion)"
+                  >
+                    <span class="material-icons">stop</span>
+                    <span>Stop</span>
+                  </button>
                 </div>
 
                 <ng-container *ngIf="currentQuestion.vpResult === 'correct'">
