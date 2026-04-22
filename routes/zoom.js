@@ -30,7 +30,8 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       studentIds, // Array of student IDs
       teacherId,  // Teacher assigned to the class
       zoomHostEmail, // Zoom host email from the Zoom API
-      courseDay   // Optional: day in the 200-day journey
+      courseDay,   // Optional: day in the 200-day journey
+      courseDaysByStart // Optional: map of slot -> courseDay
     } = req.body;
 
     const requestedStartTimes = (Array.isArray(startTimes) && startTimes.length > 0)
@@ -39,6 +40,22 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     const normalizedStartTimes = [...new Set(requestedStartTimes)]
       .filter((t) => typeof t === 'string' && t.length >= 16)
       .sort();
+
+    const parseCourseDayValue = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const n = parseInt(String(value), 10);
+      if (!Number.isFinite(n)) return null;
+      return Math.min(200, Math.max(1, n));
+    };
+    const fallbackCourseDay = parseCourseDayValue(courseDay);
+    const normalizedCourseDaysByStart = {};
+    if (courseDaysByStart && typeof courseDaysByStart === 'object' && !Array.isArray(courseDaysByStart)) {
+      for (const [rawSlot, rawCourseDay] of Object.entries(courseDaysByStart)) {
+        if (typeof rawSlot !== 'string' || rawSlot.length < 16) continue;
+        const slotKey = rawSlot.substring(0, 16);
+        normalizedCourseDaysByStart[slotKey] = parseCourseDayValue(rawCourseDay);
+      }
+    }
 
     console.log('📝 Creating Zoom meeting(s) for batch:', batch);
     console.log('📅 Schedule mode:', scheduleMode || 'single');
@@ -82,6 +99,9 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
 
     for (const slotStartTime of normalizedStartTimes) {
       try {
+        const slotCourseDay = Object.prototype.hasOwnProperty.call(normalizedCourseDaysByStart, slotStartTime)
+          ? normalizedCourseDaysByStart[slotStartTime]
+          : fallbackCourseDay;
         // Treat slotStartTime as local IST date-time string (YYYY-MM-DDTHH:mm)
         const meetingStart = new Date(`${slotStartTime}:00+05:30`);
         const meetingEnd = new Date(meetingStart.getTime() + (duration || 60) * 60000);
@@ -147,7 +167,7 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
           joinUrl: meeting.joinUrl,
           createdBy: req.user.id,
           assignedTeacher: teacherId,
-          courseDay: courseDay || null,
+          courseDay: slotCourseDay,
           attendees: students.map(student => ({
             studentId: student._id,
             name: student.name,
@@ -556,7 +576,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       };
     }
 
-    // Only meetings with no journey day or days the student has reached (no future preview in the list).
+    // Keep future-locked meetings hidden from the student list.
     const gatedMeetings = meetings.filter((m) => {
       if (m.courseDay == null || m.courseDay === undefined) return true;
       const cd = Number(m.courseDay);
@@ -573,7 +593,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       const journeyLocked =
         rawCd != null &&
         Number.isFinite(Number(rawCd)) &&
-        Number(rawCd) > studentDay;
+        Number(rawCd) !== studentDay;
 
       let currentStatus = meeting.status;
       let canJoin = false;

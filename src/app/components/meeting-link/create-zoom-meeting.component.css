@@ -238,9 +238,23 @@ textarea.form-control {
   gap: 8px;
 }
 
-.confirm-time-item--row span {
+.confirm-time-label {
   flex: 1;
   min-width: 0;
+}
+
+.confirm-course-day-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #3730a3;
+  background: #e0e7ff;
+  flex-shrink: 0;
 }
 
 .confirm-time-remove {
@@ -379,6 +393,17 @@ textarea.form-control {
   border-bottom: 1px solid #e2e8f0;
   padding: 6px 10px;
   font-size: 11px;
+}
+
+.selected-date-item-date {
+  flex: 1;
+  min-width: 0;
+}
+
+.selected-date-course-day-input {
+  width: 130px;
+  min-width: 120px;
+  flex-shrink: 0;
 }
 
 .selected-date-item:last-child {

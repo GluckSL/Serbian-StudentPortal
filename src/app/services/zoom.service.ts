@@ -43,6 +43,7 @@ export interface CreateMeetingRequest {
   teacherId: string;
   zoomHostEmail: string;
   courseDay?: number | null;
+  courseDaysByStart?: Record<string, number | null>;
 }
 
 export interface ZoomAccount {

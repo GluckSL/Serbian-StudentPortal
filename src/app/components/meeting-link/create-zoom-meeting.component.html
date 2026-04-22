@@ -149,28 +149,62 @@
                   <i class="fas fa-plus me-1"></i>Add Date/Time
                 </button>
               </div>
-              <div class="selected-date-list" *ngIf="selectedDateTimesPreview.length > 0">
-                <div class="selected-date-item" *ngFor="let dt of selectedDateTimesPreview">
-                  <span>{{ dt.label }}</span>
-                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeSelectedDateTime(dt.value)">
+              <div class="selected-date-list" *ngIf="editableScheduleSlots.length > 0">
+                <div class="selected-date-item" *ngFor="let dt of editableScheduleSlots">
+                  <span class="selected-date-item-date">{{ dt.label }}</span>
+                  <input
+                    type="number"
+                    class="form-control selected-date-course-day-input"
+                    [ngModel]="getCourseDayForSlot(dt.raw)"
+                    (ngModelChange)="updateCourseDayForSlot(dt.raw, $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                    [class.is-invalid]="slotCourseDayInvalid(dt.raw)"
+                    min="1"
+                    max="200"
+                    placeholder="Course Day *"
+                    required
+                  />
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeSelectedDateTime(dt.raw)">
                     <i class="fas fa-times"></i>
                   </button>
                 </div>
               </div>
-              <small class="text-muted" *ngIf="selectedDateTimesPreview.length === 0">
+              <small class="text-muted" *ngIf="editableScheduleSlots.length === 0">
                 Add one or more class dates/times (e.g., today and day after tomorrow).
               </small>
             </div>
 
+            <div class="mb-3" *ngIf="(scheduleMode === 'weekly' || scheduleMode === 'monthly') && editableScheduleSlots.length > 0">
+              <label class="form-label">Generated Scheduled Times & Course Day *</label>
+              <div class="selected-date-list">
+                <div class="selected-date-item" *ngFor="let dt of editableScheduleSlots">
+                  <span class="selected-date-item-date">{{ dt.label }}</span>
+                  <input
+                    type="number"
+                    class="form-control selected-date-course-day-input"
+                    [ngModel]="getCourseDayForSlot(dt.raw)"
+                    (ngModelChange)="updateCourseDayForSlot(dt.raw, $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                    [class.is-invalid]="slotCourseDayInvalid(dt.raw)"
+                    min="1"
+                    max="200"
+                    placeholder="Course Day *"
+                    required
+                  />
+                </div>
+              </div>
+              <small class="text-muted">Set course day for each class before creating meetings.</small>
+            </div>
+
             <div class="row">
-              <div class="col-6 mb-3">
+              <div class="mb-3" [class.col-6]="scheduleMode === 'single'" [class.col-12]="scheduleMode !== 'single'">
                 <label class="form-label">Timezone</label>
                 <div class="form-control timezone-readonly">
                   {{ meetingTimezoneLabel }}
                 </div>
                 <small class="text-muted">All times are India Standard Time (IST).</small>
               </div>
-              <div class="col-6 mb-3">
+              <div class="col-6 mb-3" *ngIf="scheduleMode === 'single'">
                 <label class="form-label">Course Day</label>
                 <input type="number" class="form-control" formControlName="courseDay"
                   min="1" max="200" placeholder="e.g., 45"
@@ -369,7 +403,7 @@
         <div><strong>Duration:</strong> {{ pendingMeetingData?.duration }} min</div>
         <div><strong>Schedule Mode:</strong> {{ selectedScheduleModeLabel }}</div>
         <div><strong>Timezone:</strong> {{ meetingTimezoneLabel }}</div>
-        <div><strong>Course Day:</strong> {{ pendingMeetingData?.courseDay || '-' }}</div>
+        <div><strong>Course Days:</strong> Set in the create form</div>
         <div><strong>Students:</strong> {{ selectedStudents.length }}</div>
       </div>
 
@@ -380,7 +414,8 @@
         </small>
         <div class="confirm-time-list" *ngIf="confirmPendingSlots.length > 0">
           <div class="confirm-time-item confirm-time-item--row" *ngFor="let slot of confirmPendingSlots">
-            <span>{{ slot.label }}</span>
+            <span class="confirm-time-label">{{ slot.label }}</span>
+            <span class="confirm-course-day-pill">{{ getConfirmCourseDayLabel(slot.raw) }}</span>
             <button
               type="button"
               class="btn btn-sm btn-outline-danger confirm-time-remove"

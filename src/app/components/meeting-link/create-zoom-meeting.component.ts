@@ -27,6 +27,8 @@ export class CreateZoomMeetingComponent implements OnInit {
     { value: 'monthly', label: 'Monthly (same date/time)' }
   ] as const;
   selectedStartTimes: string[] = [];
+  courseDaysByStart: Record<string, number | null> = {};
+  editableScheduleSlots: Array<{ raw: string; label: string }> = [];
   
   // Student selection
   allStudents: Student[] = [];
@@ -69,6 +71,7 @@ export class CreateZoomMeetingComponent implements OnInit {
 
   ngOnInit(): void {
     this.initializeForm();
+    this.refreshEditableScheduleSlots();
     this.loadStudents();
     this.loadTeachers();
     this.loadZoomAccounts();
@@ -194,10 +197,68 @@ export class CreateZoomMeetingComponent implements OnInit {
     });
   }
 
+  private normalizeSlotKey(value: string): string {
+    return typeof value === 'string' && value.length >= 16 ? value.substring(0, 16) : value;
+  }
+
+  private parseCourseDayInput(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const n = parseInt(String(value), 10);
+    if (!Number.isFinite(n) || n < 1 || n > 200) return null;
+    return n;
+  }
+
+  getCourseDayForSlot(raw: string): number | '' {
+    const key = this.normalizeSlotKey(raw);
+    const value = this.courseDaysByStart[key];
+    return Number.isFinite(Number(value)) ? Number(value) : '';
+  }
+
+  getConfirmCourseDayLabel(raw: string): string {
+    const key = this.normalizeSlotKey(raw);
+    const value = this.pendingMeetingData?.courseDaysByStart?.[key];
+    const parsed = this.parseCourseDayInput(value);
+    return parsed != null ? `Day ${parsed}` : 'Day -';
+  }
+
+  updateCourseDayForSlot(raw: string, value: unknown): void {
+    const key = this.normalizeSlotKey(raw);
+    const parsed = this.parseCourseDayInput(value);
+    this.courseDaysByStart[key] = parsed;
+  }
+
+  slotCourseDayInvalid(raw: string): boolean {
+    const value = this.getCourseDayForSlot(raw);
+    return !Number.isFinite(Number(value));
+  }
+
+  allEditableCourseDaysValid(): boolean {
+    const slots = this.editableScheduleSlots;
+    if (slots.length === 0) return false;
+    return slots.every((slot) => !this.slotCourseDayInvalid(slot.raw));
+  }
+
+  private refreshEditableScheduleSlots(): void {
+    const generated = this.generateScheduledStartTimes();
+    const defaultCourseDay = this.parseCourseDayInput(this.meetingForm?.get('courseDay')?.value);
+    const nextMap: Record<string, number | null> = {};
+    this.editableScheduleSlots = generated.map((slot) => {
+      const key = this.normalizeSlotKey(slot);
+      const existing = this.courseDaysByStart[key];
+      nextMap[key] = existing != null ? existing : defaultCourseDay;
+      return { raw: slot, label: this.formatDateTimeForDisplay(key) };
+    });
+    this.courseDaysByStart = nextMap;
+  }
+
   removePendingStartTime(raw: string): void {
     if (!this.pendingMeetingData?.startTimes || this.isCreatingMeeting) return;
     const times: string[] = this.pendingMeetingData.startTimes.filter((t: string) => t !== raw);
     if (times.length === 0) return;
+    const key = this.normalizeSlotKey(raw);
+    if (this.pendingMeetingData.courseDaysByStart && typeof this.pendingMeetingData.courseDaysByStart === 'object') {
+      delete this.pendingMeetingData.courseDaysByStart[key];
+    }
     this.pendingMeetingData.startTimes = times;
     this.pendingMeetingData.startTime = times[0];
   }
@@ -279,6 +340,7 @@ export class CreateZoomMeetingComponent implements OnInit {
 
   removeSelectedDateTime(value: string): void {
     this.selectedStartTimes = this.selectedStartTimes.filter((dt) => dt !== value);
+    this.refreshEditableScheduleSlots();
   }
 
   private formatDateTimeForDisplay(localDateTime: string): string {
@@ -487,6 +549,7 @@ export class CreateZoomMeetingComponent implements OnInit {
         }
       });
     }
+    this.refreshEditableScheduleSlots();
   }
 
   onFilterChange(): void {
@@ -565,6 +628,18 @@ export class CreateZoomMeetingComponent implements OnInit {
         : 'Please select a valid future start time.';
       return;
     }
+    const normalizedCourseDaysByStart = scheduledStartTimes.reduce((acc: Record<string, number>, slot: string) => {
+      const key = this.normalizeSlotKey(slot);
+      const value = this.parseCourseDayInput(this.courseDaysByStart[key]);
+      if (value != null) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+    if (Object.keys(normalizedCourseDaysByStart).length !== scheduledStartTimes.length) {
+      this.errorMessage = 'Please enter a valid Course Day (1-200) for each scheduled class.';
+      return;
+    }
 
     this.successMessage = '';
     this.errorMessage = '';
@@ -583,7 +658,8 @@ export class CreateZoomMeetingComponent implements OnInit {
       studentIds: this.selectedStudents.map(s => s._id),
       teacherId: formValue.teacherId,
       zoomHostEmail: formValue.zoomHostEmail,
-      courseDay: formValue.courseDay || null
+      courseDay: normalizedCourseDaysByStart[this.normalizeSlotKey(startTime)] ?? null,
+      courseDaysByStart: normalizedCourseDaysByStart
     };
     this.isConfirmModalOpen = true;
   }
@@ -601,7 +677,6 @@ export class CreateZoomMeetingComponent implements OnInit {
       this.errorMessage = 'Add at least one scheduled time before confirming.';
       return;
     }
-
     this.isCreatingMeeting = true;
     this.successMessage = '';
     this.errorMessage = '';

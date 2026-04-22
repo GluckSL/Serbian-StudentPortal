@@ -119,12 +119,12 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   joinMeeting(meeting: StudentMeeting): void {
-    if (meeting.journeyLocked && meeting.courseDay != null) { this.notify.info(`This class unlocks on journey day ${meeting.courseDay}.`); return; }
+    if (meeting.journeyLocked && meeting.courseDay != null) { this.notify.info(`This class is available only on journey day ${meeting.courseDay}.`); return; }
     if (meeting.canJoin && meeting.joinUrl) window.open(meeting.joinUrl, '_blank');
   }
 
   upcomingActionLabel(meeting: StudentMeeting): string {
-    if (meeting.journeyLocked && meeting.courseDay != null) return `Unlock on day ${meeting.courseDay}`;
+    if (meeting.journeyLocked && meeting.courseDay != null) return `Only day ${meeting.courseDay}`;
     if (meeting.canJoin) return 'Join';
     return this.getTimeUntilStart(meeting);
   }

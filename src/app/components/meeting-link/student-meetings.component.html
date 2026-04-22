@@ -132,7 +132,7 @@
               <button type="button" class="sm-action sm-action--live-cta"
                 [class.sm-action--locked]="meeting.journeyLocked"
                 [disabled]="meeting.journeyLocked || !meeting.joinUrl" (click)="joinMeeting(meeting)">
-                {{ meeting.journeyLocked && meeting.courseDay != null ? ('Unlock on day ' + meeting.courseDay) : 'Join now' }}
+                {{ meeting.journeyLocked && meeting.courseDay != null ? ('Only day ' + meeting.courseDay) : 'Join now' }}
               </button>
             </td>
             <td>
