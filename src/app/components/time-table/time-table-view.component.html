@@ -82,7 +82,7 @@
                           <div class="slot-header">
                             <div class="slot-icon"><i class="fas fa-video"></i></div>
                             <div class="slot-details">
-                              <div class="slot-time"><i class="fas fa-clock"></i>{{ slot.start }} - {{ slot.end }}</div>
+                              <div class="slot-time"><i class="fas fa-clock"></i>{{ getLinkedSlotTimeLabel(slot, getDateForDay(tt.weekStartDate, dayIndex), tt.batch) }}</div>
                               <div class="meeting-topic">Zoom Class</div>
                             </div>
                           </div>
@@ -99,7 +99,7 @@
                             <div class="slot-header">
                               <div class="slot-icon"><i class="fas fa-video"></i></div>
                               <div class="slot-details">
-                                <div class="slot-time"><i class="fas fa-clock"></i>{{ slot.start }} - {{ slot.end }}</div>
+                                <div class="slot-time"><i class="fas fa-clock"></i>{{ formatMeetingTimeIST(meeting) }}</div>
                                 <div class="meeting-topic">{{ meeting.topic }}</div>
                               </div>
                             </div>
@@ -136,7 +136,33 @@
                     </div>
                   </ng-container>
                   <ng-template #noDayClass>
-                    <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>No classes</span></div>
+                    <!-- Show Zoom meetings for days that have no timetable slot defined -->
+                    <ng-container *ngIf="getMeetingsForDayBatch(getDateForDay(tt.weekStartDate, dayIndex), tt.batch) as extraMeetings">
+                      <ng-container *ngIf="extraMeetings.length > 0; else noClassMsg">
+                        <div class="class-slot" *ngFor="let em of extraMeetings">
+                          <div class="slot-with-meeting">
+                            <div class="slot-header">
+                              <div class="slot-icon"><i class="fas fa-video"></i></div>
+                              <div class="slot-details">
+                                <div class="slot-time"><i class="fas fa-clock"></i>{{ formatMeetingTimeIST(em) }}</div>
+                                <div class="meeting-topic">{{ em.topic || 'Zoom Class' }}</div>
+                              </div>
+                            </div>
+                            <div class="meeting-status-badge" [ngClass]="getMeetingStatus(em)">
+                              <span *ngIf="getMeetingStatus(em) === 'live'" class="status-live"><i class="fas fa-circle pulse"></i> LIVE NOW</span>
+                              <span *ngIf="getMeetingStatus(em) === 'upcoming'" class="status-upcoming"><i class="fas fa-clock"></i> {{ getCountdown(em) }}</span>
+                              <span *ngIf="getMeetingStatus(em) === 'ended'" class="status-ended"><i class="fas fa-check-circle"></i> Ended</span>
+                            </div>
+                            <button *ngIf="canJoinMeeting(em)" class="btn-join-meeting" (click)="joinMeeting(em)">
+                              <i class="fas fa-video"></i><span>Join Class</span>
+                            </button>
+                          </div>
+                        </div>
+                      </ng-container>
+                      <ng-template #noClassMsg>
+                        <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>No classes</span></div>
+                      </ng-template>
+                    </ng-container>
                   </ng-template>
                 </div>
               </div>

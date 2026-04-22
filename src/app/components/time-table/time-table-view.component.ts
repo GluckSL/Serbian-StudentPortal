@@ -10,6 +10,16 @@ import { RouterModule } from '@angular/router';
 import { HttpClientModule } from '@angular/common/http';
 import { NotificationService } from '../../services/notification.service';
 
+interface TimeSlot {
+  start: string;
+  end: string;
+  classStatus?: string;
+  meetingLinked?: boolean;
+  zoomJoinUrl?: string;
+  zoomPassword?: string;
+  [key: string]: any;
+}
+
 interface TimeTable {
   _id?: string;
   batch: string;
@@ -18,13 +28,13 @@ interface TimeTable {
   weekStartDate: Date;
   weekEndDate: Date;
   assignedTeacher: string;
-  monday?: { start: string; end: string; classStatus?: string }[];
-  tuesday?: { start: string; end: string; classStatus?: string }[];
-  wednesday?: { start: string; end: string; classStatus?: string }[];
-  thursday?: { start: string; end: string; classStatus?: string }[];
-  friday?: { start: string; end: string; classStatus?: string }[];
-  saturday?: { start: string; end: string; classStatus?: string }[];
-  sunday?: { start: string; end: string; classStatus?: string }[];
+  monday?: TimeSlot[];
+  tuesday?: TimeSlot[];
+  wednesday?: TimeSlot[];
+  thursday?: TimeSlot[];
+  friday?: TimeSlot[];
+  saturday?: TimeSlot[];
+  sunday?: TimeSlot[];
   classStatus?: 'Scheduled' | 'Cancelled';
   [key: string]: any;
 }
@@ -49,6 +59,7 @@ interface ZoomMeeting {
   joinUrl: string;
   status: string;
   attendees: any[];
+  [key: string]: any;
 }
 
 @Component({
@@ -341,32 +352,96 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }
   
-  // Get Zoom meeting for a specific time slot
-  getMeetingForSlot(date: Date, startTime: string, batch: string): ZoomMeeting | null {
-    if (!this.meetingsLoaded || !this.zoomMeetings.length) {
-      return null;
-    }
-    
-    // Parse the time slot
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const slotDateTime = new Date(date);
-    slotDateTime.setHours(hours, minutes, 0, 0);
-    
-    // Find matching meeting
-    return this.zoomMeetings.find(meeting => {
-      const meetingStart = new Date(meeting.startTime);
-      const meetingBatch = meeting.batch;
-      
-      // Check if same date, time, and batch
-      return (
-        meetingStart.getFullYear() === slotDateTime.getFullYear() &&
-        meetingStart.getMonth() === slotDateTime.getMonth() &&
-        meetingStart.getDate() === slotDateTime.getDate() &&
-        meetingStart.getHours() === slotDateTime.getHours() &&
-        meetingStart.getMinutes() === slotDateTime.getMinutes() &&
-        meetingBatch === batch
+  // Format a meeting's start/end time in IST (India Standard Time)
+  formatMeetingTimeIST(meeting: ZoomMeeting): string {
+    const tz = 'Asia/Kolkata';
+    const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz };
+    const start = new Date(meeting.startTime);
+    const end = new Date(start.getTime() + (meeting.duration || 0) * 60000);
+    const s = start.toLocaleTimeString('en-GB', opts);
+    const e = end.toLocaleTimeString('en-GB', opts);
+    return `${s} - ${e}`;
+  }
+
+  // Return IST date parts (year/month/day) for comparison
+  private datePartsIST(d: Date): { y: number; m: number; day: number } {
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const parts = fmt.formatToParts(d);
+    return {
+      y: Number(parts.find(p => p.type === 'year')?.value || 0),
+      m: Number(parts.find(p => p.type === 'month')?.value || 0),
+      day: Number(parts.find(p => p.type === 'day')?.value || 0),
+    };
+  }
+
+  // Extract batch number string from a meeting (handles string and object batch fields)
+  private extractBatchId(m: any): string {
+    const rawBatch = m.batch;
+    const batchStr = rawBatch && typeof rawBatch === 'object'
+      ? String(rawBatch.name || rawBatch.title || rawBatch._id || rawBatch.value || '')
+      : String(rawBatch || '');
+    // Also check topic: "Batch 35 - ..." → "35"
+    const topic = String(m.topic || '');
+    const topicMatch = topic.match(/batch\s*[-:]?\s*(\d{1,4})/i);
+    const topicBatch = topicMatch ? topicMatch[1] : '';
+    return (batchStr + ' ' + topicBatch).trim();
+  }
+
+  // Find all Zoom meetings for a given calendar day (IST) and batch
+  getMeetingsForDayBatch(date: Date, batch: string): ZoomMeeting[] {
+    if (!this.meetingsLoaded || !this.zoomMeetings.length) return [];
+    const target = this.datePartsIST(date);
+    const batchNum = String(batch || '').match(/\d+/)?.[0] || String(batch || '').trim();
+    return this.zoomMeetings.filter(m => {
+      const md = this.datePartsIST(new Date(m.startTime));
+      const mBatch = this.extractBatchId(m);
+      const mNum = mBatch.match(/\d+/)?.[0] || mBatch;
+      const batchOk = mNum === batchNum || mBatch.includes(String(batch).trim()) || String(batch).includes(mNum);
+      return batchOk && md.y === target.y && md.m === target.m && md.day === target.day;
+    }).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }
+
+  // Returns the display time label for a directly-linked slot (uses actual meeting IST time)
+  getLinkedSlotTimeLabel(slot: any, date: Date, batch: string): string {
+    const meeting = this.findMeetingForLinkedSlot(slot, date, batch);
+    return meeting ? this.formatMeetingTimeIST(meeting) : `${slot.start} - ${slot.end}`;
+  }
+
+  // Find a meeting linked to a slot: first by URL, then by date+batch (IST)
+  findMeetingForLinkedSlot(slot: any, date: Date, batch: string): ZoomMeeting | null {
+    if (!this.meetingsLoaded || !this.zoomMeetings.length) return null;
+    const slotUrl: string = slot.zoomJoinUrl || '';
+    if (slotUrl) {
+      const slotBase = slotUrl.split('?')[0];
+      const byUrl = this.zoomMeetings.find(m =>
+        m.joinUrl && (m.joinUrl === slotUrl || m.joinUrl.split('?')[0] === slotBase)
       );
-    }) || null;
+      if (byUrl) return byUrl;
+    }
+    const dayMatches = this.getMeetingsForDayBatch(date, batch);
+    return dayMatches[0] || null;
+  }
+
+  // Get Zoom meeting for a specific time slot (date+batch match, time-tolerant)
+  getMeetingForSlot(date: Date, startTime: string, batch: string): ZoomMeeting | null {
+    if (!this.meetingsLoaded || !this.zoomMeetings.length) return null;
+    const dayMatches = this.getMeetingsForDayBatch(date, batch);
+    if (!dayMatches.length) return null;
+    // Try to pick the one closest in time to slot.start
+    const parts = String(startTime || '').split(':').map(Number);
+    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const slotMins = parts[0] * 60 + parts[1];
+      const tz = 'Asia/Kolkata';
+      const withDiff = dayMatches.map(m => {
+        const mStart = new Date(m.startTime);
+        const mParts = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(mStart);
+        const mH = Number(mParts.find(p => p.type === 'hour')?.value || 0);
+        const mMin = Number(mParts.find(p => p.type === 'minute')?.value || 0);
+        return { m, diff: Math.abs(mH * 60 + mMin - slotMins) };
+      });
+      return withDiff.sort((a, b) => a.diff - b.diff)[0].m;
+    }
+    return dayMatches[0];
   }
   
   // Get meeting status
