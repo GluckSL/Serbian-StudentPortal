@@ -74,6 +74,11 @@ export class AppComponent implements OnInit {
       });
     } else {
       this.authChecked = true;
+      // Restore user from httpOnly cookie on public routes (sidebar/header state, skip login when opening /login)
+      this.authService.refreshUserProfile().subscribe({
+        next: () => {},
+        error: () => {}
+      });
     }
   }
 

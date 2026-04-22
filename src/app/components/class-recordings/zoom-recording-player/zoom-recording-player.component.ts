@@ -15,7 +15,7 @@ import {
   ClassRecordingsService,
   ZoomRecordingResponse,
 } from '../../../services/class-recordings.service';
-import { environment } from '../../../../environments/environment';
+import { getApiOriginForCredentials } from '../../../utils/media-url';
 import Hls, { ErrorData } from 'hls.js';
 
 @Component({
@@ -142,7 +142,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
         backBufferLength: 5,
         xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
           try {
-            const apiOrigin = new URL(environment.apiUrl).origin;
+            const apiOrigin = getApiOriginForCredentials();
             const target = new URL(url || '', window.location.href);
             if (target.origin === apiOrigin) {
               xhr.withCredentials = true;

@@ -1,15 +1,21 @@
 // routes/zoom.js
 
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const zoomService = require('../services/zoomService');
 const MeetingLink = require('../models/MeetingLink');
+const JoinLog = require('../models/JoinLog');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
+const { getJoinLogDataForMeeting } = require('../services/joinLogHelpers');
+const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
+const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 
 /**
  * Create a Zoom meeting with selected students
@@ -160,7 +166,8 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
           startTime: meetingStart,
           duration: meeting.duration,
           timezone: meeting.timezone,
-          zoomMeetingId: meeting.id,
+          zoomMeetingId: String(meeting.id),
+          zoomMeetingUuid: meeting.uuid ? String(meeting.uuid) : undefined,
           zoomPassword: meeting.password,
           hostEmail: meeting.hostEmail,
           startUrl: meeting.startUrl,
@@ -477,18 +484,24 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
       currentStatus = 'ended';
     }
 
+    const payload = {
+      ...meeting.toObject(),
+      currentStatus,
+      isOngoing: currentStatus === 'ongoing',
+      hasEnded: currentStatus === 'ended',
+      canJoin: now >= new Date(meetingStart.getTime() - 10 * 60000), // Can join 10 min before
+      timeUntilStart: meetingStart - now,
+      attendeesCount: meeting.attendees.length,
+      attendedCount: meeting.attendance?.filter(a => a.attended).length || 0
+    };
+
+    if (req.user.role === 'STUDENT') {
+      payload.joinUrl = buildJoinClassProxyUrl(req, meeting._id);
+    }
+
     res.status(200).json({
       success: true,
-      data: {
-        ...meeting.toObject(),
-        currentStatus,
-        isOngoing: currentStatus === 'ongoing',
-        hasEnded: currentStatus === 'ended',
-        canJoin: now >= new Date(meetingStart.getTime() - 10 * 60000), // Can join 10 min before
-        timeUntilStart: meetingStart - now,
-        attendeesCount: meeting.attendees.length,
-        attendedCount: meeting.attendance?.filter(a => a.attended).length || 0
-      }
+      data: payload
     });
 
   } catch (error) {
@@ -613,15 +626,8 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
         }
       }
 
-      // Find student's personal join URL
-      const studentAttendee = meeting.attendees.find(
-        a => a.studentId && a.studentId.toString() === studentId
-      );
-
-      // Use personal join URL if available, otherwise fall back to generic URL
-      const personalJoinUrl = studentAttendee?.joinUrl || meeting.joinUrl;
-      
-      console.log(`🔗 Student ${studentId} join URL: ${personalJoinUrl ? 'Personal' : 'Generic'}`);
+      // Authenticated join redirect (injects portal display name + JoinLog); do not expose raw Zoom joinUrl to students
+      const joinUrl = buildJoinClassProxyUrl(req, meeting._id);
 
       const att = studentAttendanceFromMeeting(meeting, studentId, student.email);
 
@@ -642,7 +648,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
           name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
           email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
         },
-        joinUrl: personalJoinUrl, // Use personal URL
+        joinUrl,
         password: meeting.zoomPassword,
         status: meeting.status,
         currentStatus: currentStatus,
@@ -651,7 +657,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
         hasEnded: currentStatus === 'ended',
         timeUntilStart: timeUntilStart,
         agenda: meeting.agenda,
-        isPersonalUrl: !!studentAttendee?.joinUrl // Flag to indicate if using personal URL
+        isPersonalUrl: false
       };
     });
 
@@ -1308,6 +1314,22 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       console.log('👥 Sample meeting attendee:', meeting.attendees[0]);
     }
 
+    const joinData = await getJoinLogDataForMeeting(meeting._id);
+    const joinLogMap = joinData.firstJoinByStudent;
+    const joinPresence = joinData.hasJoin;
+
+    const zoomParts = zoomReport.participants || [];
+    for (const p of zoomParts) {
+      delete p._matched;
+      delete p._reserved;
+      delete p._priority;
+      delete p._matchedByStudent;
+    }
+    delete zoomParts[Symbol.for('gluck.attendanceClaimMap')];
+    delete zoomParts[Symbol.for('gluck.attendanceTraceId')];
+    const traceId = new mongoose.Types.ObjectId();
+    const claimedParticipants = new Map();
+
     // Preserve teacher/admin manual Zoom↔student links across reloads (GET used to overwrite these every time)
     const manualByStudentId = new Map();
     for (const row of meeting.attendance || []) {
@@ -1321,12 +1343,16 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       const manualRow = sid ? manualByStudentId.get(sid) : null;
       if (manualRow) {
         const m = manualRow.toObject ? manualRow.toObject() : { ...manualRow };
+        const clickedJoin = sid ? joinPresence.has(sid) : false;
+        const fc = m.confidence != null ? m.confidence : 100;
         return {
           studentId: attendee.studentId,
           name: attendee.name,
           email: attendee.email,
           attended: m.attended !== undefined ? m.attended : false,
-          confidence: m.confidence != null ? m.confidence : 100,
+          confidence: fc,
+          finalConfidence: fc,
+          confidenceLevel: fc >= 85 ? 'high' : fc >= 65 ? 'medium' : 'low',
           matchMethod: 'manual_map',
           zoomName: m.zoomName || null,
           zoomEmail: m.zoomEmail || null,
@@ -1336,44 +1362,51 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
           durationMinutes: m.durationMinutes != null ? m.durationMinutes : 0,
           attendancePercent: m.attendancePercent != null ? m.attendancePercent : 0,
           status: m.status || 'absent',
-          needsReview: !!m.needsReview
+          needsReview: !!m.needsReview,
+          clickedJoin,
+          appearedInZoom: !!(m.zoomName || m.joinTime || m.duration),
+          mismatchReason: null,
+          debugSummary: 'Manual map by admin',
+          debug: {
+            portalName: attendee.name,
+            zoomName: m.zoomName || null,
+            matchMethod: 'manual_map',
+            traceId: String(traceId),
+          },
         };
       }
 
-      const matchResult = findBestParticipantMatch(attendee, zoomReport.participants);
+      const joinLogJoinedAt = sid ? joinLogMap.get(sid) : undefined;
+      const clickedJoin = sid ? joinPresence.has(sid) : false;
+      const matchResult = findBestParticipantMatch(attendee, zoomReport.participants, {
+        joinLogJoinedAt,
+        logContext: { meetingId: meeting._id, studentId: sid },
+        meetingDurationSec: (meeting.duration || 60) * 60,
+        traceId,
+        claimedParticipants,
+      });
       const participantDuration = matchResult.match?.durationMinutes || 0;
       const meetingDuration = meeting.duration || 60;
       const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      // Must be present for at least 70% of the meeting to count as attended
       const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
-      
+
       console.log(`🎯 Matching ${attendee.name}:`, {
         confidence: matchResult.confidence,
         method: matchResult.method,
         matched: !!matchResult.match,
         durationMinutes: participantDuration,
         attendancePercent: Math.round(attendancePercent),
-        meetsThreshold
+        meetsThreshold,
       });
-      
-      return {
-        studentId: attendee.studentId,
-        name: attendee.name,
-        email: attendee.email,
-        attended: meetsThreshold,
-        confidence: matchResult.confidence,
-        matchMethod: matchResult.method,
-        zoomName: matchResult.match?.name || null,
-        zoomEmail: matchResult.match?.email || null,
-        joinTime: matchResult.match?.joinTime || null,
-        leaveTime: matchResult.match?.leaveTime || null,
-        duration: matchResult.match?.duration || 0,
-        durationMinutes: participantDuration,
-        attendancePercent: Math.round(attendancePercent),
-        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
-        needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
-      };
+
+      return buildAttendanceRowFromMatch(attendee, matchResult, {
+        meetingDurationMinutes: meetingDuration,
+        clickedJoin,
+        traceId,
+      });
     });
+
+    applyAttendanceStabilityPass(attendanceData, traceId);
 
     // Calculate matching statistics
     const matchingStats = {
@@ -1390,6 +1423,8 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     meeting.attendanceRecorded = true;
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
+
+    logAttendanceMatchSummary(attendanceData, meeting._id, traceId);
 
     try {
       const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
@@ -1499,12 +1534,21 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
       a => a.studentId && a.studentId.toString() === attendee.studentId.toString()
     );
 
+    const joinLogRow = await JoinLog.findOne({
+      meetingId: meeting._id,
+      studentId: attendee.studentId,
+    })
+      .select('_id')
+      .lean();
+
     const mappedRecord = {
       studentId: attendee.studentId,
       name: attendee.name,
       email: attendee.email,
       attended: meetsThreshold,
       confidence: 100,
+      finalConfidence: 100,
+      confidenceLevel: 'high',
       matchMethod: 'manual_map',
       zoomName: participant.name,
       zoomEmail: participant.email || '',
@@ -1514,7 +1558,16 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
       durationMinutes: participantDuration,
       attendancePercent: Math.round(attendancePercent),
       status: meetsThreshold ? 'attended' : 'late',
-      needsReview: false
+      needsReview: false,
+      clickedJoin: !!joinLogRow,
+      appearedInZoom: true,
+      mismatchReason: null,
+      debugSummary: 'Manual map by admin',
+      debug: {
+        portalName: attendee.name,
+        zoomName: participant.name,
+        matchMethod: 'manual_map',
+      },
     };
 
     if (existingIdx >= 0) {
@@ -1832,32 +1885,35 @@ router.post('/external/link', verifyToken, async (req, res) => {
     if (plan) studentFilter.subscription = plan;
     const students = await User.find(studentFilter).select('name email').lean();
 
-    // Match participants to students
-    const attendanceData = students.map(student => {
-      const matchResult = findBestParticipantMatch(student, report.participants);
-      const participantDuration = matchResult.match?.durationMinutes || 0;
-      const meetingDuration = report.meeting?.duration || 60;
-      const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
+    const reportParts = report.participants || [];
+    for (const p of reportParts) {
+      delete p._matched;
+      delete p._reserved;
+      delete p._priority;
+      delete p._matchedByStudent;
+    }
+    delete reportParts[Symbol.for('gluck.attendanceClaimMap')];
+    delete reportParts[Symbol.for('gluck.attendanceTraceId')];
+    const externalTraceId = new mongoose.Types.ObjectId();
+    const externalClaimed = new Map();
 
-      return {
-        studentId: student._id,
-        name: student.name,
-        email: student.email,
-        attended: meetsThreshold,
-        confidence: matchResult.confidence,
-        matchMethod: matchResult.method,
-        zoomName: matchResult.match?.name || null,
-        zoomEmail: matchResult.match?.email || null,
-        joinTime: matchResult.match?.joinTime || null,
-        leaveTime: matchResult.match?.leaveTime || null,
-        duration: matchResult.match?.duration || 0,
-        durationMinutes: participantDuration,
-        attendancePercent: Math.round(attendancePercent),
-        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
-        needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
-      };
+    // Match participants to students
+    const attendanceData = students.map((student) => {
+      const attendee = { studentId: student._id, name: student.name, email: student.email };
+      const matchResult = findBestParticipantMatch(attendee, report.participants, {
+        meetingDurationSec: (report.meeting?.duration || 60) * 60,
+        traceId: externalTraceId,
+        claimedParticipants: externalClaimed,
+        logContext: { studentId: student._id && student._id.toString() },
+      });
+      return buildAttendanceRowFromMatch(attendee, matchResult, {
+        meetingDurationMinutes: report.meeting?.duration || 60,
+        clickedJoin: false,
+        traceId: externalTraceId,
+      });
     });
+
+    applyAttendanceStabilityPass(attendanceData, externalTraceId);
 
     // Save as a MeetingLink
     const meetingLink = new MeetingLink({
@@ -1869,6 +1925,7 @@ router.post('/external/link', verifyToken, async (req, res) => {
       startTime: report.meeting?.startTime ? new Date(report.meeting.startTime) : new Date(),
       duration: report.meeting?.duration || 60,
       zoomMeetingId: String(zoomMeetingId),
+      zoomMeetingUuid: report.meeting?.uuid ? String(report.meeting.uuid) : undefined,
       hostEmail: report.meeting?.hostId || '',
       createdBy: req.user.id,
       attendees: students.map(s => ({ studentId: s._id, name: s.name, email: s.email, joinUrl: '' })),

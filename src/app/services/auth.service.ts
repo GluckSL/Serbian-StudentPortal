@@ -3,9 +3,12 @@
 import { Injectable } from '@angular/core';
 import { HttpHeaders } from '@angular/common/http';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, tap, finalize } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
+
+/** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
+export const AUTH_STORAGE_KEY = 'authToken';
 
 interface DecodeToken {
   name: string;
@@ -54,6 +57,9 @@ interface User {
   qualifications?: string;
   [key: string]: any;            // Allow additional properties
 }
+
+/** After logout, next /login load skips "restore session" so the form shows instead of auto-redirect. */
+export const SKIP_SESSION_RESTORE_KEY = 'gluck_skip_session_restore';
 
 @Injectable({
   providedIn: 'root'
@@ -122,26 +128,22 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/signup`, user, { withCredentials: true });
   }
 
-  login(user: { regNo: string, password: string }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/login`, user, { withCredentials: true })
-      .pipe(
-        tap((response: any) => {
-          // ✅ Update user state immediately with login response
-          if (response && response.user) {
-            this.currentUserSubject.next(response.user);
+  login(user: { regNo: string; password: string; keepSessionActive?: boolean }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/login`, user, { withCredentials: true }).pipe(
+      tap((response: any) => {
+        if (response?.token) {
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, response.token);
+          } catch {
+            /* ignore */
           }
-        })
-      );
+        }
+        if (response && response.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      })
+    );
   }
-
-  // saveToken(token: string) {
-  //   localStorage.setItem('authToken', token);
-  // }
-
-  // getToken(): string | null {
-  //   return localStorage.getItem('authToken');
-  // }
-
 
   // Fetch user profile (with photo URL included)
   getUserProfile(): Observable<any> {
@@ -162,9 +164,46 @@ export class AuthService {
     return loggedIn;
   }
 
+  /** Dashboard path after login or when a valid session cookie is already present. */
+  getPostLoginPath(user: { role?: string; subscription?: string } | null | undefined): string | null {
+    if (!user?.role) {
+      return null;
+    }
+    const role = user.role;
+    if (role === 'ADMIN' || role === 'SUB_ADMIN') {
+      return '/admin-dashboard';
+    }
+    if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
+      return '/teacher-dashboard';
+    }
+    if (role === 'STUDENT') {
+      const isVisaDocOnly = (user.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
+      return isVisaDocOnly ? '/student-progress' : '/student/my-course';
+    }
+    return null;
+  }
+
   /** Clear local user state when the session is invalid (no HTTP call — avoids loops on 401). */
   clearClientSession(): void {
     this.currentUserSubject.next(null);
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Call when the user explicitly logs out. Ensures the next visit to /login shows the credential
+   * form instead of auto-navigating from a still-valid httpOnly cookie.
+   */
+  markExpectFreshLoginPage(): void {
+    this.clearClientSession();
+    try {
+      sessionStorage.setItem(SKIP_SESSION_RESTORE_KEY, '1');
+    } catch {
+      /* private mode / no sessionStorage */
+    }
   }
 
   /** Synchronous read of the last known user (e.g. before HTTP calls in the same tick). */
@@ -174,12 +213,11 @@ export class AuthService {
 
   // Logout
   logout(): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true })
-      .pipe(
-        tap(() => {
-          this.currentUserSubject.next(null); // clear state
-        })
-      );
+    return this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true }).pipe(
+      finalize(() => {
+        this.markExpectFreshLoginPage();
+      })
+    );
   }
 
   // Additional methods for VAPI data - you can adjust these endpoints if needed
@@ -241,16 +279,20 @@ export class AuthService {
   // Method to perform authenticated request
   fetchProtectedData(endpoint: string): Observable<any> {
     const token = this.getToken();
+    if (!token) {
+      return new Observable((observer) => {
+        observer.error({ message: 'Not authenticated' });
+      });
+    }
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    return this.http.get(endpoint, { headers }); // Make GET request with the token in the header
-  }
-  getToken() {
-    throw new Error('Method not implemented.');
+    return this.http.get(endpoint, { headers });
   }
 
-  // Log out the user: Clears the token and redirects to login page
-  logOut() {
-    localStorage.removeItem('authToken');
-    this.router.navigate(['/login']); // Redirect to login page after logout
+  getToken(): string | null {
+    try {
+      return localStorage.getItem(AUTH_STORAGE_KEY);
+    } catch {
+      return null;
+    }
   }
 }

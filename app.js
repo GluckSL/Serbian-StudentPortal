@@ -17,7 +17,29 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const auth = require("./middleware/auth");
 
-const allowedOrigins =  ['http://localhost:4200', 'http://16.170.204.125', 'http://13.62.216.210', 'https://13.62.216.210', 'https://gluckstudentsportal.com']; // frontend origin
+const allowedOrigins = [
+  'http://localhost:4200',
+  'http://localhost:4700',
+  'http://127.0.0.1:4200',
+  'http://127.0.0.1:4700',
+  'http://16.170.204.125',
+  'http://13.62.216.210',
+  'https://13.62.216.210',
+  'https://gluckstudentsportal.com',
+  'https://www.gluckstudentsportal.com'
+]; // frontend origin (include www so cookies + credentials work)
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+/** In dev, allow any localhost / 127.0.0.1 port so ng serve --port works with cookie auth. */
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    return true;
+  }
+  return false;
+}
 
 
 const authRoutes = require("./routes/auth");
@@ -46,6 +68,7 @@ const moduleTrashRoutes = require('./routes/moduleTrash');
 const adminAnalyticsRoutes = require('./routes/adminAnalytics');
 const zoomRoutes = require('./routes/zoom');
 const zoomWebhookRoutes = require('./routes/zoomWebhook');
+const joinClassRoutes = require('./routes/joinClass');
 const upgradeRequestsRoutes = require('./routes/upgradeRequests');
 const studentLogRoutes = require('./routes/studentLog');
 const studentDocumentsRoutes = require('./routes/studentDocuments');
@@ -106,7 +129,13 @@ app.use('/api/zoom/webhook', express.raw({ type: '*/*', limit: '15mb' }), zoomWe
 app.use(express.json({ limit: '10mb' }));
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked for origin: ${origin || '(none)'}`));
+    }
+  },
   credentials: true,           // ✅ important for sending cookies
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -170,6 +199,8 @@ app.use('/api/translate', translationRoutes);
 app.use('/api/module-trash', moduleTrashRoutes);
 app.use('/api/admin-analytics', adminAnalyticsRoutes);
 app.use('/api/zoom', zoomRoutes);
+app.use('/api', joinClassRoutes);
+app.use('/api', joinClassRoutes);
 app.use('/api/upgrade-requests', upgradeRequestsRoutes);
 app.use('/api/studentLog', studentLogRoutes);
 app.use('/api/student-documents', studentDocumentsRoutes);

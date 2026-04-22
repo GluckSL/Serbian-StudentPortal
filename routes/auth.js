@@ -20,9 +20,22 @@ const {
 } = require("../services/studentPortalCrmWebhook");
 
 //const auth = require("../middleware/auth");
-const { verifyToken, isAdmin } = require('../middleware/auth');
+const { verifyToken, isAdmin, extractJwtFromRequest } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
+
+/** HttpOnly auth cookie: match login + logout + clearCookie so sessions survive reloads in production. */
+function baseAuthCookieOpts() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'None' : 'Lax',
+    path: '/',
+    ...(isProd ? { domain: process.env.AUTH_COOKIE_DOMAIN || '.gluckstudentsportal.com' } : {})
+  };
+}
+
 const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
 const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "dashboard",
@@ -914,7 +927,7 @@ router.post("/signup", async (req, res) => {
 // âœ… Login
 router.post("/login", async (req, res) => {
   try {
-    const { regNo, password } = req.body;
+    const { regNo, password, keepSessionActive } = req.body;
 
     const user = await User.findOne({ regNo });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
@@ -944,6 +957,9 @@ router.post("/login", async (req, res) => {
       console.warn("Failed to record login activity:", e?.message || e);
     }
 
+    const remember = Boolean(keepSessionActive);
+    const jwtExpires = remember ? '30d' : '24h';
+
     const token = jwt.sign(
       {
         id: user._id,
@@ -951,20 +967,12 @@ router.post("/login", async (req, res) => {
         name: user.name
       },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: jwtExpires }
     );
 
-    // âœ… Set cookie instead of sending token
-    res.cookie("authToken", token, {
-      httpOnly: true,
-      secure: false,   // âœ… FIXED: false in development
-      sameSite: 'Lax', // âœ… FIXED: 'Lax' for localhost
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    });
-
-    // âœ… Send user info only (no token in response)
+    // SPA stores JWT in localStorage and sends Authorization: Bearer …
     return res.json({
+      token,
       user: {
         name: user.name,
         email: user.email,
@@ -987,7 +995,7 @@ router.post("/login", async (req, res) => {
 router.post("/logout", (req, res) => {
   // ✅ best-effort: record logout activity when token present
   try {
-    const token = req.cookies?.authToken;
+    const token = extractJwtFromRequest(req);
     if (token) {
       const payload = jwt.verify(token, JWT_SECRET);
       if (payload?.id) {
@@ -1002,13 +1010,7 @@ router.post("/logout", (req, res) => {
     }
   } catch (_) {}
 
-  res.clearCookie("authToken", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // âœ… true in production with HTTPS
-    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // âœ… FIXED: Match login settings
-    domain: process.env.NODE_ENV === 'production' ? '.gluckstudentsportal.com' : undefined, // âœ… FIXED: Match login settings
-    path: '/' // âœ… FIXED: Match login settings
-  });
+  res.clearCookie("authToken", baseAuthCookieOpts());
   return res.json({ msg: "Logged out successfully" });
 });
 

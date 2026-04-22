@@ -76,14 +76,23 @@ const meetingLinkSchema = new mongoose.Schema({
     
     // Enhanced matching fields
     confidence: { type: Number, default: 0 }, // 0-100
+    finalConfidence: { type: Number },
+    confidenceLevel: { type: String, enum: ['high', 'medium', 'low'] },
+    debugSummary: { type: String },
     matchMethod: { 
       type: String, 
-      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map'], 
+      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map', 'initials_name', 'join_log_time', 'ambiguous'], 
       default: 'no_match' 
     },
     zoomName: String, // Name displayed in Zoom
     zoomEmail: String, // Email from Zoom (if available)
-    needsReview: { type: Boolean, default: false }
+    needsReview: { type: Boolean, default: false },
+
+    // Matching diagnostics & integrity hints
+    debug: { type: mongoose.Schema.Types.Mixed },
+    clickedJoin: { type: Boolean, default: false },
+    appearedInZoom: { type: Boolean, default: false },
+    mismatchReason: { type: String, default: null },
   }],
   
   // Attendance metadata

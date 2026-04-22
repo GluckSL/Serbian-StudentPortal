@@ -8,7 +8,7 @@ import {
   OnInit,
   ViewChild
 } from '@angular/core';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
@@ -30,6 +30,8 @@ export class LoginComponent implements OnInit {
   keepSessionActive = true;
   readonly currentYear = new Date().getFullYear();
   showSessionExpiredNotice = false;
+  /** True while checking for an existing httpOnly session cookie */
+  checkingExistingSession = false;
 
   /** Pupil offset in px (translate) for each eye */
   leftPupil = { x: 0, y: 0 };
@@ -57,7 +59,34 @@ export class LoginComponent implements OnInit {
         queryParams: {},
         replaceUrl: true
       });
+      return;
     }
+
+    // User just logged out (or chose a fresh login): show the form; do not auto-redirect from cookie.
+    try {
+      if (sessionStorage.getItem(SKIP_SESSION_RESTORE_KEY) === '1') {
+        sessionStorage.removeItem(SKIP_SESSION_RESTORE_KEY);
+        this.authService.clearClientSession();
+        this.checkingExistingSession = false;
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    this.checkingExistingSession = true;
+    this.authService.refreshUserProfile().subscribe({
+      next: (user) => {
+        this.checkingExistingSession = false;
+        const path = this.authService.getPostLoginPath(user);
+        if (path) {
+          this.router.navigateByUrl(path);
+        }
+      },
+      error: () => {
+        this.checkingExistingSession = false;
+      }
+    });
   }
 
   @HostListener('document:mousemove', ['$event'])
@@ -126,23 +155,22 @@ export class LoginComponent implements OnInit {
     this.showSessionExpiredNotice = false;
     this.loading = true;
 
-    const user = { regNo: this.regNo, password: this.password };
+    const user = {
+      regNo: this.regNo,
+      password: this.password,
+      keepSessionActive: this.keepSessionActive
+    };
 
     this.authService.login(user).subscribe({
       next: (response) => {
         this.authService.refreshUserProfile().subscribe({
-          next: (user) => {
+          next: (profile) => {
             this.loading = false;
 
-            const role = user?.role || response.user?.role || response.role;
-
-            if (role === 'ADMIN' || role === 'SUB_ADMIN') {
-              this.router.navigate(['/admin-dashboard']);
-            } else if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
-              this.router.navigate(['/teacher-dashboard']);
-            } else if (role === 'STUDENT') {
-              const isVisaDocOnly = (user?.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
-              this.router.navigate([isVisaDocOnly ? '/student-progress' : '/student/my-course']);
+            const merged = profile || response.user;
+            const path = this.authService.getPostLoginPath(merged);
+            if (path) {
+              this.router.navigateByUrl(path);
             } else {
               this.errorMessage = 'Unknown user role.';
             }

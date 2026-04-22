@@ -5,9 +5,19 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Middleware: Verify JWT token from cookie
+/** Prefer Bearer header (SPA localStorage); fall back to httpOnly cookie for compatibility. */
+function extractJwtFromRequest(req) {
+  const raw = req.headers.authorization || req.headers.Authorization;
+  if (typeof raw === 'string' && raw.toLowerCase().startsWith('bearer ')) {
+    const t = raw.slice(7).trim();
+    if (t) return t;
+  }
+  return req.cookies?.authToken || null;
+}
+
+// Middleware: Verify JWT from Authorization: Bearer … or authToken cookie
 function verifyToken(req, res, next) {
-  const token = req.cookies.authToken; // Get token from cookies
+  const token = extractJwtFromRequest(req);
 
   if (!token) {
     return res.status(401).json({ msg: 'No token, authorization denied' });
@@ -85,6 +95,7 @@ module.exports = {
   isAdmin,
   requireFullAdmin,
   checkRole,
+  extractJwtFromRequest,
 };
 
 

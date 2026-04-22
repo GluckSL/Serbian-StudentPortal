@@ -22,7 +22,7 @@ import {
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import Hls, { ErrorData } from 'hls.js';
-import { environment } from '../../../../environments/environment';
+import { getApiOriginForCredentials } from '../../../utils/media-url';
 
 /** Single active list filter (combined with search text). Uses attendance, not Zoom "attempted". */
 export type RecordingListFilter =
@@ -395,7 +395,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
           // are on R2 — withCredentials there triggers a credentialed CORS mode that
           // R2 will not satisfy → browser reports "CORS error" and playback stalls.
           try {
-            const apiOrigin = new URL(environment.apiUrl).origin;
+            const apiOrigin = getApiOriginForCredentials();
             const target = new URL(url || '', window.location.href);
             if (target.origin === apiOrigin) {
               xhr.withCredentials = true;

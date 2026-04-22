@@ -1,5 +1,21 @@
 import { environment } from '../../environments/environment';
 
+/** Origin used for credentialed XHR to the API (relative `/api` → current page origin). */
+export function getApiOriginForCredentials(): string {
+  const api = environment.apiUrl || '';
+  if (api.startsWith('http://') || api.startsWith('https://')) {
+    try {
+      return new URL(api).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return '';
+}
+
 /**
  * Resolves stored paths like `/uploads/listening-media/x.mp3` to a full URL the browser can load.
  *

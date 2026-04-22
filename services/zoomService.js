@@ -110,6 +110,7 @@ class ZoomService {
         meeting: {
           id: meeting.id,
           meetingId: meeting.id,
+          uuid: meeting.uuid,
           topic: meeting.topic,
           startTime: meeting.start_time,
           duration: meeting.duration,

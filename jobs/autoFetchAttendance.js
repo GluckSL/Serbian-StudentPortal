@@ -3,45 +3,61 @@
  * Runs every 5 minutes via node-cron.
  */
 const cron = require('node-cron');
+const mongoose = require('mongoose');
 const MeetingLink = require('../models/MeetingLink');
 const zoomService = require('../services/zoomService');
 const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
 const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
+const { getJoinLogDataForMeeting } = require('../services/joinLogHelpers');
+const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
+const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 
 async function fetchAttendanceForMeeting(meeting) {
   try {
     const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
 
-    const attendanceData = meeting.attendees.map(attendee => {
-      const matchResult = findBestParticipantMatch(attendee, zoomReport.participants);
-      const participantDuration = matchResult.match?.durationMinutes || 0;
-      const meetingDuration = meeting.duration || 60; // in minutes
-      const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      // Must be present for at least 70% of the meeting to count as attended
-      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
-      return {
-        studentId: attendee.studentId,
-        name: attendee.name,
-        email: attendee.email,
-        attended: meetsThreshold,
-        confidence: matchResult.confidence,
-        matchMethod: matchResult.method,
-        zoomName: matchResult.match?.name || null,
-        zoomEmail: matchResult.match?.email || null,
-        joinTime: matchResult.match?.joinTime || null,
-        leaveTime: matchResult.match?.leaveTime || null,
-        duration: matchResult.match?.duration || 0,
-        durationMinutes: participantDuration,
-        attendancePercent: Math.round(attendancePercent),
-        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
-        needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
-      };
+    const joinData = await getJoinLogDataForMeeting(meeting._id);
+    const joinLogMap = joinData.firstJoinByStudent;
+    const joinPresence = joinData.hasJoin;
+
+    const zoomParts = zoomReport.participants || [];
+    for (const p of zoomParts) {
+      delete p._matched;
+      delete p._reserved;
+      delete p._priority;
+      delete p._matchedByStudent;
+    }
+    delete zoomParts[Symbol.for('gluck.attendanceClaimMap')];
+    delete zoomParts[Symbol.for('gluck.attendanceTraceId')];
+    const traceId = new mongoose.Types.ObjectId();
+    const claimedParticipants = new Map();
+
+    const attendanceData = meeting.attendees.map((attendee) => {
+      const sid = attendee.studentId && attendee.studentId.toString();
+      const joinLogJoinedAt = sid ? joinLogMap.get(sid) : undefined;
+      const clickedJoin = sid ? joinPresence.has(sid) : false;
+      const matchResult = findBestParticipantMatch(attendee, zoomReport.participants, {
+        joinLogJoinedAt,
+        logContext: { meetingId: meeting._id, studentId: sid },
+        meetingDurationSec: (meeting.duration || 60) * 60,
+        traceId,
+        claimedParticipants,
+      });
+      return buildAttendanceRowFromMatch(attendee, matchResult, {
+        meetingDurationMinutes: meeting.duration || 60,
+        clickedJoin,
+        traceId,
+      });
     });
+
+    applyAttendanceStabilityPass(attendanceData, traceId);
 
     meeting.attendance = attendanceData;
     meeting.attendanceRecorded = true;
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
+
+    logAttendanceMatchSummary(attendanceData, meeting._id, traceId);
 
     try {
       await syncPendingFlagsFromMeeting(meeting);

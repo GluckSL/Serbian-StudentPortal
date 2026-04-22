@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { pipeline } = require('stream/promises');
 const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
@@ -37,6 +38,40 @@ function buildLooseZoomMeetingIdRegex(zoomMeetingId) {
   return new RegExp(`^\\D*${digits.split('').join('\\D*')}\\D*$`);
 }
 
+/** Zoom webhooks and REST may send UUIDs with different URL-encoding layers. */
+function zoomWebhookUuidCandidates(meetingUuid) {
+  const u = String(meetingUuid || '').trim();
+  if (!u) return [];
+  const out = new Set([u]);
+  try {
+    let cur = u;
+    for (let i = 0; i < 4; i += 1) {
+      const dec = decodeURIComponent(cur);
+      if (dec === cur) break;
+      out.add(dec);
+      cur = dec;
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    out.add(encodeURIComponent(u));
+    out.add(encodeURIComponent(encodeURIComponent(u)));
+  } catch {
+    /* ignore */
+  }
+  return [...out].filter(Boolean);
+}
+
+function bufferLooksLikeIsoBmff(buf) {
+  if (!buf || buf.length < 12) return false;
+  const n = Math.min(buf.length - 4, 48);
+  for (let i = 0; i <= n; i += 1) {
+    if (buf[i] === 0x66 && buf[i + 1] === 0x74 && buf[i + 2] === 0x79 && buf[i + 3] === 0x70) return true;
+  }
+  return false;
+}
+
 async function resolveMeetingLink(zoomMeetingId, options = {}) {
   if (options.meetingLinkId) {
     return MeetingLink.findById(options.meetingLinkId);
@@ -48,9 +83,18 @@ async function resolveMeetingLink(zoomMeetingId, options = {}) {
     if (exactMatch) return exactMatch;
   }
 
-  const meetingUuid = String(options.meetingUuid || '').trim();
-  if (meetingUuid) {
-    const uuidMatch = await MeetingLink.findOne({ zoomMeetingUuid: meetingUuid });
+  const digitsOnly = normalizeZoomMeetingId(rawZoomMeetingId);
+  if (digitsOnly.length >= 8 && digitsOnly !== rawZoomMeetingId) {
+    const digitMatch = await MeetingLink.findOne({ zoomMeetingId: digitsOnly });
+    if (digitMatch) {
+      console.log(`🧩 MeetingLink resolved by digits-only zoomMeetingId for ${zoomMeetingId}`);
+      return digitMatch;
+    }
+  }
+
+  const uuidCandidates = zoomWebhookUuidCandidates(options.meetingUuid);
+  if (uuidCandidates.length) {
+    const uuidMatch = await MeetingLink.findOne({ zoomMeetingUuid: { $in: uuidCandidates } });
     if (uuidMatch) {
       console.log(`🧩 MeetingLink resolved by zoomMeetingUuid for meeting ${zoomMeetingId}`);
       return uuidMatch;
@@ -199,22 +243,26 @@ async function createZoomDownloadStream(downloadUrl, accessToken) {
  *   - independent_segments flag  → every .ts is independently decodable
  *     (lets hls.js seek to any segment without downloading prior ones)
  *
- * @param {NodeJS.ReadableStream} inputStream  - Zoom video stream
+ * @param {NodeJS.ReadableStream|string} input  - Video stream or path to a local MP4/MOV file
  * @param {string}                meetingLinkId
  * @returns {Promise<string[]>}  List of local file paths [playlist.m3u8, seg000.ts, …]
  */
-async function convertToHLS(inputStream, meetingLinkId) {
+async function convertToHLS(input, meetingLinkId) {
   const tmpDir = path.join(os.tmpdir(), `hls-${meetingLinkId}-${Date.now()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const playlistPath  = path.join(tmpDir, 'playlist.m3u8');
   const segmentPattern = path.join(tmpDir, 'seg%03d.ts');
 
-  console.log(`🎬 FFmpeg HLS conversion started → ${tmpDir}`);
+  const fromFile = typeof input === 'string';
+  console.log(`🎬 FFmpeg HLS conversion started → ${tmpDir}${fromFile ? ' (from disk)' : ' (from stream)'}`);
 
   await new Promise((resolve, reject) => {
-    ffmpeg(inputStream)
-      .inputFormat('mp4')
+    const cmd = ffmpeg(input);
+    if (!fromFile) {
+      cmd.inputFormat('mp4');
+    }
+    cmd
       .videoCodec('libx264')
       .audioCodec('aac')
       .outputOptions([
@@ -318,7 +366,7 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
  * Full pipeline:
  *   1. Match Zoom meeting ID → MeetingLink
  *   2. Mark ZoomRecording as processing
- *   3. Download from Zoom (streaming)
+ *   3. Download from Zoom to a temp MP4 (avoids FFmpeg pipe/probe issues)
  *   4. FFmpeg → HLS segments in temp dir
  *   5. Upload all HLS files to R2
  *   6. Mark ZoomRecording as ready with hlsKey
@@ -366,21 +414,39 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
   await zoomRecordingDoc.save();
 
   let tmpDir = null;
+  let tmpMp4 = null;
 
   try {
     // 3. Zoom access token
     const accessToken = await zoomService.getAccessToken();
 
-    // 4. Open Zoom download stream
+    // 4. Stream Zoom file to disk (FFmpeg on pipe often fails with "Invalid data" for cloud recordings)
     try {
       const u = new URL(downloadUrl);
       console.log(`⬇️  Zoom download: ${u.origin}${u.pathname}`);
     } catch { console.log(`⬇️  Zoom download: ${downloadUrl}`); }
 
     const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken);
+    tmpMp4 = path.join(os.tmpdir(), `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
+    await pipeline(downloadStream, fs.createWriteStream(tmpMp4));
+
+    const st = fs.statSync(tmpMp4);
+    if (st.size < 2048) {
+      throw new Error(`Zoom download too small (${st.size} bytes) — likely an error response, not a recording`);
+    }
+
+    const head = Buffer.alloc(4096);
+    const fh = fs.openSync(tmpMp4, 'r');
+    const readLen = fs.readSync(fh, head, 0, head.length, 0);
+    fs.closeSync(fh);
+    const probe = head.subarray(0, readLen);
+    if (!bufferLooksLikeIsoBmff(probe)) {
+      const text = probe.toString('utf8').replace(/\s+/g, ' ').slice(0, 200);
+      throw new Error(`Zoom download is not a valid MP4 (size=${st.size}b, head=${JSON.stringify(text)})`);
+    }
 
     // 5. FFmpeg → HLS temp files
-    const result = await convertToHLS(downloadStream, meetingLinkId);
+    const result = await convertToHLS(tmpMp4, meetingLinkId);
     tmpDir = result.tmpDir;
     const files = result.files;
 
@@ -405,6 +471,14 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
     return { success: false, error: err.message, meetingLinkId };
 
   } finally {
+    if (tmpMp4) {
+      try {
+        fs.rmSync(tmpMp4, { force: true });
+        console.log(`🧹 Removed temp Zoom download: ${tmpMp4}`);
+      } catch (e) {
+        console.warn(`⚠️  Could not remove temp download ${tmpMp4}: ${e.message}`);
+      }
+    }
     // Always clean up temp dir
     if (tmpDir) {
       try {

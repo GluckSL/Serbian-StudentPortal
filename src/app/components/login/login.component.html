@@ -101,7 +101,12 @@
       <h2 class="login-panel__title">Login to Study</h2>
       <p class="login-panel__subtitle">Please enter your credentials to access your lessons.</p>
 
-      <form (ngSubmit)="onSubmit()" class="login-form">
+      <div *ngIf="checkingExistingSession" class="login-session-check" role="status" aria-live="polite">
+        <span class="btn-study__spinner" aria-hidden="true"></span>
+        <span>Checking your session…</span>
+      </div>
+
+      <form (ngSubmit)="onSubmit()" class="login-form" *ngIf="!checkingExistingSession">
         <div class="form-field">
           <label class="form-label" for="regNo">Username or email</label>
           <div class="form-input-row">
