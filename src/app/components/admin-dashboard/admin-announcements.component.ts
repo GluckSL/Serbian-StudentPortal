@@ -25,13 +25,11 @@ interface BatchSummary {
 })
 export class AdminAnnouncementsComponent implements OnInit {
   activeChannel: 'website' | 'whatsapp' = 'website';
-  deliveryType: AnnouncementDeliveryType = 'website';
+  deliveryType: AnnouncementDeliveryType = 'website_email';
   sendMode: 'instant' | 'schedule' = 'instant';
   title = '';
   body = '';
   scheduleAt = '';
-  emailSubject = '';
-  emailBody = '';
   batches: BatchSummary[] = [];
   selectedBatches: string[] = [];
   batchToAdd = '';
@@ -46,7 +44,7 @@ export class AdminAnnouncementsComponent implements OnInit {
   editModalOpen = false;
   editForm = {
     id: '',
-    deliveryType: 'website' as AnnouncementDeliveryType,
+      deliveryType: 'website_email' as AnnouncementDeliveryType,
     title: '',
     body: '',
     targetBatchesText: ''
@@ -61,10 +59,6 @@ export class AdminAnnouncementsComponent implements OnInit {
   ngOnInit(): void {
     this.loadBatches();
     this.loadAnnouncements();
-  }
-
-  get isWebsiteEmail(): boolean {
-    return this.deliveryType === 'website_email';
   }
 
   get isScheduled(): boolean {
@@ -230,13 +224,13 @@ export class AdminAnnouncementsComponent implements OnInit {
     this.announcementService
       .create({
         channel: 'website',
-        deliveryType: this.deliveryType,
+        deliveryType: 'website_email',
         title: this.title.trim(),
         body: this.body.trim(),
         targetBatches: this.selectedBatches,
-        // For Website + Email: reuse Title & Body as email subject/body.
-        emailSubject: this.isWebsiteEmail ? this.title.trim() : '',
-        emailBody: this.isWebsiteEmail ? this.body.trim() : '',
+        // Website + Email is now the only supported send type.
+        emailSubject: this.title.trim(),
+        emailBody: this.body.trim(),
         scheduleAt: this.isScheduled ? this.scheduleAt : '',
         attachments: this.selectedFiles
       })
@@ -334,13 +328,11 @@ export class AdminAnnouncementsComponent implements OnInit {
   }
 
   private resetForm(): void {
-    this.deliveryType = 'website';
+    this.deliveryType = 'website_email';
     this.sendMode = 'instant';
     this.title = '';
     this.body = '';
     this.scheduleAt = '';
-    this.emailSubject = '';
-    this.emailBody = '';
     this.selectedBatches = [];
     this.targetStudents = [];
     this.batchToAdd = '';

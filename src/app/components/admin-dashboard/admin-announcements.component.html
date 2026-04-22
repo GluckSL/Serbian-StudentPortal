@@ -10,12 +10,7 @@
         <div class="ann-block__title">Announcement Content</div>
 
         <div class="ann-type-switch">
-          <label class="ann-radio">
-            <input type="radio" name="deliveryType" value="website" [(ngModel)]="deliveryType" />
-            Website
-          </label>
-          <label class="ann-radio">
-            <input type="radio" name="deliveryType" value="website_email" [(ngModel)]="deliveryType" />
+          <label class="ann-radio ann-radio--fixed">
             Website + Email
           </label>
         </div>
@@ -30,7 +25,7 @@
           <textarea [(ngModel)]="body" rows="8" maxlength="5000" placeholder="Type your announcement here..."></textarea>
         </div>
 
-        <div *ngIf="isWebsiteEmail" class="ann-email-box">
+        <div class="ann-email-box">
           <h3>Email Add-on</h3>
           <p class="ann-email-box__note">
             For <strong>Website + Email</strong>, the <strong>email subject</strong> and <strong>email body</strong> will use the same
