@@ -34,6 +34,20 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+
+// OpenAI SDK upload compatibility for Node runtimes <20:
+// ensure global File exists before requiring the SDK.
+try {
+  if (typeof globalThis.File === 'undefined') {
+    const { File } = require('node:buffer');
+    if (File) {
+      globalThis.File = File;
+    }
+  }
+} catch {
+  // Best effort: if unavailable, SDK will still emit a clear runtime error.
+}
+
 const OpenAI = require('openai');
 const { toFile } = require('openai/uploads');
 
