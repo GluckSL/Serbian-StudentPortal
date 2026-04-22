@@ -35,6 +35,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const OpenAI = require('openai');
+const { toFile } = require('openai/uploads');
 
 const { verifyToken, checkRole } = require('../middleware/auth');
 const {
@@ -138,8 +139,15 @@ async function transcribeAudio(filePath, whisperLang) {
   const model = process.env.OPENAI_SPEECH_MODEL || 'whisper-1';
 
   try {
+    // Some production Node runtimes do not expose global `File`, which can
+    // break stream-based uploads in the OpenAI SDK. Convert to an SDK file
+    // object via `toFile` for runtime-safe multipart handling.
+    const audioBuffer = await fs.promises.readFile(filePath);
+    const filename = path.basename(filePath) || 'recording.webm';
+    const sdkFile = await toFile(audioBuffer, filename);
+
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(filePath),
+      file: sdkFile,
       model,
       language: whisperLang || undefined,
       response_format: 'json',
