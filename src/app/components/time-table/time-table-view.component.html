@@ -14,7 +14,7 @@
         <div class="col-md-4 text-end">
           <div class="header-stats">
             <div class="stat-card">
-              <span class="stat-value">{{ timeTables.length || 0 }}</span>
+              <span class="stat-value">{{ visibleTimeTables.length || 0 }}</span>
               <span class="stat-label">Weeks Scheduled</span>
             </div>
           </div>
@@ -29,6 +29,13 @@
       
       <!-- Action Bar -->
       <div class="action-bar" *ngIf="userRole === 'ADMIN'">
+        <div class="batch-filter">
+          <label for="adminBatchFilter" class="batch-filter-label">Batch</label>
+          <select id="adminBatchFilter" class="batch-filter-select" [(ngModel)]="selectedAdminBatch" (ngModelChange)="onAdminBatchChange()">
+            <option value="ALL">All Batches</option>
+            <option *ngFor="let batch of adminBatchOptions" [value]="batch">{{ batch }}</option>
+          </select>
+        </div>
         <button class="btn-add" routerLink="/time-table">
           <i class="fas fa-plus-circle"></i>
           Add New Timetable

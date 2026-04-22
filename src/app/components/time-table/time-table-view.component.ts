@@ -77,6 +77,8 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
   userRole: string = '';
   userProfile?: UserProfile;
   viewMode: 'table' | 'calendar' = 'table';
+  adminBatchOptions: string[] = [];
+  selectedAdminBatch: string = 'ALL';
   
   // Zoom meetings
   zoomMeetings: ZoomMeeting[] = [];
@@ -153,7 +155,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     } else if (this.userRole === 'TEACHER' || this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN') {
       this.zoomService.getAllMeetings().subscribe({
         next: (response) => {
-          this.zoomMeetings = response.meetings || [];
+          this.zoomMeetings = response.data || response.meetings || [];
           this.meetingsLoaded = true;
         },
         error: (error) => {
@@ -170,6 +172,11 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
       (data: TimeTable[]) => {
         // For admin view, show full history so current/upcoming and past can be separated in UI.
         this.timeTables = data || [];
+        this.adminBatchOptions = [...new Set(this.timeTables.map((tt) => String(tt.batch || '').trim()).filter(Boolean))]
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        if (this.selectedAdminBatch !== 'ALL' && !this.adminBatchOptions.includes(this.selectedAdminBatch)) {
+          this.selectedAdminBatch = 'ALL';
+        }
         this.preloadTeacherNames(this.timeTables); // ✅ preload teacher names
       },
       (error) => console.error('Error fetching timetables', error)
@@ -256,8 +263,24 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     return new Date(value);
   }
 
+  private normalizeBatchLabel(value: string): string {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  onAdminBatchChange(): void {
+    this.showPreviousWeeksModal = false;
+  }
+
   get visibleTimeTables(): TimeTable[] {
-    return this.timeTables.filter((tt) => !tt._id || !this.hiddenTimeTableIds.has(tt._id));
+    return this.timeTables.filter((tt) => {
+      const notHidden = !tt._id || !this.hiddenTimeTableIds.has(tt._id);
+      if (!notHidden) return false;
+
+      const isAdminView = this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN';
+      if (!isAdminView || this.selectedAdminBatch === 'ALL') return true;
+
+      return this.normalizeBatchLabel(tt.batch) === this.normalizeBatchLabel(this.selectedAdminBatch);
+    });
   }
 
   get currentWeekTimeTable(): TimeTable | null {

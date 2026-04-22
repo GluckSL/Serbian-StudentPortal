@@ -75,7 +75,42 @@
   margin-bottom: 12px;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+.batch-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.batch-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0;
+}
+
+.batch-filter-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  padding: 4px 8px;
+  min-width: 120px;
+}
+
+.batch-filter-select:focus {
+  outline: none;
+  border-color: #005b96;
+  box-shadow: 0 0 0 2px rgba(0, 91, 150, 0.15);
 }
 
 .btn-add {
