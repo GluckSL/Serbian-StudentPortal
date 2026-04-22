@@ -7,6 +7,7 @@ import { NotificationService } from '../../services/notification.service';
 import { ClassResourceService } from '../../services/class-resource.service';
 import { ClassDoubtService } from '../../services/class-doubt.service';
 import { ClassSubmissionService } from '../../services/class-submission.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
 
 interface StudentMeeting {
   _id: string;
@@ -83,7 +84,8 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     private notify: NotificationService,
     private resourceService: ClassResourceService,
     private doubtService: ClassDoubtService,
-    private submissionService: ClassSubmissionService
+    private submissionService: ClassSubmissionService,
+    private joinClassFlow: JoinClassFlowService
   ) {}
 
   ngOnInit(): void {
@@ -120,7 +122,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   joinMeeting(meeting: StudentMeeting): void {
     if (meeting.journeyLocked && meeting.courseDay != null) { this.notify.info(`This class is available only on journey day ${meeting.courseDay}.`); return; }
-    if (meeting.canJoin && meeting.joinUrl) window.open(meeting.joinUrl, '_blank');
+    if (meeting.canJoin && meeting.joinUrl) {
+      this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
+    }
   }
 
   upcomingActionLabel(meeting: StudentMeeting): string {

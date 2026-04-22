@@ -6,6 +6,7 @@ import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { NotificationService } from '../../services/notification.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
 
 @Component({
   selector: 'app-meeting-details',
@@ -31,7 +32,8 @@ export class MeetingDetailsComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private zoomService: ZoomService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private joinClassFlow: JoinClassFlowService
   ) {}
 
   ngOnInit(): void {
@@ -66,10 +68,8 @@ export class MeetingDetailsComponent implements OnInit {
   joinMeeting(): void {
     // Use joinUrl instead of startUrl to avoid "meeting already in progress" conflict
     // when the Zoom desktop app is logged into a different host account
-    const url = this.meeting?.joinUrl || this.meeting?.startUrl;
-    if (url) {
-      window.open(url, '_blank');
-    }
+    if (!this.meeting) return;
+    this.joinClassFlow.openJoin(this.meeting, (msg) => this.notify.error(msg));
   }
 
   copyJoinUrl(): void {

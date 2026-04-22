@@ -9,6 +9,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpClientModule } from '@angular/common/http';
 import { NotificationService } from '../../services/notification.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
 
 interface TimeSlot {
   start: string;
@@ -94,6 +95,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     private teacherService: TeacherService,
     private zoomService: ZoomService,
     private notify: NotificationService,
+    private joinClassFlow: JoinClassFlowService,
   ) {}
 
   ngOnInit(): void {
@@ -516,14 +518,14 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
   // Join meeting
   joinMeeting(meeting: ZoomMeeting): void {
     if (meeting.joinUrl) {
-      window.open(meeting.joinUrl, '_blank');
+      this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
     }
   }
   
   // Join Zoom meeting from timetable slot
   joinZoomMeeting(joinUrl: string): void {
     if (joinUrl) {
-      window.open(joinUrl, '_blank');
+      this.joinClassFlow.openJoin({ joinUrl }, (msg) => this.notify.error(msg));
     }
   }
 

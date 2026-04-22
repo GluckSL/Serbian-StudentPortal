@@ -8,6 +8,8 @@ import { environment } from '../../../environments/environment';
 import { StudentProgressService } from '../../services/student-progress.service';
 import { AuthService } from '../../services/auth.service';
 import { ZoomService } from '../../services/zoom.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { NotificationService } from '../../services/notification.service';
 import { StudentMeetingsComponent } from '../meeting-link/student-meetings.component';
 import { StudentRecordingsComponent } from '../class-recordings/student-recordings/student-recordings.component';
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
@@ -130,7 +132,9 @@ export class MyCourseComponent implements OnInit {
     private exerciseService: DigitalExerciseService,
     private learningModulesService: LearningModulesService,
     private dialog: MatDialog,
-    private announcementService: AnnouncementService
+    private announcementService: AnnouncementService,
+    private joinClassFlow: JoinClassFlowService,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -831,7 +835,9 @@ export class MyCourseComponent implements OnInit {
   }
 
   joinSelectedDayMeeting(meeting: any): void {
-    if (meeting?.joinUrl && meeting?.canJoin) window.open(meeting.joinUrl, '_blank');
+    if (meeting?.joinUrl && meeting?.canJoin) {
+      this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
+    }
   }
 
   getMeetingAttendancePercent(meeting: any): number {

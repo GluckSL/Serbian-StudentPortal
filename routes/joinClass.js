@@ -12,6 +12,14 @@ const router = express.Router();
 
 const DISPLAY_NAME_MAX = 80;
 
+/** SPA sends Bearer token; return JSON so Angular can open Zoom (top-level navigation cannot send Authorization). */
+function wantsJoinClassJsonResponse(req) {
+  const accept = (req.get('accept') || '').toLowerCase();
+  if (accept.includes('application/json')) return true;
+  const xrw = (req.get('x-requested-with') || '').toLowerCase();
+  return xrw === 'xmlhttprequest';
+}
+
 function normalizeZoomNumericId(zoomMeetingId) {
   return String(zoomMeetingId || '').replace(/\D/g, '');
 }
@@ -130,6 +138,9 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
       zoomUrl += `&pwd=${encodeURIComponent(meeting.zoomPassword)}`;
     }
 
+    if (wantsJoinClassJsonResponse(req)) {
+      return res.json({ success: true, redirectUrl: zoomUrl });
+    }
     return res.redirect(302, zoomUrl);
   } catch (err) {
     console.error('join-class error:', err.message);

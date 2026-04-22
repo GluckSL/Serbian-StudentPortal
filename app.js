@@ -138,7 +138,7 @@ app.use(cors({
   },
   credentials: true,           // ✅ important for sending cookies
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 app.use(cookieParser()); // Add cookie parser middleware

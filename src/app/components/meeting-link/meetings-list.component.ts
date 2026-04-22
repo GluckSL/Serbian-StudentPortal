@@ -6,6 +6,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { NotificationService } from '../../services/notification.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -50,7 +52,9 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   constructor(
     private router: Router,
     private zoomService: ZoomService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private joinClassFlow: JoinClassFlowService,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -259,10 +263,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
 
   joinMeeting(meeting: any, event: Event): void {
     event.stopPropagation();
-    const url = meeting.joinUrl || meeting.startUrl;
-    if (url) {
-      window.open(url, '_blank');
-    }
+    this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
   }
 
   /** Hide join for ended (and cancelled) meetings; table/cards use this. */
