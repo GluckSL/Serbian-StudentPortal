@@ -192,6 +192,41 @@ function mondayGetFirstNonEmpty(columnValues, envCsv) {
   return '';
 }
 
+function normalizeSubscription(raw) {
+  const original = String(raw || '').trim();
+  if (!original) return '';
+  const normalized = original
+    .toUpperCase()
+    .replace(/&/g, ' AND ')
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (normalized.includes('VISA') && (normalized.includes('DOC') || normalized.includes('DOCUMENT'))) {
+    return 'VISA_DOC_ONLY';
+  }
+  if (normalized.includes('PLATINUM') || normalized === 'PLAT') return 'PLATINUM';
+  if (normalized.includes('SILVER') || normalized === 'SIL') return 'SILVER';
+  return normalized;
+}
+
+function normalizeLevel(primary, fallback = '') {
+  const candidates = [primary, fallback].map((v) => String(v || '').toUpperCase().trim()).filter(Boolean);
+  for (const text of candidates) {
+    const match = text.match(/\b(A1|A2|B1|B2|C1|C2)\b/);
+    if (match) return match[1];
+  }
+  return 'A1';
+}
+
+function normalizeBatch(raw, normalizedSubscription) {
+  const b = String(raw || '').trim();
+  if (b) return b;
+  // Batch is required for all non-SILVER students in User schema.
+  if (normalizedSubscription && normalizedSubscription !== 'SILVER') return 'UNASSIGNED';
+  return '';
+}
+
 // Reusable Monday.com sync function
 async function runMondaySync() {
   console.log("ðŸ”„ Starting Monday CRM full sync...");
@@ -245,11 +280,14 @@ async function runMondaySync() {
       const qualifications = get("text_mkw32n6r");
       const enrollmentDateStr = get("date_mkw7wejn");
       const servicesOpted = get("color_mm023vmt") || get("text_mkwz1j6q");
-      const subscription = get("color_mm02jfyb").toUpperCase().trim();
+      const rawSubscription = get("color_mm02jfyb");
       const languageLevelOpted = get("color_mm02c95");
-      const batch = get("dropdown_mkxx6cfp");
+      const rawBatch = get("dropdown_mkxx6cfp");
       const studentStatus = get("color_mm019dcv").toUpperCase().trim();
-      const level = get("dropdown_mkzshj5a").toUpperCase().trim();
+      const rawLevel = get("dropdown_mkzshj5a");
+      const subscription = normalizeSubscription(rawSubscription);
+      const level = normalizeLevel(rawLevel, languageLevelOpted);
+      const batch = normalizeBatch(rawBatch, subscription);
       const otherLanguageKnown = get("dropdown_mkzsadkp");
       const medium = get("dropdown_mkw09h9j");
       const leadSource = get("dropdown_mm0d9jrv");
@@ -414,11 +452,14 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       const qualifications    = get("text_mkw32n6r");
       const enrollmentDate    = get("date_mkw7wejn");
       const servicesOpted     = get("color_mm023vmt") || get("text_mkwz1j6q");
-      const subscription      = get("color_mm02jfyb").toUpperCase().trim();
+      const rawSubscription   = get("color_mm02jfyb");
       const languageLevelOpted = get("color_mm02c95");
-      const batch             = get("dropdown_mkxx6cfp");
+      const rawBatch          = get("dropdown_mkxx6cfp");
       const studentStatus     = get("color_mm019dcv").toUpperCase().trim();
-      const level             = get("dropdown_mkzshj5a").toUpperCase().trim();
+      const rawLevel          = get("dropdown_mkzshj5a");
+      const subscription      = normalizeSubscription(rawSubscription);
+      const level             = normalizeLevel(rawLevel, languageLevelOpted);
+      const batch             = normalizeBatch(rawBatch, subscription);
       const medium            = get("dropdown_mkw09h9j");
       const leadSource        = get("dropdown_mm0d9jrv");
       const stream            = get("text_mkwtq4fq");
