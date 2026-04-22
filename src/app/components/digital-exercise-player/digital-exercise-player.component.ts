@@ -21,6 +21,23 @@ import { AuthService } from '../../services/auth.service';
 import { take } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 import { SafeHtmlPipe } from '../../pipes/safe-html.pipe';
+import {
+  PronunciationService,
+  PronunciationEvaluateResponse,
+  PronunciationConfidence,
+  RecordingResult,
+  MicPermissionState,
+  CapabilityInfo,
+  SilenceCheckResult,
+} from '../../services/pronunciation.service';
+import {
+  PronunciationAnalyticsService,
+  DeviceInfo,
+  AdaptiveThresholds,
+} from '../../services/pronunciation-analytics.service';
+import { AudioVisualizerComponent } from '../audio-visualizer/audio-visualizer.component';
+import { HttpErrorResponse } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -49,6 +66,14 @@ interface PlayerQuestion {
   pronunciationScore?: number;
   isRecording?: boolean;
   hasRecorded?: boolean;
+  /** Rich state for the new audio-based flow: idle | recording | processing | result | error. */
+  pronUiState?: 'idle' | 'recording' | 'processing' | 'result' | 'error';
+  /** Short human-readable hint shown under the speak buttons (e.g. "Processing…"). */
+  pronMessage?: string;
+  /** Which engine produced the last transcript (openai | fallback | client-transcript). */
+  pronEngine?: string;
+  /** Last requestId from the backend evaluator — useful for support / debugging. */
+  pronRequestId?: string;
   // Question/Answer state
   qaResponse?: string;
   // Listening state
@@ -83,7 +108,7 @@ type SpecialInputTarget =
 @Component({
   selector: 'app-digital-exercise-player',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe],
+  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe, AudioVisualizerComponent],
   templateUrl: './digital-exercise-player.component.html',
   styleUrls: ['./digital-exercise-player.component.css']
 })
@@ -136,6 +161,65 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private speechRecognitionCtor: any = null;
   speechSupported = false;
 
+  // ── New audio-based pronunciation flow ────────────────────────────────
+  /** True when MediaRecorder-based flow should be used as primary (fallback to SR otherwise). */
+  audioRecorderSupported = false;
+  /** Capability report (populated in ngOnInit). */
+  pronCapabilities: CapabilityInfo | null = null;
+  /** Cached permission state (best-effort from the Permissions API). */
+  micPermission: MicPermissionState = 'unknown';
+
+  /** Max recording duration before auto-stop (safety net). */
+  private static readonly MAX_RECORDING_MS = 15_000;
+  /** Show "this may take a moment" hint if processing runs this long. */
+  private static readonly PROCESSING_SLOW_HINT_MS = 1_500;
+  /** Per-question auto-stop timer for the audio recorder flow. */
+  private pronAutoStopTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The question we are currently capturing audio for (audio flow only). */
+  private activePronQuestion: PlayerQuestion | null = null;
+  /** True while the "Processing…" state has been up for >1.5s and we want to reassure the user. */
+  pronProcessingSlow = false;
+  private pronProcessingSlowTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Last silence-check result per pq index (for UI hints after auto-reject). */
+  lastSilenceByIndex: Record<number, SilenceCheckResult | null> = {};
+  /** Controls the "Chrome works best" banner. */
+  showBrowserGuidance = false;
+  browserGuidanceDismissed = false;
+  /** Cached device/browser info (set in checkSpeechSupport). */
+  deviceInfo: DeviceInfo | null = null;
+  /** Last adaptive threshold pack used — surfaced in the debug panel. */
+  lastAdaptiveThresholds: AdaptiveThresholds | null = null;
+  /** When true we opt this attempt into assisted mode (relaxed threshold). */
+  private assistedModeByIndex: Record<number, boolean> = {};
+  /** Prevents auto-replay from firing twice for the same failure streak. */
+  private autoReplayArmedFor: Record<number, boolean> = {};
+  /** Server-reported confidence for the last evaluation (per pq). */
+  lastConfidenceByIndex: Record<number, PronunciationConfidence | undefined> = {};
+  /** Developer-only debug panel (?debug=pron or localStorage flag). */
+  pronDebugPanelEnabled = false;
+  /** Snapshot of the most recent /evaluate or silence-reject payload — for the debug panel. */
+  lastPronDebugSnapshot: {
+    pqIndex: number;
+    mode: 'word' | 'clip';
+    stats: { peak: number; average: number; durationMs: number; samples: number };
+    silenceReason: 'too-short' | 'too-quiet' | 'ok';
+    thresholds: AdaptiveThresholds | null;
+    transcript: string;
+    score: number;
+    confidence: PronunciationConfidence | null;
+    assistedMode: boolean;
+    retryCount: number;
+    at: number;
+  } | null = null;
+
+  // ── Mic Test (bonus feature) ──────────────────────────────────────────
+  micTestOpen = false;
+  micTestState: 'idle' | 'recording' | 'ready' | 'error' = 'idle';
+  micTestAudioUrl: string | null = null;
+  micTestError: string | null = null;
+  private micTestCountdownTimer: ReturnType<typeof setInterval> | null = null;
+  micTestCountdown = 0;
+
   /** Current video-pronunciation element (for autoplay / replay). */
   private vpVideoElement: HTMLVideoElement | null = null;
 
@@ -173,7 +257,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     public exerciseService: DigitalExerciseService,
     private snackBar: MatSnackBar,
     private authService: AuthService,
-    private exerciseDraft: DigitalExercisePlayerDraftService
+    private exerciseDraft: DigitalExercisePlayerDraftService,
+    private pronunciation: PronunciationService,
+    private pronAnalytics: PronunciationAnalyticsService,
   ) {}
 
   ngOnInit(): void {
@@ -205,6 +291,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
       if (pq.vpSecondaryCaptionTimer) clearTimeout(pq.vpSecondaryCaptionTimer);
     });
+    this.clearPronAutoStopTimer();
+    this.clearPronProcessingSlowTimer();
+    try { this.pronunciation.cancelRecording(); } catch { /* noop */ }
+    this.closeMicTest();
   }
 
   private checkSpeechSupport(): void {
@@ -213,6 +303,146 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       (window as any).SpeechRecognition ||
       null;
     this.speechSupported = !!this.speechRecognitionCtor;
+
+    const caps = this.pronunciation.getCapabilities();
+    this.pronCapabilities = caps;
+    this.audioRecorderSupported = caps.mediaRecorder && caps.getUserMedia;
+    this.deviceInfo = this.pronAnalytics.getDeviceInfo(caps);
+
+    // Show a dismissable "Chrome works best" banner on iOS / Safari / Firefox
+    // so students know what to switch to when things feel unreliable.
+    this.showBrowserGuidance =
+      !caps.isRecommendedBrowser && !this.browserGuidanceDismissed;
+
+    // Developer debug panel: opt in via ?debug=pron or a local flag.
+    this.pronDebugPanelEnabled = this.computeDebugPanelEnabled();
+
+    // Best-effort read of the browser's stored mic permission.
+    this.pronunciation.queryMicPermission()
+      .then((state) => { this.micPermission = state; })
+      .catch(() => { this.micPermission = 'unknown'; });
+
+    // iOS legacy note (MediaRecorder works on iOS 14.3+; older iOS will
+    // fall through to SpeechRecognition below if present, or show a warning).
+    if (!this.audioRecorderSupported && !this.speechSupported && caps.isIOS) {
+      console.warn('[pronunciation] Neither MediaRecorder nor SpeechRecognition available on this iOS build.');
+    }
+  }
+
+  /** Analyser from the active recording — handed to the <app-audio-visualizer>. */
+  getPronAnalyser(): AnalyserNode | null {
+    return this.pronunciation.getAnalyser();
+  }
+
+  /** Current RMS level (0..1). Useful for debug overlays. */
+  get audioLevel(): number {
+    return this.pronunciation.getAudioLevel();
+  }
+
+  /** True when we think the user is NOT speaking right now (live probe). */
+  get isSilent(): boolean {
+    return !this.pronunciation.isUserSpeaking();
+  }
+
+  dismissBrowserGuidance(): void {
+    this.browserGuidanceDismissed = true;
+    this.showBrowserGuidance = false;
+  }
+
+  /** Copy the user can read while a silent recording is being rejected. */
+  silentRejectMessage(reason: SilenceCheckResult['reason']): string {
+    if (reason === 'too-short') return 'That was very quick — hold the button a little longer and try again.';
+    return 'We couldn’t hear you clearly. Please speak louder and try again.';
+  }
+
+  private clearPronProcessingSlowTimer(): void {
+    if (!this.pronProcessingSlowTimer) return;
+    clearTimeout(this.pronProcessingSlowTimer);
+    this.pronProcessingSlowTimer = null;
+    this.pronProcessingSlow = false;
+  }
+
+  private armPronProcessingSlowTimer(): void {
+    this.clearPronProcessingSlowTimer();
+    this.pronProcessingSlowTimer = setTimeout(() => {
+      this.pronProcessingSlow = true;
+    }, DigitalExercisePlayerComponent.PROCESSING_SLOW_HINT_MS);
+  }
+
+  /** Composite key we use to keep per-question retry counts scoped. */
+  private pronAttemptKey(pq: PlayerQuestion, mode: 'word' | 'clip'): string {
+    return `${this.exerciseId || 'ex'}:${mode}:${pq.index}`;
+  }
+
+  /** Label helper for confidence-tier UI messaging (low / medium / high). */
+  confidenceHeadline(conf: PronunciationConfidence | undefined | null): string | null {
+    if (conf === 'high') return 'Great job!';
+    if (conf === 'medium') return 'Almost there!';
+    if (conf === 'low') return 'We might not have heard you clearly. Try again.';
+    return null;
+  }
+
+  /** Build the enriched clientMeta payload we send with every evaluate/telemetry call. */
+  private buildClientMeta(args: {
+    mode: 'word' | 'clip';
+    recording: RecordingResult;
+    stats: { peak: number; average: number };
+    silenceRejected: boolean;
+    silenceReason: 'too-short' | 'too-quiet' | null;
+    retryCount: number;
+    assistedMode: boolean;
+    thresholds: AdaptiveThresholds | null;
+  }): Record<string, unknown> {
+    const device = this.deviceInfo || this.pronAnalytics.getDeviceInfo(this.pronCapabilities);
+    return {
+      micPermission: this.micPermission,
+      audioPeak: round4(args.stats.peak),
+      audioAverage: round4(args.stats.average),
+      recordingDuration: args.recording.durationMs,
+      audioSize: args.recording.blob.size,
+      mimeType: args.recording.mimeType,
+      silenceRejected: args.silenceRejected,
+      silenceReason: args.silenceReason,
+      retryCount: args.retryCount,
+      assistedMode: args.assistedMode,
+      deviceType: device.deviceType,
+      browser: device.browser,
+      mode: args.mode,
+      thresholdSource: args.thresholds?.source || 'default',
+      thresholdSampleCount: args.thresholds?.sampleCount ?? 0,
+    };
+  }
+
+  private computeDebugPanelEnabled(): boolean {
+    try {
+      const qp = this.route.snapshot.queryParamMap.get('debug') || '';
+      if (qp.toLowerCase() === 'pron') return true;
+      if (typeof localStorage !== 'undefined') {
+        const flag = localStorage.getItem('pron:debugPanel');
+        if (flag === '1' || flag === 'true') return true;
+      }
+    } catch { /* ignore */ }
+    return !!(environment as any).showPronunciationDebug;
+  }
+
+  togglePronDebugPanel(): void {
+    this.pronDebugPanelEnabled = !this.pronDebugPanelEnabled;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('pron:debugPanel', this.pronDebugPanelEnabled ? '1' : '0');
+      }
+    } catch { /* ignore */ }
+  }
+
+  /** Was the given HTTP error actually a network/timeout failure (vs 4xx/5xx)? */
+  private isNetworkError(err: any): boolean {
+    if (!err) return false;
+    if (err instanceof HttpErrorResponse) {
+      // status 0 → offline, DNS, CORS, or aborted; treat as network issue
+      return err.status === 0 || err.status >= 502;
+    }
+    const msg = String(err?.message || '').toLowerCase();
+    return msg.includes('network') || msg.includes('timeout') || msg.includes('failed to fetch');
   }
 
   private async ensureMicrophoneAccess(): Promise<boolean> {
@@ -1357,11 +1587,27 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.vpRecognitionForceStopTimer = null;
   }
 
+  /**
+   * Entry point for single-word pronunciation clips. Prefers the new
+   * MediaRecorder + server-side Whisper flow and falls back to the legacy
+   * in-browser SpeechRecognition path when the recorder is unavailable.
+   */
   startRecording(pq: PlayerQuestion): void {
-    if (!this.speechSupported) {
-      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
+    if (this.audioRecorderSupported) {
+      void this.startAudioPronunciationForWord(pq);
       return;
     }
+    if (!this.speechSupported) {
+      this.snackBar.open('Audio recording is not supported in this browser. Try Chrome, Edge, or Safari 14.3+.', 'Close', { duration: 6000 });
+      pq.pronUiState = 'error';
+      pq.pronMessage = 'Unsupported browser';
+      return;
+    }
+    this.startRecordingLegacy(pq);
+  }
+
+  /** Legacy SpeechRecognition path for single-word pronunciation. */
+  private startRecordingLegacy(pq: PlayerQuestion): void {
     if (pq.isRecording) return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     this.recognition = new SpeechRecognition();
@@ -1373,6 +1619,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.recognition.maxAlternatives = 3;
 
     pq.isRecording = true;
+    pq.pronUiState = 'recording';
+    pq.pronMessage = '🎤 Listening…';
     let bestTranscript = '';
     let bestScore = 0;
     let gotUsableResult = false;
@@ -1411,6 +1659,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.isRecording = false;
       this.recognition = null;
       if (!gotUsableResult) {
+        pq.pronUiState = 'error';
+        pq.pronMessage = 'No speech detected, try again';
         this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
         return;
       }
@@ -1418,15 +1668,25 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.spokenText = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
       pq.pronunciationScore = bestScore;
       pq.hasRecorded = true;
+      pq.pronUiState = 'result';
+      pq.pronMessage = null as unknown as string;
       this.markAttempted(pq);
     };
 
     this.recognition.start();
   }
 
+  /**
+   * Stop a single-word pronunciation recording. Delegates to the audio or
+   * legacy flow automatically based on which one is active.
+   */
   stopRecording(pq: PlayerQuestion): void {
+    if (this.activePronQuestion === pq) {
+      void this.finishAudioPronunciationForWord(pq);
+      return;
+    }
     if (this.recognition) {
-      try { this.recognition.stop(); } catch {}
+      try { this.recognition.stop(); } catch { /* noop */ }
     }
   }
 
@@ -2177,7 +2437,29 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Entry point for video-pronunciation clips. Prefers the MediaRecorder +
+   * backend Whisper flow; falls back to the legacy in-browser
+   * SpeechRecognition path when the recorder is unavailable.
+   */
   startVideoPronunciation(pq: PlayerQuestion): void {
+    if (this.state === 'submitted') return;
+    if (pq.data?.type === 'video-pronunciation' && !pq.vpPlaybackEnded) {
+      this.snackBar.open('Finish watching the clip first, then tap Speak.', 'Close', { duration: 3000 });
+      return;
+    }
+    if (pq.isRecording) return;
+
+    if (this.audioRecorderSupported) {
+      void this.startAudioPronunciationForClip(pq);
+      return;
+    }
+    if (!this.speechSupported) {
+      this.snackBar.open('Audio recording is not supported in this browser. Try Chrome, Edge, or Safari 14.3+.', 'Close', { duration: 6000 });
+      pq.pronUiState = 'error';
+      pq.pronMessage = 'Unsupported browser';
+      return;
+    }
     void this.startVideoPronunciationInternal(pq);
   }
 
@@ -2329,7 +2611,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   stopVideoPronunciation(pq: PlayerQuestion): void {
-    if (!pq?.isRecording) return;
+    if (!pq?.isRecording && this.activePronQuestion !== pq) return;
+
+    // Audio flow: stop + upload
+    if (this.activePronQuestion === pq) {
+      void this.finishAudioPronunciationForClip(pq);
+      return;
+    }
+
+    // Legacy SpeechRecognition flow
     try {
       this.recognition?.stop();
     } catch {
@@ -2464,4 +2754,658 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const prevTitle = prev?.data?.sectionTitle;
     return title !== prevTitle ? title : null;
   }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  New audio-based pronunciation flow (MediaRecorder → Whisper → Scoring)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Template bindings use pq.isRecording + pq.pronUiState + pq.pronMessage.
+  // We deliberately keep these flags in sync with the legacy SR path so the
+  // existing UI (Listening indicator, buttons, chat) keeps working.
+
+  /** Convenience label for the template. */
+  pronUiLabel(pq: PlayerQuestion | null | undefined): string {
+    const state = pq?.pronUiState || 'idle';
+    switch (state) {
+      case 'recording':   return pq?.pronMessage || '🎤 Listening…';
+      case 'processing':  return pq?.pronMessage || 'Processing…';
+      case 'error':       return pq?.pronMessage || 'No speech detected, try again';
+      case 'result':      return pq?.pronMessage || '';
+      case 'idle':
+      default:            return pq?.pronMessage || 'Click to Speak';
+    }
+  }
+
+  private clearPronAutoStopTimer(): void {
+    if (!this.pronAutoStopTimer) return;
+    clearTimeout(this.pronAutoStopTimer);
+    this.pronAutoStopTimer = null;
+  }
+
+  private armPronAutoStop(pq: PlayerQuestion, kind: 'word' | 'clip'): void {
+    this.clearPronAutoStopTimer();
+    this.pronAutoStopTimer = setTimeout(() => {
+      if (this.activePronQuestion !== pq) return;
+      console.info('[pronunciation] auto-stop fired', { kind, index: pq.index });
+      if (kind === 'clip') void this.finishAudioPronunciationForClip(pq);
+      else void this.finishAudioPronunciationForWord(pq);
+    }, DigitalExercisePlayerComponent.MAX_RECORDING_MS);
+  }
+
+  private resolveLanguageBcp47(): 'de-DE' | 'en-US' {
+    return this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
+  }
+
+  private resolvePronVariants(pq: PlayerQuestion): string[] {
+    const v = pq?.data?.acceptedVariants;
+    return Array.isArray(v) ? v.filter((s: unknown) => typeof s === 'string') : [];
+  }
+
+  private async ensureRecordingStarted(pq: PlayerQuestion): Promise<boolean> {
+    try {
+      await this.pronunciation.startRecording();
+      this.activePronQuestion = pq;
+      pq.isRecording = true;
+      pq.pronUiState = 'recording';
+      pq.pronMessage = '🎤 Listening…';
+      return true;
+    } catch (err: any) {
+      const code = err?.code || 'UNKNOWN';
+      console.error('[pronunciation] startRecording failed', { code, message: err?.message });
+      pq.isRecording = false;
+      pq.pronUiState = 'error';
+      pq.pronMessage = err?.message || 'Microphone unavailable';
+      this.activePronQuestion = null;
+      const msg = err?.message || 'Microphone could not be started. Please check your mic and try again.';
+      this.snackBar.open(msg, 'Close', { duration: 5000 });
+      if (code === 'PERMISSION_DENIED') this.micPermission = 'denied';
+      return false;
+    }
+  }
+
+  // ── Word-level pronunciation (single word) ────────────────────────────
+
+  private async startAudioPronunciationForWord(pq: PlayerQuestion): Promise<void> {
+    if (pq.isRecording) return;
+    const started = await this.ensureRecordingStarted(pq);
+    if (!started) return;
+    this.armPronAutoStop(pq, 'word');
+  }
+
+  private async finishAudioPronunciationForWord(pq: PlayerQuestion): Promise<void> {
+    if (this.activePronQuestion !== pq) return;
+    this.clearPronAutoStopTimer();
+    this.activePronQuestion = null;
+
+    let recording: RecordingResult | null = null;
+    try {
+      recording = await this.pronunciation.stopRecording();
+    } catch (err: any) {
+      console.error('[pronunciation] stopRecording failed (word)', err);
+      pq.isRecording = false;
+      pq.pronUiState = 'error';
+      pq.pronMessage = 'Recording failed, try again';
+      this.snackBar.open('Could not capture audio. Please try again.', 'Close', { duration: 3500 });
+      return;
+    }
+    pq.isRecording = false;
+
+    if (!recording || recording.blob.size === 0) {
+      pq.pronUiState = 'error';
+      pq.pronMessage = 'No audio captured, try again';
+      this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+      this.pronunciation.releaseObjectUrl(recording?.objectUrl);
+      return;
+    }
+
+    // Adaptive silence thresholds — honour user profile + device tuning.
+    const device = this.deviceInfo || this.pronAnalytics.getDeviceInfo(this.pronCapabilities);
+    const adaptive = this.pronAnalytics.getAdaptiveThresholds(device);
+    this.lastAdaptiveThresholds = adaptive;
+    const silence = this.pronunciation.evaluateSilence(recording.durationMs, {
+      minAverageLevel: adaptive.minAverageLevel,
+      minPeakLevel: adaptive.minPeakLevel,
+      minDurationMs: adaptive.minDurationMs,
+    });
+    this.lastSilenceByIndex[pq.index] = silence;
+
+    const attemptKey = this.pronAttemptKey(pq, 'word');
+    const retryCount = this.pronAnalytics.getFailCount(attemptKey);
+    const lang = this.resolveLanguageBcp47();
+
+    if (!silence.ok) {
+      console.info('[pronunciation] local silence reject (word)', silence);
+      pq.pronUiState = 'error';
+      pq.pronMessage = this.silentRejectMessage(silence.reason);
+      this.snackBar.open(pq.pronMessage, 'Close', { duration: 4000 });
+      this.pronAnalytics.sendTelemetry(
+        {
+          silenceRejected: true,
+          silenceReason: silence.reason || null,
+          retryCount,
+          language: lang,
+          audioPeak: round4(silence.stats.peak),
+          audioAverage: round4(silence.stats.average),
+          recordingDuration: recording.durationMs,
+        },
+        device,
+      );
+      this.updateDebugSnapshot({
+        pqIndex: pq.index,
+        mode: 'word',
+        stats: silence.stats,
+        silenceReason: silence.reason || 'too-quiet',
+        thresholds: adaptive,
+        transcript: '',
+        score: 0,
+        confidence: null,
+        assistedMode: false,
+        retryCount,
+      });
+      this.pronunciation.releaseObjectUrl(recording.objectUrl);
+      return;
+    }
+
+    pq.pronUiState = 'processing';
+    pq.pronMessage = 'Processing…';
+    this.armPronProcessingSlowTimer();
+
+    const expected = String(pq.data?.word || '');
+    const variants = this.resolvePronVariants(pq);
+    const baseThreshold = Number(pq.data?.similarityThreshold);
+    const baseThresholdSafe = Number.isFinite(baseThreshold) ? baseThreshold : 70;
+    const assisted = this.assistedModeByIndex[pq.index] === true;
+    const threshold = this.pronAnalytics.adjustThreshold(baseThresholdSafe, assisted);
+    const meta = this.buildClientMeta({
+      mode: 'word',
+      recording,
+      stats: silence.stats,
+      silenceRejected: false,
+      silenceReason: null,
+      retryCount,
+      assistedMode: assisted,
+      thresholds: adaptive,
+    });
+
+    try {
+      const res = await this.pronunciation
+        .evaluateAudio(recording.blob, {
+          expected,
+          language: lang,
+          variants,
+          threshold,
+          clientMeta: meta,
+        })
+        .toPromise() as PronunciationEvaluateResponse;
+
+      console.info('[pronunciation] word result', {
+        ...meta,
+        transcriptLength: res.transcript.length,
+        score: res.score,
+        confidence: res.confidence,
+        requestId: res.requestId,
+        engine: res.engine,
+      });
+
+      pq.spokenText = res.transcript || '';
+      pq.pronunciationScore = res.score;
+      pq.hasRecorded = true;
+      pq.pronUiState = 'result';
+      pq.pronMessage = null as unknown as string;
+      pq.pronEngine = res.engine;
+      pq.pronRequestId = res.requestId;
+      this.lastConfidenceByIndex[pq.index] = res.confidence;
+      this.markAttempted(pq);
+
+      const passed = !!res.isCorrect;
+      const nextFailCount = this.pronAnalytics.recordAttemptOutcome(attemptKey, passed);
+      if (passed) {
+        // Feed the user profile so future thresholds adapt to their voice.
+        this.pronAnalytics.recordSuccessfulAttempt({
+          average: silence.stats.average,
+          peak: silence.stats.peak,
+          durationMs: recording.durationMs,
+        });
+        this.assistedModeByIndex[pq.index] = false;
+        this.autoReplayArmedFor[pq.index] = false;
+      } else {
+        this.maybeTriggerSmartAssistWord(pq, nextFailCount);
+      }
+
+      this.updateDebugSnapshot({
+        pqIndex: pq.index,
+        mode: 'word',
+        stats: silence.stats,
+        silenceReason: 'ok',
+        thresholds: adaptive,
+        transcript: res.transcript || '',
+        score: res.score,
+        confidence: res.confidence || null,
+        assistedMode: !!res.assistedMode,
+        retryCount,
+      });
+    } catch (err: any) {
+      console.error('[pronunciation] evaluate failed (word)', err);
+      pq.pronUiState = 'error';
+      if (this.isNetworkError(err)) {
+        pq.pronMessage = 'Network issue. Please try again.';
+        this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+        this.pronAnalytics.sendTelemetry(
+          { networkError: true, retryCount, language: lang, recordingDuration: recording.durationMs },
+          device,
+        );
+      } else {
+        pq.pronMessage = 'Scoring failed, try again';
+        this.snackBar.open('Could not reach the pronunciation grader. Please try again.', 'Close', { duration: 4000 });
+      }
+    } finally {
+      this.clearPronProcessingSlowTimer();
+      this.pronunciation.releaseObjectUrl(recording.objectUrl);
+    }
+  }
+
+  /** After a failed word attempt, flip on assisted mode / auto-replay per spec. */
+  private maybeTriggerSmartAssistWord(pq: PlayerQuestion, failCount: number): void {
+    if (failCount >= 3) {
+      this.assistedModeByIndex[pq.index] = true;
+    }
+    if (failCount === 2 && !this.autoReplayArmedFor[pq.index]) {
+      this.autoReplayArmedFor[pq.index] = true;
+      this.snackBar.open('Tip: speak slowly and clearly.', 'Close', { duration: 3500 });
+      // Replay reference once to reset the student's pronunciation model.
+      setTimeout(() => this.replayReferenceForRetry(pq), 300);
+    }
+  }
+
+  // ── Clip-level pronunciation (video-pronunciation) ────────────────────
+
+  private async startAudioPronunciationForClip(pq: PlayerQuestion): Promise<void> {
+    pq.vpResult = 'idle';
+    this.clearVpFeedbackUi();
+    const started = await this.ensureRecordingStarted(pq);
+    if (!started) {
+      // Match legacy behaviour: count as a failed attempt so retry counters work.
+      pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+      pq.vpResult = 'incorrect';
+      pq.hasRecorded = true;
+      pq.pronunciationScore = 0;
+      pq.vpSpokenText = '';
+      pq.isAnswered = true;
+      this.markAttempted(pq);
+      return;
+    }
+    this.armPronAutoStop(pq, 'clip');
+  }
+
+  private async finishAudioPronunciationForClip(pq: PlayerQuestion): Promise<void> {
+    if (this.activePronQuestion !== pq) return;
+    this.clearPronAutoStopTimer();
+    this.activePronQuestion = null;
+
+    let recording: RecordingResult | null = null;
+    try {
+      recording = await this.pronunciation.stopRecording();
+    } catch (err: any) {
+      console.error('[pronunciation] stopRecording failed (clip)', err);
+      this.applyVpFailureFromAudioFlow(pq, 'recording-failed');
+      return;
+    }
+    pq.isRecording = false;
+
+    if (!recording || recording.blob.size === 0) {
+      this.applyVpFailureFromAudioFlow(pq, 'no-audio', recording?.objectUrl || null);
+      return;
+    }
+
+    // Adaptive silence thresholds — honour user profile + device tuning.
+    const device = this.deviceInfo || this.pronAnalytics.getDeviceInfo(this.pronCapabilities);
+    const adaptive = this.pronAnalytics.getAdaptiveThresholds(device);
+    this.lastAdaptiveThresholds = adaptive;
+    const silence = this.pronunciation.evaluateSilence(recording.durationMs, {
+      minAverageLevel: adaptive.minAverageLevel,
+      minPeakLevel: adaptive.minPeakLevel,
+      minDurationMs: adaptive.minDurationMs,
+    });
+    this.lastSilenceByIndex[pq.index] = silence;
+
+    const attemptKey = this.pronAttemptKey(pq, 'clip');
+    const retryCount = this.pronAnalytics.getFailCount(attemptKey);
+    const lang = this.resolveLanguageBcp47();
+
+    if (!silence.ok) {
+      console.info('[pronunciation] local silence reject (clip)', silence);
+      this.pronAnalytics.sendTelemetry(
+        {
+          silenceRejected: true,
+          silenceReason: silence.reason || null,
+          retryCount,
+          language: lang,
+          audioPeak: round4(silence.stats.peak),
+          audioAverage: round4(silence.stats.average),
+          recordingDuration: recording.durationMs,
+        },
+        device,
+      );
+      this.updateDebugSnapshot({
+        pqIndex: pq.index,
+        mode: 'clip',
+        stats: silence.stats,
+        silenceReason: silence.reason || 'too-quiet',
+        thresholds: adaptive,
+        transcript: '',
+        score: 0,
+        confidence: null,
+        assistedMode: false,
+        retryCount,
+      });
+      this.applyVpSilenceRejection(pq, silence, recording.objectUrl);
+      return;
+    }
+
+    pq.pronUiState = 'processing';
+    pq.pronMessage = 'Processing…';
+    this.armPronProcessingSlowTimer();
+
+    const expected = this.speakTargetCaptionForQuestion(pq);
+    const variants = this.resolvePronVariants(pq);
+    const baseThreshold = this.videoPassThresholdForQuestion(pq);
+    const assisted = this.assistedModeByIndex[pq.index] === true;
+    const threshold = this.pronAnalytics.adjustThreshold(baseThreshold, assisted);
+    const meta = this.buildClientMeta({
+      mode: 'clip',
+      recording,
+      stats: silence.stats,
+      silenceRejected: false,
+      silenceReason: null,
+      retryCount,
+      assistedMode: assisted,
+      thresholds: adaptive,
+    });
+
+    try {
+      const res = await this.pronunciation
+        .evaluateAudio(recording.blob, {
+          expected,
+          language: lang,
+          variants,
+          threshold,
+          clientMeta: meta,
+        })
+        .toPromise() as PronunciationEvaluateResponse;
+
+      console.info('[pronunciation] clip result', {
+        ...meta,
+        transcriptLength: res.transcript.length,
+        score: res.score,
+        confidence: res.confidence,
+        requestId: res.requestId,
+        engine: res.engine,
+      });
+
+      this.lastConfidenceByIndex[pq.index] = res.confidence;
+      const passed = !!res.isCorrect;
+      const nextFailCount = this.pronAnalytics.recordAttemptOutcome(attemptKey, passed);
+      if (passed) {
+        this.pronAnalytics.recordSuccessfulAttempt({
+          average: silence.stats.average,
+          peak: silence.stats.peak,
+          durationMs: recording.durationMs,
+        });
+        this.assistedModeByIndex[pq.index] = false;
+        this.autoReplayArmedFor[pq.index] = false;
+      } else {
+        this.maybeTriggerSmartAssistClip(pq, nextFailCount);
+      }
+
+      this.updateDebugSnapshot({
+        pqIndex: pq.index,
+        mode: 'clip',
+        stats: silence.stats,
+        silenceReason: 'ok',
+        thresholds: adaptive,
+        transcript: res.transcript || '',
+        score: res.score,
+        confidence: res.confidence || null,
+        assistedMode: !!res.assistedMode,
+        retryCount,
+      });
+
+      this.applyVpSuccessFromAudioFlow(pq, res, threshold);
+    } catch (err: any) {
+      console.error('[pronunciation] evaluate failed (clip)', err);
+      const network = this.isNetworkError(err);
+      if (network) {
+        this.pronAnalytics.sendTelemetry(
+          { networkError: true, retryCount, language: lang, recordingDuration: recording.durationMs },
+          device,
+        );
+      }
+      this.applyVpFailureFromAudioFlow(pq, network ? 'network-error' : 'evaluate-failed');
+    } finally {
+      this.clearPronProcessingSlowTimer();
+      this.pronunciation.releaseObjectUrl(recording.objectUrl);
+    }
+  }
+
+  /** Clip-flow equivalent of the word smart-assist trigger. */
+  private maybeTriggerSmartAssistClip(pq: PlayerQuestion, failCount: number): void {
+    if (failCount >= 3) {
+      this.assistedModeByIndex[pq.index] = true;
+    }
+    if (failCount === 2 && !this.autoReplayArmedFor[pq.index]) {
+      this.autoReplayArmedFor[pq.index] = true;
+      this.snackBar.open('Tip: speak slowly and clearly.', 'Close', { duration: 3500 });
+      setTimeout(() => this.replayReferenceForRetry(pq), 300);
+    }
+  }
+
+  /** Capture a debug snapshot used by the optional dev panel. */
+  private updateDebugSnapshot(s: {
+    pqIndex: number;
+    mode: 'word' | 'clip';
+    stats: { peak: number; average: number; durationMs: number; samples: number };
+    silenceReason: 'too-short' | 'too-quiet' | 'ok';
+    thresholds: AdaptiveThresholds | null;
+    transcript: string;
+    score: number;
+    confidence: PronunciationConfidence | null;
+    assistedMode: boolean;
+    retryCount: number;
+  }): void {
+    this.lastPronDebugSnapshot = { ...s, at: Date.now() };
+  }
+
+  /**
+   * Silent/too-short clip recordings — we keep the student on the same clip
+   * (do NOT mark as a wrong attempt that consumes their retry count) and
+   * explain exactly why. Counter is left untouched so this doesn't punish
+   * mic hiccups.
+   */
+  private applyVpSilenceRejection(
+    pq: PlayerQuestion,
+    silence: SilenceCheckResult,
+    objectUrlToRelease: string,
+  ): void {
+    this.pronunciation.releaseObjectUrl(objectUrlToRelease);
+    pq.isRecording = false;
+    pq.pronUiState = 'error';
+    pq.pronMessage = this.silentRejectMessage(silence.reason);
+    // Keep vpResult = idle so the main mic button reappears rather than
+    // going through the incorrect/retry flow.
+    pq.vpResult = 'idle';
+    this.snackBar.open(pq.pronMessage, 'Close', { duration: 4000 });
+    if (this.isVideoOnlyExercise) {
+      this.pushVpChat('tutor', pq.pronMessage);
+    }
+  }
+
+  private applyVpSuccessFromAudioFlow(
+    pq: PlayerQuestion,
+    res: PronunciationEvaluateResponse,
+    threshold: number,
+  ): void {
+    pq.vpSpokenText = res.transcript || '';
+    pq.pronunciationScore = res.score;
+    pq.hasRecorded = true;
+    pq.pronEngine = res.engine;
+    pq.pronRequestId = res.requestId;
+
+    const isCorrect = res.isCorrect;
+    pq.vpResult = isCorrect ? 'correct' : 'incorrect';
+    pq.pronUiState = 'result';
+    pq.pronMessage = null as unknown as string;
+    if (!isCorrect) pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+    this.markAttempted(pq);
+
+    if (this.isVideoOnlyExercise) {
+      this.pushVpChat('user', pq.vpSpokenText || '(no audio)', { isCorrect, score: pq.pronunciationScore || 0 });
+      if (isCorrect) {
+        this.pushVpChat('tutor', this.confidenceHeadline(res.confidence) || 'Okay');
+      } else {
+        const headline = this.confidenceHeadline(res.confidence) || 'Not quite';
+        this.pushVpChat('tutor', `${headline} — target is ${threshold}%+. Choose retry or next clip.`);
+      }
+    }
+
+    if (isCorrect) {
+      if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
+      pq.vpAutoAdvanceTimer = undefined;
+      void this.runVpCorrectAdvanceSequence(pq);
+    } else {
+      void this.runVpIncorrectFeedbackSequence(pq);
+    }
+  }
+
+  private applyVpFailureFromAudioFlow(
+    pq: PlayerQuestion,
+    reason: 'no-audio' | 'evaluate-failed' | 'recording-failed' | 'network-error',
+    objectUrlToRelease: string | null = null,
+  ): void {
+    if (objectUrlToRelease) this.pronunciation.releaseObjectUrl(objectUrlToRelease);
+    pq.isRecording = false;
+    pq.pronUiState = 'error';
+    pq.pronunciationScore = 0;
+    pq.vpSpokenText = '';
+
+    // Network errors should NOT be counted as a wrong answer or graded as 0%.
+    // Leave the clip in idle so the student can simply tap Speak again.
+    if (reason === 'network-error') {
+      pq.vpResult = 'idle';
+      pq.pronMessage = 'Network issue. Please try again.';
+      this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+      if (this.isVideoOnlyExercise) {
+        this.pushVpChat('tutor', 'Network issue — please tap Speak once your connection is stable.');
+      }
+      return;
+    }
+
+    pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+    pq.hasRecorded = true;
+    pq.vpResult = 'incorrect';
+    pq.isAnswered = true;
+    this.markAttempted(pq);
+
+    const reasonMessages: Record<'no-audio' | 'evaluate-failed' | 'recording-failed', string> = {
+      'no-audio':         'No speech detected. Please try again.',
+      'evaluate-failed':  'Could not reach the pronunciation grader. Please try again.',
+      'recording-failed': 'Could not capture audio. Please try again.',
+    };
+    pq.pronMessage = reason === 'no-audio' ? 'No speech detected, try again' : 'Try again';
+    this.snackBar.open(reasonMessages[reason], 'Close', { duration: 4000 });
+
+    if (this.isVideoOnlyExercise) {
+      this.pushVpChat('tutor', 'I could not hear your full sentence. Please tap Speak and try again.');
+      if ((pq.vpFailCount || 0) >= DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP) {
+        this.pushVpChat(
+          'tutor',
+          `I could not hear enough input after ${DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP} tries. You can retry or move to the next clip.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * One-shot reference replay used after an incorrect attempt.
+   * For video-pronunciation clips we replay the video; for word-level
+   * pronunciation we play the word's audio (or TTS fallback).
+   * Guarded per-question so we replay at most once per incorrect cycle.
+   */
+  replayReferenceForRetry(pq: PlayerQuestion): void {
+    if (!pq) return;
+    if (pq.data?.type === 'video-pronunciation') {
+      this.replayVpVideo();
+    } else if (pq.data?.type === 'pronunciation') {
+      this.playWordAudio(pq);
+    }
+  }
+
+  // ── Mic test (bonus) ──────────────────────────────────────────────────
+
+  openMicTest(): void {
+    this.micTestError = null;
+    this.micTestAudioUrl = null;
+    this.micTestState = 'idle';
+    this.micTestOpen = true;
+  }
+
+  closeMicTest(): void {
+    this.micTestOpen = false;
+    this.micTestState = 'idle';
+    if (this.micTestCountdownTimer) {
+      clearInterval(this.micTestCountdownTimer);
+      this.micTestCountdownTimer = null;
+    }
+    this.micTestCountdown = 0;
+    if (this.micTestAudioUrl) {
+      this.pronunciation.releaseObjectUrl(this.micTestAudioUrl);
+      this.micTestAudioUrl = null;
+    }
+    // Make sure we don't leave the mic running.
+    try { this.pronunciation.cancelRecording(); } catch { /* noop */ }
+  }
+
+  async runMicTest(): Promise<void> {
+    if (this.micTestState === 'recording') return;
+    if (!this.audioRecorderSupported) {
+      this.micTestError = 'Audio recording is not supported in this browser.';
+      this.micTestState = 'error';
+      return;
+    }
+    if (this.micTestAudioUrl) {
+      this.pronunciation.releaseObjectUrl(this.micTestAudioUrl);
+      this.micTestAudioUrl = null;
+    }
+    this.micTestError = null;
+    this.micTestState = 'recording';
+    this.micTestCountdown = 2;
+    this.micTestCountdownTimer = setInterval(() => {
+      this.micTestCountdown = Math.max(0, this.micTestCountdown - 1);
+    }, 1000);
+
+    try {
+      const result = await this.pronunciation.recordQuickSample(2000);
+      this.micTestAudioUrl = result.objectUrl;
+      this.micTestState = 'ready';
+      console.info('[pronunciation] mic test ok', {
+        durationMs: result.durationMs,
+        audioSize: result.blob.size,
+        mimeType: result.mimeType,
+      });
+    } catch (err: any) {
+      console.error('[pronunciation] mic test failed', err);
+      this.micTestError = err?.message || 'Microphone test failed';
+      this.micTestState = 'error';
+    } finally {
+      if (this.micTestCountdownTimer) {
+        clearInterval(this.micTestCountdownTimer);
+        this.micTestCountdownTimer = null;
+      }
+      this.micTestCountdown = 0;
+    }
+  }
+}
+
+function round4(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10000) / 10000;
 }

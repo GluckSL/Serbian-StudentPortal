@@ -202,6 +202,10 @@ app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
 const listeningMediaRoutes = require('./routes/listeningMedia');
 app.use('/api/listening-media', listeningMediaRoutes);
 
+// Audio-based pronunciation evaluation (MediaRecorder → Whisper → scoring)
+const pronunciationEvaluationRoutes = require('./routes/pronunciationEvaluation');
+app.use('/api/pronunciation', pronunciationEvaluationRoutes);
+
 const listeningWorksheetRoutes = require('./routes/listeningWorksheetGenerator');
 app.use('/api/listening-worksheets', listeningWorksheetRoutes);
 

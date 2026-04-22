@@ -244,6 +244,59 @@
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
   <div class="player-layout" *ngIf="state === 'playing'" [class.player-layout--vp-only]="isVideoOnlyExercise">
 
+    <!-- Browser guidance banner: nudges non-recommended browsers toward Chrome -->
+    <div class="browser-guidance" *ngIf="showBrowserGuidance" role="status">
+      <span class="material-icons">info</span>
+      <span class="browser-guidance__text">
+        For the best microphone experience, we recommend <strong>Chrome</strong> on desktop.
+        <ng-container *ngIf="pronCapabilities?.isIOS">On iPhone/iPad make sure iOS is up-to-date.</ng-container>
+      </span>
+      <button type="button" class="browser-guidance__close" (click)="dismissBrowserGuidance()" aria-label="Dismiss">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <!-- Pronunciation developer debug panel (toggle: ?debug=pron or localStorage pron:debugPanel=1) -->
+    <div class="pron-debug" *ngIf="pronDebugPanelEnabled">
+      <div class="pron-debug__head">
+        <strong>Pronunciation debug</strong>
+        <button type="button" class="pron-debug__close" (click)="togglePronDebugPanel()" aria-label="Hide debug panel">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="pron-debug__grid">
+        <div><span>audioLevel</span><code>{{ audioLevel | number:'1.3-4' }}</code></div>
+        <div><span>isSilent (live)</span><code>{{ isSilent }}</code></div>
+        <div><span>thresholds</span>
+          <code *ngIf="lastAdaptiveThresholds; else noThr">
+            avg={{ lastAdaptiveThresholds.minAverageLevel | number:'1.3-4' }}
+            · peak={{ lastAdaptiveThresholds.minPeakLevel | number:'1.3-4' }}
+            · dur={{ lastAdaptiveThresholds.minDurationMs }}ms
+            · {{ lastAdaptiveThresholds.source }}
+            ({{ lastAdaptiveThresholds.sampleCount }}/5)
+            <ng-container *ngIf="lastAdaptiveThresholds.deviceTuned">· tuned</ng-container>
+          </code>
+          <ng-template #noThr><code>—</code></ng-template>
+        </div>
+        <div><span>device</span><code>{{ deviceInfo?.deviceType }} · {{ deviceInfo?.browser }}</code></div>
+        <ng-container *ngIf="lastPronDebugSnapshot as snap">
+          <div><span>last peak/avg</span>
+            <code>
+              peak={{ snap.stats.peak | number:'1.3-4' }} ·
+              avg={{ snap.stats.average | number:'1.3-4' }} ·
+              dur={{ snap.stats.durationMs }}ms
+            </code>
+          </div>
+          <div><span>silence decision</span><code>{{ snap.silenceReason }}</code></div>
+          <div><span>transcript</span><code title="{{ snap.transcript }}">"{{ snap.transcript || '—' }}"</code></div>
+          <div><span>score / confidence</span>
+            <code>{{ snap.score }}% · {{ snap.confidence || '—' }}<ng-container *ngIf="snap.assistedMode"> · assisted</ng-container></code>
+          </div>
+          <div><span>retryCount</span><code>{{ snap.retryCount }}</code></div>
+        </ng-container>
+      </div>
+    </div>
+
     <!-- Player Header (hidden for video-only — exit is on the video stage) -->
     <div class="player-header" *ngIf="!isVideoOnlyExercise">
       <button class="btn-icon-back btn-back-nav" (click)="goBack()" title="Go back">
@@ -423,7 +476,7 @@
 
                   <div
                     class="vp-stage-mic-block"
-                    *ngIf="!showVpFinalSubmit && currentQuestion.vpPlaybackEnded && (currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && !currentQuestion.isRecording && !hasCurrentSubmitted"
+                    *ngIf="!showVpFinalSubmit && currentQuestion.vpPlaybackEnded && (currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && !currentQuestion.isRecording && currentQuestion.pronUiState !== 'processing' && !hasCurrentSubmitted"
                   >
                     <button
                       type="button"
@@ -433,12 +486,26 @@
                     >
                       <span class="material-icons">mic</span>
                     </button>
-                    <span class="vp-stage-mic-hint">Tap to speak</span>
+                    <span class="vp-stage-mic-hint">{{ pronUiLabel(currentQuestion) }}</span>
+                    <button
+                      type="button"
+                      class="vp-stage-foot-pill vp-stage-foot-pill--subtle"
+                      (click)="openMicTest()"
+                      title="Check your microphone is working"
+                    >
+                      <span class="material-icons">settings_voice</span>
+                      Test microphone
+                    </button>
                   </div>
 
                   <div class="vp-stage-listening" *ngIf="currentQuestion.isRecording">
                     <span class="material-icons vp-stage-listening-icon">mic</span>
-                    <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                    <span>🎤 Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                    <app-audio-visualizer
+                      class="vp-stage-visualizer"
+                      [analyser]="getPronAnalyser()"
+                      [active]="!!currentQuestion.isRecording"
+                    ></app-audio-visualizer>
                     <button
                       type="button"
                       class="vp-stage-retry-btn"
@@ -449,6 +516,14 @@
                     </button>
                   </div>
 
+                  <div class="vp-stage-listening" *ngIf="currentQuestion.pronUiState === 'processing' && !currentQuestion.isRecording">
+                    <span class="material-icons vp-stage-listening-icon">hourglass_top</span>
+                    <span>Processing<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                    <span class="vp-stage-processing-hint" *ngIf="pronProcessingSlow">
+                      Processing your speech… this may take a moment.
+                    </span>
+                  </div>
+
                   <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
                     <div class="vp-stage-feedback" [class.ok]="currentQuestion.vpResult === 'correct'" [class.bad]="currentQuestion.vpResult === 'incorrect'">
                       <span class="material-icons">{{ currentQuestion.vpResult === 'correct' ? 'check_circle' : 'cancel' }}</span>
@@ -456,9 +531,32 @@
                       <span>{{ currentQuestion.vpResult === 'correct' ? (isVideoOnlyExercise ? 'Got it!' : 'Correct!') : 'Try again' }}</span>
                     </div>
                     <p class="vp-stage-feedback-caption" *ngIf="vpFeedbackCaption">{{ vpFeedbackCaption }}</p>
+                    <p
+                      class="vp-stage-confidence"
+                      *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
+                      [class.vp-stage-confidence--high]="conf === 'high'"
+                      [class.vp-stage-confidence--medium]="conf === 'medium'"
+                      [class.vp-stage-confidence--low]="conf === 'low'"
+                    >{{ confidenceHeadline(conf) }}</p>
+                    <p class="vp-stage-transcript" *ngIf="currentQuestion.vpSpokenText">
+                      <span class="vp-stage-transcript__label">You said:</span>
+                      <span class="vp-stage-transcript__text">“{{ currentQuestion.vpSpokenText }}”</span>
+                    </p>
+                    <p class="vp-stage-retry-nudge" *ngIf="currentQuestion.vpResult === 'incorrect'">
+                      ❌ Not quite right — 👉 try again clearly.
+                    </p>
                     <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'incorrect'">
                       <button type="button" class="vp-stage-retry-btn" (click)="speakAgainVideoPronunciation(currentQuestion)">
                         <span class="material-icons">mic</span> Speak again
+                      </button>
+                      <button
+                        type="button"
+                        class="vp-stage-pill vp-stage-pill--ghost"
+                        (click)="replayReferenceForRetry(currentQuestion)"
+                        title="Replay the reference sentence"
+                      >
+                        <span class="material-icons">replay</span>
+                        Replay sentence
                       </button>
                       <button
                         *ngIf="!isLastQuestion"
@@ -875,18 +973,56 @@
             <button
               class="btn-record"
               [class.recording]="currentQuestion.isRecording"
-              [class.has-result]="currentQuestion.hasRecorded && !currentQuestion.isRecording"
+              [class.processing]="currentQuestion.pronUiState === 'processing'"
+              [class.has-result]="currentQuestion.hasRecorded && !currentQuestion.isRecording && currentQuestion.pronUiState !== 'processing'"
               (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : startRecording(currentQuestion)"
-              [disabled]="hasCurrentSubmitted"
+              [disabled]="hasCurrentSubmitted || currentQuestion.pronUiState === 'processing'"
             >
-              <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
-              <span>{{ currentQuestion.isRecording ? 'Stop' : (currentQuestion.hasRecorded ? 'Re-record' : 'Speak') }}</span>
+              <span class="material-icons">
+                {{ currentQuestion.isRecording ? 'stop' : (currentQuestion.pronUiState === 'processing' ? 'hourglass_top' : 'mic') }}
+              </span>
+              <span>
+                {{ currentQuestion.isRecording
+                    ? 'Stop'
+                    : (currentQuestion.pronUiState === 'processing'
+                        ? 'Processing…'
+                        : (currentQuestion.hasRecorded ? 'Re-record' : 'Speak')) }}
+              </span>
             </button>
 
             <div class="pronunciation-listening" *ngIf="currentQuestion.isRecording">
               <span class="material-icons">mic</span>
-              Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+              🎤 Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+              <app-audio-visualizer
+                class="pronunciation-visualizer"
+                [analyser]="getPronAnalyser()"
+                [active]="!!currentQuestion.isRecording"
+              ></app-audio-visualizer>
             </div>
+
+            <div class="pronunciation-listening" *ngIf="currentQuestion.pronUiState === 'processing' && !currentQuestion.isRecording">
+              <span class="material-icons">hourglass_top</span>
+              Processing<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+              <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">
+                — this may take a moment.
+              </span>
+            </div>
+
+            <div class="pronunciation-listening pronunciation-listening--error" *ngIf="currentQuestion.pronUiState === 'error' && !currentQuestion.isRecording">
+              <span class="material-icons">error_outline</span>
+              {{ currentQuestion.pronMessage || 'No speech detected, try again' }}
+            </div>
+
+            <button
+              type="button"
+              class="btn-record btn-record--subtle"
+              (click)="openMicTest()"
+              [disabled]="currentQuestion.isRecording || currentQuestion.pronUiState === 'processing'"
+              title="Check your microphone is working"
+            >
+              <span class="material-icons">settings_voice</span>
+              <span>Test microphone</span>
+            </button>
           </div>
 
           <div class="pronunciation-result" *ngIf="currentQuestion.hasRecorded || hasCurrentSubmitted">
@@ -899,9 +1035,24 @@
               <div class="score-label">Match</div>
             </div>
             <div class="pronunciation-feedback">{{ getPronunciationFeedback(currentQuestion.pronunciationScore || 0) }}</div>
+            <div
+              class="pronunciation-confidence"
+              *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
+              [attr.data-confidence]="conf"
+            >{{ confidenceHeadline(conf) }}</div>
+            <div class="pronunciation-retry-row"
+                 *ngIf="currentQuestion.hasRecorded && (currentQuestion.pronunciationScore || 0) < 70 && !hasCurrentSubmitted">
+              <span class="pronunciation-retry-nudge">❌ Not quite — 👉 try again clearly.</span>
+              <button type="button" class="btn-record btn-record--subtle"
+                      (click)="replayReferenceForRetry(currentQuestion)"
+                      title="Replay the reference word">
+                <span class="material-icons">replay</span>
+                <span>Replay word</span>
+              </button>
+            </div>
           </div>
 
-          <div class="speech-not-supported" *ngIf="!speechSupported">
+          <div class="speech-not-supported" *ngIf="!speechSupported && !audioRecorderSupported">
             <span class="material-icons">warning</span>
             Speech recognition is not supported in this browser.
             Please use Chrome or Edge for pronunciation exercises.
@@ -1001,7 +1152,7 @@
                 </p>
 
                 <!-- After video ends: Replay + Speak -->
-                <div class="vp-mob-btn-row" *ngIf="(currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && currentQuestion.vpPlaybackEnded && !currentQuestion.isRecording">
+                <div class="vp-mob-btn-row" *ngIf="(currentQuestion.vpResult === 'idle' || !currentQuestion.vpResult) && currentQuestion.vpPlaybackEnded && !currentQuestion.isRecording && currentQuestion.pronUiState !== 'processing'">
                   <button type="button" class="vp-mob-btn vp-mob-btn--secondary" (click)="replayVpVideo()">
                     <span class="material-icons">replay</span>
                     <span>Replay</span>
@@ -1010,17 +1161,26 @@
                     <span class="material-icons">mic</span>
                     <span>Speak</span>
                   </button>
+                  <button type="button" class="vp-mob-btn vp-mob-btn--retry" (click)="openMicTest()">
+                    <span class="material-icons">settings_voice</span>
+                    <span>Test mic</span>
+                  </button>
                 </div>
 
-                <p class="vp-mic-hint" *ngIf="!speechSupported && currentQuestion.vpPlaybackEnded">
+                <p class="vp-mic-hint" *ngIf="!speechSupported && !audioRecorderSupported && currentQuestion.vpPlaybackEnded">
                   <span class="material-icons" style="font-size:1rem">warning</span>
-                  Speech not supported in this browser. Try Chrome or Edge.
+                  Audio recording not supported in this browser. Try Chrome, Edge, or Safari 14.3+.
                 </p>
 
                 <!-- Listening -->
                 <div class="vp-mob-listening" *ngIf="currentQuestion.isRecording">
                   <span class="material-icons vp-mob-pulse">mic</span>
-                  <span>Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span> — speak now</span>
+                  <span>🎤 Listening<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span> — speak now</span>
+                  <app-audio-visualizer
+                    class="vp-mob-visualizer"
+                    [analyser]="getPronAnalyser()"
+                    [active]="!!currentQuestion.isRecording"
+                  ></app-audio-visualizer>
                   <button
                     type="button"
                     class="vp-mob-btn vp-mob-btn--retry"
@@ -1029,6 +1189,15 @@
                     <span class="material-icons">stop</span>
                     <span>Stop</span>
                   </button>
+                </div>
+
+                <!-- Processing (audio flow) -->
+                <div class="vp-mob-listening" *ngIf="currentQuestion.pronUiState === 'processing' && !currentQuestion.isRecording">
+                  <span class="material-icons vp-mob-pulse">hourglass_top</span>
+                  <span>Processing<span class="vp-listening-dots vp-listening-dots--light" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                  <span class="vp-mob-processing-hint" *ngIf="pronProcessingSlow">
+                    This may take a moment.
+                  </span>
                 </div>
 
                 <ng-container *ngIf="currentQuestion.vpResult === 'correct'">
@@ -1045,12 +1214,19 @@
                   <div class="vp-feedback vp-feedback--incorrect vp-feedback--mobile">
                     <span class="material-icons">cancel</span>
                     <strong>Try again</strong>
-                    <span class="vp-spoken">"{{ currentQuestion.vpSpokenText }}"</span>
+                    <span class="vp-spoken" *ngIf="currentQuestion.vpSpokenText">You said: "{{ currentQuestion.vpSpokenText }}"</span>
                   </div>
-                  <button type="button" class="vp-mob-btn vp-mob-btn--retry" (click)="speakAgainVideoPronunciation(currentQuestion)">
-                    <span class="material-icons">mic</span>
-                    <span>Speak again</span>
-                  </button>
+                  <p class="vp-mob-retry-nudge">❌ Not quite — 👉 try again clearly.</p>
+                  <div class="vp-mob-btn-row">
+                    <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="speakAgainVideoPronunciation(currentQuestion)">
+                      <span class="material-icons">mic</span>
+                      <span>Speak again</span>
+                    </button>
+                    <button type="button" class="vp-mob-btn vp-mob-btn--secondary" (click)="replayReferenceForRetry(currentQuestion)">
+                      <span class="material-icons">replay</span>
+                      <span>Replay sentence</span>
+                    </button>
+                  </div>
                   <!-- Last clip: submit exercise even if incorrect -->
                   <button
                     *ngIf="isLastQuestion"
@@ -1239,4 +1415,73 @@
 
   </div>
 
+</div>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<!-- Microphone Test Dialog (bonus feature)                                 -->
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<div class="mic-test-overlay" *ngIf="micTestOpen" (click)="closeMicTest()">
+  <div class="mic-test-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-label="Test your microphone">
+    <button type="button" class="mic-test-close" (click)="closeMicTest()" aria-label="Close">
+      <span class="material-icons">close</span>
+    </button>
+    <h3 class="mic-test-title">
+      <span class="material-icons">settings_voice</span>
+      Test your microphone
+    </h3>
+    <p class="mic-test-subtitle">
+      We'll record a 2-second sample so you can hear exactly what your microphone captures.
+    </p>
+
+    <div class="mic-test-body" [ngSwitch]="micTestState">
+      <div *ngSwitchCase="'idle'" class="mic-test-idle">
+        <button type="button" class="mic-test-record-btn" (click)="runMicTest()">
+          <span class="material-icons">fiber_manual_record</span>
+          Start test (2s)
+        </button>
+        <p class="mic-test-hint" *ngIf="micPermission === 'denied'">
+          <span class="material-icons">warning</span>
+          Microphone access is blocked. Please allow it in your browser settings first.
+        </p>
+      </div>
+
+      <div *ngSwitchCase="'recording'" class="mic-test-recording">
+        <span class="material-icons mic-test-pulse">mic</span>
+        <div class="mic-test-count">Recording… {{ micTestCountdown }}s</div>
+        <p class="mic-test-hint">Say something clearly, e.g. <em>“Hallo, ich teste mein Mikrofon.”</em></p>
+      </div>
+
+      <div *ngSwitchCase="'ready'" class="mic-test-ready">
+        <p class="mic-test-hint">
+          <span class="material-icons" style="color:#16a34a">check_circle</span>
+          Captured. Press play to hear yourself.
+        </p>
+        <audio *ngIf="micTestAudioUrl" [src]="micTestAudioUrl" controls preload="auto"></audio>
+        <div class="mic-test-actions">
+          <button type="button" class="mic-test-secondary" (click)="runMicTest()">
+            <span class="material-icons">refresh</span>
+            Record again
+          </button>
+          <button type="button" class="mic-test-primary" (click)="closeMicTest()">
+            <span class="material-icons">thumb_up</span>
+            Sounds good
+          </button>
+        </div>
+      </div>
+
+      <div *ngSwitchCase="'error'" class="mic-test-error">
+        <p class="mic-test-hint">
+          <span class="material-icons" style="color:#dc2626">error_outline</span>
+          {{ micTestError || 'Microphone test failed.' }}
+        </p>
+        <div class="mic-test-actions">
+          <button type="button" class="mic-test-secondary" (click)="runMicTest()">
+            <span class="material-icons">refresh</span>
+            Try again
+          </button>
+          <button type="button" class="mic-test-primary" (click)="closeMicTest()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>

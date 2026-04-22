@@ -2788,7 +2788,12 @@
   z-index: auto;
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
+  width: min(100%, 560px);
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
   background: rgba(220, 38, 38, 0.45);
   border: 1px solid rgba(252, 165, 165, 0.65);
   padding: 12px 22px;
@@ -2851,6 +2856,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: #fff;
@@ -3840,7 +3846,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
   padding: 16px;
   border-radius: 16px;
   background: linear-gradient(135deg, #fef2f2, #fee2e2);
@@ -4040,3 +4049,437 @@
 
 .q-text u, .qa-prompt u, .sentence-part u,
 .review-q-text u, .opt-text u { text-decoration: underline; }
+
+/* ──────────────────────────────────────────────────────────────────── */
+/* New pronunciation flow: processing / error / test-mic               */
+/* ──────────────────────────────────────────────────────────────────── */
+
+.btn-record.processing {
+  background: #fbbf24;
+  color: #1f2937;
+  cursor: progress;
+}
+.btn-record--subtle {
+  background: transparent;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+  box-shadow: none;
+  margin-left: 0.5rem;
+}
+.btn-record--subtle:hover:not(:disabled) {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.pronunciation-listening--error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+}
+
+.vp-stage-foot-pill--subtle {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.92);
+  margin-top: 0.5rem;
+  backdrop-filter: blur(2px);
+}
+.vp-stage-foot-pill--subtle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Mic test dialog ────────────────────────────────────────────────── */
+
+.mic-test-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: micTestFadeIn 150ms ease-out;
+}
+@keyframes micTestFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.mic-test-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: min(440px, 100%);
+  padding: 1.5rem 1.5rem 1.25rem;
+  position: relative;
+  animation: micTestSlideUp 180ms ease-out;
+}
+@keyframes micTestSlideUp {
+  from { transform: translateY(8px); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.mic-test-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0.25rem;
+  line-height: 0;
+}
+.mic-test-close:hover { color: #0f172a; }
+
+.mic-test-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+.mic-test-title .material-icons { color: #2563eb; }
+.mic-test-subtitle {
+  margin: 0 0 1rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.mic-test-body { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.mic-test-record-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.65rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.95rem;
+  align-self: flex-start;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);
+}
+.mic-test-record-btn:hover { background: #b91c1c; }
+
+.mic-test-recording {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+.mic-test-pulse {
+  font-size: 3rem;
+  color: #dc2626;
+  animation: micTestPulse 1s ease-in-out infinite;
+}
+@keyframes micTestPulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.1); opacity: 0.75; }
+}
+.mic-test-count { font-weight: 600; color: #0f172a; }
+
+.mic-test-ready audio { width: 100%; margin: 0.5rem 0; }
+
+.mic-test-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.mic-test-primary,
+.mic-test-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+}
+.mic-test-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.mic-test-primary:hover { background: #1d4ed8; }
+.mic-test-secondary {
+  background: #fff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.mic-test-secondary:hover { background: #f1f5f9; }
+
+.mic-test-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #475569;
+  font-size: 0.9rem;
+  margin: 0;
+}
+.mic-test-error .mic-test-hint { color: #b91c1c; }
+
+/* ── Browser guidance banner ───────────────────────────────────────────── */
+.browser-guidance {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  margin: 0.5rem 1rem 0;
+  font-size: 0.9rem;
+}
+.browser-guidance .material-icons { color: #d97706; font-size: 1.25rem; }
+.browser-guidance__text { flex: 1 1 auto; line-height: 1.35; }
+.browser-guidance__close {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: #92400e;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+.browser-guidance__close:hover { background: rgba(146, 64, 14, 0.08); }
+
+/* ── Visualiser placement tweaks ──────────────────────────────────────── */
+.pronunciation-visualizer {
+  display: inline-flex;
+  margin-left: 0.6rem;
+  vertical-align: middle;
+}
+.vp-stage-visualizer,
+.vp-mob-visualizer {
+  display: inline-flex;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  flex: 1 1 190px;
+  min-width: 120px;
+  max-width: 100%;
+}
+/* When the visualiser sits inside the dark video stage, use the on-dark variant. */
+.vp-stage-visualizer .av,
+.vp-mob-visualizer .av {
+  --av-bar-color: #ffffff;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.vp-stage-visualizer .av.av--silent,
+.vp-mob-visualizer .av.av--silent {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Processing-slow hints ─────────────────────────────────────────────── */
+.vp-stage-processing-hint,
+.vp-mob-processing-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.85rem;
+  font-style: italic;
+  animation: slow-hint-in 180ms ease-out;
+}
+.pronunciation-processing-slow {
+  margin-left: 0.35rem;
+  color: #475569;
+  font-size: 0.9rem;
+  font-style: italic;
+  animation: slow-hint-in 180ms ease-out;
+}
+@keyframes slow-hint-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Transcript + retry nudge (VP stage) ──────────────────────────────── */
+.vp-stage-transcript {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: baseline;
+  margin: 0.35rem 0 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.95rem;
+}
+.vp-stage-transcript__label {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+}
+.vp-stage-transcript__text { font-style: italic; }
+
+.vp-stage-retry-nudge {
+  margin: 0.35rem 0 0;
+  color: #fecaca;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ── Word-pronunciation retry nudge + replay ──────────────────────────── */
+.pronunciation-retry-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+.pronunciation-retry-nudge {
+  color: #b91c1c;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+/* ── Mobile VP retry nudge ─────────────────────────────────────────────── */
+.vp-mob-retry-nudge {
+  margin: 0.35rem 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .vp-stage-listening {
+    width: calc(100% - 12px);
+    padding: 10px 12px;
+    border-radius: 18px;
+    gap: 8px;
+  }
+  .vp-stage-listening > span {
+    font-size: 0.88rem;
+  }
+  .vp-stage-retry-btn {
+    padding: 7px 12px;
+    font-size: 0.84rem;
+  }
+  .vp-stage-visualizer {
+    margin-left: 0;
+    flex-basis: 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .vp-stage-listening {
+    width: calc(100% - 8px);
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .vp-stage-listening > span {
+    font-size: 0.82rem;
+  }
+  .vp-stage-visualizer,
+  .vp-mob-visualizer {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  .vp-stage-visualizer .av,
+  .vp-mob-visualizer .av {
+    --av-height: 36px;
+    padding: 3px 8px;
+  }
+  .vp-stage-retry-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 7px 10px;
+  }
+}
+
+/* ── Confidence-based feedback headline ─────────────────────────────────── */
+.vp-stage-confidence {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+.vp-stage-confidence--high   { color: #34d399; }
+.vp-stage-confidence--medium { color: #fbbf24; }
+.vp-stage-confidence--low    { color: #fca5a5; }
+
+.pronunciation-confidence {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+.pronunciation-confidence[data-confidence='high']   { color: #059669; }
+.pronunciation-confidence[data-confidence='medium'] { color: #b45309; }
+.pronunciation-confidence[data-confidence='low']    { color: #b91c1c; }
+
+/* ── Developer debug panel ─────────────────────────────────────────────── */
+.pron-debug {
+  margin: 0.5rem 1rem 0;
+  padding: 0.75rem 1rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.pron-debug__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  color: #f8fafc;
+}
+.pron-debug__close {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.pron-debug__close:hover { background: rgba(255, 255, 255, 0.08); }
+.pron-debug__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.25rem 1rem;
+}
+.pron-debug__grid > div {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  min-width: 0;
+}
+.pron-debug__grid span {
+  color: #94a3b8;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+.pron-debug__grid code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #f1f5f9;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
