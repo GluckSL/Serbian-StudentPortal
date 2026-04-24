@@ -1,0 +1,42 @@
+.pa-table-wrap {
+  padding: 0.5rem 0;
+}
+
+.pa-center {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.pa-table-card {
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  background: #fff;
+}
+
+.th-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  cursor: pointer;
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: #94a3b8;
+  }
+}
+
+.page-cell {
+  word-break: break-word;
+  font-size: 0.9rem;
+  color: #334155;
+}

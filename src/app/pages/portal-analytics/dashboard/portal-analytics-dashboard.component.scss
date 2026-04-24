@@ -1,0 +1,255 @@
+.dash-loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.dash-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.dash-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+}
+
+.kpi-icon {
+  color: #3b82f6;
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.kpi-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.kpi-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.kpi-value-sm {
+  font-size: 1.05rem;
+}
+
+.kpi-hint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+}
+
+.historical-banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem 1.15rem;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #fef3c7, #fff7ed);
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  mat-icon {
+    margin-top: 2px;
+    color: #b45309;
+  }
+  .hist-val {
+    font-weight: 700;
+    margin-left: 0.35rem;
+  }
+  .hist-meta {
+    font-size: 0.85rem;
+    opacity: 0.85;
+    margin-left: 0.35rem;
+  }
+  .hist-disclaimer,
+  .hist-note {
+    font-size: 0.8rem;
+    margin-top: 0.35rem;
+    opacity: 0.95;
+  }
+}
+
+.mid-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 280px;
+  gap: 1rem;
+  @media (max-width: 1199px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-card,
+.live-card,
+.table-card,
+.insights-card {
+  border-radius: 14px !important;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.07) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  padding: 1rem 1.15rem !important;
+}
+
+.card-head {
+  margin-bottom: 0.75rem;
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .sub {
+    font-size: 0.78rem;
+    color: #64748b;
+  }
+}
+
+.line-h {
+  height: 260px;
+}
+
+.donut-h {
+  height: 260px;
+}
+
+.chart-wrap {
+  position: relative;
+}
+
+.live-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+.live-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.live-sub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1rem;
+  @media (max-width: 991px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.insights-card {
+  .insight-block {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .insight-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .insight-metric {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .insight-sub {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+}
+
+.mini-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.insight-item {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem 0.65rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  mat-icon {
+    flex-shrink: 0;
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+    color: #64748b;
+  }
+  &.insight-pos mat-icon {
+    color: #059669;
+  }
+  &.insight-neg mat-icon {
+    color: #dc2626;
+  }
+  &.insight-warn mat-icon {
+    color: #d97706;
+  }
+}
+
+.insight-item-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.insight-item-body {
+  font-size: 0.8rem;
+  color: #475569;
+  margin-top: 0.15rem;
+}

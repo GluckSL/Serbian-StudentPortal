@@ -4,6 +4,7 @@ import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { NavService, NavGroup } from '../services/nav.service';
 import { TourService } from '../../services/tour.service';
+import { PortalTrackingService } from '../../services/portal-tracking.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -26,7 +27,8 @@ export class SidebarComponent implements OnInit {
     private authService: AuthService,
     private navService: NavService,
     private router: Router,
-    private tourService: TourService
+    private tourService: TourService,
+    private portalTracking: PortalTrackingService
   ) {}
 
   ngOnInit(): void {
@@ -77,9 +79,11 @@ export class SidebarComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout().subscribe({
-      next: () => this.router.navigate(['/home']),
-      error: () => this.router.navigate(['/home'])
+    void this.portalTracking.flushEndSessionBeforeLogout().finally(() => {
+      this.authService.logout().subscribe({
+        next: () => this.router.navigate(['/home']),
+        error: () => this.router.navigate(['/home'])
+      });
     });
     this.closeSidebar.emit();
   }

@@ -1,0 +1,211 @@
+@if (loading) {
+  <div class="dash-loading"><mat-spinner diameter="44" /></div>
+} @else if (error) {
+  <p class="text-danger">{{ error }}</p>
+} @else if (dashboard) {
+  <div class="dash-toolbar mb-3">
+    <button mat-stroked-button type="button" color="primary" (click)="exportCsv()">
+      <mat-icon>download</mat-icon>
+      Export CSV
+    </button>
+  </div>
+  <div class="dash-grid">
+    <!-- KPI row -->
+    <div class="kpi-row">
+      <mat-card class="kpi-card" appearance="outlined">
+        <mat-icon class="kpi-icon">schedule</mat-icon>
+        <div class="kpi-body">
+          <div class="kpi-label">Total portal time</div>
+          <div class="kpi-value">{{ formatDuration(dashboard.kpis.totalTime) }}</div>
+        </div>
+      </mat-card>
+      <mat-card class="kpi-card" appearance="outlined">
+        <mat-icon class="kpi-icon">groups</mat-icon>
+        <div class="kpi-body">
+          <div class="kpi-label">Active students</div>
+          <div class="kpi-value">{{ dashboard.kpis.activeStudents }}</div>
+          <div class="kpi-hint">Heartbeat in last 5 min</div>
+        </div>
+      </mat-card>
+      <mat-card class="kpi-card" appearance="outlined">
+        <mat-icon class="kpi-icon">equalizer</mat-icon>
+        <div class="kpi-body">
+          <div class="kpi-label">Avg / student</div>
+          <div class="kpi-value">{{ formatDuration(dashboard.kpis.avgTimePerStudent) }}</div>
+        </div>
+      </mat-card>
+      <mat-card class="kpi-card" appearance="outlined">
+        <mat-icon class="kpi-icon">language</mat-icon>
+        <div class="kpi-body">
+          <div class="kpi-label">Top page</div>
+          <div class="kpi-value kpi-value-sm text-truncate" [title]="dashboard.kpis.topPage?.page || ''">
+            {{ dashboard.kpis.topPage?.page || '—' }}
+          </div>
+          @if (dashboard.kpis.topPage) {
+            <div class="kpi-hint">{{ formatDuration(dashboard.kpis.topPage.seconds) }}</div>
+          }
+        </div>
+      </mat-card>
+      <mat-card class="kpi-card" appearance="outlined">
+        <mat-icon class="kpi-icon">school</mat-icon>
+        <div class="kpi-body">
+          <div class="kpi-label">Top student</div>
+          <div class="kpi-value kpi-value-sm text-truncate">{{ dashboard.kpis.topStudent?.name || '—' }}</div>
+          @if (dashboard.kpis.topStudent) {
+            <div class="kpi-hint">{{ formatDuration(dashboard.kpis.topStudent.seconds) }}</div>
+          }
+        </div>
+      </mat-card>
+    </div>
+
+    @if (dashboard.historical) {
+      <div class="historical-banner">
+        <mat-icon>history</mat-icon>
+        <div>
+          <strong>{{ dashboard.historical.label }}</strong>
+          <span class="hist-val">{{ formatDuration(dashboard.historical.estimatedSeconds) }}</span>
+          <span class="hist-meta">({{ dashboard.historical.pairedSessions }} login sessions inferred)</span>
+          <p class="hist-disclaimer mb-0">{{ dashboard.historical.disclaimer }}</p>
+          @if (dashboard.historical.comparisonNote) {
+            <p class="hist-note mb-0">{{ dashboard.historical.comparisonNote }}</p>
+          }
+          @if ((dashboard.historical.studentLogEventsCount ?? 0) > 0) {
+            <p class="hist-note mb-0">
+              Student Logs (record updates) in range: <strong>{{ dashboard.historical.studentLogEventsCount }}</strong>
+              — {{ dashboard.historical.studentLogNote }}
+            </p>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="mid-row">
+      <mat-card class="chart-card" appearance="outlined">
+        <div class="card-head">
+          <h3>Portal time over time</h3>
+          <span class="sub">Minutes per day (tracked)</span>
+        </div>
+        <div class="chart-wrap line-h">
+          <canvas baseChart [data]="lineChartData" [options]="lineChartOptions" [type]="lineChartType"></canvas>
+        </div>
+      </mat-card>
+      <mat-card class="chart-card" appearance="outlined">
+        <div class="card-head">
+          <h3>Time by page</h3>
+          <span class="sub">Share of tracked seconds</span>
+        </div>
+        <div class="chart-wrap donut-h">
+          <canvas baseChart [data]="donutChartData" [options]="donutChartOptions" [type]="donutChartType"></canvas>
+        </div>
+      </mat-card>
+      <mat-card class="live-card" appearance="outlined">
+        <div class="card-head">
+          <h3>Live activity</h3>
+          <span class="sub">Recent heartbeats</span>
+        </div>
+        <ul class="live-list">
+          @for (s of dashboard.activeStudents; track s.sessionId) {
+            <li>
+              <span class="live-dot"></span>
+              <div class="live-text">
+                <div class="live-name">{{ s.name }}</div>
+                <div class="live-sub text-truncate">{{ s.sessionId }}</div>
+              </div>
+            </li>
+          } @empty {
+            <li class="text-muted">No active sessions</li>
+          }
+        </ul>
+      </mat-card>
+    </div>
+
+    <div class="bottom-row">
+      <mat-card class="table-card" appearance="outlined">
+        <div class="card-head">
+          <h3>Recent activity</h3>
+          <span class="sub">Latest page segments (tracked)</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Student</th>
+                <th>Page</th>
+                <th>Type</th>
+                <th>Duration</th>
+                <th>Session</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of dashboard.recentActivity; track r.time + r.sessionId + r.page) {
+                <tr>
+                  <td class="text-nowrap">{{ r.time | date : 'short' }}</td>
+                  <td>{{ r.studentName }}</td>
+                  <td class="text-break">{{ r.page }}</td>
+                  <td><span class="badge bg-light text-dark">{{ r.type }}</span></td>
+                  <td>{{ formatDuration(r.durationSeconds) }}</td>
+                  <td class="small text-muted text-break">{{ r.sessionId }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="6" class="text-muted">No rows</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </mat-card>
+
+      <mat-card class="insights-card" appearance="outlined">
+        <div class="card-head">
+          <h3>Insights</h3>
+          <span class="sub">Smart signals</span>
+        </div>
+        @if (dashboard.peakHour) {
+          <div class="insight-block">
+            <div class="insight-title">Peak hour (UTC)</div>
+            <div class="insight-metric">{{ dashboard.peakHour.label }}</div>
+            <div class="insight-sub">{{ formatDuration(dashboard.peakHour.seconds) }} tracked in that hour</div>
+          </div>
+        }
+        @if (dashboard.peakDay) {
+          <div class="insight-block">
+            <div class="insight-title">Peak weekday</div>
+            <div class="insight-metric">{{ dashboard.peakDay.label }}</div>
+            <div class="insight-sub">{{ formatDuration(dashboard.peakDay.seconds) }}</div>
+          </div>
+        }
+        <div class="insight-block">
+          <div class="insight-title">Engagement (active / session wall)</div>
+          <ul class="mini-list">
+            @for (e of dashboard.engagement.slice(0, 5); track e.name) {
+              <li><span class="fw-medium">{{ e.name }}</span> — score {{ e.engagementScore }}</li>
+            } @empty {
+              <li class="text-muted">No data</li>
+            }
+          </ul>
+        </div>
+        <div class="insight-block">
+          <div class="insight-title">Last page before segment end</div>
+          <ul class="mini-list">
+            @for (d of dashboard.dropoffs; track d.page) {
+              <li class="text-break">{{ d.page }} — {{ d.sessionsEnded }} sessions</li>
+            } @empty {
+              <li class="text-muted">No data</li>
+            }
+          </ul>
+        </div>
+        <div class="insight-list">
+          @for (i of dashboard.insights; track i.id) {
+            <div class="insight-item" [class.insight-pos]="i.tone === 'positive'" [class.insight-neg]="i.tone === 'negative'" [class.insight-warn]="i.tone === 'warn'">
+              <mat-icon>{{ insightIcon(i.tone) }}</mat-icon>
+              <div>
+                <div class="insight-item-title">{{ i.title }}</div>
+                <div class="insight-item-body">{{ i.body }}</div>
+              </div>
+            </div>
+          }
+        </div>
+      </mat-card>
+    </div>
+  </div>
+}

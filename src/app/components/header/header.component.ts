@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { Router, NavigationEnd } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
+import { PortalTrackingService } from '../../services/portal-tracking.service';
 
 @Component({
   selector: 'app-header',
@@ -21,7 +22,8 @@ export class HeaderComponent implements OnInit {
 
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private portalTracking: PortalTrackingService
   ) {}
 
   ngOnInit(): void {
@@ -46,17 +48,19 @@ export class HeaderComponent implements OnInit {
 
   // ✅ Logout: clears cookie in backend
   logOut(): void {
-    this.authService.logout().subscribe({
-      next: () => {
-        this.isAuthenticated = false;
-        this.userRole = null;
-        this.router.navigate(['/home']);
-      },
-      error: () => {
-        this.isAuthenticated = false;
-        this.userRole = null;
-        this.router.navigate(['/home']);
-      }
+    void this.portalTracking.flushEndSessionBeforeLogout().finally(() => {
+      this.authService.logout().subscribe({
+        next: () => {
+          this.isAuthenticated = false;
+          this.userRole = null;
+          this.router.navigate(['/home']);
+        },
+        error: () => {
+          this.isAuthenticated = false;
+          this.userRole = null;
+          this.router.navigate(['/home']);
+        }
+      });
     });
   }
 

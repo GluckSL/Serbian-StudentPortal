@@ -95,6 +95,11 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private hls: Hls | null = null;
   /** Signals AfterViewChecked to call initHlsPlayer once video el is in DOM. */
   private pendingHlsInit = false;
+  /** Used to refetch a cache-busted playlist after expiring R2 presigns (e.g. 1h). */
+  private hlsRefreshContext: { kind: 'zoom'; meetingLinkId: string } | { kind: 'manual'; recordingId: string } | null =
+    null;
+  private hlsFatalRecoveryAttempts = 0;
+  private readonly hlsRecoveryMax = 2;
 
   // ── Manual recording view tracking ────────────────────────────────────────
   activeViewId: string | null = null;
@@ -191,7 +196,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     // so the element will be available on the cycle after *ngIf renders it.
     if (this.pendingHlsInit && this.srVideoEl?.nativeElement) {
       this.pendingHlsInit = false;
-      this.initHlsOnElement(this.srVideoEl.nativeElement, this.playerHlsUrl!);
+      this.initHlsOnElement(this.srVideoEl.nativeElement, this.playerHlsUrl!, null);
     }
   }
 
@@ -290,6 +295,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   playRecording(recording: DisplayRecording): void {
     this.destroyHls();
+    this.hlsRefreshContext = null;
+    this.hlsFatalRecoveryAttempts = 0;
     this.stopZoomTracking();
     this.playerLoading   = true;
     this.playerError     = null;
@@ -315,6 +322,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         }
         this.playerLoading = false;
         this.playerKind = 'video';
+        this.hlsRefreshContext = { kind: 'manual', recordingId: recording.id };
         this.applyZoomUrl(this.service.getManualHlsPlaylistUrl(recording.id), true);
         return;
       }
@@ -346,6 +354,9 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     if (cached) {
       this.playerLoading = false;
       this.playerKind    = 'video';
+      this.hlsRefreshContext = cached.hlsMode
+        ? { kind: 'zoom' as const, meetingLinkId: String(recording.meetingLinkId) }
+        : null;
       this.startZoomTracking(recording.meetingLinkId);
       this.applyZoomUrl(cached.url, cached.hlsMode);
       return;
@@ -365,6 +376,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     this.playerIframeUrl = null;
     this.videoBuffering  = false;
     this.pendingHlsInit  = false;
+    this.hlsRefreshContext = null;
+    this.hlsFatalRecoveryAttempts = 0;
   }
 
   // ── HLS player ────────────────────────────────────────────────────────────
@@ -382,7 +395,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     }
   }
 
-  private initHlsOnElement(video: HTMLVideoElement, hlsUrl: string): void {
+  private initHlsOnElement(video: HTMLVideoElement, hlsUrl: string, resumeAtSec: number | null): void {
     if (Hls.isSupported()) {
       this.hls = new Hls({
         enableWorker: true,
@@ -402,6 +415,13 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
         this.hls!.currentLevel = 0; // lowest quality first
         this.videoBuffering = false;
+        if (resumeAtSec != null && resumeAtSec > 0.5) {
+          try {
+            video.currentTime = resumeAtSec;
+          } catch {
+            /* seek may throw before buffer ready */
+          }
+        }
         video.play().catch(() => {});
       });
 
@@ -412,20 +432,51 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       });
 
       this.hls.on(Hls.Events.ERROR, (_event: string, data: ErrorData) => {
-        if (data.fatal) {
-          this.videoBuffering = false;
-          this.playerError    = 'Playback error. Please refresh and try again.';
-          this.playerHlsUrl   = null;
+        if (!data.fatal) {
+          if (this.hls) this.hls.startLoad();
+          return;
         }
+        const resume = video.currentTime;
+        const ctx = this.hlsRefreshContext;
+        const canRetry =
+          !!ctx &&
+          this.hlsFatalRecoveryAttempts < this.hlsRecoveryMax &&
+          (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR);
+        if (canRetry && ctx) {
+          this.hlsFatalRecoveryAttempts += 1;
+          this.destroyHls();
+          const base =
+            ctx.kind === 'zoom'
+              ? this.service.getHlsPlaylistUrl(ctx.meetingLinkId)
+              : this.service.getManualHlsPlaylistUrl(ctx.recordingId);
+          const fresh = `${base}${base.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+          this.playerHlsUrl = fresh;
+          this.videoBuffering = true;
+          this.initHlsOnElement(video, fresh, Number.isFinite(resume) && resume > 0 ? resume : null);
+          return;
+        }
+        this.videoBuffering = false;
+        this.playerError = 'Playback error. Please refresh and try again.';
+        this.playerHlsUrl = null;
       });
-
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari — native HLS support, no hls.js needed
       video.src = hlsUrl;
-      video.addEventListener('canplay', () => {
-        this.videoBuffering = false;
-        video.play().catch(() => {});
-      }, { once: true });
+      video.addEventListener(
+        'canplay',
+        () => {
+          this.videoBuffering = false;
+          if (resumeAtSec != null && resumeAtSec > 0.5) {
+            try {
+              video.currentTime = resumeAtSec;
+            } catch {
+              /* ignore */
+            }
+          }
+          video.play().catch(() => {});
+        },
+        { once: true }
+      );
     }
   }
 
@@ -473,6 +524,12 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         if (!applyToPlayer) return;
         this.playerLoading = false;
         this.playerKind    = 'video';
+        if (hlsMode) {
+          this.hlsRefreshContext = { kind: 'zoom', meetingLinkId: String(meetingLinkId) };
+          this.hlsFatalRecoveryAttempts = 0;
+        } else {
+          this.hlsRefreshContext = null;
+        }
         this.startZoomTracking(meetingLinkId);
         this.applyZoomUrl(url, hlsMode);
       },

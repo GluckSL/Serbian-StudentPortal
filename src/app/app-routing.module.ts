@@ -291,6 +291,13 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
+  {
+    path: 'portal-analytics',
+    loadComponent: () =>
+      import('./pages/portal-analytics/portal-analytics.component').then((m) => m.PortalAnalyticsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
   { path: 'student-logs', loadComponent: () => import('./components/student-logs/student-logs.component').then(m => m.StudentLogsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   {
     path: 'student-logs/:studentId/analytics',

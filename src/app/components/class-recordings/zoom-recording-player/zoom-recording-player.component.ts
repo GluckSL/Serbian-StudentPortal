@@ -45,6 +45,8 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
 
   private hls: Hls | null = null;
   private pendingHlsInit = false;
+  private hlsRecoveryAttempts = 0;
+  private readonly hlsRecoveryMax = 2;
   private pollingTimer: any = null;
   private readonly POLL_INTERVAL_MS = 10_000;
 
@@ -70,7 +72,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
   ngAfterViewChecked(): void {
     if (this.pendingHlsInit && this.videoPlayerRef?.nativeElement) {
       this.pendingHlsInit = false;
-      this.initHls(this.videoPlayerRef.nativeElement, this.hlsSrc!);
+      this.initHls(this.videoPlayerRef.nativeElement, this.hlsSrc!, null);
     }
   }
 
@@ -81,6 +83,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
 
   loadRecording(): void {
     if (!this.meetingLinkId) return;
+    this.hlsRecoveryAttempts = 0;
     this.loading  = true;
     this.error    = null;
     this.videoSrc = null;
@@ -129,7 +132,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
 
   // ── HLS ───────────────────────────────────────────────────────────────────
 
-  private initHls(video: HTMLVideoElement, url: string): void {
+  private initHls(video: HTMLVideoElement, url: string, resumeAtSec: number | null): void {
     this.destroyHls();
 
     if (Hls.isSupported()) {
@@ -149,6 +152,13 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
         this.hls!.currentLevel = 0; // lowest quality first
         this.buffering = false;
+        if (resumeAtSec != null && resumeAtSec > 0.5) {
+          try {
+            video.currentTime = resumeAtSec;
+          } catch {
+            /* ignore */
+          }
+        }
         video.play().catch(() => {});
       });
       this.hls.on(Hls.Events.FRAG_LOADED, () => {
@@ -157,20 +167,47 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
         }
       });
       this.hls.on(Hls.Events.ERROR, (_e: string, data: ErrorData) => {
-        if (data.fatal) {
-          this.buffering = false;
-          this.error     = 'Playback error. Please refresh and try again.';
-          this.hlsSrc    = null;
+        if (!data.fatal) {
+          if (this.hls) this.hls.startLoad();
+          return;
         }
+        const resume = video.currentTime;
+        const canRetry =
+          this.meetingLinkId &&
+          this.hlsRecoveryAttempts < this.hlsRecoveryMax &&
+          (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR);
+        if (canRetry) {
+          this.hlsRecoveryAttempts += 1;
+          this.destroyHls();
+          const base = this.recordingsService.getHlsPlaylistUrl(this.meetingLinkId!);
+          const fresh = `${base}${base.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+          this.hlsSrc = fresh;
+          this.buffering = true;
+          this.initHls(video, fresh, Number.isFinite(resume) && resume > 0 ? resume : null);
+          return;
+        }
+        this.buffering = false;
+        this.error = 'Playback error. Please refresh and try again.';
+        this.hlsSrc = null;
       });
-
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari native HLS
       video.src = url;
-      video.addEventListener('canplay', () => {
-        this.buffering = false;
-        video.play().catch(() => {});
-      }, { once: true });
+      video.addEventListener(
+        'canplay',
+        () => {
+          this.buffering = false;
+          if (resumeAtSec != null && resumeAtSec > 0.5) {
+            try {
+              video.currentTime = resumeAtSec;
+            } catch {
+              /* ignore */
+            }
+          }
+          video.play().catch(() => {});
+        },
+        { once: true }
+      );
     }
   }
 
@@ -213,6 +250,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
 
   private reset(): void {
     this.destroyHls();
+    this.hlsRecoveryAttempts = 0;
     this.videoSrc         = null;
     this.hlsSrc           = null;
     this.error            = null;

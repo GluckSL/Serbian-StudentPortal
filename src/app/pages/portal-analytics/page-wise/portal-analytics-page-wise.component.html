@@ -1,0 +1,45 @@
+<div class="pw-wrap">
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else {
+    <div class="pw-layout">
+      <div class="pw-chart card-panel">
+        <h3 class="pw-title">Top pages (share)</h3>
+        <p class="pw-sub">Tracked seconds — top six routes</p>
+        <div class="mini-chart">
+          <canvas baseChart [data]="miniData" [options]="miniOptions" [type]="miniType"></canvas>
+        </div>
+      </div>
+      <div class="table-responsive card-panel flex-grow-1">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th class="text-end">Total time</th>
+              <th class="text-end">% of tracked</th>
+              <th class="text-end">Students</th>
+              <th class="text-end">Avg / user</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of rows; track r.page) {
+              <tr>
+                <td class="text-break fw-medium">{{ r.page }}</td>
+                <td class="text-end">{{ formatDuration(r.totalSeconds) }}</td>
+                <td class="text-end">
+                  <span class="pct">{{ r.pctOfTracked | number : '1.1-1' }}%</span>
+                </td>
+                <td class="text-end">{{ r.uniqueStudents }}</td>
+                <td class="text-end text-muted">{{ formatDuration(Math.round(r.avgSecondsPerUser || 0)) }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5" class="text-muted py-4 text-center">No data in this range.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

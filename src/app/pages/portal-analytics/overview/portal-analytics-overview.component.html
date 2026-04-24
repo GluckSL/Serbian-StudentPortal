@@ -1,0 +1,44 @@
+<div class="pa-overview">
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else if (data) {
+    <div class="pa-grid">
+      <mat-card appearance="outlined">
+        <mat-card-title>Total portal time</mat-card-title>
+        <mat-card-content><span class="pa-stat">{{ formatDuration(data.totalTime) }}</span></mat-card-content>
+      </mat-card>
+      <mat-card appearance="outlined">
+        <mat-card-title>Active students</mat-card-title>
+        <mat-card-content><span class="pa-stat">{{ data.activeStudents }}</span><span class="pa-hint"> (heartbeat in last 5 min)</span></mat-card-content>
+      </mat-card>
+      <mat-card appearance="outlined">
+        <mat-card-title>Avg time per student</mat-card-title>
+        <mat-card-content><span class="pa-stat">{{ formatDuration(data.avgTimePerStudent) }}</span></mat-card-content>
+      </mat-card>
+      <mat-card appearance="outlined">
+        <mat-card-title>Top page</mat-card-title>
+        <mat-card-content>
+          @if (data.topPage) {
+            <div class="pa-stat">{{ data.topPage.page }}</div>
+            <div class="pa-sub">{{ formatDuration(data.topPage.seconds) }}</div>
+          } @else {
+            <span class="pa-muted">—</span>
+          }
+        </mat-card-content>
+      </mat-card>
+      <mat-card appearance="outlined">
+        <mat-card-title>Top student</mat-card-title>
+        <mat-card-content>
+          @if (data.topStudent) {
+            <div class="pa-stat">{{ data.topStudent.name }}</div>
+            <div class="pa-sub">{{ formatDuration(data.topStudent.seconds) }}</div>
+          } @else {
+            <span class="pa-muted">—</span>
+          }
+        </mat-card-content>
+      </mat-card>
+    </div>
+  }
+</div>

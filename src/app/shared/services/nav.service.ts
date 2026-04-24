@@ -42,6 +42,7 @@ export class NavService {
     journey: [
       '/admin/journey'
     ],
+    'portal-analytics': ['/portal-analytics'],
     'go-students': [
       '/admin/go-students'
     ]
@@ -64,6 +65,7 @@ export class NavService {
       items: [
         { id: 'students',     label: 'Students',     icon: '🎓', route: '/admin-dashboard',  subGroup: 'Student Management' },
         { id: 'student-logs', label: 'Student Logs', icon: '📋', route: '/student-logs',     subGroup: 'Student Management' },
+        { id: 'portal-analytics', label: 'Portal Analytics', icon: '⏱️', route: '/portal-analytics', subGroup: 'Student Management' },
         { id: 'teachers',     label: 'Teachers',     icon: '🧑‍🏫', route: '/teachers',        subGroup: 'Teacher Management' },
         { id: 'user-roles',   label: 'User Roles',   icon: '🔑', route: '/user-roles',       subGroup: null }
       ]

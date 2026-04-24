@@ -35,9 +35,18 @@ const _signedExpiry = parseInt(
   process.env.R2_HLS_SIGNED_URL_EXPIRY_SECONDS || String(MAX_PRESIGNED_SECONDS),
   10
 );
-const SIGNED_URL_EXPIRY_SECONDS = !Number.isFinite(_signedExpiry) || _signedExpiry < 300
+let SIGNED_URL_EXPIRY_SECONDS = !Number.isFinite(_signedExpiry) || _signedExpiry < 300
   ? MAX_PRESIGNED_SECONDS
   : Math.min(_signedExpiry, MAX_PRESIGNED_SECONDS);
+// 1h (3600) and similar values match “failure around 55–60 min” — VOD must use long-lived segment URLs.
+const MIN_VOD_PRESIGN_SEC = 2 * 60 * 60; // 2h floor for multi-hour class replays
+if (SIGNED_URL_EXPIRY_SECONDS < MIN_VOD_PRESIGN_SEC) {
+  console.warn(
+    `[classRecordings] R2 HLS presign is ${SIGNED_URL_EXPIRY_SECONDS}s (R2_HLS_SIGNED_URL_EXPIRY_SECONDS) — ` +
+      `too short; segment URLs expire mid-playback. Using ${MAX_PRESIGNED_SECONDS}s.`
+  );
+  SIGNED_URL_EXPIRY_SECONDS = MAX_PRESIGNED_SECONDS;
+}
 
 // ── In-memory HLS playlist cache ──────────────────────────────────────────────
 // Stores rewritten m3u8 (with presigned segment URLs) per recording key.

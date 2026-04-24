@@ -1,0 +1,57 @@
+.pw-wrap {
+  padding: 0.5rem 0;
+}
+
+.pw-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.card-panel {
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+  background: #fff;
+  padding: 1rem 1.1rem;
+}
+
+.pw-chart {
+  flex: 0 0 280px;
+  max-width: 100%;
+}
+
+.pw-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  color: #0f172a;
+}
+
+.pw-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0.15rem 0 0.5rem;
+}
+
+.mini-chart {
+  height: 220px;
+  position: relative;
+}
+
+.pct {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.pa-center {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.text-break {
+  word-break: break-word;
+}

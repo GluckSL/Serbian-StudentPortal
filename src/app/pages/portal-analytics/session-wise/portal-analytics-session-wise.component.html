@@ -1,0 +1,51 @@
+<div class="pa-sessions">
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else {
+    @for (s of sessions; track s.sessionId) {
+      <div class="card mb-3">
+        <div class="card-header d-flex flex-wrap justify-content-between gap-2">
+          <div>
+            <strong>{{ s.studentName }}</strong>
+            <span class="text-muted small ms-2">{{ s.sessionId }}</span>
+          </div>
+          <div>
+            <span class="badge" [class.bg-success]="s.isActive" [class.bg-secondary]="!s.isActive">
+              {{ s.isActive ? 'Active' : 'Ended' }}
+            </span>
+            <span class="ms-2 fw-semibold">{{ formatDuration(s.totalActiveSeconds) }}</span>
+          </div>
+        </div>
+        <div class="card-body py-2">
+          <div class="small text-muted mb-2">
+            {{ s.startTime | date : 'medium' }} — {{ s.endTime ? (s.endTime | date : 'medium') : '—' }}
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Page</th>
+                  <th>Time on page</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of s.pages; track p.page + p.startTime) {
+                  <tr>
+                    <td class="text-break">{{ p.page }}</td>
+                    <td>{{ formatDuration(p.activeSeconds) }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="2" class="text-muted">No page segments.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    } @empty {
+      <p class="text-muted">No sessions in this range.</p>
+    }
+  }
+</div>

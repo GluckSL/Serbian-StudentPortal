@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { RouterOutlet } from '@angular/router';
 import { HeaderComponent } from "./components/header/header.component";
@@ -8,6 +8,7 @@ import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { AuthService } from './services/auth.service';
 import { SupportFabComponent } from './components/support-fab/support-fab.component';
+import { PortalTrackingService } from './services/portal-tracking.service';
 
 @Component({
   selector: 'app-root',
@@ -16,7 +17,7 @@ import { SupportFabComponent } from './components/support-fab/support-fab.compon
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
   title = 'angular-germanbuddy';
   showHeader = true;
   isLoggedIn = false;
@@ -29,7 +30,8 @@ export class AppComponent implements OnInit {
 
   constructor(
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private portalTracking: PortalTrackingService
   ) {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
@@ -43,6 +45,7 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.portalTracking.start();
     const initialPath = this.router.url.split('?')[0];
     this.isLoginRoute = initialPath === '/login';
     this.isHomeRoute = initialPath === '/home' || initialPath === '/' || initialPath === '';
@@ -80,6 +83,10 @@ export class AppComponent implements OnInit {
         error: () => {}
       });
     }
+  }
+
+  ngOnDestroy(): void {
+    this.portalTracking.stop();
   }
 
   get showSidebar(): boolean {

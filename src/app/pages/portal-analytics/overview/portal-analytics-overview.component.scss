@@ -1,0 +1,35 @@
+.pa-overview {
+  padding: 0.5rem 0;
+}
+
+.pa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.pa-stat {
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.pa-sub {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin-top: 0.25rem;
+}
+
+.pa-hint {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.pa-muted {
+  opacity: 0.6;
+}
+
+.pa-center {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}

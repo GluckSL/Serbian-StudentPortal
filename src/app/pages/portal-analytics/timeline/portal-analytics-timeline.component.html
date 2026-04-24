@@ -1,0 +1,43 @@
+<div class="pa-table-wrap">
+  <div class="tl-toolbar">
+    <span class="text-muted small">{{ total }} events · page {{ currentPage }} / {{ totalPages }}</span>
+    <div class="tl-nav">
+      <button mat-stroked-button type="button" [disabled]="skip === 0 || loading" (click)="prev()">Previous</button>
+      <button mat-stroked-button type="button" [disabled]="skip + pageSize >= total || loading" (click)="next()">Next</button>
+    </div>
+  </div>
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else {
+    <div class="table-responsive tl-card">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Student</th>
+            <th>Page</th>
+            <th>Type</th>
+            <th>Duration</th>
+            <th>Session</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of rows; track r.time + r.sessionId + r.page + r.studentName) {
+            <tr>
+              <td class="text-nowrap">{{ r.time | date : 'medium' }}</td>
+              <td>{{ r.studentName }}</td>
+              <td class="text-break">{{ r.page }}</td>
+              <td><span class="badge rounded-pill bg-light text-dark border">{{ r.type || 'PAGE' }}</span></td>
+              <td>{{ formatDuration(r.durationSeconds) }}</td>
+              <td class="small text-muted text-break font-monospace">{{ r.sessionId }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="6" class="text-muted py-4 text-center">No activity in this range.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

@@ -111,6 +111,8 @@ const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivi
 const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
+const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
+const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -247,6 +249,8 @@ app.use('/api/listening-worksheets', listeningWorksheetRoutes);
 
 const classRecordingRoutes = require('./routes/classRecordings');
 app.use('/api/class-recordings', classRecordingRoutes);
+app.use('/api/portal', portalRouter);
+app.use('/api/portal-analytics', analyticsRouter);
 
 const classResourceRoutes = require('./routes/classResources');
 app.use('/api/class-resources', classResourceRoutes);
@@ -324,6 +328,7 @@ app.listen(PORT, () => {
   scheduleWeeklyReports();
   scheduleConsecutiveAbsenceAlerts();
   scheduleStudentPortalCrmFullSync();
+  schedulePortalSessionStaleClose();
 });
 
 
