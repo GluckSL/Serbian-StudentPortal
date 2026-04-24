@@ -11,6 +11,10 @@ const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
+const {
+  computeJourneyDayCompletion,
+  meetsStrictThreshold
+} = require('../services/journeyDayCompletion.service');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
@@ -106,88 +110,8 @@ function computeBatchDay(cfg) {
   return Math.min(cfg.journeyLength, Math.max(1, elapsed + 1));
 }
 
-/**
- * Check whether a student has completed all tasks scheduled for a given day.
- * Returns { complete, breakdown: { exercises, classes } }
- */
 async function checkDayCompletion(studentId, batchNameOrNames, day) {
-  const batchNames = Array.isArray(batchNameOrNames)
-    ? batchNameOrNames.map((b) => String(b || '').trim()).filter(Boolean)
-    : (batchNameOrNames ? [String(batchNameOrNames).trim()] : []);
-
-  // --- Exercises for this day ---
-  const exercises = await DigitalExercise.find({
-    isDeleted: { $ne: true },
-    visibleToStudents: true,
-    courseDay: day
-  }).select('_id title').lean();
-
-  const exerciseIds = exercises.map(e => e._id);
-  const completedAttempts = exerciseIds.length
-    ? await ExerciseAttempt.find({
-        studentId,
-        exerciseId: { $in: exerciseIds },
-        status: 'completed'
-      }).distinct('exerciseId')
-    : [];
-
-  const completedExerciseIdSet = new Set(completedAttempts.map(id => String(id)));
-  const exerciseDone = completedExerciseIdSet.size;
-  const exerciseTotal = exerciseIds.length;
-
-  const incompleteExercises = exercises
-    .filter(e => !completedExerciseIdSet.has(String(e._id)))
-    .map(e => ({
-      kind: 'exercise',
-      title: e.title && String(e.title).trim() ? e.title : 'Digital exercise',
-      courseDay: day
-    }));
-
-  // --- Live classes for this day & batch(es) ---
-  let classes = [];
-  if (batchNames.length) {
-    const batchOr = batchNames.map((n) => ({
-      batch: new RegExp(`^${escapeRegExp(n)}$`, 'i')
-    }));
-    classes = await MeetingLink.find({
-      $or: batchOr,
-      courseDay: day,
-      status: { $ne: 'cancelled' }
-    }).select('_id topic attendance').lean();
-  }
-
-  let classDone = 0;
-  const classTotal = classes.length;
-  const incompleteClasses = [];
-  for (const cls of classes) {
-    const record = (cls.attendance || []).find(a =>
-      String(a.studentId) === String(studentId) && a.attended === true
-    );
-    if (record) {
-      classDone++;
-    } else {
-      incompleteClasses.push({
-        kind: 'class',
-        title: cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class',
-        courseDay: day
-      });
-    }
-  }
-
-  const allExercisesDone = exerciseTotal === 0 || exerciseDone >= exerciseTotal;
-  const allClassesDone   = classTotal  === 0 || classDone  >= classTotal;
-  const complete = allExercisesDone && allClassesDone;
-
-  const incompleteTasks = [...incompleteExercises, ...incompleteClasses];
-
-  return {
-    complete,
-    incompleteTasks,
-    breakdown: {
-      exercises: { done: exerciseDone, total: exerciseTotal, items: exercises.map(e => ({ _id: e._id, title: e.title })) },
-      classes:   { done: classDone,    total: classTotal,    items: classes.map(c => ({ _id: c._id, topic: c.topic })) }
-    }
-  };
+  return computeJourneyDayCompletion(studentId, batchNameOrNames, day);
 }
 
 // ─── GET /api/batch-journey ─────────────────────────────────────────────────
@@ -244,8 +168,27 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     const configMap = {};
     configs.forEach(c => { configMap[c.batchName] = c; });
 
-    const batches = allBatchNames.map(name => {
-      const cfg = configMap[name] || { batchName: name, journeyLength: 200, batchCurrentDay: 1, notes: '', batchStartDate: null };
+    function cfgForName(name) {
+      let cfg = configMap[name];
+      if (cfg) return cfg;
+      const target = normBatchKey(name);
+      for (const c of configs) {
+        if (normBatchKey(c.batchName) === target) return c;
+      }
+      return null;
+    }
+
+    const allRows = allBatchNames.map(name => {
+      const cfg = cfgForName(name) || {
+        batchName: name,
+        journeyLength: 200,
+        batchCurrentDay: 1,
+        notes: '',
+        batchStartDate: null,
+        strictJourneyRule: false,
+        strictJourneyThresholdPercent: 100,
+        journeyActive: false
+      };
       const activeBatchDay = computeBatchDay(cfg);
       return {
         batchName: name,
@@ -254,19 +197,138 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         batchStartDate: cfg.batchStartDate || null,
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
+        strictJourneyRule: !!cfg.strictJourneyRule,
+        strictJourneyThresholdPercent:
+          cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
+        journeyActive: !!(cfg && cfg.journeyActive),
         studentCount: countMap[name] || 0,
         teacherId: teacherByBatch[name]?.teacherId ?? null,
         teacherName: teacherByBatch[name]?.teacherName ?? null
       };
     });
 
-    batches.sort((a, b) => a.batchName.localeCompare(b.batchName));
-    res.json({ batches });
+    const batches = allRows.filter((b) => b.journeyActive).sort((a, b) => a.batchName.localeCompare(b.batchName));
+    const upcomingBatches = allRows.filter((b) => !b.journeyActive).sort((a, b) => a.batchName.localeCompare(b.batchName));
+    res.json({ batches, upcomingBatches });
   } catch (err) {
     console.error('batch-journey GET /', err);
     res.status(500).json({ message: 'Failed to load batches', error: err.message });
   }
 });
+
+// ─── GET /api/batch-journey/active-platinum-students ─────────────────────────
+// All students in batches that have journeyActive (Platinum journey list).
+router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    let activeConfigs = await BatchConfig.find({ journeyActive: true }).select('batchName').lean();
+    let batchNames = activeConfigs.map((c) => String(c.batchName || '').trim()).filter(Boolean);
+
+    if (req.user.role === 'TEACHER' || req.user.role === 'TEACHER_ADMIN') {
+      const allowed = await buildTeacherAllowedBatchSet(req.user.id);
+      if (!allowed || allowed.size === 0) {
+        return res.json({ students: [] });
+      }
+      batchNames = batchNames.filter((name) => teacherAllowedForBatch(allowed, name));
+    }
+
+    if (!batchNames.length) {
+      return res.json({ students: [] });
+    }
+
+    const batchOr = batchNames.map((n) => ({
+      batch: new RegExp(`^${escapeRegExp(n)}$`, 'i')
+    }));
+
+    const students = await User.find({
+      role: 'STUDENT',
+      $or: batchOr,
+      ...EXCLUDE_TEST
+    })
+      .select('name regNo email level studentStatus currentCourseDay batch enrollmentDate')
+      .sort({ batch: 1, name: 1 })
+      .lean();
+
+    res.json({
+      students: students.map((s) => ({
+        _id: s._id,
+        name: s.name,
+        regNo: s.regNo,
+        email: s.email,
+        level: s.level,
+        studentStatus: s.studentStatus,
+        currentCourseDay: s.currentCourseDay || 1,
+        batch: s.batch,
+        enrollmentDate: s.enrollmentDate || null
+      }))
+    });
+  } catch (err) {
+    console.error('batch-journey GET /active-platinum-students', err);
+    res.status(500).json({ message: 'Failed to load students', error: err.message });
+  }
+});
+
+// ─── POST /api/batch-journey/:batchName/journey-activate ────────────────────
+// Add batch to the active journey list (shows on Journey Management home).
+router.post(
+  '/:batchName/journey-activate',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const raw = String(req.params.batchName || '').trim();
+      if (!raw) return res.status(400).json({ message: 'batchName is required' });
+      if (!(await teacherCanAccessBatch(req, raw))) {
+        return res.status(403).json({ message: 'You do not have access to this batch.' });
+      }
+      let cfg = await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(raw)}$`, 'i') });
+      if (!cfg) {
+        cfg = await BatchConfig.create({ batchName: raw, journeyActive: true });
+      } else {
+        cfg.journeyActive = true;
+        await cfg.save();
+      }
+      res.json({
+        message: `Journey started for "${cfg.batchName}".`,
+        batchName: cfg.batchName,
+        journeyActive: true
+      });
+    } catch (err) {
+      console.error('batch-journey POST /:batch/journey-activate', err);
+      res.status(500).json({ message: 'Failed to start journey', error: err.message });
+    }
+  }
+);
+
+// ─── POST /api/batch-journey/:batchName/journey-deactivate ─────────────────
+// Remove batch from active journey list (batch remains in the system).
+router.post(
+  '/:batchName/journey-deactivate',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const raw = String(req.params.batchName || '').trim();
+      if (!raw) return res.status(400).json({ message: 'batchName is required' });
+      if (!(await teacherCanAccessBatch(req, raw))) {
+        return res.status(403).json({ message: 'You do not have access to this batch.' });
+      }
+      const cfg = await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(raw)}$`, 'i') });
+      if (!cfg) {
+        return res.status(404).json({ message: 'No batch config found. Create the batch first or start journey once.' });
+      }
+      cfg.journeyActive = false;
+      await cfg.save();
+      res.json({
+        message: `"${cfg.batchName}" removed from active journeys.`,
+        batchName: cfg.batchName,
+        journeyActive: false
+      });
+    } catch (err) {
+      console.error('batch-journey POST /:batch/journey-deactivate', err);
+      res.status(500).json({ message: 'Failed to remove from active journeys', error: err.message });
+    }
+  }
+);
 
 // ─── GET /api/batch-journey/:batchName/students ─────────────────────────────
 router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
@@ -304,7 +366,10 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,
         autoDay: !!cfg.batchStartDate,
-        notes: cfg.notes
+        notes: cfg.notes,
+        strictJourneyRule: !!cfg.strictJourneyRule,
+        strictJourneyThresholdPercent:
+          cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100
       },
       teacher: { teacherId, teacherName },
       students: students.map(s => ({
@@ -408,7 +473,9 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       batchCurrentDay,
       batchStartDate,
       notes,
-      createOnly
+      createOnly,
+      strictJourneyRule,
+      strictJourneyThresholdPercent
     } = req.body || {};
 
     const bn = String(batchName || '').trim();
@@ -449,6 +516,19 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     }
     if (notes !== undefined) {
       cfg.notes = String(notes).substring(0, 500);
+    }
+    if (strictJourneyRule !== undefined) {
+      cfg.strictJourneyRule = !!strictJourneyRule;
+    }
+    if (strictJourneyThresholdPercent !== undefined) {
+      const p = parseInt(String(strictJourneyThresholdPercent), 10);
+      if (!Number.isFinite(p) || p < 1 || p > 100) {
+        return res.status(400).json({ message: 'strictJourneyThresholdPercent must be between 1 and 100' });
+      }
+      cfg.strictJourneyThresholdPercent = p;
+    }
+    if (cfg.strictJourneyRule && (cfg.strictJourneyThresholdPercent == null || cfg.strictJourneyThresholdPercent < 1)) {
+      cfg.strictJourneyThresholdPercent = 100;
     }
     await cfg.save();
 
@@ -555,11 +635,25 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
     const day = student.currentCourseDay || 1;
     const batchKeys = allStudentBatchStringsForContent(student);
     const result = await checkDayCompletion(student._id, batchKeys, day);
+    const cfgBatch = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
+    const batchCfg =
+      cfgBatch
+        ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(cfgBatch)}$`, 'i') }).lean()
+        : null;
+    const strictJourneyRule = !!(batchCfg && batchCfg.strictJourneyRule);
+    const strictJourneyThresholdPercent =
+      batchCfg && batchCfg.strictJourneyThresholdPercent != null
+        ? batchCfg.strictJourneyThresholdPercent
+        : 100;
+    const thresholdMet = meetsStrictThreshold(result, batchCfg || { strictJourneyRule: false });
 
     res.json({
       studentId: student._id,
       name: student.name,
       currentDay: day,
+      strictJourneyRule,
+      strictJourneyThresholdPercent,
+      thresholdMet,
       ...result
     });
   } catch (err) {
@@ -569,7 +663,7 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
 });
 
 // ─── POST /api/batch-journey/student/:studentId/advance-day ──────────────────
-// Check task completion; if all done, advance student to next day. Admin can force.
+// Lenient batch: advance without checks. Strict batch: advance if day-task % ≥ threshold. Admin can force.
 router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { force = false } = req.body || {};
@@ -589,17 +683,24 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
       return res.json({ advanced: false, message: 'Student has already completed the journey.', currentDay });
     }
 
-    const { complete, breakdown, incompleteTasks } = await checkDayCompletion(student._id, batchKeys, currentDay);
+    const completion = await checkDayCompletion(student._id, batchKeys, currentDay);
 
-    if (!complete && !force) {
-      return res.json({
-        advanced: false,
-        message: `Student has not completed all tasks for Day ${currentDay}.`,
-        currentDay,
-        complete: false,
-        incompleteTasks,
-        breakdown
-      });
+    if (!force) {
+      if (cfg.strictJourneyRule && !meetsStrictThreshold(completion, cfg)) {
+        const thr =
+          cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100;
+        return res.json({
+          advanced: false,
+          message: `Strict rule: student has completed ${completion.completionPercent}% of Day ${currentDay} tasks (need ≥ ${thr}%).`,
+          currentDay,
+          complete: completion.complete,
+          completionPercent: completion.completionPercent,
+          totalTasks: completion.totalTasks,
+          doneTasks: completion.doneTasks,
+          incompleteTasks: completion.incompleteTasks,
+          breakdown: completion.breakdown
+        });
+      }
     }
 
     const nextDay = currentDay + 1;
@@ -617,7 +718,7 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
       message: `${student.name} advanced to Day ${nextDay}${force ? ' (admin override)' : ''}`,
       previousDay: currentDay,
       currentDay: nextDay,
-      breakdown
+      breakdown: completion.breakdown
     });
   } catch (err) {
     console.error('batch-journey POST /student/:id/advance-day', err);

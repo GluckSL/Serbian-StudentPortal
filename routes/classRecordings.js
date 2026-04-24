@@ -17,6 +17,15 @@ const { processManualRecordingUpload } = require('../services/recordingProcessor
 const manualRecordingUpload = require('../config/manualRecordingUpload');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
 const { markPendingAdvanceForStudentDay } = require('../services/journeyDayAdvance.service');
+const BatchConfig = require('../models/BatchConfig');
+const {
+  computeJourneyDayCompletion,
+  meetsStrictThreshold
+} = require('../services/journeyDayCompletion.service');
+
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
 
@@ -723,19 +732,37 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
       if (isEligibleGate) {
         const dayInt = Math.floor(day);
         const nextDay = Math.min(200, dayInt + 1);
-        const advancedNow = await User.updateOne(
-          { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
-          {
-            $set: {
-              currentCourseDay: nextDay,
-              pendingJourneyDayAdvance: false,
-              pendingJourneyDayAdvanceForDay: null
+        const studentLean = await User.findById(view.student)
+          .select('batch goStatus subscription currentCourseDay')
+          .lean();
+        const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
+        const primary = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
+        const cfgDoc = primary
+          ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
+          : null;
+
+        let allowInstantAdvance = true;
+        if (cfgDoc && cfgDoc.strictJourneyRule) {
+          const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
+            creditMeetings: meeting?._id ? [meeting._id] : []
+          });
+          allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
+        }
+
+        if (allowInstantAdvance) {
+          const advancedNow = await User.updateOne(
+            { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
+            {
+              $set: {
+                currentCourseDay: nextDay,
+                pendingJourneyDayAdvance: false,
+                pendingJourneyDayAdvanceForDay: null
+              }
             }
+          );
+          if (!advancedNow?.modifiedCount) {
+            await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
           }
-        );
-        // If day moved meanwhile, keep existing behavior and mark pending eligibility.
-        if (!advancedNow?.modifiedCount) {
-          await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
         }
       }
     }

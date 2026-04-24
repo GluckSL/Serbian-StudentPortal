@@ -1,6 +1,6 @@
 /**
- * Runs at local midnight (default Asia/Colombo): apply pending journey day advances for students
- * who attended their current-day live class (pendingJourneyDayAdvance === true).
+ * Runs at local midnight (default Asia/Colombo): advance each student’s journey day.
+ * Lenient batches: always +1 (capped). Strict batches: +1 only if day-task completion % meets the batch threshold.
  */
 const cron = require('node-cron');
 const { applyJourneyDayRollovers } = require('../services/journeyDayAdvance.service');

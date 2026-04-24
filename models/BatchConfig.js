@@ -35,6 +35,32 @@ const BatchConfigSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  /**
+   * When false (default), students move to the next journey day on the daily rollover
+   * without needing to finish modules, exercises, or live classes.
+   * When true, rollover (and admin “advance”) require at least strictJourneyThresholdPercent
+   * of that day’s tasks (modules + exercises + live classes) to be completed.
+   */
+  strictJourneyRule: {
+    type: Boolean,
+    default: false
+  },
+  /** Required when strictJourneyRule is true (1–100). Ignored when strict is off. */
+  strictJourneyThresholdPercent: {
+    type: Number,
+    default: 100,
+    min: 1,
+    max: 100
+  },
+  /**
+   * When true, this batch appears on Journey Management (active list) and follows journey tooling.
+   * Inactive batches stay in “upcoming” until an admin starts the journey.
+   */
+  journeyActive: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

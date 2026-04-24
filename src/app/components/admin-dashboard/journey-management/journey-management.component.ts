@@ -19,6 +19,11 @@ interface BatchSummary {
   batchStartDate: string | null;
   autoDay: boolean;
   notes: string;
+  /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
+  strictJourneyRule?: boolean;
+  strictJourneyThresholdPercent?: number;
+  /** Shown on home table only when true; false batches appear under “upcoming”. */
+  journeyActive?: boolean;
   studentCount: number;
   teacherId?: string | null;
   /** Resolved from students' assignedTeacher (most common per batch). */
@@ -34,7 +39,7 @@ interface TeacherPick {
 }
 
 interface IncompleteTaskItem {
-  kind: 'exercise' | 'class';
+  kind: 'exercise' | 'class' | 'module';
   title: string;
   courseDay: number;
 }
@@ -45,6 +50,12 @@ interface TaskCheckModal {
   currentDay: number;
   complete: boolean;
   incompleteTasks: IncompleteTaskItem[];
+  completionPercent?: number;
+  totalTasks?: number;
+  doneTasks?: number;
+  strictJourneyRule?: boolean;
+  strictJourneyThresholdPercent?: number;
+  thresholdMet?: boolean;
 }
 
 interface StudentRow {
@@ -228,9 +239,43 @@ interface TimelineDay {
   <!-- ══ BATCH OVERVIEW (level 1) ══════════════════════════════════════════ -->
   <div *ngIf="!loading && !selectedBatch && planTab === 'platinum'" class="j-content">
 
+    <div class="j-start-journey-bar" *ngIf="!isJourneyReadOnly">
+      <div class="j-start-journey-split">
+        <div class="j-start-journey-inner">
+          <label class="j-start-journey-label" for="j-upcoming-batch">Upcoming batches</label>
+          <div class="j-start-journey-row">
+            <select id="j-upcoming-batch" class="j-select j-select--upcoming" [(ngModel)]="selectedUpcomingBatch">
+              <option [ngValue]="''">Select a batch…</option>
+              <option *ngFor="let u of upcomingBatches" [ngValue]="u.batchName">
+                {{ u.batchName }} — {{ u.studentCount }} student(s)
+              </option>
+            </select>
+            <button type="button" class="j-btn j-btn-primary" (click)="startJourneyForSelected()"
+                    [disabled]="!selectedUpcomingBatch || startingJourney">
+              <i class="fas" [class.fa-spinner]="startingJourney" [class.fa-play]="!startingJourney" [class.fa-spin]="startingJourney"></i>
+              {{ startingJourney ? 'Starting…' : 'Start journey' }}
+            </button>
+          </div>
+          <p class="j-start-journey-hint">Only batches you start here appear in the journey table. Other batches stay in this dropdown until you add them.</p>
+        </div>
+        <div class="j-start-journey-side">
+          <button type="button" class="j-btn j-btn-outline j-btn-all-students" (click)="openAllStudentsPage()">
+            <i class="fas fa-users"></i> All students
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="isJourneyReadOnly && batches.length === 0 && upcomingBatches.length > 0" class="j-teacher-journey-hint">
+      <i class="fas fa-info-circle"></i>
+      <span>These batches are not on the active journey list yet. An administrator can add them from the same page.</span>
+    </div>
+
     <div *ngIf="batches.length === 0" class="j-empty">
       <i class="fas fa-layer-group fa-3x"></i>
-      <p>No student batches found. Create students with a batch name first.</p>
+      <p *ngIf="!isJourneyReadOnly && upcomingBatches.length > 0">No active journey batches yet. Choose an upcoming batch above and click <strong>Start journey</strong>.</p>
+      <p *ngIf="isJourneyReadOnly && upcomingBatches.length > 0">No active journey batches in your view.</p>
+      <p *ngIf="upcomingBatches.length === 0">No batches found. Create a batch or assign students to a batch name first.</p>
     </div>
 
     <!-- Filters + table -->
@@ -365,12 +410,20 @@ interface TimelineDay {
                   </div>
                 </td>
                 <td>
-                  <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
-                    <i class="fas fa-pen"></i> Manage
-                  </button>
-                  <button *ngIf="isJourneyReadOnly" type="button" class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
-                    <i class="fas fa-eye"></i> View
-                  </button>
+                  <div class="j-batch-actions">
+                    <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
+                      <i class="fas fa-pen"></i> Manage
+                    </button>
+                    <button *ngIf="isJourneyReadOnly" type="button" class="j-btn j-btn-primary j-btn-manage" (click)="openBatch(b)">
+                      <i class="fas fa-eye"></i> View
+                    </button>
+                    <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn j-btn-outline j-btn-sm j-btn-remove-active"
+                            [disabled]="removingJourneyBatch === b.batchName"
+                            (click)="removeBatchFromActiveJourney(b)">
+                      <i class="fas" [class.fa-spinner]="removingJourneyBatch === b.batchName" [class.fa-times]="removingJourneyBatch !== b.batchName" [class.fa-spin]="removingJourneyBatch === b.batchName"></i>
+                      Remove from list
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -437,6 +490,15 @@ interface TimelineDay {
             </span>
           </div>
         </div>
+        <div class="j-ro-card">
+          <div class="j-ro-card-icon j-ro-card-icon--amber"><i class="fas fa-shield-alt"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Strict journey rule</span>
+            <span class="j-ro-card-value">
+              {{ editStrictJourneyRule ? ('On — min ' + (editStrictThresholdPercent ?? 100) + '% of day tasks') : 'Off (lenient)' }}
+            </span>
+          </div>
+        </div>
         <div class="j-ro-card j-ro-card--wide" *ngIf="editNotes?.trim()">
           <div class="j-ro-card-icon j-ro-card-icon--muted"><i class="fas fa-sticky-note"></i></div>
           <div class="j-ro-card-body">
@@ -497,6 +559,27 @@ interface TimelineDay {
                  min="1" [max]="editJourneyLength" class="j-input">
         </div>
 
+        <div class="j-config-field j-config-field--strict">
+          <label>
+            Strict journey rule
+            <span class="j-label-hint">— task completion before next day</span>
+          </label>
+          <div class="j-strict-controls">
+            <label class="j-switch">
+              <input type="checkbox" [(ngModel)]="editStrictJourneyRule" (change)="onStrictJourneyToggle()" />
+              <span class="j-switch-slider" aria-hidden="true"></span>
+              <span class="j-switch-label">{{ editStrictJourneyRule ? 'On' : 'Off' }} (default: off — students advance without finishing modules / exercises / live classes)</span>
+            </label>
+            <input *ngIf="editStrictJourneyRule"
+                   type="number"
+                   class="j-input j-input--strict-pct"
+                   [(ngModel)]="editStrictThresholdPercent"
+                   min="1"
+                   max="100"
+                   placeholder="Enter the % of strictness" />
+          </div>
+        </div>
+
         <div class="j-config-field" style="flex:2">
           <label>Notes</label>
           <input type="text" [(ngModel)]="editNotes" class="j-input" maxlength="500" placeholder="Optional notes…">
@@ -520,7 +603,7 @@ interface TimelineDay {
           <strong>Auto-schedule active.</strong>
           Batch started on <strong>{{ editBatchStartDate | date:'dd MMM yyyy' }}</strong>.
           Today is automatically <strong>Day {{ computedDayFromDate() }}</strong>.
-          Student journey days advance independently when they complete their tasks.
+          {{ editStrictJourneyRule ? 'Strict rule is on: students only move to the next day when they meet the completion % for their current day (checked at daily rollover).' : 'Lenient mode: student journey days advance on the daily rollover even if tasks are not finished.' }}
         </div>
         <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn-icon-sm" title="Remove start date (switch to manual)"
                 (click)="clearStartDate()">
@@ -1374,7 +1457,11 @@ interface TimelineDay {
       </div>
       <p class="j-modal-sub">
         Checking journey <strong>Day {{ taskModal.currentDay }}</strong>
-        (exercises with this course day + live classes for this batch &amp; day).
+        — modules, exercises (this course day), and live classes for this batch.
+      </p>
+      <p class="j-modal-meta" *ngIf="taskModal.totalTasks != null && taskModal.totalTasks > 0">
+        Progress: <strong>{{ taskModal.doneTasks ?? 0 }} / {{ taskModal.totalTasks }}</strong> tasks
+        (<strong>{{ taskModal.completionPercent }}%</strong> complete<span *ngIf="taskModal.strictJourneyRule">; strict rule requires ≥ {{ taskModal.strictJourneyThresholdPercent }}%</span>).
       </p>
 
       <div *ngIf="taskModal.complete" class="j-modal-all-done">
@@ -1386,9 +1473,15 @@ interface TimelineDay {
         <h4 class="j-modal-list-title">Incomplete tasks</h4>
         <ul class="j-modal-task-ul">
           <li *ngFor="let t of taskModal.incompleteTasks" class="j-modal-task-li">
-            <span class="j-modal-kind" [class.j-kind-ex]="t.kind === 'exercise'" [class.j-kind-cl]="t.kind === 'class'">
-              <i class="fas" [class.fa-dumbbell]="t.kind === 'exercise'" [class.fa-video]="t.kind === 'class'"></i>
-              {{ t.kind === 'exercise' ? 'Exercise' : 'Live class' }}
+            <span class="j-modal-kind"
+                  [class.j-kind-ex]="t.kind === 'exercise'"
+                  [class.j-kind-cl]="t.kind === 'class'"
+                  [class.j-kind-mod]="t.kind === 'module'">
+              <i class="fas"
+                 [class.fa-dumbbell]="t.kind === 'exercise'"
+                 [class.fa-video]="t.kind === 'class'"
+                 [class.fa-book-open]="t.kind === 'module'"></i>
+              {{ t.kind === 'exercise' ? 'Exercise' : (t.kind === 'module' ? 'Module' : 'Live class') }}
             </span>
             <span class="j-modal-task-title">{{ t.title }}</span>
             <span class="j-modal-day-pill">Day {{ t.courseDay }}</span>
@@ -1398,7 +1491,7 @@ interface TimelineDay {
 
       <div *ngIf="!taskModal.complete && !taskModal.incompleteTasks.length" class="j-modal-empty-day">
         <i class="fas fa-info-circle"></i>
-        No exercises or live classes are scheduled for this journey day.
+        No modules, exercises, or live classes are scheduled for this journey day.
       </div>
 
       <div class="j-modal-footer">
@@ -1927,6 +2020,78 @@ interface TimelineDay {
     /* ── Batch overview: filters + table ── */
     .j-batch-table-wrap { display: flex; flex-direction: column; gap: 14px; }
 
+    .j-start-journey-bar {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .j-start-journey-split {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px 20px;
+    }
+    .j-start-journey-inner { flex: 1 1 280px; max-width: 720px; min-width: 0; }
+    .j-start-journey-side {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      padding-top: 22px;
+    }
+    .j-btn-all-students { white-space: nowrap; }
+    .j-start-journey-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+    .j-start-journey-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .j-select--upcoming {
+      flex: 1 1 260px;
+      min-width: 200px;
+      max-width: 420px;
+    }
+    .j-start-journey-hint {
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.45;
+    }
+    .j-teacher-journey-hint {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      font-size: 13px;
+      color: #1e40af;
+      line-height: 1.45;
+    }
+    .j-teacher-journey-hint i { flex-shrink: 0; margin-top: 2px; }
+    .j-batch-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .j-btn-remove-active { white-space: nowrap; }
+
     .j-filter-bar {
       background: #fff;
       border-radius: 14px;
@@ -2166,6 +2331,68 @@ interface TimelineDay {
       padding: 6px 10px; font-size: 12px; font-weight: 700;
     }
     .j-config-field label { font-size: 11px; font-weight: 600; color: #475569; }
+    .j-config-field--strict { flex: 1 1 280px; min-width: 240px; }
+    .j-strict-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .j-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      margin: 0;
+    }
+    .j-switch input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .j-switch-slider {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+      background: #cbd5e1;
+      border-radius: 999px;
+      transition: background .15s;
+    }
+    .j-switch-slider::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+      transition: transform .15s;
+    }
+    .j-switch input:checked + .j-switch-slider {
+      background: #005b96;
+    }
+    .j-switch input:checked + .j-switch-slider::after {
+      transform: translateX(18px);
+    }
+    .j-switch input:focus-visible + .j-switch-slider {
+      outline: 2px solid #93c5fd;
+      outline-offset: 2px;
+    }
+    .j-switch-label {
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.35;
+      max-width: 360px;
+    }
+    .j-input--strict-pct {
+      width: 100px;
+      min-width: 88px;
+    }
     .j-config-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 
     /* ── Input ── */
@@ -2295,6 +2522,12 @@ interface TimelineDay {
     .j-modal-sub {
       margin: 10px 20px 0; font-size: 12px; color: #64748b; line-height: 1.45;
     }
+    .j-modal-meta {
+      margin: 8px 20px 0;
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.45;
+    }
     .j-modal-all-done {
       margin: 16px 20px 0;
       padding: 12px 14px;
@@ -2321,6 +2554,7 @@ interface TimelineDay {
       padding: 2px 8px; border-radius: 6px; white-space: nowrap;
     }
     .j-kind-ex { background: #dbeafe; color: #1e40af; }
+    .j-kind-mod { background: #e0e7ff; color: #3730a3; }
     .j-kind-cl { background: #fce7f3; color: #9d174d; }
     .j-modal-task-title { flex: 1; min-width: 140px; color: #0f172a; font-weight: 500; }
     .j-modal-day-pill {
@@ -3058,6 +3292,7 @@ interface TimelineDay {
     .j-ro-card-icon--violet { background: #ede9fe; color: #6d28d9; }
     .j-ro-card-icon--blue { background: #dbeafe; color: #1d4ed8; }
     .j-ro-card-icon--green { background: #d1fae5; color: #047857; }
+    .j-ro-card-icon--amber { background: #fef3c7; color: #b45309; }
     .j-ro-card-icon--muted { background: #f1f5f9; color: #64748b; }
     .j-ro-card-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
     .j-ro-card-label {
@@ -3252,6 +3487,11 @@ export class JourneyManagementComponent implements OnInit {
   private adminUrl = `${environment.apiUrl}/admin`;
 
   batches: BatchSummary[] = [];
+  /** Batches not on the active journey list (pick here + Start journey). */
+  upcomingBatches: BatchSummary[] = [];
+  selectedUpcomingBatch = '';
+  startingJourney = false;
+  removingJourneyBatch: string | null = null;
   loading = false;
 
   /** Create batch modal */
@@ -3299,6 +3539,10 @@ export class JourneyManagementComponent implements OnInit {
   editBatchDay = 1;
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
+  /** When false, daily rollover advances students without requiring day tasks. */
+  editStrictJourneyRule = false;
+  /** 1–100; used when editStrictJourneyRule is true. */
+  editStrictThresholdPercent = 100;
 
   activeTab: 'students' | 'timeline' | 'progress' = 'students';
 
@@ -3768,10 +4012,78 @@ export class JourneyManagementComponent implements OnInit {
 
   loadBatches(): void {
     this.loading = true;
-    this.http.get<{ batches: BatchSummary[] }>(this.apiUrl, { withCredentials: true }).subscribe({
-      next: r => { this.batches = r.batches; this.loading = false; },
-      error: e => { console.error(e); this.loading = false; }
-    });
+    this.http
+      .get<{ batches: BatchSummary[]; upcomingBatches?: BatchSummary[] }>(this.apiUrl, { withCredentials: true })
+      .subscribe({
+        next: (r) => {
+          this.batches = r.batches || [];
+          this.upcomingBatches = r.upcomingBatches || [];
+          this.loading = false;
+        },
+        error: (e) => {
+          console.error(e);
+          this.loading = false;
+        }
+      });
+  }
+
+  openAllStudentsPage(): void {
+    this.router.navigate(['/admin/journey/all-students']);
+  }
+
+  startJourneyForSelected(): void {
+    const name = String(this.selectedUpcomingBatch || '').trim();
+    if (!name) {
+      this.notify.error('Select a batch first.');
+      return;
+    }
+    this.startingJourney = true;
+    this.http
+      .post<any>(`${this.apiUrl}/${encodeURIComponent(name)}/journey-activate`, {}, { withCredentials: true })
+      .subscribe({
+        next: (r) => {
+          this.startingJourney = false;
+          this.selectedUpcomingBatch = '';
+          this.notify.success(r?.message || 'Journey started.');
+          this.loadBatches();
+        },
+        error: (e) => {
+          this.startingJourney = false;
+          this.notify.error(e?.error?.message || 'Failed to start journey.');
+        }
+      });
+  }
+
+  removeBatchFromActiveJourney(b: BatchSummary): void {
+    const name = b.batchName;
+    this.notify
+      .confirm(
+        'Remove from active list',
+        `"${name}" will disappear from this table. Students and batch data are not deleted. Continue?`,
+        'Remove',
+        'Cancel'
+      )
+      .subscribe((ok) => {
+        if (!ok) return;
+        this.removingJourneyBatch = name;
+        this.http
+          .post<any>(`${this.apiUrl}/${encodeURIComponent(name)}/journey-deactivate`, {}, { withCredentials: true })
+          .subscribe({
+            next: (r) => {
+              this.removingJourneyBatch = null;
+              this.notify.success(r?.message || 'Removed from active journeys.');
+              if (this.selectedBatch?.batchName === name) {
+                this.closeBatch();
+              } else {
+                this.loadBatches();
+              }
+            },
+            error: (e) => {
+              this.removingJourneyBatch = null;
+              this.notify.error(e?.error?.message || 'Failed to remove from list.');
+            }
+          });
+      });
   }
 
   /** Days elapsed since editBatchStartDate (0 if today = start date) */
@@ -3800,6 +4112,9 @@ export class JourneyManagementComponent implements OnInit {
       ? new Date(b.batchStartDate).toISOString().slice(0, 10)
       : '';
     this.editNotes = b.notes;
+    this.editStrictJourneyRule = !!b.strictJourneyRule;
+    this.editStrictThresholdPercent =
+      b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
     this.activeTab = 'students';
     this.batchStudents = [];
     this.studentsLoadedForBatch = null;
@@ -3867,6 +4182,13 @@ export class JourneyManagementComponent implements OnInit {
           enrollmentDate: s.enrollmentDate || null,
           accountCreatedAt: s.accountCreatedAt || null
         }));
+        if (this.selectedBatch?.batchName === batchName && r.config) {
+          this.editStrictJourneyRule = !!r.config.strictJourneyRule;
+          this.editStrictThresholdPercent =
+            r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
+          this.selectedBatch.strictJourneyRule = this.editStrictJourneyRule;
+          this.selectedBatch.strictJourneyThresholdPercent = this.editStrictThresholdPercent;
+        }
         if (this.selectedBatch?.batchName === batchName) {
           this.studentsLoadedForBatch = batchName;
         }
@@ -3878,12 +4200,21 @@ export class JourneyManagementComponent implements OnInit {
 
   saveConfig(): void {
     if (!this.selectedBatch) return;
+    if (this.editStrictJourneyRule) {
+      const p = Number(this.editStrictThresholdPercent);
+      if (!Number.isFinite(p) || p < 1 || p > 100) {
+        this.notify.error('Enter a strict rule percentage between 1 and 100.');
+        return;
+      }
+    }
     this.savingConfig = true;
     const payload: any = {
       journeyLength: this.editJourneyLength,
       batchCurrentDay: this.editBatchDay,
       batchStartDate: this.editBatchStartDate || null,
-      notes: this.editNotes
+      notes: this.editNotes,
+      strictJourneyRule: this.editStrictJourneyRule,
+      strictJourneyThresholdPercent: this.editStrictThresholdPercent
     };
     this.http.put<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}`,
       payload, { withCredentials: true }).subscribe({
@@ -3893,6 +4224,12 @@ export class JourneyManagementComponent implements OnInit {
         this.selectedBatch!.batchStartDate = r.config.batchStartDate || null;
         this.selectedBatch!.autoDay = !!r.config.batchStartDate;
         this.selectedBatch!.notes = r.config.notes;
+        this.selectedBatch!.strictJourneyRule = !!r.config.strictJourneyRule;
+        this.selectedBatch!.strictJourneyThresholdPercent =
+          r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
+        this.editStrictJourneyRule = !!r.config.strictJourneyRule;
+        this.editStrictThresholdPercent =
+          r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
         this.savingConfig = false;
         this.notify.success('Batch config saved.');
       },
@@ -3902,7 +4239,7 @@ export class JourneyManagementComponent implements OnInit {
 
   applyDayToAllStudents(): void {
     if (!this.selectedBatch) return;
-    const day = this.editBatchDay;
+    const day = this.editBatchStartDate ? this.computedDayFromDate() : this.editBatchDay;
     this.notify.confirm('Apply Day', `Set ALL students in "${this.selectedBatch.batchName}" to Day ${day}?`).subscribe(ok => {
       if (!ok) return;
       this.applyingDay = true;
@@ -3946,7 +4283,14 @@ export class JourneyManagementComponent implements OnInit {
           incompleteTasks: incomplete
         };
         s.checkingTasks = false;
-        this.openTaskModalFromResponse(s._id, s.name, r.currentDay ?? s.currentCourseDay, r.complete, incomplete);
+        this.openTaskModalFromResponse(s._id, s.name, r.currentDay ?? s.currentCourseDay, r.complete, incomplete, {
+          completionPercent: r.completionPercent,
+          totalTasks: r.totalTasks,
+          doneTasks: r.doneTasks,
+          strictJourneyRule: r.strictJourneyRule,
+          strictJourneyThresholdPercent: r.strictJourneyThresholdPercent,
+          thresholdMet: r.thresholdMet
+        });
       },
       error: e => {
         console.error(e);
@@ -3961,14 +4305,16 @@ export class JourneyManagementComponent implements OnInit {
     studentName: string,
     currentDay: number,
     complete: boolean,
-    incompleteTasks: IncompleteTaskItem[]
+    incompleteTasks: IncompleteTaskItem[],
+    extra?: Partial<TaskCheckModal>
   ): void {
     this.taskModal = {
       studentId,
       studentName,
       currentDay,
       complete,
-      incompleteTasks: incompleteTasks || []
+      incompleteTasks: incompleteTasks || [],
+      ...extra
     };
   }
 
@@ -3981,6 +4327,15 @@ export class JourneyManagementComponent implements OnInit {
       s.taskStatus.complete,
       s.taskStatus.incompleteTasks || []
     );
+  }
+
+  onStrictJourneyToggle(): void {
+    if (this.editStrictJourneyRule) {
+      const p = Number(this.editStrictThresholdPercent);
+      if (!Number.isFinite(p) || p < 1 || p > 100) {
+        this.editStrictThresholdPercent = 100;
+      }
+    }
   }
 
   closeTaskModal(): void {
@@ -4006,7 +4361,13 @@ export class JourneyManagementComponent implements OnInit {
     if (t != null && t !== s.currentCourseDay) {
       return `Set journey day to ${t}`;
     }
-    return s.taskStatus?.complete ? 'Advance to next day' : 'Force advance +1 day (tasks not done)';
+    if (!this.editStrictJourneyRule) {
+      return 'Advance to next day';
+    }
+    const thr = this.editStrictThresholdPercent ?? 100;
+    return s.taskStatus?.complete
+      ? 'Advance to next day'
+      : `Advance if day tasks meet ≥ ${thr}% (or use force)`;
   }
 
   private parsedEditDay(s: StudentRow): number | null {
@@ -4057,7 +4418,13 @@ export class JourneyManagementComponent implements OnInit {
         } else {
           const incomplete = (r.incompleteTasks || []) as IncompleteTaskItem[];
           s.taskStatus = { complete: false, breakdown: r.breakdown, incompleteTasks: incomplete };
-          this.openTaskModalFromResponse(s._id, s.name, r.currentDay ?? s.currentCourseDay, false, incomplete);
+          this.openTaskModalFromResponse(s._id, s.name, r.currentDay ?? s.currentCourseDay, false, incomplete, {
+            completionPercent: r.completionPercent,
+            totalTasks: r.totalTasks,
+            doneTasks: r.doneTasks,
+            strictJourneyRule: this.editStrictJourneyRule,
+            strictJourneyThresholdPercent: this.editStrictThresholdPercent
+          });
         }
       },
       error: e => {

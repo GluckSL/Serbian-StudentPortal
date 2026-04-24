@@ -1,11 +1,23 @@
 /**
- * Journey day advance: student must attend the live class for their current journey day.
- * Eligibility is stored as pendingJourneyDayAdvance; currentCourseDay increments at local midnight (cron).
+ * Journey day advance at local midnight (cron):
+ * - Non-strict batches: every student’s journey day increments by 1 (capped at 200).
+ * - Strict batches: increments only if the student completed enough of that day’s tasks
+ *   (modules + exercises + live classes) per BatchConfig.strictJourneyThresholdPercent.
+ * pendingJourneyDayAdvance is still written on live attendance for UI; rollover clears it when advancing.
  */
 
 const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
+const BatchConfig = require('../models/BatchConfig');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
+const {
+  computeJourneyDayCompletion,
+  meetsStrictThreshold
+} = require('./journeyDayCompletion.service');
+
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function normalizeCourseDay(d) {
   const n = parseInt(String(d), 10);
@@ -102,41 +114,87 @@ async function recomputePendingForStudent(studentId) {
 }
 
 /**
- * At configured local midnight: advance students who have pending eligibility.
- * Clears stale pending if admin changed currentCourseDay away from pendingJourneyDayAdvanceForDay.
+ * At configured local midnight: advance each student based on batch strict rule.
+ * Clears stale pending flags when not advancing.
  */
 async function applyJourneyDayRollovers() {
-  const students = await User.find({
-    role: 'STUDENT',
-    pendingJourneyDayAdvance: true
-  })
-    .select('currentCourseDay pendingJourneyDayAdvanceForDay')
+  const students = await User.find({ role: 'STUDENT' })
+    .select('batch goStatus subscription currentCourseDay pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay')
     .lean();
 
+  const configCache = new Map();
+  async function batchConfigForStudent(student) {
+    const keys = allStudentBatchStringsForContent(student);
+    const primary = keys.includes('GO-SILVER') ? 'GO-SILVER' : keys[0];
+    if (!primary) return null;
+    if (configCache.has(primary)) return configCache.get(primary);
+    const doc = await BatchConfig.findOne({
+      batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i')
+    }).lean();
+    const cfg = doc || {
+      batchName: primary,
+      journeyLength: 200,
+      strictJourneyRule: false,
+      strictJourneyThresholdPercent: 100
+    };
+    configCache.set(primary, cfg);
+    return cfg;
+  }
+
   let advanced = 0;
-  let cleared = 0;
+  let clearedPending = 0;
+  let heldStrict = 0;
 
   for (const s of students) {
+    const cfg = await batchConfigForStudent(s);
     const cur = normalizeCourseDay(s.currentCourseDay);
-    const forDay = s.pendingJourneyDayAdvanceForDay != null
-      ? normalizeCourseDay(s.pendingJourneyDayAdvanceForDay)
-      : null;
+    const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
 
-    if (forDay != null && forDay !== cur) {
-      await User.updateOne(
-        { _id: s._id },
-        {
-          $set: {
-            pendingJourneyDayAdvance: false,
-            pendingJourneyDayAdvanceForDay: null
-          }
-        }
-      );
-      cleared++;
+    if (!cfg || cur >= maxDay) {
+      if (s.pendingJourneyDayAdvance) {
+        await User.updateOne(
+          { _id: s._id },
+          { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+        );
+        clearedPending++;
+      }
       continue;
     }
 
-    const next = Math.min(200, cur + 1);
+    const forDay =
+      s.pendingJourneyDayAdvanceForDay != null ? normalizeCourseDay(s.pendingJourneyDayAdvanceForDay) : null;
+    if (forDay != null && forDay !== cur) {
+      await User.updateOne(
+        { _id: s._id },
+        { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+      );
+      clearedPending++;
+    }
+
+    let shouldAdvance = false;
+    if (!cfg.strictJourneyRule) {
+      shouldAdvance = true;
+    } else {
+      const keys = allStudentBatchStringsForContent(s);
+      const completion = await computeJourneyDayCompletion(s._id, keys, cur);
+      shouldAdvance = meetsStrictThreshold(completion, cfg);
+    }
+
+    if (!shouldAdvance) {
+      if (s.pendingJourneyDayAdvance) {
+        await User.updateOne(
+          { _id: s._id },
+          { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+        );
+        clearedPending++;
+      }
+      heldStrict++;
+      continue;
+    }
+
+    const next = Math.min(maxDay, cur + 1);
+    if (next === cur) continue;
+
     await User.updateOne(
       { _id: s._id },
       {
@@ -150,9 +208,9 @@ async function applyJourneyDayRollovers() {
     advanced++;
   }
 
-  if (advanced || cleared) {
+  if (advanced || clearedPending || heldStrict) {
     console.log(
-      `📅 [Journey rollover] Advanced ${advanced} student(s); cleared stale pending ${cleared}.`
+      `📅 [Journey rollover] Advanced ${advanced} student(s); held (strict) ${heldStrict}; cleared pending ${clearedPending}.`
     );
   }
 }
