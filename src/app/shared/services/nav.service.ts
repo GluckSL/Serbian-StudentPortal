@@ -26,7 +26,8 @@ export class NavService {
       '/create-module-ai',
       '/create-roleplay-module',
       '/edit-module',
-      '/ai-tutor-chat'
+      '/ai-tutor-chat',
+      '/admin/dg-modules'
     ],
     exercises: [
       '/admin/digital-exercises',
@@ -71,6 +72,7 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',             subGroup: 'Module Management' },
+        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: '🦊', route: '/admin/dg-modules',          subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: '🏋️', route: '/admin/digital-exercises',   subGroup: null },
         { id: 'teacher-resources', label: 'Teacher Resources', icon: '🗂️', route: '/admin/teacher-resources', subGroup: null },
         { id: 'journey',           label: 'Journey',            icon: '📅', route: '/admin/journey',             subGroup: null },
@@ -168,6 +170,7 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/learning-modules',         subGroup: 'Module Management' },
+        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: '🦊', route: '/admin/dg-modules',        subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null }
       ]
     },
@@ -225,6 +228,7 @@ export class NavService {
       group: 'My Course',
       items: [
         { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null },
+        { id: 'dg-bot', label: 'DG Bot', icon: '🦊', route: '/dg-bot', subGroup: null },
         { id: 'student-announcements', label: 'Announcements', icon: '📢', route: '/student/announcements', subGroup: null }
       ]
     },

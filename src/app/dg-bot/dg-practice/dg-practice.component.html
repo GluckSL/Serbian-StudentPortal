@@ -1,0 +1,80 @@
+<div class="dg-practice">
+  <div class="dg-practice__countdown" *ngIf="countdownLabel" role="status" aria-live="polite">
+    {{ countdownLabel }}
+  </div>
+
+  <canvas #waveCanvas class="dg-practice__wave" [class.dg-practice__wave--live]="recording"></canvas>
+
+  <p class="dg-practice__listen" *ngIf="recording && !processing">Listening…</p>
+
+  <div class="dg-practice__process" *ngIf="processing" role="status" aria-live="polite">
+    <mat-spinner diameter="26"></mat-spinner>
+    <span>Processing…</span>
+  </div>
+  <p class="dg-practice__slow" *ngIf="processing && processingSlowUi">
+    Still working… this can take a moment on slower connections.
+  </p>
+
+  <div class="dg-practice__mic-block">
+    <button
+      mat-fab
+      color="primary"
+      type="button"
+      class="dg-practice__mic"
+      [disabled]="disabled || processing || countdownActive || !expected"
+      [class.dg-practice__mic--on]="recording"
+      (click)="toggleRecord()"
+      [attr.aria-label]="recording ? 'Stop recording' : 'Tap to speak'"
+    >
+      <mat-icon>{{ recording ? 'stop' : 'mic' }}</mat-icon>
+    </button>
+    <p class="dg-practice__mic-label" *ngIf="!countdownActive && !processing">
+      {{ recording ? 'Tap to stop' : 'Tap to speak' }}
+    </p>
+  </div>
+
+  <p class="dg-practice__hint" *ngIf="hint && !countdownActive">{{ hint }}</p>
+
+  <ng-container *ngIf="lastEval as ev">
+    <p class="dg-practice__transcript" *ngIf="ev.transcript">
+      You said: <span class="dg-practice__said-text">{{ ev.transcript }}</span>
+    </p>
+
+    <div class="dg-practice__words" *ngIf="ev.wordAnalysis?.length" aria-label="Word-by-word feedback">
+      <span
+        *ngFor="let w of ev.wordAnalysis; let last = last"
+        class="dg-practice__word"
+        [class.dg-practice__word--ok]="w.status === 'correct'"
+        [class.dg-practice__word--bad]="w.status === 'incorrect'"
+        [class.dg-practice__word--miss]="w.status === 'missing'"
+      >
+        <ng-container [ngSwitch]="w.status">
+          <span *ngSwitchCase="'correct'">{{ w.spoken }}</span>
+          <span *ngSwitchCase="'incorrect'">
+            <span class="dg-practice__mark dg-practice__mark--bad" aria-hidden="true">❌</span>
+            {{ w.spoken }}
+            <span class="dg-practice__arrow">→</span>
+            <span class="dg-practice__mark dg-practice__mark--ok" aria-hidden="true">✅</span>
+            {{ w.expected }}
+          </span>
+          <span *ngSwitchCase="'missing'">
+            <span class="dg-practice__mark dg-practice__mark--bad" aria-hidden="true">❌</span>
+            <span class="dg-practice__gap">(missing)</span>
+            <span class="dg-practice__arrow">→</span>
+            <span class="dg-practice__mark dg-practice__mark--ok" aria-hidden="true">✅</span>
+            {{ w.expected }}
+          </span>
+        </ng-container><span *ngIf="!last" class="dg-practice__word-sep"> </span>
+      </span>
+    </div>
+
+    <div class="dg-practice__tips" *ngIf="ev.hints?.length">
+      <p class="dg-practice__tips-lead">💡 Tip:</p>
+      <ul class="dg-practice__tips-list">
+        <li *ngFor="let h of ev.hints">{{ h }}</li>
+      </ul>
+    </div>
+
+    <p class="dg-practice__retry" *ngIf="!ev.isCorrect && !processing">Try again slowly.</p>
+  </ng-container>
+</div>

@@ -79,6 +79,7 @@ const assignmentTemplatesRoutes = require('./routes/assignmentTemplates');
 const notificationRoutes = require('./routes/notifications');
 const metaLeadsRoutes = require('./routes/metaLeads');
 const digitalExercisesRoutes = require('./routes/digitalExercises');
+const dgRoutes = require('./routes/dg');
 const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
@@ -149,9 +150,12 @@ const mongoUri =
     ? process.env.MONGO_URI
     : process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/Updated-Gluck-Portal';
 
+const { ensureDefaultDgCharacter } = require('./services/dgCharacterSeed');
+
 mongoose.connect(mongoUri)
-  .then(() => {
+  .then(async () => {
     console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
+    await ensureDefaultDgCharacter();
   })
   .catch(err => {
     console.error('❌ MongoDB connection error:', err);
@@ -211,6 +215,7 @@ app.use('/api/assignment-templates', assignmentTemplatesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/digital-exercises', digitalExercisesRoutes);
+app.use('/api/dg', dgRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);

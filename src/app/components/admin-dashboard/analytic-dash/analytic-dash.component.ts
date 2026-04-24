@@ -3,7 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from '../../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
-import { HttpClient, HttpClientModule, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { MaterialModule } from '../../../shared/material.module';
@@ -89,7 +89,6 @@ interface StudentListResponse {
   selector: 'app-analytic-dash',
   standalone: true,
   imports: [
-    HttpClientModule,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,

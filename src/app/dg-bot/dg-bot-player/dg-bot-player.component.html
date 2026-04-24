@@ -1,0 +1,117 @@
+<div class="dg-player" *ngIf="!loading && !error && payload">
+  <div class="dg-player__ambient" aria-hidden="true"></div>
+
+  <header class="dg-player__top">
+    <div class="dg-player__progress-block">
+      <div class="dg-player__progress-head">
+        <span class="dg-player__step-pill"
+          >Step {{ index + 1 }} <span class="dg-player__step-of">/</span> {{ scenes.length }}</span
+        >
+        <span class="dg-player__module-title">{{ payload.module.title }}</span>
+      </div>
+      <div
+        class="dg-player__progress-track"
+        role="progressbar"
+        [attr.aria-valuenow]="progressPct"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        [attr.aria-label]="'Module progress: ' + progressPct + ' percent'"
+      >
+        <div class="dg-player__progress-fill" [style.width.%]="progressPct"></div>
+      </div>
+    </div>
+    <button mat-stroked-button type="button" class="dg-player__exit" (click)="exit()">
+      <mat-icon>close</mat-icon>
+      Exit
+    </button>
+  </header>
+
+  <div
+    class="dg-player__stage-wrap"
+    [class.dg-player__stage-wrap--transition]="isTransitioning"
+  >
+    <div class="dg-confetti" *ngIf="showConfetti" aria-hidden="true">
+      <span
+        *ngFor="let c of confettiPieces"
+        class="dg-confetti__bit"
+        [style.--dg-r]="c * 53 + 'deg'"
+        [style.--dg-d]="c * 35 + 'ms'"
+        [style.--dg-x]="((c * 19) % 100) - 50 + 'px'"
+      ></span>
+    </div>
+
+    <div class="dg-player__layout">
+      <section class="dg-player__char-pane">
+        <div class="dg-player__char-stack">
+          <app-dg-dialogue
+            class="dg-player__dialogue-host"
+            [line]="displayLine"
+            [subtitle]="displaySub"
+            [variant]="dialogueVariant"
+            [disabled]="status === 'speaking'"
+            (replayTts)="replayTts()"
+          ></app-dg-dialogue>
+
+          <div class="dg-player__mascot">
+            <app-dg-character
+              [name]="payload.character.name"
+              [animations]="payload.character.animations || null"
+            ></app-dg-character>
+          </div>
+        </div>
+      </section>
+
+      <section class="dg-player__learn-pane">
+        <div
+          class="dg-player__hero-card"
+          *ngIf="highlightWord || displayLine"
+          [class.dg-player__hero-card--target]="!!highlightWord"
+        >
+          <p class="dg-player__hero-line">{{ highlightWord || displayLine }}</p>
+          <p class="dg-player__hero-sub" *ngIf="displaySub">({{ displaySub }})</p>
+        </div>
+
+        <div class="dg-player__interaction">
+          <app-dg-practice
+            *ngIf="scene?.type === 'practice'"
+            [expected]="scene?.expectedAnswer || ''"
+            [language]="pronLanguage"
+            [hint]="scene?.hint || ''"
+            [disabled]="status === 'speaking' || practicePassed || isTransitioning"
+            [retryTick]="practiceRetryTick"
+            [sceneKey]="(scene?._id || '') + '-' + index"
+            (evaluated)="onEvaluated($event)"
+            (silence)="onSilence()"
+            (phaseChange)="onPracticePhase($event)"
+          ></app-dg-practice>
+
+          <div class="dg-player__non-practice-hint" *ngIf="scene?.type !== 'practice'">
+            <p class="dg-player__non-practice-text">
+              Listen to your tutor, then use <strong>Next</strong> when you are ready.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="dg-player__footer">
+        <app-dg-controls
+          [canReplay]="!!scene && status !== 'speaking' && !isTransitioning"
+          [canNext]="canNext"
+          [showSkip]="scene?.type === 'practice' && !practicePassed"
+          [busy]="status === 'speaking' || isTransitioning"
+          (replay)="replayTts()"
+          (next)="onNext()"
+          (skip)="onSkip()"
+        ></app-dg-controls>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<div class="dg-player__loading" *ngIf="loading">
+  <div class="dg-player__loading-inner">
+    <span class="dg-player__loading-dot"></span>
+    Loading your lesson…
+  </div>
+</div>
+<div class="dg-player__err" *ngIf="error">{{ error }}</div>

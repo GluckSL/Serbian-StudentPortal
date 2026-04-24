@@ -1,0 +1,21 @@
+<div class="dg-hub">
+  <h1>DG Bot</h1>
+  <p class="dg-hub__lead">Pick a guided lesson. Your tutor speaks, you repeat, and you get instant feedback.</p>
+
+  <div *ngIf="loading" class="dg-hub__state">Loading…</div>
+  <div *ngIf="error" class="dg-hub__err">{{ error }}</div>
+
+  <div class="dg-hub__grid" *ngIf="!loading && !error">
+    <mat-card *ngFor="let m of modules" class="dg-hub__card">
+      <mat-card-title>{{ m.title }}</mat-card-title>
+      <mat-card-subtitle>{{ m.level }} · {{ m.description || 'Guided practice' }}</mat-card-subtitle>
+      <mat-card-actions align="end">
+        <a mat-flat-button color="primary" [routerLink]="['/dg-bot', m._id, 'play']">
+          <mat-icon>play_arrow</mat-icon>
+          Start
+        </a>
+      </mat-card-actions>
+    </mat-card>
+    <p *ngIf="modules.length === 0" class="dg-hub__empty">No published DG modules yet. Ask your teacher.</p>
+  </div>
+</div>

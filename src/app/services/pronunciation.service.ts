@@ -34,6 +34,14 @@ export interface PronunciationEvaluateRequest {
 
 export type PronunciationConfidence = 'low' | 'medium' | 'high';
 
+export type PronunciationWordStatus = 'correct' | 'incorrect' | 'missing';
+
+export interface PronunciationWordAnalysisRow {
+  expected: string;
+  spoken: string;
+  status: PronunciationWordStatus;
+}
+
 export interface PronunciationEvaluateResponse {
   requestId: string;
   engine: 'openai' | 'fallback' | 'client-transcript';
@@ -48,6 +56,9 @@ export interface PronunciationEvaluateResponse {
   matchedAgainst: string;
   normalizedExpected: string;
   normalizedSpoken: string;
+  /** Word-level alignment for explainable feedback (optional for older servers). */
+  wordAnalysis?: PronunciationWordAnalysisRow[];
+  hints?: string[];
   durationMs?: number;
   transcriptionError?: string | null;
 }
@@ -235,8 +246,13 @@ export class PronunciationService {
       throw this.error('MEDIA_RECORDER_UNSUPPORTED', 'Audio recording is not supported in this browser.');
     }
 
-    // Always get a fresh stream — reusing stale ones is a common iOS bug.
-    this.mediaStream = await this.requestMicStream();
+    // Prefer an already-live stream if present (avoids duplicate getUserMedia); otherwise open mic.
+    if (
+      !this.mediaStream ||
+      !this.mediaStream.getTracks().some((t) => t.readyState === 'live')
+    ) {
+      this.mediaStream = await this.requestMicStream();
+    }
 
     const mimeType = caps.preferredMimeType || undefined;
     try {
@@ -512,9 +528,16 @@ export class PronunciationService {
     if (typeof request.threshold === 'number') form.append('threshold', String(request.threshold));
     if (request.clientMeta) form.append('clientMeta', JSON.stringify(request.clientMeta));
 
-    return await this.http
-      .post<PronunciationEvaluateResponse>(`${this.apiUrl}/evaluate`, form, { withCredentials: true })
-      .toPromise() as PronunciationEvaluateResponse;
+    const url = `${this.apiUrl}/evaluate`;
+    const post = () =>
+      this.http
+        .post<PronunciationEvaluateResponse>(url, form, { withCredentials: true })
+        .toPromise() as Promise<PronunciationEvaluateResponse>;
+    try {
+      return await post();
+    } catch {
+      return await post();
+    }
   }
 
   private inferFilename(blob: Blob): string {

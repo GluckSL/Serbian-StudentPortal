@@ -2,6 +2,8 @@
 
 export const environment = {
   production: false,
+  /** Verbose DG Bot client logs (dev only). */
+  dgDevLogging: true,
   /**
    * Same-origin `/api` so `ng serve` (any port) proxies to Express and httpOnly cookies
    * apply to `localhost:<port>`. Avoids `localhost:4000` vs `localhost:4700` cookie/CORS issues.

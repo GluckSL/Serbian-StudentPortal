@@ -1,0 +1,33 @@
+<div class="dg-ctrl">
+  <button
+    mat-stroked-button
+    type="button"
+    class="dg-ctrl__replay"
+    [disabled]="!canReplay || busy"
+    (click)="replay.emit()"
+  >
+    <mat-icon>volume_up</mat-icon>
+    Replay audio
+  </button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    class="dg-ctrl__next"
+    [disabled]="!canNext || busy"
+    (click)="next.emit()"
+  >
+    Continue
+    <mat-icon>arrow_forward</mat-icon>
+  </button>
+  <button
+    mat-button
+    type="button"
+    class="dg-ctrl__skip"
+    *ngIf="showSkip"
+    [disabled]="busy"
+    (click)="skip.emit()"
+  >
+    I can't speak right now
+  </button>
+</div>

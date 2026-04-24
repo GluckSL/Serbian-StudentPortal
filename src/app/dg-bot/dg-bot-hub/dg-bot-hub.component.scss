@@ -1,0 +1,37 @@
+.dg-hub {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+}
+
+.dg-hub h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+}
+
+.dg-hub__lead {
+  margin: 0 0 1.5rem;
+  color: #64748b;
+  max-width: 560px;
+}
+
+.dg-hub__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.dg-hub__card mat-card-actions a mat-icon {
+  margin-right: 0.25rem;
+  vertical-align: middle;
+}
+
+.dg-hub__state,
+.dg-hub__err,
+.dg-hub__empty {
+  color: #64748b;
+}
+
+.dg-hub__err {
+  color: #b91c1c;
+}

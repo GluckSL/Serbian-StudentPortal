@@ -10,6 +10,7 @@
 //  - scorePronunciation(expected,   → { score, normalizedExpected, normalizedSpoken }
 //      spoken, { variants, lang })
 //  - evaluateThreshold(score, t)    → { isCorrect, threshold }
+//  - explainPronunciationFromScore  → { wordAnalysis, hints } for teaching UI
 
 const DEFAULT_THRESHOLD = 70;
 
@@ -211,6 +212,190 @@ function computeConfidence(score) {
   return 'low';
 }
 
+// ── Word-level explainable feedback (lightweight, no NLP deps) ─────────────
+
+/**
+ * Classify a single token pair after normalization.
+ * Allows small typos (short words, edit distance 1) while still flagging
+ * clearly different words.
+ */
+function classifyTokenPair(expectedTok, spokenTok) {
+  if (!expectedTok) {
+    return { status: 'incorrect', spoken: spokenTok || '' };
+  }
+  if (!spokenTok) {
+    return { status: 'missing', spoken: '' };
+  }
+  if (expectedTok === spokenTok) {
+    return { status: 'correct', spoken: spokenTok };
+  }
+  const r = levenshteinRatio(expectedTok, spokenTok);
+  const d = editDistance(expectedTok, spokenTok);
+  const maxLen = Math.max(expectedTok.length, spokenTok.length);
+  const shortWord = maxLen <= 5;
+  // Dropped ending syllable / cut short (e.g. "name" vs "nam") — still teachable as incorrect.
+  if (
+    spokenTok.length >= 2
+    && expectedTok.startsWith(spokenTok)
+    && expectedTok.length > spokenTok.length
+    && expectedTok.length - spokenTok.length <= 2
+    && r < 0.9
+  ) {
+    return { status: 'incorrect', spoken: spokenTok };
+  }
+  if (r >= 0.86 || (shortWord && d <= 1 && r >= 0.62)) {
+    return { status: 'correct', spoken: spokenTok };
+  }
+  if (r >= 0.38 || d <= Math.max(2, Math.floor(maxLen * 0.4))) {
+    return { status: 'incorrect', spoken: spokenTok };
+  }
+  return { status: 'incorrect', spoken: spokenTok };
+}
+
+/**
+ * Align expected tokens to spoken tokens (sequential + one-token lookahead)
+ * so insertions like an extra "uh" do not throw off the whole line.
+ */
+function compareWords(expectedTokens, spokenTokens) {
+  const E = Array.isArray(expectedTokens) ? expectedTokens : [];
+  const S = Array.isArray(spokenTokens) ? spokenTokens : [];
+  const rows = [];
+  let j = 0;
+  for (let i = 0; i < E.length; i += 1) {
+    const exp = E[i];
+    if (j >= S.length) {
+      rows.push({ expected: exp, spoken: '', status: 'missing' });
+      continue;
+    }
+
+    let matchJ = j;
+    let ratioHere = levenshteinRatio(exp, S[j]);
+    if (ratioHere < 0.4 && j + 1 < S.length) {
+      const ratioNext = levenshteinRatio(exp, S[j + 1]);
+      if (ratioNext > ratioHere + 0.12) {
+        j += 1;
+        matchJ = j;
+        ratioHere = ratioNext;
+      }
+    }
+
+    const spokenTok = S[matchJ];
+    const { status, spoken } = classifyTokenPair(exp, spokenTok);
+    rows.push({ expected: exp, spoken, status });
+    j = matchJ + 1;
+  }
+  return rows;
+}
+
+/**
+ * Build wordAnalysis from the winning scoring candidate (matchedAgainst)
+ * and the transcript, using the same number-canonicalisation as scoring.
+ */
+function buildWordAnalysis(scoreRes, transcript, lang) {
+  const expectedPhrase = scoreRes?.matchedAgainst || '';
+  const eCanon = canonicaliseNumbers(expectedPhrase, lang);
+  const sCanon = canonicaliseNumbers(transcript || '', lang);
+  const E = normalizeText(eCanon).split(/\s+/).filter(Boolean);
+  const S = normalizeText(sCanon).split(/\s+/).filter(Boolean);
+  if (!E.length) return [];
+  return compareWords(E, S);
+}
+
+const CONSONANT_END = /[bcdfghjklmnpqrstvwxyzß]$/i;
+
+function hintVwConflict(expected, spoken) {
+  const hasV = (s) => /v/.test(s);
+  const hasW = (s) => /w/.test(s);
+  if (!expected || !spoken) return null;
+  if (hasV(expected) && hasW(spoken) && !hasV(spoken)) {
+    return 'Notice "v" and "w": take a moment to match the consonant in the target word.';
+  }
+  if (hasW(expected) && hasV(spoken) && !hasW(spoken)) {
+    return 'Notice "v" and "w": take a moment to match the consonant in the target word.';
+  }
+  return null;
+}
+
+function hintTh(expected, spoken, lang) {
+  if (!lang.startsWith('en')) return null;
+  if (!expected.includes('th')) return null;
+  if (spoken.includes('th')) return null;
+  if (levenshteinRatio(expected, spoken) >= 0.92) return null;
+  return 'The "th" sound needs a soft tongue-between-the-teeth airflow — try that word again slowly.';
+}
+
+/** e.g. "name" vs "nam" — word was cut short before the full ending. */
+function hintTruncatedWord(row) {
+  if (row.status !== 'incorrect') return null;
+  const exp = row.expected || '';
+  const sp = row.spoken || '';
+  if (sp.length < 2 || !exp.startsWith(sp) || exp.length <= sp.length) return null;
+  const tail = exp.slice(sp.length);
+  if (tail.length > 2) return null;
+  const lastExp = exp.slice(-1);
+  if (/[mnlr]/.test(lastExp)) {
+    return `Focus on the '${lastExp}' sound at the end of '${exp}'.`;
+  }
+  return `The word sounds a bit short — aim for '${exp}' (you said '${sp}').`;
+}
+
+function hintMissingEnding(row) {
+  if (row.status !== 'incorrect' && row.status !== 'missing') return null;
+  const exp = row.expected || '';
+  const sp = row.spoken || '';
+  if (!exp) return null;
+  if (row.status === 'missing') {
+    if (CONSONANT_END.test(exp)) {
+      return `The word '${exp}' was missing — pay attention to the ending sound.`;
+    }
+    return `The word '${exp}' did not come through — try saying it clearly.`;
+  }
+  if (sp && exp.length >= sp.length + 1 && exp.startsWith(sp) && CONSONANT_END.test(exp)) {
+    return `Focus on the ending of '${exp}' — the last sound needs to be clearer.`;
+  }
+  if (sp && CONSONANT_END.test(exp) && !CONSONANT_END.test(sp) && exp.slice(0, sp.length) === sp) {
+    return `Focus on the ending of '${exp}' — try the final consonant a bit stronger.`;
+  }
+  return null;
+}
+
+/**
+ * Rule-based hints from wordAnalysis (max a few, student-friendly).
+ */
+function generatePronunciationHints(wordAnalysis, lang) {
+  const bcp = String(lang || 'de-DE');
+  const hints = [];
+  const seen = new Set();
+  const push = (h) => {
+    if (!h || seen.has(h)) return;
+    seen.add(h);
+    hints.push(h);
+  };
+
+  for (const row of wordAnalysis) {
+    if (row.status === 'correct') continue;
+    push(hintMissingEnding(row));
+    push(hintTruncatedWord(row));
+    push(hintVwConflict(row.expected, row.spoken));
+    push(hintTh(row.expected, row.spoken, bcp.toLowerCase()));
+    if (hints.length >= 5) break;
+  }
+
+  if (!hints.length && wordAnalysis.some((r) => r.status !== 'correct')) {
+    push('Say the line again slowly, word by word, matching the rhythm you hear.');
+  }
+  return hints.slice(0, 4);
+}
+
+/**
+ * Full explainable payload for API responses.
+ */
+function explainPronunciationFromScore(scoreRes, transcript, lang) {
+  const wordAnalysis = buildWordAnalysis(scoreRes, transcript, lang);
+  const hints = generatePronunciationHints(wordAnalysis, lang);
+  return { wordAnalysis, hints };
+}
+
 module.exports = {
   DEFAULT_THRESHOLD,
   normalizeText,
@@ -219,4 +404,8 @@ module.exports = {
   scorePronunciation,
   evaluateThreshold,
   computeConfidence,
+  compareWords,
+  buildWordAnalysis,
+  generatePronunciationHints,
+  explainPronunciationFromScore,
 };

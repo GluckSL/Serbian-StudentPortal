@@ -4,7 +4,7 @@ import { Component, OnInit, TrackByFunction } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
 import { jwtDecode } from 'jwt-decode';
-import { HttpClient, HttpClientModule, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { FeedbackService } from '../../services/feedback.service';
@@ -95,7 +95,6 @@ interface StudentListResponse {
   selector: 'app-admin-dashboard',
   standalone: true,
   imports: [
-    HttpClientModule,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,

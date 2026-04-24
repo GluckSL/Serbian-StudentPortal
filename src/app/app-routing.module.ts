@@ -289,6 +289,45 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
+  // ── DG Bot (Digital Guide) ───────────────────────────────────────────────
+  {
+    path: 'dg-bot',
+    loadComponent: () => import('./dg-bot/dg-bot-hub/dg-bot-hub.component').then((m) => m.DgBotHubComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'STUDENT' },
+  },
+  {
+    path: 'dg-bot/:moduleId/play',
+    loadComponent: () =>
+      import('./dg-bot/dg-bot-player/dg-bot-player.component').then((m) => m.DgBotPlayerComponent),
+    canActivate: [AuthGuard],
+  },
+  {
+    path: 'admin/dg-modules/new',
+    loadComponent: () =>
+      import('./dg-bot/dg-admin-module-form/dg-admin-module-form.component').then(
+        (m) => m.DgAdminModuleFormComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], dgFormMode: 'create' },
+  },
+  {
+    path: 'admin/dg-modules/:id/edit',
+    loadComponent: () =>
+      import('./dg-bot/dg-admin-module-form/dg-admin-module-form.component').then(
+        (m) => m.DgAdminModuleFormComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], dgFormMode: 'edit' },
+  },
+  {
+    path: 'admin/dg-modules',
+    loadComponent: () =>
+      import('./dg-bot/dg-admin-modules/dg-admin-modules.component').then((m) => m.DgAdminModulesComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] },
+  },
+
   // ── Digital Exercises (new feature) ──────────────────────────────────────
   // Student & all roles: browse and play exercises
   {

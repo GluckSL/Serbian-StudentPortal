@@ -1,0 +1,107 @@
+const mongoose = require('mongoose');
+
+const DGSceneSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['intro', 'teach', 'practice', 'feedback'],
+      required: true,
+    },
+    text: { type: String, default: '' },
+    /** Pre-generated narration MP3 (or other audio) URL; player prefers this over runtime TTS. */
+    audioUrl: { type: String, default: '' },
+    expectedAnswer: { type: String, default: '' },
+    translation: { type: String, default: '' },
+    hint: { type: String, default: '' },
+    order: { type: Number, required: true, min: 0 },
+  },
+  { _id: true }
+);
+
+/** Mirrors Learning Modules role-play content for admin + future player/AI use. */
+const DgVocabEntrySchema = new mongoose.Schema(
+  {
+    word: { type: String, default: '' },
+    translation: { type: String, default: '' },
+    category: { type: String, default: '' },
+    usage: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
+const DgGrammarEntrySchema = new mongoose.Schema(
+  {
+    structure: { type: String, default: '' },
+    examples: { type: [String], default: [] },
+    level: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
+const DgFlowEntrySchema = new mongoose.Schema(
+  {
+    stage: { type: String, default: '' },
+    aiPrompts: { type: [String], default: [] },
+    expectedResponses: { type: [String], default: [] },
+    helpfulPhrases: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const DgRolePlayScenarioSchema = new mongoose.Schema(
+  {
+    situation: { type: String, default: '' },
+    setting: { type: String, default: '' },
+    studentRole: { type: String, default: '' },
+    aiRole: { type: String, default: '' },
+    objective: { type: String, default: '' },
+    aiPersonality: { type: String, default: '' },
+    studentGuidance: { type: String, default: '' },
+    aiOpeningLines: { type: [String], default: [] },
+    suggestedStudentResponses: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const DGModuleSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true },
+    description: { type: String, default: '' },
+    characterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DGCharacter',
+      required: true,
+    },
+    scenes: { type: [DGSceneSchema], default: [] },
+    level: { type: String, default: 'A1' },
+    visibleToStudents: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    language: { type: String, default: 'German' },
+    /** Target language mirror; native = student's L1 (same as Learning Modules role-play). */
+    nativeLanguage: { type: String, default: 'English' },
+    minimumCompletionTime: { type: Number, default: 10, min: 5, max: 60 },
+    /** 1–200 day in course journey; unset = general pool */
+    courseDay: { type: Number, min: 1, max: 200 },
+    rolePlayScenario: { type: DgRolePlayScenarioSchema, default: () => ({}) },
+    allowedVocabulary: { type: [DgVocabEntrySchema], default: [] },
+    aiTutorVocabulary: { type: [DgVocabEntrySchema], default: [] },
+    allowedGrammar: { type: [DgGrammarEntrySchema], default: [] },
+    conversationFlow: { type: [DgFlowEntrySchema], default: [] },
+  },
+  { timestamps: true }
+);
+
+DGModuleSchema.index({ visibleToStudents: 1, isActive: 1, level: 1 });
+DGModuleSchema.index({ createdBy: 1 });
+
+DGModuleSchema.methods.getSortedScenes = function getSortedScenes() {
+  return [...(this.scenes || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+};
+
+module.exports = mongoose.model('DGModule', DGModuleSchema);
+module.exports.DGSceneSchema = DGSceneSchema;

@@ -1,0 +1,23 @@
+<div
+  class="dg-bubble"
+  *ngIf="line || subtitle"
+  [class.dg-bubble--success]="variant === 'success'"
+  [class.dg-bubble--encourage]="variant === 'encourage'"
+  [class.dg-bubble--soft]="variant === 'soft'"
+>
+  <div class="dg-bubble__row">
+    <p class="dg-bubble__text">{{ line }}</p>
+    <button
+      mat-icon-button
+      type="button"
+      class="dg-bubble__tts"
+      *ngIf="showTts"
+      [disabled]="disabled || !line"
+      (click)="replayTts.emit()"
+      aria-label="Replay speech"
+    >
+      <mat-icon>volume_up</mat-icon>
+    </button>
+  </div>
+  <p class="dg-bubble__sub" *ngIf="subtitle">{{ subtitle }}</p>
+</div>

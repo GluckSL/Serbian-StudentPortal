@@ -16,6 +16,9 @@
 //         transcript: string,
 //         score: number,            // 0–100
 //         isCorrect: boolean,
+//         confidence: 'low'|'medium'|'high',
+//         wordAnalysis: [{ expected, spoken, status: 'correct'|'incorrect'|'missing' }],
+//         hints: string[],
 //         threshold: number,
 //         matchedAgainst: string,
 //         normalizedExpected: string,
@@ -58,6 +61,7 @@ const {
   normalizeText,
   computeConfidence,
   DEFAULT_THRESHOLD,
+  explainPronunciationFromScore,
 } = require('../services/pronunciationScoring');
 const pronAnalytics = require('../services/pronunciationAnalytics');
 
@@ -249,6 +253,11 @@ router.post(
 
       const durationMs = Date.now() - startedAt;
       const confidence = computeConfidence(scoreRes.score);
+      const { wordAnalysis, hints } = explainPronunciationFromScore(
+        scoreRes,
+        transcript,
+        language.bcp47,
+      );
 
       // Client-reported analytics travel in clientMeta; read them defensively.
       const cm = clientMeta || {};
@@ -297,6 +306,8 @@ router.post(
         matchedAgainst: scoreRes.matchedAgainst,
         normalizedExpected: scoreRes.normalizedExpected,
         normalizedSpoken: scoreRes.normalizedSpoken,
+        wordAnalysis,
+        hints,
         durationMs,
         transcriptionError: transcribeRes.error || null,
       });
@@ -354,6 +365,11 @@ router.post(
         threshold,
       );
       const confidence = computeConfidence(scoreRes.score);
+      const { wordAnalysis, hints } = explainPronunciationFromScore(
+        scoreRes,
+        transcript,
+        language.bcp47,
+      );
 
       const cm = (() => {
         const raw = req.body?.clientMeta;
@@ -392,6 +408,8 @@ router.post(
         matchedAgainst: scoreRes.matchedAgainst,
         normalizedExpected: scoreRes.normalizedExpected,
         normalizedSpoken: scoreRes.normalizedSpoken,
+        wordAnalysis,
+        hints,
       });
     } catch (err) {
       console.error('[pronunciation.text-score] error:', err);

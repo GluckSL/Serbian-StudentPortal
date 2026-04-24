@@ -1,7 +1,27 @@
 // services/openaiService.js
 // OpenAI ChatGPT-4o Integration for German Language Tutoring
 
+const { Readable } = require('stream');
 const OpenAI = require('openai');
+
+/**
+ * OpenAI SDK v4+ returns a fetch Response for audio.speech.create.
+ * Express needs a Node.js Readable (Web streams use getReader(), not .pipe()).
+ */
+async function speechResponseToNodeReadable(response) {
+  if (!response) return null;
+  if (typeof response.arrayBuffer !== 'function') return null;
+  const body = response.body;
+  if (body && typeof Readable.fromWeb === 'function') {
+    try {
+      return Readable.fromWeb(body);
+    } catch {
+      /* buffer fallback below */
+    }
+  }
+  const buf = Buffer.from(await response.arrayBuffer());
+  return Readable.from(buf);
+}
 
 class OpenAIService {
   constructor() {
@@ -254,22 +274,21 @@ class OpenAIService {
         })
       };
       
-      const mp3 = await this.openai.audio.speech.create(requestOptions);
-
-      return mp3.body; // Returns audio stream
+      const response = await this.openai.audio.speech.create(requestOptions);
+      return speechResponseToNodeReadable(response);
     } catch (error) {
       console.error('OpenAI GPT-4o-Mini-TTS Error:', error);
       
       // Fallback to basic TTS if GPT-4o-mini-tts fails
       try {
         console.log('Falling back to tts-1...');
-        const mp3 = await this.openai.audio.speech.create({
+        const response = await this.openai.audio.speech.create({
           model: 'tts-1',
           voice: voice,
           input: text,
           speed: options.speed || 0.9
         });
-        return mp3.body;
+        return speechResponseToNodeReadable(response);
       } catch (fallbackError) {
         console.error('Fallback TTS Error:', fallbackError);
         return null;
