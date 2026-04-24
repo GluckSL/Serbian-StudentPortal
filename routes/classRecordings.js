@@ -27,13 +27,23 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const SIGNED_URL_EXPIRY_SECONDS = 15 * 60; // 15 minutes
+// R2 presigned GetObject URLs embedded in HLS segment lines. Browsers keep one
+// playlist; every segment line shares the same signature expiry. Must cover long
+// classes (e.g. 2h) and pauses; SigV4 max is 7 days — we default to that cap.
+const MAX_PRESIGNED_SECONDS = 7 * 24 * 60 * 60; // 604800 — practical S3/R2 limit
+const _signedExpiry = parseInt(
+  process.env.R2_HLS_SIGNED_URL_EXPIRY_SECONDS || String(MAX_PRESIGNED_SECONDS),
+  10
+);
+const SIGNED_URL_EXPIRY_SECONDS = !Number.isFinite(_signedExpiry) || _signedExpiry < 300
+  ? MAX_PRESIGNED_SECONDS
+  : Math.min(_signedExpiry, MAX_PRESIGNED_SECONDS);
 
 // ── In-memory HLS playlist cache ──────────────────────────────────────────────
 // Stores rewritten m3u8 (with presigned segment URLs) per recording key.
-// TTL is 13 min — safely within the 15-min presigned URL lifetime.
+// TTL stays below presigned lifetime so we never serve a cache past URL expiry.
 const _hlsCache = new Map(); // cacheKey → { content: string, expiresAt: number }
-const HLS_CACHE_TTL_MS = 13 * 60 * 1000;
+const HLS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h; presigned segments valid 7d
 
 function getHlsCached(cacheKey) {
   const entry = _hlsCache.get(cacheKey);
@@ -59,7 +69,7 @@ async function streamToString(body) {
 
 /**
  * Fetch the raw HLS playlist from R2, then replace every `.ts` line with
- * a presigned R2 URL valid for SIGNED_URL_EXPIRY_SECONDS.
+ * a presigned R2 URL (SIGNED_URL_EXPIRY_SECONDS; must cover full watch time).
  * The browser (or hls.js) can then fetch segments directly from R2,
  * bypassing the Express server entirely — zero extra backend load during playback.
  */
@@ -1356,8 +1366,8 @@ router.get('/zoom/webhook-audit', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
  * a short-lived presigned R2 URL.  Once the client has this playlist, it fetches
  * segments directly from R2 — the Express server is NOT involved during playback.
  *
- * The playlist is cached in-memory for 13 minutes so repeated seeks / refreshes
- * don't re-sign hundreds of URLs on every request.
+ * The playlist is cached in-memory (see HLS_CACHE_TTL_MS) so repeated seeks / refreshes
+ * don't re-sign hundreds of URLs on every request. Presigned segment TTL is much longer.
  *
  * Access control is identical to the MP4 signed-URL endpoint.
  */
@@ -1426,7 +1436,7 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) =>
 /**
  * GET /api/class-recordings/zoom/:meetingLinkId
  *
- * Returns a short-lived R2 presigned URL for the recording of a given class.
+ * Returns an R2 presigned URL for the recording of a given class (see SIGNED_URL_EXPIRY_SECONDS).
  * For HLS recordings (hlsKey set) it also returns hlsMode:true so the client
  * knows to use the /hls/playlist endpoint instead of the MP4 URL.
  * Access rules:

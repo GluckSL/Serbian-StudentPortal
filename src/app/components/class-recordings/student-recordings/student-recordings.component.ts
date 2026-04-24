@@ -109,7 +109,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   // Stores either the HLS playlist URL (if hlsMode) or MP4 URL (legacy).
   private readonly zoomUrlCache = new Map<string, { url: string; hlsMode: boolean; expiresAt: number }>();
   private readonly warmedHlsUrls = new Set<string>();
-  private readonly CACHE_TTL_MS = 13 * 60 * 1000; // 13 min
+  /** Zoom URL hint cache; server uses 7d presigned segments + ~24h playlist cache. */
+  private readonly CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
   constructor(
     private service: ClassRecordingsService,
