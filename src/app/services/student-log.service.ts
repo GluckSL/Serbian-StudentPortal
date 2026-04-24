@@ -137,6 +137,44 @@ export class StudentLogService {
       });
     }
 
+    /** Per-day summary rows only (no raw events) — for /student-logs/all */
+    getActivityDailySummaries(params: {
+      from: string;
+      to: string;
+      batch?: string;
+      /** IANA zone from `Intl.DateTimeFormat().resolvedOptions().timeZone` — aligns day buckets with Student Logs */
+      tz?: string;
+    }): Observable<{
+      success: boolean;
+      data: {
+        dayKey: string;
+        estPortalMinutes: number;
+        mostUsedPage: string;
+        mostActiveStudent: string;
+        avgPortalPerStudent: number;
+        eventCount: number;
+        timelineEventCount: number;
+      }[];
+      meta?: { maxRangeDays: number };
+    }> {
+      const q: Record<string, string> = { from: params.from, to: params.to };
+      if (params.batch) q['batch'] = params.batch;
+      if (params.tz) q['tz'] = params.tz;
+      return this.http.get<{
+        success: boolean;
+        data: {
+          dayKey: string;
+          estPortalMinutes: number;
+          mostUsedPage: string;
+          mostActiveStudent: string;
+          avgPortalPerStudent: number;
+          eventCount: number;
+          timelineEventCount: number;
+        }[];
+        meta?: { maxRangeDays: number };
+      }>(`${this.apiUrl}/studentLog/activity-daily-summaries`, { params: q, ...this.httpOpts });
+    }
+
     getActivityFeed(params?: { types?: StudentActivityType[]; from?: string; to?: string; limit?: number; batch?: string }): Observable<{ success: boolean; data: StudentActivityEvent[] }> {
       const q: Record<string, string | number> = {};
       if (params?.types?.length) q['types'] = params.types.join(',');

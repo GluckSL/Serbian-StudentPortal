@@ -11,10 +11,14 @@
           <ng-template #logsViewOnly>View-only for sub-admin accounts.</ng-template>
         </p>
       </div>
-      <div
-        class="toolbar-actions d-flex flex-wrap gap-2 align-items-center"
-        *ngIf="canDeleteActivityRecords && !isLoading && filteredEvents.length"
-      >
+      <div class="d-flex flex-wrap gap-2 align-items-center ms-auto">
+        <a routerLink="/student-logs/all" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-calendar-alt me-1"></i> All logs
+        </a>
+        <div
+          class="toolbar-actions d-flex flex-wrap gap-2 align-items-center"
+          *ngIf="canDeleteActivityRecords && !isLoading && filteredEvents.length"
+        >
         <span class="selected-pill" *ngIf="selectedRowKeys.size > 0">{{ selectedRowKeys.size }} selected</span>
         <button
           type="button"
@@ -24,13 +28,44 @@
         >
           <i class="fas fa-trash-alt me-1"></i> Delete selected
         </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="filters-card">
-    <div class="filters-card__title"><i class="fas fa-sliders-h me-2"></i>Filters</div>
+  <div class="alert alert-info py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" *ngIf="viewingDayKey">
+    <span class="mb-0 small"
+      >Viewing <strong>{{ viewingDayLabel() }}</strong> — full tabs below match this day only.</span
+    >
+    <div class="d-flex flex-wrap gap-2">
+      <a routerLink="/student-logs/all" class="btn btn-sm btn-outline-secondary">Back to all logs</a>
+      <button type="button" class="btn btn-sm btn-outline-primary" (click)="clearDayView()">Clear day filter</button>
+    </div>
+  </div>
 
+  <div class="filters-card" [class.filters-card--collapsed]="!filtersExpanded">
+    <button
+      type="button"
+      class="filters-card__toggle"
+      (click)="toggleFiltersExpanded()"
+      [attr.aria-expanded]="filtersExpanded"
+      aria-controls="student-logs-filters-body"
+      id="student-logs-filters-toggle"
+    >
+      <span class="filters-card__toggle-main">
+        <i class="fas fa-sliders-h me-2" aria-hidden="true"></i>
+        <span class="filters-card__toggle-label">Filters</span>
+        <span class="filters-card__toggle-summary text-muted" *ngIf="!filtersExpanded">{{ filtersCollapsedSummary() }}</span>
+      </span>
+      <i
+        class="fas filters-card__chevron"
+        [class.fa-chevron-down]="!filtersExpanded"
+        [class.fa-chevron-up]="filtersExpanded"
+        aria-hidden="true"
+      ></i>
+    </button>
+
+    <div class="filters-card__body" id="student-logs-filters-body" *ngIf="filtersExpanded">
     <div class="row g-3">
       <div class="col-lg-4 col-md-6">
         <label class="form-label">Find student</label>
@@ -73,11 +108,11 @@
 
       <div class="col-lg-3 col-md-6">
         <label class="form-label">From</label>
-        <input type="datetime-local" class="form-control form-control-sm" [(ngModel)]="fromDate" />
+        <input type="datetime-local" step="1" class="form-control form-control-sm" [(ngModel)]="fromDate" />
       </div>
       <div class="col-lg-3 col-md-6">
         <label class="form-label">To</label>
-        <input type="datetime-local" class="form-control form-control-sm" [(ngModel)]="toDate" />
+        <input type="datetime-local" step="1" class="form-control form-control-sm" [(ngModel)]="toDate" />
       </div>
       <div class="col-12">
         <div class="quick-range">
@@ -120,6 +155,7 @@
           <option value="day">Day</option>
         </select>
       </div>
+    </div>
     </div>
   </div>
 

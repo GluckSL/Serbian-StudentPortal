@@ -282,6 +282,15 @@ export const routes: Routes = [
   // Audio Test Route (for students and teachers to test microphone and speakers)
   { path: 'audio-test', loadComponent: () => import('./components/audio-test/audio-test.component').then(m => m.AudioTestComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'TEACHER_ADMIN'] } },
 
+  {
+    path: 'student-logs/all',
+    loadComponent: () =>
+      import('./components/student-logs/student-logs-all-days/student-logs-all-days.component').then(
+        (m) => m.StudentLogsAllDaysComponent
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
   { path: 'student-logs', loadComponent: () => import('./components/student-logs/student-logs.component').then(m => m.StudentLogsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   {
     path: 'student-logs/:studentId/analytics',

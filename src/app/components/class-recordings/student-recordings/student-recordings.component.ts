@@ -22,7 +22,7 @@ import {
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import Hls, { ErrorData } from 'hls.js';
-import { getApiOriginForCredentials } from '../../../utils/media-url';
+import { hlsAuthXhrSetup } from '../../../utils/hls-auth-xhr';
 
 /** Single active list filter (combined with search text). Uses attendance, not Zoom "attempted". */
 export type RecordingListFilter =
@@ -391,18 +391,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         startPosition: 0,
         backBufferLength: 5,
         xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
-          // Only same-origin API requests need cookies (playlist). Presigned .ts URLs
-          // are on R2 — withCredentials there triggers a credentialed CORS mode that
-          // R2 will not satisfy → browser reports "CORS error" and playback stalls.
-          try {
-            const apiOrigin = getApiOriginForCredentials();
-            const target = new URL(url || '', window.location.href);
-            if (target.origin === apiOrigin) {
-              xhr.withCredentials = true;
-            }
-          } catch {
-            /* leave default (no credentials) for R2 / opaque URLs */
-          }
+          hlsAuthXhrSetup(xhr, url);
         },
       });
 

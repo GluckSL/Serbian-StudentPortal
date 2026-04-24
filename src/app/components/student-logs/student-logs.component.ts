@@ -7,14 +7,24 @@ import {
   StudentActivityEvent,
   StudentActivityType
 } from '../../services/student-log.service';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import {
+  allocatePortalMinutesByPageAndDay,
+  buildGroupedRows,
+  computeAggregatedAnalytics,
+  feedLimitForRange,
+  isAuthActivity,
+  resolveDayKey,
+  resolveEventPage,
+  resolveStudentLabel
+} from '../../utils/student-log-analytics.util';
 import { NotificationService } from '../../services/notification.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-student-logs',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './student-logs.component.html',
   styleUrls: ['./student-logs.component.css']
 })
@@ -28,7 +38,10 @@ export class StudentLogsComponent implements OnInit {
     { id: 'timeline', label: 'Timeline', icon: 'fa-stream' }
   ];
   activityEvents: StudentActivityEvent[] = [];
+  /** Full set from API (includes login/logout) — used for portal-time estimation. */
   filteredEvents: StudentActivityEvent[] = [];
+  /** Timeline / tables: hide login & logout noise. */
+  timelineEvents: StudentActivityEvent[] = [];
   paginatedData: StudentActivityEvent[] = [];
   readonly skeletonRows = Array.from({ length: 8 });
   isLoading = false;
@@ -76,12 +89,11 @@ export class StudentLogsComponent implements OnInit {
 
   groupBy: 'none' | 'student' | 'page' | 'day' = 'none';
 
-  /**
-   * Portal-time estimate: cluster events by same student; gaps longer than this start a new session.
-   */
-  private readonly portalIdleGapMs = 30 * 60 * 1000;
-  /** Hard cap so a missing logout does not explode totals. */
-  private readonly portalMaxSessionMs = 8 * 60 * 60 * 1000;
+  /** Filters panel starts collapsed; use header control to expand. */
+  filtersExpanded = false;
+
+  /** Set when opened via All logs (`?day=YYYY-MM-DD`). */
+  viewingDayKey: string | null = null;
 
   timeSummary = {
     totalMinutes: 0,
@@ -91,6 +103,8 @@ export class StudentLogsComponent implements OnInit {
     topStudent: '—'
   };
   studentTimeRows: { studentId: string; student: string; minutes: number; visits: number; pages: number }[] = [];
+  /** Full list for drilldown refresh (table shows first 10 only). */
+  private allStudentTimeRows: typeof this.studentTimeRows = [];
   pageTimeRows: { page: string; minutes: number; visits: number; students: number }[] = [];
   dayTimeRows: { day: string; dayLabel: string; minutes: number; visits: number; students: number }[] = [];
   groupedRows: { key: string; title: string; subtitle: string; events: StudentActivityEvent[] }[] = [];
@@ -113,6 +127,7 @@ export class StudentLogsComponent implements OnInit {
   constructor(
     private studentLogService: StudentLogService,
     private router: Router,
+    private route: ActivatedRoute,
     private notify: NotificationService,
     private authService: AuthService
   ) {}
@@ -126,11 +141,60 @@ export class StudentLogsComponent implements OnInit {
     if (!snap) {
       this.authService.refreshUserProfile().subscribe({ error: () => {} });
     }
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    this.fromDate = this.toInputDateTime(startOfDay);
-    this.toDate = this.toInputDateTime(now);
+
+    const dayParam = this.route.snapshot.queryParamMap.get('day');
+    if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+      this.applyDayRange(dayParam);
+      this.viewingDayKey = dayParam;
+    } else {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      this.fromDate = this.toInputDateTime(startOfDay);
+      this.toDate = this.toInputDateTime(now);
+      this.viewingDayKey = null;
+    }
+
+    this.route.queryParamMap.subscribe((pm) => {
+      const d = pm.get('day');
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        if (d !== this.viewingDayKey) {
+          this.applyDayRange(d);
+          this.viewingDayKey = d;
+          this.loadActivity();
+        }
+      } else if (this.viewingDayKey) {
+        this.viewingDayKey = null;
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        this.fromDate = this.toInputDateTime(startOfDay);
+        this.toDate = this.toInputDateTime(now);
+        this.loadActivity();
+      }
+    });
+
     this.loadBatchOptions();
+  }
+
+  private applyDayRange(day: string): void {
+    const [y, m, d] = day.split('-').map(Number);
+    const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+    this.fromDate = this.toInputDateTime(start);
+    this.toDate = this.toInputDateTime(end);
+  }
+
+  viewingDayLabel(): string {
+    if (!this.viewingDayKey) return '';
+    return new Date(`${this.viewingDayKey}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+
+  clearDayView(): void {
+    void this.router.navigate(['/student-logs'], { queryParams: {} });
   }
 
   loadBatchOptions(): void {
@@ -160,7 +224,7 @@ export class StudentLogsComponent implements OnInit {
     const from = this.fromDate ? new Date(this.fromDate).toISOString() : undefined;
     const to = this.toDate ? new Date(this.toDate).toISOString() : undefined;
     const batch = this.selectedBatch || undefined;
-    const common = { types, from, to, limit: 300, batch };
+    const common = { types, from, to, limit: feedLimitForRange(this.fromDate, this.toDate), batch };
 
     const req = this.selectedStudentId
       ? this.studentLogService.getStudentActivityTimeline(this.selectedStudentId, common)
@@ -176,6 +240,7 @@ export class StudentLogsComponent implements OnInit {
         console.error(err);
         this.activityEvents = [];
         this.filteredEvents = [];
+        this.timelineEvents = [];
         this.paginatedData = [];
         this.loadError =
           err?.error?.msg || err?.error?.message || 'Failed to load activity. Are you logged in as admin?';
@@ -186,6 +251,7 @@ export class StudentLogsComponent implements OnInit {
 
   applyClientFilters(): void {
     this.filteredEvents = [...this.activityEvents];
+    this.timelineEvents = this.filteredEvents.filter((e) => !isAuthActivity(e));
     this.computeTimeAnalytics();
     this.buildGroupedRows();
     this.currentPage = 1;
@@ -267,12 +333,12 @@ export class StudentLogsComponent implements OnInit {
   }
 
   calculatePagination(): void {
-    const n = this.filteredEvents.length;
+    const n = this.timelineEvents.length;
     this.totalPages = n === 0 ? 0 : Math.ceil(n / this.pageSize);
     if (this.currentPage > this.totalPages && this.totalPages > 0) {
       this.currentPage = this.totalPages;
     }
-    this.paginatedData = this.filteredEvents.slice(
+    this.paginatedData = this.timelineEvents.slice(
       (this.currentPage - 1) * this.pageSize,
       this.currentPage * this.pageSize
     );
@@ -299,7 +365,7 @@ export class StudentLogsComponent implements OnInit {
   }
 
   eventPage(ev: StudentActivityEvent): string {
-    return this.resolveEventPage(ev);
+    return resolveEventPage(ev);
   }
 
   eventMinutes(ev: StudentActivityEvent): number {
@@ -310,8 +376,20 @@ export class StudentLogsComponent implements OnInit {
     this.analyticsTab = id;
   }
 
+  toggleFiltersExpanded(): void {
+    this.filtersExpanded = !this.filtersExpanded;
+  }
+
+  /** One-line hint when filters are collapsed. */
+  filtersCollapsedSummary(): string {
+    const batch = this.selectedBatch ? `Batch ${this.selectedBatch}` : 'All batches';
+    const from = this.fromDate ? this.formatDateTime(this.fromDate) : '—';
+    const to = this.toDate ? this.formatDateTime(this.toDate) : '—';
+    return `${batch} · ${from} → ${to}`;
+  }
+
   tabCount(id: 'overview' | 'student' | 'page' | 'day' | 'timeline'): number {
-    if (id === 'overview') return this.filteredEvents.length;
+    if (id === 'overview') return this.timelineEvents.length;
     if (id === 'student') return this.studentTimeRows.length;
     if (id === 'page') return this.pageTimeRows.length;
     if (id === 'day') return this.dayTimeRows.length;
@@ -319,22 +397,24 @@ export class StudentLogsComponent implements OnInit {
   }
 
   openStudentDrilldown(row: { studentId: string; student: string }): void {
+    const ctx = { selectedStudentId: this.selectedStudentId, selectedStudentLabel: this.selectedStudentLabel };
     const eventsChrono = this.filteredEvents.filter((ev) => {
       const sid = ev.student?._id || this.selectedStudentId || '';
       if (row.studentId) {
         return sid === row.studentId;
       }
-      return this.resolveStudentLabel(ev) === row.student;
+      return resolveStudentLabel(ev, ctx) === row.student;
     });
     const eventsNewestFirst = [...eventsChrono].sort(
       (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
     );
 
-    const { pageMinutes, dayMinutes, totalMinutes } = this.allocatePortalMinutesByPageAndDay(eventsChrono);
+    const { pageMinutes, dayMinutes, totalMinutes } = allocatePortalMinutesByPageAndDay(eventsChrono);
 
     const visitsByPage = new Map<string, number>();
     for (const ev of eventsChrono) {
-      const page = this.resolveEventPage(ev);
+      if (isAuthActivity(ev)) continue;
+      const page = resolveEventPage(ev);
       visitsByPage.set(page, (visitsByPage.get(page) || 0) + 1);
     }
     const pageRows = Array.from(visitsByPage.entries())
@@ -343,11 +423,13 @@ export class StudentLogsComponent implements OnInit {
         visits,
         minutes: Math.round(pageMinutes.get(page) || 0)
       }))
+      .filter((r) => r.page !== 'Auth')
       .sort((a, b) => b.minutes - a.minutes || b.visits - a.visits);
 
     const visitsByDay = new Map<string, { dayLabel: string; visits: number }>();
     for (const ev of eventsChrono) {
-      const day = this.resolveDayKey(ev);
+      if (isAuthActivity(ev)) continue;
+      const day = resolveDayKey(ev);
       const dayLabel = day === 'unknown' ? 'Unknown day' : new Date(`${day}T00:00:00`).toLocaleDateString();
       const cur = visitsByDay.get(day) || { dayLabel, visits: 0 };
       cur.visits += 1;
@@ -366,10 +448,10 @@ export class StudentLogsComponent implements OnInit {
       studentId: row.studentId,
       student: row.student,
       totalMinutes,
-      visits: eventsChrono.length,
+      visits: eventsChrono.filter((e) => !isAuthActivity(e)).length,
       pageRows,
       dayRows,
-      recentEvents: eventsNewestFirst.slice(0, 80)
+      recentEvents: eventsNewestFirst.filter((e) => !isAuthActivity(e)).slice(0, 80)
     };
   }
 
@@ -536,7 +618,7 @@ export class StudentLogsComponent implements OnInit {
 
   private toInputDateTime(d: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
   private resolveEventMinutes(ev: StudentActivityEvent): number {
@@ -553,225 +635,17 @@ export class StudentLogsComponent implements OnInit {
     }
   }
 
-  /** Chronological order (oldest first) for session / portal-time math. */
-  private sortEventsChrono(events: StudentActivityEvent[]): StudentActivityEvent[] {
-    return [...events].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
-  }
-
-  /**
-   * Estimated time in the portal for one student: span from first to last event in each idle-bounded session,
-   * capped per session. Counts navigation (logins, module hits, etc.), not only rows that store duration fields.
-   */
-  private portalSessionMinutesForStudent(events: StudentActivityEvent[]): number {
-    const sorted = this.sortEventsChrono(events);
-    if (sorted.length === 0) return 0;
-    let totalMs = 0;
-    let sessionStart = new Date(sorted[0].occurredAt).getTime();
-    let lastT = sessionStart;
-    for (let i = 1; i < sorted.length; i++) {
-      const t = new Date(sorted[i].occurredAt).getTime();
-      if (t - lastT > this.portalIdleGapMs) {
-        totalMs += Math.min(Math.max(0, lastT - sessionStart), this.portalMaxSessionMs);
-        sessionStart = t;
-      }
-      lastT = t;
-    }
-    totalMs += Math.min(Math.max(0, lastT - sessionStart), this.portalMaxSessionMs);
-    return Math.max(0, Math.round(totalMs / 60000));
-  }
-
-  /**
-   * Split each session's estimated minutes across the distinct pages/features touched in that session
-   * so page- and day-wise totals align with portal time.
-   */
-  private allocatePortalMinutesByPageAndDay(
-    events: StudentActivityEvent[]
-  ): {
-    pageMinutes: Map<string, number>;
-    dayMinutes: Map<string, { dayLabel: string; minutes: number }>;
-    totalMinutes: number;
-  } {
-    const pageMinutes = new Map<string, number>();
-    const dayMinutes = new Map<string, { dayLabel: string; minutes: number }>();
-    const sorted = this.sortEventsChrono(events);
-    if (sorted.length === 0) {
-      return { pageMinutes, dayMinutes, totalMinutes: 0 };
-    }
-
-    let totalMinutes = 0;
-    let sessionStart = new Date(sorted[0].occurredAt).getTime();
-    let lastT = sessionStart;
-    let sessionStartIdx = 0;
-
-    const flushSession = (endIdx: number) => {
-      const slice = sorted.slice(sessionStartIdx, endIdx + 1);
-      const rawMs = Math.max(0, new Date(slice[slice.length - 1].occurredAt).getTime() - new Date(slice[0].occurredAt).getTime());
-      const durMs = Math.min(rawMs, this.portalMaxSessionMs);
-      const durMin = Math.max(0, Math.round(durMs / 60000));
-      totalMinutes += durMin;
-      if (durMin <= 0) return;
-
-      const pages = new Set(slice.map((e) => this.resolveEventPage(e)));
-      const n = Math.max(1, pages.size);
-      const perPage = durMin / n;
-      for (const p of pages) {
-        pageMinutes.set(p, (pageMinutes.get(p) || 0) + perPage);
-      }
-
-      const dayKey = this.resolveDayKey(slice[0]);
-      const dayLabel =
-        dayKey === 'unknown' ? 'Unknown day' : new Date(`${dayKey}T00:00:00`).toLocaleDateString();
-      const prev = dayMinutes.get(dayKey);
-      dayMinutes.set(dayKey, {
-        dayLabel,
-        minutes: (prev?.minutes || 0) + durMin
-      });
-    };
-
-    for (let i = 1; i < sorted.length; i++) {
-      const t = new Date(sorted[i].occurredAt).getTime();
-      if (t - lastT > this.portalIdleGapMs) {
-        flushSession(i - 1);
-        sessionStartIdx = i;
-      }
-      lastT = t;
-    }
-    flushSession(sorted.length - 1);
-
-    return { pageMinutes, dayMinutes, totalMinutes };
-  }
-
-  private resolveEventPage(ev: StudentActivityEvent): string {
-    const d = ev.details || {};
-    switch (ev.type) {
-      case 'LOGIN':
-      case 'LOGOUT':
-        return 'Auth';
-      case 'MEETING_ATTENDANCE':
-        return d.topic ? `Meeting · ${d.topic}` : 'Meeting';
-      case 'EXERCISE_ATTEMPT':
-        return d.exerciseTitle ? `Digital Exercise · ${d.exerciseTitle}` : 'Digital Exercise';
-      case 'MODULE_PROGRESS':
-        return d.moduleTitle ? `Learning Module · ${d.moduleTitle}` : 'Learning Modules';
-      case 'SESSION_RECORD':
-        return d.moduleTitle ? `AI Session · ${d.moduleTitle}` : 'AI Session';
-      case 'ASSIGNMENT_SUBMISSION':
-        return d.title ? `Assignments · ${d.title}` : 'Assignments';
-      case 'PROFILE_UPDATE':
-        return 'Student Profile';
-      default:
-        return ev.type;
-    }
-  }
-
-  private resolveStudentLabel(ev: StudentActivityEvent): string {
-    if (ev.student) {
-      return `${ev.student.name} (${ev.student.regNo})`;
-    }
-    return this.selectedStudentLabel || 'Selected student';
-  }
-
-  private resolveDayKey(ev: StudentActivityEvent): string {
-    const d = new Date(ev.occurredAt);
-    if (Number.isNaN(d.getTime())) return 'unknown';
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
   private computeTimeAnalytics(): void {
-    const studentMap = new Map<string, { studentId: string; student: string; minutes: number; visits: number; pages: Set<string> }>();
-    const pageMap = new Map<string, { page: string; minutes: number; visits: number; students: Set<string> }>();
-    const dayMap = new Map<string, { day: string; dayLabel: string; minutes: number; visits: number; students: Set<string> }>();
-
-    const byStudentEvents = new Map<string, StudentActivityEvent[]>();
-    for (const ev of this.filteredEvents) {
-      const student = this.resolveStudentLabel(ev);
-      const studentId = ev.student?._id || this.selectedStudentId || student;
-      const page = this.resolveEventPage(ev);
-      const day = this.resolveDayKey(ev);
-
-      const stuRow = studentMap.get(studentId) || { studentId, student, minutes: 0, visits: 0, pages: new Set<string>() };
-      stuRow.visits += 1;
-      stuRow.pages.add(page);
-      studentMap.set(studentId, stuRow);
-
-      const pageRow = pageMap.get(page) || { page, minutes: 0, visits: 0, students: new Set<string>() };
-      pageRow.visits += 1;
-      pageRow.students.add(studentId);
-      pageMap.set(page, pageRow);
-
-      const dayLabel = day === 'unknown' ? 'Unknown day' : new Date(`${day}T00:00:00`).toLocaleDateString();
-      const dayRow = dayMap.get(day) || { day, dayLabel, minutes: 0, visits: 0, students: new Set<string>() };
-      dayRow.visits += 1;
-      dayRow.students.add(studentId);
-      dayMap.set(day, dayRow);
-
-      const arr = byStudentEvents.get(studentId) || [];
-      arr.push(ev);
-      byStudentEvents.set(studentId, arr);
-    }
-
-    let totalMinutes = 0;
-    for (const [studentId, evs] of byStudentEvents) {
-      const portalMin = this.portalSessionMinutesForStudent(evs);
-      totalMinutes += portalMin;
-      const row = studentMap.get(studentId);
-      if (row) row.minutes = portalMin;
-
-      const { pageMinutes, dayMinutes } = this.allocatePortalMinutesByPageAndDay(evs);
-      for (const [p, mins] of pageMinutes) {
-        const pr = pageMap.get(p);
-        if (pr) pr.minutes += mins;
-      }
-      for (const [dk, { minutes: dm }] of dayMinutes) {
-        const dr = dayMap.get(dk);
-        if (dr) dr.minutes += dm;
-      }
-    }
-
-    const students = Array.from(studentMap.values())
-      .map((row) => ({
-        studentId: row.studentId,
-        student: row.student,
-        minutes: row.minutes,
-        visits: row.visits,
-        pages: row.pages.size
-      }))
-      .sort((a, b) => b.minutes - a.minutes || b.visits - a.visits);
-    const pages = Array.from(pageMap.values())
-      .map((row) => ({
-        page: row.page,
-        minutes: Math.round(row.minutes),
-        visits: row.visits,
-        students: row.students.size
-      }))
-      .sort((a, b) => b.minutes - a.minutes || b.visits - a.visits);
-    const days = Array.from(dayMap.values())
-      .map((row) => ({
-        day: row.day,
-        dayLabel: row.dayLabel,
-        minutes: Math.round(row.minutes),
-        visits: row.visits,
-        students: row.students.size
-      }))
-      .sort((a, b) => b.day.localeCompare(a.day));
-
-    this.studentTimeRows = students.slice(0, 10);
-    this.pageTimeRows = pages.slice(0, 10);
-    this.dayTimeRows = days;
-
-    this.timeSummary = {
-      totalMinutes,
-      activeStudents: students.length,
-      avgMinutesPerStudent: students.length ? Math.round(totalMinutes / students.length) : 0,
-      topPage: pages[0]?.page || '—',
-      topStudent: students[0]?.student || '—'
-    };
+    const ctx = { selectedStudentId: this.selectedStudentId, selectedStudentLabel: this.selectedStudentLabel };
+    const agg = computeAggregatedAnalytics(this.filteredEvents, ctx);
+    this.allStudentTimeRows = agg.studentTimeRows;
+    this.studentTimeRows = agg.studentTimeRows.slice(0, 10);
+    this.pageTimeRows = agg.pageTimeRows.slice(0, 10);
+    this.dayTimeRows = agg.dayTimeRows;
+    this.timeSummary = agg.timeSummary;
 
     if (this.studentDrilldown) {
-      const selected = students.find((s) => s.studentId === this.studentDrilldown!.studentId);
+      const selected = this.allStudentTimeRows.find((s) => s.studentId === this.studentDrilldown!.studentId);
       if (selected) {
         this.openStudentDrilldown(selected);
       } else {
@@ -781,51 +655,7 @@ export class StudentLogsComponent implements OnInit {
   }
 
   private buildGroupedRows(): void {
-    if (this.groupBy === 'none') {
-      this.groupedRows = [];
-      return;
-    }
-
-    const map = new Map<string, StudentActivityEvent[]>();
-    for (const ev of this.filteredEvents) {
-      let key = '';
-      if (this.groupBy === 'student') key = this.resolveStudentLabel(ev);
-      if (this.groupBy === 'page') key = this.resolveEventPage(ev);
-      if (this.groupBy === 'day') key = this.resolveDayKey(ev);
-      const arr = map.get(key) || [];
-      arr.push(ev);
-      map.set(key, arr);
-    }
-
-    this.groupedRows = Array.from(map.entries())
-      .map(([key, events]) => {
-        const minutes = this.portalMinutesForEventGroup(events);
-        const title = this.groupBy === 'day' && key !== 'unknown' ? new Date(`${key}T00:00:00`).toLocaleDateString() : key;
-        return {
-          key,
-          title,
-          subtitle: `${events.length} events · ${this.formatMinutes(minutes)}`,
-          events
-        };
-      })
-      .sort((a, b) => b.events.length - a.events.length);
-  }
-
-  /** Portal-time estimate for a bucket that may mix students (page/day groups). */
-  private portalMinutesForEventGroup(events: StudentActivityEvent[]): number {
-    if (events.length === 0) return 0;
-    const byStudent = new Map<string, StudentActivityEvent[]>();
-    for (const ev of events) {
-      const student = this.resolveStudentLabel(ev);
-      const studentId = ev.student?._id || this.selectedStudentId || student;
-      const arr = byStudent.get(studentId) || [];
-      arr.push(ev);
-      byStudent.set(studentId, arr);
-    }
-    let sum = 0;
-    for (const evs of byStudent.values()) {
-      sum += this.portalSessionMinutesForStudent(evs);
-    }
-    return sum;
+    const ctx = { selectedStudentId: this.selectedStudentId, selectedStudentLabel: this.selectedStudentLabel };
+    this.groupedRows = buildGroupedRows(this.timelineEvents, this.groupBy, ctx, (m) => this.formatMinutes(m));
   }
 }

@@ -970,7 +970,13 @@ router.post("/login", async (req, res) => {
       { expiresIn: jwtExpires }
     );
 
-    // SPA stores JWT in localStorage and sends Authorization: Bearer …
+    const cookieMaxAgeMs = remember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    res.cookie('authToken', token, {
+      ...baseAuthCookieOpts(),
+      maxAge: cookieMaxAgeMs
+    });
+
+    // SPA stores JWT in localStorage (interceptor) + httpOnly cookie (HLS / credentialed XHR, Safari native HLS)
     return res.json({
       token,
       user: {

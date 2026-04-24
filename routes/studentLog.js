@@ -12,6 +12,14 @@ const AssignmentSubmission = require('../models/AssignmentSubmission');
 const UserActivityLog = require('../models/UserActivityLog');
 const mongoose = require('mongoose');
 const { verifyToken, isAdmin, requireFullAdmin } = require('../middleware/auth');
+const { buildDailySummaries, MAX_SUMMARY_RANGE_DAYS } = require('../services/studentLogDailySummaries.service');
+const {
+    meetingLinkQueryForActivityWindow,
+    exerciseAttemptQueryForActivityWindow,
+    sessionRecordQueryForActivityWindow,
+    studentProgressQueryForActivityWindow,
+    assignmentSubmissionQueryForActivityWindow
+} = require('../services/studentActivityWindowQueries');
 
 function canExposeActivityDeleteRefs(req) {
     const r = req.user?.role;
@@ -24,6 +32,36 @@ function stripActivityDeleteRefs(events) {
         const { deleteRef, ...rest } = ev;
         return rest;
     });
+}
+
+/** Length of [from, to] in days (partial days allowed). */
+function activityRangeSpanDays(from, to) {
+    if (!from || !to) return 0;
+    const t0 = from instanceof Date ? from.getTime() : new Date(from).getTime();
+    const t1 = to instanceof Date ? to.getTime() : new Date(to).getTime();
+    if (Number.isNaN(t0) || Number.isNaN(t1)) return 0;
+    return Math.max((t1 - t0) / 86400000, 1 / 24);
+}
+
+/**
+ * Max rows returned after merging streams (feed or single-student timeline).
+ * Longer windows need a higher merge cap — otherwise only the newest N events survive and portal-time totals are wrong.
+ */
+function mergedActivityEventCap(requestedLimit, from, to) {
+    const req = Math.max(50, Math.min(parseInt(String(requestedLimit), 10) || 800, 25000));
+    const span = activityRangeSpanDays(from, to);
+    if (span <= 0) return Math.min(req, 1200);
+    return Math.min(20000, Math.max(1200, Math.ceil(req * Math.min(span, 90))));
+}
+
+/**
+ * Per Mongo query .limit() when loading one activity type. Scales with the selected date range.
+ */
+function perSourceActivityCap(requestedLimit, from, to) {
+    const req = Math.max(50, Math.min(parseInt(String(requestedLimit), 10) || 800, 25000));
+    const span = activityRangeSpanDays(from, to);
+    if (span <= 0) return Math.min(120, Math.ceil(req / 3));
+    return Math.min(25000, Math.max(800, Math.ceil(req * Math.min(span, 90))));
 }
 
 function escapeRegex(s) {
@@ -290,9 +328,11 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
 
         const batchFilter = (req.query.batch || '').toString().trim();
 
-        const limit = Math.min(parseInt(req.query.limit, 10) || 200, 500);
         const from = req.query.from ? new Date(req.query.from) : null;
         const to = req.query.to ? new Date(req.query.to) : null;
+        const requestedLimit = parseInt(req.query.limit, 10) || 200;
+        const mergeCap = mergedActivityEventCap(requestedLimit, from, to);
+        const perSourceLimit = perSourceActivityCap(requestedLimit, from, to);
         const typesParam = (req.query.types || '').toString().trim();
         const requestedTypes = new Set(
             typesParam
@@ -326,7 +366,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
                 if (to) logQuery.createdAt.$lte = to;
             }
 
-            const authLogs = await UserActivityLog.find(logQuery).sort({ createdAt: -1 }).limit(limit).lean();
+            const authLogs = await UserActivityLog.find(logQuery).sort({ createdAt: -1 }).limit(perSourceLimit).lean();
             for (const row of authLogs) {
                 events.push({
                     type: row.type,
@@ -352,7 +392,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
             const updates = await StudentLogs.find(q)
                 .populate('assignedTeacherAtUpdate', 'name regNo')
                 .sort({ updatedAt: -1 })
-                .limit(limit)
+                .limit(perSourceLimit)
                 .lean();
             for (const row of updates) {
                 events.push({
@@ -375,7 +415,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
             const meetings = await MeetingLink.find({ 'attendance.studentId': studentId })
                 .select('topic batch startTime duration attendance status')
                 .sort({ startTime: -1 })
-                .limit(limit)
+                .limit(Math.min(perSourceLimit, 5000))
                 .lean();
 
             for (const meeting of meetings) {
@@ -418,7 +458,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
             const attempts = await ExerciseAttempt.find(attemptQuery)
                 .populate('exerciseId', 'title level category')
                 .sort({ createdAt: -1 })
-                .limit(limit)
+                .limit(perSourceLimit)
                 .lean();
             for (const a of attempts) {
                 const occurredAt = a.completedAt || a.startedAt || a.createdAt;
@@ -448,7 +488,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
             const progress = await StudentProgress.find(progQuery)
                 .populate('moduleId', 'title level category')
                 .sort({ updatedAt: -1 })
-                .limit(limit)
+                .limit(perSourceLimit)
                 .lean();
             for (const p of progress) {
                 events.push({
@@ -476,7 +516,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
             const sessions = await SessionRecord.find(sessQuery)
                 .select('_id sessionId moduleTitle moduleLevel sessionType sessionState startTime endTime durationMinutes summary createdAt')
                 .sort({ createdAt: -1 })
-                .limit(limit)
+                .limit(perSourceLimit)
                 .lean();
             for (const s of sessions) {
                 events.push({
@@ -506,7 +546,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
                 .populate('moduleId', 'title level')
                 .populate('assignmentTemplateId', 'title')
                 .sort({ createdAt: -1 })
-                .limit(limit)
+                .limit(perSourceLimit)
                 .lean();
             for (const sub of subs) {
                 events.push({
@@ -539,7 +579,7 @@ router.get('/activity/:studentId', verifyToken, isAdmin, async (req, res) => {
         // sort and trim
         out.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 
-        const payload = out.slice(0, limit);
+        const payload = out.slice(0, mergeCap);
         res.status(200).json({
             success: true,
             data: canExposeActivityDeleteRefs(req) ? payload : stripActivityDeleteRefs(payload)
@@ -634,13 +674,36 @@ router.post('/bulk-delete-activity', verifyToken, requireFullAdmin, async (req, 
     }
 });
 
+// Compact per-day aggregates for "All logs" (no raw events — fast, small payload)
+router.get('/activity-daily-summaries', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const from = req.query.from ? new Date(req.query.from) : null;
+        const to = req.query.to ? new Date(req.query.to) : null;
+        if (!from || !to || Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+            return res.status(400).json({ success: false, message: 'Valid from and to query parameters are required' });
+        }
+        const batchFilter = (req.query.batch || '').toString().trim();
+        const tz = (req.query.tz || '').toString().trim();
+        const refresh = ['1', 'true', 'yes'].includes(String(req.query.refresh || '').toLowerCase());
+        const data = await buildDailySummaries({ from, to, batchFilter, timeZone: tz || undefined, refresh });
+        res.status(200).json({ success: true, data, meta: { maxRangeDays: MAX_SUMMARY_RANGE_DAYS } });
+    } catch (err) {
+        console.error('Error building activity daily summaries:', err);
+        const msg = err.message || 'Failed to build daily summaries';
+        const status = msg.includes('too large') || msg.includes('required') ? 400 : 500;
+        res.status(status).json({ success: false, message: msg });
+    }
+});
+
 // Recent activity across all students (for "All students" on Student Logs page)
 router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
     try {
-        const limit = Math.min(parseInt(req.query.limit, 10) || 200, 400);
         const batchFilter = (req.query.batch || '').toString().trim();
         const from = req.query.from ? new Date(req.query.from) : null;
         const to = req.query.to ? new Date(req.query.to) : null;
+        const requestedLimit = parseInt(req.query.limit, 10) || 800;
+        const limit = mergedActivityEventCap(requestedLimit, from, to);
+        const cap = perSourceActivityCap(requestedLimit, from, to);
         const typesParam = (req.query.types || '').toString().trim();
         const requestedTypes = new Set(
             typesParam ? typesParam.split(',').map((t) => t.trim()).filter(Boolean) : []
@@ -655,7 +718,6 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
         };
 
         const events = [];
-        const cap = Math.min(120, Math.ceil(limit / 3));
 
         if (wants('LOGIN') || wants('LOGOUT')) {
             const logQuery = {};
@@ -691,12 +753,7 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
         }
 
         if (wants('EXERCISE_ATTEMPT')) {
-            const attemptQuery = {};
-            if (from || to) {
-                attemptQuery.createdAt = {};
-                if (from) attemptQuery.createdAt.$gte = from;
-                if (to) attemptQuery.createdAt.$lte = to;
-            }
+            const attemptQuery = exerciseAttemptQueryForActivityWindow(from, to);
             const attempts = await ExerciseAttempt.find(attemptQuery)
                 .populate('studentId', 'name regNo role batch')
                 .populate('exerciseId', 'title')
@@ -716,7 +773,8 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
                     details: {
                         exerciseTitle: a.exerciseId?.title || 'Exercise',
                         status: a.status,
-                        scorePercentage: a.scorePercentage ?? 0
+                        scorePercentage: a.scorePercentage ?? 0,
+                        timeSpentSeconds: a.timeSpentSeconds ?? 0
                     },
                     deleteRef: { kind: 'EXERCISE_ATTEMPT', id: String(a._id) }
                 });
@@ -724,16 +782,11 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
         }
 
         if (wants('MEETING_ATTENDANCE')) {
-            const meetingQuery = {};
-            if (from || to) {
-                meetingQuery.startTime = {};
-                if (from) meetingQuery.startTime.$gte = from;
-                if (to) meetingQuery.startTime.$lte = to;
-            }
+            const meetingQuery = meetingLinkQueryForActivityWindow(from, to);
             const meetings = await MeetingLink.find(meetingQuery)
                 .select('topic batch startTime attendance')
                 .sort({ startTime: -1 })
-                .limit(40)
+                .limit(Math.min(cap, 5000))
                 .populate('attendance.studentId', 'name regNo role batch')
                 .lean();
 
@@ -759,7 +812,10 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
                             topic: meeting.topic || 'Class Meeting',
                             batch: meeting.batch || '',
                             attendanceStatus: entry.status || 'absent',
-                            joinTime: entry.joinTime || null
+                            joinTime: entry.joinTime || null,
+                            attendedMinutes:
+                                entry.durationMinutes ??
+                                (typeof entry.duration === 'number' ? Math.round(entry.duration / 60) : null)
                         }
                     };
                     if (attId && meeting._id) {
@@ -803,12 +859,7 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
         }
 
         if (wants('MODULE_PROGRESS')) {
-            const progQuery = {};
-            if (from || to) {
-                progQuery.updatedAt = {};
-                if (from) progQuery.updatedAt.$gte = from;
-                if (to) progQuery.updatedAt.$lte = to;
-            }
+            const progQuery = studentProgressQueryForActivityWindow(from, to);
             const progress = await StudentProgress.find(progQuery)
                 .populate('studentId', 'name regNo role batch')
                 .populate('moduleId', 'title')
@@ -836,12 +887,7 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
         }
 
         if (wants('SESSION_RECORD')) {
-            const sessQuery = {};
-            if (from || to) {
-                sessQuery.createdAt = {};
-                if (from) sessQuery.createdAt.$gte = from;
-                if (to) sessQuery.createdAt.$lte = to;
-            }
+            const sessQuery = sessionRecordQueryForActivityWindow(from, to);
             const sessions = await SessionRecord.find(sessQuery)
                 .populate('studentId', 'name regNo role batch')
                 .select('_id studentId moduleTitle sessionType startTime durationMinutes summary createdAt')
@@ -870,12 +916,7 @@ router.get('/activity-feed', verifyToken, isAdmin, async (req, res) => {
         }
 
         if (wants('ASSIGNMENT_SUBMISSION')) {
-            const subQuery = { isDeleted: { $ne: true } };
-            if (from || to) {
-                subQuery.createdAt = {};
-                if (from) subQuery.createdAt.$gte = from;
-                if (to) subQuery.createdAt.$lte = to;
-            }
+            const subQuery = assignmentSubmissionQueryForActivityWindow(from, to);
             const subs = await AssignmentSubmission.find(subQuery)
                 .populate('studentId', 'name regNo role batch')
                 .populate('moduleId', 'title')

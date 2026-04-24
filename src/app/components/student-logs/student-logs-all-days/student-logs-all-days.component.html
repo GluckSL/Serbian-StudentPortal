@@ -1,0 +1,124 @@
+<div class="admin-analytics student-logs-page student-logs-all-days">
+  <div class="admin-header">
+    <div class="container-fluid d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h1 class="admin-title"><i class="fas fa-calendar-alt"></i> All logs — day summary</h1>
+        <p class="admin-subtitle mb-0">
+          One row per day with portal time, top page, and top student. Click a row for full Overview, Student wise,
+          Page wise, Day wise, and Timeline for that day.
+        </p>
+      </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm" (click)="goToMainLogs()">
+        <i class="fas fa-clipboard-list me-1"></i> Main student logs
+      </button>
+    </div>
+  </div>
+
+  <div class="filters-card filters-card--always-open">
+    <div class="filters-card__title-static"><i class="fas fa-sliders-h me-2"></i>Date range</div>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">From</label>
+        <input type="datetime-local" class="form-control form-control-sm" [(ngModel)]="fromDate" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">To</label>
+        <input type="datetime-local" class="form-control form-control-sm" [(ngModel)]="toDate" />
+      </div>
+      <div class="col-md-4">
+        <button type="button" class="btn btn-primary btn-sm me-2" (click)="load()" [disabled]="isLoading">
+          <i class="fas fa-sync-alt me-1" [class.fa-spin]="isLoading"></i> Load days
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="loadError" class="alert alert-warning">{{ loadError }}</div>
+
+  <div class="group-table-card">
+    <h6 class="group-table-title d-flex flex-wrap align-items-center gap-2">
+      <span>Days with activity ({{ allDayRows.length }})</span>
+      <span class="text-muted small fw-normal" *ngIf="isHydrating">
+        <i class="fas fa-circle-notch fa-spin me-1"></i> Loading more…
+      </span>
+    </h6>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 day-summary-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="text-end">Est. portal time</th>
+            <th>Most used page</th>
+            <th>Most active student</th>
+            <th class="text-end">Avg portal / student</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngIf="isLoading">
+            <tr *ngFor="let _ of skeletonRows" class="skeleton-row">
+              <td><div class="skeleton skeleton-text skeleton-text--lg"></div></td>
+              <td><div class="skeleton skeleton-text ms-auto"></div></td>
+              <td><div class="skeleton skeleton-text skeleton-text--wide"></div></td>
+              <td><div class="skeleton skeleton-text skeleton-text--md"></div></td>
+              <td><div class="skeleton skeleton-text ms-auto"></div></td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="!isLoading">
+            <tr
+              *ngFor="let row of pagedDayRows"
+              class="day-summary-row"
+              role="button"
+              tabindex="0"
+              (click)="openDay(row.dayKey)"
+              (keyup.enter)="openDay(row.dayKey)"
+            >
+              <td>
+                <strong>{{ row.dayLabel }}</strong>
+                <span class="text-muted small ms-1">({{ row.eventCount }} events)</span>
+              </td>
+              <td class="text-end text-nowrap">{{ formatMinutes(row.estPortalMinutes) }}</td>
+              <td class="small">{{ row.mostUsedPage }}</td>
+              <td class="small">{{ row.mostActiveStudent }}</td>
+              <td class="text-end text-nowrap">{{ formatMinutes(row.avgPortalPerStudent) }}</td>
+            </tr>
+            <tr *ngIf="allDayRows.length === 0">
+              <td colspan="5" class="text-muted text-center py-4">
+                <p class="mb-1">No activity in this range.</p>
+                <p class="small mb-0">
+                  Check that the <strong>year</strong> matches your data (e.g. 2026 vs 2024), then click
+                  <strong>Load days</strong> again.
+                </p>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <nav
+      *ngIf="!isLoading && allDayRows.length > pageSize"
+      class="d-flex justify-content-center align-items-center gap-3 flex-wrap py-3"
+      aria-label="Day summary pagination"
+    >
+      <button
+        type="button"
+        class="btn btn-outline-secondary btn-sm"
+        (click)="goToPage(currentPage - 1)"
+        [disabled]="currentPage <= 1"
+      >
+        Previous
+      </button>
+      <span class="small text-muted">Page {{ currentPage }} / {{ totalPages }}</span>
+      <button
+        type="button"
+        class="btn btn-outline-secondary btn-sm"
+        (click)="goToPage(currentPage + 1)"
+        [disabled]="currentPage >= totalPages"
+      >
+        Next
+      </button>
+    </nav>
+  </div>
+</div>
