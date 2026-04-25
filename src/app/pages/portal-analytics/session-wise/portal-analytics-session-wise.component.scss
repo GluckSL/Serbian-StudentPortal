@@ -50,6 +50,19 @@
   padding: 2rem;
 }
 
+.pa-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.pa-pager-nav {
+  display: flex;
+  gap: 0.45rem;
+}
+
 .text-break {
   word-break: break-word;
 }

@@ -30,9 +30,11 @@ export type SortOrder = 'asc' | 'desc';
 export class PortalAnalyticsStudentWiseComponent implements OnChanges {
   @Input({ required: true }) range!: PortalAnalyticsRange;
 
+  readonly pageSize = 12;
   loading = false;
   error = '';
   rows: StudentWiseRow[] = [];
+  currentPage = 1;
   sortBy: StudentSortKey = 'time';
   order: SortOrder = 'desc';
 
@@ -45,6 +47,15 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
   }
 
   formatDuration = formatPortalDuration;
+
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.rows.length / this.pageSize));
+  }
+
+  get pagedRows(): StudentWiseRow[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.rows.slice(start, start + this.pageSize);
+  }
 
   setSort(key: StudentSortKey): void {
     if (this.sortBy === key) {
@@ -61,6 +72,16 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
     return this.order === 'asc' ? 'arrow_upward' : 'arrow_downward';
   }
 
+  prevPage(): void {
+    if (this.currentPage <= 1) return;
+    this.currentPage--;
+  }
+
+  nextPage(): void {
+    if (this.currentPage >= this.totalPages) return;
+    this.currentPage++;
+  }
+
   private load(): void {
     this.loading = true;
     this.error = '';
@@ -68,6 +89,7 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
       next: (res: unknown) => {
         const body = res as { items?: StudentWiseRow[] };
         this.rows = body.items || [];
+        this.currentPage = 1;
         this.loading = false;
       },
       error: () => {

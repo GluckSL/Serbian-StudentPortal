@@ -29,6 +29,20 @@
   padding: 2rem;
 }
 
+.pa-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.pa-pager-nav {
+  display: flex;
+  gap: 0.45rem;
+}
+
 .pa-table-card {
   border-radius: 16px;
   border: 1px solid rgba(156, 193, 236, 0.45);

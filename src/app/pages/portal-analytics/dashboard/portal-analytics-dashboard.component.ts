@@ -82,6 +82,7 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
   private readonly AUTO_REFRESH_MS = 10_000;
   pageSize = 8;
   pageIndex = 0;
+  private readonly sessionLabelMap = new Map<string, number>();
 
   lineChartType: ChartType = 'line';
   lineChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
@@ -165,6 +166,7 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
       next: (raw: unknown) => {
         console.log('Dashboard API:', raw);
         this.dashboard = this.normalizeDashboard(raw);
+        this.rebuildSessionLabels(this.dashboard);
         this.buildCharts(this.dashboard);
         if (this.pageIndex > this.recentActivityPageCount - 1) {
           this.pageIndex = Math.max(0, this.recentActivityPageCount - 1);
@@ -227,10 +229,23 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
     };
   }
 
-  shortSessionId(sessionId: string): string {
-    const v = String(sessionId || '').trim();
-    if (!v) return '—';
-    return v.length > 18 ? `${v.slice(0, 8)}…${v.slice(-6)}` : v;
+  sessionLabel(sessionId: string): string {
+    const id = String(sessionId || '').trim();
+    if (!id) return 'Session -';
+    const idx = this.sessionLabelMap.get(id);
+    return `Session ${idx || '?'}`;
+  }
+
+  private rebuildSessionLabels(d: DashboardViewModel | null): void {
+    this.sessionLabelMap.clear();
+    if (!d) return;
+    const add = (idRaw: string): void => {
+      const id = String(idRaw || '').trim();
+      if (!id || this.sessionLabelMap.has(id)) return;
+      this.sessionLabelMap.set(id, this.sessionLabelMap.size + 1);
+    };
+    for (const s of d.activeStudents || []) add(s.sessionId);
+    for (const r of d.recentActivity || []) add(r.sessionId);
   }
 
   get recentActivityTotal(): number {

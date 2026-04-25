@@ -10,6 +10,13 @@
         <p>Engagement and completion metrics across tracked sessions.</p>
       </div>
     </div>
+    <div class="pa-pager">
+      <span class="text-muted small">{{ rows.length }} students · page {{ currentPage }} / {{ totalPages }}</span>
+      <div class="pa-pager-nav">
+        <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+        <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+      </div>
+    </div>
     <div class="table-responsive pa-table-card">
       <table class="table table-hover align-middle mb-0">
         <thead>
@@ -34,7 +41,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (r of rows; track r.studentId) {
+          @for (r of pagedRows; track r.studentId) {
             <tr>
               <td class="fw-medium">{{ r.studentName }}</td>
               <td class="text-end">{{ formatDuration(r.totalSeconds) }}</td>

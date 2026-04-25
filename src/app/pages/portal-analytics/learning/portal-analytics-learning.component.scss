@@ -39,42 +39,77 @@
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.8rem;
-  margin-bottom: 0.9rem;
+  gap: 0.9rem;
+  margin: 0.95rem 0 1rem;
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
   }
 }
 
 .kpi-card {
-  border-radius: 14px !important;
-  border: 1px solid rgba(155, 191, 236, 0.45) !important;
-  background: #fff !important;
-  box-shadow: 0 10px 24px rgba(35, 92, 176, 0.1) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(167, 199, 238, 0.52) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
+  box-shadow: 0 12px 28px rgba(30, 76, 146, 0.1) !important;
+  overflow: hidden;
+  position: relative;
+  padding: 0.55rem 0.25rem;
+  min-height: 138px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, #6aa5ec 0%, #3b7ed6 100%);
+}
+
+.kpi-card-primary::before {
+  background: linear-gradient(90deg, #7bb2f0 0%, #4f8cde 100%);
+}
+
+.kpi-card-highlight::before {
+  background: linear-gradient(90deg, #f1b84d 0%, #e39b17 100%);
 }
 
 .kpi-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: #6480a3;
   font-weight: 700;
 }
 
 .kpi-value {
-  font-size: 1.25rem;
+  margin-top: 0.15rem;
+  font-size: 1.36rem;
   font-weight: 800;
   color: #102346;
+  line-height: 1.2;
 }
 
 .kpi-value-sm {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 1.27rem;
 }
 
 .kpi-hint {
-  font-size: 0.76rem;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: #7a5a1f;
+  font-weight: 700;
+}
+
+.kpi-subtle {
+  margin-top: 0.18rem;
+  font-size: 0.74rem;
   color: #6f87ab;
 }
 
@@ -83,6 +118,7 @@
   border: 1px solid rgba(155, 191, 236, 0.45);
   box-shadow: 0 12px 28px rgba(35, 92, 176, 0.1);
   overflow: hidden;
+  padding: 0.6rem 0.55rem 0;
   th {
     background: #f4f9ff;
     border-bottom: 1px solid rgba(155, 191, 236, 0.45);
@@ -94,5 +130,19 @@
   td {
     border-color: rgba(199, 220, 245, 0.5);
   }
+}
+
+.pa-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.55rem;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.pa-pager-nav {
+  display: flex;
+  gap: 0.45rem;
 }
 

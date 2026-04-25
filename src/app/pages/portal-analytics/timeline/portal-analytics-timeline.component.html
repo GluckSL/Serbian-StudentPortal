@@ -31,7 +31,7 @@
               <td class="text-break">{{ r.page }}</td>
               <td><span class="badge rounded-pill bg-light text-dark border">{{ r.type || 'PAGE' }}</span></td>
               <td>{{ formatDuration(r.durationSeconds) }}</td>
-              <td class="small text-muted text-break font-monospace">{{ r.sessionId }}</td>
+              <td class="small text-muted text-break" [title]="r.sessionId">{{ sessionLabel(r.sessionId) }}</td>
             </tr>
           } @empty {
             <tr><td colspan="6" class="text-muted py-4 text-center">No activity in this range.</td></tr>

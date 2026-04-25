@@ -13,6 +13,13 @@
         </div>
       </div>
       <div class="table-responsive card-panel flex-grow-1">
+        <div class="pa-pager">
+          <span class="text-muted small">{{ rows.length }} pages · page {{ currentPage }} / {{ totalPages }}</span>
+          <div class="pa-pager-nav">
+            <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+            <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+          </div>
+        </div>
         <table class="table table-hover align-middle mb-0">
           <thead>
             <tr>
@@ -24,7 +31,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (r of rows; track r.page) {
+            @for (r of pagedRows; track r.page) {
               <tr>
                 <td class="text-break fw-medium">{{ r.page }}</td>
                 <td class="text-end">{{ formatDuration(r.totalSeconds) }}</td>

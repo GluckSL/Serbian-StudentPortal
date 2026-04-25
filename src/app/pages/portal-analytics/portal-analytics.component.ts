@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PortalAnalyticsRange } from '../../services/portal-analytics-api.service';
 import { PortalAnalyticsDashboardComponent } from './dashboard/portal-analytics-dashboard.component';
@@ -21,7 +20,6 @@ import { PortalAnalyticsLearningComponent } from './learning/portal-analytics-le
     FormsModule,
     MatTabsModule,
     MatButtonModule,
-    MatSlideToggleModule,
     MatTooltipModule,
     PortalAnalyticsDashboardComponent,
     PortalAnalyticsStudentWiseComponent,
@@ -37,7 +35,6 @@ export class PortalAnalyticsComponent implements OnInit {
   draftFrom = '';
   draftTo = '';
   range: PortalAnalyticsRange = { from: '', to: '' };
-  includeHistorical = false;
 
   ngOnInit(): void {
     const to = new Date();
@@ -49,10 +46,6 @@ export class PortalAnalyticsComponent implements OnInit {
 
   applyRange(): void {
     this.range = { from: this.draftFrom, to: this.draftTo };
-  }
-
-  onHistoricalToggle(): void {
-    this.range = { ...this.range };
   }
 
   private toInputDate(d: Date): string {

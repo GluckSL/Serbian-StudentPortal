@@ -10,12 +10,19 @@
         <p>Live and completed sessions with per-page breakdown.</p>
       </div>
     </div>
-    @for (s of sessions; track s.sessionId) {
+    <div class="pa-pager">
+      <span class="text-muted small">{{ sessions.length }} sessions · page {{ currentPage }} / {{ totalPages }}</span>
+      <div class="pa-pager-nav">
+        <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+        <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+      </div>
+    </div>
+    @for (s of pagedSessions; track s.sessionId) {
       <div class="card mb-3">
         <div class="card-header d-flex flex-wrap justify-content-between gap-2">
           <div>
             <strong>{{ s.studentName }}</strong>
-            <span class="text-muted small ms-2">{{ s.sessionId }}</span>
+            <span class="text-muted small ms-2" [title]="s.sessionId">{{ sessionLabel(s.sessionId) }}</span>
           </div>
           <div>
             <span class="badge" [class.bg-success]="s.isActive" [class.bg-secondary]="!s.isActive">

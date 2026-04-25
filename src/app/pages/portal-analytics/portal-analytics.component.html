@@ -28,19 +28,13 @@
       </label>
       <button mat-flat-button color="primary" type="button" (click)="applyRange()">Apply</button>
     </div>
-    <div class="pa-toggle">
-      <mat-slide-toggle [(ngModel)]="includeHistorical" (ngModelChange)="onHistoricalToggle()" name="hist">
-        Include historical estimate
-      </mat-slide-toggle>
-      <span class="pa-toggle-hint">Uses login/logout pairs (UserActivityLog). Labeled separately from tracked data.</span>
-    </div>
   </div>
 
   @if (range.from && range.to) {
     <mat-tab-group animationDuration="0ms" class="pa-tabs mat-elevation-z0">
       <mat-tab label="Overview">
         <ng-template matTabContent>
-          <app-portal-analytics-dashboard [range]="range" [includeHistorical]="includeHistorical" />
+          <app-portal-analytics-dashboard [range]="range" />
         </ng-template>
       </mat-tab>
       <mat-tab label="Student wise">

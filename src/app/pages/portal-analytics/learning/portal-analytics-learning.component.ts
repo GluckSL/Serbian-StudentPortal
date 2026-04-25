@@ -39,15 +39,31 @@ interface LearningResponse {
 export class PortalAnalyticsLearningComponent implements OnChanges {
   @Input({ required: true }) range!: PortalAnalyticsRange;
 
+  readonly pageSize = 12;
   readonly kinds: LearningKind[] = ['video', 'exercises', 'modules'];
   activeKind: LearningKind = 'video';
   viewMode: 'day' | 'range' = 'day';
   loading = false;
   error = '';
   data: LearningResponse | null = null;
+  currentPage = 1;
   effectiveDay = '';
 
   formatDuration = formatPortalDuration;
+
+  get totalRows(): number {
+    return this.data?.items?.length || 0;
+  }
+
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.totalRows / this.pageSize));
+  }
+
+  get pagedItems(): LearningRow[] {
+    const items = this.data?.items || [];
+    const start = (this.currentPage - 1) * this.pageSize;
+    return items.slice(start, start + this.pageSize);
+  }
 
   constructor(private api: PortalAnalyticsApiService) {}
 
@@ -70,6 +86,16 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     this.load(this.activeKind);
   }
 
+  prevPage(): void {
+    if (this.currentPage <= 1) return;
+    this.currentPage--;
+  }
+
+  nextPage(): void {
+    if (this.currentPage >= this.totalPages) return;
+    this.currentPage++;
+  }
+
   labelFor(kind: LearningKind): string {
     if (kind === 'video') return 'Video';
     if (kind === 'exercises') return 'Exercises';
@@ -90,6 +116,7 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
           ...body,
           items: (body.items || []).filter((r) => Number(r.totalSeconds || 0) > 0)
         };
+        this.currentPage = 1;
         this.loading = false;
       },
       error: () => {

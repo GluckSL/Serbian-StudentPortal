@@ -40,24 +40,35 @@
     </div>
 
     <div class="kpi-grid">
-      <mat-card class="kpi-card" appearance="outlined">
+      <mat-card class="kpi-card kpi-card-primary" appearance="outlined">
         <div class="kpi-label">Total time (all students)</div>
         <div class="kpi-value">{{ formatDuration(data.summary.totalSeconds) }}</div>
+        <div class="kpi-subtle">Across {{ data.items.length }} students</div>
       </mat-card>
-      <mat-card class="kpi-card" appearance="outlined">
+      <mat-card class="kpi-card kpi-card-highlight" appearance="outlined">
         <div class="kpi-label">Top student</div>
         <div class="kpi-value kpi-value-sm">{{ data.summary.topStudent?.name || '—' }}</div>
         @if (data.summary.topStudent) {
           <div class="kpi-hint">{{ formatDuration(data.summary.topStudent.seconds) }}</div>
+        } @else {
+          <div class="kpi-subtle">No leader in this selection</div>
         }
       </mat-card>
-      <mat-card class="kpi-card" appearance="outlined">
+      <mat-card class="kpi-card kpi-card-primary" appearance="outlined">
         <div class="kpi-label">Average / student</div>
         <div class="kpi-value">{{ formatDuration(data.summary.avgSeconds) }}</div>
+        <div class="kpi-subtle">Per active learner</div>
       </mat-card>
     </div>
 
     <div class="table-responsive table-card">
+      <div class="pa-pager">
+        <span class="text-muted small">{{ totalRows }} students · page {{ currentPage }} / {{ totalPages }}</span>
+        <div class="pa-pager-nav">
+          <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+          <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+        </div>
+      </div>
       <table class="table table-hover align-middle mb-0">
         <thead>
           <tr>
@@ -67,7 +78,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (r of data.items; track r.studentId) {
+          @for (r of pagedItems; track r.studentId) {
             <tr>
               <td class="fw-medium">{{ r.studentName }}</td>
               <td class="text-end">{{ r.interactions || 0 }}</td>

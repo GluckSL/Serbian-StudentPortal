@@ -110,19 +110,6 @@
   }
 }
 
-.pa-toggle {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  max-width: 320px;
-}
-
-.pa-toggle-hint {
-  font-size: 0.75rem;
-  color: var(--pa-ink-500);
-  line-height: 1.35;
-}
-
 .pa-tabs {
   margin-top: 0.25rem;
 }
@@ -188,6 +175,3 @@
   border-top-width: 3px !important;
 }
 
-::ng-deep .pa-toggle .mat-mdc-slide-toggle .mdc-switch:enabled .mdc-switch__track {
-  background: rgba(44, 151, 255, 0.35) !important;
-}

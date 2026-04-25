@@ -109,7 +109,7 @@
               <span class="live-dot"></span>
               <div class="live-text">
                 <div class="live-name">{{ s.name }}</div>
-                <div class="live-sub text-truncate">{{ shortSessionId(s.sessionId) }}</div>
+                <div class="live-sub text-truncate" [title]="s.sessionId">{{ sessionLabel(s.sessionId) }}</div>
                 <div class="live-sub">Seen {{ s.lastHeartbeatAt | date : 'shortTime' }}</div>
               </div>
             </li>
@@ -146,7 +146,7 @@
                   <td class="page-col text-truncate" [title]="r.page">{{ r.page }}</td>
                   <td><span class="badge bg-light text-dark">{{ r.type }}</span></td>
                   <td class="text-nowrap">{{ formatDuration(r.durationSeconds) }}</td>
-                  <td class="small text-muted session-col" [title]="r.sessionId">{{ shortSessionId(r.sessionId) }}</td>
+                  <td class="small text-muted session-col" [title]="r.sessionId">{{ sessionLabel(r.sessionId) }}</td>
                 </tr>
               } @empty {
                 <tr><td colspan="6" class="text-muted">No rows</td></tr>

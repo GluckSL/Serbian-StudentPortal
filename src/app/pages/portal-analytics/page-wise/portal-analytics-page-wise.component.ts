@@ -1,6 +1,7 @@
 import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonModule } from '@angular/material/button';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartType } from 'chart.js';
 import { PortalAnalyticsApiService, PortalAnalyticsRange } from '../../../services/portal-analytics-api.service';
@@ -17,16 +18,18 @@ export interface PageWiseRow {
 @Component({
   selector: 'app-portal-analytics-page-wise',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, NgChartsModule],
+  imports: [CommonModule, MatProgressSpinnerModule, MatButtonModule, NgChartsModule],
   templateUrl: './portal-analytics-page-wise.component.html',
   styleUrls: ['./portal-analytics-page-wise.component.scss']
 })
 export class PortalAnalyticsPageWiseComponent implements OnChanges {
   @Input({ required: true }) range!: PortalAnalyticsRange;
 
+  readonly pageSize = 10;
   loading = false;
   error = '';
   rows: PageWiseRow[] = [];
+  currentPage = 1;
 
   miniType: ChartType = 'doughnut';
   miniData: ChartConfiguration['data'] = { labels: [], datasets: [] };
@@ -48,6 +51,25 @@ export class PortalAnalyticsPageWiseComponent implements OnChanges {
 
   formatDuration = formatPortalDuration;
 
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.rows.length / this.pageSize));
+  }
+
+  get pagedRows(): PageWiseRow[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.rows.slice(start, start + this.pageSize);
+  }
+
+  prevPage(): void {
+    if (this.currentPage <= 1) return;
+    this.currentPage--;
+  }
+
+  nextPage(): void {
+    if (this.currentPage >= this.totalPages) return;
+    this.currentPage++;
+  }
+
   private load(): void {
     this.loading = true;
     this.error = '';
@@ -55,6 +77,7 @@ export class PortalAnalyticsPageWiseComponent implements OnChanges {
       next: (res: unknown) => {
         const body = res as { items?: PageWiseRow[] };
         this.rows = body.items || [];
+        this.currentPage = 1;
         this.buildMini(this.rows);
         this.loading = false;
       },

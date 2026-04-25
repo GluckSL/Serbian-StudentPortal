@@ -32,6 +32,7 @@ export class PortalAnalyticsTimelineComponent implements OnChanges {
   rows: TimelineRow[] = [];
   total = 0;
   skip = 0;
+  private readonly sessionLabelMap = new Map<string, number>();
 
   constructor(private api: PortalAnalyticsApiService) {}
 
@@ -63,6 +64,22 @@ export class PortalAnalyticsTimelineComponent implements OnChanges {
     this.load();
   }
 
+  sessionLabel(sessionId: string): string {
+    const id = String(sessionId || '').trim();
+    if (!id) return 'Session -';
+    const idx = this.sessionLabelMap.get(id);
+    return `Session ${idx || '?'}`;
+  }
+
+  private rebuildSessionLabels(rows: TimelineRow[]): void {
+    this.sessionLabelMap.clear();
+    for (const row of rows) {
+      const id = String(row?.sessionId || '').trim();
+      if (!id || this.sessionLabelMap.has(id)) continue;
+      this.sessionLabelMap.set(id, this.sessionLabelMap.size + 1);
+    }
+  }
+
   private load(): void {
     this.loading = true;
     this.error = '';
@@ -70,6 +87,7 @@ export class PortalAnalyticsTimelineComponent implements OnChanges {
       next: (res: unknown) => {
         const body = res as { items?: TimelineRow[]; total?: number; skip?: number };
         this.rows = body.items || [];
+        this.rebuildSessionLabels(this.rows);
         this.total = typeof body.total === 'number' ? body.total : this.rows.length;
         if (typeof body.skip === 'number') this.skip = body.skip;
         this.loading = false;
