@@ -39,14 +39,24 @@ function parseDateRange(query) {
   const fromRaw = query.from ? String(query.from) : '';
   const toRaw = query.to ? String(query.to) : '';
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
+  const IST_OFFSET_MINUTES = 5.5 * 60;
+  const parseDateOnlyAsIstBoundary = (value, endOfDay = false) => {
+    const [yy, mm, dd] = value.split('-').map((n) => parseInt(n, 10));
+    if (!yy || !mm || !dd) return null;
+    const utcMs =
+      Date.UTC(yy, mm - 1, dd, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0) -
+      IST_OFFSET_MINUTES * 60 * 1000;
+    return new Date(utcMs);
+  };
 
-  // HTML date inputs send YYYY-MM-DD. Interpret as local day boundaries so
-  // "to=today" includes the full day instead of 00:00 only.
+  // HTML date inputs send YYYY-MM-DD. Interpret these as IST day boundaries.
   if (dateOnly.test(fromRaw)) {
-    from.setHours(0, 0, 0, 0);
+    const parsed = parseDateOnlyAsIstBoundary(fromRaw, false);
+    if (parsed) from = parsed;
   }
   if (dateOnly.test(toRaw)) {
-    to.setHours(23, 59, 59, 999);
+    const parsed = parseDateOnlyAsIstBoundary(toRaw, true);
+    if (parsed) to = parsed;
   }
 
   if (from > to) {
