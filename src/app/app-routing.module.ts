@@ -64,14 +64,6 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
-  {
-    path: 'admin/analytic-dash',
-    loadComponent: () => import('./components/admin-dashboard/analytic-dash/analytic-dash.component')
-      .then(m => m.AnalyticDashComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
-  },
-
   // User Roles Management
   {
     path: 'user-roles',
@@ -283,29 +275,12 @@ export const routes: Routes = [
   { path: 'audio-test', loadComponent: () => import('./components/audio-test/audio-test.component').then(m => m.AudioTestComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'TEACHER_ADMIN'] } },
 
   {
-    path: 'student-logs/all',
-    loadComponent: () =>
-      import('./components/student-logs/student-logs-all-days/student-logs-all-days.component').then(
-        (m) => m.StudentLogsAllDaysComponent
-      ),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
-  },
-  {
     path: 'portal-analytics',
     loadComponent: () =>
       import('./pages/portal-analytics/portal-analytics.component').then((m) => m.PortalAnalyticsComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
-  { path: 'student-logs', loadComponent: () => import('./components/student-logs/student-logs.component').then(m => m.StudentLogsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  {
-    path: 'student-logs/:studentId/analytics',
-    loadComponent: () => import('./components/student-logs/student-log-analytics.component').then(m => m.StudentLogAnalyticsComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
-  },
-
   // ── DG Bot (Digital Guide) ───────────────────────────────────────────────
   {
     path: 'dg-bot',
