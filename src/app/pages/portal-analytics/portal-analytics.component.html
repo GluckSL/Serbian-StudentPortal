@@ -26,6 +26,22 @@
         <span>To</span>
         <input type="date" class="form-control" [(ngModel)]="draftTo" name="to" />
       </label>
+      <div class="pa-quick-ranges">
+        <button
+          mat-stroked-button
+          type="button"
+          [color]="selectedQuickRange === 'lastDate' ? 'primary' : undefined"
+          (click)="setLastDateRange()">
+          Last Date
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          [color]="selectedQuickRange === 'week' ? 'primary' : undefined"
+          (click)="setWeekRange()">
+          Week
+        </button>
+      </div>
       <button mat-flat-button color="primary" type="button" (click)="applyRange()">Apply</button>
     </div>
   </div>

@@ -82,6 +82,12 @@
   gap: 0.75rem;
 }
 
+.pa-quick-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .pa-field {
   display: flex;
   flex-direction: column;

@@ -32,19 +32,43 @@ import { PortalAnalyticsLearningComponent } from './learning/portal-analytics-le
   styleUrls: ['./portal-analytics.component.scss']
 })
 export class PortalAnalyticsComponent implements OnInit {
+  private readonly analyticsTz = 'Asia/Kolkata';
   draftFrom = '';
   draftTo = '';
   range: PortalAnalyticsRange = { from: '', to: '' };
+  selectedQuickRange: 'lastDate' | 'week' | null = null;
 
   ngOnInit(): void {
-    const to = new Date();
-    const from = new Date(to.getTime() - 30 * 86400000);
-    this.draftTo = this.toInputDate(to);
-    this.draftFrom = this.toInputDate(from);
-    this.applyRange();
+    this.setTodayRange();
   }
 
   applyRange(): void {
+    this.selectedQuickRange = null;
+    this.range = { from: this.draftFrom, to: this.draftTo };
+  }
+
+  setTodayRange(): void {
+    const today = this.toInputDateInTimeZone(new Date(), this.analyticsTz);
+    this.draftFrom = today;
+    this.draftTo = today;
+    this.selectedQuickRange = null;
+    this.range = { from: this.draftFrom, to: this.draftTo };
+  }
+
+  setLastDateRange(): void {
+    const today = this.toInputDateInTimeZone(new Date(), this.analyticsTz);
+    const lastDate = this.addDays(today, -1);
+    this.draftFrom = lastDate;
+    this.draftTo = lastDate;
+    this.selectedQuickRange = 'lastDate';
+    this.range = { from: this.draftFrom, to: this.draftTo };
+  }
+
+  setWeekRange(): void {
+    const today = this.toInputDateInTimeZone(new Date(), this.analyticsTz);
+    this.draftFrom = this.addDays(today, -6);
+    this.draftTo = today;
+    this.selectedQuickRange = 'week';
     this.range = { from: this.draftFrom, to: this.draftTo };
   }
 
@@ -52,6 +76,29 @@ export class PortalAnalyticsComponent implements OnInit {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private toInputDateInTimeZone(d: Date, timeZone: string): string {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = fmt.formatToParts(d);
+    const year = parts.find((p) => p.type === 'year')?.value || '';
+    const month = parts.find((p) => p.type === 'month')?.value || '';
+    const day = parts.find((p) => p.type === 'day')?.value || '';
+    return `${year}-${month}-${day}`;
+  }
+
+  private addDays(ymd: string, days: number): string {
+    const date = new Date(`${ymd}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
 }

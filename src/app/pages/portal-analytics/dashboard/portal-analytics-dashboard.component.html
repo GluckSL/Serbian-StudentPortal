@@ -133,7 +133,6 @@
                 <th>Time</th>
                 <th>Student</th>
                 <th>Page</th>
-                <th>Type</th>
                 <th>Duration</th>
                 <th>Session</th>
               </tr>
@@ -144,12 +143,11 @@
                   <td class="text-nowrap">{{ r.time | date : 'short' }}</td>
                   <td>{{ r.studentName }}</td>
                   <td class="page-col text-truncate" [title]="r.page">{{ r.page }}</td>
-                  <td><span class="badge bg-light text-dark">{{ r.type }}</span></td>
                   <td class="text-nowrap">{{ formatDuration(r.durationSeconds) }}</td>
                   <td class="small text-muted session-col" [title]="r.sessionId">{{ sessionLabel(r.sessionId) }}</td>
                 </tr>
               } @empty {
-                <tr><td colspan="6" class="text-muted">No rows</td></tr>
+                <tr><td colspan="5" class="text-muted">No rows</td></tr>
               }
             </tbody>
           </table>

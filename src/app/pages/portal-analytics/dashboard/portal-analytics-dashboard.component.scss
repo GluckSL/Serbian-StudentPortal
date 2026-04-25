@@ -230,16 +230,34 @@
   th {
     white-space: nowrap;
     font-size: 0.78rem;
+    font-weight: 700;
     color: #4a5e82;
     border-bottom: 1px solid rgba(145, 179, 224, 0.35);
+    border-right: 1px solid rgba(201, 221, 248, 0.4);
+    padding: 0.6rem 0.65rem;
     position: sticky;
     top: 0;
     z-index: 2;
     background: linear-gradient(160deg, #f9fdff, #f2f8ff);
   }
+  th:last-child {
+    border-right: none;
+  }
   td {
     vertical-align: middle;
     border-color: rgba(201, 221, 248, 0.45);
+    border-right: 1px solid rgba(201, 221, 248, 0.35);
+    padding: 0.55rem 0.65rem;
+    font-size: 0.82rem;
+  }
+  td:last-child {
+    border-right: none;
+  }
+  tbody tr:nth-child(even) {
+    background: #fbfdff;
+  }
+  tbody tr:hover {
+    background: #f3f8ff;
   }
   .page-col {
     max-width: 340px;
@@ -249,6 +267,7 @@
   }
   .session-col {
     white-space: nowrap;
+    font-size: 0.78rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   }
 }

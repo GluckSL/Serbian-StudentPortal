@@ -80,7 +80,7 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
   dashboard: DashboardViewModel | null = null;
   private refreshSub: Subscription | null = null;
   private readonly AUTO_REFRESH_MS = 10_000;
-  pageSize = 8;
+  pageSize = 10;
   pageIndex = 0;
   private readonly sessionLabelMap = new Map<string, number>();
 
@@ -133,10 +133,12 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
     lines.push(`Avg seconds per student,${d.kpis.avgTimePerStudent}`);
     lines.push('');
     lines.push('Recent activity');
-    lines.push('Time,Student,Page,Type,Duration sec,SessionId');
+    lines.push('Time,Student,Page,Duration sec,SessionId');
     for (const r of d.recentActivity || []) {
       lines.push(
-        [new Date(r.time).toISOString(), this.csvEscape(r.studentName), this.csvEscape(r.page), r.type, r.durationSeconds, r.sessionId].join(',')
+        [new Date(r.time).toISOString(), this.csvEscape(r.studentName), this.csvEscape(r.page), r.durationSeconds, r.sessionId].join(
+          ','
+        )
       );
     }
     if (d.historical) {
