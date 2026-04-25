@@ -21,7 +21,6 @@ export class CreateZoomMeetingComponent implements OnInit {
 
   meetingForm!: FormGroup;
   readonly scheduleModes = [
-    { value: 'single', label: 'Single Class' },
     { value: 'selected_dates', label: 'Selected Dates' },
     { value: 'weekly', label: 'Weekly (same time Mon–Sun)' },
     { value: 'monthly', label: 'Monthly (same date/time)' }
@@ -92,7 +91,7 @@ export class CreateZoomMeetingComponent implements OnInit {
       teacherId: ['', Validators.required],
       zoomHostEmail: ['', Validators.required],
       courseDay: [null, [Validators.min(1), Validators.max(200)]],
-      scheduleMode: ['single', Validators.required],
+      scheduleMode: ['selected_dates', Validators.required],
       recurrenceCount: [4, [Validators.required, Validators.min(1), Validators.max(24)]]
     });
   }
@@ -157,7 +156,7 @@ export class CreateZoomMeetingComponent implements OnInit {
   }
 
   get scheduleMode(): string {
-    return this.meetingForm?.get('scheduleMode')?.value || 'single';
+    return this.meetingForm?.get('scheduleMode')?.value || 'selected_dates';
   }
 
   get recurrenceCount(): number {

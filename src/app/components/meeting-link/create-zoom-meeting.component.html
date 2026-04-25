@@ -323,7 +323,7 @@
           </button>
           <button type="submit" class="btn btn-primary"
             [disabled]="meetingForm.invalid || selectedStudents.length === 0 || isCreatingMeeting">
-            <span *ngIf="!isCreatingMeeting"><i class="fas fa-video me-1"></i>{{ scheduleMode === 'single' ? 'Create Meeting' : 'Create Meetings' }}</span>
+            <span *ngIf="!isCreatingMeeting"><i class="fas fa-video me-1"></i>Create Meetings</span>
             <span *ngIf="isCreatingMeeting">
               <span class="spinner-border spinner-border-sm me-1"></span>Creating...
             </span>

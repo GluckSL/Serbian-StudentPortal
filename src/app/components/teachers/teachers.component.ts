@@ -3,12 +3,13 @@
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
-import { HttpClient, HttpClientModule} from '@angular/common/http';
+import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from '../../services/notification.service';
+import { getAuthToken } from '../../services/auth.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -62,26 +63,17 @@ export class TeachersComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // ✅ Check user profile from backend (cookie included automatically)
-    this.authService.getUserProfile().subscribe({
-      next: (user) => {
-        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN' && user.role !== 'SUB_ADMIN') {
-          this.router.navigate(['/dashboard']);
-          return;
-        }
-        this.fetchTeachers();
-      },
-      error: (err) => {
-        console.error('Not authenticated:', err);
-        this.router.navigate(['/auth/login']);
-      }
-    });
+    this.fetchTeachers();
   }
 
 fetchTeachers(): void {
   this.loading = true;
+  this.error = '';
 
-  this.http.get<{ success: boolean; data: Teacher[] }>(`${apiUrl}/admin/teachers`, { withCredentials: true }).subscribe({
+  const token = getAuthToken();
+  const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
+
+  this.http.get<{ success: boolean; data: Teacher[] }>(`${apiUrl}/admin/teachers`, { withCredentials: true, headers }).subscribe({
     next: res => {
       if (res.success) {
         this.teachers = res.data;
@@ -97,6 +89,9 @@ fetchTeachers(): void {
     error: err => {
       console.error('Error fetching teachers:', err);
       this.error = err.error?.msg || 'Failed to load teachers';
+      if (err.status === 401 || err.status === 403) {
+        this.router.navigate(['/login']);
+      }
       this.loading = false;
     }
   });

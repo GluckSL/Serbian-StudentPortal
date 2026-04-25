@@ -166,7 +166,7 @@ export class AuthService {
 
   // Fetch user profile (with photo URL included)
   getUserProfile(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/auth/profile`);
+    return this.http.get(`${this.apiUrl}/auth/profile`, { withCredentials: true });
   }
 
   // ✅ Helper: refresh user profile and update BehaviorSubject
