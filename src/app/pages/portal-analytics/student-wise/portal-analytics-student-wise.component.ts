@@ -10,6 +10,8 @@ export interface StudentWiseRow {
   studentId: string;
   studentName: string;
   email: string;
+  batch: string;
+  journeyDay: number;
   totalSeconds: number;
   sessionsCount: number;
   avgSessionSeconds: number;

@@ -26,6 +26,8 @@
                 Student <mat-icon>{{ sortIcon('name') }}</mat-icon>
               </button>
             </th>
+            <th>Batch</th>
+            <th class="text-center">Journey day</th>
             <th class="text-end">
               <button type="button" class="th-btn" (click)="setSort('time')">
                 Total time <mat-icon>{{ sortIcon('time') }}</mat-icon>
@@ -44,13 +46,17 @@
           @for (r of pagedRows; track r.studentId) {
             <tr>
               <td class="fw-medium">{{ r.studentName }}</td>
+              <td>
+                <span class="chip-cell">{{ r.batch || '—' }}</span>
+              </td>
+              <td class="text-center">{{ r.journeyDay || '—' }}</td>
               <td class="text-end">{{ formatDuration(r.totalSeconds) }}</td>
               <td class="text-end">{{ r.sessionsCount }}</td>
               <td class="text-end text-muted">{{ formatDuration(r.avgSessionSeconds) }}</td>
               <td><span class="page-cell">{{ r.topPage }}</span></td>
             </tr>
           } @empty {
-            <tr><td colspan="5" class="text-muted py-4 text-center">No data in this range.</td></tr>
+            <tr><td colspan="7" class="text-muted py-4 text-center">No data in this range.</td></tr>
           }
         </tbody>
       </table>

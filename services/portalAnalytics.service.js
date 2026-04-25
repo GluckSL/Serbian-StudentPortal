@@ -420,7 +420,7 @@ async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'd
   const topPageTitleMap = await buildDigitalExerciseTitleMapFromPages(topPages.map((t) => t.topPage));
 
   const users = await User.find({ _id: { $in: studentIds } })
-    .select('name email')
+    .select('name email batch currentCourseDay')
     .lean();
   const userMap = new Map(users.map((u) => [String(u._id), u]));
 
@@ -433,6 +433,8 @@ async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'd
       studentId: row._id,
       studentName: u?.name || 'Unknown',
       email: u?.email || '',
+      batch: u?.batch || '',
+      journeyDay: Number(u?.currentCourseDay || 0),
       totalSeconds: row.totalSeconds,
       sessionsCount: row.sessionsCount,
       avgSessionSeconds: avgSession,
