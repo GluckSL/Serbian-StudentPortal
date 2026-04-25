@@ -1,31 +1,17 @@
-import { AUTH_STORAGE_KEY } from '../services/auth.service';
-import { getApiOriginForCredentials } from './media-url';
+import { getAuthToken } from '../services/auth.service';
 
 /**
  * hls.js loads playlists and segments via XHR — it does not use Angular HttpClient,
- * so the auth token interceptor does not run. For same-origin API URLs we send:
- * - Authorization: Bearer … (from localStorage, same key as authTokenInterceptor)
- * - withCredentials so httpOnly authToken cookie is included when present
- *
- * Presigned R2 segment URLs must not get credentials (CORS).
+ * so the auth token interceptor does not run.
+ * Always attach Authorization Bearer token for HLS requests.
  */
 export function hlsAuthXhrSetup(xhr: XMLHttpRequest, url?: string): void {
   try {
-    const apiOrigin = getApiOriginForCredentials();
-    const target = new URL(url || '', window.location.href);
-    if (target.origin !== apiOrigin) {
-      return;
-    }
-    xhr.withCredentials = true;
-    try {
-      const token = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-    } catch {
-      /* storage blocked */
+    const token = getAuthToken();
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     }
   } catch {
-    /* invalid URL — leave defaults */
+    /* storage blocked / unavailable */
   }
 }

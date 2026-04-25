@@ -2,6 +2,27 @@
   padding: 0.5rem 0;
 }
 
+.sw-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 0.8rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 800;
+    color: #122243;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    margin: 0.15rem 0 0;
+    font-size: 0.8rem;
+    color: #6782a7;
+  }
+}
+
 .pa-center {
   display: flex;
   justify-content: center;
@@ -9,11 +30,42 @@
 }
 
 .pa-table-card {
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(156, 193, 236, 0.45);
+  box-shadow: 0 14px 32px rgba(30, 79, 156, 0.12);
   overflow: hidden;
-  background: #fff;
+  background: linear-gradient(170deg, #ffffff, #f4faff);
+  transition: transform 170ms ease, box-shadow 170ms ease;
+}
+
+.pa-table-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(30, 79, 156, 0.17);
+}
+
+.pa-table-card table {
+  margin-bottom: 0 !important;
+}
+
+.pa-table-card th {
+  background: linear-gradient(170deg, #f8fcff, #eef7ff);
+  border-bottom: 1px solid rgba(156, 193, 236, 0.42);
+  color: #4a6286;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pa-table-card td {
+  border-color: rgba(189, 214, 245, 0.45);
+}
+
+.pa-table-card tbody tr {
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+
+.pa-table-card tbody tr:hover {
+  background: rgba(235, 247, 255, 0.6);
 }
 
 .th-btn {
@@ -39,4 +91,10 @@
   word-break: break-word;
   font-size: 0.9rem;
   color: #334155;
+  background: rgba(255, 249, 214, 0.65);
+  border: 1px solid rgba(255, 219, 110, 0.45);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  display: inline-flex;
+  max-width: 100%;
 }

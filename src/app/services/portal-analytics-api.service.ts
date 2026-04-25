@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -28,6 +28,10 @@ export class PortalAnalyticsApiService {
   getDashboard(range: PortalAnalyticsRange, includeHistorical = false): Observable<unknown> {
     return this.http.get(`${this.base}/dashboard`, {
       params: this.params(range, { includeHistorical: includeHistorical ? 'true' : 'false' }),
+      headers: new HttpHeaders({
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache'
+      }),
       withCredentials: true
     });
   }

@@ -30,7 +30,7 @@ export class LoginComponent implements OnInit {
   keepSessionActive = true;
   readonly currentYear = new Date().getFullYear();
   showSessionExpiredNotice = false;
-  /** True while checking for an existing httpOnly session cookie */
+  /** True while checking for an existing token session */
   checkingExistingSession = false;
 
   /** Pupil offset in px (translate) for each eye */
@@ -62,7 +62,7 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    // User just logged out (or chose a fresh login): show the form; do not auto-redirect from cookie.
+    // User just logged out (or chose a fresh login): show the form; do not auto-restore.
     try {
       if (sessionStorage.getItem(SKIP_SESSION_RESTORE_KEY) === '1') {
         sessionStorage.removeItem(SKIP_SESSION_RESTORE_KEY);

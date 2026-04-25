@@ -9,7 +9,8 @@ import { AuthService } from './auth.service';
 const SESSION_STORAGE_KEY = 'portalAnalyticsSessionId';
 const ACTIVE_TAB_STORAGE_KEY = 'portalAnalyticsActiveTabId';
 const HEARTBEAT_INTERVAL_MS = 10_000;
-const IDLE_MAX_MS = 60_000;
+// Keep counting study/watch time even with low interaction (reading/video playback).
+const IDLE_MAX_MS = 5 * 60_000;
 const MOUSE_MOVE_THROTTLE_MS = 1000;
 
 @Injectable({ providedIn: 'root' })

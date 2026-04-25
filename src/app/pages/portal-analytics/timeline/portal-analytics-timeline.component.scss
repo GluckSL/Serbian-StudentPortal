@@ -9,6 +9,10 @@
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
+  background: linear-gradient(155deg, #f8fcff, #eff8ff);
+  border: 1px solid rgba(156, 193, 236, 0.42);
+  border-radius: 14px;
+  padding: 0.6rem 0.75rem;
 }
 
 .tl-nav {
@@ -23,10 +27,16 @@
 }
 
 .tl-card {
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
-  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(156, 193, 236, 0.45);
+  box-shadow: 0 14px 32px rgba(30, 79, 156, 0.12);
+  background: linear-gradient(170deg, #ffffff, #f4faff);
+  transition: transform 170ms ease, box-shadow 170ms ease;
+}
+
+.tl-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(30, 79, 156, 0.17);
 }
 
 .text-break {
@@ -36,4 +46,26 @@
 .font-monospace {
   font-family: ui-monospace, monospace;
   font-size: 0.72rem;
+}
+
+.tl-card table {
+  margin-bottom: 0 !important;
+}
+
+.tl-card th {
+  background: linear-gradient(170deg, #f8fcff, #edf7ff);
+  color: #4a6286;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid rgba(156, 193, 236, 0.42);
+}
+
+.tl-card td {
+  border-color: rgba(189, 214, 245, 0.45);
+}
+
+::ng-deep .tl-nav .mdc-button {
+  border-radius: 10px !important;
+  font-weight: 700 !important;
 }

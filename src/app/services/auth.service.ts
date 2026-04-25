@@ -9,6 +9,13 @@ import { environment } from '../../environments/environment';
 
 /** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
 export const AUTH_STORAGE_KEY = 'authToken';
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 interface DecodeToken {
   name: string;
@@ -58,7 +65,7 @@ interface User {
   [key: string]: any;            // Allow additional properties
 }
 
-/** After logout, next /login load skips "restore session" so the form shows instead of auto-redirect. */
+/** After logout, next /login load skips "restore session" so the form stays visible. */
 export const SKIP_SESSION_RESTORE_KEY = 'gluck_skip_session_restore';
 
 @Injectable({
@@ -78,7 +85,7 @@ export class AuthService {
   // ✅ Get teachers for a specific level and medium
   getTeachers(level: string, medium: string | string[]): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/auth/teachers`, {
-      params: { level, medium }, withCredentials: true
+      params: { level, medium }
     });
   }
 
@@ -86,7 +93,7 @@ export class AuthService {
   // ✅ Get teachers for a specific level and medium
   getTeachersByMedium(medium: string | string[]): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/auth/teachersByMedium`, {
-      params: { medium }, withCredentials: true
+      params: { medium }
     });
   }
 
@@ -125,11 +132,11 @@ export class AuthService {
     };
     qualifications?: string;
   }): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/signup`, user, { withCredentials: true });
+    return this.http.post(`${this.apiUrl}/auth/signup`, user);
   }
 
   login(user: { regNo: string; password: string; keepSessionActive?: boolean }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/login`, user, { withCredentials: true }).pipe(
+    return this.http.post<any>(`${this.apiUrl}/auth/login`, user).pipe(
       tap((response: any) => {
         if (response?.token) {
           try {
@@ -147,7 +154,7 @@ export class AuthService {
 
   // Fetch user profile (with photo URL included)
   getUserProfile(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/auth/profile`, { withCredentials: true });
+    return this.http.get(`${this.apiUrl}/auth/profile`);
   }
 
   // ✅ Helper: refresh user profile and update BehaviorSubject
@@ -164,7 +171,7 @@ export class AuthService {
     return loggedIn;
   }
 
-  /** Dashboard path after login or when a valid session cookie is already present. */
+  /** Dashboard path after login or when a valid token session is already present. */
   getPostLoginPath(user: { role?: string; subscription?: string } | null | undefined): string | null {
     if (!user?.role) {
       return null;
@@ -194,8 +201,8 @@ export class AuthService {
   }
 
   /**
-   * Call when the user explicitly logs out. Ensures the next visit to /login shows the credential
-   * form instead of auto-navigating from a still-valid httpOnly cookie.
+   * Call when the user explicitly logs out. Ensures the next visit to /login
+   * shows the credential form instead of auto-restore.
    */
   markExpectFreshLoginPage(): void {
     this.clearClientSession();
@@ -213,7 +220,7 @@ export class AuthService {
 
   // Logout
   logout(): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true }).pipe(
+    return this.http.post(`${this.apiUrl}/auth/logout`, {}).pipe(
       finalize(() => {
         this.markExpectFreshLoginPage();
       })
@@ -243,20 +250,20 @@ export class AuthService {
     const formData = new FormData();
     formData.append('profilePhoto', file);
 
-    return this.http.post(`${this.apiUrl}/profile/upload-photo`, formData, { withCredentials: true });
+    return this.http.post(`${this.apiUrl}/profile/upload-photo`, formData);
   }
 
 
   getUserById(id: string) {
-    return this.http.get<User>(`${this.apiUrl}/auth/${id}`, { withCredentials: true });
+    return this.http.get<User>(`${this.apiUrl}/auth/${id}`);
   }
 
   updateUser(id: string, user: User) {
-    return this.http.put(`${this.apiUrl}/auth/${id}`, user, { withCredentials: true });
+    return this.http.put(`${this.apiUrl}/auth/${id}`, user);
   }
 
   deleteUser(id: string) {
-    return this.http.delete(`${this.apiUrl}/auth/${id}`, { withCredentials: true });
+    return this.http.delete(`${this.apiUrl}/auth/${id}`);
   }
 
   updateAssignedTeacherByBatchNo(batchNo: string, teacherId: string) {
@@ -264,16 +271,15 @@ export class AuthService {
       {
         batch: batchNo,
         newTeacherId: teacherId
-      },
-      { withCredentials: true });
+      });
   }
 
   getTeachersByBatch(batchNo: string): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/auth/teachers-by-batch/${batchNo}`, { withCredentials: true});
+    return this.http.get<any[]>(`${this.apiUrl}/auth/teachers-by-batch/${batchNo}`);
   }
   // Resend credentials to a student
   resendCredentials(studentId: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/resend-credentials/${studentId}`, {}, { withCredentials: true });
+    return this.http.post(`${this.apiUrl}/auth/resend-credentials/${studentId}`, {});
   }
 
   // Method to perform authenticated request
@@ -289,10 +295,6 @@ export class AuthService {
   }
 
   getToken(): string | null {
-    try {
-      return localStorage.getItem(AUTH_STORAGE_KEY);
-    } catch {
-      return null;
-    }
+    return getAuthToken();
   }
 }

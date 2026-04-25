@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const ClassRecording = require('../models/ClassRecording');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
@@ -119,6 +119,11 @@ function allowedRecordingPlansForStudent(student) {
     return ['SILVER', 'ALL', 'PLATINUM'];
   }
   return [sub, 'ALL'].filter(Boolean);
+}
+
+function isSilverGoStudent(student) {
+  return String(student?.goStatus || '').toUpperCase() === 'GO' &&
+    String(student?.subscription || '').toUpperCase() === 'SILVER';
 }
 
 function normalizedStudentCourseDay(student) {
@@ -572,7 +577,7 @@ router.get('/:id/upload-status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
 });
 
 // GET /api/class-recordings/:id/hls/playlist — signed playlist for manual uploaded recordings
-router.get('/:id/hls/playlist', verifyToken, async (req, res) => {
+router.get('/:id/hls/playlist', verifyMediaToken, async (req, res) => {
   try {
     if (!R2_CONFIG_OK) {
       return res.status(503).json({
@@ -739,6 +744,11 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
           : (meeting?.duration != null ? Number(meeting.duration) * 60 : 0)
       );
       const day = Number(meeting?.courseDay);
+      const studentLean = await User.findById(view.student)
+        .select('batch goStatus subscription currentCourseDay')
+        .lean();
+      const isSilverGo = isSilverGoStudent(studentLean);
+      const completionWatchRatio = isSilverGo ? 0.9 : 0.75;
       const isEligibleGate =
         !!meeting &&
         meeting.status !== 'cancelled' &&
@@ -746,14 +756,11 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
         day >= 1 &&
         Number.isFinite(recordingDurationSec) &&
         recordingDurationSec > 0 &&
-        watchDurationSec >= Math.ceil(recordingDurationSec * 0.75);
+        watchDurationSec >= Math.ceil(recordingDurationSec * completionWatchRatio);
 
       if (isEligibleGate) {
         const dayInt = Math.floor(day);
         const nextDay = Math.min(200, dayInt + 1);
-        const studentLean = await User.findById(view.student)
-          .select('batch goStatus subscription currentCourseDay')
-          .lean();
         const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
         const primary = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
         const cfgDoc = primary
@@ -761,7 +768,12 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
           : null;
 
         let allowInstantAdvance = true;
-        if (cfgDoc && cfgDoc.strictJourneyRule) {
+        if (isSilverGo) {
+          const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
+            creditMeetings: meeting?._id ? [meeting._id] : []
+          });
+          allowInstantAdvance = !!comp.complete;
+        } else if (cfgDoc && cfgDoc.strictJourneyRule) {
           const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
             creditMeetings: meeting?._id ? [meeting._id] : []
           });
@@ -1380,7 +1392,7 @@ router.get('/zoom/webhook-audit', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
  *
  * Access control is identical to the MP4 signed-URL endpoint.
  */
-router.get('/zoom/:meetingLinkId/hls/playlist', verifyToken, async (req, res) => {
+router.get('/zoom/:meetingLinkId/hls/playlist', verifyMediaToken, async (req, res) => {
   try {
     if (!R2_CONFIG_OK) {
       return res.status(503).json({

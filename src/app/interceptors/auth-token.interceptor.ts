@@ -1,5 +1,5 @@
 import { HttpInterceptorFn } from '@angular/common/http';
-import { AUTH_STORAGE_KEY } from '../services/auth.service';
+import { getAuthToken } from '../services/auth.service';
 
 /**
  * Attaches JWT from localStorage as Authorization: Bearer … for API calls.
@@ -15,12 +15,7 @@ export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  let token: string | null = null;
-  try {
-    token = localStorage.getItem(AUTH_STORAGE_KEY);
-  } catch {
-    return next(req);
-  }
+  const token = getAuthToken();
 
   if (!token) {
     return next(req);

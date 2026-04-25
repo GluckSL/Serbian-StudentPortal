@@ -109,7 +109,8 @@
               <span class="live-dot"></span>
               <div class="live-text">
                 <div class="live-name">{{ s.name }}</div>
-                <div class="live-sub text-truncate">{{ s.sessionId }}</div>
+                <div class="live-sub text-truncate">{{ shortSessionId(s.sessionId) }}</div>
+                <div class="live-sub">Seen {{ s.lastHeartbeatAt | date : 'shortTime' }}</div>
               </div>
             </li>
           } @empty {
@@ -138,20 +139,39 @@
               </tr>
             </thead>
             <tbody>
-              @for (r of dashboard.recentActivity; track r.time + r.sessionId + r.page) {
+              @for (r of pagedRecentActivity; track r.time + r.sessionId + r.page) {
                 <tr>
                   <td class="text-nowrap">{{ r.time | date : 'short' }}</td>
                   <td>{{ r.studentName }}</td>
-                  <td class="text-break">{{ r.page }}</td>
+                  <td class="page-col text-truncate" [title]="r.page">{{ r.page }}</td>
                   <td><span class="badge bg-light text-dark">{{ r.type }}</span></td>
-                  <td>{{ formatDuration(r.durationSeconds) }}</td>
-                  <td class="small text-muted text-break">{{ r.sessionId }}</td>
+                  <td class="text-nowrap">{{ formatDuration(r.durationSeconds) }}</td>
+                  <td class="small text-muted session-col" [title]="r.sessionId">{{ shortSessionId(r.sessionId) }}</td>
                 </tr>
               } @empty {
                 <tr><td colspan="6" class="text-muted">No rows</td></tr>
               }
             </tbody>
           </table>
+        </div>
+        <div class="table-pager">
+          <div class="pager-meta">
+            Showing {{ recentFrom }}-{{ recentTo }} of {{ recentActivityTotal }}
+          </div>
+          <div class="pager-actions">
+            <button mat-stroked-button type="button" (click)="prevRecentPage()" [disabled]="pageIndex === 0">
+              Prev
+            </button>
+            <span class="pager-page">{{ pageIndex + 1 }} / {{ recentActivityPageCount }}</span>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="nextRecentPage()"
+              [disabled]="pageIndex >= recentActivityPageCount - 1"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </mat-card>
 
@@ -160,40 +180,58 @@
           <h3>Insights</h3>
           <span class="sub">Smart signals</span>
         </div>
-        @if (dashboard.peakHour) {
-          <div class="insight-block">
-            <div class="insight-title">Peak hour (UTC)</div>
-            <div class="insight-metric">{{ dashboard.peakHour.label }}</div>
-            <div class="insight-sub">{{ formatDuration(dashboard.peakHour.seconds) }} tracked in that hour</div>
+        <div class="insight-kpi-grid">
+          @if (dashboard.peakHour) {
+            <div class="insight-kpi-tile">
+              <div class="insight-kpi-label">Peak hour (UTC)</div>
+              <div class="insight-kpi-value">{{ dashboard.peakHour.label }}</div>
+              <div class="insight-kpi-sub">{{ formatDuration(dashboard.peakHour.seconds) }} tracked</div>
+            </div>
+          }
+          @if (dashboard.peakDay) {
+            <div class="insight-kpi-tile insight-kpi-tile-sun">
+              <div class="insight-kpi-label">Peak weekday</div>
+              <div class="insight-kpi-value">{{ dashboard.peakDay.label }}</div>
+              <div class="insight-kpi-sub">{{ formatDuration(dashboard.peakDay.seconds) }}</div>
+            </div>
+          }
+        </div>
+
+        <div class="insight-panel">
+          <div class="insight-panel-head">
+            <mat-icon>leaderboard</mat-icon>
+            <div class="insight-title">Engagement leaderboard</div>
           </div>
-        }
-        @if (dashboard.peakDay) {
-          <div class="insight-block">
-            <div class="insight-title">Peak weekday</div>
-            <div class="insight-metric">{{ dashboard.peakDay.label }}</div>
-            <div class="insight-sub">{{ formatDuration(dashboard.peakDay.seconds) }}</div>
-          </div>
-        }
-        <div class="insight-block">
-          <div class="insight-title">Engagement (active / session wall)</div>
-          <ul class="mini-list">
-            @for (e of dashboard.engagement.slice(0, 5); track e.name) {
-              <li><span class="fw-medium">{{ e.name }}</span> — score {{ e.engagementScore }}</li>
+          <ul class="mini-list mini-list-modern">
+            @for (e of dashboard.engagement.slice(0, 5); track e.name; let idx = $index) {
+              <li>
+                <span class="insight-rank">#{{ idx + 1 }}</span>
+                <span class="insight-name">{{ e.name }}</span>
+                <span class="insight-score">score {{ e.engagementScore }}</span>
+              </li>
             } @empty {
               <li class="text-muted">No data</li>
             }
           </ul>
         </div>
-        <div class="insight-block">
-          <div class="insight-title">Last page before segment end</div>
-          <ul class="mini-list">
+
+        <div class="insight-panel">
+          <div class="insight-panel-head">
+            <mat-icon>exit_to_app</mat-icon>
+            <div class="insight-title">Last page before segment end</div>
+          </div>
+          <ul class="mini-list mini-list-modern">
             @for (d of dashboard.dropoffs; track d.page) {
-              <li class="text-break">{{ d.page }} — {{ d.sessionsEnded }} sessions</li>
+              <li>
+                <span class="insight-name text-break">{{ d.page }}</span>
+                <span class="insight-score">{{ d.sessionsEnded }} sessions</span>
+              </li>
             } @empty {
               <li class="text-muted">No data</li>
             }
           </ul>
         </div>
+
         <div class="insight-list">
           @for (i of dashboard.insights; track i.id) {
             <div class="insight-item" [class.insight-pos]="i.tone === 'positive'" [class.insight-neg]="i.tone === 'negative'" [class.insight-warn]="i.tone === 'warn'">

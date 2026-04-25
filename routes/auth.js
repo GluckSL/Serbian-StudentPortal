@@ -20,21 +20,9 @@ const {
 } = require("../services/studentPortalCrmWebhook");
 
 //const auth = require("../middleware/auth");
-const { verifyToken, isAdmin, extractJwtFromRequest } = require('../middleware/auth');
+const { verifyToken, isAdmin, extractBearerToken } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
-
-/** HttpOnly auth cookie: match login + logout + clearCookie so sessions survive reloads in production. */
-function baseAuthCookieOpts() {
-  const isProd = process.env.NODE_ENV === 'production';
-  return {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'None' : 'Lax',
-    path: '/',
-    ...(isProd ? { domain: process.env.AUTH_COOKIE_DOMAIN || '.gluckstudentsportal.com' } : {})
-  };
-}
 
 const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
 const ALLOWED_SIDEBAR_PERMISSION_IDS = [
@@ -970,13 +958,7 @@ router.post("/login", async (req, res) => {
       { expiresIn: jwtExpires }
     );
 
-    const cookieMaxAgeMs = remember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-    res.cookie('authToken', token, {
-      ...baseAuthCookieOpts(),
-      maxAge: cookieMaxAgeMs
-    });
-
-    // SPA stores JWT in localStorage (interceptor) + httpOnly cookie (HLS / credentialed XHR, Safari native HLS)
+    // SPA stores JWT in localStorage (interceptor + HLS xhrSetup).
     return res.json({
       token,
       user: {
@@ -1001,7 +983,7 @@ router.post("/login", async (req, res) => {
 router.post("/logout", (req, res) => {
   // ✅ best-effort: record logout activity when token present
   try {
-    const token = extractJwtFromRequest(req);
+    const token = extractBearerToken(req);
     if (token) {
       const payload = jwt.verify(token, JWT_SECRET);
       if (payload?.id) {
@@ -1016,7 +998,6 @@ router.post("/logout", (req, res) => {
     }
   } catch (_) {}
 
-  res.clearCookie("authToken", baseAuthCookieOpts());
   return res.json({ msg: "Logged out successfully" });
 });
 

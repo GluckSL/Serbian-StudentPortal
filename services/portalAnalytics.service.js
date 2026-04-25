@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const mongoose = require('mongoose');
 const PortalSession = require('../models/portalSession.model');
 const PageActivity = require('../models/pageActivity.model');
+const DigitalExercise = require('../models/DigitalExercise');
 const User = require('../models/User');
 const UserActivityLog = require('../models/UserActivityLog');
 const StudentLogs = require('../models/StudentLogs');
@@ -12,6 +13,16 @@ const MAX_CREDIT_PER_HEARTBEAT_SEC = 30;
 const HEARTBEAT_GAP_STALE_SEC = 120;
 /** Cron / auto-close: silence longer than this ends the session. */
 const STALE_SILENCE_MS = 2 * 60 * 1000;
+const PORTAL_ANALYTICS_DEBUG = /^(1|true|yes)$/i.test(String(process.env.PORTAL_ANALYTICS_DEBUG || '1'));
+
+function logPortalDebug(message, payload = null) {
+  if (!PORTAL_ANALYTICS_DEBUG) return;
+  if (payload) {
+    console.log(message, payload);
+    return;
+  }
+  console.log(message);
+}
 
 function parseObjectId(id) {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
@@ -24,6 +35,20 @@ function parseDateRange(query) {
   let from = query.from ? new Date(query.from) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   if (Number.isNaN(from.getTime())) from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   if (Number.isNaN(to.getTime())) to = now;
+
+  const fromRaw = query.from ? String(query.from) : '';
+  const toRaw = query.to ? String(query.to) : '';
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
+
+  // HTML date inputs send YYYY-MM-DD. Interpret as local day boundaries so
+  // "to=today" includes the full day instead of 00:00 only.
+  if (dateOnly.test(fromRaw)) {
+    from.setHours(0, 0, 0, 0);
+  }
+  if (dateOnly.test(toRaw)) {
+    to.setHours(23, 59, 59, 999);
+  }
+
   if (from > to) {
     const t = from;
     from = to;
@@ -40,6 +65,36 @@ function sessionTimeRangeMatch(from, to) {
       { $and: [{ startTime: { $lte: from } }, { $or: [{ endTime: { $gte: to } }, { endTime: null }, { isActive: true }] }] }
     ]
   };
+}
+
+function extractDigitalExerciseIdFromPage(page) {
+  const raw = String(page || '');
+  const m = raw.match(/\/digital-exercises\/([a-f\d]{24})(?:\/|$)/i);
+  return m ? m[1] : null;
+}
+
+async function buildDigitalExerciseTitleMapFromPages(pages) {
+  const ids = Array.from(
+    new Set(
+      (pages || [])
+        .map((p) => extractDigitalExerciseIdFromPage(p))
+        .filter(Boolean)
+    )
+  );
+  if (!ids.length) return new Map();
+  const docs = await DigitalExercise.find({ _id: { $in: ids } })
+    .select('_id title')
+    .lean();
+  return new Map(docs.map((d) => [String(d._id), String(d.title || '').trim()]));
+}
+
+function prettyPageLabel(page, titleMap) {
+  const raw = String(page || '/');
+  const exId = extractDigitalExerciseIdFromPage(raw);
+  if (!exId) return raw;
+  const title = titleMap.get(exId);
+  if (!title) return raw;
+  return `Digital Exercise: ${title}`;
 }
 
 async function closeOpenPageActivities(sessionId, endTime) {
@@ -92,6 +147,12 @@ async function startSession(studentId) {
     isActive: true
   });
 
+  logPortalDebug('⏱ [Portal analytics] Timer started', {
+    studentId: String(sid),
+    sessionId: doc.sessionId,
+    startTime: doc.startTime
+  });
+
   return { sessionId: doc.sessionId, startTime: doc.startTime };
 }
 
@@ -114,6 +175,11 @@ async function heartbeat(studentId, sessionId, page) {
   const now = new Date();
   const gapSec = Math.floor((now.getTime() - session.lastHeartbeatAt.getTime()) / 1000);
   if (gapSec > HEARTBEAT_GAP_STALE_SEC) {
+    logPortalDebug('⚠️ [Portal analytics] Session marked stale on heartbeat', {
+      studentId: String(sid),
+      sessionId,
+      gapSec
+    });
     await finalizePortalSession(session, now);
     throw new Error('SESSION_STALE');
   }
@@ -151,6 +217,15 @@ async function heartbeat(studentId, sessionId, page) {
     }
   );
 
+  if (add > 0) {
+    logPortalDebug('💓 [Portal analytics] Heartbeat credited', {
+      studentId: String(sid),
+      sessionId,
+      page: pageStr,
+      creditedSeconds: add
+    });
+  }
+
   return { ok: true, creditedSeconds: add, lastHeartbeatAt: now };
 }
 
@@ -179,6 +254,13 @@ async function endSession(studentId, sessionId) {
   const fresh = await PortalSession.findById(session._id).lean();
   await finalizePortalSession(fresh, now);
 
+  logPortalDebug('🛑 [Portal analytics] Timer ended', {
+    studentId: String(sid),
+    sessionId,
+    endTime: now,
+    finalCreditSeconds: add
+  });
+
   return { ok: true };
 }
 
@@ -199,27 +281,32 @@ async function closeStaleSessions() {
 
 async function getOverview(from, to) {
   const match = { ...sessionTimeRangeMatch(from, to) };
+  const now = new Date();
+  const sessions = await PortalSession.find(match)
+    .select('studentId totalActiveSeconds isActive lastHeartbeatAt')
+    .lean();
 
-  const [sessionAgg] = await PortalSession.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: null,
-        totalSeconds: { $sum: '$totalActiveSeconds' },
-        distinctStudents: { $addToSet: '$studentId' }
-      }
-    },
-    {
-      $project: {
-        totalSeconds: 1,
-        studentCount: { $size: '$distinctStudents' }
-      }
+  const perStudent = new Map();
+  const distinctStudents = new Set();
+  let totalSeconds = 0;
+
+  for (const s of sessions) {
+    const studentIdStr = String(s.studentId);
+    distinctStudents.add(studentIdStr);
+
+    let seconds = Number(s.totalActiveSeconds || 0);
+    if (s.isActive && s.lastHeartbeatAt) {
+      const extraSec = Math.floor((now.getTime() - new Date(s.lastHeartbeatAt).getTime()) / 1000);
+      seconds += Math.max(0, Math.min(extraSec, 30));
     }
-  ]);
 
-  const totalSeconds = sessionAgg?.totalSeconds || 0;
-  const studentCount = sessionAgg?.studentCount || 0;
+    totalSeconds += seconds;
+    perStudent.set(studentIdStr, (perStudent.get(studentIdStr) || 0) + seconds);
+  }
+
+  const studentCount = distinctStudents.size;
   const avgTimePerStudent = studentCount > 0 ? Math.round(totalSeconds / studentCount) : 0;
+  console.log('TOTAL TIME CALCULATED:', totalSeconds);
 
   const activeCutoff = new Date(Date.now() - 5 * 60 * 1000);
   const activeStudents = await PortalSession.distinct('studentId', {
@@ -238,13 +325,14 @@ async function getOverview(from, to) {
     { $sort: { seconds: -1 } },
     { $limit: 1 }
   ]);
+  const topPageTitleMap = await buildDigitalExerciseTitleMapFromPages([topPage?._id]);
 
-  const [topStudent] = await PortalSession.aggregate([
-    { $match: match },
-    { $group: { _id: '$studentId', seconds: { $sum: '$totalActiveSeconds' } } },
-    { $sort: { seconds: -1 } },
-    { $limit: 1 }
-  ]);
+  let topStudent = null;
+  for (const [studentId, seconds] of perStudent.entries()) {
+    if (!topStudent || seconds > topStudent.seconds) {
+      topStudent = { _id: studentId, seconds };
+    }
+  }
 
   let topStudentName = null;
   if (topStudent?._id) {
@@ -256,7 +344,7 @@ async function getOverview(from, to) {
     totalTime: totalSeconds,
     activeStudents: activeStudents.length,
     avgTimePerStudent,
-    topPage: topPage ? { page: topPage._id, seconds: topPage.seconds } : null,
+    topPage: topPage ? { page: prettyPageLabel(topPage._id, topPageTitleMap), seconds: topPage.seconds } : null,
     topStudent: topStudent
       ? { studentId: topStudent._id, name: topStudentName, seconds: topStudent.seconds }
       : null,
@@ -329,6 +417,7 @@ async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'd
     }
   ]);
   const topPageMap = new Map(topPages.map((t) => [String(t._id), t]));
+  const topPageTitleMap = await buildDigitalExerciseTitleMapFromPages(topPages.map((t) => t.topPage));
 
   const users = await User.find({ _id: { $in: studentIds } })
     .select('name email')
@@ -347,7 +436,7 @@ async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'd
       totalSeconds: row.totalSeconds,
       sessionsCount: row.sessionsCount,
       avgSessionSeconds: avgSession,
-      topPage: tp?.topPage || '—',
+      topPage: tp?.topPage ? prettyPageLabel(tp.topPage, topPageTitleMap) : '—',
       topPageSeconds: tp?.topPageSeconds || 0
     };
   });
@@ -387,10 +476,12 @@ async function getPageWise(from, to, limit = 200) {
     { $sort: { totalSeconds: -1 } },
     { $limit: cap }
   ]);
+  const titleMap = await buildDigitalExerciseTitleMapFromPages(pageRows.map((r) => r.page));
 
   const grandTotal = pageRows.reduce((acc, r) => acc + (r.totalSeconds || 0), 0);
   return pageRows.map((r) => ({
     ...r,
+    page: prettyPageLabel(r.page, titleMap),
     pctOfTracked: grandTotal > 0 ? Math.round((r.totalSeconds / grandTotal) * 1000) / 10 : 0
   }));
 }
@@ -412,11 +503,12 @@ async function getTimeline(from, to, limit = 50, skip = 0) {
       .populate('studentId', 'name')
       .lean()
   ]);
+  const titleMap = await buildDigitalExerciseTitleMapFromPages(raw.map((r) => r.page));
 
   const items = raw.map((r) => ({
     time: r.startTime,
     endTime: r.endTime,
-    page: r.page,
+    page: prettyPageLabel(r.page, titleMap),
     type: 'PAGE',
     durationSeconds: r.activeSeconds,
     studentName: r.studentId?.name || 'Unknown',
@@ -450,7 +542,8 @@ async function getPageSharesForDonut(from, to, topN = 8) {
   const n = Math.min(topN, rows.length);
   const top = rows.slice(0, n);
   const otherSum = rows.slice(n).reduce((a, r) => a + (r.seconds || 0), 0);
-  const labels = top.map((r) => r._id);
+  const titleMap = await buildDigitalExerciseTitleMapFromPages(top.map((r) => r._id));
+  const labels = top.map((r) => prettyPageLabel(r._id, titleMap));
   const values = top.map((r) => r.seconds);
   if (otherSum > 0) {
     labels.push('Other');
@@ -489,11 +582,12 @@ async function getRecentPageEvents(from, to, limit = 35) {
     .limit(cap)
     .populate('studentId', 'name')
     .lean();
+  const titleMap = await buildDigitalExerciseTitleMapFromPages(rows.map((r) => r.page));
 
   return rows.map((r) => ({
     time: r.startTime,
     studentName: r.studentId?.name || 'Unknown',
-    page: r.page,
+    page: prettyPageLabel(r.page, titleMap),
     type: 'PAGE',
     durationSeconds: r.activeSeconds,
     sessionId: r.sessionId
@@ -591,7 +685,7 @@ async function getEngagementLeaders(from, to, limit = 12) {
 
 async function getDropOffPages(from, to, limit = 6) {
   const lim = Math.min(Math.max(parseInt(String(limit), 10) || 6, 1), 25);
-  return PageActivity.aggregate([
+  const rows = await PageActivity.aggregate([
     { $match: { startTime: { $gte: from, $lte: to }, endTime: { $ne: null } } },
     { $sort: { sessionId: 1, startTime: -1 } },
     {
@@ -613,6 +707,8 @@ async function getDropOffPages(from, to, limit = 6) {
       }
     }
   ]);
+  const titleMap = await buildDigitalExerciseTitleMapFromPages(rows.map((r) => r.page));
+  return rows.map((r) => ({ ...r, page: prettyPageLabel(r.page, titleMap) }));
 }
 
 async function buildInsights(from, to, overview) {

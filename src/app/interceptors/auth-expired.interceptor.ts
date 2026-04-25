@@ -7,7 +7,9 @@ import { AuthService } from '../services/auth.service';
 let redirectInProgress = false;
 
 /**
- * On 401 (session expired / invalid cookie), clear local auth and go to login.
+ * On auth failures, clear local auth and go to login.
+ * - Always handles 401.
+ * - Handles 403 only when backend explicitly says token is invalid/expired.
  * Skips auth endpoints so wrong password on login still shows inline error.
  */
 export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
@@ -16,7 +18,13 @@ export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
-      if (err.status !== 401) {
+      const errMsg =
+        String((err.error as any)?.message || (err.error as any)?.msg || '').toLowerCase();
+      const isAuth403 =
+        err.status === 403 &&
+        (errMsg.includes('invalid or expired token') || errMsg.includes('invalid token'));
+
+      if (err.status !== 401 && !isAuth403) {
         return throwError(() => err);
       }
 

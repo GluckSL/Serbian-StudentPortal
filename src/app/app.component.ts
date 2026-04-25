@@ -77,7 +77,7 @@ export class AppComponent implements OnInit, OnDestroy {
       });
     } else {
       this.authChecked = true;
-      // Restore user from httpOnly cookie on public routes (sidebar/header state, skip login when opening /login)
+      // Restore user from existing token on public routes (header/sidebar state).
       this.authService.refreshUserProfile().subscribe({
         next: () => {},
         error: () => {}

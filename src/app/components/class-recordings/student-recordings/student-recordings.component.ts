@@ -12,8 +12,9 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import { MaterialModule } from '../../../shared/material.module';
-import { AuthService } from '../../../services/auth.service';
+import { AuthService, getAuthToken } from '../../../services/auth.service';
 import {
   ClassRecordingsService,
   ClassRecording,
@@ -120,7 +121,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   constructor(
     private service: ClassRecordingsService,
     private sanitizer: DomSanitizer,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {}
 
   /** True when parent pins this list to a single journey day (hides search / sort chrome). */
@@ -294,6 +296,11 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   // ── Row actions ───────────────────────────────────────────────────────────
 
   playRecording(recording: DisplayRecording): void {
+    if (!getAuthToken()) {
+      this.playerError = 'Session expired. Please login again.';
+      void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
+      return;
+    }
     this.destroyHls();
     this.hlsRefreshContext = null;
     this.hlsFatalRecoveryAttempts = 0;
@@ -396,6 +403,13 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   private initHlsOnElement(video: HTMLVideoElement, hlsUrl: string, resumeAtSec: number | null): void {
+    if (!getAuthToken()) {
+      this.playerError = 'Session expired. Please login again.';
+      this.playerHlsUrl = null;
+      this.videoBuffering = false;
+      void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
+      return;
+    }
     if (Hls.isSupported()) {
       this.hls = new Hls({
         enableWorker: true,
@@ -406,6 +420,17 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         backBufferLength: 5,
         xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
           hlsAuthXhrSetup(xhr, url);
+        },
+        fetchSetup: (context: any, initParams: any) => {
+          const token = getAuthToken();
+          const headers = new Headers(initParams?.headers || {});
+          if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+          }
+          return new Request(context.url, {
+            ...initParams,
+            headers,
+          });
         },
       });
 
@@ -584,7 +609,9 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private warmHlsPlaylist(hlsUrl: string): void {
     if (this.warmedHlsUrls.has(hlsUrl)) return;
     this.warmedHlsUrls.add(hlsUrl);
-    fetch(hlsUrl, { credentials: 'include' }).catch(() => {});
+    const token = getAuthToken();
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    fetch(hlsUrl, { headers }).catch(() => {});
   }
 
   // ── Manual view tracking ──────────────────────────────────────────────────

@@ -46,7 +46,7 @@ export class HeaderComponent implements OnInit {
     });
   }
 
-  // ✅ Logout: clears cookie in backend
+  // ✅ Logout: clears client token state and backend activity
   logOut(): void {
     void this.portalTracking.flushEndSessionBeforeLogout().finally(() => {
       this.authService.logout().subscribe({

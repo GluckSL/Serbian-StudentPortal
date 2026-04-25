@@ -15,6 +15,7 @@ const app = express();
 const path = require('path');
 const mongoose = require("mongoose");
 const cors = require("cors");
+const dns = require('dns').promises;
 const auth = require("./middleware/auth");
 
 const allowedOrigins = [
@@ -27,11 +28,11 @@ const allowedOrigins = [
   'https://13.62.216.210',
   'https://gluckstudentsportal.com',
   'https://www.gluckstudentsportal.com'
-]; // frontend origin (include www so cookies + credentials work)
+]; // frontend origins
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-/** In dev, allow any localhost / 127.0.0.1 port so ng serve --port works with cookie auth. */
+/** In dev, allow any localhost / 127.0.0.1 port so ng serve --port works. */
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
@@ -118,8 +119,6 @@ const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.rout
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
-const cookieParser = require('cookie-parser');
-
 app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx or Heroku)
 
 
@@ -144,8 +143,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-app.use(cookieParser()); // Add cookie parser middleware
-
 // Connect to MongoDB with environment-based URI
 const mongoUri =
   process.env.NODE_ENV === 'production'
@@ -153,6 +150,67 @@ const mongoUri =
     : process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/Updated-Gluck-Portal';
 
 const { ensureDefaultDgCharacter } = require('./services/dgCharacterSeed');
+
+function parseMongoHosts(uri) {
+  if (!uri || typeof uri !== 'string') return [];
+  if (uri.startsWith('mongodb+srv://')) {
+    const withoutProto = uri.slice('mongodb+srv://'.length);
+    const afterAuth = withoutProto.includes('@') ? withoutProto.split('@')[1] : withoutProto;
+    const host = afterAuth.split('/')[0]?.trim();
+    return host ? [host] : [];
+  }
+  if (uri.startsWith('mongodb://')) {
+    const withoutProto = uri.slice('mongodb://'.length);
+    const afterAuth = withoutProto.includes('@') ? withoutProto.split('@')[1] : withoutProto;
+    const hostPart = afterAuth.split('/')[0] || '';
+    return hostPart
+      .split(',')
+      .map((h) => h.trim().split(':')[0])
+      .filter(Boolean);
+  }
+  return [];
+}
+
+async function warnIfSuspiciousMongoDns(uri) {
+  const hosts = parseMongoHosts(uri);
+  if (!hosts.length) return;
+
+  for (const host of hosts) {
+    try {
+      if (uri.startsWith('mongodb+srv://')) {
+        const srvName = `_mongodb._tcp.${host}`;
+        const srv = await dns.resolveSrv(srvName);
+        const suspicious = srv.some((r) => String(r.name || '').includes('.domain.name'));
+        if (suspicious) {
+          console.error(
+            `❌ [Mongo DNS guard] Suspicious SRV resolution for ${srvName}. ` +
+              `Your DNS appears to rewrite Atlas domains. Switch DNS to 1.1.1.1/8.8.8.8 and run "ipconfig /flushdns".`
+          );
+        } else {
+          console.log(`✅ [Mongo DNS guard] SRV lookup OK for ${srvName}`);
+        }
+      } else {
+        const ips = await dns.resolve4(host);
+        const suspicious = ips.some((ip) => ip.startsWith('185.38.109.'));
+        if (suspicious) {
+          console.error(
+            `❌ [Mongo DNS guard] Suspicious A record(s) for ${host}: ${ips.join(', ')}. ` +
+              `Switch DNS to 1.1.1.1/8.8.8.8 and run "ipconfig /flushdns".`
+          );
+        } else {
+          console.log(`✅ [Mongo DNS guard] DNS lookup OK for ${host}`);
+        }
+      }
+    } catch (err) {
+      console.error(
+        `❌ [Mongo DNS guard] Failed DNS check for ${host}: ${err.message}. ` +
+          `If you see ENOTFOUND for mongodb.net hosts, change DNS to 1.1.1.1/8.8.8.8 and flush DNS.`
+      );
+    }
+  }
+}
+
+warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
 
 mongoose.connect(mongoUri)
   .then(async () => {

@@ -6,7 +6,7 @@ function getRequestPublicBase(req) {
   return `${proto}://${host}`;
 }
 
-/** Full URL students should open (sends cookies to this host for auth). */
+/** Full URL students should open for authenticated join redirect endpoint. */
 function buildJoinClassProxyUrl(req, meetingLinkId) {
   const id = String(meetingLinkId || '').trim();
   return `${getRequestPublicBase(req)}/api/join-class/${id}`;

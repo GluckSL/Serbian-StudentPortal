@@ -4,6 +4,12 @@
   } @else if (error) {
     <p class="text-danger">{{ error }}</p>
   } @else {
+    <div class="sw-head">
+      <div>
+        <h3>Session Analytics</h3>
+        <p>Live and completed sessions with per-page breakdown.</p>
+      </div>
+    </div>
     @for (s of sessions; track s.sessionId) {
       <div class="card mb-3">
         <div class="card-header d-flex flex-wrap justify-content-between gap-2">

@@ -40,23 +40,7 @@ router.get('/requirements', verifyToken, checkRole(['STUDENT']), async (req, res
     }
 
     const service = (student.servicesOpted || '').trim();
-
-    // Global mandatory list, with optional program overrides.
-    const normalized = service ? service.replace(/[\s\-]+/g, '[\\s\\-]*') : '';
-    const serviceRegex = service ? new RegExp('^' + normalized + '$', 'i') : null;
-    const requirements = await DocumentRequirement.find({
-      active: true,
-      ...(serviceRegex
-        ? {
-            $or: [
-              { applicableServices: serviceRegex },
-              { programKeys: serviceRegex },
-              { applicableServices: { $size: 0 } },
-              { programKeys: { $size: 0 } }
-            ]
-          }
-        : {})
-    }).sort({ order: 1, label: 1 }).lean();
+    const requirements = await getRequirementsForStudentService(service);
 
     // Map to the shape the frontend expects
     const mapped = requirements.map(mapRequirement);
@@ -805,23 +789,7 @@ router.get('/stats', verifyToken, checkRole(['STUDENT']), async (req, res) => {
     
     // Get required documents filtered by student's service
     const service = (student.servicesOpted || '').trim();
-    const normalized = service ? service.replace(/[\s\-]+/g, '[\\s\\-]*') : '';
-    const serviceRegex = service ? new RegExp('^' + normalized + '$', 'i') : null;
-    const requiredDocsFilter = {
-      active: true,
-      $and: [{ $or: [{ required: true }, { isRequired: true }] }]
-    };
-    if (serviceRegex) {
-      requiredDocsFilter.$and.push({
-        $or: [
-          { applicableServices: serviceRegex },
-          { programKeys: serviceRegex },
-          { applicableServices: { $size: 0 } },
-          { programKeys: { $size: 0 } }
-        ]
-      });
-    }
-    const requiredDocs = await DocumentRequirement.find(requiredDocsFilter).lean();
+    const requiredDocs = await getRequirementsForStudentService(service, { requiredOnly: true });
     
     const uploadedRequiredDocs = currentDocsByType.filter((d) =>
       requiredDocs.some((r) => String(r._id) === String(d._id))
@@ -868,6 +836,56 @@ async function ensureDefaultRequirementsSeeded() {
       active: true
     }))
   );
+}
+
+function buildServiceScopedRequirementFilter(service = '', { requiredOnly = false } = {}) {
+  const baseFilter = {
+    active: true,
+    ...(requiredOnly ? { $or: [{ required: true }, { isRequired: true }] } : {})
+  };
+
+  const trimmedService = String(service || '').trim();
+  if (!trimmedService) {
+    return baseFilter;
+  }
+
+  const normalized = trimmedService.replace(/[\s\-]+/g, '[\\s\\-]*');
+  const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+
+  return {
+    ...baseFilter,
+    $and: [
+      {
+        $or: [
+          { applicableServices: serviceRegex },
+          { programKeys: serviceRegex },
+          { applicableServices: { $size: 0 } },
+          { programKeys: { $size: 0 } }
+        ]
+      }
+    ]
+  };
+}
+
+async function getRequirementsForStudentService(service = '', { requiredOnly = false } = {}) {
+  const scopedFilter = buildServiceScopedRequirementFilter(service, { requiredOnly });
+  let requirements = await DocumentRequirement.find(scopedFilter)
+    .sort({ order: 1, label: 1 })
+    .lean();
+
+  // Fallback: if strict service matching returns nothing, show active defaults
+  // so students can still upload required documents.
+  if (requirements.length === 0) {
+    const fallbackFilter = {
+      active: true,
+      ...(requiredOnly ? { $or: [{ required: true }, { isRequired: true }] } : {})
+    };
+    requirements = await DocumentRequirement.find(fallbackFilter)
+      .sort({ order: 1, label: 1 })
+      .lean();
+  }
+
+  return requirements;
 }
 
 function normalizeType(type = '') {

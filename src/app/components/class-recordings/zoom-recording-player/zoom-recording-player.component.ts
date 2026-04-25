@@ -10,13 +10,14 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ClassRecordingsService,
   ZoomRecordingResponse,
 } from '../../../services/class-recordings.service';
 import { hlsAuthXhrSetup } from '../../../utils/hls-auth-xhr';
 import Hls, { ErrorData } from 'hls.js';
+import { getAuthToken } from '../../../services/auth.service';
 
 @Component({
   selector: 'app-zoom-recording-player',
@@ -52,7 +53,8 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
 
   constructor(
     private recordingsService: ClassRecordingsService,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -83,6 +85,11 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
 
   loadRecording(): void {
     if (!this.meetingLinkId) return;
+    if (!getAuthToken()) {
+      this.error = 'Session expired. Please login again.';
+      void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
+      return;
+    }
     this.hlsRecoveryAttempts = 0;
     this.loading  = true;
     this.error    = null;
@@ -133,6 +140,13 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
   // ── HLS ───────────────────────────────────────────────────────────────────
 
   private initHls(video: HTMLVideoElement, url: string, resumeAtSec: number | null): void {
+    if (!getAuthToken()) {
+      this.error = 'Session expired. Please login again.';
+      this.hlsSrc = null;
+      this.buffering = false;
+      void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
+      return;
+    }
     this.destroyHls();
 
     if (Hls.isSupported()) {
@@ -145,6 +159,17 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
         backBufferLength: 5,
         xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
           hlsAuthXhrSetup(xhr, url);
+        },
+        fetchSetup: (context: any, initParams: any) => {
+          const token = getAuthToken();
+          const headers = new Headers(initParams?.headers || {});
+          if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+          }
+          return new Request(context.url, {
+            ...initParams,
+            headers,
+          });
         },
       });
       this.hls.loadSource(url);
