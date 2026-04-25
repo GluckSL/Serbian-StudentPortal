@@ -200,15 +200,15 @@ function evaluateThreshold(score, threshold) {
  * Used by the frontend to pick a human-friendly tone without having to
  * duplicate our thresholds.
  *
- *   score > 80        → 'high'    ("Great job!")
- *   50 ≤ score ≤ 80   → 'medium'  ("Almost there!")
- *   score < 50        → 'low'     ("We might not have heard you clearly.")
+ *   score >= 85       → 'high'    ("Great job!")
+ *   42 ≤ score < 85   → 'medium'  ("Almost there!")
+ *   score < 42        → 'low'     ("We might not have heard you clearly.")
  */
 function computeConfidence(score) {
   const s = Number(score);
   if (!Number.isFinite(s)) return 'low';
-  if (s > 80) return 'high';
-  if (s >= 50) return 'medium';
+  if (s >= 85) return 'high';
+  if (s >= 42) return 'medium';
   return 'low';
 }
 

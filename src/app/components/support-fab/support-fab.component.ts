@@ -1,7 +1,7 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
@@ -9,7 +9,7 @@ import { AnnouncementItem, AnnouncementService } from '../../services/announceme
 @Component({
   selector: 'app-support-fab',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, HttpClientModule],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './support-fab.component.html',
   styleUrls: ['./support-fab.component.css']
 })

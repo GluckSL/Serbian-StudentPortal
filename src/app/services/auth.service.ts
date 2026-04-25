@@ -9,9 +9,21 @@ import { environment } from '../../environments/environment';
 
 /** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
 export const AUTH_STORAGE_KEY = 'authToken';
+const LEGACY_AUTH_STORAGE_KEYS = ['token', 'jwtToken'];
 export function getAuthToken(): string | null {
   try {
-    return localStorage.getItem(AUTH_STORAGE_KEY);
+    const primary = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (primary) return primary;
+
+    // Backward compatibility for sessions saved before authToken key standardization.
+    for (const key of LEGACY_AUTH_STORAGE_KEYS) {
+      const legacy = localStorage.getItem(key);
+      if (legacy) {
+        localStorage.setItem(AUTH_STORAGE_KEY, legacy);
+        return legacy;
+      }
+    }
+    return null;
   } catch {
     return null;
   }

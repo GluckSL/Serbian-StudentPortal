@@ -66,4 +66,11 @@ export class PortalAnalyticsApiService {
   getSessionWise(range: PortalAnalyticsRange, limit = 200): Observable<unknown> {
     return this.http.get(`${this.base}/session-wise`, { params: this.params(range, { limit }), withCredentials: true });
   }
+
+  getLearning(range: PortalAnalyticsRange, kind: 'video' | 'exercises' | 'modules', limit = 300): Observable<unknown> {
+    return this.http.get(`${this.base}/learning/${kind}`, {
+      params: this.params(range, { limit }),
+      withCredentials: true
+    });
+  }
 }

@@ -148,7 +148,7 @@ function parseClientMeta(raw) {
  * falls back to an empty transcript with engine='fallback' if the key is not
  * configured or the request fails.
  */
-async function transcribeAudio(filePath, whisperLang) {
+async function transcribeAudio(filePath, whisperLang, hintText = '') {
   if (!process.env.OPENAI_API_KEY) {
     return { text: '', engine: 'fallback', error: 'OPENAI_API_KEY not configured' };
   }
@@ -164,10 +164,12 @@ async function transcribeAudio(filePath, whisperLang) {
     const filename = path.basename(filePath) || 'recording.webm';
     const sdkFile = await toFile(audioBuffer, filename);
 
+    const prompt = String(hintText || '').trim().slice(0, 280);
     const transcription = await openai.audio.transcriptions.create({
       file: sdkFile,
       model,
       language: whisperLang || undefined,
+      prompt: prompt || undefined,
       response_format: 'json',
       temperature: 0.0,
     });
@@ -238,7 +240,12 @@ router.post(
         : DEFAULT_THRESHOLD;
       const clientMeta = parseClientMeta(req.body?.clientMeta);
 
-      const transcribeRes = await transcribeAudio(audioPath, language.whisper);
+      const transcriptHints = [expected, ...variants]
+        .map((v) => String(v || '').trim())
+        .filter(Boolean)
+        .slice(0, 6)
+        .join(' | ');
+      const transcribeRes = await transcribeAudio(audioPath, language.whisper, transcriptHints);
       const transcript = transcribeRes.text || '';
       const engine = transcribeRes.engine;
 

@@ -3377,13 +3377,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     this.micTestError = null;
     this.micTestState = 'recording';
-    this.micTestCountdown = 2;
+    this.micTestCountdown = 5;
     this.micTestCountdownTimer = setInterval(() => {
       this.micTestCountdown = Math.max(0, this.micTestCountdown - 1);
     }, 1000);
 
     try {
-      const result = await this.pronunciation.recordQuickSample(2000);
+      const result = await this.pronunciation.recordQuickSample(5000);
       this.micTestAudioUrl = result.objectUrl;
       this.micTestState = 'ready';
       console.info('[pronunciation] mic test ok', {

@@ -11,6 +11,7 @@ import { PortalAnalyticsStudentWiseComponent } from './student-wise/portal-analy
 import { PortalAnalyticsPageWiseComponent } from './page-wise/portal-analytics-page-wise.component';
 import { PortalAnalyticsTimelineComponent } from './timeline/portal-analytics-timeline.component';
 import { PortalAnalyticsSessionWiseComponent } from './session-wise/portal-analytics-session-wise.component';
+import { PortalAnalyticsLearningComponent } from './learning/portal-analytics-learning.component';
 
 @Component({
   selector: 'app-portal-analytics',
@@ -26,7 +27,8 @@ import { PortalAnalyticsSessionWiseComponent } from './session-wise/portal-analy
     PortalAnalyticsStudentWiseComponent,
     PortalAnalyticsPageWiseComponent,
     PortalAnalyticsTimelineComponent,
-    PortalAnalyticsSessionWiseComponent
+    PortalAnalyticsSessionWiseComponent,
+    PortalAnalyticsLearningComponent
   ],
   templateUrl: './portal-analytics.component.html',
   styleUrls: ['./portal-analytics.component.scss']

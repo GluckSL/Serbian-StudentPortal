@@ -1430,14 +1430,14 @@
       Test your microphone
     </h3>
     <p class="mic-test-subtitle">
-      We'll record a 2-second sample so you can hear exactly what your microphone captures.
+      We'll record a 5-second sample so you can hear exactly what your microphone captures.
     </p>
 
     <div class="mic-test-body" [ngSwitch]="micTestState">
       <div *ngSwitchCase="'idle'" class="mic-test-idle">
         <button type="button" class="mic-test-record-btn" (click)="runMicTest()">
           <span class="material-icons">fiber_manual_record</span>
-          Start test (2s)
+          Start test (5s)
         </button>
         <p class="mic-test-hint" *ngIf="micPermission === 'denied'">
           <span class="material-icons">warning</span>

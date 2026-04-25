@@ -915,6 +915,81 @@ async function getSessionWise(from, to, limit = 200) {
   }));
 }
 
+async function attachStudentNames(rowsByStudentId) {
+  const ids = Object.keys(rowsByStudentId).filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (!ids.length) return [];
+  const users = await User.find({ _id: { $in: ids } })
+    .select('_id name email')
+    .lean();
+  const userMap = new Map(users.map((u) => [String(u._id), u]));
+  return Object.entries(rowsByStudentId).map(([studentId, row]) => ({
+    studentId,
+    studentName: userMap.get(studentId)?.name || 'Unknown',
+    email: userMap.get(studentId)?.email || '',
+    ...row
+  }));
+}
+
+function summarizeLearningRows(items, valueField = 'totalSeconds') {
+  const totalSeconds = items.reduce((sum, it) => sum + Number(it[valueField] || 0), 0);
+  const top = items.length
+    ? items.reduce((best, curr) => (Number(curr[valueField] || 0) > Number(best[valueField] || 0) ? curr : best), items[0])
+    : null;
+  const avgSeconds = items.length ? Math.round(totalSeconds / items.length) : 0;
+  return {
+    totalSeconds,
+    topStudent: top
+      ? { studentId: top.studentId, name: top.studentName, seconds: Number(top[valueField] || 0) }
+      : null,
+    avgSeconds
+  };
+}
+
+async function getLearningAnalytics(from, to, kind = 'video', limit = 300) {
+  const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
+  const k = String(kind || 'video').toLowerCase();
+  const pageMatch = {
+    startTime: { $lte: to },
+    $or: [{ endTime: null }, { endTime: { $gte: from } }]
+  };
+  let kindRegex = null;
+  if (k === 'video') {
+    // Student course, recording/player, and class pages.
+    kindRegex = /(my-course|class-recordings|recording|zoom|meeting)/i;
+  } else if (k === 'exercises') {
+    kindRegex = /(digital-exercises|exercise)/i;
+  } else if (k === 'modules') {
+    kindRegex = /(learning-modules|module)/i;
+  } else {
+    throw new Error('INVALID_LEARNING_KIND');
+  }
+
+  const agg = await PageActivity.aggregate([
+    { $match: pageMatch },
+    { $match: { page: { $regex: kindRegex } } },
+    {
+      $group: {
+        _id: '$studentId',
+        totalSeconds: { $sum: '$activeSeconds' },
+        interactions: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const rowsByStudent = {};
+  for (const r of agg) {
+    if (!r?._id) continue;
+    rowsByStudent[String(r._id)] = {
+      totalSeconds: Number(r.totalSeconds || 0),
+      interactions: Number(r.interactions || 0)
+    };
+  }
+  let items = await attachStudentNames(rowsByStudent);
+  items = items.sort((a, b) => b.totalSeconds - a.totalSeconds).slice(0, cap);
+  const summary = summarizeLearningRows(items, 'totalSeconds');
+  return { kind: k, range: { from, to }, summary, items };
+}
+
 module.exports = {
   STALE_SILENCE_MS,
   startSession,
@@ -927,5 +1002,6 @@ module.exports = {
   getPageWise,
   getTimeline,
   getSessionWise,
-  getDashboard
+  getDashboard,
+  getLearningAnalytics
 };

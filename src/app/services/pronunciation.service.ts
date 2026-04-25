@@ -472,7 +472,7 @@ export class PronunciationService {
    * Record a short clip for instant playback — used by "Test Microphone".
    * Returns a playable object URL and the captured blob.
    */
-  async recordQuickSample(ms: number = 2000): Promise<RecordingResult> {
+  async recordQuickSample(ms: number = 5000): Promise<RecordingResult> {
     await this.startRecording();
     await new Promise<void>((r) => setTimeout(r, Math.max(500, Math.min(ms, 10000))));
     return this.stopRecording();
