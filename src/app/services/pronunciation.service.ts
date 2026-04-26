@@ -461,8 +461,8 @@ export class PronunciationService {
       durationMs,
     };
     const minDuration = opts.minDurationMs ?? 800;
-    const minAvg = opts.minAverageLevel ?? 0.015;
-    const minPeak = opts.minPeakLevel ?? 0.06;
+    const minAvg = opts.minAverageLevel ?? 0.01;
+    const minPeak = opts.minPeakLevel ?? 0.04;
 
     if (durationMs < minDuration) return { ok: false, reason: 'too-short', stats };
     if (stats.samples < 3) return { ok: false, reason: 'too-short', stats };

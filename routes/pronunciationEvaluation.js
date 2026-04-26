@@ -37,6 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
 
 // OpenAI SDK upload compatibility for Node runtimes <20:
 // ensure global File exists before requiring the SDK.
@@ -57,7 +58,6 @@ const { toFile } = require('openai/uploads');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const {
   scorePronunciation,
-  evaluateThreshold,
   evaluateThresholdAdvanced,
   normalizeText,
   computeConfidence,
@@ -113,6 +113,31 @@ const upload = multer({
 function safeUnlink(p) {
   if (!p) return;
   fs.unlink(p, () => { /* best effort */ });
+}
+
+function normalizeAudioForTranscription(inputPath) {
+  const outputPath = path.join(
+    TEMP_DIR,
+    `norm-${Date.now()}-${crypto.randomBytes(5).toString('hex')}.wav`
+  );
+  const args = [
+    '-y',
+    '-i', inputPath,
+    '-ac', '1',
+    '-ar', '16000',
+    '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11',
+    outputPath,
+  ];
+  const run = spawnSync('ffmpeg', args, { stdio: 'pipe' });
+  if (run.status === 0 && fs.existsSync(outputPath)) {
+    return { path: outputPath, normalized: true, error: null };
+  }
+  safeUnlink(outputPath);
+  return {
+    path: inputPath,
+    normalized: false,
+    error: run?.stderr ? String(run.stderr).slice(0, 500) : 'ffmpeg normalization unavailable',
+  };
 }
 
 function normaliseLanguage(input) {
@@ -214,6 +239,7 @@ router.post(
     const startedAt = Date.now();
     const audioPath = req.file?.path;
     const audioSize = req.file?.size || 0;
+    let normalizedAudioPath = null;
 
     try {
       const expected = String(req.body?.expected || '').trim();
@@ -240,23 +266,38 @@ router.post(
         ? Math.max(0, Math.min(100, Math.round(thresholdRaw)))
         : DEFAULT_THRESHOLD;
       const clientMeta = parseClientMeta(req.body?.clientMeta);
+      const attemptCountRaw = Number(req.body?.attemptCount ?? clientMeta?.attemptCount ?? 0);
+      const attemptCount = Number.isFinite(attemptCountRaw) ? Math.max(0, Math.floor(attemptCountRaw)) : 0;
+      const normalization = normalizeAudioForTranscription(audioPath);
+      normalizedAudioPath = normalization.normalized ? normalization.path : null;
+      const likelyLowAudio = audioSize > 0 && audioSize < 12000;
+      const lowAudioQuality = Boolean(
+        likelyLowAudio ||
+        clientMeta?.silenceRejected ||
+        !normalization.normalized
+      );
 
       const transcriptHints = [expected, ...variants]
         .map((v) => String(v || '').trim())
         .filter(Boolean)
         .slice(0, 6)
         .join(' | ');
-      const transcribeRes = await transcribeAudio(audioPath, language.whisper, transcriptHints);
+      const transcribeRes = await transcribeAudio(normalization.path, language.whisper, transcriptHints);
       const transcript = transcribeRes.text || '';
       const engine = transcribeRes.engine;
 
       const scoreRes = scorePronunciation(expected, transcript, {
         variants,
         lang: language.bcp47,
+        attemptCount,
+        lowAudioQuality,
       });
 
       const durationMs = Date.now() - startedAt;
-      const confidence = computeConfidence(scoreRes.score);
+      const confidence = computeConfidence(scoreRes.score, {
+        lowAudioQuality,
+        wordCoverage: scoreRes.wordCoverage,
+      });
 
       // Advanced 3-state evaluation (replaces simple binary evaluateThreshold).
       const { isCorrect, isAlmostCorrect, threshold: appliedThreshold } = evaluateThresholdAdvanced(
@@ -266,6 +307,7 @@ router.post(
           confidence,
           normalizedExpected: scoreRes.normalizedExpected,
           normalizedSpoken: scoreRes.normalizedSpoken,
+          wordCoverage: scoreRes.wordCoverage,
         },
       );
 
@@ -295,6 +337,7 @@ router.post(
         deviceType: cm.deviceType === 'mobile' ? 'mobile' : 'desktop',
         browser: String(cm.browser || ''),
         durationMs,
+        lowAudioQuality,
       };
       pronAnalytics.record(analyticsEvt);
 
@@ -307,7 +350,20 @@ router.post(
         audioAverage: cm.audioAverage ?? null,
         recordingDuration: cm.recordingDuration ?? null,
         error: transcribeRes.error,
+        normalizedAudio: normalization.normalized,
+        normalizationError: normalization.error,
+        attemptCount,
       });
+
+      const feedback = {
+        missingWords: scoreRes.feedback?.missingWords || [],
+        extraWords: scoreRes.feedback?.extraWords || [],
+        matchedWords: scoreRes.feedback?.matchedWords || [],
+        suggestion: scoreRes.feedback?.suggestion || 'Try saying the phrase a bit more clearly.',
+      };
+      if (confidence === 'low') {
+        feedback.suggestion = `${feedback.suggestion} We might have misheard you.`;
+      }
 
       return res.json({
         requestId,
@@ -327,6 +383,10 @@ router.post(
         spokenText: transcript,
         wordAnalysis,
         hints,
+        feedback,
+        flags: {
+          lowAudioQuality,
+        },
         durationMs,
         transcriptionError: transcribeRes.error || null,
       });
@@ -339,6 +399,7 @@ router.post(
       });
     } finally {
       safeUnlink(audioPath);
+      safeUnlink(normalizedAudioPath);
     }
   }
 );
@@ -366,6 +427,8 @@ router.post(
       const threshold = Number.isFinite(thresholdRaw)
         ? Math.max(0, Math.min(100, Math.round(thresholdRaw)))
         : DEFAULT_THRESHOLD;
+      const attemptCountRaw = Number(req.body?.attemptCount ?? req.body?.clientMeta?.attemptCount ?? 0);
+      const attemptCount = Number.isFinite(attemptCountRaw) ? Math.max(0, Math.floor(attemptCountRaw)) : 0;
 
       if (!expected) {
         return res.status(400).json({
@@ -378,8 +441,13 @@ router.post(
       const scoreRes = scorePronunciation(expected, transcript, {
         variants,
         lang: language.bcp47,
+        attemptCount,
+        lowAudioQuality: false,
       });
-      const confidence = computeConfidence(scoreRes.score);
+      const confidence = computeConfidence(scoreRes.score, {
+        lowAudioQuality: false,
+        wordCoverage: scoreRes.wordCoverage,
+      });
       const { isCorrect, isAlmostCorrect, threshold: appliedThreshold } = evaluateThresholdAdvanced(
         scoreRes.score,
         threshold,
@@ -387,6 +455,7 @@ router.post(
           confidence,
           normalizedExpected: scoreRes.normalizedExpected,
           normalizedSpoken: scoreRes.normalizedSpoken,
+          wordCoverage: scoreRes.wordCoverage,
         },
       );
       const { wordAnalysis, hints } = explainPronunciationFromScore(
@@ -418,7 +487,18 @@ router.post(
         retryCount: Number(cm.retryCount) || 0,
         deviceType: cm.deviceType === 'mobile' ? 'mobile' : 'desktop',
         browser: String(cm.browser || ''),
+        lowAudioQuality: false,
       });
+
+      const feedback = {
+        missingWords: scoreRes.feedback?.missingWords || [],
+        extraWords: scoreRes.feedback?.extraWords || [],
+        matchedWords: scoreRes.feedback?.matchedWords || [],
+        suggestion: scoreRes.feedback?.suggestion || 'Try saying the phrase a bit more clearly.',
+      };
+      if (confidence === 'low') {
+        feedback.suggestion = `${feedback.suggestion} We might have misheard you.`;
+      }
 
       return res.json({
         requestId,
@@ -437,6 +517,10 @@ router.post(
         spokenText: transcript,
         wordAnalysis,
         hints,
+        feedback,
+        flags: {
+          lowAudioQuality: false,
+        },
       });
     } catch (err) {
       console.error('[pronunciation.text-score] error:', err);

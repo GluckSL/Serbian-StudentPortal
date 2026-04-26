@@ -1,45 +1,31 @@
-// services/pronunciationScoring.js
-//
-// Pure-function helpers for comparing an expected phrase with what the
-// student said. Used by POST /api/pronunciation/evaluate.
-//
-//  - normalizeText(text)            → lowercase, strip punctuation / diacritics,
-//                                     collapse whitespace, canonicalise number words.
-//  - calculateSimilarity(a, b)      → 0–100 score combining Levenshtein +
-//                                     token F1 with target-coverage weighting.
-//  - scorePronunciation(expected,   → { score, normalizedExpected, normalizedSpoken }
-//      spoken, { variants, lang })
-//  - evaluateThreshold(score, t)    → { isCorrect, threshold }
-//  - explainPronunciationFromScore  → { wordAnalysis, hints } for teaching UI
-
 const DEFAULT_THRESHOLD = 70;
 
-// ── Text normalisation ──────────────────────────────────────────────────────
+const EN_CONTRACTIONS = {
+  "can't": 'cannot',
+  "won't": 'will not',
+  "don't": 'do not',
+  "didn't": 'did not',
+  "it's": 'it is',
+  "i'm": 'i am',
+  "you're": 'you are',
+  "we're": 'we are',
+  "they're": 'they are',
+  "i've": 'i have',
+  "we've": 'we have',
+  "they've": 'they have',
+  "isn't": 'is not',
+  "aren't": 'are not',
+  "wasn't": 'was not',
+  "weren't": 'were not',
+  "shouldn't": 'should not',
+  "wouldn't": 'would not',
+  "couldn't": 'could not',
+};
 
-function stripDiacritics(s) {
-  return String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
-}
+const FILLER_WORDS = new Set([
+  'uh', 'um', 'erm', 'er', 'ah', 'hmm', 'mm', 'mmm', 'like',
+]);
 
-/** Remove consecutive duplicate tokens ("the the dog" → "the dog"). */
-function deduplicateConsecutiveTokens(text) {
-  const tokens = text.split(' ');
-  const result = [];
-  for (let i = 0; i < tokens.length; i++) {
-    if (i === 0 || tokens[i] !== tokens[i - 1]) result.push(tokens[i]);
-  }
-  return result.join(' ');
-}
-
-function normalizeText(raw) {
-  const base = stripDiacritics(raw)
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return deduplicateConsecutiveTokens(base);
-}
-
-// Number-word ↔ digit equivalence (covers DE + EN, enough for our exercises).
 const NUMBER_MAPS = {
   'de-DE': {
     '0': ['null'],
@@ -73,6 +59,28 @@ const NUMBER_MAPS = {
   },
 };
 
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function stripDiacritics(s) {
+  return String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function expandContractions(text, lang) {
+  const lowerLang = String(lang || '').toLowerCase();
+  if (!lowerLang.startsWith('en')) return String(text || '');
+  return String(text || '').replace(/\b[\w']+\b/g, (token) => EN_CONTRACTIONS[token.toLowerCase()] || token);
+}
+
+function normalizeText(raw) {
+  return stripDiacritics(raw)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function canonicaliseNumbers(text, lang) {
   const map = NUMBER_MAPS[lang] || NUMBER_MAPS['en-US'];
   const reverse = {};
@@ -81,377 +89,263 @@ function canonicaliseNumbers(text, lang) {
     words.forEach((w) => { reverse[w] = digit; });
   });
   return normalizeText(text)
-    .split(' ')
+    .split(/\s+/)
+    .filter(Boolean)
     .map((tok) => reverse[tok] || tok)
     .join(' ')
     .trim();
 }
 
-// ── Similarity ──────────────────────────────────────────────────────────────
+function tokenizeAndNormalize(raw, lang) {
+  const expanded = expandContractions(raw, lang);
+  const canonical = canonicaliseNumbers(expanded, lang);
+  return normalizeText(canonical)
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((t) => !FILLER_WORDS.has(t));
+}
 
-function editDistance(a, b) {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  const prev = new Array(b.length + 1);
-  const curr = new Array(b.length + 1);
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    curr[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(
-        curr[j - 1] + 1,
-        prev[j] + 1,
-        prev[j - 1] + cost,
-      );
+function findMatchedWords(expectedTokens, spokenTokens) {
+  const spokenCounts = Object.create(null);
+  for (const token of spokenTokens) spokenCounts[token] = (spokenCounts[token] || 0) + 1;
+  const matched = [];
+  for (const token of expectedTokens) {
+    if (spokenCounts[token] > 0) {
+      matched.push(token);
+      spokenCounts[token] -= 1;
     }
-    for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
   }
-  return prev[b.length];
+  return matched;
 }
 
-function levenshteinRatio(a, b) {
-  if (!a && !b) return 1;
-  if (!a || !b) return 0;
-  const maxLen = Math.max(a.length, b.length);
-  return 1 - editDistance(a, b) / maxLen;
-}
+function buildFeedbackFromTokens(expectedTokens, spokenTokens) {
+  const spokenCounts = Object.create(null);
+  const expectedCounts = Object.create(null);
+  for (const token of spokenTokens) spokenCounts[token] = (spokenCounts[token] || 0) + 1;
+  for (const token of expectedTokens) expectedCounts[token] = (expectedCounts[token] || 0) + 1;
 
-/**
- * 0–100 similarity between two already-normalised strings.
- * Combines Levenshtein + token-F1 and down-weights results when
- * only a fraction of the target was actually spoken.
- */
-function calculateSimilarity(expected, spoken) {
-  const a = normalizeText(spoken);
-  const b = normalizeText(expected);
-  if (!a || !b) return 0;
-  if (a === b) return 100;
+  const matchedWords = [];
+  const missingWords = [];
+  const extraWords = [];
 
-  const aTokens = a.split(' ').filter(Boolean);
-  const bTokens = b.split(' ').filter(Boolean);
-  const aSet = new Set(aTokens);
-  const bSet = new Set(bTokens);
-  const overlap = [...aSet].filter((t) => bSet.has(t)).length;
-  const recall = bSet.size ? overlap / bSet.size : 0;
-  const precision = aSet.size ? overlap / aSet.size : 0;
-  const tokenF1 = (precision + recall) > 0
-    ? (2 * precision * recall) / (precision + recall)
-    : 0;
-
-  if (a.includes(b) || b.includes(a)) {
-    const coverage = Math.round(
-      (Math.min(a.length, b.length) / Math.max(a.length, b.length)) * 100
-    );
-    return Math.round(coverage * (0.35 + 0.65 * recall));
+  for (const token of expectedTokens) {
+    if ((spokenCounts[token] || 0) > 0) {
+      matchedWords.push(token);
+      spokenCounts[token] -= 1;
+      expectedCounts[token] -= 1;
+    } else {
+      missingWords.push(token);
+      expectedCounts[token] = Math.max(0, (expectedCounts[token] || 0) - 1);
+    }
   }
 
-  const lev = Math.round(levenshteinRatio(a, b) * 100);
-  const tokenScore = Math.round(tokenF1 * 100);
-  const blended = Math.max(lev, tokenScore);
-  return Math.round(blended * (0.3 + 0.7 * recall));
+  for (const token of spokenTokens) {
+    if ((expectedCounts[token] || 0) > 0) {
+      expectedCounts[token] -= 1;
+    } else {
+      extraWords.push(token);
+    }
+  }
+
+  return { matchedWords, missingWords, extraWords };
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
+function computeOrderPenalty(expectedTokens, spokenTokens) {
+  if (expectedTokens.length <= 1 || spokenTokens.length <= 1) return 0;
+  const used = new Array(spokenTokens.length).fill(false);
+  let lastIdx = -1;
+  let inOrder = 0;
+  let matchedTotal = 0;
 
-/**
- * Score a single (expected, spoken) pair. Tries the raw expected phrase
- * + every accepted variant, in both raw and number-canonicalised form,
- * and returns the best score.
- */
-function scorePronunciation(expected, spoken, opts = {}) {
-  const variants = Array.isArray(opts.variants) ? opts.variants : [];
+  for (const expected of expectedTokens) {
+    let chosen = -1;
+    for (let i = 0; i < spokenTokens.length; i += 1) {
+      if (!used[i] && spokenTokens[i] === expected) {
+        chosen = i;
+        break;
+      }
+    }
+    if (chosen === -1) continue;
+    used[chosen] = true;
+    matchedTotal += 1;
+    if (chosen >= lastIdx) {
+      inOrder += 1;
+      lastIdx = chosen;
+    }
+  }
+
+  if (matchedTotal <= 1) return 0;
+  const inOrderRatio = inOrder / matchedTotal;
+  return clamp(1 - inOrderRatio, 0, 1);
+}
+
+function calculateSimilarity(expected, spoken, lang = 'de-DE') {
+  const e = tokenizeAndNormalize(expected, lang);
+  const s = tokenizeAndNormalize(spoken, lang);
+  if (!e.length || !s.length) return 0;
+  const matched = findMatchedWords(e, s).length;
+  return Math.round((matched / e.length) * 100);
+}
+
+function scoreCandidate(expectedPhrase, spoken, opts = {}) {
   const lang = opts.lang || 'de-DE';
-  const candidates = [expected, ...variants]
-    .map((t) => String(t || '').trim())
-    .filter(Boolean);
+  const attemptCount = Number(opts.attemptCount || 0);
+  const expectedTokens = tokenizeAndNormalize(expectedPhrase, lang);
+  const spokenTokens = tokenizeAndNormalize(spoken, lang);
+  const expectedJoined = expectedTokens.join(' ');
+  const spokenJoined = spokenTokens.join(' ');
 
-  if (!candidates.length || !String(spoken || '').trim()) {
+  if (!expectedTokens.length) {
     return {
       score: 0,
-      matchedAgainst: '',
-      normalizedExpected: normalizeText(expected || ''),
-      normalizedSpoken: normalizeText(spoken || ''),
+      expectedTokens,
+      spokenTokens,
+      normalizedExpected: expectedJoined,
+      normalizedSpoken: spokenJoined,
+      wordCoverage: 0,
+      missingWordsPenalty: 1,
+      extraWordsPenalty: 1,
+      orderPenalty: 1,
+      feedback: { missingWords: [], extraWords: spokenTokens, matchedWords: [], suggestion: 'Please try saying the expected phrase clearly.' },
     };
   }
 
-  let best = 0;
-  let matchedAgainst = candidates[0];
-  for (const cand of candidates) {
-    const direct = calculateSimilarity(cand, spoken);
-    const canonical = calculateSimilarity(
-      canonicaliseNumbers(cand, lang),
-      canonicaliseNumbers(spoken, lang),
-    );
-    const s = Math.max(direct, canonical);
-    if (s > best) {
-      best = s;
-      matchedAgainst = cand;
+  const feedback = buildFeedbackFromTokens(expectedTokens, spokenTokens);
+  const matchedCount = feedback.matchedWords.length;
+  const missingCount = feedback.missingWords.length;
+  const extraCount = feedback.extraWords.length;
+  const wordCoverage = matchedCount / expectedTokens.length;
+  let missingWordsPenalty = missingCount / expectedTokens.length;
+  let extraWordsPenalty = extraCount / expectedTokens.length;
+  const orderPenalty = computeOrderPenalty(expectedTokens, spokenTokens);
+
+  if (attemptCount >= 3) {
+    missingWordsPenalty *= 0.5;
+    extraWordsPenalty *= 0.5;
+  }
+
+  let score = (wordCoverage * 70)
+    - (missingWordsPenalty * 15)
+    - (extraWordsPenalty * 10)
+    - (orderPenalty * 5);
+
+  if (attemptCount >= 2) score += 5;
+  score = clamp(Math.round(score), 0, 100);
+
+  let suggestion = 'Good attempt. Try matching the target phrase word by word.';
+  if (feedback.missingWords.length) {
+    suggestion = `Try including: ${Array.from(new Set(feedback.missingWords)).join(', ')}.`;
+  } else if (feedback.extraWords.length) {
+    suggestion = `Avoid adding: ${Array.from(new Set(feedback.extraWords)).join(', ')}.`;
+  }
+
+  return {
+    score,
+    expectedTokens,
+    spokenTokens,
+    normalizedExpected: expectedJoined,
+    normalizedSpoken: spokenJoined,
+    wordCoverage,
+    missingWordsPenalty,
+    extraWordsPenalty,
+    orderPenalty,
+    feedback: {
+      missingWords: feedback.missingWords,
+      extraWords: feedback.extraWords,
+      matchedWords: feedback.matchedWords,
+      suggestion,
+    },
+  };
+}
+
+function scorePronunciation(expected, spoken, opts = {}) {
+  const variants = Array.isArray(opts.variants) ? opts.variants : [];
+  const candidates = [expected, ...variants].map((t) => String(t || '').trim()).filter(Boolean);
+  const lowAudioQuality = !!opts.lowAudioQuality;
+  if (!candidates.length) {
+    return {
+      score: 0,
+      matchedAgainst: '',
+      normalizedExpected: '',
+      normalizedSpoken: normalizeText(spoken || ''),
+      wordCoverage: 0,
+      feedback: { missingWords: [], extraWords: [], matchedWords: [], suggestion: 'Please try saying the expected phrase clearly.' },
+      flags: { lowAudioQuality },
+    };
+  }
+
+  let best = null;
+  for (const candidate of candidates) {
+    const current = scoreCandidate(candidate, spoken, opts);
+    if (!best || current.score > best.score) {
+      best = { ...current, matchedAgainst: candidate };
     }
   }
 
   return {
-    score: Math.max(0, Math.min(100, Math.round(best))),
-    matchedAgainst,
-    normalizedExpected: normalizeText(matchedAgainst),
-    normalizedSpoken: normalizeText(spoken),
+    score: best.score,
+    matchedAgainst: best.matchedAgainst,
+    normalizedExpected: best.normalizedExpected,
+    normalizedSpoken: best.normalizedSpoken,
+    wordCoverage: best.wordCoverage,
+    missingWordsPenalty: best.missingWordsPenalty,
+    extraWordsPenalty: best.extraWordsPenalty,
+    orderPenalty: best.orderPenalty,
+    feedback: best.feedback,
+    flags: { lowAudioQuality },
   };
 }
 
-function evaluateThreshold(score, threshold) {
-  const t = Number.isFinite(Number(threshold))
-    ? Math.max(0, Math.min(100, Math.round(Number(threshold))))
-    : DEFAULT_THRESHOLD;
-  return { isCorrect: score >= t, threshold: t };
+function evaluateThreshold(score, _threshold) {
+  return { isCorrect: Number(score) >= 85, threshold: 85 };
 }
 
-/**
- * Advanced 3-state threshold evaluation — reduces false negatives and makes
- * the system more learner-friendly.
- *
- * Result states:
- *   isCorrect:      score >= effectiveThreshold  (+ override rules below)
- *   isAlmostCorrect: !isCorrect && score >= (effectiveThreshold - 25)
- *   incorrect:      everything below almostCorrect band
- *
- * Override rules (flip near-miss to correct):
- *   1. Short word (≤ 4 chars with no spaces): threshold relieved by 10 pts.
- *   2. Edit distance ≤ 1 on the normalised strings → always correct.
- *   3. High confidence + score ≥ 55 → always correct.
- *
- * @param {number} score - 0-100
- * @param {number} threshold - configured pass threshold
- * @param {{ confidence?: string, normalizedExpected?: string, normalizedSpoken?: string }} opts
- */
-function evaluateThresholdAdvanced(score, threshold, opts = {}) {
-  const { confidence, normalizedExpected = '', normalizedSpoken = '' } = opts;
-
-  const rawT = Number.isFinite(Number(threshold))
-    ? Math.max(0, Math.min(100, Math.round(Number(threshold))))
-    : DEFAULT_THRESHOLD;
-
-  // Short-word relief: a word like "ein" has far less leeway for variation.
-  const charsNoSpaces = normalizedExpected.replace(/\s+/g, '').length;
-  const shortWordRelief = (charsNoSpaces > 0 && charsNoSpaces <= 4) ? 10 : 0;
-  const effectiveThreshold = Math.max(0, rawT - shortWordRelief);
-
-  // Override 1: tiny edit distance (e.g. "nam" vs "name", "bok" vs "book").
-  if (normalizedExpected.length > 0 && normalizedSpoken.length > 0) {
-    const dist = editDistance(normalizedExpected, normalizedSpoken);
-    if (dist <= 1) {
-      return { isCorrect: true, isAlmostCorrect: false, threshold: effectiveThreshold };
-    }
-  }
-
-  // Override 2: high confidence signal from the ASR engine + reasonable score.
-  if (confidence === 'high' && score >= 55) {
-    return { isCorrect: true, isAlmostCorrect: false, threshold: effectiveThreshold };
-  }
-
-  // Standard 3-band evaluation.
-  const almostThreshold = Math.max(0, effectiveThreshold - 25);
-  const isCorrect = score >= effectiveThreshold;
-  const isAlmostCorrect = !isCorrect && score >= almostThreshold;
-
-  return { isCorrect, isAlmostCorrect, threshold: effectiveThreshold };
+function evaluateThresholdAdvanced(score, _threshold, opts = {}) {
+  const s = clamp(Number(score) || 0, 0, 100);
+  return {
+    isCorrect: s >= 85,
+    isAlmostCorrect: s >= 60 && s <= 84,
+    threshold: 85,
+    wordCoverage: Number(opts.wordCoverage || 0),
+  };
 }
 
-/**
- * Surface a coarse-grained confidence tier derived from the numeric score.
- * Used by the frontend to pick a human-friendly tone without having to
- * duplicate our thresholds.
- *
- *   score >= 85       → 'high'    ("Great job!")
- *   42 ≤ score < 85   → 'medium'  ("Almost there!")
- *   score < 42        → 'low'     ("We might not have heard you clearly.")
- */
-function computeConfidence(score) {
-  const s = Number(score);
-  if (!Number.isFinite(s)) return 'low';
-  if (s >= 85) return 'high';
-  if (s >= 42) return 'medium';
-  return 'low';
+function computeConfidence(score, opts = {}) {
+  const s = clamp(Number(score) || 0, 0, 100);
+  const lowAudioQuality = !!opts.lowAudioQuality;
+  const wordCoverage = Number(opts.wordCoverage || 0);
+  if ((lowAudioQuality && s < 70) || wordCoverage < 0.35) return 'low';
+  if (!lowAudioQuality && wordCoverage >= 0.8 && s >= 85) return 'high';
+  return 'medium';
 }
 
-// ── Word-level explainable feedback (lightweight, no NLP deps) ─────────────
-
-/**
- * Classify a single token pair after normalization.
- * Allows small typos (short words, edit distance 1) while still flagging
- * clearly different words.
- */
-function classifyTokenPair(expectedTok, spokenTok) {
-  if (!expectedTok) {
-    return { status: 'incorrect', spoken: spokenTok || '' };
-  }
-  if (!spokenTok) {
-    return { status: 'missing', spoken: '' };
-  }
-  if (expectedTok === spokenTok) {
-    return { status: 'correct', spoken: spokenTok };
-  }
-  const r = levenshteinRatio(expectedTok, spokenTok);
-  const d = editDistance(expectedTok, spokenTok);
-  const maxLen = Math.max(expectedTok.length, spokenTok.length);
-  const shortWord = maxLen <= 5;
-  // Dropped ending syllable / cut short (e.g. "name" vs "nam") — still teachable as incorrect.
-  if (
-    spokenTok.length >= 2
-    && expectedTok.startsWith(spokenTok)
-    && expectedTok.length > spokenTok.length
-    && expectedTok.length - spokenTok.length <= 2
-    && r < 0.9
-  ) {
-    return { status: 'incorrect', spoken: spokenTok };
-  }
-  if (r >= 0.86 || (shortWord && d <= 1 && r >= 0.62)) {
-    return { status: 'correct', spoken: spokenTok };
-  }
-  if (r >= 0.38 || d <= Math.max(2, Math.floor(maxLen * 0.4))) {
-    return { status: 'incorrect', spoken: spokenTok };
-  }
-  return { status: 'incorrect', spoken: spokenTok };
-}
-
-/**
- * Align expected tokens to spoken tokens (sequential + one-token lookahead)
- * so insertions like an extra "uh" do not throw off the whole line.
- */
 function compareWords(expectedTokens, spokenTokens) {
-  const E = Array.isArray(expectedTokens) ? expectedTokens : [];
-  const S = Array.isArray(spokenTokens) ? spokenTokens : [];
-  const rows = [];
-  let j = 0;
-  for (let i = 0; i < E.length; i += 1) {
-    const exp = E[i];
-    if (j >= S.length) {
-      rows.push({ expected: exp, spoken: '', status: 'missing' });
-      continue;
-    }
-
-    let matchJ = j;
-    let ratioHere = levenshteinRatio(exp, S[j]);
-    if (ratioHere < 0.4 && j + 1 < S.length) {
-      const ratioNext = levenshteinRatio(exp, S[j + 1]);
-      if (ratioNext > ratioHere + 0.12) {
-        j += 1;
-        matchJ = j;
-        ratioHere = ratioNext;
-      }
-    }
-
-    const spokenTok = S[matchJ];
-    const { status, spoken } = classifyTokenPair(exp, spokenTok);
-    rows.push({ expected: exp, spoken, status });
-    j = matchJ + 1;
-  }
-  return rows;
+  const expected = Array.isArray(expectedTokens) ? expectedTokens : [];
+  const spoken = Array.isArray(spokenTokens) ? spokenTokens : [];
+  const feedback = buildFeedbackFromTokens(expected, spoken);
+  return expected.map((exp, i) => {
+    const spokenTok = spoken[i] || '';
+    if (feedback.matchedWords.includes(exp)) return { expected: exp, spoken: exp, status: 'correct' };
+    if (feedback.missingWords.includes(exp)) return { expected: exp, spoken: '', status: 'missing' };
+    return { expected: exp, spoken: spokenTok, status: 'incorrect' };
+  });
 }
 
-/**
- * Build wordAnalysis from the winning scoring candidate (matchedAgainst)
- * and the transcript, using the same number-canonicalisation as scoring.
- */
 function buildWordAnalysis(scoreRes, transcript, lang) {
-  const expectedPhrase = scoreRes?.matchedAgainst || '';
-  const eCanon = canonicaliseNumbers(expectedPhrase, lang);
-  const sCanon = canonicaliseNumbers(transcript || '', lang);
-  const E = normalizeText(eCanon).split(/\s+/).filter(Boolean);
-  const S = normalizeText(sCanon).split(/\s+/).filter(Boolean);
-  if (!E.length) return [];
-  return compareWords(E, S);
+  const expectedTokens = tokenizeAndNormalize(scoreRes?.matchedAgainst || '', lang);
+  const spokenTokens = tokenizeAndNormalize(transcript || '', lang);
+  return compareWords(expectedTokens, spokenTokens);
 }
 
-const CONSONANT_END = /[bcdfghjklmnpqrstvwxyzß]$/i;
-
-function hintVwConflict(expected, spoken) {
-  const hasV = (s) => /v/.test(s);
-  const hasW = (s) => /w/.test(s);
-  if (!expected || !spoken) return null;
-  if (hasV(expected) && hasW(spoken) && !hasV(spoken)) {
-    return 'Notice "v" and "w": take a moment to match the consonant in the target word.';
-  }
-  if (hasW(expected) && hasV(spoken) && !hasW(spoken)) {
-    return 'Notice "v" and "w": take a moment to match the consonant in the target word.';
-  }
-  return null;
+function generatePronunciationHints(wordAnalysis, _lang) {
+  if (!Array.isArray(wordAnalysis) || !wordAnalysis.length) return [];
+  const missing = wordAnalysis.filter((w) => w.status === 'missing').map((w) => w.expected);
+  const incorrect = wordAnalysis.filter((w) => w.status === 'incorrect').map((w) => w.expected);
+  if (missing.length) return [`Try including: ${Array.from(new Set(missing)).join(', ')}.`];
+  if (incorrect.length) return [`Focus on these words: ${Array.from(new Set(incorrect)).join(', ')}.`];
+  return ['Good pronunciation. Keep your pace steady and clear.'];
 }
 
-function hintTh(expected, spoken, lang) {
-  if (!lang.startsWith('en')) return null;
-  if (!expected.includes('th')) return null;
-  if (spoken.includes('th')) return null;
-  if (levenshteinRatio(expected, spoken) >= 0.92) return null;
-  return 'The "th" sound needs a soft tongue-between-the-teeth airflow — try that word again slowly.';
-}
-
-/** e.g. "name" vs "nam" — word was cut short before the full ending. */
-function hintTruncatedWord(row) {
-  if (row.status !== 'incorrect') return null;
-  const exp = row.expected || '';
-  const sp = row.spoken || '';
-  if (sp.length < 2 || !exp.startsWith(sp) || exp.length <= sp.length) return null;
-  const tail = exp.slice(sp.length);
-  if (tail.length > 2) return null;
-  const lastExp = exp.slice(-1);
-  if (/[mnlr]/.test(lastExp)) {
-    return `Focus on the '${lastExp}' sound at the end of '${exp}'.`;
-  }
-  return `The word sounds a bit short — aim for '${exp}' (you said '${sp}').`;
-}
-
-function hintMissingEnding(row) {
-  if (row.status !== 'incorrect' && row.status !== 'missing') return null;
-  const exp = row.expected || '';
-  const sp = row.spoken || '';
-  if (!exp) return null;
-  if (row.status === 'missing') {
-    if (CONSONANT_END.test(exp)) {
-      return `The word '${exp}' was missing — pay attention to the ending sound.`;
-    }
-    return `The word '${exp}' did not come through — try saying it clearly.`;
-  }
-  if (sp && exp.length >= sp.length + 1 && exp.startsWith(sp) && CONSONANT_END.test(exp)) {
-    return `Focus on the ending of '${exp}' — the last sound needs to be clearer.`;
-  }
-  if (sp && CONSONANT_END.test(exp) && !CONSONANT_END.test(sp) && exp.slice(0, sp.length) === sp) {
-    return `Focus on the ending of '${exp}' — try the final consonant a bit stronger.`;
-  }
-  return null;
-}
-
-/**
- * Rule-based hints from wordAnalysis (max a few, student-friendly).
- */
-function generatePronunciationHints(wordAnalysis, lang) {
-  const bcp = String(lang || 'de-DE');
-  const hints = [];
-  const seen = new Set();
-  const push = (h) => {
-    if (!h || seen.has(h)) return;
-    seen.add(h);
-    hints.push(h);
-  };
-
-  for (const row of wordAnalysis) {
-    if (row.status === 'correct') continue;
-    push(hintMissingEnding(row));
-    push(hintTruncatedWord(row));
-    push(hintVwConflict(row.expected, row.spoken));
-    push(hintTh(row.expected, row.spoken, bcp.toLowerCase()));
-    if (hints.length >= 5) break;
-  }
-
-  if (!hints.length && wordAnalysis.some((r) => r.status !== 'correct')) {
-    push('Say the line again slowly, word by word, matching the rhythm you hear.');
-  }
-  return hints.slice(0, 4);
-}
-
-/**
- * Full explainable payload for API responses.
- */
 function explainPronunciationFromScore(scoreRes, transcript, lang) {
   const wordAnalysis = buildWordAnalysis(scoreRes, transcript, lang);
   const hints = generatePronunciationHints(wordAnalysis, lang);
@@ -471,4 +365,5 @@ module.exports = {
   buildWordAnalysis,
   generatePronunciationHints,
   explainPronunciationFromScore,
+  tokenizeAndNormalize,
 };

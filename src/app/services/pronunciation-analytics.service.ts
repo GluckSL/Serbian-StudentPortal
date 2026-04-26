@@ -67,8 +67,8 @@ const PROFILE_KEY = 'pronunciation:user-audio-profile:v1';
 const MAX_PROFILE_SAMPLES = 5;
 
 /** Default silence thresholds — match PronunciationService.evaluateSilence(). */
-const DEFAULT_MIN_AVG = 0.015;
-const DEFAULT_MIN_PEAK = 0.06;
+const DEFAULT_MIN_AVG = 0.01;
+const DEFAULT_MIN_PEAK = 0.04;
 const DEFAULT_MIN_DURATION_MS = 800;
 
 @Injectable({ providedIn: 'root' })

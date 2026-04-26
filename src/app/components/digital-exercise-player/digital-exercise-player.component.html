@@ -550,19 +550,22 @@
                       [class.vp-stage-confidence--medium]="conf === 'medium'"
                       [class.vp-stage-confidence--low]="conf === 'low'"
                     >{{ confidenceHeadline(conf) }}</p>
+                    <p class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index])">
+                      {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index]) }}
+                    </p>
+                    <div class="pron-audio-quality-banner" *ngIf="currentQuestion.pronLowAudioQuality">
+                      Your microphone input seems low. Try speaking louder or closer to the mic.
+                    </div>
 
                     <!-- Comparison: spoken vs expected -->
-                    <div class="vp-stage-comparison"
-                         *ngIf="currentQuestion.vpResult !== 'correct' && (currentQuestion.vpSpokenText || currentQuestion.vpExpectedText)">
-                      <p class="vp-stage-transcript" *ngIf="currentQuestion.vpSpokenText">
-                        <span class="vp-stage-transcript__label">You said:</span>
-                        <span class="vp-stage-transcript__text">"{{ currentQuestion.vpSpokenText }}"</span>
-                      </p>
-                      <p class="vp-stage-transcript vp-stage-transcript--expected" *ngIf="currentQuestion.vpExpectedText">
-                        <span class="vp-stage-transcript__label">Expected:</span>
-                        <span class="vp-stage-transcript__text">"{{ currentQuestion.vpExpectedText }}"</span>
-                      </p>
-                    </div>
+                    <app-pronunciation-comparison-view
+                      *ngIf="currentQuestion.vpSpokenText || currentQuestion.vpExpectedText"
+                      [expectedText]="currentQuestion.vpExpectedText || ''"
+                      [transcriptText]="currentQuestion.vpSpokenText || ''"
+                      [missingWords]="currentQuestion.pronMissingWords || []"
+                      [extraWords]="currentQuestion.pronExtraWords || []"
+                      [matchedWords]="currentQuestion.pronMatchedWords || []"
+                    ></app-pronunciation-comparison-view>
                     <p class="vp-stage-transcript" *ngIf="currentQuestion.vpResult === 'correct' && currentQuestion.vpSpokenText">
                       <span class="vp-stage-transcript__label">You said:</span>
                       <span class="vp-stage-transcript__text">"{{ currentQuestion.vpSpokenText }}"</span>
@@ -603,6 +606,24 @@
                     <p class="vp-stage-retry-nudge" *ngIf="currentQuestion.vpResult === 'incorrect'">
                       ❌ Not quite right — 👉 try again clearly.
                     </p>
+                    <div class="pron-help-wrap" *ngIf="shouldShowNeedHelp(currentQuestion)">
+                      <button type="button" class="btn-record btn-record--subtle" (click)="togglePronHelp(currentQuestion)">
+                        <span class="material-icons">help_outline</span>
+                        Need help?
+                      </button>
+                      <div class="pron-help-chunks" *ngIf="currentQuestion.pronHelpOpen">
+                        <span class="pron-help-chip" *ngFor="let c of expectedChunks(currentQuestion.vpExpectedText || '')">{{ c }}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-record btn-record--subtle pron-mark-correct-btn"
+                      *ngIf="shouldShowMarkAsCorrect(currentQuestion)"
+                      (click)="markCurrentAsCorrect(currentQuestion)"
+                    >
+                      <span class="material-icons">check_circle</span>
+                      Mark as correct
+                    </button>
 
                     <!-- Almost-correct actions -->
                     <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'almostCorrect'">
@@ -1148,18 +1169,22 @@
               *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
               [attr.data-confidence]="conf"
             >{{ confidenceHeadline(conf) }}</div>
+            <div class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index])">
+              {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index]) }}
+            </div>
+            <div class="pron-audio-quality-banner" *ngIf="currentQuestion.pronLowAudioQuality">
+              Your microphone input seems low. Try speaking louder or closer to the mic.
+            </div>
 
             <!-- Comparison: what they said vs what was expected -->
-            <div class="pron-comparison" *ngIf="currentQuestion.spokenText || currentQuestion.pronExpectedText">
-              <div class="pron-comparison-row">
-                <span class="pron-comparison-label">You said:</span>
-                <span class="pron-comparison-value">"{{ currentQuestion.spokenText || '—' }}"</span>
-              </div>
-              <div class="pron-comparison-row" *ngIf="currentQuestion.pronExpectedText">
-                <span class="pron-comparison-label">Expected:</span>
-                <span class="pron-comparison-value pron-comparison-value--expected">"{{ currentQuestion.pronExpectedText }}"</span>
-              </div>
-            </div>
+            <app-pronunciation-comparison-view
+              *ngIf="currentQuestion.spokenText || currentQuestion.pronExpectedText"
+              [expectedText]="currentQuestion.pronExpectedText || ''"
+              [transcriptText]="currentQuestion.spokenText || ''"
+              [missingWords]="currentQuestion.pronMissingWords || []"
+              [extraWords]="currentQuestion.pronExtraWords || []"
+              [matchedWords]="currentQuestion.pronMatchedWords || []"
+            ></app-pronunciation-comparison-view>
 
             <!-- Word-level analysis -->
             <div class="pron-word-analysis" *ngIf="currentQuestion.pronWordAnalysis && currentQuestion.pronWordAnalysis.length > 0">
@@ -1205,6 +1230,24 @@
                 <span>Replay word</span>
               </button>
             </div>
+            <div class="pron-help-wrap" *ngIf="shouldShowNeedHelp(currentQuestion)">
+              <button type="button" class="btn-record btn-record--subtle" (click)="togglePronHelp(currentQuestion)">
+                <span class="material-icons">help_outline</span>
+                Need help?
+              </button>
+              <div class="pron-help-chunks" *ngIf="currentQuestion.pronHelpOpen">
+                <span class="pron-help-chip" *ngFor="let c of expectedChunks(currentQuestion.pronExpectedText || '')">{{ c }}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn-record btn-record--subtle pron-mark-correct-btn"
+              *ngIf="shouldShowMarkAsCorrect(currentQuestion)"
+              (click)="markCurrentAsCorrect(currentQuestion)"
+            >
+              <span class="material-icons">check_circle</span>
+              Mark as correct
+            </button>
           </div>
 
           <div class="speech-not-supported" *ngIf="!speechSupported && !audioRecorderSupported">
@@ -1662,7 +1705,15 @@
           Captured. Press play to hear yourself.
         </p>
         <audio *ngIf="micTestAudioUrl" [src]="micTestAudioUrl" controls preload="auto"></audio>
+        <p class="mic-test-hint" *ngIf="micTestError">
+          <span class="material-icons">info</span>
+          {{ micTestError }}
+        </p>
         <div class="mic-test-actions">
+          <button type="button" class="mic-test-secondary" (click)="playMicTestBoosted()">
+            <span class="material-icons">volume_up</span>
+            Play louder
+          </button>
           <button type="button" class="mic-test-secondary" (click)="runMicTest()">
             <span class="material-icons">refresh</span>
             Record again

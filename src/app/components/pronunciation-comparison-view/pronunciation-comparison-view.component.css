@@ -1,0 +1,45 @@
+.pcv-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.pcv-row {
+  display: grid;
+  gap: 4px;
+}
+
+.pcv-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.pcv-line {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.pcv-word--matched {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.pcv-word--missing {
+  color: #b91c1c;
+  text-decoration: underline;
+  text-decoration-color: #dc2626;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.pcv-word--extra {
+  background: #fef08a;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.pcv-empty {
+  color: #64748b;
+}

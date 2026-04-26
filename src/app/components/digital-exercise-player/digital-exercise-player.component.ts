@@ -36,6 +36,7 @@ import {
   AdaptiveThresholds,
 } from '../../services/pronunciation-analytics.service';
 import { AudioVisualizerComponent } from '../audio-visualizer/audio-visualizer.component';
+import { PronunciationComparisonViewComponent } from '../pronunciation-comparison-view/pronunciation-comparison-view.component';
 import { HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
@@ -82,6 +83,16 @@ interface PlayerQuestion {
   pronHints?: string[];
   /** Expected phrase shown to learner for comparison. */
   pronExpectedText?: string;
+  /** Backend feedback arrays (new comparison contract). */
+  pronMissingWords?: string[];
+  pronExtraWords?: string[];
+  pronMatchedWords?: string[];
+  /** True when backend flags low recording quality. */
+  pronLowAudioQuality?: boolean;
+  /** Number of local attempts on this pronunciation prompt. */
+  pronAttemptCount?: number;
+  /** Toggle state for chunked help panel. */
+  pronHelpOpen?: boolean;
   // Question/Answer state
   qaResponse?: string;
   // Listening state
@@ -124,7 +135,7 @@ type SpecialInputTarget =
 @Component({
   selector: 'app-digital-exercise-player',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe, AudioVisualizerComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe, AudioVisualizerComponent, PronunciationComparisonViewComponent],
   templateUrl: './digital-exercise-player.component.html',
   styleUrls: ['./digital-exercise-player.component.css']
 })
@@ -169,6 +180,61 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   get isStaffTester(): boolean {
     return ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'].includes(this.currentUserRole);
+  }
+
+  confidenceNudge(conf?: PronunciationConfidence): string {
+    if (conf === 'medium') return 'Almost there, try again for a perfect score.';
+    if (conf === 'low') return 'We might have misheard you. Try speaking clearly.';
+    return '';
+  }
+
+  shouldShowNeedHelp(pq: PlayerQuestion): boolean {
+    return Number(pq?.pronAttemptCount || pq?.vpFailCount || 0) >= 2;
+  }
+
+  shouldShowMarkAsCorrect(pq: PlayerQuestion): boolean {
+    const attempts = Number(pq?.pronAttemptCount || pq?.vpFailCount || 0);
+    const score = Number(pq?.pronunciationScore || 0);
+    return attempts >= 2 && score >= 70 && !this.hasCurrentSubmitted;
+  }
+
+  togglePronHelp(pq: PlayerQuestion): void {
+    pq.pronHelpOpen = !pq.pronHelpOpen;
+  }
+
+  expectedChunks(text: string): string[] {
+    const tokens = String(text || '').trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return [];
+    const chunkSize = tokens.length <= 5 ? 1 : 2;
+    const chunks: string[] = [];
+    for (let i = 0; i < tokens.length; i += chunkSize) {
+      chunks.push(tokens.slice(i, i + chunkSize).join(' '));
+    }
+    return chunks;
+  }
+
+  markCurrentAsCorrect(pq: PlayerQuestion): void {
+    if (!pq) return;
+    const expected = pq.vpExpectedText || pq.pronExpectedText || pq.data?.word || '';
+    if (pq.data?.type === 'video-pronunciation') {
+      pq.vpResult = 'correct';
+      pq.vpAlmostCorrect = false;
+      pq.vpSpokenText = pq.vpSpokenText || expected;
+      pq.hasRecorded = true;
+      pq.isAnswered = true;
+      pq.pronUiState = 'result';
+      pq.pronunciationScore = Math.max(85, Number(pq.pronunciationScore || 0));
+      this.markAttempted(pq);
+      if (this.isVideoOnlyExercise) this.pushVpChat('tutor', 'Marked as correct. You can continue.');
+      return;
+    }
+    pq.pronAlmostCorrect = false;
+    pq.spokenText = pq.spokenText || expected;
+    pq.hasRecorded = true;
+    pq.isAnswered = true;
+    pq.pronUiState = 'result';
+    pq.pronunciationScore = Math.max(85, Number(pq.pronunciationScore || 0));
+    this.markAttempted(pq);
   }
 
   // Speech recognition
@@ -232,9 +298,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   micTestOpen = false;
   micTestState: 'idle' | 'recording' | 'ready' | 'error' = 'idle';
   micTestAudioUrl: string | null = null;
+  private micTestBlob: Blob | null = null;
   micTestError: string | null = null;
   private micTestCountdownTimer: ReturnType<typeof setInterval> | null = null;
   micTestCountdown = 0;
+  private micTestBoostAudioCtx: AudioContext | null = null;
+  private micTestBoostSource: AudioBufferSourceNode | null = null;
 
   /** Current video-pronunciation element (for autoplay / replay). */
   private vpVideoElement: HTMLVideoElement | null = null;
@@ -2991,6 +3060,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.pronWordAnalysis = res.wordAnalysis || [];
       pq.pronHints = res.hints || [];
       pq.pronExpectedText = res.expectedText || expected;
+      pq.pronMissingWords = Array.isArray((res as any).feedback?.missingWords) ? (res as any).feedback.missingWords : [];
+      pq.pronExtraWords = Array.isArray((res as any).feedback?.extraWords) ? (res as any).feedback.extraWords : [];
+      pq.pronMatchedWords = Array.isArray((res as any).feedback?.matchedWords) ? (res as any).feedback.matchedWords : [];
+      pq.pronLowAudioQuality = Boolean((res as any).flags?.lowAudioQuality);
+      pq.pronAttemptCount = Number(pq.pronAttemptCount || 0) + 1;
+      pq.pronHelpOpen = false;
       this.lastConfidenceByIndex[pq.index] = res.confidence;
       this.markAttempted(pq);
 
@@ -3292,6 +3367,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.vpWordAnalysis = res.wordAnalysis || [];
     pq.vpHints = res.hints || [];
     pq.vpExpectedText = res.expectedText || '';
+    pq.pronMissingWords = Array.isArray((res as any).feedback?.missingWords) ? (res as any).feedback.missingWords : [];
+    pq.pronExtraWords = Array.isArray((res as any).feedback?.extraWords) ? (res as any).feedback.extraWords : [];
+    pq.pronMatchedWords = Array.isArray((res as any).feedback?.matchedWords) ? (res as any).feedback.matchedWords : [];
+    pq.pronLowAudioQuality = Boolean((res as any).flags?.lowAudioQuality);
+    pq.pronAttemptCount = Number(pq.pronAttemptCount || 0) + 1;
+    pq.pronHelpOpen = false;
 
     const isCorrect = res.isCorrect;
     const isAlmostCorrect = !!res.isAlmostCorrect && !isCorrect;
@@ -3406,6 +3487,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   openMicTest(): void {
     this.micTestError = null;
     this.micTestAudioUrl = null;
+    this.micTestBlob = null;
     this.micTestState = 'idle';
     this.micTestOpen = true;
   }
@@ -3422,6 +3504,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.pronunciation.releaseObjectUrl(this.micTestAudioUrl);
       this.micTestAudioUrl = null;
     }
+    this.micTestBlob = null;
+    this.stopBoostedMicPlayback();
     // Make sure we don't leave the mic running.
     try { this.pronunciation.cancelRecording(); } catch { /* noop */ }
   }
@@ -3437,6 +3521,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.pronunciation.releaseObjectUrl(this.micTestAudioUrl);
       this.micTestAudioUrl = null;
     }
+    this.micTestBlob = null;
+    this.stopBoostedMicPlayback();
     this.micTestError = null;
     this.micTestState = 'recording';
     this.micTestCountdown = 5;
@@ -3446,8 +3532,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     try {
       const result = await this.pronunciation.recordQuickSample(5000);
+      const quietCheck = this.pronunciation.evaluateSilence(result.durationMs, {
+        minDurationMs: 650,
+        minAverageLevel: 0.008,
+        minPeakLevel: 0.03,
+      });
       this.micTestAudioUrl = result.objectUrl;
+      this.micTestBlob = result.blob;
       this.micTestState = 'ready';
+      this.micTestError = !quietCheck.ok && quietCheck.reason === 'too-quiet'
+        ? 'Your mic sounds very low. Try moving closer and increasing microphone input volume.'
+        : null;
       console.info('[pronunciation] mic test ok', {
         durationMs: result.durationMs,
         audioSize: result.blob.size,
@@ -3463,6 +3558,41 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.micTestCountdownTimer = null;
       }
       this.micTestCountdown = 0;
+    }
+  }
+
+  async playMicTestBoosted(): Promise<void> {
+    if (!this.micTestBlob) return;
+    this.stopBoostedMicPlayback();
+    try {
+      const Ctx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const arr = await this.micTestBlob.arrayBuffer();
+      const decoded = await ctx.decodeAudioData(arr.slice(0));
+      const src = ctx.createBufferSource();
+      src.buffer = decoded;
+      const gain = ctx.createGain();
+      gain.gain.value = 2.2;
+      src.connect(gain).connect(ctx.destination);
+      src.onended = () => this.stopBoostedMicPlayback();
+      this.micTestBoostAudioCtx = ctx;
+      this.micTestBoostSource = src;
+      src.start(0);
+    } catch (err) {
+      console.warn('[pronunciation] boosted mic playback failed', err);
+      this.stopBoostedMicPlayback();
+      this.snackBar.open('Could not play boosted audio. Use normal play below.', 'Close', { duration: 2500 });
+    }
+  }
+
+  private stopBoostedMicPlayback(): void {
+    try { this.micTestBoostSource?.stop(); } catch { /* noop */ }
+    try { this.micTestBoostSource?.disconnect(); } catch { /* noop */ }
+    this.micTestBoostSource = null;
+    if (this.micTestBoostAudioCtx) {
+      this.micTestBoostAudioCtx.close().catch(() => { /* noop */ });
+      this.micTestBoostAudioCtx = null;
     }
   }
 }

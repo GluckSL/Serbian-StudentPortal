@@ -1,3 +1,45 @@
+.pron-audio-quality-banner {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pron-confidence-nudge {
+  margin-top: 6px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.pron-help-wrap {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.pron-help-chunks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pron-help-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pron-mark-correct-btn {
+  margin-top: 10px;
+}
 /* digital-exercise-player.component.css — Clean quiz UI */
 .player-page {
   min-height: 100vh;
