@@ -2,7 +2,8 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, from } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
@@ -559,12 +560,28 @@ export class DigitalExerciseService {
   }
 
   uploadVideoMedia(file: File): Observable<{ success: boolean; url: string }> {
-    const formData = new FormData();
-    formData.append('media', file);
-    return this.http.post<{ success: boolean; url: string }>(
-      `${environment.apiUrl}/listening-media/upload`,
-      formData,
+    return this.http.post<{ uploadUrl: string; fileUrl: string }>(
+      `${environment.apiUrl}/r2/generate-upload-url`,
+      {
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream'
+      },
       { withCredentials: true }
+    ).pipe(
+      switchMap(({ uploadUrl, fileUrl }) =>
+        from(fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file
+        })).pipe(
+          switchMap((response) => {
+            if (!response.ok) {
+              throw new Error(`R2 upload failed with status ${response.status}`);
+            }
+            return from(Promise.resolve({ success: true, url: fileUrl }));
+          })
+        )
+      )
     );
   }
 

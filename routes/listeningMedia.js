@@ -59,8 +59,11 @@ function isVideoMime(mt) {
 
 const mediaFilter = (req, file, cb) => {
   const mt = String(file.mimetype || '').toLowerCase();
-  if (mt.startsWith('audio/') || isVideoMime(mt)) return cb(null, true);
-  return cb(new Error(`Only audio/* or MP4/WebM/MOV video allowed. Received: ${mt || 'unknown'}`), false);
+  if (isVideoMime(mt)) {
+    return cb(new Error('Video uploads must use direct R2 upload via presigned URL.'), false);
+  }
+  if (mt.startsWith('audio/')) return cb(null, true);
+  return cb(new Error(`Only audio/* is allowed on this endpoint. Received: ${mt || 'unknown'}`), false);
 };
 
 // ─── Multer: video → S3, audio → disk ────────────────────────────────────────

@@ -178,7 +178,6 @@ router.get('/student', verifyToken, async (req, res) => {
     const student = await User.findById(req.user.id).select('batch').lean();
     const batch = String(student?.batch || '').trim();
     if (!batch) {
-      console.info('[announcements][student] no batch for student', { studentId: req.user.id });
       return res.json({ success: true, data: [] });
     }
 
@@ -191,16 +190,6 @@ router.get('/student', verifyToken, async (req, res) => {
       .lean();
 
     const items = allItems.filter((item) => batchesIntersectNormalized(batch, item.targetBatches || []));
-    console.info('[announcements][student] fetched announcements', {
-      studentId: req.user.id,
-      studentBatch: batch,
-      studentBatchKey: normalizeBatchKey(batch),
-      totalAnnouncements: allItems.length,
-      visibleAnnouncements: items.length,
-      sampleTargetBatches: allItems
-        .slice(0, 5)
-        .map((x) => ({ id: String(x._id), targetBatches: x.targetBatches || [] }))
-    });
 
     res.json({ success: true, data: items });
   } catch (error) {
@@ -239,12 +228,6 @@ router.get(
           batch: s.batch || '',
           isTestAccount: !!s.isTestAccount
         }));
-
-      console.info('[announcements][target-students] preview', {
-        requestedBy: req.user.id,
-        targetBatches,
-        matchedStudents: matched.length
-      });
 
       return res.json({ success: true, data: matched, total: matched.length });
     } catch (error) {
@@ -343,14 +326,6 @@ router.post(
           sentAt: new Date()
         };
       }
-
-      console.info('[announcements][create] targeting announcement', {
-        createdBy: req.user.id,
-        deliveryType,
-        targetBatches,
-        normalizedTargetBatchCount: targetKeys.length,
-        attachmentCount: attachments.length
-      });
 
       await announcement.save();
       const populated = await Announcement.findById(announcement._id).populate('createdBy', 'name role').lean();
