@@ -308,6 +308,7 @@ export class ClassRecordingsService {
     level?: string | null;
     plan?: string;
     teacherId?: string;
+    courseDay?: number | null;
   }): Observable<{ success: boolean; message: string }> {
     return this.http.put<any>(`${this.url}/zoom/${meetingLinkId}/meta`, payload);
   }

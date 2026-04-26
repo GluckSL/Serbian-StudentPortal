@@ -76,6 +76,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     level: '',
     plan: 'ALL',
     teacherId: '',
+    courseDay: '' as number | '',
   };
   viewsMeta: { totalStudents?: number; watchedCount?: number; notWatchedCount?: number; totalWatchSeconds?: number; videoSizeBytes?: number } = {};
 
@@ -485,6 +486,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       level: r.level && r.level !== 'ZOOM' ? r.level : '',
       plan: r.plan || 'ALL',
       teacherId: r.assignedTeacherId ? String(r.assignedTeacherId) : '',
+      courseDay: Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : '',
     };
     this.showZoomEditModal = true;
   }
@@ -492,7 +494,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   closeZoomEdit(): void {
     this.showZoomEditModal = false;
     this.zoomEditingMeetingLinkId = null;
-    this.zoomEditForm = { title: '', batches: [], level: '', plan: 'ALL', teacherId: '' };
+    this.zoomEditForm = { title: '', batches: [], level: '', plan: 'ALL', teacherId: '', courseDay: '' };
   }
 
   saveZoomEdit(): void {
@@ -511,6 +513,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       level: this.zoomEditForm.level || null,
       plan: this.zoomEditForm.plan || 'ALL',
       teacherId: this.zoomEditForm.teacherId || undefined,
+      courseDay: this.normalizeCourseDay(this.zoomEditForm.courseDay),
     }).subscribe({
       next: () => {
         this.snackBar.open('Zoom recording updated', 'Close', { duration: 2500 });
@@ -525,6 +528,13 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     const idx = this.zoomEditForm.batches.indexOf(batch);
     if (idx >= 0) this.zoomEditForm.batches.splice(idx, 1);
     else this.zoomEditForm.batches.push(batch);
+  }
+
+  private normalizeCourseDay(value: number | '' | null | undefined): number | null {
+    if (value === '' || value == null) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(200, Math.max(1, Math.floor(n)));
   }
 
   playRecordingAction(r: AdminClassRecording): void {

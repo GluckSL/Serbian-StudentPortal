@@ -261,7 +261,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
 
     const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
     const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
-      .select('_id topic batch startTime duration assignedTeacher')
+      .select('_id topic batch startTime duration assignedTeacher courseDay')
       .populate('assignedTeacher', 'name')
       .lean();
 
@@ -295,6 +295,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
         duration: z.duration,
         classDate: meeting.startTime || z.createdAt,
         classDuration: meeting.duration || null,
+        courseDay: meeting.courseDay != null ? meeting.courseDay : null,
       };
     });
 
@@ -329,8 +330,23 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
 // GET /api/class-recordings/batches — Get unique batch values for dropdown
 router.get('/batches', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const batches = await User.distinct('batch', { role: 'STUDENT', batch: { $ne: '' } });
-    res.json({ success: true, batches: batches.sort() });
+    const students = await User.find({ role: 'STUDENT' })
+      .select('batch goStatus subscription')
+      .lean();
+
+    const seen = new Set();
+    const batches = [];
+    for (const student of students) {
+      for (const batch of allStudentBatchStringsForContent(student)) {
+        const normalized = String(batch || '').trim().toLowerCase();
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        batches.push(String(batch).trim());
+      }
+    }
+
+    batches.sort((a, b) => a.localeCompare(b));
+    res.json({ success: true, batches });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1172,7 +1188,7 @@ router.post('/manual/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
 router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { meetingLinkId } = req.params;
-    const { title, batch, batches, level, plan, teacherId } = req.body || {};
+    const { title, batch, batches, level, plan, teacherId, courseDay } = req.body || {};
 
     const meeting = await MeetingLink.findById(meetingLinkId);
     if (!meeting) {
@@ -1197,6 +1213,14 @@ router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHE
         return res.status(400).json({ success: false, message: 'Invalid teacher selected.' });
       }
       meeting.assignedTeacher = teacher._id;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
+      if (courseDay === null || courseDay === '') {
+        meeting.courseDay = null;
+      } else {
+        const n = parseInt(String(courseDay), 10);
+        meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      }
     }
 
     await meeting.save();
