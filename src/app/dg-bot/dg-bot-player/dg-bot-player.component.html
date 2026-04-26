@@ -49,6 +49,8 @@
             [subtitle]="displaySub"
             [variant]="dialogueVariant"
             [disabled]="status === 'speaking'"
+            [ccEnglish]="aiResponseText"
+            [ccTamil]="aiResponseTamil"
             (replayTts)="replayTts()"
           ></app-dg-dialogue>
 
@@ -72,12 +74,35 @@
         </div>
 
         <div class="dg-player__interaction">
+          <!-- Conversation turn indicator -->
+          <div
+            class="dg-player__conv-turns"
+            *ngIf="scene?.type === 'practice' && conversationTurn > 0"
+          >
+            <span
+              *ngFor="let t of [0, 1, 2]"
+              class="dg-player__conv-dot"
+              [class.dg-player__conv-dot--done]="t < conversationTurn"
+            ></span>
+          </div>
+
+          <!-- Status label: Listening / Processing / Thinking -->
+          <div
+            class="dg-player__status-label"
+            *ngIf="statusLabel"
+            [class.dg-player__status-label--thinking]="isAiThinking"
+            aria-live="polite"
+          >
+            <span class="dg-player__status-dot"></span>
+            {{ statusLabel }}
+          </div>
+
           <app-dg-practice
             *ngIf="scene?.type === 'practice'"
             [expected]="scene?.expectedAnswer || ''"
             [language]="pronLanguage"
             [hint]="scene?.hint || ''"
-            [disabled]="status === 'speaking' || practicePassed || isTransitioning"
+            [disabled]="status === 'speaking' || practicePassed || isTransitioning || isAiThinking"
             [retryTick]="practiceRetryTick"
             [sceneKey]="(scene?._id || '') + '-' + index"
             (evaluated)="onEvaluated($event)"
@@ -95,10 +120,10 @@
 
       <footer class="dg-player__footer">
         <app-dg-controls
-          [canReplay]="!!scene && status !== 'speaking' && !isTransitioning"
+          [canReplay]="!!scene && status !== 'speaking' && !isTransitioning && !isAiThinking"
           [canNext]="canNext"
           [showSkip]="scene?.type === 'practice' && !practicePassed"
-          [busy]="status === 'speaking' || isTransitioning"
+          [busy]="status === 'speaking' || isTransitioning || isAiThinking"
           (replay)="replayTts()"
           (next)="onNext()"
           (skip)="onSkip()"

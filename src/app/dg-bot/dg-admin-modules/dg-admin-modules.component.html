@@ -1,8 +1,8 @@
-<!-- Chrome aligned with admin Module Management (module-management.component) -->
+<!-- Match Learning Modules → Module Management layout and table chrome -->
 <div class="dg-admin-mm admin-modules">
   <div class="admin-header">
-    <div class="container-fluid px-0">
-      <div class="row align-items-center g-0">
+    <div class="container-fluid">
+      <div class="row align-items-center">
         <div class="col-md-8">
           <h1 class="admin-title">
             <i class="fas fa-robot"></i>
@@ -23,7 +23,7 @@
   </div>
 
   <div class="admin-content">
-    <div class="container-fluid px-0">
+    <div class="container-fluid">
       <p class="dg-adm__msg mb-2" *ngIf="message">{{ message }}</p>
 
       <div class="loading-state text-center py-5" *ngIf="loading">
@@ -34,24 +34,24 @@
       </div>
 
       <ng-container *ngIf="!loading">
+        <!-- Action bar (same row layout as Module Management) -->
         <div class="action-bar">
           <div class="row align-items-center g-2">
             <div class="col-lg-5">
-              <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
-                <i class="fas fa-plus"></i>
-                Create New Module
-              </button>
+              <div class="dg-mm-actions">
+                <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
+                  <i class="fas fa-plus"></i>
+                  Create New Module
+                </button>
+                <a class="btn btn-trash-module" routerLink="/admin-trash">
+                  <i class="fas fa-trash"></i>
+                  Trash
+                </a>
+              </div>
             </div>
             <div class="col-lg-7">
-              <div class="d-flex flex-wrap justify-content-lg-end align-items-center gap-2">
-                <div class="filter-options flex-grow-1 flex-lg-grow-0 dg-mm-filter">
-                  <select class="form-select" [(ngModel)]="statusFilter" name="dgStatusFilter">
-                    <option value="all">All modules</option>
-                    <option value="live">Live only</option>
-                    <option value="draft">Draft only</option>
-                  </select>
-                </div>
-                <div class="flex-grow-1 dg-mm-search-wrap">
+              <div class="dg-mm-controls">
+                <div class="dg-mm-search-wrap">
                   <input
                     type="search"
                     class="form-control dg-mm-search"
@@ -60,14 +60,22 @@
                     placeholder="Search by title…"
                   />
                 </div>
+                <div class="filter-options dg-mm-filter-wrap">
+                  <select class="form-select" [(ngModel)]="statusFilter" name="dgStatusFilter">
+                    <option value="all">All Modules</option>
+                    <option value="live">Live only</option>
+                    <option value="draft">Draft only</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Summary statistics (same column rhythm as Module Management) -->
         <div class="stats-section">
-          <div class="row g-2">
-            <div class="col-6 col-md-4 col-lg-2">
+          <div class="row">
+            <div class="col-md-2">
               <div class="stat-card bg-primary text-white">
                 <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
                 <div class="stat-content">
@@ -76,7 +84,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-6 col-md-4 col-lg-2">
+            <div class="col-md-2">
               <div class="stat-card bg-success text-white">
                 <div class="stat-icon"><i class="fas fa-eye"></i></div>
                 <div class="stat-content">
@@ -85,7 +93,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-6 col-md-4 col-lg-2">
+            <div class="col-md-2">
               <div class="stat-card bg-warning text-white">
                 <div class="stat-icon"><i class="fas fa-file-alt"></i></div>
                 <div class="stat-content">
@@ -94,7 +102,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-6 col-md-6 col-lg-3">
+            <div class="col-md-3">
               <div class="stat-card bg-info text-white">
                 <div class="stat-icon"><i class="fas fa-language"></i></div>
                 <div class="stat-content">
@@ -103,7 +111,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-6 col-md-6 col-lg-3">
+            <div class="col-md-3">
               <div class="stat-card bg-secondary text-white">
                 <div class="stat-icon"><i class="fas fa-globe"></i></div>
                 <div class="stat-content">
@@ -119,77 +127,84 @@
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="results-info">
               <span class="results-count">{{ filteredModules.length }}</span>
-              <span class="results-text">modules shown</span>
+              <span class="results-text">modules found</span>
               <span class="results-text text-muted">· {{ modules.length }} total</span>
             </div>
           </div>
         </div>
 
-        <div class="dg-mm-list-wrap">
-          <div class="data-table-card" *ngIf="modules.length > 0">
+        <div *ngIf="modules.length > 0" class="modules-table">
+          <div class="data-table-card">
             <div class="card">
-              <div class="table-responsive dg-mm-table-wrap">
-                <table class="table table-hover mb-0 dg-mm-table">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0">
                   <thead class="table-dark">
                     <tr>
                       <th>Module</th>
-                      <th>Level</th>
+                      <th>Level/Category</th>
+                      <th>Journey day</th>
                       <th>Language</th>
                       <th>Status</th>
-                      <th class="text-end dg-mm-th-actions">Actions</th>
+                      <th class="text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let m of filteredModules; trackBy: trackModule" class="dg-mm-row">
+                    <tr *ngFor="let m of filteredModules; trackBy: trackModule">
                       <td>
-                        <div class="mm-module-info">
-                          <div class="mm-module-title">{{ m.title }}</div>
-                          <div class="mm-module-desc">{{ previewDescription(m.description) }}</div>
+                        <div class="module-info">
+                          <div class="module-title">{{ m.title }}</div>
+                          <div class="module-desc">{{ previewDescription(m.description) }}</div>
                         </div>
                       </td>
                       <td>
-                        <span class="badge bg-primary">{{ m.level || '—' }}</span>
+                        <div class="level-category">
+                          <span class="badge bg-primary me-1">{{ m.level || '—' }}</span>
+                          <br />
+                          <small class="text-muted">Guided speaking</small>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="journey-day-cell">
+                          <span class="badge journey-day-badge" *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>
+                          <span class="text-muted journey-day-pool" *ngIf="m.courseDay == null">—</span>
+                        </div>
                       </td>
                       <td>
                         <span class="text-muted small">{{ m.language || 'German' }}</span>
                       </td>
                       <td>
-                        <span
-                          class="badge"
-                          [class.mm-badge-live]="m.visibleToStudents"
-                          [class.mm-badge-draft]="!m.visibleToStudents"
-                        >
+                        <span class="badge" [class.mm-badge-live]="m.visibleToStudents" [class.mm-badge-draft]="!m.visibleToStudents">
                           {{ m.visibleToStudents ? 'Live' : 'Draft' }}
                         </span>
                       </td>
-                      <td class="text-end dg-mm-actions align-middle">
-                        <div class="btn-group btn-group-sm flex-wrap justify-content-end" role="group">
+                      <td class="text-center">
+                        <div class="action-buttons">
                           <button
                             type="button"
-                            class="btn btn-outline-primary"
+                            class="btn btn-sm btn-outline-primary me-1"
                             (click)="goEdit(m)"
                             [disabled]="!m._id"
                             title="Edit"
                           >
-                            <i class="fas fa-edit"></i> Edit
+                            <i class="fas fa-edit"></i>
                           </button>
                           <button
                             type="button"
-                            class="btn btn-outline-secondary"
+                            class="btn btn-sm btn-outline-success me-1"
                             (click)="goPreview(m)"
                             [disabled]="!m._id"
                             title="Preview"
                           >
-                            <i class="fas fa-play"></i> Preview
+                            <i class="fas fa-play"></i>
                           </button>
                           <button
                             type="button"
-                            class="btn btn-outline-danger"
+                            class="btn btn-sm btn-outline-danger"
                             (click)="archiveModule(m)"
                             [disabled]="!m._id"
                             title="Archive module"
                           >
-                            <i class="fas fa-archive"></i> Delete
+                            <i class="fas fa-trash"></i>
                           </button>
                         </div>
                       </td>
@@ -199,24 +214,24 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="mm-empty-card" *ngIf="modules.length === 0">
-            <div class="empty-state">
-              <div class="empty-state-icon">🦊</div>
-              <h3>No DG modules yet</h3>
-              <p>Create your first module with <strong>Create New Module</strong>.</p>
-            </div>
+        <div class="mm-empty-card" *ngIf="modules.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">🦊</div>
+            <h3>No DG modules yet</h3>
+            <p>Create your first module with <strong>Create New Module</strong>.</p>
           </div>
+        </div>
 
-          <div class="mm-empty-card" *ngIf="modules.length > 0 && filteredModules.length === 0">
-            <div class="empty-state">
-              <div class="empty-state-icon">🔍</div>
-              <h3>No matches</h3>
-              <p>Try another search or filter.</p>
-              <button class="btn btn-sm btn-outline-secondary mt-2" type="button" (click)="listFilter = ''; statusFilter = 'all'">
-                Reset filters
-              </button>
-            </div>
+        <div class="mm-empty-card" *ngIf="modules.length > 0 && filteredModules.length === 0">
+          <div class="empty-state">
+            <div class="empty-state-icon">🔍</div>
+            <h3>No matches</h3>
+            <p>Try another search or filter.</p>
+            <button class="btn btn-sm btn-outline-secondary mt-2" type="button" (click)="listFilter = ''; statusFilter = 'all'">
+              Reset filters
+            </button>
           </div>
         </div>
       </ng-container>

@@ -134,3 +134,38 @@ export interface DgPlayerUiState {
   score: number | null;
   isTransitioning: boolean;
 }
+
+// ─── Conversation / Role-play types ──────────────────────────────────────────
+
+/** One message in the per-scene conversation history sent to the backend. */
+export interface DgConversationMessage {
+  role: 'user' | 'ai';
+  text: string;
+}
+
+/** Request body for POST /api/dg/conversation/respond. */
+export interface DgConversationRequest {
+  moduleId: string;
+  sessionId: string;
+  sceneIndex: number;
+  userText: string;
+  pronunciationScore: number;
+  /** Remaining session time in seconds. */
+  remainingSeconds: number;
+  /** Current turn index BEFORE this response (0-based). */
+  turnNumber: number;
+  /** Last N conversation messages for AI context. */
+  history: DgConversationMessage[];
+}
+
+/** Response from POST /api/dg/conversation/respond. */
+export interface DgConversationResponse {
+  /** AI reply in the target language, vocabulary-enforced. */
+  text: string;
+  /** Tamil translation of the AI reply (empty string if unavailable). */
+  translatedTamil: string;
+  /** Turn number after this response (1-based). */
+  turnNumber: number;
+  /** True when turnNumber has reached MAX_TURNS — player should advance. */
+  sceneComplete: boolean;
+}

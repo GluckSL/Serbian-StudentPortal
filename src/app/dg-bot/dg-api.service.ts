@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import type {
   DgCharacterDoc,
+  DgConversationRequest,
+  DgConversationResponse,
   DgModuleSummary,
   DgPlayPayload,
   DgSessionStartResponse,
@@ -81,5 +83,10 @@ export class DgApiService {
       sessionId,
       finalScore,
     });
+  }
+
+  /** Send the student's transcript to the AI and receive a vocabulary-enforced response. */
+  conversationRespond(body: DgConversationRequest): Observable<DgConversationResponse> {
+    return this.http.post<DgConversationResponse>(`${this.base}/conversation/respond`, body);
   }
 }

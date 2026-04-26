@@ -1,21 +1,105 @@
 <div class="dg-hub">
-  <h1>DG Bot</h1>
-  <p class="dg-hub__lead">Pick a guided lesson. Your tutor speaks, you repeat, and you get instant feedback.</p>
+  <header class="dg-hub__header">
+    <div class="dg-hub__header-main">
+      <h1 class="dg-hub__title">
+        <mat-icon>smart_toy</mat-icon>
+        DG Bot Lessons
+      </h1>
+      <p class="dg-hub__lead">
+        Practice speaking with guided role-play modules and instant feedback.
+      </p>
+    </div>
+    <div class="dg-hub__header-stat">
+      <span class="dg-hub__header-number">{{ totalModules }}</span>
+      <span class="dg-hub__header-label">Total modules</span>
+    </div>
+  </header>
 
   <div *ngIf="loading" class="dg-hub__state">Loading…</div>
   <div *ngIf="error" class="dg-hub__err">{{ error }}</div>
 
-  <div class="dg-hub__grid" *ngIf="!loading && !error">
-    <mat-card *ngFor="let m of modules" class="dg-hub__card">
-      <mat-card-title>{{ m.title }}</mat-card-title>
-      <mat-card-subtitle>{{ m.level }} · {{ m.description || 'Guided practice' }}</mat-card-subtitle>
-      <mat-card-actions align="end">
-        <a mat-flat-button color="primary" [routerLink]="['/dg-bot', m._id, 'play']">
-          <mat-icon>play_arrow</mat-icon>
-          Start
-        </a>
-      </mat-card-actions>
-    </mat-card>
-    <p *ngIf="modules.length === 0" class="dg-hub__empty">No published DG modules yet. Ask your teacher.</p>
-  </div>
+  <ng-container *ngIf="!loading && !error">
+    <section class="dg-hub__stats">
+      <article class="dg-hub__stat-card dg-hub__stat-card--primary">
+        <span class="dg-hub__stat-value">{{ totalModules }}</span>
+        <span class="dg-hub__stat-label">Modules</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--success">
+        <span class="dg-hub__stat-value">{{ a1Count }}</span>
+        <span class="dg-hub__stat-label">A1</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--warning">
+        <span class="dg-hub__stat-value">{{ a2Count }}</span>
+        <span class="dg-hub__stat-label">A2</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--info">
+        <span class="dg-hub__stat-value">{{ b1PlusCount }}</span>
+        <span class="dg-hub__stat-label">B1+</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--slate">
+        <span class="dg-hub__stat-value">{{ totalScenes }}</span>
+        <span class="dg-hub__stat-label">Scenes</span>
+      </article>
+    </section>
+
+    <section class="dg-hub__summary">
+      <span class="dg-hub__summary-count">{{ totalModules }}</span>
+      <span class="dg-hub__summary-text">modules available for practice</span>
+    </section>
+
+    <section class="dg-hub__table-card" *ngIf="modules.length > 0">
+      <div class="dg-hub__table-wrap">
+        <table class="dg-hub__table">
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Level</th>
+              <th>Language</th>
+              <th>Status</th>
+              <th class="dg-hub__th-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let m of modules; trackBy: trackModule">
+              <td>
+                <div class="dg-hub__module-title">{{ m.title }}</div>
+                <div class="dg-hub__module-desc">{{ m.description || 'Guided speaking practice' }}</div>
+              </td>
+              <td>
+                <span class="dg-hub__level-badge">{{ m.level || '—' }}</span>
+              </td>
+              <td>
+                <span class="dg-hub__lang">{{ m.language || 'German' }}</span>
+              </td>
+              <td>
+                <span
+                  class="dg-hub__status-badge"
+                  [class.dg-hub__status-badge--live]="m.visibleToStudents"
+                  [class.dg-hub__status-badge--draft]="!m.visibleToStudents"
+                >
+                  {{ m.visibleToStudents ? 'Live' : 'Draft' }}
+                </span>
+              </td>
+              <td class="dg-hub__actions">
+                <a
+                  mat-stroked-button
+                  class="dg-hub__action-btn"
+                  [routerLink]="['/dg-bot', m._id, 'play']"
+                >
+                  <mat-icon>play_arrow</mat-icon>
+                  Preview
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section *ngIf="modules.length === 0" class="dg-hub__empty">
+      <div class="dg-hub__empty-icon">🦊</div>
+      <h3>No published DG modules yet</h3>
+      <p>Ask your teacher to publish DG Bot lessons.</p>
+    </section>
+  </ng-container>
 </div>

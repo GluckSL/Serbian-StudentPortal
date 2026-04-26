@@ -11,7 +11,13 @@ import { DgCharacterComponent } from '../dg-character/dg-character.component';
 import { DgDialogueComponent, type DgDialogueVariant } from '../dg-dialogue/dg-dialogue.component';
 import { DgPracticeComponent, type DgPracticePhase } from '../dg-practice/dg-practice.component';
 import { DgControlsComponent } from '../dg-controls/dg-controls.component';
-import type { DgGoalStep, DgPlayPayload, DgPlayerStatus, DgScene } from '../dg-bot.types';
+import type {
+  DgConversationMessage,
+  DgGoalStep,
+  DgPlayPayload,
+  DgPlayerStatus,
+  DgScene,
+} from '../dg-bot.types';
 import { AuthService } from '../../services/auth.service';
 import type { PronunciationEvaluateResponse } from '../../services/pronunciation.service';
 import { DgCharacterStateService } from '../dg-character-state.service';
@@ -109,6 +115,22 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   /** Behavior preset + variants for the current scene; fixed until next {@link presentScene}. */
   private sceneBehaviorPlan: DgSceneBehaviorPlan | null = null;
 
+  // ── Conversation / Role-play state ────────────────────────────────────────
+  /** Current turn count within the active practice scene (0 = no exchange yet). */
+  conversationTurn = 0;
+  /** Maximum AI exchanges per scene before auto-advancing. */
+  readonly maxConversationTurns = 3;
+  /** Last AI response text (target language) — bound to CC EN toggle. */
+  aiResponseText = '';
+  /** Tamil translation of the last AI response — bound to CC TA toggle. */
+  aiResponseTamil = '';
+  /** True while waiting for the AI conversation response (shows "Thinking…"). */
+  isAiThinking = false;
+  /** Per-scene conversation history sent to backend for context. */
+  private conversationHistory: DgConversationMessage[] = [];
+  /** Used to compute session countdown for prompt context. */
+  private moduleStartedAt = 0;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -156,6 +178,30 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   get pronLanguage(): string {
     const lang = this.payload?.module.language || 'German';
     return lang === 'English' ? 'English' : 'German';
+  }
+
+  /** Human-readable status label shown in the UI during active phases. */
+  get statusLabel(): string {
+    if (this.isAiThinking) return 'Thinking…';
+    if (this.status === 'listening') return 'Listening…';
+    if (this.status === 'processing') return 'Processing…';
+    return '';
+  }
+
+  /**
+   * Returns true when the current scene should use the AI conversation loop
+   * instead of the plain success-then-advance flow.
+   * Triggers if the module has a role-play scenario or non-empty vocabulary lists.
+   */
+  private isConversationScene(): boolean {
+    if (this.scene?.type !== 'practice') return false;
+    const mod = this.payload?.module;
+    if (!mod) return false;
+    const hasVocab =
+      (mod.allowedVocabulary?.length ?? 0) > 0 ||
+      (mod.aiTutorVocabulary?.length ?? 0) > 0;
+    const hasScenario = !!(mod.rolePlayScenario?.aiRole);
+    return hasVocab || hasScenario;
   }
 
   ngOnInit(): void {
@@ -210,6 +256,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.payload = await firstValueFrom(this.dgApi.getPlay(moduleId));
       const start = await firstValueFrom(this.dgApi.startSession(moduleId));
       this.sessionId = start.sessionId;
+      this.moduleStartedAt = Date.now();
       this.index = 0;
       this.correctStreak = 0;
       this.lastPracticeAttemptWrong = false;
@@ -294,45 +341,60 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     );
 
     if (ok) {
-      this.practicePassed = true;
-      this.canNext = true;
       this.correctStreak += 1;
       this.lastPracticeAttemptWrong = false;
       this.consecutivePracticeFailures = 0;
-      const pace = this.pacingMultiplier();
-      const happyEmo = this.emotionSvc.getEmotion('feedback', {
-        isCorrect: true,
-        confidence: ev.confidence,
-      });
-      this.charState.setState(happyEmo);
-      const plan = this.sceneBehaviorPlan;
-      const happyHoldMs = Math.max(
-        120,
-        humanReactionHoldMs(DG_CHAR_TIMING.successHappyHoldMs, 'happy') *
-          (plan ? behaviorReactionHoldFactor(plan, 'happy') * behaviorSuccessHoldBoost(plan) : 1),
-      );
-      await humanDelay(happyHoldMs, pace);
 
-      this.dialogueVariant = 'success';
-      this.showConfetti = true;
-      if (this.confettiOff) clearTimeout(this.confettiOff);
-      this.confettiOff = setTimeout(() => {
-        this.showConfetti = false;
-        this.confettiOff = null;
-      }, 2400);
-      this.audioFx.playSuccessChime();
+      if (this.isConversationScene()) {
+        // ── CONVERSATION MODE ─────────────────────────────────
+        // Brief happy beat, then hand off to the AI character response.
+        const pace = this.pacingMultiplier();
+        const happyEmo = this.emotionSvc.getEmotion('feedback', {
+          isCorrect: true,
+          confidence: ev.confidence,
+        });
+        this.charState.setState(happyEmo);
+        await humanDelay(320, pace);
+        await this.handleConversationTurn(ev);
+      } else {
+        // ── ORIGINAL SUCCESS FLOW (unchanged) ─────────────────
+        this.practicePassed = true;
+        this.canNext = true;
+        const pace = this.pacingMultiplier();
+        const happyEmo = this.emotionSvc.getEmotion('feedback', {
+          isCorrect: true,
+          confidence: ev.confidence,
+        });
+        this.charState.setState(happyEmo);
+        const plan = this.sceneBehaviorPlan;
+        const happyHoldMs = Math.max(
+          120,
+          humanReactionHoldMs(DG_CHAR_TIMING.successHappyHoldMs, 'happy') *
+            (plan ? behaviorReactionHoldFactor(plan, 'happy') * behaviorSuccessHoldBoost(plan) : 1),
+        );
+        await humanDelay(happyHoldMs, pace);
 
-      const lines = this.engine.feedbackLines(true, false);
-      this.displayLine = `Great job! ${lines.en}`;
-      this.displaySub = lines.de;
+        this.dialogueVariant = 'success';
+        this.showConfetti = true;
+        if (this.confettiOff) clearTimeout(this.confettiOff);
+        this.confettiOff = setTimeout(() => {
+          this.showConfetti = false;
+          this.confettiOff = null;
+        }, 2400);
+        this.audioFx.playSuccessChime();
 
-      await this.playFeedbackTts(lines.de, happyEmo);
-      const postFb = plan
-        ? DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs * behaviorTransitionFactor(plan)
-        : DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs;
-      await humanDelay(postFb, pace);
-      this.charState.setState(happyEmo);
-      this.scheduleAutoAdvance(1600);
+        const lines = this.engine.feedbackLines(true, false);
+        this.displayLine = `Great job! ${lines.en}`;
+        this.displaySub = lines.de;
+
+        await this.playFeedbackTts(lines.de, happyEmo);
+        const postFb = plan
+          ? DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs * behaviorTransitionFactor(plan)
+          : DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs;
+        await humanDelay(postFb, pace);
+        this.charState.setState(happyEmo);
+        this.scheduleAutoAdvance(1600);
+      }
     } else {
       this.correctStreak = 0;
       this.lastPracticeAttemptWrong = true;
@@ -617,6 +679,14 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     if (s.type !== 'practice') {
       this.lastPracticeAttemptWrong = false;
     }
+
+    // Reset conversation state for each new scene
+    this.conversationTurn = 0;
+    this.conversationHistory = [];
+    this.aiResponseText = '';
+    this.aiResponseTamil = '';
+    this.isAiThinking = false;
+
     this.dialogueVariant = 'default';
     this.showConfetti = false;
     this.practicePassed = false;
@@ -686,6 +756,112 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       await this.playTtsBlob(line, holdEmotion);
     } catch {
       /* ignore TTS errors */
+    }
+  }
+
+  /**
+   * Called on a successful pronunciation attempt when the module is in conversation mode.
+   *
+   * Flow per turn:
+   *  1. Record user message in history
+   *  2. Show "Thinking…" while calling the AI
+   *  3. Display AI response in the dialogue bubble
+   *  4. Speak the AI response via TTS
+   *  5a. If scene complete (max turns reached) → advance to next scene
+   *  5b. Otherwise → reset practice mic so the student can speak again
+   */
+  private async handleConversationTurn(ev: PronunciationEvaluateResponse): Promise<void> {
+    const scene = this.scene;
+    const payload = this.payload;
+    if (!scene || !payload || !this.sessionId) return;
+
+    const userText = ev.transcript || '';
+    if (!userText.trim()) {
+      // No transcript to work with — fall through to normal advance
+      this.practicePassed = true;
+      this.canNext = true;
+      this.scheduleAutoAdvance(1200);
+      return;
+    }
+
+    // Record user turn in local history
+    this.conversationHistory.push({ role: 'user', text: userText });
+
+    // Show thinking state
+    this.isAiThinking = true;
+    this.charState.setState('thinking');
+    this.status = 'speaking'; // block the practice mic while AI responds
+
+    const durationMinutes = payload.module.minimumCompletionTime || 10;
+    const totalSeconds = durationMinutes * 60;
+    const elapsedSeconds = this.moduleStartedAt
+      ? Math.floor((Date.now() - this.moduleStartedAt) / 1000)
+      : 0;
+    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+
+    try {
+      const response = await firstValueFrom(
+        this.dgApi.conversationRespond({
+          moduleId: payload.module._id,
+          sessionId: this.sessionId,
+          sceneIndex: this.index,
+          userText,
+          pronunciationScore: ev.score || 0,
+          remainingSeconds,
+          turnNumber: this.conversationTurn,
+          history: this.conversationHistory.slice(-6),
+        }),
+      );
+
+      this.isAiThinking = false;
+
+      // Store AI response for CC
+      this.aiResponseText = response.text;
+      this.aiResponseTamil = response.translatedTamil;
+      this.conversationTurn = response.turnNumber;
+
+      // Record AI turn in local history
+      this.conversationHistory.push({ role: 'ai', text: response.text });
+
+      // Display AI response in dialogue
+      this.displayLine = response.text;
+      this.displaySub = '';
+      this.dialogueVariant = 'default';
+
+      // Speak the AI response
+      try {
+        await this.logTts();
+        await this.playTtsBlob(response.text);
+      } catch {
+        /* TTS failure is non-blocking */
+      }
+
+      if (response.sceneComplete || this.conversationTurn >= this.maxConversationTurns) {
+        // Conversation for this scene is complete — advance
+        this.practicePassed = true;
+        this.canNext = true;
+        await dgDelay(600);
+        this.scheduleAutoAdvance(1000);
+      } else {
+        // Reset for the next student turn — restore scene text and enable mic
+        await dgDelay(400);
+        this.displayLine = scene.text || '';
+        this.displaySub = scene.translation || '';
+        this.dialogueVariant = 'default';
+        this.practicePassed = false;
+        this.canNext = false;
+        this.practiceRetryTick += 1;
+        this.status = 'idle';
+        this.charState.setState('idle');
+      }
+    } catch (err) {
+      // AI call failed — treat as a regular pass and advance
+      console.error('[dg-bot-player] conversation respond failed:', err);
+      this.isAiThinking = false;
+      this.practicePassed = true;
+      this.canNext = true;
+      this.status = 'idle';
+      this.scheduleAutoAdvance(1800);
     }
   }
 

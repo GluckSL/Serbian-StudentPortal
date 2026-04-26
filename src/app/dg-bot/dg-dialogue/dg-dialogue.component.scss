@@ -92,6 +92,78 @@
   line-height: 1.45;
 }
 
+// ── CC (Closed Captions) ─────────────────────────────────────────────────────
+
+.dg-bubble__cc-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.dg-bubble__cc-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.07);
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+
+  &:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &--active {
+    background: rgba(99, 102, 241, 0.22);
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #3730a3;
+  }
+}
+
+.dg-bubble__cc-panel {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(238, 242, 255, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  animation: dg-cc-in 200ms ease;
+}
+
+.dg-bubble__cc-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+@keyframes dg-cc-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 @media (prefers-reduced-motion: reduce) {
   .dg-bubble {
     transition: none;
@@ -103,5 +175,9 @@
 
   .dg-bubble__tts:hover:not([disabled]) {
     transform: none;
+  }
+
+  .dg-bubble__cc-panel {
+    animation: none;
   }
 }

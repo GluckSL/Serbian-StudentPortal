@@ -19,6 +19,15 @@
   border-radius: 14px;
 }
 
+.dg-admin-mm .admin-header .row {
+  margin: 0;
+}
+
+.dg-admin-mm .admin-header .col-md-8,
+.dg-admin-mm .admin-header .col-md-4 {
+  padding: 0;
+}
+
 .dg-admin-mm .admin-title {
   font-size: 15px;
   font-weight: 700;
@@ -68,7 +77,7 @@
 }
 
 .dg-admin-mm .admin-content {
-  padding: 0 14px 20px;
+  padding: 12px 14px 20px;
 }
 
 .dg-admin-mm .action-bar {
@@ -80,19 +89,72 @@
   border: 1px solid #e8ecf4;
 }
 
+.dg-admin-mm .action-bar .row {
+  margin: 0;
+}
+
+.dg-admin-mm .action-bar .col-md-6 {
+  padding: 0;
+}
+
+.dg-mm-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dg-mm-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dg-mm-search-wrap {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.dg-mm-filter-wrap {
+  width: 170px;
+}
+
 .dg-admin-mm .btn-add-module {
   background: #005b96;
   border: none;
   color: #fff;
   font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 999px;
+  padding: 5px 12px;
+  border-radius: 8px;
   font-size: 11px;
   font-family: inherit;
 }
 
 .dg-admin-mm .btn-add-module:hover {
   background: #03396c;
+  color: #fff;
+}
+
+.dg-admin-mm .btn-trash-module {
+  background: #e11d48;
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dg-admin-mm .btn-trash-module:hover {
+  background: #be123c;
   color: #fff;
 }
 
@@ -126,6 +188,10 @@
   background: #fff;
 }
 
+.dg-mm-search::placeholder {
+  color: #94a3b8;
+}
+
 .dg-admin-mm .stats-section {
   margin-bottom: 10px;
 }
@@ -135,7 +201,7 @@
   align-items: center;
   padding: 10px 12px;
   border-radius: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
   border: 1px solid #e8ecf4;
 }
@@ -227,20 +293,19 @@
   min-width: 0;
 }
 
-/* Table card (Module Management) */
-.dg-admin-mm .data-table-card .card {
+/* ── Modules table (same chrome as Learning → Module Management) ── */
+.dg-admin-mm .modules-table .data-table-card .card {
   border: 1px solid #e8ecf4;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
   border-radius: 14px;
   overflow: hidden;
 }
 
-.dg-mm-table-wrap {
-  max-height: min(62vh, 600px);
-  overflow: auto;
+.dg-admin-mm .modules-table .table {
+  margin-bottom: 0;
 }
 
-.dg-mm-table thead th {
+.dg-admin-mm .modules-table .table thead th {
   background: #03396c;
   color: #fff;
   font-weight: 600;
@@ -251,48 +316,60 @@
   letter-spacing: 0.04em;
 }
 
-.dg-mm-table tbody td {
+.dg-admin-mm .modules-table .table tbody td {
   padding: 8px 10px;
   vertical-align: middle;
   border-bottom: 1px solid #f1f5f9;
   font-size: 12px;
 }
 
-.dg-mm-row {
-  cursor: pointer;
+.dg-admin-mm .modules-table .table tbody tr {
   transition: background 0.15s;
 }
 
-.dg-mm-row:hover {
+.dg-admin-mm .modules-table .table tbody tr:hover {
   background: #f8fafc;
 }
 
-.dg-mm-row.table-active {
-  background: #e8f4fc !important;
-  box-shadow: inset 3px 0 0 #005b96;
-}
-
-.mm-module-info .mm-module-title {
+.dg-admin-mm .module-info .module-title {
   font-weight: 600;
   color: #0f172a;
   font-size: 12px;
 }
 
-.mm-module-info .mm-module-desc {
+.dg-admin-mm .module-info .module-desc {
   color: #94a3b8;
   font-size: 10px;
   margin-top: 2px;
   line-height: 1.35;
 }
 
-.dg-admin-mm .dg-mm-table .badge {
+.dg-admin-mm .level-category small {
+  font-size: 10px;
+}
+
+.dg-admin-mm .journey-day-cell {
+  min-width: 72px;
+}
+
+.dg-admin-mm .journey-day-badge {
+  background: #e8f4fc !important;
+  color: #005b96 !important;
+  border: 1px solid #b8d4e8;
+}
+
+.dg-admin-mm .journey-day-pool {
+  font-size: 11px;
+}
+
+.dg-admin-mm .modules-table .badge {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 10px;
 }
 
-.dg-admin-mm .dg-mm-table .badge.bg-primary {
+.dg-admin-mm .modules-table .badge.bg-primary {
   background: #dbeafe !important;
   color: #005b96 !important;
 }
@@ -305,6 +382,77 @@
 .mm-badge-draft {
   background: #fef3c7 !important;
   color: #92400e !important;
+}
+
+.dg-admin-mm .action-buttons {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.dg-admin-mm .action-buttons .btn {
+  padding: 3px 7px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+@media (max-width: 991px) {
+  .dg-mm-controls {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .dg-mm-search-wrap {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .dg-mm-filter-wrap {
+    width: 100%;
+  }
+}
+
+.dg-admin-mm .btn-outline-primary {
+  color: #005b96;
+  border-color: #005b96;
+}
+
+.dg-admin-mm .btn-outline-primary:hover {
+  background: #005b96;
+  color: #fff;
+}
+
+.dg-admin-mm .btn-outline-success {
+  color: #28a745;
+  border-color: #28a745;
+}
+
+.dg-admin-mm .btn-outline-success:hover {
+  background: #28a745;
+  color: #fff;
+}
+
+.dg-admin-mm .btn-outline-danger {
+  color: #e11d48;
+  border-color: #e11d48;
+}
+
+.dg-admin-mm .btn-outline-danger:hover {
+  background: #e11d48;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .dg-admin-mm .action-buttons {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .dg-admin-mm .action-buttons .btn {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
 }
 
 .dg-admin-mm .empty-state {

@@ -6,6 +6,7 @@ const dgCharacterController = require('../controllers/dgCharacterController');
 const dgModuleController = require('../controllers/dgModuleController');
 const dgSessionController = require('../controllers/dgSessionController');
 const dgTtsController = require('../controllers/dgTtsController');
+const dgConversationController = require('../controllers/dgConversationController');
 
 const staffRoles = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
 
@@ -30,5 +31,7 @@ router.post('/session/complete', verifyToken, dgSessionController.complete);
 router.get('/session/mine', verifyToken, dgSessionController.getMySessions);
 
 router.post('/tts', verifyToken, dgTtsController.synthesize);
+
+router.post('/conversation/respond', verifyToken, dgConversationController.respond);
 
 module.exports = router;
