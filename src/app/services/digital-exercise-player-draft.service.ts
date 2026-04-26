@@ -20,7 +20,7 @@ export interface DigitalExerciseDraftItem {
   qaResponse?: string;
   listeningText?: string;
   vpSpokenText?: string;
-  vpResult?: 'idle' | 'correct' | 'incorrect';
+  vpResult?: 'idle' | 'correct' | 'almostCorrect' | 'incorrect';
   vpPlaybackEnded?: boolean;
   vpFailCount?: number;
   isAnswered?: boolean;

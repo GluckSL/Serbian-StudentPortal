@@ -495,7 +495,7 @@ interface TimelineDay {
           <div class="j-ro-card-body">
             <span class="j-ro-card-label">Strict journey rule</span>
             <span class="j-ro-card-value">
-              {{ editStrictJourneyRule ? ('On — min ' + (editStrictThresholdPercent ?? 100) + '% of day tasks') : 'Off (lenient)' }}
+              {{ editStrictJourneyRule ? ('On — min ' + editStrictThresholdPercent + '% of day tasks') : 'Off (lenient)' }}
             </span>
           </div>
         </div>
@@ -1636,10 +1636,61 @@ interface TimelineDay {
         <p>No Silver students added to GO batch yet.</p>
       </div>
 
+      <div class="gs-bulk-row" *ngIf="!goLoading && goStudents.length > 0">
+        <div class="gs-bulk-left">
+          <span class="gs-bulk-count">{{ goSelectedCount }} selected</span>
+          <button
+            type="button"
+            class="j-btn j-btn-sm j-btn-outline"
+            (click)="clearGoSelections()"
+            [disabled]="goSelectedCount === 0 || goBulkUpdating"
+          >
+            Clear selection
+          </button>
+        </div>
+        <div class="gs-bulk-actions">
+          <button
+            type="button"
+            class="j-btn j-btn-sm"
+            style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;"
+            (click)="bulkRemoveBatchFromGo()"
+            [disabled]="goSelectedCount === 0 || goBulkUpdating"
+          >
+            <i class="fas" [class.fa-spinner]="goBulkUpdating" [class.fa-eraser]="!goBulkUpdating"></i>
+            {{ goBulkUpdating ? 'Updating…' : 'Remove Batch' }}
+          </button>
+          <input
+            type="number"
+            class="j-input-sm gs-day-input"
+            [(ngModel)]="goBulkDay"
+            min="1"
+            max="200"
+            placeholder="Set day"
+          />
+          <button
+            type="button"
+            class="j-btn j-btn-sm j-btn-primary"
+            (click)="bulkSetGoDay()"
+            [disabled]="goSelectedCount === 0 || !goBulkDay || goBulkUpdating"
+          >
+            <i class="fas" [class.fa-spinner]="goBulkUpdating" [class.fa-calendar-day]="!goBulkUpdating"></i>
+            {{ goBulkUpdating ? 'Updating…' : 'Apply Day' }}
+          </button>
+        </div>
+      </div>
+
       <div *ngIf="!goLoading && goStudents.length > 0" class="j-batch-table-wrap" style="margin-top:0;">
         <table class="j-table">
           <thead>
             <tr>
+              <th style="width:42px;" class="text-center">
+                <input
+                  type="checkbox"
+                  [checked]="areAllGoChecked"
+                  (change)="toggleSelectAllGo($event)"
+                  aria-label="Select all GO students"
+                />
+              </th>
               <th>Name</th>
               <th>Student ID</th>
               <th>Batch</th>
@@ -1652,6 +1703,14 @@ interface TimelineDay {
           </thead>
           <tbody>
             <tr *ngFor="let s of goStudents">
+              <td class="text-center">
+                <input
+                  type="checkbox"
+                  [checked]="isGoSelected(s._id)"
+                  (change)="toggleGoSelection(s._id, $event)"
+                  aria-label="Select GO student"
+                />
+              </td>
               <td>
                 <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
                 <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
@@ -1709,6 +1768,49 @@ interface TimelineDay {
         <button type="button" class="j-btn j-btn-outline" (click)="loadSilverStudents()">
           <i class="fas fa-sync-alt"></i> Refresh list
         </button>
+      </div>
+
+      <div class="gs-bulk-row" *ngIf="!silverLoading && filteredSilverStudents.length > 0">
+        <div class="gs-bulk-left">
+          <span class="gs-bulk-count">{{ silverSelectedCount }} selected</span>
+          <button
+            type="button"
+            class="j-btn j-btn-sm j-btn-outline"
+            (click)="clearSilverSelections()"
+            [disabled]="silverSelectedCount === 0 || silverBulkUpdating"
+          >
+            Clear selection
+          </button>
+        </div>
+        <div class="gs-bulk-actions">
+          <button
+            type="button"
+            class="j-btn j-btn-sm"
+            style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;"
+            (click)="bulkRemoveBatchFromSilver()"
+            [disabled]="silverSelectedCount === 0 || silverBulkUpdating"
+          >
+            <i class="fas" [class.fa-spinner]="silverBulkUpdating" [class.fa-eraser]="!silverBulkUpdating"></i>
+            {{ silverBulkUpdating ? 'Updating…' : 'Remove Batch' }}
+          </button>
+          <input
+            type="number"
+            class="j-input-sm gs-day-input"
+            [(ngModel)]="silverBulkDay"
+            min="1"
+            max="200"
+            placeholder="Set day"
+          />
+          <button
+            type="button"
+            class="j-btn j-btn-sm j-btn-primary"
+            (click)="bulkSetSilverDay()"
+            [disabled]="silverSelectedCount === 0 || !silverBulkDay || silverBulkUpdating"
+          >
+            <i class="fas" [class.fa-spinner]="silverBulkUpdating" [class.fa-calendar-day]="!silverBulkUpdating"></i>
+            {{ silverBulkUpdating ? 'Updating…' : 'Apply Day' }}
+          </button>
+        </div>
       </div>
 
       <div *ngIf="silverLoading" class="j-loading" style="min-height:200px;">
@@ -3417,6 +3519,42 @@ interface TimelineDay {
       margin-bottom: 14px;
       flex-wrap: wrap;
     }
+    .gs-bulk-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+      flex-wrap: wrap;
+    }
+    .gs-bulk-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .gs-bulk-count {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      background: #e2e8f0;
+      border-radius: 999px;
+      padding: 4px 10px;
+    }
+    .gs-bulk-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .gs-day-input {
+      width: 110px;
+      height: 30px;
+    }
     .gs-batch-select {
       min-width: 180px;
       max-width: 260px;
@@ -3614,9 +3752,14 @@ export class JourneyManagementComponent implements OnInit {
   silverSearch = '';
   silverBatchFilter = 'all';
   silverSelectedIds = new Set<string>();
+  goSelectedIds = new Set<string>();
   silverAddingIds = new Set<string>();
   goRemovingIds = new Set<string>();
   silverBatchList: string[] = [];
+  goBulkDay: number | null = null;
+  goBulkUpdating = false;
+  silverBulkDay: number | null = null;
+  silverBulkUpdating = false;
 
   constructor(
     private http: HttpClient,
@@ -3669,6 +3812,18 @@ export class JourneyManagementComponent implements OnInit {
     return list.every((s) => this.silverSelectedIds.has(s._id));
   }
 
+  get silverSelectedCount(): number {
+    return this.silverSelectedIds.size;
+  }
+
+  get areAllGoChecked(): boolean {
+    return this.goStudents.length > 0 && this.goStudents.every((s) => this.goSelectedIds.has(String(s._id)));
+  }
+
+  get goSelectedCount(): number {
+    return this.goSelectedIds.size;
+  }
+
   closeCreateBatch(): void {
     this.showCreateBatch = false;
     this.creatingBatch = false;
@@ -3708,6 +3863,8 @@ export class JourneyManagementComponent implements OnInit {
     this.http.get<any>(`${environment.apiUrl}/go-students`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.goStudents = r.students || [];
+        this.goSelectedIds.clear();
+        this.goBulkDay = null;
         this.goLoading = false;
       },
       error: (e) => {
@@ -3747,6 +3904,7 @@ export class JourneyManagementComponent implements OnInit {
         this.silverBatchList = r?.batches || [];
         this.silverLoading = false;
         this.silverSelectedIds.clear();
+        this.silverBulkDay = null;
       },
       error: (e) => {
         this.silverLoading = false;
@@ -3771,12 +3929,38 @@ export class JourneyManagementComponent implements OnInit {
     else this.filteredSilverStudents.forEach((s) => this.silverSelectedIds.delete(s._id));
   }
 
+  clearSilverSelections(): void {
+    this.silverSelectedIds.clear();
+  }
+
   isSilverAdding(studentId: string): boolean {
     return this.silverAddingIds.has(studentId);
   }
 
   isGoRemoving(studentId: string): boolean {
     return this.goRemovingIds.has(studentId);
+  }
+
+  isGoSelected(studentId: string): boolean {
+    return this.goSelectedIds.has(String(studentId));
+  }
+
+  toggleGoSelection(studentId: string, event: Event): void {
+    const id = String(studentId || '');
+    const checked = !!(event?.target as HTMLInputElement)?.checked;
+    if (!id) return;
+    if (checked) this.goSelectedIds.add(id);
+    else this.goSelectedIds.delete(id);
+  }
+
+  toggleSelectAllGo(event: Event): void {
+    const checked = !!(event?.target as HTMLInputElement)?.checked;
+    if (checked) this.goStudents.forEach((s) => this.goSelectedIds.add(String(s._id)));
+    else this.goStudents.forEach((s) => this.goSelectedIds.delete(String(s._id)));
+  }
+
+  clearGoSelections(): void {
+    this.goSelectedIds.clear();
   }
 
   removeFromGo(student: any): void {
@@ -3791,6 +3975,7 @@ export class JourneyManagementComponent implements OnInit {
         this.goRemovingIds.delete(studentId);
         this.notify.success(r?.message || 'Student moved back to Silver.');
         this.goStudents = this.goStudents.filter((s) => String(s?._id) !== studentId);
+        this.goSelectedIds.delete(studentId);
         const removedStudent = r?.student;
         if (removedStudent?.subscription === 'SILVER') {
           const exists = this.silverStudents.some((s) => String(s._id) === String(removedStudent._id));
@@ -3800,6 +3985,70 @@ export class JourneyManagementComponent implements OnInit {
       error: (e) => {
         this.goRemovingIds.delete(studentId);
         this.notify.error(e?.error?.message || 'Failed to move student to Silver.');
+      }
+    });
+  }
+
+  bulkRemoveBatchFromGo(): void {
+    const studentIds = Array.from(this.goSelectedIds);
+    if (!studentIds.length) {
+      this.notify.error('Select at least one GO student.');
+      return;
+    }
+
+    this.goBulkUpdating = true;
+    this.http.post<any>(
+      `${environment.apiUrl}/go-students/bulk-remove-batch`,
+      { studentIds },
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        const idSet = new Set(studentIds.map((id) => String(id)));
+        this.goStudents = this.goStudents.map((s) =>
+          idSet.has(String(s._id)) ? { ...s, batch: '' } : s
+        );
+        this.goBulkUpdating = false;
+        this.goSelectedIds.clear();
+        this.notify.success(r?.message || 'Batch removed for selected GO students.');
+      },
+      error: (e) => {
+        this.goBulkUpdating = false;
+        this.notify.error(e?.error?.message || 'Failed to remove batch for selected GO students.');
+      }
+    });
+  }
+
+  bulkSetGoDay(): void {
+    const studentIds = Array.from(this.goSelectedIds);
+    const day = Number(this.goBulkDay);
+    if (!studentIds.length) {
+      this.notify.error('Select at least one GO student.');
+      return;
+    }
+    if (!Number.isFinite(day) || day < 1 || day > 200) {
+      this.notify.error('Enter a valid day between 1 and 200.');
+      return;
+    }
+
+    this.goBulkUpdating = true;
+    this.http.post<any>(
+      `${environment.apiUrl}/go-students/bulk-set-day`,
+      { studentIds, day: Math.floor(day) },
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        const targetDay = Math.floor(day);
+        const idSet = new Set(studentIds.map((id) => String(id)));
+        this.goStudents = this.goStudents.map((s) =>
+          idSet.has(String(s._id)) ? { ...s, currentCourseDay: targetDay } : s
+        );
+        this.goBulkUpdating = false;
+        this.goSelectedIds.clear();
+        this.notify.success(r?.message || `Journey day set to ${targetDay}.`);
+      },
+      error: (e) => {
+        this.goBulkUpdating = false;
+        this.notify.error(e?.error?.message || 'Failed to set journey day for selected GO students.');
       }
     });
   }
@@ -3824,6 +4073,70 @@ export class JourneyManagementComponent implements OnInit {
       error: (e) => {
         this.silverAddingIds.delete(student._id);
         this.notify.error(e?.error?.message || 'Failed to move student to GO batch.');
+      }
+    });
+  }
+
+  bulkRemoveBatchFromSilver(): void {
+    const studentIds = Array.from(this.silverSelectedIds);
+    if (!studentIds.length) {
+      this.notify.error('Select at least one student.');
+      return;
+    }
+
+    this.silverBulkUpdating = true;
+    this.http.post<any>(
+      `${environment.apiUrl}/go-students/silver/bulk-remove-batch`,
+      { studentIds },
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        const idSet = new Set(studentIds.map((id) => String(id)));
+        this.silverStudents = this.silverStudents.map((s) =>
+          idSet.has(String(s._id)) ? { ...s, batch: '' } : s
+        );
+        this.silverBulkUpdating = false;
+        this.silverSelectedIds.clear();
+        this.notify.success(r?.message || 'Batch removed for selected students.');
+      },
+      error: (e) => {
+        this.silverBulkUpdating = false;
+        this.notify.error(e?.error?.message || 'Failed to remove batch for selected students.');
+      }
+    });
+  }
+
+  bulkSetSilverDay(): void {
+    const studentIds = Array.from(this.silverSelectedIds);
+    const day = Number(this.silverBulkDay);
+    if (!studentIds.length) {
+      this.notify.error('Select at least one student.');
+      return;
+    }
+    if (!Number.isFinite(day) || day < 1 || day > 200) {
+      this.notify.error('Enter a valid day between 1 and 200.');
+      return;
+    }
+
+    this.silverBulkUpdating = true;
+    this.http.post<any>(
+      `${environment.apiUrl}/go-students/silver/bulk-set-day`,
+      { studentIds, day: Math.floor(day) },
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        const targetDay = Math.floor(day);
+        const idSet = new Set(studentIds.map((id) => String(id)));
+        this.silverStudents = this.silverStudents.map((s) =>
+          idSet.has(String(s._id)) ? { ...s, currentCourseDay: targetDay } : s
+        );
+        this.silverBulkUpdating = false;
+        this.silverSelectedIds.clear();
+        this.notify.success(r?.message || `Journey day set to ${targetDay}.`);
+      },
+      error: (e) => {
+        this.silverBulkUpdating = false;
+        this.notify.error(e?.error?.message || 'Failed to set journey day for selected students.');
       }
     });
   }

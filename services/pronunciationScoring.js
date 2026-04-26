@@ -20,12 +20,23 @@ function stripDiacritics(s) {
   return String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Remove consecutive duplicate tokens ("the the dog" → "the dog"). */
+function deduplicateConsecutiveTokens(text) {
+  const tokens = text.split(' ');
+  const result = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (i === 0 || tokens[i] !== tokens[i - 1]) result.push(tokens[i]);
+  }
+  return result.join(' ');
+}
+
 function normalizeText(raw) {
-  return stripDiacritics(raw)
+  const base = stripDiacritics(raw)
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  return deduplicateConsecutiveTokens(base);
 }
 
 // Number-word ↔ digit equivalence (covers DE + EN, enough for our exercises).
@@ -193,6 +204,57 @@ function evaluateThreshold(score, threshold) {
     ? Math.max(0, Math.min(100, Math.round(Number(threshold))))
     : DEFAULT_THRESHOLD;
   return { isCorrect: score >= t, threshold: t };
+}
+
+/**
+ * Advanced 3-state threshold evaluation — reduces false negatives and makes
+ * the system more learner-friendly.
+ *
+ * Result states:
+ *   isCorrect:      score >= effectiveThreshold  (+ override rules below)
+ *   isAlmostCorrect: !isCorrect && score >= (effectiveThreshold - 25)
+ *   incorrect:      everything below almostCorrect band
+ *
+ * Override rules (flip near-miss to correct):
+ *   1. Short word (≤ 4 chars with no spaces): threshold relieved by 10 pts.
+ *   2. Edit distance ≤ 1 on the normalised strings → always correct.
+ *   3. High confidence + score ≥ 55 → always correct.
+ *
+ * @param {number} score - 0-100
+ * @param {number} threshold - configured pass threshold
+ * @param {{ confidence?: string, normalizedExpected?: string, normalizedSpoken?: string }} opts
+ */
+function evaluateThresholdAdvanced(score, threshold, opts = {}) {
+  const { confidence, normalizedExpected = '', normalizedSpoken = '' } = opts;
+
+  const rawT = Number.isFinite(Number(threshold))
+    ? Math.max(0, Math.min(100, Math.round(Number(threshold))))
+    : DEFAULT_THRESHOLD;
+
+  // Short-word relief: a word like "ein" has far less leeway for variation.
+  const charsNoSpaces = normalizedExpected.replace(/\s+/g, '').length;
+  const shortWordRelief = (charsNoSpaces > 0 && charsNoSpaces <= 4) ? 10 : 0;
+  const effectiveThreshold = Math.max(0, rawT - shortWordRelief);
+
+  // Override 1: tiny edit distance (e.g. "nam" vs "name", "bok" vs "book").
+  if (normalizedExpected.length > 0 && normalizedSpoken.length > 0) {
+    const dist = editDistance(normalizedExpected, normalizedSpoken);
+    if (dist <= 1) {
+      return { isCorrect: true, isAlmostCorrect: false, threshold: effectiveThreshold };
+    }
+  }
+
+  // Override 2: high confidence signal from the ASR engine + reasonable score.
+  if (confidence === 'high' && score >= 55) {
+    return { isCorrect: true, isAlmostCorrect: false, threshold: effectiveThreshold };
+  }
+
+  // Standard 3-band evaluation.
+  const almostThreshold = Math.max(0, effectiveThreshold - 25);
+  const isCorrect = score >= effectiveThreshold;
+  const isAlmostCorrect = !isCorrect && score >= almostThreshold;
+
+  return { isCorrect, isAlmostCorrect, threshold: effectiveThreshold };
 }
 
 /**
@@ -403,6 +465,7 @@ module.exports = {
   calculateSimilarity,
   scorePronunciation,
   evaluateThreshold,
+  evaluateThresholdAdvanced,
   computeConfidence,
   compareWords,
   buildWordAnalysis,

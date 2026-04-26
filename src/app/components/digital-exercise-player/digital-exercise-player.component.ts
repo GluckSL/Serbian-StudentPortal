@@ -74,13 +74,29 @@ interface PlayerQuestion {
   pronEngine?: string;
   /** Last requestId from the backend evaluator — useful for support / debugging. */
   pronRequestId?: string;
+  /** True when the last attempt was in the "almost correct" band. */
+  pronAlmostCorrect?: boolean;
+  /** Word-level analysis rows for the learner-facing comparison view. */
+  pronWordAnalysis?: Array<{ expected: string; spoken: string; status: 'correct' | 'incorrect' | 'missing' }>;
+  /** Contextual pronunciation hints from the server. */
+  pronHints?: string[];
+  /** Expected phrase shown to learner for comparison. */
+  pronExpectedText?: string;
   // Question/Answer state
   qaResponse?: string;
   // Listening state
   listeningText?: string;
   // Video Pronunciation state
   vpSpokenText?: string;
-  vpResult?: 'idle' | 'correct' | 'incorrect';
+  vpResult?: 'idle' | 'correct' | 'almostCorrect' | 'incorrect';
+  /** True when current clip result is in the almost-correct band. */
+  vpAlmostCorrect?: boolean;
+  /** Word analysis for the video-pronunciation clip comparison view. */
+  vpWordAnalysis?: Array<{ expected: string; spoken: string; status: 'correct' | 'incorrect' | 'missing' }>;
+  /** Hints for the video-pronunciation clip. */
+  vpHints?: string[];
+  /** Expected caption shown for comparison. */
+  vpExpectedText?: string;
   vpAutoAdvanceTimer?: any;
   /** Bumped to cancel in-flight praise/retry sequences (e.g. user hits Try again). */
   vpAdvanceSeq?: number;
@@ -351,8 +367,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Copy the user can read while a silent recording is being rejected. */
   silentRejectMessage(reason: SilenceCheckResult['reason']): string {
-    if (reason === 'too-short') return 'That was very quick — hold the button a little longer and try again.';
-    return 'We couldn’t hear you clearly. Please speak louder and try again.';
+    if (reason === 'too-short') return 'That was very quick — hold the button a little longer and speak clearly.';
+    return 'We couldn’t hear you — please speak a bit louder and try again.';
   }
 
   private clearPronProcessingSlowTimer(): void {
@@ -377,8 +393,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Label helper for confidence-tier UI messaging (low / medium / high). */
   confidenceHeadline(conf: PronunciationConfidence | undefined | null): string | null {
     if (conf === 'high') return 'Great job!';
-    if (conf === 'medium') return 'Almost there!';
-    if (conf === 'low') return 'We might not have heard you clearly. Try again.';
+    if (conf === 'medium') return 'Almost there — try once more';
+    if (conf === 'low') return "Let's try again";
     return null;
   }
 
@@ -2554,13 +2570,30 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.hasRecorded = true;
       pq.pronunciationScore = bestScore;
       const passThreshold = this.videoPassThresholdForQuestion(pq);
+      const almostThreshold = Math.max(0, passThreshold - 25);
       const isCorrect = pq.pronunciationScore >= passThreshold;
-      pq.vpResult = isCorrect ? 'correct' : 'incorrect';
-      if (!isCorrect) pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+      const isAlmostCorrect = !isCorrect && pq.pronunciationScore >= almostThreshold;
+      pq.vpAlmostCorrect = isAlmostCorrect;
+
+      if (isCorrect) {
+        pq.vpResult = 'correct';
+      } else if (isAlmostCorrect) {
+        pq.vpResult = 'almostCorrect';
+      } else {
+        pq.vpResult = 'incorrect';
+      }
+
+      if (!isCorrect && !isAlmostCorrect) pq.vpFailCount = (pq.vpFailCount || 0) + 1;
       this.markAttempted(pq);
       if (this.isVideoOnlyExercise) {
         this.pushVpChat('user', pq.vpSpokenText || '', { isCorrect, score: pq.pronunciationScore || 0 });
-        this.pushVpChat('tutor', isCorrect ? 'Okay' : `Not quite — target is ${passThreshold}%+. Choose retry or next clip.`);
+        if (isCorrect) {
+          this.pushVpChat('tutor', 'Great job!');
+        } else if (isAlmostCorrect) {
+          this.pushVpChat('tutor', 'Almost there — try once more for a perfect score!');
+        } else {
+          this.pushVpChat('tutor', `Not quite — target is ${passThreshold}%+. Choose retry or next clip.`);
+        }
       }
 
       if (isCorrect) {
@@ -2954,13 +2987,20 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.pronMessage = null as unknown as string;
       pq.pronEngine = res.engine;
       pq.pronRequestId = res.requestId;
+      pq.pronAlmostCorrect = !!res.isAlmostCorrect && !res.isCorrect;
+      pq.pronWordAnalysis = res.wordAnalysis || [];
+      pq.pronHints = res.hints || [];
+      pq.pronExpectedText = res.expectedText || expected;
       this.lastConfidenceByIndex[pq.index] = res.confidence;
       this.markAttempted(pq);
 
       const passed = !!res.isCorrect;
-      const nextFailCount = this.pronAnalytics.recordAttemptOutcome(attemptKey, passed);
+      // Almost-correct attempts do NOT count as failures (no retry-counter increment).
+      const countAsFail = !passed && !res.isAlmostCorrect;
+      const nextFailCount = countAsFail
+        ? this.pronAnalytics.recordAttemptOutcome(attemptKey, false)
+        : this.pronAnalytics.getFailCount(attemptKey);
       if (passed) {
-        // Feed the user profile so future thresholds adapt to their voice.
         this.pronAnalytics.recordSuccessfulAttempt({
           average: silence.stats.average,
           peak: silence.stats.peak,
@@ -2968,7 +3008,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         });
         this.assistedModeByIndex[pq.index] = false;
         this.autoReplayArmedFor[pq.index] = false;
-      } else {
+      } else if (countAsFail) {
         this.maybeTriggerSmartAssistWord(pq, nextFailCount);
       }
 
@@ -3006,13 +3046,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** After a failed word attempt, flip on assisted mode / auto-replay per spec. */
   private maybeTriggerSmartAssistWord(pq: PlayerQuestion, failCount: number): void {
-    if (failCount >= 3) {
+    // At 2 fails: activate assisted mode (relaxed threshold) + show hint.
+    if (failCount >= 2) {
       this.assistedModeByIndex[pq.index] = true;
     }
     if (failCount === 2 && !this.autoReplayArmedFor[pq.index]) {
       this.autoReplayArmedFor[pq.index] = true;
-      this.snackBar.open('Tip: speak slowly and clearly.', 'Close', { duration: 3500 });
-      // Replay reference once to reset the student's pronunciation model.
+      this.snackBar.open('Try speaking a bit slower and more clearly.', 'Close', { duration: 4000 });
       setTimeout(() => this.replayReferenceForRetry(pq), 300);
     }
   }
@@ -3189,12 +3229,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Clip-flow equivalent of the word smart-assist trigger. */
   private maybeTriggerSmartAssistClip(pq: PlayerQuestion, failCount: number): void {
-    if (failCount >= 3) {
+    if (failCount >= 2) {
       this.assistedModeByIndex[pq.index] = true;
     }
     if (failCount === 2 && !this.autoReplayArmedFor[pq.index]) {
       this.autoReplayArmedFor[pq.index] = true;
-      this.snackBar.open('Tip: speak slowly and clearly.', 'Close', { duration: 3500 });
+      this.snackBar.open('Try speaking a bit slower and more clearly.', 'Close', { duration: 4000 });
       setTimeout(() => this.replayReferenceForRetry(pq), 300);
     }
   }
@@ -3249,18 +3289,37 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.hasRecorded = true;
     pq.pronEngine = res.engine;
     pq.pronRequestId = res.requestId;
+    pq.vpWordAnalysis = res.wordAnalysis || [];
+    pq.vpHints = res.hints || [];
+    pq.vpExpectedText = res.expectedText || '';
 
     const isCorrect = res.isCorrect;
-    pq.vpResult = isCorrect ? 'correct' : 'incorrect';
+    const isAlmostCorrect = !!res.isAlmostCorrect && !isCorrect;
+    pq.vpAlmostCorrect = isAlmostCorrect;
+
+    if (isCorrect) {
+      pq.vpResult = 'correct';
+    } else if (isAlmostCorrect) {
+      pq.vpResult = 'almostCorrect';
+    } else {
+      pq.vpResult = 'incorrect';
+    }
+
     pq.pronUiState = 'result';
     pq.pronMessage = null as unknown as string;
-    if (!isCorrect) pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+
+    // Almost-correct does NOT count as a failure attempt.
+    if (!isCorrect && !isAlmostCorrect) {
+      pq.vpFailCount = (pq.vpFailCount || 0) + 1;
+    }
     this.markAttempted(pq);
 
     if (this.isVideoOnlyExercise) {
       this.pushVpChat('user', pq.vpSpokenText || '(no audio)', { isCorrect, score: pq.pronunciationScore || 0 });
       if (isCorrect) {
-        this.pushVpChat('tutor', this.confidenceHeadline(res.confidence) || 'Okay');
+        this.pushVpChat('tutor', this.confidenceHeadline(res.confidence) || 'Great job!');
+      } else if (isAlmostCorrect) {
+        this.pushVpChat('tutor', 'Almost there — try once more for a perfect score!');
       } else {
         const headline = this.confidenceHeadline(res.confidence) || 'Not quite';
         this.pushVpChat('tutor', `${headline} — target is ${threshold}%+. Choose retry or next clip.`);
@@ -3271,6 +3330,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (pq.vpAutoAdvanceTimer) clearTimeout(pq.vpAutoAdvanceTimer);
       pq.vpAutoAdvanceTimer = undefined;
       void this.runVpCorrectAdvanceSequence(pq);
+    } else if (isAlmostCorrect) {
+      // Almost correct: stay on clip, show feedback, let student decide to retry or continue.
+      void this.runVpIncorrectFeedbackSequence(pq);
     } else {
       void this.runVpIncorrectFeedbackSequence(pq);
     }

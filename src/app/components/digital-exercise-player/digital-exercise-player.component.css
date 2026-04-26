@@ -1064,6 +1064,39 @@
 .score-label { font-size: 0.68rem; color: #888; font-weight: 600; }
 
 .pronunciation-feedback { font-size: 0.9rem; font-weight: 600; color: #555; }
+.pron-feedback--correct  { color: #15803d; }
+.pron-feedback--almost   { color: #92400e; }
+.pron-feedback--incorrect{ color: #b91c1c; }
+
+/* Comparison rows inside regular pron result */
+.pron-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 14px;
+  width: 100%;
+  max-width: 360px;
+}
+.pron-comparison-row { display: flex; align-items: baseline; gap: 6px; font-size: 0.85rem; }
+.pron-comparison-label { font-weight: 600; color: #64748b; min-width: 68px; }
+.pron-comparison-value { font-style: italic; color: #1e293b; }
+.pron-comparison-value--expected { color: #15803d; font-style: normal; font-weight: 600; }
+
+/* Word analysis section (regular pron) */
+.pron-word-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  width: 100%;
+}
+.pron-word-analysis-label { font-size: 0.75rem; font-weight: 600; color: #64748b; letter-spacing: 0.04em; }
+
+/* Retry nudge variant */
+.pronunciation-retry-nudge--almost { color: #92400e; }
 
 .speech-not-supported {
   display: flex;
@@ -2841,6 +2874,72 @@
   color: #fecaca;
 }
 
+.vp-stage-feedback.almost {
+  background: rgba(234, 179, 8, 0.3);
+  border: 1px solid rgba(253, 224, 71, 0.6);
+  color: #fef08a;
+}
+
+/* Retry-nudge for almost-correct */
+.vp-stage-retry-nudge--almost {
+  color: #fef08a;
+}
+
+/* "Continue anyway" pill */
+.vp-stage-pill--continue {
+  background: rgba(234, 179, 8, 0.2);
+  border: 1px solid rgba(253, 224, 71, 0.4);
+  color: #fef08a;
+}
+.vp-stage-pill--continue:hover:not(:disabled) {
+  background: rgba(234, 179, 8, 0.35);
+}
+
+/* Comparison rows */
+.vp-stage-comparison { display: flex; flex-direction: column; gap: 2px; }
+.vp-stage-transcript--expected .vp-stage-transcript__text { color: #bbf7d0; }
+
+/* Word-level analysis in VP stage */
+.vp-stage-word-analysis { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.vp-stage-word-analysis-label { font-size: 0.75rem; opacity: 0.7; font-weight: 600; letter-spacing: 0.04em; }
+
+/* Hint rows in VP stage */
+.vp-stage-hints { display: flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.pron-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 0;
+}
+.pron-hint .material-icons { font-size: 0.95rem; color: #fde047; flex-shrink: 0; }
+
+/* Word chips (shared between regular pron + VP) */
+.pron-word-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.pron-word-chips--mob { margin-bottom: 6px; }
+.pron-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.pron-chip--correct  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+.pron-chip--incorrect{ background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.pron-chip--missing  { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+.pron-chip-icon { font-size: 0.75rem !important; }
+
 .vp-stage-feedback-caption {
   margin: 0;
   max-width: 280px;
@@ -3914,10 +4013,24 @@
   color: #b91c1c;
   border: 1.5px solid #fca5a5;
 }
-
 .vp-feedback--incorrect .material-icons {
   color: #dc2626;
   font-size: 1.35rem;
+}
+
+/* Almost-correct mobile feedback */
+.vp-feedback--almost {
+  background: #fefce8;
+  color: #92400e;
+  border: 1.5px solid #fde68a;
+}
+.vp-feedback--almost .material-icons { color: #d97706; font-size: 1.35rem; }
+
+.vp-spoken--expected {
+  font-weight: 600;
+  font-style: normal;
+  color: #15803d;
+  opacity: 1;
 }
 
 .vp-spoken {

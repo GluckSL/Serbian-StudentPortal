@@ -58,6 +58,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const {
   scorePronunciation,
   evaluateThreshold,
+  evaluateThresholdAdvanced,
   normalizeText,
   computeConfidence,
   DEFAULT_THRESHOLD,
@@ -253,13 +254,21 @@ router.post(
         variants,
         lang: language.bcp47,
       });
-      const { isCorrect, threshold: appliedThreshold } = evaluateThreshold(
-        scoreRes.score,
-        threshold,
-      );
 
       const durationMs = Date.now() - startedAt;
       const confidence = computeConfidence(scoreRes.score);
+
+      // Advanced 3-state evaluation (replaces simple binary evaluateThreshold).
+      const { isCorrect, isAlmostCorrect, threshold: appliedThreshold } = evaluateThresholdAdvanced(
+        scoreRes.score,
+        threshold,
+        {
+          confidence,
+          normalizedExpected: scoreRes.normalizedExpected,
+          normalizedSpoken: scoreRes.normalizedSpoken,
+        },
+      );
+
       const { wordAnalysis, hints } = explainPronunciationFromScore(
         scoreRes,
         transcript,
@@ -276,9 +285,8 @@ router.post(
         score: scoreRes.score,
         threshold: appliedThreshold,
         isCorrect,
+        isAlmostCorrect,
         confidence,
-        // Silent uploads are usually caught client-side and never reach here,
-        // but if the client chose to forward one for observability we log it.
         silenceRejected: !!cm.silenceRejected,
         silenceReason: cm.silenceReason || null,
         networkError: false,
@@ -307,12 +315,16 @@ router.post(
         transcript,
         score: scoreRes.score,
         isCorrect,
+        isAlmostCorrect,
         confidence,
         threshold: appliedThreshold,
         assistedMode: !!cm.assistedMode,
         matchedAgainst: scoreRes.matchedAgainst,
         normalizedExpected: scoreRes.normalizedExpected,
         normalizedSpoken: scoreRes.normalizedSpoken,
+        // Human-readable comparison text for the learner-facing UI.
+        expectedText: scoreRes.matchedAgainst || expected,
+        spokenText: transcript,
         wordAnalysis,
         hints,
         durationMs,
@@ -367,11 +379,16 @@ router.post(
         variants,
         lang: language.bcp47,
       });
-      const { isCorrect, threshold: appliedThreshold } = evaluateThreshold(
+      const confidence = computeConfidence(scoreRes.score);
+      const { isCorrect, isAlmostCorrect, threshold: appliedThreshold } = evaluateThresholdAdvanced(
         scoreRes.score,
         threshold,
+        {
+          confidence,
+          normalizedExpected: scoreRes.normalizedExpected,
+          normalizedSpoken: scoreRes.normalizedSpoken,
+        },
       );
-      const confidence = computeConfidence(scoreRes.score);
       const { wordAnalysis, hints } = explainPronunciationFromScore(
         scoreRes,
         transcript,
@@ -409,12 +426,15 @@ router.post(
         transcript,
         score: scoreRes.score,
         isCorrect,
+        isAlmostCorrect,
         confidence,
         threshold: appliedThreshold,
         assistedMode: !!cm.assistedMode,
         matchedAgainst: scoreRes.matchedAgainst,
         normalizedExpected: scoreRes.normalizedExpected,
         normalizedSpoken: scoreRes.normalizedSpoken,
+        expectedText: scoreRes.matchedAgainst || expected,
+        spokenText: transcript,
         wordAnalysis,
         hints,
       });

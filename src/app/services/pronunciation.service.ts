@@ -48,6 +48,8 @@ export interface PronunciationEvaluateResponse {
   transcript: string;
   score: number;
   isCorrect: boolean;
+  /** True when score falls in the "almost correct" band (not quite passing but close). */
+  isAlmostCorrect?: boolean;
   /** Server-computed confidence tier (low / medium / high). */
   confidence?: PronunciationConfidence;
   /** Echoed from clientMeta — true when this attempt used a relaxed threshold. */
@@ -56,6 +58,10 @@ export interface PronunciationEvaluateResponse {
   matchedAgainst: string;
   normalizedExpected: string;
   normalizedSpoken: string;
+  /** Human-readable expected phrase (best-matched variant). Shown to learner. */
+  expectedText?: string;
+  /** Raw transcript as heard — shown alongside expectedText for comparison. */
+  spokenText?: string;
   /** Word-level alignment for explainable feedback (optional for older servers). */
   wordAnalysis?: PronunciationWordAnalysisRow[];
   hints?: string[];

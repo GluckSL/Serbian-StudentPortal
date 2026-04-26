@@ -146,6 +146,166 @@ router.get('/silver', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
   }
 });
 
+// ─── POST /api/go-students/bulk-remove-batch ─────────────────────────────────
+// Clear batch values for selected GO students.
+router.post('/bulk-remove-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const studentIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!studentIds.length) {
+      return res.status(400).json({ message: 'studentIds is required.' });
+    }
+
+    const result = await User.updateMany(
+      {
+        _id: { $in: studentIds },
+        role: 'STUDENT',
+        subscription: 'SILVER',
+        goStatus: 'GO'
+      },
+      { $set: { batch: '' } }
+    );
+
+    res.json({
+      message: `Batch removed for ${result.modifiedCount || 0} GO student(s).`,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (err) {
+    console.error('go-students POST /bulk-remove-batch', err);
+    res.status(500).json({ message: 'Failed to remove batch for selected GO students.', error: err.message });
+  }
+});
+
+// ─── POST /api/go-students/bulk-set-day ──────────────────────────────────────
+// Set journey day for selected GO students.
+router.post('/bulk-set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const studentIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!studentIds.length) {
+      return res.status(400).json({ message: 'studentIds is required.' });
+    }
+
+    let day = Number(req.body?.day);
+    if (!Number.isFinite(day)) {
+      return res.status(400).json({ message: 'day must be a number.' });
+    }
+    day = Math.floor(day);
+
+    const goBatchCfg = await BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean();
+    const maxDay =
+      goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
+    if (day < 1 || day > maxDay) {
+      return res.status(400).json({ message: `Journey day must be between 1 and ${maxDay}.` });
+    }
+
+    const result = await User.updateMany(
+      {
+        _id: { $in: studentIds },
+        role: 'STUDENT',
+        subscription: 'SILVER',
+        goStatus: 'GO'
+      },
+      {
+        $set: {
+          currentCourseDay: day,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        }
+      }
+    );
+
+    res.json({
+      message: `Journey day set to ${day} for ${result.modifiedCount || 0} GO student(s).`,
+      day,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (err) {
+    console.error('go-students POST /bulk-set-day', err);
+    res.status(500).json({ message: 'Failed to set journey day for selected GO students.', error: err.message });
+  }
+});
+
+// ─── POST /api/go-students/silver/bulk-remove-batch ──────────────────────────
+// Clear wrongly assigned batch values for selected Silver students (non-GO only).
+router.post('/silver/bulk-remove-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const studentIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!studentIds.length) {
+      return res.status(400).json({ message: 'studentIds is required.' });
+    }
+
+    const query = {
+      _id: { $in: studentIds },
+      role: 'STUDENT',
+      subscription: 'SILVER',
+      $or: [{ goStatus: { $exists: false } }, { goStatus: { $ne: 'GO' } }]
+    };
+
+    const result = await User.updateMany(query, {
+      $set: { batch: '' }
+    });
+
+    res.json({
+      message: `Batch removed for ${result.modifiedCount || 0} student(s).`,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (err) {
+    console.error('go-students POST /silver/bulk-remove-batch', err);
+    res.status(500).json({ message: 'Failed to remove batch for selected students.', error: err.message });
+  }
+});
+
+// ─── POST /api/go-students/silver/bulk-set-day ───────────────────────────────
+// Set journey day for selected Silver students (non-GO only).
+router.post('/silver/bulk-set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const studentIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!studentIds.length) {
+      return res.status(400).json({ message: 'studentIds is required.' });
+    }
+
+    let day = Number(req.body?.day);
+    if (!Number.isFinite(day)) {
+      return res.status(400).json({ message: 'day must be a number.' });
+    }
+    day = Math.floor(day);
+    if (day < 1 || day > 200) {
+      return res.status(400).json({ message: 'day must be between 1 and 200.' });
+    }
+
+    const query = {
+      _id: { $in: studentIds },
+      role: 'STUDENT',
+      subscription: 'SILVER',
+      $or: [{ goStatus: { $exists: false } }, { goStatus: { $ne: 'GO' } }]
+    };
+
+    const result = await User.updateMany(query, {
+      $set: {
+        currentCourseDay: day,
+        pendingJourneyDayAdvance: false,
+        pendingJourneyDayAdvanceForDay: null
+      }
+    });
+
+    res.json({
+      message: `Journey day set to ${day} for ${result.modifiedCount || 0} student(s).`,
+      day,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (err) {
+    console.error('go-students POST /silver/bulk-set-day', err);
+    res.status(500).json({ message: 'Failed to set journey day for selected students.', error: err.message });
+  }
+});
+
 // ─── PATCH /api/go-students/:studentId/journey-day ─────────────────────────────
 // Set the student's journey day (what they can access in the portal); clears pending auto-advance flags.
 router.patch('/:studentId/journey-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {

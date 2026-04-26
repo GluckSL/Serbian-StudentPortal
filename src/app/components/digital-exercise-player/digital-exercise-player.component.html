@@ -524,13 +524,25 @@
                     </span>
                   </div>
 
-                  <div class="vp-stage-feedback-wrap" *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'incorrect'">
-                    <div class="vp-stage-feedback" [class.ok]="currentQuestion.vpResult === 'correct'" [class.bad]="currentQuestion.vpResult === 'incorrect'">
-                      <span class="material-icons">{{ currentQuestion.vpResult === 'correct' ? 'check_circle' : 'cancel' }}</span>
-                      <!-- Video-only + mixed exercises: show result after speech recognition check -->
-                      <span>{{ currentQuestion.vpResult === 'correct' ? (isVideoOnlyExercise ? 'Got it!' : 'Correct!') : 'Try again' }}</span>
+                  <div class="vp-stage-feedback-wrap"
+                       *ngIf="currentQuestion.vpResult === 'correct' || currentQuestion.vpResult === 'almostCorrect' || currentQuestion.vpResult === 'incorrect'">
+                    <!-- Result banner -->
+                    <div class="vp-stage-feedback"
+                         [class.ok]="currentQuestion.vpResult === 'correct'"
+                         [class.almost]="currentQuestion.vpResult === 'almostCorrect'"
+                         [class.bad]="currentQuestion.vpResult === 'incorrect'">
+                      <span class="material-icons">
+                        {{ currentQuestion.vpResult === 'correct' ? 'check_circle' : (currentQuestion.vpResult === 'almostCorrect' ? 'star_half' : 'cancel') }}
+                      </span>
+                      <span>
+                        {{ currentQuestion.vpResult === 'correct'
+                            ? (isVideoOnlyExercise ? 'Got it!' : 'Correct!')
+                            : (currentQuestion.vpResult === 'almostCorrect' ? 'Almost there — try once more' : "Let's try again") }}
+                      </span>
                     </div>
+
                     <p class="vp-stage-feedback-caption" *ngIf="vpFeedbackCaption">{{ vpFeedbackCaption }}</p>
+
                     <p
                       class="vp-stage-confidence"
                       *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
@@ -538,13 +550,97 @@
                       [class.vp-stage-confidence--medium]="conf === 'medium'"
                       [class.vp-stage-confidence--low]="conf === 'low'"
                     >{{ confidenceHeadline(conf) }}</p>
-                    <p class="vp-stage-transcript" *ngIf="currentQuestion.vpSpokenText">
+
+                    <!-- Comparison: spoken vs expected -->
+                    <div class="vp-stage-comparison"
+                         *ngIf="currentQuestion.vpResult !== 'correct' && (currentQuestion.vpSpokenText || currentQuestion.vpExpectedText)">
+                      <p class="vp-stage-transcript" *ngIf="currentQuestion.vpSpokenText">
+                        <span class="vp-stage-transcript__label">You said:</span>
+                        <span class="vp-stage-transcript__text">"{{ currentQuestion.vpSpokenText }}"</span>
+                      </p>
+                      <p class="vp-stage-transcript vp-stage-transcript--expected" *ngIf="currentQuestion.vpExpectedText">
+                        <span class="vp-stage-transcript__label">Expected:</span>
+                        <span class="vp-stage-transcript__text">"{{ currentQuestion.vpExpectedText }}"</span>
+                      </p>
+                    </div>
+                    <p class="vp-stage-transcript" *ngIf="currentQuestion.vpResult === 'correct' && currentQuestion.vpSpokenText">
                       <span class="vp-stage-transcript__label">You said:</span>
-                      <span class="vp-stage-transcript__text">“{{ currentQuestion.vpSpokenText }}”</span>
+                      <span class="vp-stage-transcript__text">"{{ currentQuestion.vpSpokenText }}"</span>
+                    </p>
+
+                    <!-- Word-level analysis chips -->
+                    <div class="vp-stage-word-analysis"
+                         *ngIf="currentQuestion.vpResult !== 'correct' && currentQuestion.vpWordAnalysis && currentQuestion.vpWordAnalysis.length > 0">
+                      <span class="vp-stage-word-analysis-label">Word breakdown:</span>
+                      <div class="pron-word-chips">
+                        <span
+                          *ngFor="let w of currentQuestion.vpWordAnalysis"
+                          class="pron-chip"
+                          [class.pron-chip--correct]="w.status === 'correct'"
+                          [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                          [class.pron-chip--missing]="w.status === 'missing'"
+                          [title]="w.status === 'missing' ? 'Missing' : ('You said: ' + (w.spoken || '—'))"
+                        >
+                          {{ w.expected }}
+                          <span class="pron-chip-icon material-icons">
+                            {{ w.status === 'correct' ? 'check' : (w.status === 'missing' ? 'remove' : 'close') }}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Hints -->
+                    <div class="vp-stage-hints"
+                         *ngIf="currentQuestion.vpResult !== 'correct' && currentQuestion.vpHints && currentQuestion.vpHints.length > 0">
+                      <p class="pron-hint" *ngFor="let h of currentQuestion.vpHints">
+                        <span class="material-icons">lightbulb</span> {{ h }}
+                      </p>
+                    </div>
+
+                    <p class="vp-stage-retry-nudge vp-stage-retry-nudge--almost" *ngIf="currentQuestion.vpResult === 'almostCorrect'">
+                      🔶 So close! You can retry for full credit or continue.
                     </p>
                     <p class="vp-stage-retry-nudge" *ngIf="currentQuestion.vpResult === 'incorrect'">
                       ❌ Not quite right — 👉 try again clearly.
                     </p>
+
+                    <!-- Almost-correct actions -->
+                    <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'almostCorrect'">
+                      <button type="button" class="vp-stage-retry-btn" (click)="speakAgainVideoPronunciation(currentQuestion)">
+                        <span class="material-icons">mic</span> Try again
+                      </button>
+                      <button
+                        type="button"
+                        class="vp-stage-pill vp-stage-pill--ghost"
+                        (click)="replayReferenceForRetry(currentQuestion)"
+                        title="Replay the reference sentence"
+                      >
+                        <span class="material-icons">replay</span>
+                        Replay sentence
+                      </button>
+                      <button
+                        *ngIf="!isLastQuestion"
+                        type="button"
+                        class="vp-stage-pill vp-stage-pill--continue"
+                        (click)="goToNextClipAfterIncorrect()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">skip_next</span>
+                        Continue anyway
+                      </button>
+                      <button
+                        *ngIf="isLastQuestion"
+                        type="button"
+                        class="vp-stage-pill vp-stage-pill--finish"
+                        (click)="finishVideoExercise()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">flag</span>
+                        {{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}
+                      </button>
+                    </div>
+
+                    <!-- Incorrect actions -->
                     <div class="vp-stage-feedback-actions" *ngIf="currentQuestion.vpResult === 'incorrect'">
                       <button type="button" class="vp-stage-retry-btn" (click)="speakAgainVideoPronunciation(currentQuestion)">
                         <span class="material-icons">mic</span> Speak again
@@ -1026,23 +1122,82 @@
           </div>
 
           <div class="pronunciation-result" *ngIf="currentQuestion.hasRecorded || hasCurrentSubmitted">
-            <div class="spoken-text">
-              <span class="material-icons">record_voice_over</span>
-              You said: "<em>{{ currentQuestion.spokenText || '—' }}</em>"
-            </div>
+
+            <!-- Score circle -->
             <div class="score-circle" [class]="getPronunciationClass(currentQuestion.pronunciationScore || 0)">
               <div class="score-value">{{ currentQuestion.pronunciationScore || 0 }}%</div>
               <div class="score-label">Match</div>
             </div>
-            <div class="pronunciation-feedback">{{ getPronunciationFeedback(currentQuestion.pronunciationScore || 0) }}</div>
+
+            <!-- State headline -->
+            <div class="pronunciation-feedback"
+                 [class.pron-feedback--correct]="!currentQuestion.pronAlmostCorrect && (currentQuestion.pronunciationScore || 0) >= 60"
+                 [class.pron-feedback--almost]="currentQuestion.pronAlmostCorrect"
+                 [class.pron-feedback--incorrect]="!currentQuestion.pronAlmostCorrect && (currentQuestion.pronunciationScore || 0) < 60">
+              <ng-container *ngIf="!currentQuestion.pronAlmostCorrect">
+                {{ getPronunciationFeedback(currentQuestion.pronunciationScore || 0) }}
+              </ng-container>
+              <ng-container *ngIf="currentQuestion.pronAlmostCorrect">
+                Almost there — try once more
+              </ng-container>
+            </div>
+
+            <!-- Confidence headline -->
             <div
               class="pronunciation-confidence"
               *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
               [attr.data-confidence]="conf"
             >{{ confidenceHeadline(conf) }}</div>
+
+            <!-- Comparison: what they said vs what was expected -->
+            <div class="pron-comparison" *ngIf="currentQuestion.spokenText || currentQuestion.pronExpectedText">
+              <div class="pron-comparison-row">
+                <span class="pron-comparison-label">You said:</span>
+                <span class="pron-comparison-value">"{{ currentQuestion.spokenText || '—' }}"</span>
+              </div>
+              <div class="pron-comparison-row" *ngIf="currentQuestion.pronExpectedText">
+                <span class="pron-comparison-label">Expected:</span>
+                <span class="pron-comparison-value pron-comparison-value--expected">"{{ currentQuestion.pronExpectedText }}"</span>
+              </div>
+            </div>
+
+            <!-- Word-level analysis -->
+            <div class="pron-word-analysis" *ngIf="currentQuestion.pronWordAnalysis && currentQuestion.pronWordAnalysis.length > 0">
+              <span class="pron-word-analysis-label">Word breakdown:</span>
+              <div class="pron-word-chips">
+                <span
+                  *ngFor="let w of currentQuestion.pronWordAnalysis"
+                  class="pron-chip"
+                  [class.pron-chip--correct]="w.status === 'correct'"
+                  [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                  [class.pron-chip--missing]="w.status === 'missing'"
+                  [title]="w.status === 'missing' ? 'Missing' : ('You said: ' + (w.spoken || '—'))"
+                >
+                  {{ w.expected }}
+                  <span class="pron-chip-icon material-icons">
+                    {{ w.status === 'correct' ? 'check' : (w.status === 'missing' ? 'remove' : 'close') }}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Hints -->
+            <div class="pron-hints" *ngIf="currentQuestion.pronHints && currentQuestion.pronHints.length > 0">
+              <div class="pron-hint" *ngFor="let h of currentQuestion.pronHints">
+                <span class="material-icons">lightbulb</span>
+                {{ h }}
+              </div>
+            </div>
+
+            <!-- Retry row (shown for both incorrect and almost-correct) -->
             <div class="pronunciation-retry-row"
-                 *ngIf="currentQuestion.hasRecorded && (currentQuestion.pronunciationScore || 0) < 70 && !hasCurrentSubmitted">
-              <span class="pronunciation-retry-nudge">❌ Not quite — 👉 try again clearly.</span>
+                 *ngIf="currentQuestion.hasRecorded && !hasCurrentSubmitted && (currentQuestion.pronAlmostCorrect || (currentQuestion.pronunciationScore || 0) < 60)">
+              <span class="pronunciation-retry-nudge" *ngIf="!currentQuestion.pronAlmostCorrect">
+                ❌ Not quite — 👉 try again clearly.
+              </span>
+              <span class="pronunciation-retry-nudge pronunciation-retry-nudge--almost" *ngIf="currentQuestion.pronAlmostCorrect">
+                🔶 So close! Give it one more try.
+              </span>
               <button type="button" class="btn-record btn-record--subtle"
                       (click)="replayReferenceForRetry(currentQuestion)"
                       title="Replay the reference word">
@@ -1210,11 +1365,61 @@
                   <p class="vp-auto-advance">{{ isVideoOnlyExercise ? 'Moving to next clip…' : 'Next clip…' }}</p>
                 </ng-container>
 
+                <!-- Almost correct (mobile) -->
+                <ng-container *ngIf="currentQuestion.vpResult === 'almostCorrect'">
+                  <div class="vp-feedback vp-feedback--almost vp-feedback--mobile">
+                    <span class="material-icons">star_half</span>
+                    <strong>Almost there — try once more</strong>
+                    <span class="vp-spoken" *ngIf="currentQuestion.vpSpokenText">You said: "{{ currentQuestion.vpSpokenText }}"</span>
+                    <span class="vp-spoken vp-spoken--expected" *ngIf="currentQuestion.vpExpectedText">Expected: "{{ currentQuestion.vpExpectedText }}"</span>
+                  </div>
+                  <div class="pron-word-chips pron-word-chips--mob"
+                       *ngIf="currentQuestion.vpWordAnalysis && currentQuestion.vpWordAnalysis.length > 0">
+                    <span *ngFor="let w of currentQuestion.vpWordAnalysis"
+                          class="pron-chip"
+                          [class.pron-chip--correct]="w.status === 'correct'"
+                          [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                          [class.pron-chip--missing]="w.status === 'missing'"
+                    >{{ w.expected }}<span class="pron-chip-icon material-icons">{{ w.status === 'correct' ? 'check' : (w.status === 'missing' ? 'remove' : 'close') }}</span></span>
+                  </div>
+                  <p class="vp-mob-retry-nudge">🔶 So close! Retry for full credit or continue.</p>
+                  <div class="vp-mob-btn-row">
+                    <button type="button" class="vp-mob-btn vp-mob-btn--primary" (click)="speakAgainVideoPronunciation(currentQuestion)">
+                      <span class="material-icons">mic</span>
+                      <span>Try again</span>
+                    </button>
+                    <button type="button" class="vp-mob-btn vp-mob-btn--secondary" (click)="replayReferenceForRetry(currentQuestion)">
+                      <span class="material-icons">replay</span>
+                      <span>Replay</span>
+                    </button>
+                    <button *ngIf="!isLastQuestion" type="button" class="vp-mob-btn vp-mob-btn--secondary"
+                            (click)="goToNextClipAfterIncorrect()" [disabled]="finishingAll || submitting">
+                      <span class="material-icons">skip_next</span>
+                      <span>Continue</span>
+                    </button>
+                    <button *ngIf="isLastQuestion" type="button" class="vp-mob-btn vp-mob-btn--finish"
+                            (click)="finishVideoExercise()" [disabled]="finishingAll || submitting">
+                      <span class="material-icons">flag</span>
+                      <span>{{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}</span>
+                    </button>
+                  </div>
+                </ng-container>
+
                 <ng-container *ngIf="currentQuestion.vpResult === 'incorrect'">
                   <div class="vp-feedback vp-feedback--incorrect vp-feedback--mobile">
                     <span class="material-icons">cancel</span>
-                    <strong>Try again</strong>
+                    <strong>Let's try again</strong>
                     <span class="vp-spoken" *ngIf="currentQuestion.vpSpokenText">You said: "{{ currentQuestion.vpSpokenText }}"</span>
+                    <span class="vp-spoken vp-spoken--expected" *ngIf="currentQuestion.vpExpectedText">Expected: "{{ currentQuestion.vpExpectedText }}"</span>
+                  </div>
+                  <div class="pron-word-chips pron-word-chips--mob"
+                       *ngIf="currentQuestion.vpWordAnalysis && currentQuestion.vpWordAnalysis.length > 0">
+                    <span *ngFor="let w of currentQuestion.vpWordAnalysis"
+                          class="pron-chip"
+                          [class.pron-chip--correct]="w.status === 'correct'"
+                          [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                          [class.pron-chip--missing]="w.status === 'missing'"
+                    >{{ w.expected }}<span class="pron-chip-icon material-icons">{{ w.status === 'correct' ? 'check' : (w.status === 'missing' ? 'remove' : 'close') }}</span></span>
                   </div>
                   <p class="vp-mob-retry-nudge">❌ Not quite — 👉 try again clearly.</p>
                   <div class="vp-mob-btn-row">
