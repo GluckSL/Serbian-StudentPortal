@@ -54,7 +54,15 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   selectedVideoFile: File | null = null;
   private manualUploadPollTimer: ReturnType<typeof setInterval> | null = null;
 
-  form = { title: '', description: '', videoUrl: '', batches: [] as string[], level: 'A1', plan: 'ALL' };
+  form = {
+    title: '',
+    description: '',
+    videoUrl: '',
+    batches: [] as string[],
+    level: 'A1',
+    plan: 'ALL',
+    courseDay: '' as number | '',
+  };
 
   // Filters
   filterLevel = 'ALL';
@@ -279,11 +287,20 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         videoUrl: recording.videoUrl,
         batches: [...recording.batches],
         level: recording.level,
-        plan: recording.plan
+        plan: recording.plan,
+        courseDay: Number.isFinite(Number(recording.courseDay)) ? Number(recording.courseDay) : '',
       };
     } else {
       this.editing = null;
-      this.form = { title: '', description: '', videoUrl: '', batches: [], level: 'A1', plan: 'ALL' };
+      this.form = {
+        title: '',
+        description: '',
+        videoUrl: '',
+        batches: [],
+        level: 'A1',
+        plan: 'ALL',
+        courseDay: '',
+      };
     }
     this.showForm = true;
   }
@@ -327,6 +344,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       fd.append('level', this.form.level);
       fd.append('plan', this.form.plan || 'ALL');
       fd.append('batches', this.form.batches.join(','));
+      const uploadCourseDay = this.normalizeCourseDay(this.form.courseDay);
+      if (uploadCourseDay != null) fd.append('courseDay', String(uploadCourseDay));
       fd.append('video', this.selectedVideoFile);
 
       this.saving = true;
@@ -356,8 +375,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     }
 
     const obs = this.editing
-      ? this.service.update(this.editing._id, this.form)
-      : this.service.create(this.form);
+      ? this.service.update(this.editing._id, { ...this.form, courseDay: this.normalizeCourseDay(this.form.courseDay) })
+      : this.service.create({ ...this.form, courseDay: this.normalizeCourseDay(this.form.courseDay) });
 
     this.saving = true;
     obs.subscribe({

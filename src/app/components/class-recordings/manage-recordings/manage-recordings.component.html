@@ -283,6 +283,18 @@
         </div>
       </div>
       <div class="cr-field">
+        <label>Journey Day</label>
+        <input
+          class="cr-input"
+          type="number"
+          min="1"
+          max="200"
+          step="1"
+          [(ngModel)]="form.courseDay"
+          placeholder="Leave empty for no day lock" />
+        <p class="cr-hint">Students can access this recording only when their current journey day reaches this value.</p>
+      </div>
+      <div class="cr-field">
         <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
         <div class="cr-batch-grid">
           <label class="cr-batch-chip" *ngFor="let b of availableBatches"

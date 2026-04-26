@@ -379,14 +379,22 @@ router.get('/analytics/summary', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
 // POST /api/class-recordings — Create recording (Teacher/Admin)
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const { title, description, videoUrl, batches, level, plan } = req.body;
+    const { title, description, videoUrl, batches, level, plan, courseDay } = req.body;
     if (!title || !videoUrl || !level || !batches || batches.length === 0) {
       return res.status(400).json({ success: false, message: 'Title, video URL, level, and at least one batch are required' });
+    }
+    let normalizedCourseDay = null;
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
+      if (courseDay !== null && courseDay !== '') {
+        const n = parseInt(String(courseDay), 10);
+        normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      }
     }
 
     const recording = await ClassRecording.create({
       title, description, videoUrl, batches, level,
       plan: plan || 'ALL',
+      courseDay: normalizedCourseDay,
       sourceType: 'URL',
       status: 'ready',
       uploadedBy: req.user.id
@@ -415,7 +423,7 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
         });
       }
 
-      const { title, description = '', level, plan = 'ALL' } = req.body || {};
+      const { title, description = '', level, plan = 'ALL', courseDay } = req.body || {};
       const rawBatches = req.body?.batches;
       const batches = Array.isArray(rawBatches)
         ? rawBatches
@@ -433,6 +441,13 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       if (!req.file?.path) {
         return res.status(400).json({ success: false, message: 'Video file is required.' });
       }
+      let normalizedCourseDay = null;
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
+        if (courseDay !== null && courseDay !== '') {
+          const n = parseInt(String(courseDay), 10);
+          normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        }
+      }
 
       const recording = await ClassRecording.create({
         title: String(title).trim(),
@@ -443,6 +458,7 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
         plan: String(plan || 'ALL'),
         sourceType: 'HLS_UPLOAD',
         status: 'processing',
+        courseDay: normalizedCourseDay,
         hlsKey: null,
         errorMessage: null,
         uploadedBy: req.user.id,
