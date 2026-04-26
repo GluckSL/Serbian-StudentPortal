@@ -15,16 +15,29 @@ interface LearningSummary {
   avgSeconds: number;
 }
 
+/** Unified line for Video → Types column (portal + DB). */
+interface VideoTypeRow {
+  kind: 'recording' | 'live';
+  title: string;
+  seconds: number;
+}
+
 interface LearningRow {
   studentId: string;
   studentName: string;
   email: string;
+  batch?: string;
+  journeyDay?: number | null;
   totalSeconds: number;
   interactions?: number;
+  recordedSeconds?: number;
+  liveSeconds?: number;
+  typeRows?: VideoTypeRow[];
 }
 
 interface LearningResponse {
   kind: LearningKind;
+  session?: 'combined';
   summary: LearningSummary;
   items: LearningRow[];
 }
@@ -51,6 +64,10 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
 
   formatDuration = formatPortalDuration;
 
+  get isVideoTab(): boolean {
+    return this.activeKind === 'video';
+  }
+
   get totalRows(): number {
     return this.data?.items?.length || 0;
   }
@@ -63,6 +80,10 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     const items = this.data?.items || [];
     const start = (this.currentPage - 1) * this.pageSize;
     return items.slice(start, start + this.pageSize);
+  }
+
+  hasTypesContent(r: LearningRow): boolean {
+    return Boolean(r.typeRows && r.typeRows.length > 0);
   }
 
   constructor(private api: PortalAnalyticsApiService) {}
@@ -112,9 +133,19 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     this.api.getLearning(reqRange, kind, 300).subscribe({
       next: (res: unknown) => {
         const body = res as LearningResponse;
+        const keepRow = (r: LearningRow) => {
+          if (body.kind === 'video') {
+            return (
+              Number(r.totalSeconds || 0) > 0 ||
+              Number(r.interactions || 0) > 0 ||
+              this.hasTypesContent(r)
+            );
+          }
+          return Number(r.totalSeconds || 0) > 0;
+        };
         this.data = {
           ...body,
-          items: (body.items || []).filter((r) => Number(r.totalSeconds || 0) > 0)
+          items: (body.items || []).filter(keepRow)
         };
         this.currentPage = 1;
         this.loading = false;
@@ -126,4 +157,3 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     });
   }
 }
-

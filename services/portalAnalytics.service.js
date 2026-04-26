@@ -6,6 +6,9 @@ const DigitalExercise = require('../models/DigitalExercise');
 const User = require('../models/User');
 const UserActivityLog = require('../models/UserActivityLog');
 const StudentLogs = require('../models/StudentLogs');
+const RecordingView = require('../models/RecordingView');
+const ZoomRecordingView = require('../models/ZoomRecordingView');
+const MeetingLink = require('../models/MeetingLink');
 
 /** Max seconds credited per heartbeat (tab sends ~every 10s when active). */
 const MAX_CREDIT_PER_HEARTBEAT_SEC = 30;
@@ -931,13 +934,15 @@ async function attachStudentNames(rowsByStudentId) {
   const ids = Object.keys(rowsByStudentId).filter((id) => mongoose.Types.ObjectId.isValid(id));
   if (!ids.length) return [];
   const users = await User.find({ _id: { $in: ids } })
-    .select('_id name email')
+    .select('_id name email batch currentCourseDay')
     .lean();
   const userMap = new Map(users.map((u) => [String(u._id), u]));
   return Object.entries(rowsByStudentId).map(([studentId, row]) => ({
     studentId,
     studentName: userMap.get(studentId)?.name || 'Unknown',
     email: userMap.get(studentId)?.email || '',
+    batch: userMap.get(studentId)?.batch || '-',
+    journeyDay: Number(userMap.get(studentId)?.currentCourseDay || 0) || null,
     ...row
   }));
 }
@@ -957,18 +962,469 @@ function summarizeLearningRows(items, valueField = 'totalSeconds') {
   };
 }
 
+/** Recording / Zoom view rows overlapping the analytics window (player sends watch-duration heartbeats). */
+function recordingViewWindowMatch(from, to) {
+  return {
+    $and: [{ startedAt: { $lte: to } }, { lastUpdatedAt: { $gte: from } }]
+  };
+}
+
+/**
+ * Recorded video: ClassRecording + Zoom recording watch time from RecordingView / ZoomRecordingView
+ * (watchDuration updated by the player heartbeat), grouped per student with per-recording breakdown.
+ */
+async function getRecordedVideoWatchAnalytics(from, to, limit) {
+  const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
+  const win = recordingViewWindowMatch(from, to);
+
+  const [manualChunks, zoomChunks] = await Promise.all([
+    RecordingView.aggregate([
+      { $match: win },
+      {
+        $lookup: {
+          from: 'classrecordings',
+          localField: 'recording',
+          foreignField: '_id',
+          as: 'rec'
+        }
+      },
+      { $match: { rec: { $elemMatch: { active: true } } } },
+      { $unwind: '$rec' },
+      {
+        $group: {
+          _id: { student: '$student', rid: '$recording' },
+          seconds: { $sum: { $ifNull: ['$watchDuration', 0] } },
+          viewSessions: { $sum: 1 },
+          title: { $first: { $ifNull: ['$rec.title', 'Recording'] } }
+        }
+      }
+    ]),
+    ZoomRecordingView.aggregate([
+      { $match: win },
+      {
+        $lookup: {
+          from: 'meetinglinks',
+          localField: 'meetingLinkId',
+          foreignField: '_id',
+          as: 'ml'
+        }
+      },
+      { $unwind: '$ml' },
+      {
+        $group: {
+          _id: { student: '$student', mid: '$meetingLinkId' },
+          seconds: { $sum: { $ifNull: ['$watchDuration', 0] } },
+          viewSessions: { $sum: 1 },
+          title: { $first: { $ifNull: ['$ml.topic', 'Zoom recording'] } }
+        }
+      }
+    ])
+  ]);
+
+  const byStudent = new Map();
+  const bump = (studentId, detailKey, title, seconds, viewSessions) => {
+    if (!studentId || !mongoose.Types.ObjectId.isValid(String(studentId))) return;
+    const sid = String(studentId);
+    if (!byStudent.has(sid)) {
+      byStudent.set(sid, { totalSeconds: 0, interactions: 0, detailsMap: new Map() });
+    }
+    const row = byStudent.get(sid);
+    const sec = Math.max(0, Number(seconds) || 0);
+    const vs = Math.max(0, Number(viewSessions) || 0);
+    row.totalSeconds += sec;
+    row.interactions += vs;
+    if (!row.detailsMap.has(detailKey)) {
+      row.detailsMap.set(detailKey, { title: String(title || 'Recording').trim() || 'Recording', seconds: 0, viewSessions: 0 });
+    }
+    const d = row.detailsMap.get(detailKey);
+    d.seconds += sec;
+    d.viewSessions += vs;
+  };
+
+  for (const r of manualChunks) {
+    const st = r?._id?.student;
+    const rid = r?._id?.rid;
+    bump(st, `m:${String(rid)}`, r.title, r.seconds, r.viewSessions);
+  }
+  for (const r of zoomChunks) {
+    const st = r?._id?.student;
+    const mid = r?._id?.mid;
+    bump(st, `z:${String(mid)}`, r.title, r.seconds, r.viewSessions);
+  }
+
+  const rowsByStudent = {};
+  for (const [studentId, row] of byStudent) {
+    const recordings = Array.from(row.detailsMap.values()).sort((a, b) => b.seconds - a.seconds);
+    rowsByStudent[studentId] = {
+      totalSeconds: row.totalSeconds,
+      interactions: row.interactions,
+      recordings
+    };
+  }
+
+  let items = await attachStudentNames(rowsByStudent);
+  items = items
+    .filter((it) => Number(it.totalSeconds || 0) > 0)
+    .sort((a, b) => b.totalSeconds - a.totalSeconds)
+    .slice(0, cap);
+  const summary = summarizeLearningRows(items, 'totalSeconds');
+  return {
+    kind: 'video',
+    session: 'recorded',
+    range: { from, to },
+    summary,
+    items
+  };
+}
+
+/**
+ * Live classes: Zoom-linked meetings in the window with per-student attendance duration.
+ */
+async function getLiveClassAttendanceAnalytics(from, to, limit) {
+  const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
+
+  const rows = await MeetingLink.aggregate([
+    {
+      $match: {
+        startTime: { $gte: from, $lte: to },
+        status: { $ne: 'cancelled' }
+      }
+    },
+    { $unwind: { path: '$attendance', preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        $or: [
+          { 'attendance.attended': true },
+          { 'attendance.duration': { $gt: 0 } },
+          { 'attendance.durationMinutes': { $gt: 0 } }
+        ]
+      }
+    },
+    {
+      $addFields: {
+        studentId: '$attendance.studentId',
+        sec: {
+          $cond: [
+            { $gt: [{ $ifNull: ['$attendance.duration', 0] }, 0] },
+            { $ifNull: ['$attendance.duration', 0] },
+            { $multiply: [{ $toDouble: { $ifNull: ['$attendance.durationMinutes', 0] } }, 60] }
+          ]
+        },
+        embedName: { $ifNull: ['$attendance.name', ''] }
+      }
+    },
+    { $match: { studentId: { $exists: true, $ne: null } } },
+    {
+      $project: {
+        studentId: 1,
+        embedName: 1,
+        topic: { $ifNull: ['$topic', 'Live class'] },
+        batch: { $ifNull: ['$batch', ''] },
+        startTime: '$startTime',
+        sec: 1
+      }
+    },
+    {
+      $group: {
+        _id: '$studentId',
+        totalSeconds: { $sum: '$sec' },
+        classCount: { $sum: 1 },
+        embedName: { $first: '$embedName' },
+        classes: {
+          $push: {
+            topic: '$topic',
+            batch: '$batch',
+            seconds: '$sec',
+            startTime: '$startTime'
+          }
+        }
+      }
+    },
+    { $sort: { totalSeconds: -1 } },
+    { $limit: cap * 2 }
+  ]);
+
+  const userIds = rows.map((r) => r._id).filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)));
+  const users = await User.find({ _id: { $in: userIds } })
+    .select('_id name email')
+    .lean();
+  const userMap = new Map(users.map((u) => [String(u._id), u]));
+
+  const items = rows
+    .map((r) => {
+      const sid = String(r._id);
+      const u = userMap.get(sid);
+      const liveClasses = (r.classes || [])
+        .map((c) => ({
+          topic: c.topic,
+          batch: c.batch,
+          seconds: Math.max(0, Math.floor(Number(c.seconds) || 0)),
+          startTime: c.startTime
+        }))
+        .sort((a, b) => (b.seconds || 0) - (a.seconds || 0));
+      return {
+        studentId: sid,
+        studentName: u?.name || String(r.embedName || '').trim() || 'Unknown',
+        email: u?.email || '',
+        totalSeconds: Math.max(0, Math.floor(Number(r.totalSeconds) || 0)),
+        interactions: Number(r.classCount || 0),
+        liveClasses
+      };
+    })
+    .filter((it) => it.totalSeconds > 0 || it.interactions > 0)
+    .slice(0, cap);
+
+  const summary = summarizeLearningRows(items, 'totalSeconds');
+  return {
+    kind: 'video',
+    session: 'live',
+    range: { from, to },
+    summary,
+    items
+  };
+}
+
+/** Map portal URL (heartbeat `page`) to Recording vs Live + short title for analytics. */
+function classifyPortalVideoPage(pageRaw) {
+  const page = String(pageRaw || '/').trim() || '/';
+  const p = page.split('?')[0] || '/';
+  const lower = p.toLowerCase();
+
+  const isLive =
+    /(^|\/)teacher\/meetings(\/|$)/i.test(p) ||
+    /\/join(\/|$)/i.test(lower) ||
+    /live-class|liveclass|zoom-meeting|meeting-join/i.test(lower) ||
+    (/meeting\b/i.test(lower) && !/class-recording\b/i.test(lower) && !/class-recordings\b/i.test(lower));
+
+  const isExplicitRecordingRoute =
+    /^\/class-recording\//i.test(p) ||
+    /\/class-recordings(\/|$)/i.test(p) ||
+    /\/recording(\/|$)/i.test(p) ||
+    /zoom-recording|recording-player|player/i.test(lower);
+
+  // Course hub page is too generic to claim "watched recording".
+  if (/student\/my-course/i.test(p)) {
+    return { bucket: 'none', title: 'My course' };
+  }
+
+  let title = p;
+  if (/^\/class-recording\//i.test(p)) title = 'Class recording (replay)';
+  else if (p.length > 72) title = `${p.slice(0, 69)}…`;
+
+  if (isLive) return { bucket: 'live', title };
+  if (isExplicitRecordingRoute) return { bucket: 'recording', title };
+  return { bucket: 'none', title };
+}
+
+/**
+ * Portal tab heartbeats on video-related routes, grouped per student with Recording vs Live split.
+ */
+async function getPortalVideoTypeBreakdown(from, to) {
+  const kindRegex = /(my-course|class-recordings|recording|zoom|meeting)/i;
+  const pageMatch = {
+    startTime: { $lte: to },
+    $or: [{ endTime: null }, { endTime: { $gte: from } }]
+  };
+  const chunk = await PageActivity.aggregate([
+    { $match: pageMatch },
+    { $match: { page: { $regex: kindRegex } } },
+    {
+      $group: {
+        _id: { studentId: '$studentId', page: '$page' },
+        seconds: { $sum: '$activeSeconds' }
+      }
+    }
+  ]);
+
+  const byStudent = new Map();
+  for (const r of chunk) {
+    if (!r?._id?.studentId) continue;
+    const sid = String(r._id.studentId);
+    const page = String(r._id.page || '/');
+    const sec = Math.max(0, Number(r.seconds || 0));
+    const { bucket, title } = classifyPortalVideoPage(page);
+
+    if (!byStudent.has(sid)) {
+      byStudent.set(sid, { recordingSec: 0, liveSec: 0, pageCount: 0, lines: new Map() });
+    }
+    const st = byStudent.get(sid);
+    st.pageCount += 1;
+    if (bucket === 'live') st.liveSec += sec;
+    else if (bucket === 'recording') st.recordingSec += sec;
+
+    if (bucket !== 'none') {
+      const key = `${bucket}|||${title}`;
+      const line = st.lines.get(key) || { kind: bucket, title, seconds: 0 };
+      line.seconds += sec;
+      st.lines.set(key, line);
+    }
+  }
+
+  for (const [, st] of byStudent) {
+    st.typeRows = Array.from(st.lines.values()).sort((a, b) => b.seconds - a.seconds);
+    delete st.lines;
+  }
+  return byStudent;
+}
+
+function mergeVideoTypeLines(portalPb, recordings, liveClasses) {
+  const lineMap = new Map();
+  const add = (kind, title, sec) => {
+    const t = String(title || '').trim() || (kind === 'live' ? 'Live class' : 'Recording');
+    const k = `${kind}|||${t}`;
+    const cur = lineMap.get(k) || { kind, title: t, seconds: 0 };
+    cur.seconds += Math.max(0, Number(sec) || 0);
+    lineMap.set(k, cur);
+  };
+
+  if (portalPb?.typeRows) {
+    for (const row of portalPb.typeRows) {
+      add(row.kind, row.title, row.seconds);
+    }
+  }
+  for (const rec of recordings || []) {
+    add('recording', rec.title, rec.seconds);
+  }
+  for (const lc of liveClasses || []) {
+    add('live', lc.topic, lc.seconds);
+  }
+
+  return Array.from(lineMap.values())
+    .filter((x) => x.seconds > 0)
+    .sort((a, b) => b.seconds - a.seconds);
+}
+
+/**
+ * Video: RecordingView + live attendance + portal heartbeats on video routes (merged Types + totals).
+ * Totals use max(portal recording bucket, DB recording) + max(portal live bucket, DB live) to limit double-count.
+ */
+async function getCombinedVideoLearningAnalytics(from, to, limit) {
+  const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
+  const [recRes, liveRes, portalByStudent] = await Promise.all([
+    getRecordedVideoWatchAnalytics(from, to, limit),
+    getLiveClassAttendanceAnalytics(from, to, limit),
+    getPortalVideoTypeBreakdown(from, to)
+  ]);
+
+  const byId = new Map();
+  for (const it of recRes.items || []) {
+    const sid = String(it.studentId);
+    byId.set(sid, {
+      studentId: sid,
+      studentName: it.studentName,
+      email: it.email || '',
+      recordedSeconds: Number(it.totalSeconds || 0),
+      liveSeconds: 0,
+      recordedInteractions: Number(it.interactions || 0),
+      liveInteractions: 0,
+      recordings: Array.isArray(it.recordings) ? it.recordings : [],
+      liveClasses: []
+    });
+  }
+  for (const it of liveRes.items || []) {
+    const sid = String(it.studentId);
+    const existing = byId.get(sid);
+    if (existing) {
+      existing.liveSeconds = Number(it.totalSeconds || 0);
+      existing.liveInteractions = Number(it.interactions || 0);
+      existing.liveClasses = Array.isArray(it.liveClasses) ? it.liveClasses : [];
+      if (!existing.email && it.email) existing.email = it.email;
+    } else {
+      byId.set(sid, {
+        studentId: sid,
+        studentName: it.studentName,
+        email: it.email || '',
+        recordedSeconds: 0,
+        liveSeconds: Number(it.totalSeconds || 0),
+        recordedInteractions: 0,
+        liveInteractions: 0,
+        recordings: [],
+        liveClasses: Array.isArray(it.liveClasses) ? it.liveClasses : []
+      });
+    }
+  }
+
+  const allIds = new Set([...byId.keys(), ...portalByStudent.keys()]);
+  const rowsByStudent = {};
+  for (const sid of allIds) {
+    const m = byId.get(sid) || {
+      studentId: sid,
+      studentName: '',
+      email: '',
+      recordedSeconds: 0,
+      liveSeconds: 0,
+      recordedInteractions: 0,
+      liveInteractions: 0,
+      recordings: [],
+      liveClasses: []
+    };
+    const pb = portalByStudent.get(sid);
+
+    const recS = Math.max(0, Number(m.recordedSeconds || 0));
+    const liveS = Math.max(0, Number(m.liveSeconds || 0));
+    const portalRec = pb ? Math.max(0, Number(pb.recordingSec || 0)) : 0;
+    const portalLive = pb ? Math.max(0, Number(pb.liveSec || 0)) : 0;
+
+    const totalSeconds = Math.max(recS, portalRec) + Math.max(liveS, portalLive);
+    const interactions =
+      Number(m.recordedInteractions || 0) +
+      Number(m.liveInteractions || 0) +
+      (pb ? Number(pb.pageCount || 0) : 0);
+
+    let typeRows = mergeVideoTypeLines(pb, m.recordings || [], m.liveClasses || []);
+    const sumType = typeRows.reduce((s, t) => s + Number(t.seconds || 0), 0);
+    if (sumType > totalSeconds + 2 && totalSeconds >= 0 && sumType > 0) {
+      const scale = totalSeconds / sumType;
+      typeRows = typeRows.map((t) => ({
+        ...t,
+        seconds: Math.max(0, Math.round(Number(t.seconds || 0) * scale))
+      }));
+    }
+
+    rowsByStudent[sid] = {
+      recordedSeconds: recS,
+      liveSeconds: liveS,
+      totalSeconds,
+      interactions,
+      typeRows
+    };
+  }
+
+  let items = await attachStudentNames(rowsByStudent);
+  items = items
+    .filter(
+      (it) =>
+        Number(it.totalSeconds || 0) > 0 ||
+        Number(it.interactions || 0) > 0 ||
+        (Array.isArray(it.typeRows) && it.typeRows.length > 0)
+    )
+    .sort((a, b) => b.totalSeconds - a.totalSeconds)
+    .slice(0, cap);
+
+  const summary = summarizeLearningRows(items, 'totalSeconds');
+  return {
+    kind: 'video',
+    session: 'combined',
+    range: { from, to },
+    summary,
+    items
+  };
+}
+
 async function getLearningAnalytics(from, to, kind = 'video', limit = 300) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
   const k = String(kind || 'video').toLowerCase();
+
+  if (k === 'video') {
+    return getCombinedVideoLearningAnalytics(from, to, limit);
+  }
+
   const pageMatch = {
     startTime: { $lte: to },
     $or: [{ endTime: null }, { endTime: { $gte: from } }]
   };
   let kindRegex = null;
-  if (k === 'video') {
-    // Student course, recording/player, and class pages.
-    kindRegex = /(my-course|class-recordings|recording|zoom|meeting)/i;
-  } else if (k === 'exercises') {
+  if (k === 'exercises') {
     kindRegex = /(digital-exercises|exercise)/i;
   } else if (k === 'modules') {
     kindRegex = /(learning-modules|module)/i;

@@ -146,3 +146,50 @@
   gap: 0.45rem;
 }
 
+.types-cell {
+  vertical-align: middle;
+  min-width: 12rem;
+  max-width: 32rem;
+}
+
+.type-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.55rem;
+  margin-bottom: 0.38rem;
+  line-height: 1.35;
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.type-badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 128, 165, 0.45);
+}
+
+.type-badge--recording {
+  border-color: rgba(75, 139, 220, 0.55);
+  color: #1f5fb1;
+  background: #eaf3ff;
+}
+
+.type-badge--live {
+  border-color: rgba(46, 160, 130, 0.5);
+  color: #0d6b52;
+  background: #e8f7f2;
+}
+
+.type-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #13284c;
+}
+

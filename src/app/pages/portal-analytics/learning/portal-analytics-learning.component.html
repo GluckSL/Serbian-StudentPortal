@@ -29,7 +29,12 @@
     <div class="learning-head">
       <h3>{{ labelFor(data.kind) }} Learning Analytics</h3>
       <p>
-        Student-wise tracked time summary for
+        @if (isVideoTab) {
+          Recording and live class activity (player views, Zoom attendance, and portal time on course/recording routes).
+          Summary for
+        } @else {
+          Student-wise tracked time summary for
+        }
         @if (viewMode === 'day') {
           <strong>{{ effectiveDay | date : 'mediumDate' }}</strong> (day-wise view).
         } @else {
@@ -73,7 +78,13 @@
         <thead>
           <tr>
             <th>Student</th>
-            <th class="text-end">Interactions</th>
+            <th>Batch</th>
+            <th>Journey day</th>
+            @if (isVideoTab) {
+              <th>Types</th>
+            } @else {
+              <th class="text-end">Interactions</th>
+            }
             <th class="text-end">Total time</th>
           </tr>
         </thead>
@@ -81,12 +92,33 @@
           @for (r of pagedItems; track r.studentId) {
             <tr>
               <td class="fw-medium">{{ r.studentName }}</td>
-              <td class="text-end">{{ r.interactions || 0 }}</td>
+              <td>{{ r.batch || '-' }}</td>
+              <td>{{ r.journeyDay || '-' }}</td>
+              @if (isVideoTab) {
+                <td class="types-cell">
+                  @if (hasTypesContent(r)) {
+                    @for (t of r.typeRows || []; track $index) {
+                      <div class="type-line">
+                        @if (t.kind === 'live') {
+                          <span class="type-badge type-badge--live">Live class</span>
+                        } @else {
+                          <span class="type-badge type-badge--recording">Recording</span>
+                        }
+                        <span class="type-title">{{ t.title }}</span>
+                      </div>
+                    }
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                </td>
+              } @else {
+                <td class="text-end">{{ r.interactions || 0 }}</td>
+              }
               <td class="text-end fw-semibold">{{ formatDuration(r.totalSeconds || 0) }}</td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="3" class="text-muted py-4 text-center">No data in this range.</td>
+              <td colspan="5" class="text-muted py-4 text-center">No data in this range.</td>
             </tr>
           }
         </tbody>
@@ -94,4 +126,3 @@
     </div>
   }
 </div>
-
