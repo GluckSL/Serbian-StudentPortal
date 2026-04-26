@@ -128,7 +128,7 @@ app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx
 app.use('/api/zoom/webhook', express.raw({ type: '*/*', limit: '15mb' }), zoomWebhookRoutes);
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 app.use(cors({
   origin(origin, callback) {
