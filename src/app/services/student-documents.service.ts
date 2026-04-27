@@ -63,6 +63,19 @@ export class StudentDocumentsService {
 
   constructor(private http: HttpClient) {}
 
+  private getAuthToken(): string {
+    try {
+      return (
+        localStorage.getItem('authToken') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('jwtToken') ||
+        ''
+      );
+    } catch {
+      return '';
+    }
+  }
+
   // Get student's documents
   getMyDocuments(): Observable<{
     success: boolean;
@@ -127,7 +140,9 @@ export class StudentDocumentsService {
   triggerServerDownload(documentId: string): void {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
-    iframe.src = `${this.apiUrl}/download/${encodeURIComponent(documentId)}`;
+    const token = encodeURIComponent(this.getAuthToken());
+    const baseUrl = `${this.apiUrl}/download/${encodeURIComponent(documentId)}`;
+    iframe.src = token ? `${baseUrl}?token=${token}` : baseUrl;
     document.body.appendChild(iframe);
     setTimeout(() => {
       if (iframe.parentNode) {
@@ -138,7 +153,9 @@ export class StudentDocumentsService {
 
   // Preview a document inline
   getPreviewUrl(documentId: string): string {
-    return `${this.apiUrl}/preview/${documentId}`;
+    const token = encodeURIComponent(this.getAuthToken());
+    const baseUrl = `${this.apiUrl}/preview/${encodeURIComponent(documentId)}`;
+    return token ? `${baseUrl}?token=${token}` : baseUrl;
   }
 
   // Preview a document as blob (sends auth cookie)

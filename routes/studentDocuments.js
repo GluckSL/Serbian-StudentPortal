@@ -3,7 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const upload = require('../config/documentUpload');
 const StudentDocument = require('../models/StudentDocument');
 const DocumentRequirement = require('../models/DocumentRequirement');
@@ -267,7 +267,7 @@ router.delete('/:documentId', verifyToken, checkRole(['STUDENT']), async (req, r
 });
 
 // GET /api/student-documents/download/:documentId - Download a document
-router.get('/download/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
+router.get('/download/:documentId', verifyMediaToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
   try {
     const { documentId } = req.params;
     const userId = req.user.id;
@@ -327,7 +327,7 @@ router.get('/download/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER'
 });
 
 // GET /api/student-documents/preview/:documentId - Preview a document inline
-router.get('/preview/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
+router.get('/preview/:documentId', verifyMediaToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
   try {
     const { documentId } = req.params;
     const userId = req.user.id;

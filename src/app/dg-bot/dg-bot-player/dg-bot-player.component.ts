@@ -114,6 +114,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   private consecutivePracticeFailures = 0;
   /** Behavior preset + variants for the current scene; fixed until next {@link presentScene}. */
   private sceneBehaviorPlan: DgSceneBehaviorPlan | null = null;
+  /** Auto-play pacing for non-practice scenes (intro/teach/feedback). */
+  private readonly nonPracticeAutoAdvanceMs = 1400;
 
   // ── Conversation / Role-play state ────────────────────────────────────────
   /** Current turn count within the active practice scene (0 = no exchange yet). */
@@ -736,6 +738,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     await humanDelay(120 * outMul, this.pacingMultiplier());
     this.status = 'idle';
     this.canNext = true;
+    // Hands-free flow: continue automatically after non-practice narration.
+    this.scheduleAutoAdvance(this.nonPracticeAutoAdvanceMs);
     this.refreshSceneBufferAndPreload();
   }
 

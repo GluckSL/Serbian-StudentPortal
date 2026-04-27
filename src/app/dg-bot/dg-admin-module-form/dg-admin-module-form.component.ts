@@ -347,38 +347,11 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editScenes.forEach((s, i) => (s.order = i));
   }
 
-  async save(): Promise<void> {
-    this.message = null;
-    const missing: string[] = [];
-    if (!this.editTitle?.trim()) missing.push('Module title');
-    if (!this.editDescription?.trim()) missing.push('Description');
-    if (!this.editLanguage?.trim()) missing.push('Target language');
-    if (!this.editNativeLanguage?.trim()) missing.push('Native language');
-    if (!this.editLevel?.trim()) missing.push('Level');
+  private buildModulePayload() {
     const mct = Number(this.editMinimumCompletionTime);
-    if (Number.isNaN(mct) || mct < 5 || mct > 60) {
-      missing.push('Minimum completion time (5–60 minutes)');
-    }
-    if (!this.editRolePlay.situation?.trim()) missing.push('Situation');
-    if (!this.editRolePlay.studentRole?.trim()) missing.push('Student role');
-    if (!this.editRolePlay.aiRole?.trim()) missing.push('AI role');
-    if (!this.editCharacterId) missing.push('Character');
     const cdRaw = (this.editCourseDay || '').trim();
-    if (cdRaw !== '') {
-      const cd = Number(cdRaw);
-      if (Number.isNaN(cd) || cd < 1 || cd > 200) {
-        missing.push('Course day (1–200 or leave empty)');
-      }
-    }
-    if (missing.length) {
-      this.message = `Please fix: ${missing.join('; ')}.`;
-      return;
-    }
-
-    this.saving = true;
-    this.renumber();
     const courseDayPayload = cdRaw === '' ? null : Number(cdRaw);
-    const body = {
+    return {
       title: this.editTitle.trim(),
       description: this.editDescription.trim(),
       level: this.editLevel.trim(),
@@ -404,15 +377,60 @@ export class DgAdminModuleFormComponent implements OnInit {
         order: s.order,
       })),
     };
+  }
+
+  async save(navigateAfterSave = true): Promise<boolean> {
+    this.message = null;
+    const missing: string[] = [];
+    if (!this.editTitle?.trim()) missing.push('Module title');
+    if (!this.editDescription?.trim()) missing.push('Description');
+    if (!this.editLanguage?.trim()) missing.push('Target language');
+    if (!this.editNativeLanguage?.trim()) missing.push('Native language');
+    if (!this.editLevel?.trim()) missing.push('Level');
+    const mct = Number(this.editMinimumCompletionTime);
+    if (Number.isNaN(mct) || mct < 5 || mct > 60) {
+      missing.push('Minimum completion time (5–60 minutes)');
+    }
+    if (!this.editRolePlay.situation?.trim()) missing.push('Situation');
+    if (!this.editRolePlay.studentRole?.trim()) missing.push('Student role');
+    if (!this.editRolePlay.aiRole?.trim()) missing.push('AI role');
+    if (!this.editCharacterId) missing.push('Character');
+    const hasPracticeScene = this.editScenes.some((s) => s.type === 'practice');
+    if (!hasPracticeScene) {
+      missing.push('At least one Practice scene (for student speaking)');
+    }
+    const cdRaw = (this.editCourseDay || '').trim();
+    if (cdRaw !== '') {
+      const cd = Number(cdRaw);
+      if (Number.isNaN(cd) || cd < 1 || cd > 200) {
+        missing.push('Course day (1–200 or leave empty)');
+      }
+    }
+    if (missing.length) {
+      this.message = `Please fix: ${missing.join('; ')}.`;
+      return false;
+    }
+
+    this.saving = true;
+    this.renumber();
+    const body = this.buildModulePayload();
     try {
       if (!this.selected?._id) {
-        await firstValueFrom(this.dgApi.createModule(body as any));
+        const created = await firstValueFrom(this.dgApi.createModule(body as any));
+        this.selected = created;
       } else {
-        await firstValueFrom(this.dgApi.updateModule(this.selected._id, body as any));
+        const updated = await firstValueFrom(this.dgApi.updateModule(this.selected._id, body as any));
+        this.selected = updated;
       }
-      this.router.navigate(['/admin/dg-modules']);
+      if (navigateAfterSave) {
+        this.router.navigate(['/admin/dg-modules']);
+      } else {
+        this.message = 'Saved draft for preview.';
+      }
+      return true;
     } catch (e: any) {
       this.message = e?.error?.message || 'Save failed';
+      return false;
     } finally {
       this.saving = false;
     }
@@ -429,8 +447,10 @@ export class DgAdminModuleFormComponent implements OnInit {
     }
   }
 
-  preview(): void {
+  async preview(): Promise<void> {
     if (!this.selected?._id) return;
+    const saved = await this.save(false);
+    if (!saved || !this.selected?._id) return;
     this.router.navigate(['/dg-bot', this.selected._id, 'play']);
   }
 

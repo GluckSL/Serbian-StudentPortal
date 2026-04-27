@@ -16,6 +16,7 @@ const s3Client = require('../config/s3');
 const { resignExercise, resignExercises } = require('../config/presign');
 const { sanitizeQuestions } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
+const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -375,21 +376,25 @@ function getAccessibleLevels(studentLevel) {
  * Non-students get full ladder (unused for filtering in those routes).
  */
 async function getStudentExerciseAccess(userId) {
-  const u = await User.findById(userId).select('currentCourseDay role level').lean();
+  const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription').lean();
   if (!u || u.role !== 'STUDENT') {
     return {
+      enabled: true,
       courseDay: 1,
       accessibleLevels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
       studentLevel: null
     };
   }
-  const d = u.currentCourseDay;
-  const courseDay = (d == null || !Number.isFinite(Number(d)))
-    ? 1
-    : Math.min(200, Math.max(1, Math.floor(Number(d))));
+  const journeyAccess = await getJourneyAccessForStudent(u);
+  const courseDay = journeyAccess.courseDay;
   const studentLevel = u.level || 'A1';
   const accessibleLevels = getAccessibleLevels(studentLevel);
-  return { courseDay, accessibleLevels, studentLevel };
+  return {
+    enabled: journeyAccess.enabled,
+    courseDay,
+    accessibleLevels,
+    studentLevel
+  };
 }
 
 function exerciseLevelAllowedForStudent(exerciseLevel, accessibleLevels) {
@@ -542,6 +547,17 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'STUDENT') {
       andClauses.push({ visibleToStudents: true });
       studentExerciseAccess = await getStudentExerciseAccess(req.user.id);
+      if (!studentExerciseAccess.enabled) {
+        return res.json({
+          exercises: [],
+          total: 0,
+          page: parseInt(page),
+          pages: 0,
+          studentCourseDay: studentExerciseAccess.courseDay,
+          studentLevel: studentExerciseAccess.studentLevel,
+          accessibleLevels: studentExerciseAccess.accessibleLevels
+        });
+      }
       const studentCourseDay = studentExerciseAccess.courseDay;
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
       if (todayOnly) {
@@ -749,6 +765,12 @@ router.get('/:id', verifyToken, async (req, res) => {
 
     if (req.user.role === 'STUDENT') {
       const access = await getStudentExerciseAccess(req.user.id);
+      if (!access.enabled) {
+        return res.status(403).json({
+          error: 'Journey content is not enabled for your batch yet.',
+          code: 'JOURNEY_NOT_ACTIVE'
+        });
+      }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
@@ -1103,6 +1125,12 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
 
     if (!isStaff) {
       const access = await getStudentExerciseAccess(req.user.id);
+      if (!access.enabled) {
+        return res.status(403).json({
+          error: 'Journey content is not enabled for your batch yet.',
+          code: 'JOURNEY_NOT_ACTIVE'
+        });
+      }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
@@ -1611,6 +1639,9 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
     }
 
     const access = await getStudentExerciseAccess(req.user.id);
+    if (!access.enabled) {
+      return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
+    }
     if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
       return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
     }

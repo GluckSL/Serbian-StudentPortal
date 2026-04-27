@@ -22,6 +22,7 @@ const {
   computeJourneyDayCompletion,
   meetsStrictThreshold
 } = require('../services/journeyDayCompletion.service');
+const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -148,6 +149,7 @@ function canUserAccessManualRecording(recording, student) {
   if (!recording?.active) return false;
   if (recording.isPublished === false) return false;
   if (!student) return false;
+  if (student.journeyAccessEnabled === false) return false;
   const batchKeys = allStudentBatchStringsForContent(student);
   const inBatch = batchKeys.length > 0 && Array.isArray(recording.batches) &&
     recording.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b)));
@@ -175,6 +177,7 @@ function normalizeZoomAccessSettings(zoomRecording, meetingLink) {
 function canUserAccessZoomRecording(zoomRecording, meetingLink, student) {
   if (!zoomRecording || zoomRecording.isPublished === false) return false;
   if (!student || !meetingLink) return false;
+  if (student.journeyAccessEnabled === false) return false;
   if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) return false;
 
   const { batches, level, plan } = normalizeZoomAccessSettings(zoomRecording, meetingLink);
@@ -211,6 +214,10 @@ router.get('/', verifyToken, async (req, res) => {
     const student = await User.findById(req.user.id)
       .select('batch level subscription goStatus currentCourseDay').lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+    if (!journeyAccess.enabled) {
+      return res.json({ success: true, recordings: [] });
+    }
 
     const studentLevel = String(student.level || 'A1').toUpperCase();
     const baseFilter = {
@@ -636,6 +643,12 @@ router.get('/:id/hls/playlist', verifyMediaToken, async (req, res) => {
 
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
       const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
+      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({ success: false, message: 'Journey content is not enabled for your batch yet.' });
+      }
+      student.journeyAccessEnabled = journeyAccess.enabled;
       if (!canUserAccessManualRecording(recording, student)) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
       }
@@ -682,6 +695,12 @@ router.post('/:id/view', verifyToken, async (req, res) => {
     }
     if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
       const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
+      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({ success: false, message: 'Journey content is not enabled for your batch yet.' });
+      }
+      student.journeyAccessEnabled = journeyAccess.enabled;
       if (!canUserAccessManualRecording(recording, student)) {
         return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
       }
@@ -734,6 +753,15 @@ router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
         ZoomRecording.findOne({ meetingLinkId }).select('accessBatches accessLevel accessPlan isPublished').lean(),
         User.findById(userId).select('batch goStatus subscription currentCourseDay').lean(),
       ]);
+      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({
+          success: false,
+          message: 'Journey content is not enabled for your batch yet.',
+        });
+      }
+      student.journeyAccessEnabled = journeyAccess.enabled;
       if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
         return res.status(403).json({
           success: false,
@@ -967,6 +995,13 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
       : await User.findById(userId).select('batch level subscription goStatus currentCourseDay').lean();
     if (!isStaff && !student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+    if (!isStaff) {
+      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+      if (!journeyAccess.enabled) {
+        return res.json({ success: true, recordings: [] });
+      }
+      student.journeyAccessEnabled = journeyAccess.enabled;
     }
 
     const query = isStaff
@@ -1463,6 +1498,15 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyMediaToken, async (req, re
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
         User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),
       ]);
+      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({
+          success: false,
+          message: 'Journey content is not enabled for your batch yet.',
+        });
+      }
+      student.journeyAccessEnabled = journeyAccess.enabled;
       if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
         return res.status(403).json({
           success: false,
@@ -1536,6 +1580,15 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
         User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),
       ]);
+      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({
+          success: false,
+          message: 'Journey content is not enabled for your batch yet.',
+        });
+      }
+      student.journeyAccessEnabled = journeyAccess.enabled;
       if (!meetingLink) {
         return res.status(404).json({ success: false, message: 'Class not found.' });
       }

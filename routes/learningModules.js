@@ -7,6 +7,7 @@ const StudentProgress = require('../models/StudentProgress');
 const User = require('../models/User');
 const SessionRecord = require('../models/SessionRecord');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { getJourneyAccessForStudentId } = require('../utils/studentJourneyAccess');
 
 // GET /api/learning-modules - Get all modules (with filtering and level-based access control)
 router.get('/', verifyToken, async (req, res) => {
@@ -30,13 +31,25 @@ router.get('/', verifyToken, async (req, res) => {
     
     // ✅ Filter by visibility - Students only see published modules
     if (req.user.role === 'STUDENT') {
+      const journeyAccess = await getJourneyAccessForStudentId(User, req.user.id);
+      if (!journeyAccess.enabled) {
+        return res.json({
+          modules: [],
+          pagination: {
+            current: Number(page) || 1,
+            pages: 0,
+            total: 0
+          },
+          levelInfo: {
+            userLevel: studentLevel || req.user.level,
+            accessibleLevels: getAccessibleLevels(studentLevel || req.user.level)
+          }
+        });
+      }
       filter.visibleToStudents = true;
 
       // ✅ Journey day gating: only show modules for days the student has reached
-      const student = await User.findById(req.user.id).select('currentCourseDay').lean();
-      const studentDay = (student && student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay)))
-        ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
-        : 1;
+      const studentDay = journeyAccess.courseDay;
 
       // No courseDay = general pool; with courseDay: only days the student has reached (no future preview).
       filter.$and = filter.$and || [];
@@ -159,13 +172,17 @@ router.get('/:id', verifyToken, async (req, res) => {
     
     // If user is a student, include their progress
     if (req.user.role === 'STUDENT') {
+      const journeyAccess = await getJourneyAccessForStudentId(User, req.user.id);
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({
+          message: 'Journey content is not enabled for your batch yet.',
+          code: 'JOURNEY_NOT_ACTIVE'
+        });
+      }
       if (!module.visibleToStudents) {
         return res.status(404).json({ message: 'Module not found' });
       }
-      const stu = await User.findById(req.user.id).select('currentCourseDay').lean();
-      const studentDay = (stu && stu.currentCourseDay != null && Number.isFinite(Number(stu.currentCourseDay)))
-        ? Math.min(200, Math.max(1, Math.floor(Number(stu.currentCourseDay))))
-        : 1;
+      const studentDay = journeyAccess.courseDay;
       const cd = module.courseDay;
       if (cd != null && Number.isFinite(Number(cd)) && Number(cd) > studentDay) {
         return res.status(403).json({
@@ -416,10 +433,14 @@ router.post('/:id/enroll', verifyToken, checkRole(['STUDENT', 'TEACHER']), async
     }
 
     if (req.user.role === 'STUDENT') {
-      const stu = await User.findById(studentId).select('currentCourseDay').lean();
-      const studentDay = (stu && stu.currentCourseDay != null && Number.isFinite(Number(stu.currentCourseDay)))
-        ? Math.min(200, Math.max(1, Math.floor(Number(stu.currentCourseDay))))
-        : 1;
+      const journeyAccess = await getJourneyAccessForStudentId(User, studentId);
+      if (!journeyAccess.enabled) {
+        return res.status(403).json({
+          message: 'Journey content is not enabled for your batch yet.',
+          code: 'JOURNEY_NOT_ACTIVE'
+        });
+      }
+      const studentDay = journeyAccess.courseDay;
       const cd = module.courseDay;
       if (cd != null && Number.isFinite(Number(cd)) && Number(cd) > studentDay) {
         return res.status(403).json({
