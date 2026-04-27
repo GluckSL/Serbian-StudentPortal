@@ -12,6 +12,7 @@ import { DgDialogueComponent, type DgDialogueVariant } from '../dg-dialogue/dg-d
 import { DgPracticeComponent, type DgPracticePhase } from '../dg-practice/dg-practice.component';
 import { DgControlsComponent } from '../dg-controls/dg-controls.component';
 import type {
+  DgChatMessage,
   DgConversationMessage,
   DgGoalStep,
   DgPlayPayload,
@@ -23,10 +24,7 @@ import type { PronunciationEvaluateResponse } from '../../services/pronunciation
 import { DgCharacterStateService } from '../dg-character-state.service';
 import { DgAudioFeedbackService } from '../dg-audio-feedback.service';
 import {
-  behaviorFailureThinkFactor,
   behaviorPreSpeakFactor,
-  behaviorReactionHoldFactor,
-  behaviorSuccessHoldBoost,
   behaviorTransitionFactor,
   createSceneBehaviorPlan,
   shouldSkipOccasionalThoughtPause,
@@ -38,7 +36,6 @@ import {
   dgPacingMultiplier,
   dgWithOneRetry,
   humanDelay,
-  humanFailureThinkMs,
   humanReactionHoldMs,
   maybeOccasionalThoughtPause,
 } from '../dg-player.util';
@@ -71,11 +68,13 @@ export interface DgSceneFlowItem {
   styleUrl: './dg-bot-player.component.scss',
 })
 export class DgBotPlayerComponent implements OnInit, OnDestroy {
+  // ── Loading / error ─────────────────────────────────────────────────────────
   loading = true;
   error: string | null = null;
   payload: DgPlayPayload | null = null;
   sessionId: string | null = null;
 
+  // ── Scene state ─────────────────────────────────────────────────────────────
   index = 0;
   status: DgPlayerStatus = 'idle';
   transcript = '';
@@ -83,54 +82,53 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   practicePassed = false;
   displayLine = '';
   displaySub = '';
-  highlightWord = '';
   canNext = false;
-  practiceRetryTick = 0;
-
-  /** UX: scene shell cross-fade / scale */
   isTransitioning = false;
-
-  dialogueVariant: DgDialogueVariant = 'default';
   showConfetti = false;
   readonly confettiPieces = Array.from({ length: 22 }, (_, i) => i);
-
-  /** Next scene reference for light prefetch / TTS warm-up (data already on client). */
   sceneBuffer: DgScene | null = null;
+  dialogueVariant: DgDialogueVariant = 'default';
 
+  // ── Conversation mode ────────────────────────────────────────────────────────
+  /** True once all intro/briefing scenes have played — activates chat loop. */
+  conversationMode = false;
+  /** True after the student says "ready/bereit/start". */
+  conversationStarted = false;
+  /** True when vocab coverage ≥ 80 % or maxTurns reached. */
+  conversationComplete = false;
+  /** Full visible chat history (AI + student bubbles). */
+  chatHistory: DgChatMessage[] = [];
+  /** Vocab coverage 0-100. */
+  vocabCoverage = 0;
+  /** True while waiting for the student turn input. */
+  waitingForUser = false;
+  /** Incremented to reset the mic for the next student turn. */
+  convRetryTick = 0;
+  /** Displayed in the dialogue bubble while waiting for start trigger. */
+  waitingForStartText = '';
+  /** Debug panel: latest recognized user utterances from mic pipeline. */
+  debugSpeechLog: string[] = [];
+
+  isAiThinking = false;
+  aiResponseText = '';
+  aiResponseTamil = '';
+  ccMode: 'none' | 'en' | 'ta' = 'none';
+
+  // ── Internals ────────────────────────────────────────────────────────────────
   private sceneEnteredAt = 0;
   private ttsObjectUrl: string | null = null;
   private destroyAborted = false;
   private pendingAdvance: ReturnType<typeof setTimeout> | null = null;
   private confettiOff: ReturnType<typeof setTimeout> | null = null;
-  /**
-   * While true, scene/feedback speech owns the character — practice phase must not clobber speaking/reactions.
-   */
   private characterSpeechLocked = false;
-  /** Pacing: faster flow after consecutive correct practice attempts. */
   private correctStreak = 0;
-  /** Pacing: slightly slower beats after a wrong practice attempt until next non-practice scene. */
   private lastPracticeAttemptWrong = false;
-  /** Wrong attempts in the current practice scene (reset on advance / correct). */
   private consecutivePracticeFailures = 0;
-  /** Behavior preset + variants for the current scene; fixed until next {@link presentScene}. */
   private sceneBehaviorPlan: DgSceneBehaviorPlan | null = null;
-  /** Auto-play pacing for non-practice scenes (intro/teach/feedback). */
-  private readonly nonPracticeAutoAdvanceMs = 1400;
-
-  // ── Conversation / Role-play state ────────────────────────────────────────
-  /** Current turn count within the active practice scene (0 = no exchange yet). */
-  conversationTurn = 0;
-  /** Maximum AI exchanges per scene before auto-advancing. */
-  readonly maxConversationTurns = 3;
-  /** Last AI response text (target language) — bound to CC EN toggle. */
-  aiResponseText = '';
-  /** Tamil translation of the last AI response — bound to CC TA toggle. */
-  aiResponseTamil = '';
-  /** True while waiting for the AI conversation response (shows "Thinking…"). */
-  isAiThinking = false;
-  /** Per-scene conversation history sent to backend for context. */
   private conversationHistory: DgConversationMessage[] = [];
-  /** Used to compute session countdown for prompt context. */
+  private conversationTurn = 0;
+  private maxConversationTurns = 8;
+  private usedVocab = new Set<string>();
   private moduleStartedAt = 0;
 
   constructor(
@@ -147,6 +145,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     private emotionSvc: DgCharacterEmotionService,
   ) {}
 
+  // ── Getters ──────────────────────────────────────────────────────────────────
+
   get scenes(): DgScene[] {
     return this.payload?.module.scenes || [];
   }
@@ -156,6 +156,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   get progressPct(): number {
+    if (this.conversationMode) return this.vocabCoverage;
     if (!this.scenes.length) return 0;
     return Math.round((this.index / this.scenes.length) * 100);
   }
@@ -168,21 +169,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     });
   }
 
-  get sceneFlowItems(): DgSceneFlowItem[] {
-    return this.scenes.map((s, i) => ({
-      type: s.type,
-      ix: i + 1,
-      label: `${s.type.charAt(0).toUpperCase() + s.type.slice(1)} · ${i + 1}`,
-      state: i < this.index ? 'done' : i === this.index ? 'current' : 'upcoming',
-    }));
-  }
-
   get pronLanguage(): string {
-    const lang = this.payload?.module.language || 'German';
-    return lang === 'English' ? 'English' : 'German';
+    return (this.payload?.module.language || 'German') === 'English' ? 'English' : 'German';
   }
 
-  /** Human-readable status label shown in the UI during active phases. */
   get statusLabel(): string {
     if (this.isAiThinking) return 'Thinking…';
     if (this.status === 'listening') return 'Listening…';
@@ -190,79 +180,99 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  /**
-   * Returns true when the current scene should use the AI conversation loop
-   * instead of the plain success-then-advance flow.
-   * Triggers if the module has a role-play scenario or non-empty vocabulary lists.
-   */
-  private isConversationScene(): boolean {
-    if (this.scene?.type !== 'practice') return false;
+  /** True when the module has conversation content (vocab / role-play scenario). */
+  private get hasConversationContent(): boolean {
     const mod = this.payload?.module;
     if (!mod) return false;
-    const hasVocab =
+    return (
       (mod.allowedVocabulary?.length ?? 0) > 0 ||
-      (mod.aiTutorVocabulary?.length ?? 0) > 0;
-    const hasScenario = !!(mod.rolePlayScenario?.aiRole);
-    return hasVocab || hasScenario;
+      (mod.aiTutorVocabulary?.length ?? 0) > 0 ||
+      !!(mod.rolePlayScenario?.aiRole)
+    );
   }
+
+  private vocabListForConversation(): string[] {
+    const a = this.payload?.module.allowedVocabulary ?? [];
+    const b = this.payload?.module.aiTutorVocabulary ?? [];
+    const all = [...a, ...b]
+      .map((v) => (v.word || '').trim().toLowerCase())
+      .filter(Boolean);
+    return [...new Set(all)];
+  }
+
+  private pushDebugSpeech(text: string): void {
+    const t = (text || '').trim();
+    if (!t) return;
+    this.debugSpeechLog = [`🗣 ${t}`, ...this.debugSpeechLog].slice(0, 24);
+  }
+
+  getCcText(msg: DgChatMessage): string {
+    if (msg.speaker !== 'ai') return msg.text;
+    if (this.ccMode === 'en') return msg.translationEn || msg.text;
+    if (this.ccMode === 'ta') return msg.translation || msg.text;
+    return msg.text;
+  }
+
+  private openMicForUserTurn(): void {
+    this.waitingForUser = true;
+    this.status = 'idle';
+    if (!this.characterSpeechLocked) {
+      this.charState.setState('listening');
+    }
+    this.convRetryTick++;
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('moduleId');
-    if (!id) {
-      this.error = 'Missing module';
-      this.loading = false;
-      return;
-    }
+    if (!id) { this.error = 'Missing module'; this.loading = false; return; }
     this.boot(id);
   }
 
   ngOnDestroy(): void {
     this.destroyAborted = true;
     this.clearPendingAdvance();
-    if (this.confettiOff) {
-      clearTimeout(this.confettiOff);
-      this.confettiOff = null;
-    }
+    if (this.confettiOff) { clearTimeout(this.confettiOff); this.confettiOff = null; }
     this.stopAudio();
     this.audioCache.clear();
     this.charState.forceIdle();
   }
 
-  onPracticePhase(p: DgPracticePhase): void {
-    if (p === 'listening') {
-      this.status = 'listening';
-      if (!this.characterSpeechLocked) {
-        this.charState.setState('listening');
-      }
-      return;
-    }
-    if (p === 'processing') {
-      this.status = 'processing';
-      if (!this.characterSpeechLocked) {
-        this.charState.setState('thinking');
-      }
-      return;
-    }
-    if (p === 'countdown') {
-      this.status = 'idle';
-      if (!this.characterSpeechLocked) {
-        this.charState.setState('thinking');
-      }
-      return;
-    }
-    this.status = 'idle';
-  }
+  // ── Boot ─────────────────────────────────────────────────────────────────────
 
   private async boot(moduleId: string): Promise<void> {
     try {
       this.payload = await firstValueFrom(this.dgApi.getPlay(moduleId));
-      const start = await firstValueFrom(this.dgApi.startSession(moduleId));
-      this.sessionId = start.sessionId;
+
+      // Trim scenes to intro + briefing only (conversation handles the rest)
+      this.prepareIntroScenes();
+
+      const startRes = await firstValueFrom(this.dgApi.startSession(moduleId));
+      this.sessionId = startRes.sessionId;
       this.moduleStartedAt = Date.now();
+
+      // Pre-init conversation state on the backend
+      if (this.hasConversationContent && this.sessionId) {
+        try {
+          const convStart = await firstValueFrom(
+            this.dgApi.conversationStart({ moduleId, sessionId: this.sessionId }),
+          );
+          this.waitingForStartText = convStart.roleMessage || '';
+          this.maxConversationTurns = Math.max(6, Math.min(8, convStart.maxTurns || 8));
+        } catch {
+          this.waitingForStartText = '';
+          this.maxConversationTurns = 8;
+        }
+      }
+
       this.index = 0;
       this.correctStreak = 0;
       this.lastPracticeAttemptWrong = false;
       this.consecutivePracticeFailures = 0;
+      this.waitingForUser = false;
+      this.usedVocab.clear();
+      this.debugSpeechLog = [];
       this.loading = false;
       this.noteSceneEnter();
       dgDevLog('module loaded', moduleId, 'scenes', this.scenes.length);
@@ -274,19 +284,58 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Keep only intro + teach (briefing) scenes in the array.
+   * The practice conversation is handled by the conversation engine,
+   * not by hard-coded scene objects.
+   */
+  private prepareIntroScenes(): void {
+    if (!this.payload) return;
+    if (!this.hasConversationContent) return;
+
+    const allScenes = this.payload.module.scenes ?? [];
+    // Keep non-practice scenes; discard any auto-generated practice scenes
+    let introScenes = allScenes.filter((s) => s.type !== 'practice' && s.type !== 'feedback');
+
+    // Ensure we have at least an intro
+    if (introScenes.length === 0) {
+      introScenes = [{
+        type: 'intro',
+        text: "Hi! I'm your digital guide. Let's learn together.",
+        audioUrl: '', expectedAnswer: '', translation: '', hint: '', order: 0,
+      }];
+    }
+
+    // Add role briefing if the admin configured it and it isn't already there
+    const guidance = this.payload.module.rolePlayScenario?.studentGuidance?.trim();
+    if (guidance && !introScenes.some((s) => s.text === guidance)) {
+      introScenes.push({
+        type: 'teach',
+        text: guidance,
+        audioUrl: '', expectedAnswer: '', translation: '',
+        hint: 'Listen to your role, then speak when ready.',
+        order: introScenes.length,
+      });
+    }
+
+    this.payload.module.scenes = introScenes;
+  }
+
+  // ── Event handlers ────────────────────────────────────────────────────────────
+
   exit(): void {
     const u = this.auth.getSnapshotUser();
-    if (u?.role === 'STUDENT') {
-      this.router.navigate(['/dg-bot']);
-    } else {
-      this.router.navigate(['/admin/dg-modules']);
-    }
+    this.router.navigate(u?.role === 'STUDENT' ? ['/dg-bot'] : ['/admin/dg-modules']);
   }
 
   async replayTts(): Promise<void> {
+    if (this.conversationMode) {
+      const last = [...this.chatHistory].reverse().find((m) => m.speaker === 'ai');
+      if (last) { this.dgAudioPlayer.stop(); await this.playTtsBlob(last.text); }
+      return;
+    }
     this.dgAudioPlayer.stop();
     await this.speakCurrent();
-    await dgDelay(380);
   }
 
   async onNext(): Promise<void> {
@@ -297,145 +346,96 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   async onSkip(): Promise<void> {
     if (!this.sessionId) return;
+    if (this.conversationMode) {
+      // In conversation mode "skip" = pass empty turn to keep flow moving
+      await this.handleConversationEval({
+        transcript: '(skipped)', score: 0, isCorrect: false,
+        engine: 'skip', confidence: 0,
+      } as any);
+      return;
+    }
     this.charState.setState('thinking');
-    await firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'silence_failure',
-        sceneIndex: this.index,
-        silenceFailure: true,
-        meta: { reason: 'cant_speak_skip' },
-      }),
-    );
+    await firstValueFrom(this.dgApi.updateSession({
+      sessionId: this.sessionId,
+      event: 'silence_failure',
+      sceneIndex: this.index,
+      silenceFailure: true,
+      meta: { reason: 'cant_speak_skip' },
+    }));
     this.practicePassed = true;
     await dgDelay(320);
     await this.advance();
   }
 
+  onPracticePhase(p: DgPracticePhase): void {
+    if (p === 'listening') {
+      this.status = 'listening';
+      if (!this.characterSpeechLocked) this.charState.setState('listening');
+      return;
+    }
+    if (p === 'processing') {
+      this.status = 'processing';
+      if (!this.characterSpeechLocked) this.charState.setState('thinking');
+      return;
+    }
+    if (p === 'countdown') {
+      this.status = 'idle';
+      if (!this.characterSpeechLocked) this.charState.setState('thinking');
+      return;
+    }
+    this.status = 'idle';
+  }
+
+  /** Called by DgPracticeComponent when pronunciation evaluation is done. */
   async onEvaluated(ev: PronunciationEvaluateResponse): Promise<void> {
     if (!this.sessionId) return;
+    this.pushDebugSpeech(ev.transcript || '');
+
+    // ── Conversation mode: always continue regardless of score ────────────────
+    if (this.conversationMode) {
+      await this.handleConversationEval(ev);
+      return;
+    }
+
+    // ── Legacy scene-based flow (kept intact for non-conversation modules) ────
     this.status = 'result';
     this.transcript = ev.transcript || '';
     this.score = ev.score;
     const ok = !!ev.isCorrect;
 
-    await firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'practice_attempt',
-        sceneIndex: this.index,
-        attemptsDelta: 1,
-        success: ok,
-        transcript: ev.transcript,
-        score: ev.score,
-        meta: { engine: ev.engine },
-      }),
-    );
-    await firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'practice_result',
-        sceneIndex: this.index,
-        success: ok,
-        transcript: ev.transcript,
-        score: ev.score,
-      }),
-    );
+    await firstValueFrom(this.dgApi.updateSession({
+      sessionId: this.sessionId,
+      event: 'practice_attempt',
+      sceneIndex: this.index,
+      attemptsDelta: 1,
+      success: ok,
+      transcript: ev.transcript,
+      score: ev.score,
+      meta: { engine: ev.engine },
+    }));
 
     if (ok) {
       this.correctStreak += 1;
-      this.lastPracticeAttemptWrong = false;
-      this.consecutivePracticeFailures = 0;
-
-      if (this.isConversationScene()) {
-        // ── CONVERSATION MODE ─────────────────────────────────
-        // Brief happy beat, then hand off to the AI character response.
-        const pace = this.pacingMultiplier();
-        const happyEmo = this.emotionSvc.getEmotion('feedback', {
-          isCorrect: true,
-          confidence: ev.confidence,
-        });
-        this.charState.setState(happyEmo);
-        await humanDelay(320, pace);
-        await this.handleConversationTurn(ev);
-      } else {
-        // ── ORIGINAL SUCCESS FLOW (unchanged) ─────────────────
-        this.practicePassed = true;
-        this.canNext = true;
-        const pace = this.pacingMultiplier();
-        const happyEmo = this.emotionSvc.getEmotion('feedback', {
-          isCorrect: true,
-          confidence: ev.confidence,
-        });
-        this.charState.setState(happyEmo);
-        const plan = this.sceneBehaviorPlan;
-        const happyHoldMs = Math.max(
-          120,
-          humanReactionHoldMs(DG_CHAR_TIMING.successHappyHoldMs, 'happy') *
-            (plan ? behaviorReactionHoldFactor(plan, 'happy') * behaviorSuccessHoldBoost(plan) : 1),
-        );
-        await humanDelay(happyHoldMs, pace);
-
-        this.dialogueVariant = 'success';
-        this.showConfetti = true;
-        if (this.confettiOff) clearTimeout(this.confettiOff);
-        this.confettiOff = setTimeout(() => {
-          this.showConfetti = false;
-          this.confettiOff = null;
-        }, 2400);
-        this.audioFx.playSuccessChime();
-
-        const lines = this.engine.feedbackLines(true, false);
-        this.displayLine = `Great job! ${lines.en}`;
-        this.displaySub = lines.de;
-
-        await this.playFeedbackTts(lines.de, happyEmo);
-        const postFb = plan
-          ? DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs * behaviorTransitionFactor(plan)
-          : DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs;
-        await humanDelay(postFb, pace);
-        this.charState.setState(happyEmo);
-        this.scheduleAutoAdvance(1600);
-      }
+      this.practicePassed = true;
+      this.charState.setState('happy');
+      this.dialogueVariant = 'success';
+      this.showConfetti = true;
+      this.confettiOff = setTimeout(() => { this.showConfetti = false; }, 2400);
+      this.audioFx.playSuccessChime();
+      const lines = this.engine.feedbackLines(true, false);
+      this.displayLine = `Great job! ${lines.en}`;
+      this.displaySub = lines.de;
+      await this.playFeedbackTts(lines.de, 'happy');
+      this.scheduleAutoAdvance(1600);
     } else {
       this.correctStreak = 0;
       this.lastPracticeAttemptWrong = true;
-      this.consecutivePracticeFailures += 1;
-      const pace = this.pacingMultiplier();
-      const plan = this.sceneBehaviorPlan;
-      const fbNeg = { isCorrect: false as const, confidence: ev.confidence };
-      this.charState.setState('thinking');
-      const thinkMs = Math.max(
-        80,
-        humanFailureThinkMs(DG_CHAR_TIMING.failureThinkBeforeSadMs) *
-          (plan
-            ? behaviorFailureThinkFactor(plan, this.consecutivePracticeFailures)
-            : 1),
-      );
-      await humanDelay(thinkMs, pace);
       this.charState.setState('sad');
       this.dialogueVariant = 'encourage';
       const lines = this.engine.feedbackLines(false, false);
       this.displayLine = `${lines.en} Try again when you're ready.`;
       this.displaySub = lines.de;
-      const postFeedbackEmo = this.emotionSvc.getEmotion('feedback', fbNeg);
-      await this.playFeedbackTts(lines.de, postFeedbackEmo);
-      const sadHoldMs = Math.max(
-        120,
-        humanReactionHoldMs(DG_CHAR_TIMING.reactionHoldMs, 'sad') *
-          (plan ? behaviorReactionHoldFactor(plan, 'sad') : 1),
-      );
-      await humanDelay(sadHoldMs, pace);
-      this.charState.setState(postFeedbackEmo);
-      try {
-        await this.speakCurrent();
-      } catch {
-        /* replay is best-effort */
-      }
-      const postRetry = plan
-        ? DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs * behaviorTransitionFactor(plan)
-        : DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs;
-      await humanDelay(postRetry, pace);
+      await this.playFeedbackTts(lines.de, 'sad');
       this.displayLine = this.scene?.text || '';
       this.displaySub = this.scene?.translation || '';
       this.dialogueVariant = 'default';
@@ -445,19 +445,26 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Keep for legacy scene mode
+  private practiceRetryTick = 0;
+
   async onSilence(): Promise<void> {
     if (!this.sessionId) return;
+    this.pushDebugSpeech('(no speech detected)');
+    if (this.conversationMode) {
+      // Silence in conversation mode — keep waiting for manual push-to-talk
+      this.openMicForUserTurn();
+      return;
+    }
     this.charState.setState(this.emotionSvc.getEmotion('feedback', { isSilent: true }));
     this.status = 'result';
     this.dialogueVariant = 'soft';
-    await firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'silence_failure',
-        sceneIndex: this.index,
-        silenceFailure: true,
-      }),
-    );
+    await firstValueFrom(this.dgApi.updateSession({
+      sessionId: this.sessionId,
+      event: 'silence_failure',
+      sceneIndex: this.index,
+      silenceFailure: true,
+    }));
     const lines = this.engine.feedbackLines(false, true);
     this.displayLine = lines.en;
     this.displaySub = lines.de;
@@ -468,116 +475,262 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.charState.setState('idle');
   }
 
-  private clearPendingAdvance(): void {
-    if (this.pendingAdvance) {
-      clearTimeout(this.pendingAdvance);
-      this.pendingAdvance = null;
-    }
-  }
+  // ── Conversation mode ─────────────────────────────────────────────────────────
 
-  private scheduleAutoAdvance(ms: number): void {
-    this.clearPendingAdvance();
-    this.pendingAdvance = setTimeout(() => {
-      this.pendingAdvance = null;
-      if (this.destroyAborted || !this.practicePassed) return;
-      void this.advance();
-    }, ms);
-  }
+  /**
+   * Enter the free conversation loop.
+   * Called by advance() once all intro scenes have played.
+   */
+  private async enterConversationMode(): Promise<void> {
+    this.conversationMode = true;
+    this.conversationStarted = false;
+    this.conversationComplete = false;
+    this.chatHistory = [];
+    this.vocabCoverage = 0;
+    this.usedVocab.clear();
+    this.conversationTurn = 0;
+    this.convRetryTick = 0;
+    this.canNext = false;
+    this.isAiThinking = false;
+    this.waitingForUser = false;
 
-  private revokeTtsObjectUrl(): void {
-    if (this.ttsObjectUrl) {
-      URL.revokeObjectURL(this.ttsObjectUrl);
-      this.ttsObjectUrl = null;
-    }
-  }
+    const readyMsg = this.waitingForStartText ||
+      (this.payload?.module.rolePlayScenario?.studentGuidance?.trim()) ||
+      'Say "Bereit!" or "Ready!" to start the conversation.';
 
-  private stopAudio(): void {
-    this.dgAudioPlayer.stop();
-    this.revokeTtsObjectUrl();
-  }
-
-  private sceneContentHint(s: DgScene): { hasText: boolean } {
-    return { hasText: !!(s.text?.trim() || s.audioUrl) };
-  }
-
-  private restoreEmotionAfterSpeech(): void {
-    const s = this.scene;
-    if (!s) {
-      this.charState.setState('idle');
-      return;
-    }
-    this.charState.setState(this.emotionSvc.getEmotion(s.type, undefined, this.sceneContentHint(s)));
-  }
-
-  private pacingMultiplier(): number {
-    return dgPacingMultiplier({
-      lastPracticeWrong: this.lastPracticeAttemptWrong,
-      correctStreak: this.correctStreak,
-    });
-  }
-
-  private speechMood(hold?: DgCharacterAnimState): 'happy' | 'sad' | 'default' {
-    if (hold === 'happy') return 'happy';
-    if (hold === 'sad') return 'sad';
-    return 'default';
+    // Show + speak the start prompt
+    this.displayLine = readyMsg;
+    this.displaySub = 'Say "Bereit!" or "Ready!" when you are ready to begin.';
+    this.charState.setState('idle');
+    await this.logTts();
+    await this.playTtsBlob(readyMsg);
+    this.openMicForUserTurn();
   }
 
   /**
-   * Character beat: thinking → speaking → audio → speaking tail → pause → reaction → hold.
-   * Coordinates with {@link characterSpeechLocked} so practice mic phases do not override mid-flow.
+   * Core conversation evaluation handler.
+   * - If waiting for start: detect trigger → generate opening line
+   * - Otherwise: send to AI, render response, loop
+   * - Score is shown but NEVER blocks progression
    */
-  private async runSceneSpeech(
-    play: () => Promise<void>,
-    holdEmotion?: DgCharacterAnimState,
-  ): Promise<void> {
-    this.characterSpeechLocked = true;
-    this.status = 'speaking';
-    const pace = this.pacingMultiplier();
-    const plan = this.sceneBehaviorPlan;
-    const preMul = plan ? behaviorPreSpeakFactor(plan) : 1;
-    const transMul = plan ? behaviorTransitionFactor(plan) : 1;
-    const reactMul = plan ? behaviorReactionHoldFactor(plan, this.speechMood(holdEmotion)) : 1;
+  private async handleConversationEval(ev: PronunciationEvaluateResponse): Promise<void> {
+    const transcript = (ev.transcript || '').trim();
+    this.waitingForUser = false;
+
+    // No speech at all → just retry mic
+    if (!transcript) { this.openMicForUserTurn(); return; }
+
+    // Show score badge but never block
+    this.status = 'result';
+
+    const scoreLabel = ev.score != null ? `${Math.round(ev.score)}%` : '';
+    // Add student bubble immediately
+    this.chatHistory = [
+      ...this.chatHistory,
+      { speaker: 'student', text: transcript, score: ev.score ?? undefined },
+    ];
+    this.displayLine = transcript;
+    this.displaySub = scoreLabel ? `Pronunciation: ${scoreLabel}` : '';
+
+    // Block mic while AI is thinking / speaking
+    this.isAiThinking = true;
+    this.charState.setState('thinking');
+
+    const moduleId = this.payload!.module._id;
+    const durationMin = this.payload?.module.minimumCompletionTime || 10;
+    const elapsedSec = this.moduleStartedAt
+      ? Math.floor((Date.now() - this.moduleStartedAt) / 1000) : 0;
+    const remainingSeconds = Math.max(0, durationMin * 60 - elapsedSec);
+
     try {
-      this.charState.setState('thinking');
-      await humanDelay(DG_CHAR_TIMING.preSpeakAnticipationMs * preMul, pace);
-      this.charState.setState('speaking');
-      await play();
-    } finally {
-      try {
-        await dgDelay(Math.round(DG_CHAR_TIMING.postSpeakSpeakingTailMs * pace));
-        this.status = 'idle';
-        if (!plan || !shouldSkipOccasionalThoughtPause(plan)) {
-          await maybeOccasionalThoughtPause(pace);
-        }
-        await humanDelay(DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs * transMul, pace);
-        if (holdEmotion !== undefined) {
-          this.charState.setState(holdEmotion);
-        } else {
-          this.restoreEmotionAfterSpeech();
-        }
-        const holdMs = Math.max(
-          120,
-          humanReactionHoldMs(DG_CHAR_TIMING.reactionHoldMs, this.speechMood(holdEmotion)) * reactMul,
-        );
-        await humanDelay(holdMs, pace);
-      } finally {
-        this.characterSpeechLocked = false;
+      const response = await firstValueFrom(
+        this.dgApi.conversationRespond({
+          moduleId,
+          sessionId: this.sessionId!,
+          sceneIndex: 0,
+          userText: transcript,
+          pronunciationScore: ev.score ?? 0,
+          remainingSeconds,
+          turnNumber: this.conversationTurn,
+          history: this.conversationHistory.slice(-8),
+          // Optional signal fields for richer vocab usage planning
+          vocabList: this.vocabListForConversation(),
+          usedVocab: Array.from(this.usedVocab),
+        } as any),
+      );
+
+      this.isAiThinking = false;
+
+      // Persist conversation started state
+      if (response.conversationStarted && !this.conversationStarted) {
+        this.conversationStarted = true;
       }
+
+      // Update vocab coverage
+      if (response.vocabCoverage != null) {
+        this.vocabCoverage = response.vocabCoverage;
+      }
+      for (const w of response.usedVocab || []) {
+        const t = String(w || '').trim().toLowerCase();
+        if (t) this.usedVocab.add(t);
+      }
+      this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
+
+      // Push AI response to history
+      this.conversationHistory = [
+        ...this.conversationHistory,
+        { role: 'user', text: transcript },
+        { role: 'ai', text: response.text },
+      ];
+
+      // Add AI bubble
+      this.chatHistory = [
+        ...this.chatHistory,
+        {
+          speaker: 'ai',
+          text: response.text,
+          translation: response.translatedTamil || undefined,
+          translationEn: response.translatedEnglish || undefined,
+        },
+      ];
+
+      this.aiResponseText = response.text;
+      this.aiResponseTamil = response.translatedTamil;
+      this.displayLine = response.text;
+      this.displaySub = response.translatedTamil || '';
+      this.dialogueVariant = 'default';
+      this.charState.setState('speaking');
+
+      await this.logTts();
+      await this.playTtsBlob(response.text);
+
+      const phase = response.phase || (response.complete ? 'complete' : 'active');
+
+      if (phase === 'complete' || response.complete) {
+        this.conversationComplete = true;
+        await dgDelay(1500);
+        await this.finishModule();
+        return;
+      }
+
+      const vocabList = this.vocabListForConversation();
+      const allVocabUsed = vocabList.length > 0 && this.usedVocab.size >= vocabList.length;
+      const reachedTurnLimit = this.conversationTurn >= this.maxConversationTurns;
+      if (allVocabUsed || reachedTurnLimit) {
+        this.conversationComplete = true;
+        const endMsg = allVocabUsed
+          ? 'Excellent — you used all target vocabulary. Conversation complete.'
+          : 'Great effort — turn limit reached. Conversation complete.';
+        this.displayLine = endMsg;
+        this.displaySub = '';
+        await this.playTtsBlob(endMsg);
+        await dgDelay(1200);
+        await this.finishModule();
+        return;
+      }
+
+      // Reset for next student turn
+      await dgDelay(220);
+      this.charState.setState('idle');
+      this.openMicForUserTurn();
+
+    } catch (err: any) {
+      console.error('[dg-player] conversation respond failed:', err);
+      this.isAiThinking = false;
+      this.charState.setState('idle');
+      this.openMicForUserTurn(); // re-open mic even on error
     }
   }
 
-  /** Pre-generated URL first; on failure/timeout, TTS from fallback text (non-blocking UX). */
-  private async playExternal(
-    url: string,
-    holdEmotion?: DgCharacterAnimState,
-    ttsFallback?: string,
-  ): Promise<void> {
-    const trimmedUrl = url.trim();
+  // ── Scene engine (intro / teach / feedback) ───────────────────────────────────
+
+  private async presentScene(): Promise<void> {
+    const s = this.scene;
+    if (!s || !this.payload) return;
+
+    this.sceneBehaviorPlan = createSceneBehaviorPlan({
+      consecutivePracticeFails: this.consecutivePracticeFailures,
+      correctStreak: this.correctStreak,
+    });
+
+    this.dialogueVariant = 'default';
+    this.showConfetti = false;
+    this.practicePassed = false;
+    this.transcript = '';
+    this.score = null;
+    this.canNext = false;
+    this.displaySub = s.translation || '';
+    this.displayLine = s.text || '';
+    this.charState.setState(this.emotionSvc.getEmotion(s.type, undefined, { hasText: !!(s.text?.trim() || s.audioUrl) }));
+
+    const preGen = s.audioUrl?.trim();
+    if (preGen) {
+      await this.logTts();
+      await this.playExternal(preGen, undefined, s.text);
+    } else if (s.text) {
+      await this.logTts();
+      await this.playTtsBlob(s.text);
+    }
+
+    const outMul = this.sceneBehaviorPlan ? behaviorTransitionFactor(this.sceneBehaviorPlan) : 1;
+    await humanDelay(120 * outMul, this.pacingMultiplier());
+    this.status = 'idle';
+    this.waitingForUser = true;
+
+    // Conversation modules must wait for user speech; no scene auto-advance.
+    if (this.hasConversationContent) {
+      await this.enterConversationMode();
+      return;
+    }
+
+    this.refreshSceneBufferAndPreload();
+  }
+
+  private async advance(): Promise<void> {
+    if (this.conversationMode) return;
+    this.flushSceneTiming();
+    this.stopAudio();
+    this.clearPendingAdvance();
+    this.consecutivePracticeFailures = 0;
+    this.isTransitioning = true;
+    await dgDelay(300);
+    this.index += 1;
+
+    if (this.index >= this.scenes.length) {
+      this.isTransitioning = false;
+      // All intro/briefing scenes done — enter conversation if module supports it
+      if (this.hasConversationContent) {
+        await this.enterConversationMode();
+      } else {
+        await this.finishModule();
+      }
+      return;
+    }
+
+    this.noteSceneEnter();
+    await this.presentScene();
+    await dgDelay(200);
+    this.isTransitioning = false;
+  }
+
+  private async finishModule(): Promise<void> {
+    if (this.sessionId) {
+      const finalScore = this.score != null ? Math.min(100, this.score) : 0;
+      await firstValueFrom(this.dgApi.completeSession(this.sessionId, finalScore)).catch(() => {});
+    }
+    this.charState.forceIdle();
+    this.exit();
+  }
+
+  // ── Audio helpers ─────────────────────────────────────────────────────────────
+
+  private async playExternal(url: string, holdEmotion?: DgCharacterAnimState, ttsFallback?: string): Promise<void> {
+    const trimmed = url.trim();
     const fb = ttsFallback?.trim();
     this.revokeTtsObjectUrl();
     await this.runSceneSpeech(async () => {
       try {
-        await this.dgAudioPlayer.play(trimmedUrl, false);
+        await this.dgAudioPlayer.play(trimmed, false);
       } catch {
         if (!fb) throw new Error('DG_AUDIO_NO_FALLBACK');
         const voice = this.payload?.character?.voice || 'alloy';
@@ -596,304 +749,117 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     const pre = this.audioCache.getPreloadedSrc(voice, trimmed);
     let src: string;
     if (pre) {
-      dgDevLog('tts cache hit');
       src = pre;
     } else {
-      const blob = await dgWithOneRetry(() =>
-        firstValueFrom(this.dgTts.synthesize(trimmed || text, voice)),
-      );
+      const blob = await dgWithOneRetry(() => firstValueFrom(this.dgTts.synthesize(trimmed, voice)));
       this.ttsObjectUrl = URL.createObjectURL(blob);
       src = this.ttsObjectUrl;
     }
     await this.runSceneSpeech(() => this.dgAudioPlayer.play(src, false), holdEmotion);
   }
 
-  private async logTts(): Promise<void> {
-    if (!this.sessionId) return;
-    await firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'tts_play',
-        sceneIndex: this.index,
-      }),
-    );
-  }
-
-  private noteSceneEnter(): void {
-    this.sceneEnteredAt = Date.now();
-    if (!this.sessionId) return;
-    firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'scene_enter',
-        sceneIndex: this.index,
-      }),
-    ).catch(() => {});
-  }
-
-  private flushSceneTiming(): void {
-    if (!this.sessionId || !this.sceneEnteredAt) return;
-    const durationMs = Date.now() - this.sceneEnteredAt;
-    firstValueFrom(
-      this.dgApi.updateSession({
-        sessionId: this.sessionId,
-        event: 'scene_complete',
-        sceneIndex: this.index,
-        durationMs,
-      }),
-    ).catch(() => {});
-  }
-
-  private refreshSceneBufferAndPreload(): void {
-    this.sceneBuffer = this.scenes[this.index + 1] ?? null;
-    const voice = this.payload?.character?.voice || 'alloy';
-    const fetchBlob = (t: string, v: string) =>
-      dgWithOneRetry(() => firstValueFrom(this.dgTts.synthesize(t, v)));
-    this.audioCache.preloadScenesAtIndices(this.scenes, this.index, voice, fetchBlob);
-    const urlBatch: string[] = [];
-    for (let k = 0; k <= 2; k++) {
-      const u = this.scenes[this.index + k]?.audioUrl?.trim();
-      if (u) urlBatch.push(u);
-    }
-    this.dgAudioPlayer.preloadMultiple(urlBatch);
-  }
-
-  private updateHighlight(s: DgScene): void {
-    if (s.type === 'practice' && s.expectedAnswer) {
-      this.highlightWord = s.expectedAnswer;
-      return;
-    }
-    if (s.type === 'teach') {
-      const t = s.text?.trim() || '';
-      this.highlightWord = t.split(/\s+/).slice(0, 3).join(' ') || t;
-      return;
-    }
-    this.highlightWord = '';
-  }
-
-  private async presentScene(): Promise<void> {
-    const s = this.scene;
-    if (!s || !this.payload) return;
-    this.sceneBehaviorPlan = createSceneBehaviorPlan({
-      consecutivePracticeFails: this.consecutivePracticeFailures,
-      correctStreak: this.correctStreak,
-    });
-    if (s.type !== 'practice') {
-      this.lastPracticeAttemptWrong = false;
-    }
-
-    // Reset conversation state for each new scene
-    this.conversationTurn = 0;
-    this.conversationHistory = [];
-    this.aiResponseText = '';
-    this.aiResponseTamil = '';
-    this.isAiThinking = false;
-
-    this.dialogueVariant = 'default';
-    this.showConfetti = false;
-    this.practicePassed = false;
-    this.transcript = '';
-    this.score = null;
-    this.canNext = s.type !== 'practice';
-    this.updateHighlight(s);
-    this.displaySub = s.translation || '';
-    this.displayLine = s.text || '';
-    this.charState.setState(this.emotionSvc.getEmotion(s.type, undefined, this.sceneContentHint(s)));
-
-    if (s.type === 'practice') {
-      this.displayLine = s.text || 'Please repeat.';
-      const preGen = s.audioUrl?.trim();
-      if (preGen) {
-        await this.logTts();
-        await this.playExternal(preGen, undefined, this.displayLine);
-      } else if (this.displayLine) {
-        await this.logTts();
-        await this.playTtsBlob(this.displayLine);
+  private async runSceneSpeech(play: () => Promise<void>, holdEmotion?: DgCharacterAnimState): Promise<void> {
+    this.characterSpeechLocked = true;
+    this.status = 'speaking';
+    const pace = this.pacingMultiplier();
+    const plan = this.sceneBehaviorPlan;
+    const preMul = plan ? behaviorPreSpeakFactor(plan) : 1;
+    const transMul = plan ? behaviorTransitionFactor(plan) : 1;
+    const reactMul = plan ? 1 : 1;
+    try {
+      this.charState.setState('thinking');
+      await humanDelay(DG_CHAR_TIMING.preSpeakAnticipationMs * preMul, pace);
+      this.charState.setState('speaking');
+      await play();
+    } finally {
+      try {
+        await dgDelay(Math.round(DG_CHAR_TIMING.postSpeakSpeakingTailMs * pace));
+        this.status = 'idle';
+        if (!plan || !shouldSkipOccasionalThoughtPause(plan)) {
+          await maybeOccasionalThoughtPause(pace);
+        }
+        await humanDelay(DG_CHAR_TIMING.postSpeakPauseBeforeReactionMs * transMul, pace);
+        if (holdEmotion !== undefined) {
+          this.charState.setState(holdEmotion);
+        } else {
+          this.charState.setState('idle');
+        }
+        const holdMs = Math.max(120, humanReactionHoldMs(DG_CHAR_TIMING.reactionHoldMs, 'default') * reactMul);
+        await humanDelay(holdMs, pace);
+      } finally {
+        this.characterSpeechLocked = false;
       }
-      const pace = this.pacingMultiplier();
-      const plan = this.sceneBehaviorPlan;
-      const transMul = plan ? behaviorTransitionFactor(plan) : 1;
-      let practicePad = (200 + DG_CHAR_TIMING.practiceListeningPrimingMs) * transMul;
-      const v = Math.random();
-      if (v < 0.35) practicePad += 75 + Math.random() * 105;
-      else if (v > 0.72) practicePad -= 22 + Math.random() * 48;
-      await humanDelay(Math.max(340, practicePad), pace);
-      this.charState.setState(this.emotionSvc.getEmotion('practice', undefined, this.sceneContentHint(s)));
-      this.status = 'idle';
-      this.canNext = false;
-      this.refreshSceneBufferAndPreload();
-      return;
     }
+  }
 
-    const preGenLine = s.audioUrl?.trim();
-    if (preGenLine) {
-      await this.logTts();
-      await this.playExternal(preGenLine, undefined, s.text);
-    } else if (s.text) {
-      await this.logTts();
-      await this.playTtsBlob(s.text);
-    }
-    const planOut = this.sceneBehaviorPlan;
-    const outMul = planOut ? behaviorTransitionFactor(planOut) : 1;
-    await humanDelay(120 * outMul, this.pacingMultiplier());
-    this.status = 'idle';
-    this.canNext = true;
-    // Hands-free flow: continue automatically after non-practice narration.
-    this.scheduleAutoAdvance(this.nonPracticeAutoAdvanceMs);
-    this.refreshSceneBufferAndPreload();
+  private async playFeedbackTts(line: string, holdEmotion: DgCharacterAnimState): Promise<void> {
+    try { await this.logTts(); await this.playTtsBlob(line, holdEmotion); } catch { /* ignore */ }
   }
 
   private async speakCurrent(): Promise<void> {
     const s = this.scene;
     if (!s) return;
-    const preGen = s.audioUrl?.trim();
-    if (preGen) {
-      await this.playExternal(preGen, undefined, s.text || this.displayLine);
-    } else if (s.text) {
-      await this.playTtsBlob(s.text);
-    }
+    if (s.audioUrl?.trim()) await this.playExternal(s.audioUrl.trim(), undefined, s.text || this.displayLine);
+    else if (s.text) await this.playTtsBlob(s.text);
   }
 
-  private async playFeedbackTts(line: string, holdEmotion: DgCharacterAnimState): Promise<void> {
-    try {
-      await this.logTts();
-      await this.playTtsBlob(line, holdEmotion);
-    } catch {
-      /* ignore TTS errors */
-    }
+  private async logTts(): Promise<void> {
+    if (!this.sessionId) return;
+    await firstValueFrom(this.dgApi.updateSession({
+      sessionId: this.sessionId, event: 'tts_play', sceneIndex: this.index,
+    }));
   }
 
-  /**
-   * Called on a successful pronunciation attempt when the module is in conversation mode.
-   *
-   * Flow per turn:
-   *  1. Record user message in history
-   *  2. Show "Thinking…" while calling the AI
-   *  3. Display AI response in the dialogue bubble
-   *  4. Speak the AI response via TTS
-   *  5a. If scene complete (max turns reached) → advance to next scene
-   *  5b. Otherwise → reset practice mic so the student can speak again
-   */
-  private async handleConversationTurn(ev: PronunciationEvaluateResponse): Promise<void> {
-    const scene = this.scene;
-    const payload = this.payload;
-    if (!scene || !payload || !this.sessionId) return;
+  // ── Misc ──────────────────────────────────────────────────────────────────────
 
-    const userText = ev.transcript || '';
-    if (!userText.trim()) {
-      // No transcript to work with — fall through to normal advance
-      this.practicePassed = true;
-      this.canNext = true;
-      this.scheduleAutoAdvance(1200);
-      return;
-    }
-
-    // Record user turn in local history
-    this.conversationHistory.push({ role: 'user', text: userText });
-
-    // Show thinking state
-    this.isAiThinking = true;
-    this.charState.setState('thinking');
-    this.status = 'speaking'; // block the practice mic while AI responds
-
-    const durationMinutes = payload.module.minimumCompletionTime || 10;
-    const totalSeconds = durationMinutes * 60;
-    const elapsedSeconds = this.moduleStartedAt
-      ? Math.floor((Date.now() - this.moduleStartedAt) / 1000)
-      : 0;
-    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-
-    try {
-      const response = await firstValueFrom(
-        this.dgApi.conversationRespond({
-          moduleId: payload.module._id,
-          sessionId: this.sessionId,
-          sceneIndex: this.index,
-          userText,
-          pronunciationScore: ev.score || 0,
-          remainingSeconds,
-          turnNumber: this.conversationTurn,
-          history: this.conversationHistory.slice(-6),
-        }),
-      );
-
-      this.isAiThinking = false;
-
-      // Store AI response for CC
-      this.aiResponseText = response.text;
-      this.aiResponseTamil = response.translatedTamil;
-      this.conversationTurn = response.turnNumber;
-
-      // Record AI turn in local history
-      this.conversationHistory.push({ role: 'ai', text: response.text });
-
-      // Display AI response in dialogue
-      this.displayLine = response.text;
-      this.displaySub = '';
-      this.dialogueVariant = 'default';
-
-      // Speak the AI response
-      try {
-        await this.logTts();
-        await this.playTtsBlob(response.text);
-      } catch {
-        /* TTS failure is non-blocking */
-      }
-
-      if (response.sceneComplete || this.conversationTurn >= this.maxConversationTurns) {
-        // Conversation for this scene is complete — advance
-        this.practicePassed = true;
-        this.canNext = true;
-        await dgDelay(600);
-        this.scheduleAutoAdvance(1000);
-      } else {
-        // Reset for the next student turn — restore scene text and enable mic
-        await dgDelay(400);
-        this.displayLine = scene.text || '';
-        this.displaySub = scene.translation || '';
-        this.dialogueVariant = 'default';
-        this.practicePassed = false;
-        this.canNext = false;
-        this.practiceRetryTick += 1;
-        this.status = 'idle';
-        this.charState.setState('idle');
-      }
-    } catch (err) {
-      // AI call failed — treat as a regular pass and advance
-      console.error('[dg-bot-player] conversation respond failed:', err);
-      this.isAiThinking = false;
-      this.practicePassed = true;
-      this.canNext = true;
-      this.status = 'idle';
-      this.scheduleAutoAdvance(1800);
-    }
+  private clearPendingAdvance(): void {
+    if (this.pendingAdvance) { clearTimeout(this.pendingAdvance); this.pendingAdvance = null; }
   }
 
-  private async advance(): Promise<void> {
-    this.flushSceneTiming();
-    this.stopAudio();
+  private scheduleAutoAdvance(ms: number): void {
     this.clearPendingAdvance();
-    this.consecutivePracticeFailures = 0;
-    this.isTransitioning = true;
-    await dgDelay(360);
-    this.index += 1;
-    if (this.index >= this.scenes.length) {
-      this.isTransitioning = false;
-      await this.finishModule();
-      return;
-    }
-    this.noteSceneEnter();
-    await this.presentScene();
-    await dgDelay(220);
-    this.isTransitioning = false;
+    this.pendingAdvance = setTimeout(() => {
+      this.pendingAdvance = null;
+      if (this.destroyAborted || !this.practicePassed) return;
+      void this.advance();
+    }, ms);
   }
 
-  private async finishModule(): Promise<void> {
-    if (this.sessionId) {
-      const final = this.score != null ? Math.min(100, this.score) : 0;
-      await firstValueFrom(this.dgApi.completeSession(this.sessionId, final)).catch(() => {});
-    }
-    this.charState.forceIdle();
-    this.exit();
+  private revokeTtsObjectUrl(): void {
+    if (this.ttsObjectUrl) { URL.revokeObjectURL(this.ttsObjectUrl); this.ttsObjectUrl = null; }
+  }
+
+  private stopAudio(): void { this.dgAudioPlayer.stop(); this.revokeTtsObjectUrl(); }
+
+  private pacingMultiplier(): number {
+    return dgPacingMultiplier({
+      lastPracticeWrong: this.lastPracticeAttemptWrong,
+      correctStreak: this.correctStreak,
+    });
+  }
+
+  private noteSceneEnter(): void {
+    this.sceneEnteredAt = Date.now();
+    if (!this.sessionId) return;
+    firstValueFrom(this.dgApi.updateSession({
+      sessionId: this.sessionId, event: 'scene_enter', sceneIndex: this.index,
+    })).catch(() => {});
+  }
+
+  private flushSceneTiming(): void {
+    if (!this.sessionId || !this.sceneEnteredAt) return;
+    const durationMs = Date.now() - this.sceneEnteredAt;
+    firstValueFrom(this.dgApi.updateSession({
+      sessionId: this.sessionId, event: 'scene_complete', sceneIndex: this.index, durationMs,
+    })).catch(() => {});
+  }
+
+  private refreshSceneBufferAndPreload(): void {
+    this.sceneBuffer = this.scenes[this.index + 1] ?? null;
+    const voice = this.payload?.character?.voice || 'alloy';
+    this.audioCache.preloadScenesAtIndices(
+      this.scenes, this.index, voice,
+      (t, v) => dgWithOneRetry(() => firstValueFrom(this.dgTts.synthesize(t, v))),
+    );
   }
 }

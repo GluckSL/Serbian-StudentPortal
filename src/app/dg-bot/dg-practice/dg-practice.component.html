@@ -21,7 +21,7 @@
       color="primary"
       type="button"
       class="dg-practice__mic"
-      [disabled]="disabled || processing || countdownActive || !expected"
+      [disabled]="disabled || processing || countdownActive || (!allowFreeSpeech && !expected)"
       [class.dg-practice__mic--on]="recording"
       (click)="toggleRecord()"
       [attr.aria-label]="recording ? 'Stop recording' : 'Tap to speak'"

@@ -270,10 +270,48 @@ async function translateToTamil(text, fromLang) {
   }
 }
 
+/**
+ * Generic translation helper.
+ * Returns empty string on failure (non-blocking).
+ */
+async function translateText(text, fromLang, toLang) {
+  if (!text || !process.env.OPENAI_API_KEY) return '';
+  try {
+    const openai = _makeOpenAI();
+    const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o';
+    const completion = await Promise.race([
+      openai.chat.completions.create({
+        model: translationModel,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a professional translator. Translate accurately. Provide ONLY the translation — no explanations, no quotes.',
+          },
+          {
+            role: 'user',
+            content: `Translate this from ${fromLang} to ${toLang}:\n"${text}"\n\nTranslation:`,
+          },
+        ],
+        max_tokens: 150,
+        temperature: 0.1,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('DG translation timeout')), 8000),
+      ),
+    ]);
+    return (completion.choices[0]?.message?.content || '').trim();
+  } catch (err) {
+    console.warn('[dgConversationService] Translation failed:', err.message);
+    return '';
+  }
+}
+
 module.exports = {
   buildDGPrompt,
   buildAllowedSet,
   checkVocabulary,
   getAIResponse,
   translateToTamil,
+  translateText,
 };

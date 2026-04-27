@@ -32,6 +32,7 @@ router.get('/session/mine', verifyToken, dgSessionController.getMySessions);
 
 router.post('/tts', verifyToken, dgTtsController.synthesize);
 
+router.post('/conversation/start',   verifyToken, dgConversationController.start);
 router.post('/conversation/respond', verifyToken, dgConversationController.respond);
 
 module.exports = router;

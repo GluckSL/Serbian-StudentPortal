@@ -1,46 +1,51 @@
+<!-- ── Loading ── -->
+<div class="dg-player__loading" *ngIf="loading">
+  <div class="dg-player__loading-inner">
+    <span class="dg-player__loading-dot"></span>
+    Loading your lesson…
+  </div>
+</div>
+<div class="dg-player__err" *ngIf="error">{{ error }}</div>
+
+<!-- ── Main player ── -->
 <div class="dg-player" *ngIf="!loading && !error && payload">
   <div class="dg-player__ambient" aria-hidden="true"></div>
 
+  <!-- Header -->
   <header class="dg-player__top">
     <div class="dg-player__progress-block">
       <div class="dg-player__progress-head">
-        <span class="dg-player__step-pill"
-          >Step {{ index + 1 }} <span class="dg-player__step-of">/</span> {{ scenes.length }}</span
-        >
+        <span class="dg-player__step-pill" *ngIf="!conversationMode">
+          Step {{ index + 1 }} <span class="dg-player__step-of">/</span> {{ scenes.length }}
+        </span>
+        <span class="dg-player__step-pill" *ngIf="conversationMode">
+          <span *ngIf="!conversationStarted">Starting…</span>
+          <span *ngIf="conversationStarted && !conversationComplete">
+            Vocab {{ vocabCoverage }}% covered
+          </span>
+          <span *ngIf="conversationComplete">Complete!</span>
+        </span>
         <span class="dg-player__module-title">{{ payload.module.title }}</span>
       </div>
-      <div
-        class="dg-player__progress-track"
-        role="progressbar"
-        [attr.aria-valuenow]="progressPct"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        [attr.aria-label]="'Module progress: ' + progressPct + ' percent'"
-      >
+      <div class="dg-player__progress-track"
+           role="progressbar"
+           [attr.aria-valuenow]="progressPct"
+           aria-valuemin="0" aria-valuemax="100">
         <div class="dg-player__progress-fill" [style.width.%]="progressPct"></div>
       </div>
     </div>
     <button mat-stroked-button type="button" class="dg-player__exit" (click)="exit()">
-      <mat-icon>close</mat-icon>
-      Exit
+      <mat-icon>close</mat-icon> Exit
     </button>
   </header>
 
-  <div
-    class="dg-player__stage-wrap"
-    [class.dg-player__stage-wrap--transition]="isTransitioning"
-  >
-    <div class="dg-confetti" *ngIf="showConfetti" aria-hidden="true">
-      <span
-        *ngFor="let c of confettiPieces"
-        class="dg-confetti__bit"
-        [style.--dg-r]="c * 53 + 'deg'"
-        [style.--dg-d]="c * 35 + 'ms'"
-        [style.--dg-x]="((c * 19) % 100) - 50 + 'px'"
-      ></span>
-    </div>
+  <!-- Stage -->
+  <div class="dg-player__stage-wrap"
+       [class.dg-player__stage-wrap--transition]="isTransitioning">
 
-    <div class="dg-player__layout">
+    <!-- ── INTRO / BRIEFING SCENES ── -->
+    <div class="dg-player__layout" *ngIf="!conversationMode">
+
       <section class="dg-player__char-pane">
         <div class="dg-player__char-stack">
           <app-dg-dialogue
@@ -64,79 +69,163 @@
       </section>
 
       <section class="dg-player__learn-pane">
-        <div
-          class="dg-player__hero-card"
-          *ngIf="highlightWord || displayLine"
-          [class.dg-player__hero-card--target]="!!highlightWord"
-        >
-          <p class="dg-player__hero-line">{{ highlightWord || displayLine }}</p>
+        <div class="dg-player__hero-card" *ngIf="displayLine">
+          <p class="dg-player__hero-line">{{ displayLine }}</p>
           <p class="dg-player__hero-sub" *ngIf="displaySub">({{ displaySub }})</p>
         </div>
-
-        <div class="dg-player__interaction">
-          <!-- Conversation turn indicator -->
-          <div
-            class="dg-player__conv-turns"
-            *ngIf="scene?.type === 'practice' && conversationTurn > 0"
-          >
-            <span
-              *ngFor="let t of [0, 1, 2]"
-              class="dg-player__conv-dot"
-              [class.dg-player__conv-dot--done]="t < conversationTurn"
-            ></span>
-          </div>
-
-          <!-- Status label: Listening / Processing / Thinking -->
-          <div
-            class="dg-player__status-label"
-            *ngIf="statusLabel"
-            [class.dg-player__status-label--thinking]="isAiThinking"
-            aria-live="polite"
-          >
-            <span class="dg-player__status-dot"></span>
-            {{ statusLabel }}
-          </div>
-
-          <app-dg-practice
-            *ngIf="scene?.type === 'practice'"
-            [expected]="scene?.expectedAnswer || ''"
-            [language]="pronLanguage"
-            [hint]="scene?.hint || ''"
-            [disabled]="status === 'speaking' || practicePassed || isTransitioning || isAiThinking"
-            [retryTick]="practiceRetryTick"
-            [sceneKey]="(scene?._id || '') + '-' + index"
-            (evaluated)="onEvaluated($event)"
-            (silence)="onSilence()"
-            (phaseChange)="onPracticePhase($event)"
-          ></app-dg-practice>
-
-          <div class="dg-player__non-practice-hint" *ngIf="scene?.type !== 'practice'">
-            <p class="dg-player__non-practice-text">
-              Listen to your tutor, then use <strong>Next</strong> when you are ready.
-            </p>
-          </div>
+        <div class="dg-player__non-practice-hint">
+          <p class="dg-player__non-practice-text">
+            Speak to continue.
+          </p>
         </div>
       </section>
 
       <footer class="dg-player__footer">
         <app-dg-controls
-          [canReplay]="!!scene && status !== 'speaking' && !isTransitioning && !isAiThinking"
-          [canNext]="canNext"
-          [showSkip]="scene?.type === 'practice' && !practicePassed"
-          [busy]="status === 'speaking' || isTransitioning || isAiThinking"
+          [canReplay]="status !== 'speaking' && !isTransitioning"
+          [canNext]="false"
+          [showSkip]="false"
+          [busy]="status === 'speaking' || isTransitioning"
           (replay)="replayTts()"
           (next)="onNext()"
           (skip)="onSkip()"
         ></app-dg-controls>
       </footer>
     </div>
-  </div>
-</div>
 
-<div class="dg-player__loading" *ngIf="loading">
-  <div class="dg-player__loading-inner">
-    <span class="dg-player__loading-dot"></span>
-    Loading your lesson…
-  </div>
-</div>
-<div class="dg-player__err" *ngIf="error">{{ error }}</div>
+    <!-- ── CONVERSATION MODE ── -->
+    <div class="dg-conv" *ngIf="conversationMode">
+
+      <!-- Character column -->
+      <aside class="dg-conv__char">
+        <div class="dg-conv__mascot">
+          <app-dg-character
+            [name]="payload.character.name"
+            [animations]="payload.character.animations || null"
+          ></app-dg-character>
+        </div>
+        <p class="dg-conv__fox-state">{{ isAiThinking ? 'Thinking…' : status === 'speaking' ? 'Speaking…' : 'Listening' }}</p>
+      </aside>
+
+      <!-- Chat column -->
+      <main class="dg-conv__chat">
+        <header class="dg-conv__chat-head">
+          <h3>Conversation</h3>
+          <div class="dg-conv__head-tools">
+            <div class="dg-conv__cc">
+              <button type="button" class="dg-conv__cc-btn" [class.dg-conv__cc-btn--active]="ccMode==='en'" (click)="ccMode = ccMode==='en' ? 'none' : 'en'">CC EN</button>
+              <button type="button" class="dg-conv__cc-btn" [class.dg-conv__cc-btn--active]="ccMode==='ta'" (click)="ccMode = ccMode==='ta' ? 'none' : 'ta'">CC தமிழ்</button>
+            </div>
+            <button
+              mat-stroked-button
+              type="button"
+              class="dg-conv__replay"
+              [disabled]="status === 'speaking' || isAiThinking"
+              (click)="replayTts()"
+            >
+              <mat-icon>volume_up</mat-icon>
+              Replay
+            </button>
+          </div>
+        </header>
+
+        <!-- Status pill -->
+        <div class="dg-conv__status" *ngIf="statusLabel" aria-live="polite">
+          <span class="dg-conv__status-dot"
+                [class.dg-conv__status-dot--thinking]="isAiThinking"></span>
+          {{ statusLabel }}
+        </div>
+        <div class="dg-conv__status" *ngIf="waitingForUser && !isAiThinking" aria-live="polite">
+          🎤 Your turn — speak now
+        </div>
+
+        <!-- Vocab coverage bar -->
+        <div class="dg-conv__vocab-bar" *ngIf="conversationStarted">
+          <span class="dg-conv__vocab-label">Vocab covered</span>
+          <div class="dg-conv__vocab-track">
+            <div class="dg-conv__vocab-fill"
+                 [style.width.%]="vocabCoverage"
+                 [class.dg-conv__vocab-fill--done]="vocabCoverage >= 80"></div>
+          </div>
+          <span class="dg-conv__vocab-pct">{{ vocabCoverage }}%</span>
+        </div>
+
+        <!-- Chat history -->
+        <div class="dg-conv__history" #chatScroll>
+          <div
+            *ngFor="let msg of chatHistory"
+            class="dg-conv__msg"
+            [class.dg-conv__msg--ai]="msg.speaker === 'ai'"
+            [class.dg-conv__msg--student]="msg.speaker === 'student'"
+          >
+            <div class="dg-conv__msg-bubble">
+              <span class="dg-conv__msg-text">{{ msg.speaker === 'ai' ? getCcText(msg) : msg.text }}</span>
+              <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && ccMode === 'none' && msg.translation">
+                {{ msg.translation }}
+              </span>
+              <span class="dg-conv__msg-score"
+                    *ngIf="msg.speaker === 'student' && msg.score != null">
+                {{ msg.score | number:'1.0-0' }}%
+              </span>
+            </div>
+          </div>
+
+          <!-- Empty state before conversation starts -->
+          <div class="dg-conv__waiting" *ngIf="chatHistory.length === 0">
+            <p *ngIf="!conversationStarted">
+              🎙 Say <strong>"Bereit!"</strong> or <strong>"Ready!"</strong> to start.
+            </p>
+            <p *ngIf="conversationStarted && displayLine">
+              🤖 {{ displayLine }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Mic / practice area -->
+        <div class="dg-conv__mic-area">
+          <app-dg-practice
+            *ngIf="!conversationComplete"
+            #convPractice
+            [expected]="''"
+            [allowFreeSpeech]="true"
+            [instantStart]="true"
+            [language]="pronLanguage"
+            [hint]="'Speak freely'"
+            [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+            [retryTick]="convRetryTick"
+            [sceneKey]="'conv-' + convRetryTick"
+            (evaluated)="onEvaluated($event)"
+            (silence)="onSilence()"
+            (phaseChange)="onPracticePhase($event)"
+          ></app-dg-practice>
+
+          <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
+            <mat-icon>check_circle</mat-icon>
+            Conversation complete!
+          </div>
+
+          <!-- Skip button -->
+          <button
+            mat-button
+            type="button"
+            class="dg-conv__skip"
+            *ngIf="!conversationComplete && conversationStarted"
+            [disabled]="status === 'speaking' || isAiThinking"
+            (click)="onSkip()"
+          >
+            I can't speak right now
+          </button>
+
+          <div class="dg-conv__debug-inline">
+            <div class="dg-conv__debug-head">Recognized speech</div>
+            <div class="dg-conv__debug-empty" *ngIf="debugSpeechLog.length === 0">
+              Say something and stop recording.
+            </div>
+            <div class="dg-conv__debug-item" *ngFor="let m of debugSpeechLog.slice(0, 4)">{{ m }}</div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+  </div><!-- /stage-wrap -->
+</div><!-- /dg-player -->

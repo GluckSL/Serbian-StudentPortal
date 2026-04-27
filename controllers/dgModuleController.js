@@ -108,10 +108,74 @@ exports.getPlay = async (req, res) => {
     }
 
     // Plain objects so JSON always includes optional audioUrl (pre-generated audio) per scene.
-    const scenes = mod.getSortedScenes().map((s) => {
+    let scenes = mod.getSortedScenes().map((s) => {
       const plain = typeof s.toObject === 'function' ? s.toObject() : { ...s };
       return { ...plain, audioUrl: plain.audioUrl || '' };
     });
+
+    // ── Auto-generate scenes from vocabulary when the module has only the
+    //    default intro but has vocabulary/grammar configured.
+    //    This ensures the player always has content to run through regardless
+    //    of whether scenes were manually built in the admin form.
+    const hasOnlyIntro = scenes.length <= 1;
+    const vocab = (mod.allowedVocabulary && mod.allowedVocabulary.length > 0)
+      ? mod.allowedVocabulary
+      : (mod.aiTutorVocabulary || []);
+
+    if (hasOnlyIntro && vocab.length > 0) {
+      const introScene = scenes[0] || {
+        type: 'intro',
+        text: "Hi! I'm your digital guide. Let's learn together.",
+        audioUrl: '',
+        expectedAnswer: '',
+        translation: '',
+        hint: '',
+        order: 0,
+      };
+      const generated = [introScene];
+
+      // Teach scenes — one per word, up to 8
+      const teachWords = vocab.slice(0, 8);
+      for (const v of teachWords) {
+        generated.push({
+          type: 'teach',
+          text: `${v.word} — ${v.translation || ''}`,
+          audioUrl: '',
+          expectedAnswer: '',
+          translation: v.translation || '',
+          hint: '',
+          order: generated.length,
+        });
+      }
+
+      // Practice scenes — first 4 words the student must say aloud
+      const practiceWords = vocab.slice(0, Math.min(4, vocab.length));
+      for (const v of practiceWords) {
+        generated.push({
+          type: 'practice',
+          text: `Say: ${v.word}`,
+          audioUrl: '',
+          expectedAnswer: v.word,
+          translation: v.translation || '',
+          hint: v.word,
+          order: generated.length,
+        });
+      }
+
+      // Closing feedback scene
+      generated.push({
+        type: 'feedback',
+        text: "Great work! You have completed this lesson.",
+        audioUrl: '',
+        expectedAnswer: '',
+        translation: '',
+        hint: '',
+        order: generated.length,
+      });
+
+      scenes = generated;
+    }
+
     const character = mod.characterId;
     res.json({
       module: {

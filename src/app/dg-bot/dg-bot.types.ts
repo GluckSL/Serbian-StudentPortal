@@ -143,6 +143,22 @@ export interface DgConversationMessage {
   text: string;
 }
 
+/** Request body for POST /api/dg/conversation/start. */
+export interface DgConversationStartRequest {
+  moduleId: string;
+  sessionId: string;
+}
+
+/** Response from POST /api/dg/conversation/start. */
+export interface DgConversationStartResponse {
+  ok: boolean;
+  roleMessage: string;
+  maxTurns: number;
+  vocabCount: number;
+  language: string;
+  situation: string;
+}
+
 /** Request body for POST /api/dg/conversation/respond. */
 export interface DgConversationRequest {
   moduleId: string;
@@ -150,22 +166,34 @@ export interface DgConversationRequest {
   sceneIndex: number;
   userText: string;
   pronunciationScore: number;
-  /** Remaining session time in seconds. */
   remainingSeconds: number;
-  /** Current turn index BEFORE this response (0-based). */
   turnNumber: number;
-  /** Last N conversation messages for AI context. */
   history: DgConversationMessage[];
 }
 
 /** Response from POST /api/dg/conversation/respond. */
 export interface DgConversationResponse {
-  /** AI reply in the target language, vocabulary-enforced. */
   text: string;
-  /** Tamil translation of the AI reply (empty string if unavailable). */
+  translatedEnglish?: string;
   translatedTamil: string;
-  /** Turn number after this response (1-based). */
+  /** Turn count after this response. */
   turnNumber: number;
-  /** True when turnNumber has reached MAX_TURNS — player should advance. */
+  turnCount: number;
+  /** True when the full conversation is complete. */
   sceneComplete: boolean;
+  complete: boolean;
+  conversationStarted: boolean;
+  vocabCoverage: number;
+  usedVocab?: string[];
+  /** 'waiting_start' | 'started' | 'active' | 'complete' */
+  phase: string;
+}
+
+/** One entry in the chat history shown on screen. */
+export interface DgChatMessage {
+  speaker: 'ai' | 'student';
+  text: string;
+  score?: number;
+  translation?: string;
+  translationEn?: string;
 }

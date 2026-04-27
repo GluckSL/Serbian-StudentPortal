@@ -447,8 +447,63 @@ export class DgAdminModuleFormComponent implements OnInit {
     }
   }
 
+  /**
+   * If the module only has the default intro scene but has vocabulary,
+   * auto-generate teach → practice → feedback scenes so the player
+   * has content to walk through.
+   */
+  private ensureScenesFromContent(): void {
+    const onlyIntro =
+      this.editScenes.length === 1 && this.editScenes[0].type === 'intro';
+    if (!onlyIntro || this.allowedVocabulary.length === 0) return;
+
+    const intro = this.editScenes[0];
+    const generated: DgScene[] = [intro];
+
+    // Teach scenes — one per vocab word (cap at 8)
+    const teachWords = this.allowedVocabulary.slice(0, 8);
+    for (const v of teachWords) {
+      generated.push({
+        type: 'teach',
+        text: `${v.word} — ${v.translation}`,
+        expectedAnswer: '',
+        translation: v.translation,
+        hint: '',
+        order: generated.length,
+      } as DgScene);
+    }
+
+    // Practice scenes — first 4 vocab words
+    const practiceWords = this.allowedVocabulary.slice(0, Math.min(4, this.allowedVocabulary.length));
+    for (const v of practiceWords) {
+      generated.push({
+        type: 'practice',
+        text: `Say: ${v.word}`,
+        expectedAnswer: v.word,
+        translation: v.translation,
+        hint: v.word,
+        order: generated.length,
+      } as DgScene);
+    }
+
+    // Closing feedback scene
+    generated.push({
+      type: 'feedback',
+      text: "Great work! You have completed this lesson.",
+      expectedAnswer: '',
+      translation: '',
+      hint: '',
+      order: generated.length,
+    } as DgScene);
+
+    this.editScenes = generated;
+    this.renumber();
+  }
+
   async preview(): Promise<void> {
     if (!this.selected?._id) return;
+    // Auto-build scenes from vocab if the user hasn't added any manually
+    this.ensureScenesFromContent();
     const saved = await this.save(false);
     if (!saved || !this.selected?._id) return;
     this.router.navigate(['/dg-bot', this.selected._id, 'play']);

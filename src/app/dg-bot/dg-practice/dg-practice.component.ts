@@ -34,6 +34,10 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
   @ViewChild('waveCanvas') waveCanvas?: ElementRef<HTMLCanvasElement>;
 
   @Input() expected = '';
+  /** Allow recording even when `expected` is empty (conversation/free-speech mode). */
+  @Input() allowFreeSpeech = false;
+  /** Skip pre-recording countdown for realtime conversation mode. */
+  @Input() instantStart = false;
   @Input() language = 'German';
   @Input() disabled = false;
   @Input() hint = '';
@@ -187,10 +191,22 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
       this.lastTranscript = '';
       this.lastEval = null;
       this.resizeCanvas();
-      await this.runCountdown();
-      await this.pronunciation.startRecording();
-      this.recording = true;
-      this.startWaveVisual();
+      try {
+        if (!this.instantStart) {
+          await this.runCountdown();
+        } else {
+          this.countdownLabel = null;
+          this.charState.setState('listening');
+          this.emitPhase('listening');
+        }
+        await this.pronunciation.startRecording();
+        this.recording = true;
+        this.startWaveVisual();
+      } catch (e) {
+        console.error('[dg-practice] startRecording failed', e);
+        this.recording = false;
+        this.emitPhase('idle');
+      }
       return;
     }
     this.recording = false;
@@ -206,8 +222,13 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
       this.charState.setState('thinking');
       this.emitPhase('processing');
       const result = await this.pronunciation.stopRecording();
-      const silence = this.pronunciation.evaluateSilence(result.durationMs);
-      if (!silence.ok || result.blob.size < 32) {
+      const silence = this.pronunciation.evaluateSilence(
+        result.durationMs,
+        this.allowFreeSpeech
+          ? { minDurationMs: 250, minAverageLevel: 0.0035, minPeakLevel: 0.012 }
+          : {},
+      );
+      if ((this.allowFreeSpeech ? result.durationMs < 220 : !silence.ok) || result.blob.size < 32) {
         this.emitPhase('idle');
         this.silence.emit();
         return;
@@ -215,9 +236,11 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
       const evalResult = await dgWithOneRetry(() =>
         firstValueFrom(
           this.pronunciation.evaluateAudio(result.blob, {
-            expected: this.expected,
-            language: this.language,
-            clientMeta: { source: 'dg-bot' },
+            expected: this.expected || 'free speech',
+            // Free-speech conversation: let backend auto-detect input language
+            // so English utterances are transcribed as English (not forced German).
+            language: this.allowFreeSpeech ? undefined : this.language,
+            clientMeta: { source: 'dg-bot', freeSpeech: this.allowFreeSpeech, silenceReason: silence.reason || null },
           }),
         ),
       );

@@ -6,6 +6,8 @@ import type {
   DgCharacterDoc,
   DgConversationRequest,
   DgConversationResponse,
+  DgConversationStartRequest,
+  DgConversationStartResponse,
   DgModuleSummary,
   DgPlayPayload,
   DgSessionStartResponse,
@@ -85,7 +87,12 @@ export class DgApiService {
     });
   }
 
-  /** Send the student's transcript to the AI and receive a vocabulary-enforced response. */
+  /** Initialise conversation state for a session (call once after session/start). */
+  conversationStart(body: DgConversationStartRequest): Observable<DgConversationStartResponse> {
+    return this.http.post<DgConversationStartResponse>(`${this.base}/conversation/start`, body);
+  }
+
+  /** Send the student's transcript to the AI and receive a response. */
   conversationRespond(body: DgConversationRequest): Observable<DgConversationResponse> {
     return this.http.post<DgConversationResponse>(`${this.base}/conversation/respond`, body);
   }
