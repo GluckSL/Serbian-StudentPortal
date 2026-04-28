@@ -54,7 +54,8 @@ exports.endSession = async (req, res) => {
 exports.overview = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
-    const data = await portalAnalytics.getOverview(from, to);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const data = await portalAnalytics.getOverview(from, to, cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null);
     res.json(data);
   } catch (err) {
     console.error('[portal-analytics] overview', err);
@@ -67,7 +68,8 @@ exports.dashboard = async (req, res) => {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
     const raw = String(req.query.includeHistorical || '').toLowerCase();
     const includeHistorical = raw === '1' || raw === 'true' || raw === 'yes';
-    const data = await portalAnalytics.getDashboard(from, to, includeHistorical);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const data = await portalAnalytics.getDashboard(from, to, includeHistorical, cohort);
     res.json(data);
   } catch (err) {
     console.error('[portal-analytics] dashboard', err);
@@ -78,7 +80,9 @@ exports.dashboard = async (req, res) => {
 exports.studentWise = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
-    const data = await portalAnalytics.getStudentWise(from, to, req.query.limit, req.query.sortBy, req.query.order);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const cohortIds = cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null;
+    const data = await portalAnalytics.getStudentWise(from, to, req.query.limit, req.query.sortBy, req.query.order, cohortIds);
     res.json({ items: data, range: { from, to } });
   } catch (err) {
     console.error('[portal-analytics] studentWise', err);
@@ -89,7 +93,9 @@ exports.studentWise = async (req, res) => {
 exports.pageWise = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
-    const data = await portalAnalytics.getPageWise(from, to, req.query.limit);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const cohortIds = cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null;
+    const data = await portalAnalytics.getPageWise(from, to, req.query.limit, cohortIds);
     res.json({ items: data, range: { from, to } });
   } catch (err) {
     console.error('[portal-analytics] pageWise', err);
@@ -100,7 +106,9 @@ exports.pageWise = async (req, res) => {
 exports.timeline = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
-    const data = await portalAnalytics.getTimeline(from, to, req.query.limit, req.query.skip);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const cohortIds = cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null;
+    const data = await portalAnalytics.getTimeline(from, to, req.query.limit, req.query.skip, cohortIds);
     res.json({ ...data, range: { from, to } });
   } catch (err) {
     console.error('[portal-analytics] timeline', err);
@@ -111,7 +119,9 @@ exports.timeline = async (req, res) => {
 exports.sessionWise = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
-    const data = await portalAnalytics.getSessionWise(from, to, req.query.limit);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const cohortIds = cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null;
+    const data = await portalAnalytics.getSessionWise(from, to, req.query.limit, cohortIds);
     res.json({ items: data, range: { from, to } });
   } catch (err) {
     console.error('[portal-analytics] sessionWise', err);
@@ -122,7 +132,8 @@ exports.sessionWise = async (req, res) => {
 exports.learning = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);
-    const data = await portalAnalytics.getLearningAnalytics(from, to, req.params.kind, req.query.limit);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const data = await portalAnalytics.getLearningAnalytics(from, to, req.params.kind, req.query.limit, cohort);
     res.json(data);
   } catch (err) {
     if (err.message === 'INVALID_LEARNING_KIND') {

@@ -36,7 +36,8 @@ export class PortalAnalyticsComponent implements OnInit {
   draftFrom = '';
   draftTo = '';
   range: PortalAnalyticsRange = { from: '', to: '' };
-  selectedQuickRange: 'lastDate' | 'week' | null = null;
+  selectedQuickRange: 'today' | 'lastDate' | 'week' | null = null;
+  cohort: 'overall' | 'platinum' | 'go' = 'overall';
 
   ngOnInit(): void {
     this.setTodayRange();
@@ -44,15 +45,20 @@ export class PortalAnalyticsComponent implements OnInit {
 
   applyRange(): void {
     this.selectedQuickRange = null;
-    this.range = { from: this.draftFrom, to: this.draftTo };
+    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
+  }
+
+  setCohort(c: 'overall' | 'platinum' | 'go'): void {
+    this.cohort = c;
+    this.range = { ...this.range, cohort: c };
   }
 
   setTodayRange(): void {
     const today = this.toInputDateInTimeZone(new Date(), this.analyticsTz);
     this.draftFrom = today;
     this.draftTo = today;
-    this.selectedQuickRange = null;
-    this.range = { from: this.draftFrom, to: this.draftTo };
+    this.selectedQuickRange = 'today';
+    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
   }
 
   setLastDateRange(): void {
@@ -61,7 +67,7 @@ export class PortalAnalyticsComponent implements OnInit {
     this.draftFrom = lastDate;
     this.draftTo = lastDate;
     this.selectedQuickRange = 'lastDate';
-    this.range = { from: this.draftFrom, to: this.draftTo };
+    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
   }
 
   setWeekRange(): void {
@@ -69,7 +75,7 @@ export class PortalAnalyticsComponent implements OnInit {
     this.draftFrom = this.addDays(today, -6);
     this.draftTo = today;
     this.selectedQuickRange = 'week';
-    this.range = { from: this.draftFrom, to: this.draftTo };
+    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
   }
 
   private toInputDate(d: Date): string {

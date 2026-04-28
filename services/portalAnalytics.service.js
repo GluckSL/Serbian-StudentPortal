@@ -70,6 +70,25 @@ function parseDateRange(query) {
   return { from, to };
 }
 
+/**
+ * Returns an array of student ObjectIds for the given cohort, or null for 'overall' (no filter).
+ * - 'platinum': PLATINUM subscription students that are NOT in Go
+ * - 'go': students with goStatus === 'GO'
+ */
+async function getCohortStudentIds(cohort) {
+  if (!cohort || cohort === 'overall') return null;
+  let userFilter = {};
+  if (cohort === 'platinum') {
+    userFilter = { role: 'STUDENT', subscription: 'PLATINUM', goStatus: { $ne: 'GO' } };
+  } else if (cohort === 'go') {
+    userFilter = { role: 'STUDENT', goStatus: 'GO' };
+  } else {
+    return null;
+  }
+  const users = await User.find(userFilter).select('_id').lean();
+  return users.map((u) => u._id);
+}
+
 function sessionTimeRangeMatch(from, to) {
   return {
     $or: [
@@ -292,8 +311,9 @@ async function closeStaleSessions() {
   return { closed };
 }
 
-async function getOverview(from, to) {
+async function getOverview(from, to, cohortIds = null) {
   const match = { ...sessionTimeRangeMatch(from, to) };
+  if (cohortIds) match.studentId = { $in: cohortIds };
   const now = new Date();
   const sessions = await PortalSession.find(match)
     .select('studentId totalActiveSeconds isActive lastHeartbeatAt')
@@ -324,12 +344,14 @@ async function getOverview(from, to) {
   const activeCutoff = new Date(Date.now() - 5 * 60 * 1000);
   const activeStudents = await PortalSession.distinct('studentId', {
     isActive: true,
-    lastHeartbeatAt: { $gte: activeCutoff }
+    lastHeartbeatAt: { $gte: activeCutoff },
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   });
 
   const pageMatch = {
     startTime: { $lte: to },
-    $or: [{ endTime: null }, { endTime: { $gte: from } }, { endTime: { $exists: false } }]
+    $or: [{ endTime: null }, { endTime: { $gte: from } }, { endTime: { $exists: false } }],
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   };
 
   const [topPage] = await PageActivity.aggregate([
@@ -365,8 +387,9 @@ async function getOverview(from, to) {
   };
 }
 
-async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'desc') {
+async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'desc', cohortIds = null) {
   const match = { ...sessionTimeRangeMatch(from, to) };
+  if (cohortIds) match.studentId = { $in: cohortIds };
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 200, 1), 500);
   const dir = String(order).toLowerCase() === 'asc' ? 1 : -1;
   const sb = String(sortBy || 'time').toLowerCase();
@@ -457,10 +480,11 @@ async function getStudentWise(from, to, limit = 200, sortBy = 'time', order = 'd
   });
 }
 
-async function getPageWise(from, to, limit = 200) {
+async function getPageWise(from, to, limit = 200, cohortIds = null) {
   const pageMatch = {
     startTime: { $lte: to },
-    $or: [{ endTime: null }, { endTime: { $gte: from } }]
+    $or: [{ endTime: null }, { endTime: { $gte: from } }],
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   };
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 200, 1), 500);
 
@@ -501,12 +525,13 @@ async function getPageWise(from, to, limit = 200) {
   }));
 }
 
-async function getTimeline(from, to, limit = 50, skip = 0) {
+async function getTimeline(from, to, limit = 50, skip = 0, cohortIds = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 50, 1), 200);
   const sk = Math.min(Math.max(parseInt(String(skip), 10) || 0, 0), 50000);
   const match = {
     startTime: { $lte: to },
-    $or: [{ endTime: null }, { endTime: { $gte: from } }]
+    $or: [{ endTime: null }, { endTime: { $gte: from } }],
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   };
 
   const [total, raw] = await Promise.all([
@@ -534,9 +559,11 @@ async function getTimeline(from, to, limit = 50, skip = 0) {
   return { items, total, skip: sk, limit: cap };
 }
 
-async function getTimeSeriesDaily(from, to) {
+async function getTimeSeriesDaily(from, to, cohortIds = null) {
+  const matchCond = { startTime: { $gte: from, $lte: to } };
+  if (cohortIds) matchCond.studentId = { $in: cohortIds };
   return PageActivity.aggregate([
-    { $match: { startTime: { $gte: from, $lte: to } } },
+    { $match: matchCond },
     {
       $group: {
         _id: { $dateToString: { format: '%Y-%m-%d', date: '$startTime' } },
@@ -548,9 +575,11 @@ async function getTimeSeriesDaily(from, to) {
   ]);
 }
 
-async function getPageSharesForDonut(from, to, topN = 8) {
+async function getPageSharesForDonut(from, to, topN = 8, cohortIds = null) {
+  const matchCond = { startTime: { $gte: from, $lte: to } };
+  if (cohortIds) matchCond.studentId = { $in: cohortIds };
   const rows = await PageActivity.aggregate([
-    { $match: { startTime: { $gte: from, $lte: to } } },
+    { $match: matchCond },
     { $group: { _id: '$page', seconds: { $sum: '$activeSeconds' } } },
     { $sort: { seconds: -1 } }
   ]);
@@ -567,13 +596,15 @@ async function getPageSharesForDonut(from, to, topN = 8) {
   return { labels, values };
 }
 
-async function getActiveStudentsDetail(limit = 30) {
+async function getActiveStudentsDetail(limit = 30, cohortIds = null) {
   const lim = Math.min(Math.max(parseInt(String(limit), 10) || 30, 1), 100);
   const cutoff = new Date(Date.now() - 5 * 60 * 1000);
-  const sessions = await PortalSession.find({
+  const sessionFilter = {
     isActive: true,
-    lastHeartbeatAt: { $gte: cutoff }
-  })
+    lastHeartbeatAt: { $gte: cutoff },
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
+  };
+  const sessions = await PortalSession.find(sessionFilter)
     .sort({ lastHeartbeatAt: -1 })
     .limit(lim)
     .populate('studentId', 'name email')
@@ -588,11 +619,13 @@ async function getActiveStudentsDetail(limit = 30) {
   }));
 }
 
-async function getRecentPageEvents(from, to, limit = 35) {
+async function getRecentPageEvents(from, to, limit = 35, cohortIds = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 35, 1), 100);
-  const rows = await PageActivity.find({
-    startTime: { $gte: from, $lte: to }
-  })
+  const pageFilter = {
+    startTime: { $gte: from, $lte: to },
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
+  };
+  const rows = await PageActivity.find(pageFilter)
     .sort({ startTime: -1 })
     .limit(cap)
     .populate('studentId', 'name')
@@ -609,9 +642,11 @@ async function getRecentPageEvents(from, to, limit = 35) {
   }));
 }
 
-async function getPeakHour(from, to) {
+async function getPeakHour(from, to, cohortIds = null) {
+  const matchCond = { startTime: { $gte: from, $lte: to } };
+  if (cohortIds) matchCond.studentId = { $in: cohortIds };
   const rows = await PageActivity.aggregate([
-    { $match: { startTime: { $gte: from, $lte: to } } },
+    { $match: matchCond },
     {
       $group: {
         _id: { $hour: { date: '$startTime', timezone: 'UTC' } },
@@ -631,10 +666,12 @@ async function getPeakHour(from, to) {
   };
 }
 
-async function getPeakDayOfWeek(from, to) {
+async function getPeakDayOfWeek(from, to, cohortIds = null) {
   const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const matchCond = { startTime: { $gte: from, $lte: to } };
+  if (cohortIds) matchCond.studentId = { $in: cohortIds };
   const rows = await PageActivity.aggregate([
-    { $match: { startTime: { $gte: from, $lte: to } } },
+    { $match: matchCond },
     { $group: { _id: { $dayOfWeek: '$startTime' }, seconds: { $sum: '$activeSeconds' } } },
     { $sort: { seconds: -1 } },
     { $limit: 1 }
@@ -644,8 +681,9 @@ async function getPeakDayOfWeek(from, to) {
   return { dayIndex: rows[0]._id, label: dow[idx] || String(rows[0]._id), seconds: rows[0].seconds };
 }
 
-async function getEngagementLeaders(from, to, limit = 12) {
+async function getEngagementLeaders(from, to, limit = 12, cohortIds = null) {
   const match = { ...sessionTimeRangeMatch(from, to) };
+  if (cohortIds) match.studentId = { $in: cohortIds };
   const lim = Math.min(Math.max(parseInt(String(limit), 10) || 12, 1), 100);
   const rows = await PortalSession.aggregate([
     { $match: match },
@@ -698,10 +736,12 @@ async function getEngagementLeaders(from, to, limit = 12) {
   }));
 }
 
-async function getDropOffPages(from, to, limit = 6) {
+async function getDropOffPages(from, to, limit = 6, cohortIds = null) {
   const lim = Math.min(Math.max(parseInt(String(limit), 10) || 6, 1), 25);
+  const baseMatch = { startTime: { $gte: from, $lte: to }, endTime: { $ne: null } };
+  if (cohortIds) baseMatch.studentId = { $in: cohortIds };
   const rows = await PageActivity.aggregate([
-    { $match: { startTime: { $gte: from, $lte: to }, endTime: { $ne: null } } },
+    { $match: baseMatch },
     { $sort: { sessionId: 1, startTime: -1 } },
     {
       $group: {
@@ -726,11 +766,11 @@ async function getDropOffPages(from, to, limit = 6) {
   return rows.map((r) => ({ ...r, page: prettyPageLabel(r.page, titleMap) }));
 }
 
-async function buildInsights(from, to, overview) {
+async function buildInsights(from, to, overview, cohortIds = null) {
   const spanMs = Math.max(to.getTime() - from.getTime(), 86400000);
   const prevTo = new Date(from.getTime());
   const prevFrom = new Date(from.getTime() - spanMs);
-  const prev = await getOverview(prevFrom, prevTo);
+  const prev = await getOverview(prevFrom, prevTo, cohortIds);
   const prevTotal = prev.totalTime || 0;
   const currTotal = overview.totalTime || 0;
   const changePct = prevTotal > 0 ? Math.round(((currTotal - prevTotal) / prevTotal) * 1000) / 10 : null;
@@ -760,8 +800,10 @@ async function buildInsights(from, to, overview) {
       body: `${overview.topStudent.name} leads this range by tracked active seconds.`
     });
   }
+  const lowMatch = { ...sessionTimeRangeMatch(from, to) };
+  if (cohortIds) lowMatch.studentId = { $in: cohortIds };
   const low = await PortalSession.aggregate([
-    { $match: { ...sessionTimeRangeMatch(from, to) } },
+    { $match: lowMatch },
     { $group: { _id: '$studentId', t: { $sum: '$totalActiveSeconds' }, c: { $sum: 1 } } },
     { $match: { t: { $lt: 300 }, c: { $gte: 1 } } },
     { $count: 'n' }
@@ -837,8 +879,9 @@ async function estimateFromLoginActivity(from, to) {
   };
 }
 
-async function getDashboard(from, to, includeHistorical) {
-  const overview = await getOverview(from, to);
+async function getDashboard(from, to, includeHistorical, cohort = null) {
+  const cohortIds = await getCohortStudentIds(cohort);
+  const overview = await getOverview(from, to, cohortIds);
   const [
     timeSeries,
     donut,
@@ -850,15 +893,15 @@ async function getDashboard(from, to, includeHistorical) {
     dropoffs,
     insights
   ] = await Promise.all([
-    getTimeSeriesDaily(from, to),
-    getPageSharesForDonut(from, to, 8),
-    getActiveStudentsDetail(30),
-    getRecentPageEvents(from, to, 35),
-    getPeakHour(from, to),
-    getPeakDayOfWeek(from, to),
-    getEngagementLeaders(from, to, 12),
-    getDropOffPages(from, to, 6),
-    buildInsights(from, to, overview)
+    getTimeSeriesDaily(from, to, cohortIds),
+    getPageSharesForDonut(from, to, 8, cohortIds),
+    getActiveStudentsDetail(30, cohortIds),
+    getRecentPageEvents(from, to, 35, cohortIds),
+    getPeakHour(from, to, cohortIds),
+    getPeakDayOfWeek(from, to, cohortIds),
+    getEngagementLeaders(from, to, 12, cohortIds),
+    getDropOffPages(from, to, 6, cohortIds),
+    buildInsights(from, to, overview, cohortIds)
   ]);
 
   let historical = null;
@@ -892,8 +935,9 @@ async function getDashboard(from, to, includeHistorical) {
   };
 }
 
-async function getSessionWise(from, to, limit = 200) {
+async function getSessionWise(from, to, limit = 200, cohortIds = null) {
   const match = { ...sessionTimeRangeMatch(from, to) };
+  if (cohortIds) match.studentId = { $in: cohortIds };
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 200, 1), 500);
 
   const sessions = await PortalSession.find(match)
@@ -973,13 +1017,14 @@ function recordingViewWindowMatch(from, to) {
  * Recorded video: ClassRecording + Zoom recording watch time from RecordingView / ZoomRecordingView
  * (watchDuration updated by the player heartbeat), grouped per student with per-recording breakdown.
  */
-async function getRecordedVideoWatchAnalytics(from, to, limit) {
+async function getRecordedVideoWatchAnalytics(from, to, limit, cohortIds = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
   const win = recordingViewWindowMatch(from, to);
+  const cohortFilter = cohortIds ? { student: { $in: cohortIds } } : {};
 
   const [manualChunks, zoomChunks] = await Promise.all([
     RecordingView.aggregate([
-      { $match: win },
+      { $match: { ...win, ...cohortFilter } },
       {
         $lookup: {
           from: 'classrecordings',
@@ -1000,7 +1045,7 @@ async function getRecordedVideoWatchAnalytics(from, to, limit) {
       }
     ]),
     ZoomRecordingView.aggregate([
-      { $match: win },
+      { $match: { ...win, ...cohortFilter } },
       {
         $lookup: {
           from: 'meetinglinks',
@@ -1080,7 +1125,7 @@ async function getRecordedVideoWatchAnalytics(from, to, limit) {
 /**
  * Live classes: Zoom-linked meetings in the window with per-student attendance duration.
  */
-async function getLiveClassAttendanceAnalytics(from, to, limit) {
+async function getLiveClassAttendanceAnalytics(from, to, limit, cohortIds = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
 
   const rows = await MeetingLink.aggregate([
@@ -1097,7 +1142,8 @@ async function getLiveClassAttendanceAnalytics(from, to, limit) {
           { 'attendance.attended': true },
           { 'attendance.duration': { $gt: 0 } },
           { 'attendance.durationMinutes': { $gt: 0 } }
-        ]
+        ],
+        ...(cohortIds ? { 'attendance.studentId': { $in: cohortIds } } : {})
       }
     },
     {
@@ -1219,11 +1265,12 @@ function classifyPortalVideoPage(pageRaw) {
 /**
  * Portal tab heartbeats on video-related routes, grouped per student with Recording vs Live split.
  */
-async function getPortalVideoTypeBreakdown(from, to) {
+async function getPortalVideoTypeBreakdown(from, to, cohortIds = null) {
   const kindRegex = /(my-course|class-recordings|recording|zoom|meeting)/i;
   const pageMatch = {
     startTime: { $lte: to },
-    $or: [{ endTime: null }, { endTime: { $gte: from } }]
+    $or: [{ endTime: null }, { endTime: { $gte: from } }],
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   };
   const chunk = await PageActivity.aggregate([
     { $match: pageMatch },
@@ -1298,12 +1345,12 @@ function mergeVideoTypeLines(portalPb, recordings, liveClasses) {
  * Video: RecordingView + live attendance + portal heartbeats on video routes (merged Types + totals).
  * Totals use max(portal recording bucket, DB recording) + max(portal live bucket, DB live) to limit double-count.
  */
-async function getCombinedVideoLearningAnalytics(from, to, limit) {
+async function getCombinedVideoLearningAnalytics(from, to, limit, cohortIds = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
   const [recRes, liveRes, portalByStudent] = await Promise.all([
-    getRecordedVideoWatchAnalytics(from, to, limit),
-    getLiveClassAttendanceAnalytics(from, to, limit),
-    getPortalVideoTypeBreakdown(from, to)
+    getRecordedVideoWatchAnalytics(from, to, limit, cohortIds),
+    getLiveClassAttendanceAnalytics(from, to, limit, cohortIds),
+    getPortalVideoTypeBreakdown(from, to, cohortIds)
   ]);
 
   const byId = new Map();
@@ -1411,17 +1458,19 @@ async function getCombinedVideoLearningAnalytics(from, to, limit) {
   };
 }
 
-async function getLearningAnalytics(from, to, kind = 'video', limit = 300) {
+async function getLearningAnalytics(from, to, kind = 'video', limit = 300, cohort = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
   const k = String(kind || 'video').toLowerCase();
+  const cohortIds = await getCohortStudentIds(cohort);
 
   if (k === 'video') {
-    return getCombinedVideoLearningAnalytics(from, to, limit);
+    return getCombinedVideoLearningAnalytics(from, to, limit, cohortIds);
   }
 
   const pageMatch = {
     startTime: { $lte: to },
-    $or: [{ endTime: null }, { endTime: { $gte: from } }]
+    $or: [{ endTime: null }, { endTime: { $gte: from } }],
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   };
   let kindRegex = null;
   if (k === 'exercises') {
@@ -1465,6 +1514,7 @@ module.exports = {
   endSession,
   closeStaleSessions,
   parseDateRange,
+  getCohortStudentIds,
   getOverview,
   getStudentWise,
   getPageWise,

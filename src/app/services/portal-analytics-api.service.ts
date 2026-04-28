@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 export interface PortalAnalyticsRange {
   from: string;
   to: string;
+  cohort?: 'overall' | 'platinum' | 'go';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -16,6 +17,9 @@ export class PortalAnalyticsApiService {
 
   private params(range: PortalAnalyticsRange, extra?: Record<string, string | number | boolean>): HttpParams {
     let p = new HttpParams().set('from', range.from).set('to', range.to);
+    if (range.cohort && range.cohort !== 'overall') {
+      p = p.set('cohort', range.cohort);
+    }
     if (extra) {
       for (const [k, v] of Object.entries(extra)) {
         if (v === undefined || v === null) continue;

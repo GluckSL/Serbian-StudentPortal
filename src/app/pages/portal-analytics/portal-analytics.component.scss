@@ -88,6 +88,17 @@
   gap: 0.5rem;
 }
 
+::ng-deep .pa-toolbar .pa-quick-btn.mdc-button {
+  border-radius: 10px !important;
+}
+
+::ng-deep .pa-toolbar .pa-quick-btn.pa-quick-btn--active.mdc-button {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  border-color: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28) !important;
+}
+
 .pa-field {
   display: flex;
   flex-direction: column;
@@ -179,5 +190,55 @@
 ::ng-deep .pa-tabs .mdc-tab-indicator__content--underline {
   border-color: var(--pa-sun-500) !important;
   border-top-width: 3px !important;
+}
+
+/* Cohort filter toggle */
+.pa-cohort-filter {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #f0f5ff;
+  border: 1px solid var(--pa-line);
+  border-radius: 12px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.pa-cohort-btn {
+  padding: 0.38rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: none;
+  background: transparent;
+  color: var(--pa-ink-700);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  outline: none;
+  white-space: nowrap;
+
+  &:hover:not(.pa-cohort-btn--active) {
+    background: rgba(192, 228, 255, 0.5);
+    color: var(--pa-ink-900);
+  }
+}
+
+.pa-cohort-btn--active {
+  background: #ffffff;
+  color: var(--pa-ink-900);
+  box-shadow: inset 0 0 0 1px rgba(103, 173, 255, 0.4), 0 3px 8px rgba(56, 130, 246, 0.12);
+}
+
+.pa-cohort-btn--platinum.pa-cohort-btn--active {
+  background: linear-gradient(135deg, #fffaee, #fff3cc);
+  color: #7a5900;
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 60, 0.5), 0 3px 8px rgba(255, 185, 0, 0.18);
+}
+
+.pa-cohort-btn--go.pa-cohort-btn--active {
+  background: linear-gradient(135deg, #edfff4, #d0ffe7);
+  color: #1a6b3c;
+  box-shadow: inset 0 0 0 1px rgba(60, 200, 120, 0.45), 0 3px 8px rgba(30, 170, 90, 0.18);
 }
 

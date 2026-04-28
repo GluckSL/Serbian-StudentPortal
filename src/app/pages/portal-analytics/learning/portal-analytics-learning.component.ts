@@ -128,8 +128,8 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     this.error = '';
     const reqRange: PortalAnalyticsRange =
       this.viewMode === 'day'
-        ? { from: this.effectiveDay, to: this.effectiveDay }
-        : { from: this.range.from, to: this.range.to };
+        ? { from: this.effectiveDay, to: this.effectiveDay, cohort: this.range.cohort }
+        : { from: this.range.from, to: this.range.to, cohort: this.range.cohort };
     this.api.getLearning(reqRange, kind, 300).subscribe({
       next: (res: unknown) => {
         const body = res as LearningResponse;

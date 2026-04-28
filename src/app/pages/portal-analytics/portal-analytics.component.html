@@ -29,20 +29,56 @@
       <div class="pa-quick-ranges">
         <button
           mat-stroked-button
+          class="pa-quick-btn"
           type="button"
+          [class.pa-quick-btn--active]="selectedQuickRange === 'today'"
+          [color]="selectedQuickRange === 'today' ? 'primary' : undefined"
+          (click)="setTodayRange()">
+          Today
+        </button>
+        <button
+          mat-stroked-button
+          class="pa-quick-btn"
+          type="button"
+          [class.pa-quick-btn--active]="selectedQuickRange === 'lastDate'"
           [color]="selectedQuickRange === 'lastDate' ? 'primary' : undefined"
           (click)="setLastDateRange()">
           Last Date
         </button>
         <button
           mat-stroked-button
+          class="pa-quick-btn"
           type="button"
+          [class.pa-quick-btn--active]="selectedQuickRange === 'week'"
           [color]="selectedQuickRange === 'week' ? 'primary' : undefined"
           (click)="setWeekRange()">
           Week
         </button>
       </div>
       <button mat-flat-button color="primary" type="button" (click)="applyRange()">Apply</button>
+    </div>
+    <div class="pa-cohort-filter">
+      <button
+        type="button"
+        class="pa-cohort-btn"
+        [class.pa-cohort-btn--active]="cohort === 'overall'"
+        (click)="setCohort('overall')">
+        Overall
+      </button>
+      <button
+        type="button"
+        class="pa-cohort-btn pa-cohort-btn--platinum"
+        [class.pa-cohort-btn--active]="cohort === 'platinum'"
+        (click)="setCohort('platinum')">
+        Platinum
+      </button>
+      <button
+        type="button"
+        class="pa-cohort-btn pa-cohort-btn--go"
+        [class.pa-cohort-btn--active]="cohort === 'go'"
+        (click)="setCohort('go')">
+        Go
+      </button>
     </div>
   </div>
 
