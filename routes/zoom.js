@@ -589,24 +589,16 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       };
     }
 
-    // Keep future-locked meetings hidden from the student list.
-    const gatedMeetings = meetings.filter((m) => {
-      if (m.courseDay == null || m.courseDay === undefined) return true;
-      const cd = Number(m.courseDay);
-      if (!Number.isFinite(cd)) return true;
-      return cd <= studentDay;
-    });
-
     // Calculate meeting status for each meeting
     const now = new Date();
-    const meetingsWithStatus = gatedMeetings.map(meeting => {
+    const meetingsWithStatus = meetings.map(meeting => {
       const meetingStart = new Date(meeting.startTime);
       const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
       const rawCd = meeting.courseDay;
       const journeyLocked =
         rawCd != null &&
         Number.isFinite(Number(rawCd)) &&
-        Number(rawCd) !== studentDay;
+        Number(rawCd) > studentDay;
 
       let currentStatus = meeting.status;
       let canJoin = false;

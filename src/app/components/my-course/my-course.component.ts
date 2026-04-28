@@ -835,7 +835,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   joinSelectedDayMeeting(meeting: any): void {
-    if (meeting?.joinUrl && meeting?.canJoin) {
+    if (meeting?.joinUrl && (meeting?.canJoin || meeting?.isOngoing)) {
       this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
     }
   }

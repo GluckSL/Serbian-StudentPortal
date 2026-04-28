@@ -24,6 +24,8 @@ interface BatchSummary {
   styleUrls: ['./admin-announcements.component.css']
 })
 export class AdminAnnouncementsComponent implements OnInit {
+  readonly goStudentsTargetValue = '__GO_STUDENTS__';
+  readonly goStudentsTargetLabel = 'GO Students';
   activeChannel: 'website' | 'whatsapp' = 'website';
   deliveryType: AnnouncementDeliveryType = 'website_email';
   sendMode: 'instant' | 'schedule' = 'instant';
@@ -142,6 +144,14 @@ export class AdminAnnouncementsComponent implements OnInit {
     this.batchToAdd = '';
   }
 
+  displayTargetLabel(target: string): string {
+    return target === this.goStudentsTargetValue ? this.goStudentsTargetLabel : target;
+  }
+
+  formatTargetLabels(targets: string[] | undefined): string {
+    return (targets || []).map((target) => this.displayTargetLabel(target)).join(', ');
+  }
+
   removeBatch(batchName: string): void {
     this.selectedBatches = this.selectedBatches.filter((b) => b !== batchName);
     this.loadTargetStudentsPreview();
@@ -212,7 +222,7 @@ export class AdminAnnouncementsComponent implements OnInit {
       return;
     }
     if (!this.selectedBatches.length) {
-      this.notify.warning('Select at least one batch.');
+      this.notify.warning('Select at least one audience.');
       return;
     }
     if (this.isScheduled && !this.scheduleAt) {
@@ -258,7 +268,7 @@ export class AdminAnnouncementsComponent implements OnInit {
       deliveryType: item.deliveryType,
       title: item.title || '',
       body: item.body || '',
-      targetBatchesText: (item.targetBatches || []).join(', ')
+      targetBatchesText: this.formatTargetLabels(item.targetBatches)
     };
     this.editModalOpen = true;
   }
@@ -272,6 +282,7 @@ export class AdminAnnouncementsComponent implements OnInit {
     const targetBatches = String(this.editForm.targetBatchesText || '')
       .split(',')
       .map((batch) => batch.trim())
+      .map((batch) => (batch.toLowerCase() === this.goStudentsTargetLabel.toLowerCase() ? this.goStudentsTargetValue : batch))
       .filter(Boolean);
     if (!targetBatches.length) {
       this.notify.warning('At least one target batch is required.');

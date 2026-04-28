@@ -111,8 +111,12 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   categorizeMeetings(): void {
-    this.ongoingMeetings = this.allMeetings.filter(m => m.isOngoing);
-    this.upcomingMeetings = this.allMeetings.filter(m => !m.isOngoing && !m.hasEnded);
+    this.ongoingMeetings = this.allMeetings.filter(
+      (m) => m.isOngoing || (!!m.canJoin && !m.hasEnded && Number(m.timeUntilStart) <= 0)
+    );
+    this.upcomingMeetings = this.allMeetings.filter(
+      (m) => !this.ongoingMeetings.some((live) => live._id === m._id) && !m.hasEnded
+    );
     this.pastMeetings = this.allMeetings.filter(m => m.hasEnded);
     this.attemptedMeetings = this.pastMeetings;
     if (this.ongoingMeetings.length > 0) this.activeTab = 'live';
@@ -122,20 +126,22 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   joinMeeting(meeting: StudentMeeting): void {
     if (meeting.journeyLocked && meeting.courseDay != null) { this.notify.info(`This class is available only on journey day ${meeting.courseDay}.`); return; }
-    if (meeting.canJoin && meeting.joinUrl) {
+    const canJoinNow = (meeting.canJoin || meeting.isOngoing) && !!meeting.joinUrl;
+    if (canJoinNow) {
       this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
     }
   }
 
   upcomingActionLabel(meeting: StudentMeeting): string {
     if (meeting.journeyLocked && meeting.courseDay != null) return `Only day ${meeting.courseDay}`;
+    if (meeting.isOngoing) return 'Join now';
     if (meeting.canJoin) return 'Join';
     return this.getTimeUntilStart(meeting);
   }
 
   upcomingActionDisabled(meeting: StudentMeeting): boolean {
     if (meeting.journeyLocked) return true;
-    return !meeting.canJoin;
+    return !meeting.canJoin && !meeting.isOngoing;
   }
 
   splitClassTopic(topic: string | null | undefined): { head: string; rest: string | null } {

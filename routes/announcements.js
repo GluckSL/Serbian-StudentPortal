@@ -8,6 +8,8 @@ const transporter = require('../config/emailConfig');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 const router = express.Router();
+const GO_STUDENTS_TARGET_KEY = '__GO_STUDENTS__';
+const GO_STUDENTS_TARGET_NORMALIZED = 'gostudents';
 
 const announcementsUploadDir = path.join(__dirname, '..', 'uploads', 'announcements');
 if (!fs.existsSync(announcementsUploadDir)) {
@@ -70,6 +72,17 @@ function normalizeBatchKey(value) {
     .toLowerCase()
     .replace(/\bbatch\b/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+function isGoStudentsTarget(value) {
+  const normalized = normalizeBatchKey(value);
+  return normalized === GO_STUDENTS_TARGET_NORMALIZED;
+}
+
+function isGoStudentRecord(student) {
+  return String(student?.goStatus || '')
+    .trim()
+    .toUpperCase() === 'GO';
 }
 
 function batchesIntersectNormalized(studentBatch, targetBatches) {
@@ -175,9 +188,10 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
 router.get('/student', verifyToken, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const student = await User.findById(req.user.id).select('batch').lean();
+    const student = await User.findById(req.user.id).select('batch goStatus').lean();
     const batch = String(student?.batch || '').trim();
-    if (!batch) {
+    const isGoStudent = isGoStudentRecord(student);
+    if (!batch && !isGoStudent) {
       return res.json({ success: true, data: [] });
     }
 
@@ -189,7 +203,13 @@ router.get('/student', verifyToken, async (req, res) => {
       .populate('createdBy', 'name role')
       .lean();
 
-    const items = allItems.filter((item) => batchesIntersectNormalized(batch, item.targetBatches || []));
+    const items = allItems.filter((item) => {
+      const targets = item.targetBatches || [];
+      const includesGoAudience = targets.some((target) => isGoStudentsTarget(target));
+      if (isGoStudent && includesGoAudience) return true;
+      if (!batch) return false;
+      return batchesIntersectNormalized(batch, targets);
+    });
 
     res.json({ success: true, data: items });
   } catch (error) {
@@ -215,11 +235,15 @@ router.get(
         role: 'STUDENT',
         isActive: true
       })
-        .select('name regNo email batch isTestAccount')
+        .select('name regNo email batch isTestAccount goStatus')
         .lean();
 
+      const includeGoStudents = targetBatches.some((target) => isGoStudentsTarget(target));
       const matched = students
-        .filter((s) => targetKeys.includes(normalizeBatchKey(s.batch)))
+        .filter((s) => {
+          if (includeGoStudents && isGoStudentRecord(s)) return true;
+          return targetKeys.includes(normalizeBatchKey(s.batch));
+        })
         .map((s) => ({
           _id: s._id,
           name: s.name || '',
@@ -294,11 +318,15 @@ router.post(
           role: 'STUDENT',
           email: { $nin: [null, ''] }
         })
-          .select('name email batch')
+          .select('name email batch goStatus')
           .lean();
 
+        const includeGoStudents = targetBatches.some((target) => isGoStudentsTarget(target));
         const recipients = students
-          .filter((s) => targetKeys.includes(normalizeBatchKey(s.batch)))
+          .filter((s) => {
+            if (includeGoStudents && isGoStudentRecord(s)) return true;
+            return targetKeys.includes(normalizeBatchKey(s.batch));
+          })
           .map((s) => ({
             email: String(s.email || '').trim().toLowerCase(),
             studentName: String(s.name || '').trim()

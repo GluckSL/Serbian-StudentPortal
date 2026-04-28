@@ -62,13 +62,14 @@
           <label>Target Batches</label>
           <select [(ngModel)]="batchToAdd" (change)="onBatchDropdownChange()">
             <option value="">Select target batch...</option>
+            <option [value]="goStudentsTargetValue">{{ goStudentsTargetLabel }}</option>
             <option *ngFor="let batch of batches" [value]="batch.batchName">{{ batch.batchName }}</option>
           </select>
         </div>
 
         <div class="ann-chip-wrap" *ngIf="selectedBatches.length">
           <button type="button" class="ann-chip" *ngFor="let batchName of selectedBatches" (click)="removeBatch(batchName)">
-            {{ batchName }} <span>✕</span>
+            {{ displayTargetLabel(batchName) }} <span>✕</span>
           </button>
         </div>
 
@@ -120,13 +121,13 @@
           {{ targetStudents.length }} student{{ targetStudents.length === 1 ? '' : 's' }} selected
         </div>
         <p class="ann-targets__hint" *ngIf="!selectedBatches.length">
-          Select batch to preview students who will receive this announcement.
+          Select an audience to preview students who will receive this announcement.
         </p>
         <p class="ann-targets__hint" *ngIf="selectedBatches.length && loadingTargetStudents">
           Loading students...
         </p>
         <div class="ann-targets__empty" *ngIf="selectedBatches.length && !loadingTargetStudents && !targetStudents.length">
-          No active students found for selected batch.
+          No active students found for selected audience.
         </div>
         <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetStudents.length">
           <div class="ann-targets__item" *ngFor="let student of targetStudents | slice:0:8">
@@ -160,7 +161,7 @@
       <p class="ann-item-body">{{ item.body }}</p>
       <div class="ann-meta">
         <span>Type: {{ item.deliveryType === 'website_email' ? 'Website + Email' : 'Website' }}</span>
-        <span>Batches: {{ item.targetBatches.join(', ') }}</span>
+        <span>Batches: {{ formatTargetLabels(item.targetBatches) }}</span>
         <span *ngIf="item.createdBy?.name">By: {{ item.createdBy?.name }}</span>
       </div>
       <div class="ann-actions">

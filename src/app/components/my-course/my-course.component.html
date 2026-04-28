@@ -546,7 +546,7 @@
                   type="button"
                   class="mc-jc-action"
                   [class.mc-jc-action--live]="meeting.isOngoing"
-                  [disabled]="meeting.hasEnded || !meeting.canJoin"
+                  [disabled]="meeting.hasEnded || (!meeting.canJoin && !meeting.isOngoing)"
                   (click)="joinSelectedDayMeeting(meeting)"
                 >
                   {{
