@@ -391,6 +391,7 @@ async function getStudentExerciseAccess(userId) {
   const accessibleLevels = getAccessibleLevels(studentLevel);
   return {
     enabled: journeyAccess.enabled,
+    learningEnabled: journeyAccess.learningEnabled !== false,
     courseDay,
     accessibleLevels,
     studentLevel
@@ -548,6 +549,17 @@ router.get('/', verifyToken, async (req, res) => {
       andClauses.push({ visibleToStudents: true });
       studentExerciseAccess = await getStudentExerciseAccess(req.user.id);
       if (!studentExerciseAccess.enabled) {
+        return res.json({
+          exercises: [],
+          total: 0,
+          page: parseInt(page),
+          pages: 0,
+          studentCourseDay: studentExerciseAccess.courseDay,
+          studentLevel: studentExerciseAccess.studentLevel,
+          accessibleLevels: studentExerciseAccess.accessibleLevels
+        });
+      }
+      if (studentExerciseAccess.learningEnabled === false) {
         return res.json({
           exercises: [],
           total: 0,
@@ -769,6 +781,12 @@ router.get('/:id', verifyToken, async (req, res) => {
         return res.status(403).json({
           error: 'Journey content is not enabled for your batch yet.',
           code: 'JOURNEY_NOT_ACTIVE'
+        });
+      }
+      if (access.learningEnabled === false) {
+        return res.status(403).json({
+          error: 'Exercises are not available for your batch.',
+          code: 'LEARNING_CONTENT_DISABLED'
         });
       }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
@@ -1129,6 +1147,12 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
         return res.status(403).json({
           error: 'Journey content is not enabled for your batch yet.',
           code: 'JOURNEY_NOT_ACTIVE'
+        });
+      }
+      if (access.learningEnabled === false) {
+        return res.status(403).json({
+          error: 'Exercises are not available for your batch.',
+          code: 'LEARNING_CONTENT_DISABLED'
         });
       }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
@@ -1641,6 +1665,9 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
     const access = await getStudentExerciseAccess(req.user.id);
     if (!access.enabled) {
       return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
+    }
+    if (access.learningEnabled === false) {
+      return res.status(403).json({ error: 'Exercises are not available for your batch.' });
     }
     if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
       return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });

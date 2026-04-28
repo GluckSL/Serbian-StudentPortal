@@ -211,13 +211,24 @@ export class ZoomService {
   /**
    * Get all meetings for teacher
    */
-  getAllMeetings(filters?: { status?: string; batch?: string; plan?: string; date?: string }): Observable<any> {
+  getAllMeetings(filters?: {
+    status?: string;
+    batch?: string;
+    plan?: string;
+    date?: string;
+    page?: number;
+    limit?: number;
+    completed?: boolean;
+  }): Observable<any> {
     let url = `${this.apiUrl}/meetings`;
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.batch) params.append('batch', filters.batch);
     if (filters?.plan) params.append('plan', filters.plan);
     if (filters?.date) params.append('date', filters.date);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.completed !== undefined) params.append('completed', String(filters.completed));
     const qs = params.toString();
     if (qs) url += `?${qs}`;
 

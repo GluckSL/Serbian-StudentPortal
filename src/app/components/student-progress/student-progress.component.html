@@ -47,7 +47,7 @@
         <div class="sp-stat__val">{{ botUsage.weekMinutes }}m</div>
         <div class="sp-stat__lbl">AI Bot / Week</div>
       </div>
-      <div class="sp-stat sp-stat--purple">
+      <div class="sp-stat sp-stat--purple" *ngIf="showLearningContent">
         <div class="sp-stat__val">{{ exercisesThisWeek }}</div>
         <div class="sp-stat__lbl">Exercises / Week</div>
       </div>
@@ -128,7 +128,7 @@
       </div>
 
       <!-- Digital Exercises -->
-      <div class="sp-card">
+      <div class="sp-card" *ngIf="showLearningContent">
         <div class="sp-card__head">
           <span class="sp-card__title">🎯 Digital Exercises</span>
           <span class="sp-card__meta">{{ exercisesThisWeek }} this week</span>

@@ -36,6 +36,17 @@ const BatchConfigSchema = new mongoose.Schema({
     default: ''
   },
   /**
+   * Batch type controls student learning-content visibility.
+   * - new: modules + exercises + live/recordings are available (default)
+   * - old: only live classes + recordings are available to students
+   */
+  batchType: {
+    type: String,
+    enum: ['new', 'old'],
+    default: 'new',
+    index: true
+  },
+  /**
    * When false (default), students move to the next journey day on the daily rollover
    * without needing to finish modules, exercises, or live classes.
    * When true, rollover (and admin “advance”) require at least strictJourneyThresholdPercent

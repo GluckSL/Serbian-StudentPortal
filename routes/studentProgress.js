@@ -11,6 +11,7 @@ const { EXCLUDE_TEST } = require('../utils/analyticsFilters');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const StudentDocument = require('../models/StudentDocument');
 const DigitalExercise = require('../models/DigitalExercise');
+const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 
 // Helper: build documents list cross-referencing requirements with uploads
 async function buildDocumentsList(studentId, servicesOpted) {
@@ -226,6 +227,9 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         console.warn('recomputePendingForStudent:', e.message);
       }
     }
+    const journeyAccess = student.role === 'STUDENT'
+      ? await getJourneyAccessForStudent({ ...student, role: 'STUDENT' })
+      : { enabled: true, learningEnabled: true, batchType: 'new' };
 
     // Level progression
     const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -319,7 +323,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       : 1;
 
     let nextLockedDigitalExercise = null;
-    if (student.role === 'STUDENT') {
+    if (student.role === 'STUDENT' && journeyAccess.learningEnabled !== false) {
       try {
         const nex = await DigitalExercise.findOne({
           isActive: true,
@@ -351,6 +355,9 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         profilePic: student.profilePic || '',
         currentCourseDay: studentCourseDay,
         subscription: student.subscription || '',
+        journeyAccessEnabled: journeyAccess.enabled !== false,
+        learningContentEnabled: journeyAccess.learningEnabled !== false,
+        batchType: String(journeyAccess.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
         pendingJourneyDayAdvance: !!student.pendingJourneyDayAdvance,
         pendingJourneyDayAdvanceForDay:
           student.pendingJourneyDayAdvanceForDay != null

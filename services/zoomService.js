@@ -172,15 +172,71 @@ class ZoomService {
   /**
    * Get meeting participants (for attendance tracking)
    */
-  async getMeetingParticipants(meetingId) {
+  encodeUuidForZoom(uuid) {
+    return encodeURIComponent(encodeURIComponent(String(uuid || '').trim()));
+  }
+
+  async fetchPastMeetingParticipants(token, pastMeetingRef) {
+    const response = await axios.get(
+      `${zoomConfig.apiBaseUrl}/past_meetings/${pastMeetingRef}/participants`,
+      { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 300 } }
+    );
+    return response.data.participants || [];
+  }
+
+  async getLatestPastMeetingUuid(token, meetingId) {
+    try {
+      const response = await axios.get(
+        `${zoomConfig.apiBaseUrl}/past_meetings/${meetingId}/instances`,
+        { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 30 } }
+      );
+      const meetings = Array.isArray(response.data?.meetings) ? response.data.meetings : [];
+      if (!meetings.length) return null;
+      meetings.sort((a, b) => new Date(b?.start_time || 0) - new Date(a?.start_time || 0));
+      return meetings[0]?.uuid ? String(meetings[0].uuid) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async getMeetingParticipants(meetingId, options = {}) {
     try {
       const token = await this.getAccessToken();
-      const response = await axios.get(
-        `${zoomConfig.apiBaseUrl}/past_meetings/${meetingId}/participants`,
-        { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 300 } }
-      );
+      const rawUuid = options.meetingUuid ? String(options.meetingUuid).trim() : '';
+      const encodedUuid = rawUuid ? this.encodeUuidForZoom(rawUuid) : '';
 
-      const participants = response.data.participants || [];
+      const refsToTry = [];
+      if (encodedUuid) refsToTry.push(encodedUuid);
+      refsToTry.push(String(meetingId).trim());
+
+      let participants = [];
+      let lastError = null;
+
+      for (const ref of refsToTry) {
+        if (!ref) continue;
+        try {
+          participants = await this.fetchPastMeetingParticipants(token, ref);
+          if (participants.length > 0) break;
+        } catch (error) {
+          lastError = error;
+          continue;
+        }
+      }
+
+      if (participants.length === 0) {
+        const latestUuid = await this.getLatestPastMeetingUuid(token, meetingId);
+        if (latestUuid) {
+          try {
+            participants = await this.fetchPastMeetingParticipants(
+              token,
+              this.encodeUuidForZoom(latestUuid)
+            );
+          } catch (error) {
+            lastError = error;
+          }
+        }
+      }
+
       const participantMap = new Map();
 
       participants.forEach(p => {
@@ -220,7 +276,7 @@ class ZoomService {
   /**
    * Get detailed meeting report
    */
-  async getMeetingReport(meetingId) {
+  async getMeetingReport(meetingId, options = {}) {
     try {
       const token = await this.getAccessToken();
       const meetingResponse = await axios.get(
@@ -228,7 +284,7 @@ class ZoomService {
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const meeting = meetingResponse.data;
-      const participants = await this.getMeetingParticipants(meetingId);
+      const participants = await this.getMeetingParticipants(meetingId, options);
 
       return {
         success: true,

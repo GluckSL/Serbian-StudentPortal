@@ -19,6 +19,7 @@ interface BatchSummary {
   batchStartDate: string | null;
   autoDay: boolean;
   notes: string;
+  batchType?: 'new' | 'old';
   /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
   strictJourneyRule?: boolean;
   strictJourneyThresholdPercent?: number;
@@ -499,6 +500,13 @@ interface TimelineDay {
             </span>
           </div>
         </div>
+        <div class="j-ro-card">
+          <div class="j-ro-card-icon j-ro-card-icon--blue"><i class="fas fa-toggle-on"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Batch type</span>
+            <span class="j-ro-card-value">{{ editBatchType === 'old' ? 'Old (live/recordings only)' : 'New (modules/exercises enabled)' }}</span>
+          </div>
+        </div>
         <div class="j-ro-card j-ro-card--wide" *ngIf="editNotes?.trim()">
           <div class="j-ro-card-icon j-ro-card-icon--muted"><i class="fas fa-sticky-note"></i></div>
           <div class="j-ro-card-body">
@@ -578,6 +586,17 @@ interface TimelineDay {
                    max="100"
                    placeholder="Enter the % of strictness" />
           </div>
+        </div>
+
+        <div class="j-config-field">
+          <label>
+            Batch type
+            <span class="j-label-hint">— default: new</span>
+          </label>
+          <select class="j-input" [(ngModel)]="editBatchType">
+            <option value="new">New batch (modules + exercises + classes)</option>
+            <option value="old">Old batch (classes + recordings only)</option>
+          </select>
         </div>
 
         <div class="j-config-field" style="flex:2">
@@ -3677,6 +3696,7 @@ export class JourneyManagementComponent implements OnInit {
   editBatchDay = 1;
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
+  editBatchType: 'new' | 'old' = 'new';
   /** When false, daily rollover advances students without requiring day tasks. */
   editStrictJourneyRule = false;
   /** 1–100; used when editStrictJourneyRule is true. */
@@ -4425,6 +4445,7 @@ export class JourneyManagementComponent implements OnInit {
       ? new Date(b.batchStartDate).toISOString().slice(0, 10)
       : '';
     this.editNotes = b.notes;
+    this.editBatchType = b.batchType === 'old' ? 'old' : 'new';
     this.editStrictJourneyRule = !!b.strictJourneyRule;
     this.editStrictThresholdPercent =
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
@@ -4501,6 +4522,8 @@ export class JourneyManagementComponent implements OnInit {
             r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
           this.selectedBatch.strictJourneyRule = this.editStrictJourneyRule;
           this.selectedBatch.strictJourneyThresholdPercent = this.editStrictThresholdPercent;
+          this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
+          this.selectedBatch.batchType = this.editBatchType;
         }
         if (this.selectedBatch?.batchName === batchName) {
           this.studentsLoadedForBatch = batchName;
@@ -4526,6 +4549,7 @@ export class JourneyManagementComponent implements OnInit {
       batchCurrentDay: this.editBatchDay,
       batchStartDate: this.editBatchStartDate || null,
       notes: this.editNotes,
+      batchType: this.editBatchType,
       strictJourneyRule: this.editStrictJourneyRule,
       strictJourneyThresholdPercent: this.editStrictThresholdPercent
     };
@@ -4537,10 +4561,12 @@ export class JourneyManagementComponent implements OnInit {
         this.selectedBatch!.batchStartDate = r.config.batchStartDate || null;
         this.selectedBatch!.autoDay = !!r.config.batchStartDate;
         this.selectedBatch!.notes = r.config.notes;
+        this.selectedBatch!.batchType = r.config.batchType === 'old' ? 'old' : 'new';
         this.selectedBatch!.strictJourneyRule = !!r.config.strictJourneyRule;
         this.selectedBatch!.strictJourneyThresholdPercent =
           r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
         this.editStrictJourneyRule = !!r.config.strictJourneyRule;
+        this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
         this.editStrictThresholdPercent =
           r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
         this.savingConfig = false;

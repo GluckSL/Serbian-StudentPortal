@@ -70,6 +70,7 @@ export class StudentProgressComponent implements OnInit {
   }
 
   get showLearning(): boolean { return !this.isVisaDocOnly; }
+  get showLearningContent(): boolean { return this.profile?.learningContentEnabled !== false; }
   get showDocsVisa(): boolean { return !this.isLanguageOnly; }
 
 

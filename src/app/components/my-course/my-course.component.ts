@@ -190,7 +190,9 @@ export class MyCourseComponent implements OnInit {
 
     this.route.queryParamMap.subscribe((q) => {
       const t = q.get('tab');
-      if (t === 'exercises' || t === 'modules' || t === 'classes') {
+      if ((t === 'exercises' || t === 'modules') && !this.allowsLearningContent) {
+        this.activeTab = 'classes';
+      } else if (t === 'exercises' || t === 'modules' || t === 'classes') {
         this.activeTab = t;
       } else if (t === 'journey') {
         this.activeTab = t;
@@ -322,17 +324,22 @@ export class MyCourseComponent implements OnInit {
   }
 
   get updatesPrimaryTab(): MyCourseTab {
+    if (!this.allowsLearningContent) return 'classes';
     if (this.nextNewDigitalExercise || this.nextLockedDigitalExercise) return 'exercises';
     if (this.nextNewAccessibleModule) return 'modules';
     return 'exercises';
   }
 
   get updatesLinkText(): string {
+    if (!this.allowsLearningContent) return 'Go to classes';
     if (this.updatesPrimaryTab === 'modules') return 'Go to modules';
     return 'Go to exercises';
   }
 
   setTab(tab: MyCourseTab): void {
+    if (!this.allowsLearningContent && (tab === 'exercises' || tab === 'modules')) {
+      tab = 'classes';
+    }
     this.activeTab = tab;
     this.router.navigate([], {
       relativeTo: this.route,
@@ -485,6 +492,10 @@ export class MyCourseComponent implements OnInit {
   get isGoBatchStudent(): boolean {
     const u = this.authService.getSnapshotUser();
     return String(u?.goStatus || '').toUpperCase() === 'GO';
+  }
+
+  get allowsLearningContent(): boolean {
+    return this.profile?.learningContentEnabled !== false;
   }
 
   get journeyCourseDay(): number {

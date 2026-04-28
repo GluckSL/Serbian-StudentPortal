@@ -202,6 +202,7 @@
 }
 
 @keyframes zr-spin { to { transform: rotate(360deg); } }
+@keyframes zr-skeleton-shimmer { 100% { transform: translateX(100%); } }
 
 /* ── Error ── */
 .zr-error {
@@ -277,6 +278,28 @@
 .zr-row { cursor: default; transition: background 0.12s; }
 .zr-row:hover { background: #f8fafc; }
 .zr-row:last-child td { border-bottom: none; }
+.zr-row--skeleton:hover { background: transparent; }
+
+.zr-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #e5e7eb;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+
+.zr-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: zr-skeleton-shimmer 1.2s infinite;
+}
+
+.zr-skeleton--sm { height: 10px; width: 48px; }
+.zr-skeleton--md { height: 12px; width: 120px; }
+.zr-skeleton--lg { height: 12px; width: 90px; }
 
 /* ── Cell text — identical to .ap-name / .ap-sub ── */
 .zr-cell-main {
@@ -393,8 +416,14 @@
 .zr-icon-btn--blue:hover  { background: #bfdbfe; }
 .zr-icon-btn--green { background: #dcfce7; color: #16a34a; }
 .zr-icon-btn--green:hover { background: #bbf7d0; }
+.zr-icon-btn--amber { background: #fef3c7; color: #b45309; }
+.zr-icon-btn--amber:hover { background: #fde68a; }
 .zr-icon-btn--red   { background: #fee2e2; color: #dc2626; }
 .zr-icon-btn--red:hover   { background: #fecaca; }
+.zr-icon-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* ── FA icon sizing ── */
 .zr-btn i { font-size: 12px; }
@@ -408,9 +437,58 @@
   color: #94a3b8;
   border-top: 1px solid #f1f5f9;
   background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .zr-footer strong { color: #1d4ed8; font-weight: 700; }
+.zr-footer__left { color: #64748b; }
+
+.zr-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zr-pagination__label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.zr-pagination__select {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.zr-page-btn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.zr-page-btn:hover { background: #f8fafc; }
+.zr-page-btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.zr-page-info {
+  font-size: 12px;
+  color: #475569;
+  min-width: 84px;
+  text-align: center;
+}
 
 /* ── Responsive ── */
 @media (max-width: 900px) {

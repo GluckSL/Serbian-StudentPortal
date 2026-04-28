@@ -381,6 +381,9 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
 router.get('/meetings', verifyToken, async (req, res) => {
   try {
     const { status, batch, date } = req.query;
+    const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+    const skip = (pageNum - 1) * pageSize;
     const userId = req.user.id || req.user.userId || req.user._id;
 
     // Get user to check role
@@ -426,19 +429,50 @@ router.get('/meetings', verifyToken, async (req, res) => {
       });
     }
 
+    if (String(req.query.completed).toLowerCase() === 'true') {
+      andClauses.push({
+        $expr: {
+          $lt: [
+            {
+              $dateAdd: {
+                startDate: '$startTime',
+                unit: 'minute',
+                amount: { $ifNull: ['$duration', 0] }
+              }
+            },
+            '$$NOW'
+          ]
+        }
+      });
+    }
+
     const query = andClauses.length ? { $and: andClauses } : {};
 
     const sortOrder = date ? 1 : -1;
+    const totalCount = await MeetingLink.countDocuments(query);
     const meetings = await MeetingLink.find(query)
       .populate('createdBy', 'name email role')
       .populate('assignedTeacher', 'name email')
       .populate('attendees.studentId', 'name email batch level subscription')
-      .sort({ startTime: sortOrder });
+      .sort({ startTime: sortOrder })
+      .skip(skip)
+      .limit(pageSize);
+
+    const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
 
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.status(200).json({
       success: true,
       count: meetings.length,
+      totalCount,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        totalItems: totalCount,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1
+      },
       data: meetings,
       userRole: user.role // Include role in response for frontend
     });
@@ -1280,7 +1314,9 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     let zoomReport;
     try {
       console.log('🔍 Fetching Zoom report for meeting:', meeting.zoomMeetingId);
-      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid
+      });
       console.log('✅ Zoom report received:', {
         success: zoomReport.success,
         participantCount: zoomReport.participants?.length || 0,
@@ -1423,6 +1459,23 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       await syncPendingFlagsFromMeeting(meeting);
     } catch (e) {
       console.warn('journey pending sync (manual attendance):', e.message);
+    }
+
+    // Invalidate Student Log daily-summary cache so student-side analytics
+    // rebuild from corrected MeetingLink.attendance on next fetch.
+    try {
+      const ActivityDailySummary = require('../models/ActivityDailySummary');
+      const ActivityDailySummaryBounds = require('../models/ActivityDailySummaryBounds');
+      const batchValue = String(meeting.batch || '').trim();
+      const batchKeys = ['__all__'];
+      if (batchValue) batchKeys.push(batchValue);
+
+      await Promise.all([
+        ActivityDailySummary.deleteMany({ batchKey: { $in: batchKeys } }),
+        ActivityDailySummaryBounds.deleteMany({ batchKey: { $in: batchKeys } })
+      ]);
+    } catch (e) {
+      console.warn('daily-summary cache invalidation skipped:', e.message);
     }
 
     const normAttendStr = (s) => (s == null ? '' : String(s)).trim().toLowerCase();

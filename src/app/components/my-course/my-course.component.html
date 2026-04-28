@@ -3,7 +3,12 @@
     <div class="mc-hero__content">
       <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
       <p class="mc-hero__sub">
-        Join live classes, practice with exercises, and work through modules—all in one place.
+        <ng-container *ngIf="allowsLearningContent; else classesOnlyHero">
+          Join live classes, practice with exercises, and work through modules-all in one place.
+        </ng-container>
+        <ng-template #classesOnlyHero>
+          Join live classes and watch your class recordings in one place.
+        </ng-template>
       </p>
       <div class="mc-hero__badges">
         <span class="mc-hero__pill">
@@ -76,6 +81,7 @@
   <div class="mc-tabs-wrap">
     <div class="mc-tabs" role="tablist">
       <button
+        *ngIf="allowsLearningContent"
         type="button"
         role="tab"
         class="mc-tab"
@@ -85,6 +91,7 @@
         <span class="mc-tab-text mc-tab-text--mobile">My class</span>
       </button>
       <button
+        *ngIf="allowsLearningContent"
         type="button"
         role="tab"
         class="mc-tab"
@@ -169,23 +176,23 @@
           </div>
         </div>
 
-        <div class="mc-update" *ngIf="nextLockedDigitalExercise as locked">
+        <div class="mc-update" *ngIf="allowsLearningContent && nextLockedDigitalExercise">
           <span class="mc-update__icon mc-update__icon--lock" aria-hidden="true">
             <span class="material-icons">lock_clock</span>
           </span>
           <div class="mc-update__body">
             <p class="mc-update__title">Digital exercise ahead</p>
             <p class="mc-update__text">
-              <strong>{{ locked.title }}</strong>
-              is tied to <strong>day {{ locked.courseDay }}</strong>.
-              {{ lockedExerciseUnlockText(locked) }}
+              <strong>{{ nextLockedDigitalExercise?.title }}</strong>
+              is tied to <strong>day {{ nextLockedDigitalExercise?.courseDay }}</strong>.
+              {{ nextLockedDigitalExercise ? lockedExerciseUnlockText(nextLockedDigitalExercise) : '' }}
             </p>
           </div>
         </div>
 
         <div
           class="mc-update"
-          *ngIf="nextNewDigitalExercise as ex"
+          *ngIf="allowsLearningContent && nextNewDigitalExercise"
           role="button"
           tabindex="0"
           (click)="setTab('exercises')"
@@ -197,7 +204,7 @@
           <div class="mc-update__body">
             <p class="mc-update__title">New exercise available</p>
             <p class="mc-update__text">
-              <strong>{{ ex.title }}</strong>
+              <strong>{{ nextNewDigitalExercise?.title }}</strong>
               <span class="mc-update__when">is ready now</span>
             </p>
           </div>
@@ -205,7 +212,7 @@
 
         <div
           class="mc-update"
-          *ngIf="nextNewAccessibleModule as mod"
+          *ngIf="allowsLearningContent && nextNewAccessibleModule"
           role="button"
           tabindex="0"
           (click)="setTab('modules')"
@@ -217,15 +224,15 @@
           <div class="mc-update__body">
             <p class="mc-update__title">New module available</p>
             <p class="mc-update__text">
-              <strong>{{ mod.title }}</strong>
-              <span class="mc-update__when">{{ mod.level }} · {{ mod.category }}</span>
+              <strong>{{ nextNewAccessibleModule?.title }}</strong>
+              <span class="mc-update__when">{{ nextNewAccessibleModule?.level }} · {{ nextNewAccessibleModule?.category }}</span>
             </p>
           </div>
         </div>
 
         <div
           class="mc-update mc-update--empty"
-          *ngIf="!nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise && !nextNewAccessibleModule"
+          *ngIf="allowsLearningContent && !nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise && !nextNewAccessibleModule"
         >
           <span class="material-icons" aria-hidden="true">notifications_none</span>
           <p>No new class, module, or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Modules</strong> anytime.</p>
@@ -275,7 +282,14 @@
       <div class="mc-progress-page__head">
         <div>
           <h4>Progress</h4>
-          <p>Weekly or overall completion across classes, modules, and exercises.</p>
+          <p>
+            <ng-container *ngIf="allowsLearningContent; else classesOnlyProgressText">
+              Weekly or overall completion across classes, modules, and exercises.
+            </ng-container>
+            <ng-template #classesOnlyProgressText>
+              Weekly or overall completion across your classes.
+            </ng-template>
+          </p>
         </div>
         <div class="mc-progress-range">
           <button
@@ -325,7 +339,7 @@
           </div>
         </div>
 
-        <div class="mc-progress-card mc-progress-card--modules" tabindex="0">
+        <div class="mc-progress-card mc-progress-card--modules" tabindex="0" *ngIf="allowsLearningContent">
           <div class="mc-progress-card__front">
             <div class="mc-progress-donut mc-progress-donut--amber" [style.--mc-p]="progressModulesPct + '%'" aria-hidden="true">
               <span>{{ progressModulesPct }}%</span>
@@ -354,7 +368,7 @@
           </div>
         </div>
 
-        <div class="mc-progress-card mc-progress-card--exercises" tabindex="0">
+        <div class="mc-progress-card mc-progress-card--exercises" tabindex="0" *ngIf="allowsLearningContent">
           <div class="mc-progress-card__front">
             <div class="mc-progress-donut mc-progress-donut--green" [style.--mc-p]="progressExercisesPct + '%'" aria-hidden="true">
               <span>{{ progressExercisesPct }}%</span>
@@ -423,10 +437,15 @@
     </div>
 
     <div class="mc-day-empty" *ngIf="!selectedDayHasItems">
-      No modules or exercises assigned for this day.
+      <ng-container *ngIf="allowsLearningContent; else classesOnlyDayEmpty">
+        No modules or exercises assigned for this day.
+      </ng-container>
+      <ng-template #classesOnlyDayEmpty>
+        No modules or exercises for this batch type. Check your live classes below.
+      </ng-template>
     </div>
 
-    <div class="mc-day-sections" *ngIf="selectedDayHasItems">
+    <div class="mc-day-sections" *ngIf="allowsLearningContent && selectedDayHasItems">
       <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises" *ngIf="selectedDayExercises.length">
         <div class="mc-day-section__head">
           <h4>Exercises</h4>

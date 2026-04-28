@@ -2603,6 +2603,8 @@
   box-sizing: border-box;
   pointer-events: none;
   border-radius: inherit;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .vp-stage-frame-ui button,
@@ -4514,6 +4516,30 @@
 }
 
 @media (max-width: 900px) {
+  .vp-stage-ui-center {
+    justify-content: flex-start;
+    padding-top: 70px;
+    padding-bottom: 64px;
+  }
+
+  .vp-stage-feedback-wrap {
+    width: min(100%, 340px);
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .vp-stage-feedback-actions {
+    width: 100%;
+  }
+
+  .vp-stage-feedback-actions .vp-stage-retry-btn,
+  .vp-stage-feedback-actions .vp-stage-pill {
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: center;
+  }
+
   .vp-stage-listening {
     width: calc(100% - 12px);
     padding: 10px 12px;

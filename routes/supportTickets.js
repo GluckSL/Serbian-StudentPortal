@@ -30,6 +30,43 @@ async function sendNewTicketAlert(ticket) {
   });
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function sendAdminReplyToStudent(ticket, replyMessage) {
+  const safeReply = escapeHtml(replyMessage).replace(/\r?\n/g, '<br/>');
+  const portalUrl = process.env.PORTAL_URL || `${process.env.CLIENT_URL || ''}`.replace(/\/+$/, '');
+  const openTicketLink = portalUrl ? `${portalUrl}/help` : null;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: ticket.email,
+    subject: `Reply on your support ticket ${ticket.ticketNumber || ''}`.trim(),
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+        <h3 style="margin-bottom: 8px;">Support Team Reply</h3>
+        <p style="margin: 0 0 10px;">Hello ${escapeHtml(ticket.name || 'Student')},</p>
+        <p style="margin: 0 0 10px;">
+          Our team has replied to your support request.
+        </p>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin: 12px 0;">
+          <p style="margin: 0 0 6px;"><strong>Ticket:</strong> ${escapeHtml(ticket.ticketNumber || 'N/A')}</p>
+          <p style="margin: 0 0 6px;"><strong>Subject:</strong> ${escapeHtml(ticket.subject || 'N/A')}</p>
+          <p style="margin: 0;"><strong>Reply:</strong><br/>${safeReply}</p>
+        </div>
+        ${openTicketLink ? `<p style="margin: 0 0 8px;">You can view updates here: <a href="${openTicketLink}">${openTicketLink}</a></p>` : ''}
+        <p style="margin: 0;">Regards,<br/>Gluck Global Support Team</p>
+      </div>
+    `
+  });
+}
+
 // POST /api/support/tickets  (public; screenshot required)
 router.post('/tickets', upload.single('screenshot'), async (req, res) => {
   try {
@@ -144,6 +181,12 @@ router.post('/tickets/:id/reply', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
       message: String(message).trim()
     });
     await ticket.save();
+
+    try {
+      await sendAdminReplyToStudent(ticket, String(message).trim());
+    } catch (mailErr) {
+      console.error('Support ticket reply email error:', mailErr);
+    }
 
     return res.json({ success: true, data: ticket });
   } catch (err) {

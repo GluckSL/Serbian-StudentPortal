@@ -184,6 +184,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         journeyLength: 200,
         batchCurrentDay: 1,
         notes: '',
+        batchType: 'new',
         batchStartDate: null,
         strictJourneyRule: false,
         strictJourneyThresholdPercent: 100,
@@ -197,6 +198,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         batchStartDate: cfg.batchStartDate || null,
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
+        batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
@@ -367,6 +369,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         batchStartDate: cfg.batchStartDate || null,
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes,
+        batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100
@@ -473,6 +476,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       batchCurrentDay,
       batchStartDate,
       notes,
+      batchType,
       createOnly,
       strictJourneyRule,
       strictJourneyThresholdPercent
@@ -517,6 +521,13 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     if (notes !== undefined) {
       cfg.notes = String(notes).substring(0, 500);
     }
+    if (batchType !== undefined) {
+      const normalizedType = String(batchType || '').trim().toLowerCase();
+      if (normalizedType !== 'new' && normalizedType !== 'old') {
+        return res.status(400).json({ message: 'batchType must be "new" or "old"' });
+      }
+      cfg.batchType = normalizedType;
+    }
     if (strictJourneyRule !== undefined) {
       cfg.strictJourneyRule = !!strictJourneyRule;
     }
@@ -537,6 +548,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       message: createOnly ? 'Batch created' : 'Batch config updated',
       config: {
         ...cfg.toObject(),
+        batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
         batchCurrentDay: activeBatchDay,
         autoDay: !!cfg.batchStartDate
       }

@@ -32,7 +32,7 @@ router.get('/', verifyToken, async (req, res) => {
     // ✅ Filter by visibility - Students only see published modules
     if (req.user.role === 'STUDENT') {
       const journeyAccess = await getJourneyAccessForStudentId(User, req.user.id);
-      if (!journeyAccess.enabled) {
+      if (!journeyAccess.learningEnabled) {
         return res.json({
           modules: [],
           pagination: {
@@ -173,10 +173,10 @@ router.get('/:id', verifyToken, async (req, res) => {
     // If user is a student, include their progress
     if (req.user.role === 'STUDENT') {
       const journeyAccess = await getJourneyAccessForStudentId(User, req.user.id);
-      if (!journeyAccess.enabled) {
+      if (!journeyAccess.learningEnabled) {
         return res.status(403).json({
-          message: 'Journey content is not enabled for your batch yet.',
-          code: 'JOURNEY_NOT_ACTIVE'
+          message: 'Modules are not available for your batch.',
+          code: 'LEARNING_CONTENT_DISABLED'
         });
       }
       if (!module.visibleToStudents) {
@@ -434,10 +434,10 @@ router.post('/:id/enroll', verifyToken, checkRole(['STUDENT', 'TEACHER']), async
 
     if (req.user.role === 'STUDENT') {
       const journeyAccess = await getJourneyAccessForStudentId(User, studentId);
-      if (!journeyAccess.enabled) {
+      if (!journeyAccess.learningEnabled) {
         return res.status(403).json({
-          message: 'Journey content is not enabled for your batch yet.',
-          code: 'JOURNEY_NOT_ACTIVE'
+          message: 'Modules are not available for your batch.',
+          code: 'LEARNING_CONTENT_DISABLED'
         });
       }
       const studentDay = journeyAccess.courseDay;
