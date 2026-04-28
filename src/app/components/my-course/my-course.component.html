@@ -274,6 +274,14 @@
           <span class="material-icons">{{ showProgressReport ? 'expand_less' : 'insights' }}</span>
           {{ showProgressReport ? 'Hide report' : 'Progress report' }}
         </button>
+        <button
+          type="button"
+          class="mc-progress-btn mc-progress-btn--muted"
+          (click)="openPerformanceHistory()"
+        >
+          <span class="material-icons">monitoring</span>
+          Full performance history
+        </button>
         <div class="mc-journey-meta">Day <strong>{{ journeyCourseDay }}</strong> / 200</div>
       </div>
     </div>

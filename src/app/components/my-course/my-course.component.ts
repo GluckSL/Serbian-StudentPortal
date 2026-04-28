@@ -537,6 +537,10 @@ export class MyCourseComponent implements OnInit {
     this.showProgressReport = !this.showProgressReport;
   }
 
+  openPerformanceHistory(): void {
+    this.router.navigate(['/performance-history']);
+  }
+
   setProgressRange(range: ProgressRange): void {
     this.progressRange = range;
   }
