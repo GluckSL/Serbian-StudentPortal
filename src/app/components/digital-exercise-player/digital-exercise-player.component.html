@@ -313,7 +313,7 @@
       <div class="assessment-header-right">
         <div class="timer">
           <span class="material-icons">schedule</span>
-          Remaining: {{ formatTime(elapsedSeconds) }}
+          Remaining: {{ formatTime(sessionRemainingSeconds) }}
         </div>
         <button class="btn-submit top-submit" *ngIf="!isSubmittedState" (click)="submitExercise()" [disabled]="submitting">
           {{ submitting ? 'Submitting...' : 'Submit' }}

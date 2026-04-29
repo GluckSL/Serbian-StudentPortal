@@ -641,6 +641,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return Math.floor(mins * 60);
   }
 
+  /** Generic session cap for non-video exercises (minutes → seconds). */
+  get sessionBudgetSeconds(): number {
+    const m = Number(this.exercise?.estimatedDuration);
+    const mins = Number.isFinite(m) && m > 0 ? m : 30;
+    return Math.floor(mins * 60);
+  }
+
+  /** Remaining countdown for the top-right header (stops at 0). */
+  get sessionRemainingSeconds(): number {
+    return Math.max(0, this.sessionBudgetSeconds - this.elapsedSeconds);
+  }
+
   /** Countdown for sidebar timer (stops at 0). */
   get vpCountdownRemainingSeconds(): number {
     return Math.max(0, this.vpSessionBudgetSeconds - this.elapsedSeconds);
