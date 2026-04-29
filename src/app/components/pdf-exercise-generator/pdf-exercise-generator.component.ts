@@ -9,8 +9,9 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
+import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-structure-preview.component';
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 interface ReviewQuestion {
   type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
@@ -53,18 +54,17 @@ interface ReviewQuestion {
 
 const PROGRESS_MESSAGES = [
   'Reading your PDF...',
-  'Analysing content structure...',
-  'Detecting existing questions...',
-  'Building exercise prompts...',
-  'Generating questions with AI...',
-  'Structuring answers and feedback...',
-  'Finalising your exercises...'
+  'Analyzing worksheet structure...',
+  'Preparing exercise blocks...',
+  'Extracting exercises...',
+  'Mapping answers from solution key...',
+  'Finalizing extracted questions...'
 ];
 
 @Component({
   selector: 'app-pdf-exercise-generator',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule, MaterialModule, ExerciseStructurePreviewComponent],
   templateUrl: './pdf-exercise-generator.component.html',
   styleUrls: ['./pdf-exercise-generator.component.css']
 })
@@ -84,7 +84,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   selectedText = '';
   textInputResult: any = null;
 
-  // ── Step 2: Configure ───────────────────────────────────────────────────────
+  // ── Step 2: Detected Structure ──────────────────────────────────────────────
+  exercises: ExercisePreview[] = [];
+  extractionErrors: Array<{ exerciseId: string; error: string }> = [];
+  extractionProgress = { current: 0, total: 0 };
+  failedExerciseIds: string[] = [];
+  extractionSummary = { total: 0, successCount: 0, failedCount: 0 };
+
+  // legacy state kept for compatibility with review/save UI
   // typeCounts drives everything: selected = count > 0
   typeCounts: Record<string, number> = {
     mcq: 0,
@@ -108,15 +115,17 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   level = 'A1';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
 
-  // ── Step 3: Processing ──────────────────────────────────────────────────────
+  // ── Step 3: Extracting ──────────────────────────────────────────────────────
   generating = false;
   progressStep = 0;
   progressPercent = 0;
   currentProgressMsg = '';
   progressTimer: any;
+  extractionPollTimer: any;
+  extractionPollBusy = false;
   generationError = '';
 
-  // ── Step 4: Review ──────────────────────────────────────────────────────────
+  // ── Step 5: Review ──────────────────────────────────────────────────────────
   reviewQuestions: ReviewQuestion[] = [];
   generationMeta: any = null;
 
@@ -191,6 +200,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.clearProgressTimer();
+    this.clearExtractionPollTimer();
   }
 
   // ── Step 1: Upload ──────────────────────────────────────────────────────────
@@ -289,6 +299,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         this.uploadResult = res;
         this.uploading = false;
         this.applyDetectedTypes(res.detectedTypes);
+        this.exercises = (res.exercises || []).map((e: any) => ({
+          exerciseId: String(e.exerciseId || ''),
+          topic: String(e.topic || ''),
+          difficulty: String(e.difficulty || 'easy'),
+          type: String(e.type || ''),
+          questionCount: Number(e.questionCount || 0),
+          enabled: true
+        }));
         // If server detected a worksheet, auto-enable worksheet mode label for display
         if (res.worksheetMode) {
           this.pdfDetectedTypes = true;
@@ -305,6 +323,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.selectedFile = null;
     this.uploadResult = null;
     this.pdfDetectedTypes = false;
+    this.exercises = [];
+    this.extractionErrors = [];
+    this.extractionProgress = { current: 0, total: 0 };
     this.typeCounts = {
       mcq: 0,
       matching: 0,
@@ -436,61 +457,147 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.currentProgressMsg = PROGRESS_MESSAGES[0];
     this.startProgressSimulation();
 
-    const payloadBase = {
-      types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
-      typeCounts: { ...this.typeCounts },
+    const selectedExerciseIds = this.exercises.filter(e => e.enabled).map(e => e.exerciseId);
+    this.extractionProgress = { current: 0, total: Math.max(selectedExerciseIds.length, this.exercises.length, 1) };
+    this.currentProgressMsg = `Extracting exercises (0 / ${this.extractionProgress.total})...`;
+    // #region agent log
+    fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fbfbea'},body:JSON.stringify({sessionId:'fbfbea',location:'pdf-exercise-generator.component.ts:startGeneration',message:'selectedExerciseIds sent to backend',data:{count:selectedExerciseIds.length,ids:selectedExerciseIds,totalExercisesInUI:this.exercises.length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    this.exerciseService.generateFromPdf({
+      uploadId: this.uploadResult.uploadId,
+      types: ['matching'],
+      typeCounts: {},
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
       level: this.level,
       difficulty: this.difficulty,
-      maxQuestions: this.maxQuestions
-    };
-
-    const gen$ = this.inputMode === 'pdf'
-      ? this.exerciseService.generateFromPdf({
-        uploadId: this.uploadResult.uploadId,
-        ...payloadBase,
-        worksheetMode: this.uploadResult?.worksheetMode ?? undefined
-      })
-      : this.exerciseService.generateFromText({
-        text: (this.selectedText || '').trim(),
-        ...payloadBase
-      });
-
-    gen$.subscribe({
+      maxQuestions: 10,
+      worksheetMode: true,
+      selectedExerciseIds
+    }).subscribe({
       next: (res) => {
-        this.clearProgressTimer();
-        this.progressPercent = 100;
-        this.currentProgressMsg = 'Done! Preparing review...';
-        this.generating = false;
-        this.generationMeta = res;
-        this.reviewQuestions = (res.questions || []).map((q: any) => ({
-          ...q,
-          expanded: false,
-          aiGenerated: true
-        }));
-        // Pre-fill title/description from AI suggestions
-        this.exerciseTitle = res.suggestedTitle || '';
-        this.exerciseDescription = res.suggestedDescription || '';
-        if (res.detectedLevel) this.level = res.detectedLevel;
-
-        setTimeout(() => { this.currentStep = 4; }, 600);
+        if (res?.jobId) {
+          this.startExtractionPolling(String(res.jobId));
+          return;
+        } 
+        this.applyExtractionResult(res);
       },
       error: (err) => {
         this.clearProgressTimer();
         this.generating = false;
-        this.generationError = err.error?.error || 'AI generation failed. Please try again.';
+        this.generationError = err.error?.error || 'Extraction failed. Please try again.';
       }
     });
+  }
+
+  private applyExtractionResult(res: any): void {
+    this.clearProgressTimer();
+    this.clearExtractionPollTimer();
+    this.progressPercent = 100;
+    this.currentProgressMsg = 'Done! Preparing review...';
+    this.generating = false;
+    this.generationMeta = res;
+    this.failedExerciseIds = Array.isArray(res.failedExercises) ? res.failedExercises.map((x: any) => String(x)) : [];
+    this.extractionSummary = {
+      total: Number(res.total || this.exercises.length || 0),
+      successCount: Number(res.successCount || 0),
+      failedCount: Number(res.failedCount || this.failedExerciseIds.length || 0)
+    };
+    this.extractionErrors = (res.extractionLog || [])
+      .filter((x: any) => x.ok === false)
+      .map((x: any) => ({ exerciseId: x.exerciseId, error: x.error || 'Extraction failed' }));
+    this.extractionProgress = { current: this.extractionProgress.total, total: this.extractionProgress.total };
+    this.reviewQuestions = (res.extracted || res.questions || []).map((q: any) => ({
+      ...q,
+      expanded: false,
+      aiGenerated: true
+    }));
+    this.exerciseTitle = res.suggestedTitle || '';
+    this.exerciseDescription = res.suggestedDescription || '';
+    if (res.detectedLevel) this.level = res.detectedLevel;
+    this.currentStep = 4;
+    if (this.failedExerciseIds.length === 0) {
+      setTimeout(() => { this.currentStep = 5; }, 300);
+    }
+  }
+
+  private startExtractionPolling(jobId: string): void {
+    this.clearExtractionPollTimer();
+    this.extractionPollBusy = false;
+    let retries = 0;
+
+    this.extractionPollTimer = setInterval(() => {
+      if (this.extractionPollBusy) return;
+      this.extractionPollBusy = true;
+
+      this.exerciseService.getExtractionStatus(jobId).subscribe({
+        next: (res) => {
+          this.extractionPollBusy = false;
+          this.clearProgressTimer();
+
+          if (res?.progress) {
+            this.extractionProgress = {
+              current: res.progress.current ?? this.extractionProgress.current,
+              total: res.progress.total || this.extractionProgress.total
+            };
+            const exId = res.progress.currentExerciseId || '';
+            this.currentProgressMsg = `Extracting ${exId} (${this.extractionProgress.current}/${this.extractionProgress.total})`;
+          }
+
+          if (res?.status === 'done') {
+            clearInterval(this.extractionPollTimer);
+            this.extractionPollTimer = null;
+            this.clearProgressTimer();
+            this.applyExtractionResult(res.result);
+            return;
+          }
+
+          if (res?.status === 'error') {
+            clearInterval(this.extractionPollTimer);
+            this.extractionPollTimer = null;
+            this.clearProgressTimer();
+            this.generating = false;
+            this.generationError = res.error || 'Extraction failed.';
+            return;
+          }
+
+          retries++;
+          if (retries > 120) {
+            clearInterval(this.extractionPollTimer);
+            this.extractionPollTimer = null;
+            this.clearProgressTimer();
+            this.generating = false;
+            this.generationError = 'Extraction timeout. Please try again.';
+          }
+        },
+        error: () => {
+          this.extractionPollBusy = false;
+        }
+      });
+    }, 1500);
   }
 
   private startProgressSimulation(): void {
     let msgIndex = 0;
     this.progressTimer = setInterval(() => {
       msgIndex = Math.min(msgIndex + 1, PROGRESS_MESSAGES.length - 1);
-      this.currentProgressMsg = PROGRESS_MESSAGES[msgIndex];
+      const current = Math.min(this.extractionProgress.current + 1, this.extractionProgress.total || 1);
+      this.extractionProgress.current = current;
+      this.currentProgressMsg = `Extracting exercises (${current} / ${this.extractionProgress.total || 1})... ${PROGRESS_MESSAGES[msgIndex]}`;
       this.progressPercent = Math.min(this.progressPercent + Math.random() * 12 + 4, 92);
     }, 2200);
+  }
+  extractAllExercises(): void {
+    this.currentStep = 3;
+    this.startGeneration();
+  }
+
+  rescanPdfStructure(): void {
+    if (!this.uploadResult?.uploadId || !this.selectedFile) {
+      this.showError('Please upload a PDF first.');
+      return;
+    }
+    this.uploadPdf();
   }
 
   private clearProgressTimer(): void {
@@ -500,9 +607,80 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     }
   }
 
+  private clearExtractionPollTimer(): void {
+    if (this.extractionPollTimer) {
+      clearInterval(this.extractionPollTimer);
+      this.extractionPollTimer = null;
+    }
+  }
+
   retryGeneration(): void {
     this.generationError = '';
     this.startGeneration();
+  }
+
+  retryExerciseExtraction(exerciseId: string): void {
+    const ex = this.exercises.find(e => e.exerciseId === exerciseId);
+    if (!ex || !this.uploadResult?.previewText) return;
+    this.exerciseService.extractSingleExercise({
+      topic: ex.topic,
+      exerciseId: ex.exerciseId,
+      level: ex.difficulty,
+      instruction_de: (ex as any).instruction_de || '',
+      instruction_en: (ex as any).instruction_en || '',
+      content: this.uploadResult.previewText,
+      solution_key: ''
+    }).subscribe({
+      next: (res) => {
+        const added = (res.questions || []).map((q: any) => ({ ...q, expanded: false, aiGenerated: true }));
+        this.reviewQuestions.push(...added);
+        this.extractionErrors = this.extractionErrors.filter(e => e.exerciseId !== exerciseId);
+        this.showSuccess(`Recovered ${exerciseId}`);
+      },
+      error: (err) => this.showError(err.error?.error || `Retry failed for ${exerciseId}`)
+    });
+  }
+
+  retryFailedExtractions(): void {
+    if (!this.uploadResult?.uploadId || this.failedExerciseIds.length === 0) return;
+    this.generating = true;
+    this.generationError = '';
+    this.currentStep = 3;
+    const failedSet = new Set(this.failedExerciseIds.map(x => String(x)));
+    this.exerciseService.extractExercisesSequential({
+      uploadId: this.uploadResult.uploadId,
+      targetLanguage: this.targetLanguage,
+      nativeLanguage: this.nativeLanguage,
+      level: this.level,
+      selectedExerciseIds: this.exercises
+        .filter(e => failedSet.has(String(e.exerciseId)))
+        .map(e => e.exerciseId)
+    }).subscribe({
+      next: (res) => {
+        this.generating = false;
+        const added = (res.extracted || res.questions || []).map((q: any) => ({ ...q, expanded: false, aiGenerated: true }));
+        this.reviewQuestions.push(...added);
+        this.failedExerciseIds = Array.isArray(res.failedExercises) ? res.failedExercises.map((x: any) => String(x)) : [];
+        this.extractionSummary = {
+          total: Number(res.total || this.extractionSummary.total),
+          successCount: Number(res.successCount || this.extractionSummary.successCount),
+          failedCount: Number(res.failedCount || this.failedExerciseIds.length)
+        };
+        this.extractionErrors = (res.extractionLog || [])
+          .filter((x: any) => x.ok === false)
+          .map((x: any) => ({ exerciseId: x.exerciseId, error: x.error || 'Extraction failed' }));
+        this.currentStep = this.failedExerciseIds.length ? 4 : 5;
+      },
+      error: (err) => {
+        this.generating = false;
+        this.generationError = err.error?.error || 'Retry failed. Please try again.';
+        this.currentStep = 4;
+      }
+    });
+  }
+
+  continueToReview(): void {
+    this.currentStep = 5;
   }
 
   // ── Step 4: Review & Edit ───────────────────────────────────────────────────
@@ -804,10 +982,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   canProceedFrom(step: WizardStep): boolean {
     if (step === 1) {
-      if (this.inputMode === 'pdf') return !!this.uploadResult?.success;
-      return !!this.textInputResult?.success;
+      return !!this.uploadResult?.success;
     }
-    if (step === 2) return this.selectedTypes.length > 0 && this.maxQuestions > 0;
+    if (step === 2) return this.exercises.some(e => e.enabled);
     return true;
   }
 
@@ -815,12 +992,16 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (this.currentStep === 2) {
       this.currentStep = 3;
       this.startGeneration();
-    } else if (this.currentStep < 4) {
+    } else if (this.currentStep < 5) {
       this.currentStep = (this.currentStep + 1) as WizardStep;
     }
   }
 
   back(): void {
+    if (this.currentStep === 5) {
+      this.currentStep = 2;
+      return;
+    }
     if (this.currentStep > 1 && this.currentStep !== 3) {
       this.currentStep = (this.currentStep - 1) as WizardStep;
     }

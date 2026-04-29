@@ -1,0 +1,45 @@
+<div class="structure-card">
+  <div class="step-header">
+    <div class="step-icon-wrap"><span class="material-icons step-icon">schema</span></div>
+    <div>
+      <h2>Detected Exercises from PDF</h2>
+      <p>Review extracted structure, enable the exercises you want, then start extraction.</p>
+    </div>
+  </div>
+
+  <div class="type-summary" *ngIf="extracting">
+    <span class="material-icons">sync</span>
+    Extracting exercises ({{ progressCurrent }} / {{ progressTotal }})...
+  </div>
+
+  <ng-container *ngFor="let group of grouped; trackBy: trackByTopic">
+    <details class="topic-group" open>
+      <summary>
+        <span class="topic-title">{{ group.topic }}</span>
+        <span class="topic-count">{{ group.items.length }} exercises</span>
+      </summary>
+
+      <div class="exercise-row" *ngFor="let ex of group.items; trackBy: trackByExId">
+        <label class="check-label">
+          <input type="checkbox" [(ngModel)]="ex.enabled" />
+          <span>{{ ex.exerciseId || '—' }}</span>
+        </label>
+        <span class="type-pill">{{ typeLabel(ex.type) }}</span>
+        <select class="field-select type-select" [(ngModel)]="ex.type">
+          <option *ngFor="let t of typeOptions" [value]="t">{{ typeLabel(t) }}</option>
+        </select>
+        <span class="q-count">{{ ex.questionCount || 0 }} questions</span>
+      </div>
+    </details>
+  </ng-container>
+
+  <div class="step-footer">
+    <button class="btn-secondary" (click)="rescan.emit()" [disabled]="extracting">
+      <span class="material-icons">refresh</span> Re-scan PDF
+    </button>
+    <button class="btn-primary" (click)="extractAll.emit()" [disabled]="extracting">
+      <span class="material-icons">play_arrow</span> Extract All Exercises
+    </button>
+  </div>
+</div>
+

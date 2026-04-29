@@ -28,7 +28,7 @@ import { MaterialModule } from '../../../shared/material.module';
     </div>
     <div class="header-actions">
       <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
-        <span class="material-icons">auto_awesome</span> Generate with AI
+        <span class="material-icons">schema</span> Extract from PDF
       </button>
       <button class="btn-generate-ai" (click)="navigateToListeningWorksheetGenerator()">
         <span class="material-icons">headphones</span> Import Listening Worksheet
@@ -259,10 +259,10 @@ import { MaterialModule } from '../../../shared/material.module';
     <div class="empty-state" *ngIf="exercises.length === 0">
       <span class="material-icons empty-icon">edit_note</span>
       <h3>No exercises yet</h3>
-      <p>Create your first interactive digital exercise manually or generate one automatically from a PDF.</p>
+      <p>Create your first interactive digital exercise manually or extract one directly from a worksheet PDF.</p>
       <div class="empty-actions">
         <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
-          <span class="material-icons">auto_awesome</span> Generate from PDF with AI
+          <span class="material-icons">schema</span> Extract from PDF
         </button>
         <button class="btn-generate-ai" (click)="navigateToListeningWorksheetGenerator()">
           <span class="material-icons">headphones</span> Import Listening Worksheet

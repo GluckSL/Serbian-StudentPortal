@@ -423,7 +423,12 @@ export class DgAdminModuleFormComponent implements OnInit {
         this.selected = updated;
       }
       if (navigateAfterSave) {
-        this.router.navigate(['/admin/dg-modules']);
+        this.router.navigate(['/admin/dg-modules'], {
+          queryParams: {
+            saved: this.selected?._id || '',
+            status: 'all',
+          },
+        });
       } else {
         this.message = 'Saved draft for preview.';
       }

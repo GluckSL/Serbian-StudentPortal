@@ -8,14 +8,14 @@
       <span class="material-icons">arrow_back</span>
     </button>
     <div class="top-bar-title">
-      <h1><span class="material-icons">auto_awesome</span> AI Exercise Generator</h1>
-      <p>Upload a PDF and let AI convert it into interactive exercises</p>
+      <h1><span class="material-icons">schema</span> Worksheet Exercise Extractor</h1>
+      <p>Upload a PDF, detect structure, extract exercises, then review and save</p>
     </div>
   </div>
 
   <!-- ── Step Indicator ── -->
   <div class="stepper">
-    <div class="step" *ngFor="let s of [1,2,3,4]; let i = index"
+    <div class="step" *ngFor="let s of [1,2,3,4,5]; let i = index"
       [class.active]="currentStep === s"
       [class.done]="currentStep > s"
       (click)="goToStep(s)"
@@ -27,11 +27,12 @@
       </div>
       <div class="step-label">
         <span *ngIf="s === 1">Upload PDF</span>
-        <span *ngIf="s === 2">Configure</span>
-        <span *ngIf="s === 3">Processing</span>
-        <span *ngIf="s === 4">Review &amp; Save</span>
+        <span *ngIf="s === 2">Detected Structure</span>
+        <span *ngIf="s === 3">Extracting</span>
+        <span *ngIf="s === 4">Extracted</span>
+        <span *ngIf="s === 5">Review &amp; Save</span>
       </div>
-      <div class="step-connector" *ngIf="i < 3" [class.done]="currentStep > s"></div>
+      <div class="step-connector" *ngIf="i < 4" [class.done]="currentStep > s"></div>
     </div>
   </div>
 
@@ -41,44 +42,15 @@
   <div class="step-panel" *ngIf="currentStep === 1">
     <div class="step-header">
       <div class="step-icon-wrap">
-        <span class="material-icons step-icon">{{ inputMode === 'pdf' ? 'upload_file' : 'content_paste' }}</span>
+        <span class="material-icons step-icon">upload_file</span>
       </div>
       <div>
-        <h2>{{ inputMode === 'pdf' ? 'Upload Your PDF' : 'Paste Your Text' }}</h2>
-        <p>
-          {{
-            inputMode === 'pdf'
-              ? 'Upload a PDF with exercises or learning content. We\'ll extract the text and convert it into interactive exercises.'
-              : 'Paste a worksheet/document text. We\'ll convert it into interactive exercises using the same patterns.'
-          }}
-        </p>
+        <h2>Upload Your PDF</h2>
+        <p>Upload a worksheet PDF. We will analyze structure and extract exercises directly.</p>
       </div>
     </div>
 
-    <!-- Input mode toggle (PDF vs Copy/Paste text) -->
-    <div class="input-mode-toggle">
-      <button
-        type="button"
-        class="mode-card"
-        [class.active]="inputMode === 'pdf'"
-        (click)="setInputMode('pdf')"
-      >
-        <span class="material-icons">picture_as_pdf</span>
-        Upload PDF
-      </button>
-      <button
-        type="button"
-        class="mode-card"
-        [class.active]="inputMode === 'text'"
-        (click)="setInputMode('text')"
-      >
-        <span class="material-icons">content_paste</span>
-        Paste Text
-      </button>
-    </div>
-
-    <!-- PDF input -->
-    <div *ngIf="inputMode === 'pdf'">
+    <div>
     <!-- Drop Zone -->
     <div class="drop-zone"
       [class.dragging]="isDragging"
@@ -148,253 +120,27 @@
 
     </div>
 
-    <!-- Text input (copy/paste) -->
-    <div *ngIf="inputMode === 'text'" class="text-input-wrap">
-      <div class="text-drop-like">
-        <textarea
-          class="text-input-area"
-          rows="12"
-          [(ngModel)]="selectedText"
-          placeholder="Paste your worksheet/document text here (include the exercises + the answer key at the end)..."
-          (input)="textInputResult = null"
-        ></textarea>
-        <div class="text-help-row">
-          <span class="text-help-muted">Tip: paste at least 1-2 paragraphs + solution key</span>
-          <span class="text-help-counter">{{ (selectedText.length || 0) }} chars</span>
-        </div>
-      </div>
-
-      <div class="upload-action" *ngIf="selectedText.trim().length > 0 && !textInputResult">
-        <button class="btn-upload" type="button" (click)="readTextForPreview()">
-          <span class="material-icons">search</span>
-          Preview &amp; Enable Generate
-          <div class="upload-spinner" *ngIf="false"></div>
-        </button>
-      </div>
-
-      <div class="upload-result" *ngIf="textInputResult">
-        <div class="result-success">
-          <span class="material-icons">check_circle</span>
-          <strong>Text ready!</strong>
-        </div>
-        <div class="result-stats">
-          <span><span class="material-icons">format_align_left</span> ~{{ textInputResult.totalChars.toLocaleString() }} characters</span>
-          <span *ngIf="!textInputResult.hasContent" class="warn-text">
-            <span class="material-icons">warning</span> Text is short — generation may be limited
-          </span>
-        </div>
-        <div class="text-preview">
-          <div class="preview-label">Text preview:</div>
-          <pre class="preview-text">{{ textInputResult.previewText }}</pre>
-        </div>
-        <button class="btn-change-file" type="button" (click)="selectedText=''; textInputResult=null;">
-          <span class="material-icons">close</span> Clear text
-        </button>
-      </div>
-    </div>
 
     <div class="step-footer">
       <button class="btn-cancel" (click)="cancel()">Cancel</button>
       <button class="btn-primary" (click)="next()" [disabled]="!canProceedFrom(1)">
-        Next: Configure <span class="material-icons">arrow_forward</span>
+        Next: Detected Structure <span class="material-icons">arrow_forward</span>
       </button>
     </div>
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════ -->
-  <!-- STEP 2: Configure                                                        -->
+  <!-- STEP 2: Detected Structure                                               -->
   <!-- ════════════════════════════════════════════════════════════════════════ -->
   <div class="step-panel" *ngIf="currentStep === 2">
-    <div class="step-header">
-      <div class="step-icon-wrap"><span class="material-icons step-icon">tune</span></div>
-      <div>
-        <h2>Configure Exercise Generation</h2>
-        <p>Select which types of exercises to generate and set the language level.</p>
-      </div>
-    </div>
-
-    <!-- Detected-from-PDF banner -->
-    <div class="detected-banner" *ngIf="pdfDetectedTypes">
-      <span class="material-icons detected-banner-icon">auto_fix_high</span>
-      <div class="detected-banner-text">
-        <strong>Question types detected from your PDF!</strong>
-        <span>Counts have been pre-filled based on what was found. Adjust them below if needed.</span>
-      </div>
-    </div>
-    <div class="detected-banner detected-banner-default" *ngIf="!pdfDetectedTypes && uploadResult">
-      <span class="material-icons detected-banner-icon">info</span>
-      <div class="detected-banner-text">
-        <strong>No existing questions detected.</strong>
-        <span>AI will generate new questions from your PDF content. Toggle types and set counts below.</span>
-      </div>
-    </div>
-
-    <!-- Exercise Types — table layout -->
-    <div class="config-section">
-      <h3 class="config-label">Exercise Types <span class="required">*</span></h3>
-      <p class="config-hint" *ngIf="pdfDetectedTypes">
-        Counts were <strong>auto-detected from your PDF</strong> — toggle types on/off and adjust counts as needed.
-      </p>
-      <p class="config-hint" *ngIf="!pdfDetectedTypes">Toggle each type and set how many questions AI should generate for it.</p>
-
-      <div class="type-table">
-        <!-- Header -->
-        <div class="type-table-head">
-          <span class="tt-col-type">Type</span>
-          <span class="tt-col-toggle">Include</span>
-          <span class="tt-col-count">Questions</span>
-        </div>
-
-        <!-- Rows -->
-        <div
-          *ngFor="let qt of questionTypes"
-          class="type-table-row"
-          [class.tt-row-active]="isTypeSelected(qt.value)"
-        >
-          <!-- Icon + name + desc -->
-          <div class="tt-col-type">
-            <div class="tt-icon" [style.background]="qt.bg" [style.color]="qt.color">
-              <span class="material-icons">{{ qt.icon }}</span>
-            </div>
-            <div class="tt-info">
-              <span class="tt-name">
-                {{ qt.label }}
-                <span
-                  class="detected-badge"
-                  *ngIf="pdfDetectedTypes && (uploadResult?.detectedTypes?.[qt.value] ?? 0) > 0"
-                  title="Detected in PDF"
-                >PDF</span>
-              </span>
-              <span class="tt-desc">{{ qt.desc }}</span>
-            </div>
-          </div>
-
-          <!-- Toggle switch -->
-          <div class="tt-col-toggle">
-            <label class="tt-switch">
-              <input
-                type="checkbox"
-                [checked]="isTypeSelected(qt.value)"
-                (change)="toggleType(qt.value)"
-              />
-              <span class="tt-slider"></span>
-            </label>
-          </div>
-
-          <!-- Count stepper — only shown when type is active -->
-          <div class="tt-col-count">
-            <div class="tt-stepper" *ngIf="isTypeSelected(qt.value); else emptyCount">
-              <button class="tt-step-btn" (click)="decrementCount(qt.value)" [disabled]="typeCounts[qt.value] <= 1">
-                <span class="material-icons">remove</span>
-              </button>
-              <input
-                type="number"
-                class="tt-count-input"
-                min="1"
-                max="50"
-                [ngModel]="typeCounts[qt.value]"
-                (ngModelChange)="setCount(qt.value, $event)"
-                (click)="$event.stopPropagation()"
-                (keydown)="$event.stopPropagation()"
-              />
-              <button class="tt-step-btn" (click)="incrementCount(qt.value)">
-                <span class="material-icons">add</span>
-              </button>
-            </div>
-            <ng-template #emptyCount>
-              <span class="tt-count-off">—</span>
-            </ng-template>
-          </div>
-        </div>
-      </div>
-
-      <!-- Summary bar -->
-      <div class="type-summary" *ngIf="maxQuestions > 0">
-        <span class="material-icons">auto_awesome</span>
-        AI will generate <strong>{{ maxQuestions }}</strong> question{{ maxQuestions !== 1 ? 's' : '' }} total
-        across <strong>{{ selectedTypes.length }}</strong> type{{ selectedTypes.length !== 1 ? 's' : '' }}.
-      </div>
-      <div class="type-summary type-summary-warn" *ngIf="maxQuestions === 0">
-        <span class="material-icons">warning</span>
-        Select at least one type and set a question count to continue.
-      </div>
-    </div>
-
-    <!-- Language & Level -->
-    <div class="config-section">
-      <h3 class="config-label">Language Settings</h3>
-      <div class="config-grid">
-        <div class="config-field">
-          <label>Target Language <span class="required">*</span></label>
-          <select [(ngModel)]="targetLanguage" class="field-select">
-            <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label>Native Language</label>
-          <select [(ngModel)]="nativeLanguage" class="field-select">
-            <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label>CEFR Level <span class="required">*</span></label>
-          <div class="level-selector">
-            <button
-              *ngFor="let l of levels"
-              class="level-btn"
-              [class.active]="level === l"
-              [style.background]="level === l ? getLevelColor(l) : ''"
-              [style.color]="level === l ? 'white' : ''"
-              (click)="level = l"
-            >{{ l }}</button>
-          </div>
-        </div>
-        <div class="config-field">
-          <label>Difficulty</label>
-          <select [(ngModel)]="difficulty" class="field-select">
-            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <!-- When this exercise becomes visible on the student journey -->
-    <div class="config-section journey-day-section">
-      <h3 class="config-label journey-day-heading">
-        <span class="material-icons journey-day-icon">event_note</span>
-        Course day (200-day journey)
-      </h3>
-      <p class="config-hint journey-day-lead">
-        Enter the day this pack is for (for example <strong>20</strong>). When a student reaches day 20, this exercise becomes available to them (together with level and publish rules). Leave empty if it is not tied to a specific day.
-      </p>
-      <div class="journey-day-row">
-        <label class="visually-hidden" for="pdf-step2-course-day">Day number 1 to 200</label>
-        <div class="journey-day-input-wrap">
-          <input
-            id="pdf-step2-course-day"
-            type="number"
-            class="journey-day-num-input"
-            min="1"
-            max="200"
-            step="1"
-            [ngModel]="courseDayAsNumber"
-            (ngModelChange)="onCourseDayNumberInput($event)"
-            placeholder="e.g. 20"
-            autocomplete="off"
-          />
-          <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="step-footer">
-      <button class="btn-secondary" (click)="back()">
-        <span class="material-icons">arrow_back</span> Back
-      </button>
-      <button class="btn-primary" (click)="next()" [disabled]="!canProceedFrom(2)">
-        <span class="material-icons">auto_awesome</span> Generate with AI
-      </button>
-    </div>
+    <app-exercise-structure-preview
+      [exercises]="exercises"
+      [extracting]="generating"
+      [progressCurrent]="extractionProgress.current"
+      [progressTotal]="extractionProgress.total"
+      (rescan)="rescanPdfStructure()"
+      (extractAll)="extractAllExercises()"
+    ></app-exercise-structure-preview>
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════ -->
@@ -420,7 +166,7 @@
       </div>
 
       <div class="processing-text">
-        <h2>AI is working on your exercises</h2>
+        <h2>Extracting exercises from worksheet</h2>
         <p class="status-msg">{{ currentProgressMsg }}</p>
       </div>
 
@@ -446,11 +192,11 @@
     <!-- Error -->
     <div class="processing-error" *ngIf="!generating && generationError">
       <span class="material-icons err-icon">error_outline</span>
-      <h2>Generation Failed</h2>
+      <h2>Extraction Failed</h2>
       <p class="err-msg">{{ generationError }}</p>
       <div class="error-actions">
         <button class="btn-secondary" (click)="currentStep = 2">
-          <span class="material-icons">tune</span> Change Settings
+          <span class="material-icons">schema</span> Back to Structure
         </button>
         <button class="btn-primary" (click)="retryGeneration()">
           <span class="material-icons">refresh</span> Try Again
@@ -460,17 +206,57 @@
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════ -->
-  <!-- STEP 4: Review & Save                                                    -->
+  <!-- STEP 4: Partial Result                                                   -->
   <!-- ════════════════════════════════════════════════════════════════════════ -->
-  <div class="step-panel review-panel" *ngIf="currentStep === 4">
+  <div class="step-panel processing-panel" *ngIf="currentStep === 4">
+    <div class="processing-error">
+      <span class="material-icons err-icon" [style.color]="failedExerciseIds.length ? '#f59e0b' : '#22c55e'">
+        {{ failedExerciseIds.length ? 'warning' : 'check_circle' }}
+      </span>
+      <h2 *ngIf="failedExerciseIds.length > 0">Partial Extraction Complete</h2>
+      <h2 *ngIf="failedExerciseIds.length === 0">Extraction Complete</h2>
+      <p class="err-msg" *ngIf="failedExerciseIds.length > 0">
+        Extracted {{ extractionSummary.successCount }} / {{ extractionSummary.total }} exercises successfully. Some failed.
+      </p>
+      <p class="err-msg" *ngIf="failedExerciseIds.length === 0">
+        All detected exercises were extracted successfully.
+      </p>
+      <div class="error-actions">
+        <button class="btn-secondary" type="button" (click)="retryFailedExtractions()" *ngIf="failedExerciseIds.length > 0">
+          <span class="material-icons">refresh</span> Retry Failed
+        </button>
+        <button class="btn-primary" type="button" (click)="continueToReview()">
+          <span class="material-icons">arrow_forward</span> Continue to Review
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <!-- STEP 5: Review & Save                                                    -->
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <div class="step-panel review-panel" *ngIf="currentStep === 5">
     <div class="step-header">
       <div class="step-icon-wrap success-icon-wrap"><span class="material-icons step-icon">check_circle</span></div>
       <div>
-        <h2>Review &amp; Edit Generated Exercises</h2>
+        <h2>Review &amp; Edit Extracted Exercises</h2>
         <p *ngIf="generationMeta">
           {{ getContentTypeLabel(generationMeta.contentType) }}
-          · {{ reviewQuestions.length }} question{{ reviewQuestions.length !== 1 ? 's' : '' }} generated
+          · {{ reviewQuestions.length }} question{{ reviewQuestions.length !== 1 ? 's' : '' }} extracted
         </p>
+      </div>
+    </div>
+
+    <div class="detected-banner detected-banner-default" *ngIf="extractionErrors.length > 0">
+      <span class="material-icons detected-banner-icon">warning</span>
+      <div class="detected-banner-text">
+        <strong>Some exercises failed to extract.</strong>
+        <div class="retry-list">
+          <div class="retry-row" *ngFor="let e of extractionErrors">
+            Failed to extract Übung {{ e.exerciseId }} — retry
+            <button class="btn-secondary retry-btn" type="button" (click)="retryExerciseExtraction(e.exerciseId)">Retry</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -567,7 +353,7 @@
                 q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).label : getTypeInfo(q.type).label
               }}
             </span>
-            <span class="ai-badge" *ngIf="q.aiGenerated"><span class="material-icons">auto_awesome</span> AI</span>
+            <span class="ai-badge" *ngIf="q.aiGenerated"><span class="material-icons">schema</span> Extracted</span>
             <span class="q-summary">
               <ng-container [ngSwitch]="q.type">
                 <span *ngSwitchCase="'mcq'">{{ q.question || '—' }}</span>
@@ -740,7 +526,7 @@
                 <label>Expected transcript</label>
                 <button type="button" class="btn-insert-blank" (click)="generateListeningTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
                   <span class="material-icons">auto_awesome</span>
-                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
+                  {{ q.transcribing ? 'Transcribing...' : 'Auto Transcript' }}
                 </button>
               </div>
               <textarea [(ngModel)]="q.expectedTranscript" class="ed-input" rows="3"></textarea>

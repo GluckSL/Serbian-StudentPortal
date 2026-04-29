@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { DgApiService } from '../dg-api.service';
 import type { DgModuleSummary } from '../dg-bot.types';
@@ -67,9 +67,20 @@ export class DgAdminModulesComponent implements OnInit {
   constructor(
     private dgApi: DgApiService,
     private router: Router,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe((params) => {
+      const status = (params.get('status') || '').toLowerCase();
+      if (status === 'all' || status === 'live' || status === 'draft') {
+        this.statusFilter = status;
+      }
+      const savedId = params.get('saved');
+      if (savedId) {
+        this.message = 'Module saved successfully.';
+      }
+    });
     this.reload();
   }
 

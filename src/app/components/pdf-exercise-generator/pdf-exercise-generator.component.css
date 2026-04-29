@@ -1420,6 +1420,15 @@
   font-weight: 700;
 }
 
+.retry-list { margin-top: 6px; }
+.retry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.retry-btn { padding: 4px 10px; font-size: 0.75rem; }
+
 .detected-badge {
   display: inline-flex;
   align-items: center;

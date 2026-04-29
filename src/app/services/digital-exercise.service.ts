@@ -481,8 +481,13 @@ export class DigitalExerciseService {
     difficulty: string;
     maxQuestions: number;
     worksheetMode?: boolean;
+    selectedExerciseIds?: string[];
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
+  }
+
+  getExtractionStatus(jobId: string): Observable<any> {
+    return this.http.get<any>(`${environment.apiUrl}/pdf-exercises/extraction-status/${jobId}`, { withCredentials: true });
   }
 
   generateFromText(options: {
@@ -500,6 +505,45 @@ export class DigitalExerciseService {
 
   cleanupPdf(uploadId: string): Observable<any> {
     return this.http.delete<any>(`${environment.apiUrl}/pdf-exercises/cleanup/${uploadId}`, { withCredentials: true });
+  }
+
+  /**
+   * Re-extract a single exercise block precisely using the per-exercise prompt.
+   * Use this when you need to refine or re-process one Übung at a time.
+   */
+  extractSingleExercise(options: {
+    topic?: string;
+    exerciseId?: string;
+    level?: string;
+    instruction_de?: string;
+    instruction_en?: string;
+    content: string;
+    solution_key?: string;
+  }): Observable<{ success: boolean; exerciseId: string; type: string; questions: any[] }> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/pdf-exercises/extract-single-exercise`,
+      options,
+      { withCredentials: true }
+    );
+  }
+
+  /**
+   * Two-pass sequential extraction for uploaded worksheets:
+   * splits PDF into Übung blocks, calls per-exercise AI prompt for each.
+   * More accurate than the single whole-document call; costs one API call per exercise.
+   */
+  extractExercisesSequential(options: {
+    uploadId: string;
+    targetLanguage?: string;
+    nativeLanguage?: string;
+    level?: string;
+    selectedExerciseIds?: string[];
+  }): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/pdf-exercises/extract-exercises-sequential`,
+      options,
+      { withCredentials: true }
+    );
   }
 
   // ─── Manual Listening Worksheet Extraction ──────────────────────────────
