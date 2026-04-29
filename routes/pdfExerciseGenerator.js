@@ -1073,7 +1073,7 @@ router.post('/upload',
       const { _worksheetMode, ...detectedTypes } = rawDetected;
       const split = splitWorksheetIntoExercises(result.text);
       const exercises = (split.exercises || []).map(ex => {
-        const detected = detectExerciseTypeAndQuestionCount(ex.content, ex.instruction_de);
+        const detected = detectExerciseTypeAndQuestionCount(ex.content, ex.instruction_de, ex.sectionType, ex.exerciseId);
         return {
           exerciseId: ex.exerciseId || '',
           topic: ex.topic || '',
@@ -1489,38 +1489,41 @@ CORE RULES (STRICT)
    - instruction_en = EXACT English instruction (if present)
    - DO NOT merge or rewrite
 
-4. QUESTION EXTRACTION — EXACTLY 1 QUESTION PER EXERCISE (MANDATORY)
-   CRITICAL: The questions array MUST contain EXACTLY 1 item. Never return more than 1 question object.
-   Combine ALL numbered items from the exercise into that single question as follows:
+4. QUESTION EXTRACTION — TYPE-BASED SPLITTING (MANDATORY)
+   Extract the REAL worksheet item count. Do NOT over-group and do NOT over-split.
+   Keep original German text exactly as written.
 
-   - matching        → 1 question; ALL pairs go in the pairs array (never split into separate questions)
-   - open_writing    → 1 question
-   - fill_in_blank   → 1 question; join ALL numbered sentences into ONE question field,
-                       keeping the numbering (e.g. "1. Ich habe ___ und Fieber. 2. Er will ___, aber er ist krank.");
-                       answers array must have EXACTLY one entry per blank (_), left-to-right top-to-bottom across ALL sentences
-   - mcq with inline word choices (e.g. "und / aber", "oder / und") → treat as fill_in_blank;
-                       replace each (option1 / option2) group with ___; combine all sentences into 1 question;
-                       answers array has the correct word for each blank in order
-   - transformation  → 1 question; question field lists ALL sentences to transform (keep numbering);
-                       answers array has the correct transformation for each item in order
-   - error_correction→ 1 question; question field lists ALL incorrect sentences (keep numbering);
-                       answers array has the corrected version for each sentence in order
-   - true_false      → 1 question; question field lists ALL statements (keep numbering);
-                       answers array has "richtig" or "falsch" for each statement in order
-   - short_answer    → 1 question; question field lists ALL sub-questions (keep numbering);
-                       answers array has all answers in order
+   Splitting rules:
+   - matching           → each pair = ONE question
+   - fill_in_blank      → each sentence/item = ONE question
+   - transformation     → each sentence/item = ONE question
+   - error_correction   → each sentence/item = ONE question
+   - singular/plural or table/profile pair tasks → each word/value pair = ONE question
+   - question formulation / short-answer tasks    → each sentence/item = ONE question
+   - writing own sentences                        → each required sentence = ONE question
+   - paragraph/profile writing                    → ONE question only
+
+   Additional strict rules:
+   - Do NOT merge unrelated numbered items.
+   - Do NOT reduce item count.
+   - Do NOT invent missing items.
+   - For inline choice patterns like "(und / aber)", treat each sentence as a fill_in_blank item.
 
 5. ANSWER MAPPING (CRITICAL)
    If SOLUTION_KEY exists, extract answers EXACTLY from it — DO NOT guess.
 
    Per type:
-   - fill_in_blank / mcq-as-fill_in_blank:
-       answers.length MUST equal the total number of ___ blanks across ALL combined sentences
-   - matching:        pairs[] with { left, right } from solution (all pairs in the one question)
-   - error_correction: answers[] has the corrected sentence for EACH numbered item, in order
-   - transformation:  answers[] has the correct transformation for EACH numbered item, in order
-   - true_false:      answers[] has "richtig" or "falsch" for EACH statement, in order
-   - short_answer:    answers[] has the answer for EACH sub-question, in order
+   - matching:         each extracted question should contain the pair for one item
+   - fill_in_blank:    each extracted question should represent one sentence/item;
+                       answers[] must match that item's blanks only
+   - error_correction: each extracted question should represent one wrong sentence;
+                       correctedText or answers[] should map that one sentence
+   - transformation:   each extracted question should represent one source sentence;
+                       answers[] should contain that one transformed output
+   - true_false:       each extracted question should represent one statement;
+                       answers[] should contain "richtig" or "falsch"
+   - short_answer/open_writing item tasks: one question per item with its mapped answer(s)
+   - paragraph/profile writing: one question only for the full writing task
 
    If no solution → leave answer fields empty / null.
 
@@ -1529,10 +1532,10 @@ CORE RULES (STRICT)
 ---
 
 SELF-VALIDATION (MANDATORY BEFORE OUTPUT):
-✓ questions array has EXACTLY 1 item — if you have more, merge them into 1 now
+✓ questions array count matches real worksheet items for this exercise type
 ✓ No invented content
 ✓ No missing instructions
-✓ answers.length matches total blank count across all combined sentences (fill_in_blank)
+✓ For fill_in_blank, answers map per item (not globally merged)
 ✓ pairs have both left and right (matching)
 ✓ JSON is valid
 
@@ -1584,7 +1587,14 @@ function normalizePdfText(text) {
   t = t.replace(/Ãœbung/gi, 'Übung');
   t = t.replace(/\bUbung\b/gi, 'Übung');
   t = t.replace(/Ü\s*b\s*u\s*n\s*g/gi, 'Übung');
+  t = t.replace(/Ü\s+bung/gi, 'Übung');
   t = t.replace(/Übung(?=\d)/gi, 'Übung ');
+  // Normalize broken exercise decimals like "1 . 1" -> "1.1"
+  t = t.replace(/(\d+)\s*\.\s*(\d+)/g, '$1.$2');
+  // Normalize "Übung 1 .1" or "Übung1 . 1"
+  t = t.replace(/(Übung)\s*(\d+)\s*\.\s*(\d+)/gi, '$1 $2.$3');
+  // Ensure a space after Übung and before first number
+  t = t.replace(/\bÜbung\s*(\d)/gi, 'Übung $1');
   // Join broken lines where newline is followed by lowercase text
   t = t.replace(/\n(?=[a-zäöüß])/g, ' ');
   // Normalize spacing
@@ -1593,10 +1603,52 @@ function normalizePdfText(text) {
 }
 
 function splitWorksheetIntoExercises(text) {
+  const rawText = String(text || '');
   const normalized = normalizePdfText(text);
+  console.log('PDF raw preview:', rawText.slice(0, 500));
+  console.log('PDF normalized preview:', normalized.slice(0, 500));
 
-  const regex = /(Übung|Ubung)\s*\d+(?:\.\d+)?/gi;
-  const matches = [...normalized.matchAll(regex)];
+  let exerciseText = normalized;
+  const solutionRegex = /\n\s*(LÖSUNGSSCHLÜSSEL|Lösungen|Answer Key)\s*\n/i;
+  const solutionMatch = solutionRegex.exec(exerciseText);
+  let solutionIndex = -1;
+  if (solutionMatch && solutionMatch.index > exerciseText.length * 0.5) {
+    solutionIndex = solutionMatch.index;
+    exerciseText = exerciseText.slice(0, solutionIndex);
+  }
+
+  const regex = /(?:Ü\s*b\s*u\s*n\s*g|Übung|Ubung)\s*[A-Z]?\d+(?:\.\d+)?/gi;
+  let matches = [...exerciseText.matchAll(regex)];
+
+  // Fallback: if Übung markers are broken/missing, detect plain exercise IDs like 1.1, 2.3...
+  if (!matches.length) {
+    const idRegex = /\b([A-Z]?\d+\.\d+)\b/g;
+    const seenIds = new Set();
+    const fallback = [];
+    for (const m of exerciseText.matchAll(idRegex)) {
+      const id = String(m[1] || '').trim();
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      fallback.push({
+        0: `Übung ${id}`,
+        index: m.index
+      });
+    }
+    if (fallback.length) {
+      console.warn('Primary Übung regex found no matches; using numeric fallback detection.');
+      matches = fallback;
+    }
+  }
+
+  // Deduplicate matched exercise headers while preserving source order.
+  const seenMatchKeys = new Set();
+  matches = matches.filter(m => {
+    const idMatch = /(\d+(?:\.\d+)?)/.exec(String(m[0] || ''));
+    const key = idMatch ? idMatch[1] : String(m[0] || '').trim().toLowerCase();
+    if (!key || seenMatchKeys.has(key)) return false;
+    seenMatchKeys.add(key);
+    return true;
+  });
 
   console.log('Detected exercises:', matches.map(m => m[0]));
   // #region agent log
@@ -1608,51 +1660,49 @@ function splitWorksheetIntoExercises(text) {
   }
 
   const exercises = [];
-  const seenExerciseIds = new Set();
-  // The first duplicate Übung ID marks the start of the answer key / solution section.
-  // Capture that position so the full solution block can be passed to each exercise.
-  let solutionBlockStart = -1;
+  let currentSectionType = '';
+  const detectSectionType = (chunk) => {
+    const s = String(chunk || '');
+    if (/\b(zuordnungs|matching exercises?|zuordnen|verbinden)\b/i.test(s)) return 'matching';
+    if (/\b(lückentext|lueckentext|fill[-\s]?in)\b/i.test(s)) return 'fill-blank';
+    if (/\b(fragen|question)\b/i.test(s)) return 'question-answer';
+    if (/\b(plural|singular)\b/i.test(s)) return 'transformation';
+    return '';
+  };
 
   for (let i = 0; i < matches.length; i++) {
     const start = matches[i].index;
-    const end = matches[i + 1]?.index || normalized.length;
+    const end = matches[i + 1]?.index || exerciseText.length;
+    const prevEnd = i === 0
+      ? 0
+      : ((matches[i - 1].index || 0) + String(matches[i - 1][0] || '').length);
+    const betweenChunk = exerciseText.slice(prevEnd, start);
+    const sectionFromContext = detectSectionType(betweenChunk);
+    if (sectionFromContext) currentSectionType = sectionFromContext;
 
-    const block = normalized.slice(start, end).trim();
+    const block = exerciseText.slice(start, end).trim();
 
-    const idMatch = /(Übung|Ubung)\s*(\d+(?:\.\d+)?)/i.exec(block);
-    const exerciseId = idMatch ? idMatch[2] : '';
+    const idMatch = /(?:Ü\s*b\s*u\s*n\s*g|Übung|Ubung)\s*([A-Z]?\d+(?:\.\d+)?)/i.exec(block)
+      || /\b([A-Z]?\d+\.\d+)\b/.exec(block);
+    const exerciseId = idMatch ? String(idMatch[1] || '') : '';
 
-    if (!exerciseId || seenExerciseIds.has(exerciseId)) {
-      // First duplicate → start of the answer key section
-      if (exerciseId && seenExerciseIds.has(exerciseId) && solutionBlockStart === -1) {
-        solutionBlockStart = start;
-      }
-      continue;
-    }
-    seenExerciseIds.add(exerciseId);
+    if (!exerciseId) continue;
     exercises.push({
       exerciseId,
       topic: '',
       difficulty: 'easy',
       instruction_de: '',
       instruction_en: '',
+      sectionType: currentSectionType || '',
       content: block,
       solution_key: ''
     });
   }
 
-  // Also look for an explicit LÖSUNGSSCHLÜSSEL / Answer Key header as a fallback.
-  if (solutionBlockStart === -1) {
-    const solMatch = /LÖSUNGSSCHLÜSSEL|Lösungsschlüssel|ANSWER\s+KEY|Answer\s+Key/i.exec(normalized);
-    if (solMatch) solutionBlockStart = solMatch.index;
-  }
-
-  const solutionBlock = solutionBlockStart !== -1
-    ? normalized.slice(solutionBlockStart)
-    : '';
+  const solutionBlock = solutionIndex !== -1 ? normalized.slice(solutionIndex) : '';
 
   // #region agent log
-  try { _fs.appendFileSync('debug-fbfbea.log', JSON.stringify({sessionId:'fbfbea',location:'pdfExerciseGenerator.js:splitWorksheetIntoExercises',message:'solutionBlock extracted',data:{solutionBlockStart,solutionBlockLength:solutionBlock.length,solutionBlockPreview:solutionBlock.slice(0,300)},timestamp:Date.now(),hypothesisId:'A_FIX'})+'\n'); } catch(e){}
+  try { _fs.appendFileSync('debug-fbfbea.log', JSON.stringify({sessionId:'fbfbea',location:'pdfExerciseGenerator.js:splitWorksheetIntoExercises',message:'solutionBlock extracted',data:{solutionBlockStart:solutionIndex,solutionBlockLength:solutionBlock.length,solutionBlockPreview:solutionBlock.slice(0,300)},timestamp:Date.now(),hypothesisId:'A_FIX'})+'\n'); } catch(e){}
   // #endregion
 
   return {
@@ -1730,26 +1780,134 @@ function buildExercisesFromAiDetection(text, detections) {
   return exercises.filter(ex => ex.content && ex.content.length >= 20);
 }
 
-function detectExerciseTypeAndQuestionCount(content, instruction = '') {
+function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionType = '', exerciseId = '') {
   const text = `${instruction}\n${content}`.trim();
   if (!text) return { type: '', questionCount: 0 };
-  const numbered = (content.match(/^\s*\d+[.)]\s+/gm) || []).length;
-  const blanks = (content.match(/_+/g) || []).length;
-  const optionLines = (content.match(/^\s*(?:[a-dA-D][.)]|\([a-dA-D]\))\s+/gm) || []).length;
-  const hasTf = /\b(Richtig|Falsch|True|False|Ja[-–]Nein)\b/i.test(text);
-  const hasMatching = /\b(match|zuordnen|verbinde|ordne\s+zu|pair\s+up|connect|Zuordnung|Ordnen\s+Sie\s+zu|Verbinden\s+Sie)\b/i.test(text);
-  const hasTransform = /\b(W-Frage|Fragewort|Transformation|Umformen|Aussagesatz)\b/i.test(text);
-  const hasErrorCorrection = /\b(Fehlerkorrektur|korrigieren|Fehler)\b/i.test(text);
-  const hasOwnWriting = /\b(Eigene\s+Sätze|Schreiben\s+Sie|Own\s+Sentences|Steckbrief|Profile)\b/i.test(text);
+  const rawContent = String(content || '');
+  const lines = rawContent.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const instructionText = String(instruction || '').trim();
 
-  if (hasTf) return { type: 'true_false', questionCount: Math.max(numbered, 1) };
-  if (hasMatching) return { type: 'matching', questionCount: Math.max(numbered, 1) };
-  if (optionLines >= 2) return { type: 'mcq', questionCount: Math.max(1, Math.ceil(optionLines / 4)) };
-  if (blanks > 0) return { type: 'fill_in_blank', questionCount: Math.max(numbered, 1) };
-  if (hasErrorCorrection) return { type: 'error_correction', questionCount: Math.max(numbered, 1) };
-  if (hasTransform) return { type: 'transformation', questionCount: Math.max(numbered, 1) };
-  if (hasOwnWriting) return { type: 'open_writing', questionCount: Math.max(numbered, 1) };
-  return { type: numbered > 0 ? 'short_answer' : '', questionCount: Math.max(numbered, 0) };
+  const finalize = (type, questionCount) => {
+    const result = { type, questionCount: Math.max(1, Number(questionCount) || 1) };
+    console.log('[CLASSIFIER]', {
+      id: exerciseId || null,
+      type: result.type,
+      questionCount: result.questionCount
+    });
+    return result;
+  };
+
+  // Section heading override (highest priority)
+  if (/zuordnungs|matching/i.test(String(sectionType || ''))) {
+    let questionCount = 0;
+    const leftItems = lines.filter(l => /^\d+[.)]/.test(l));
+    const rightItems = lines.filter(l => /^[a-zA-Z][.)]/.test(l));
+
+    if (leftItems.length && rightItems.length) {
+      questionCount = Math.min(leftItems.length, rightItems.length);
+    } else if (leftItems.length) {
+      questionCount = leftItems.length;
+    } else {
+      const inlinePairs = lines.filter(l => /\d+[.)].+?[a-zA-Z][.)]/.test(l));
+      questionCount = inlinePairs.length;
+    }
+
+    if (!questionCount || questionCount === 0) {
+      questionCount = 4;
+    }
+
+    console.log('[MATCH COUNT]', {
+      id: exerciseId || null,
+      left: leftItems.length,
+      right: rightItems.length,
+      final: questionCount
+    });
+
+    const result = finalize('matching', questionCount);
+    console.log('[SECTION CLASSIFIER]', {
+      id: exerciseId || null,
+      sectionType,
+      finalType: result.type
+    });
+    return result;
+  }
+  if (/lückentext|lueckentext|fill/i.test(String(sectionType || ''))) {
+    const blankLines = lines.filter(l => /_+/.test(l)).length;
+    const result = finalize('fill_in_blank', Math.max(blankLines, 1));
+    console.log('[SECTION CLASSIFIER]', {
+      id: exerciseId || null,
+      sectionType,
+      finalType: result.type
+    });
+    return result;
+  }
+  if (/fragen|question/i.test(String(sectionType || ''))) {
+    const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
+    const result = finalize('short_answer', numbered.length > 0 ? numbered.length : 1);
+    console.log('[SECTION CLASSIFIER]', {
+      id: exerciseId || null,
+      sectionType,
+      finalType: result.type
+    });
+    return result;
+  }
+  if (/plural|singular/i.test(String(sectionType || ''))) {
+    const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
+    const result = finalize('transformation', numbered.length > 0 ? numbered.length : 1);
+    console.log('[SECTION CLASSIFIER]', {
+      id: exerciseId || null,
+      sectionType,
+      finalType: result.type
+    });
+    return result;
+  }
+
+  // STEP 1 — MATCHING (highest priority): keyword + column structure
+  const matchingInstruction = /\b(zuordnung|zuordnen|verbinden|match)\b/i.test(instructionText);
+  const columnPairs = lines.filter(line => {
+    return (
+      line.split(/\s{2,}|\t/).length >= 2 &&
+      line.length < 80
+    );
+  });
+
+  if (matchingInstruction && columnPairs.length >= 3) {
+    console.log('[MATCH DETECT]', {
+      id: exerciseId || null,
+      columnPairs: columnPairs.length
+    });
+    return finalize('matching', columnPairs.length);
+  }
+
+  // STEP 2 — numbered structure
+  const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
+
+  // STEP 3 — writing
+  if (/\b(schreiben|write)\b/i.test(instructionText)) {
+    const explicitCountMatch = /\b(\d+)\s*(?:sentences?|sätze)\b/i.exec(text);
+    const explicitCount = explicitCountMatch ? parseInt(explicitCountMatch[1], 10) : 0;
+    if (numbered.length > 0) return finalize('short_answer', numbered.length);
+    if (explicitCount > 0) return finalize('short_answer', explicitCount);
+    return finalize('short_answer', 1);
+  }
+
+  // STEP 4 — question formulation / transformation
+  if (/\b(frage|formulieren|bilden|w-frage)\b/i.test(text)) {
+    return finalize('short_answer', numbered.length > 0 ? numbered.length : 1);
+  }
+
+  // STEP 5 — fill in blank
+  if (/_+/.test(rawContent)) {
+    const blankLines = lines.filter(l => /_+/.test(l)).length;
+    return finalize('fill_in_blank', Math.max(blankLines, 1));
+  }
+
+  // STEP 6 — true/false
+  if (/\b(richtig|falsch|true|false)\b/i.test(text)) {
+    return finalize('true_false', numbered.length > 0 ? numbered.length : 1);
+  }
+
+  return finalize('short_answer', numbered.length > 0 ? numbered.length : 1);
 }
 
 // ─── Convert single-exercise extraction result to flat question(s) ────────────
