@@ -216,7 +216,7 @@ async function getAIResponse(systemPrompt, userText, history) {
     openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages,
-      max_tokens: 60,
+      max_completion_tokens: 60,
       temperature: 0.7,
     }),
     new Promise((_, reject) =>
@@ -255,7 +255,7 @@ async function translateToTamil(text, fromLang) {
             content: `Translate this from ${fromLang} to Tamil:\n"${text}"\n\nTranslation:`,
           },
         ],
-        max_tokens: 150,
+        max_completion_tokens: 150,
         temperature: 0.1,
       }),
       new Promise((_, reject) =>
@@ -279,28 +279,60 @@ async function translateText(text, fromLang, toLang) {
   try {
     const openai = _makeOpenAI();
     const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o';
+    const baseMessages = [
+      {
+        role: 'system',
+        content:
+          'You are a professional translator. Translate accurately. Provide ONLY the translation — no explanations, no quotes.',
+      },
+      {
+        role: 'user',
+        content: `Translate this from ${fromLang} to ${toLang}:\n"${text}"\n\nTranslation:`,
+      },
+    ];
     const completion = await Promise.race([
       openai.chat.completions.create({
         model: translationModel,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a professional translator. Translate accurately. Provide ONLY the translation — no explanations, no quotes.',
-          },
-          {
-            role: 'user',
-            content: `Translate this from ${fromLang} to ${toLang}:\n"${text}"\n\nTranslation:`,
-          },
-        ],
-        max_tokens: 150,
+        messages: baseMessages,
+        max_completion_tokens: 150,
         temperature: 0.1,
       }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('DG translation timeout')), 8000),
       ),
     ]);
-    return (completion.choices[0]?.message?.content || '').trim();
+    let translated = (completion.choices[0]?.message?.content || '').trim();
+
+    // Some models occasionally echo source text for EN translations.
+    // Retry once with stricter instructions when output appears unchanged.
+    const normalizedSource = (text || '').trim().toLowerCase();
+    const normalizedOut = (translated || '').trim().toLowerCase();
+    if (toLang === 'English' && normalizedOut && normalizedOut === normalizedSource) {
+      const retry = await Promise.race([
+        openai.chat.completions.create({
+          model: translationModel,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Translate the user text into natural English. Do not copy the source language. Return ONLY English translation text.',
+            },
+            {
+              role: 'user',
+              content: `Source language: ${fromLang}\nTarget language: English\nText: ${text}`,
+            },
+          ],
+          max_completion_tokens: 150,
+          temperature: 0,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('DG translation retry timeout')), 8000),
+        ),
+      ]);
+      translated = (retry.choices[0]?.message?.content || translated).trim();
+    }
+
+    return translated;
   } catch (err) {
     console.warn('[dgConversationService] Translation failed:', err.message);
     return '';

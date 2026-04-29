@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -68,6 +68,8 @@ export interface DgSceneFlowItem {
   styleUrl: './dg-bot-player.component.scss',
 })
 export class DgBotPlayerComponent implements OnInit, OnDestroy {
+  @ViewChild('chatScroll') private chatScrollRef?: ElementRef<HTMLDivElement>;
+
   // ── Loading / error ─────────────────────────────────────────────────────────
   loading = true;
   error: string | null = null;
@@ -180,6 +182,22 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  get showStudentTurnUi(): boolean {
+    if (this.conversationComplete) return false;
+    if (!this.waitingForUser) return false;
+    if (this.isAiThinking) return false;
+    return this.status !== 'speaking';
+  }
+
+  get studentDisplayName(): string {
+    const name = (this.auth.getSnapshotUser()?.name || '').trim();
+    return name || 'Student';
+  }
+
+  get botDisplayName(): string {
+    return 'Kiro';
+  }
+
   /** True when the module has conversation content (vocab / role-play scenario). */
   private get hasConversationContent(): boolean {
     const mod = this.payload?.module;
@@ -206,11 +224,26 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.debugSpeechLog = [`🗣 ${t}`, ...this.debugSpeechLog].slice(0, 24);
   }
 
-  getCcText(msg: DgChatMessage): string {
-    if (msg.speaker !== 'ai') return msg.text;
-    if (this.ccMode === 'en') return msg.translationEn || msg.text;
-    if (this.ccMode === 'ta') return msg.translation || msg.text;
-    return msg.text;
+  private scrollChatToLatest(): void {
+    // Wait for Angular to render the newly added bubble before scrolling.
+    setTimeout(() => {
+      const el = this.chatScrollRef?.nativeElement;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    }, 0);
+  }
+
+  getCcCaption(msg: DgChatMessage): string {
+    if (msg.speaker !== 'ai') return '';
+    if (this.ccMode === 'en') {
+      const en = (msg.translationEn || '').trim();
+      const src = (msg.text || '').trim();
+      if (!en) return '';
+      if (en.toLowerCase() === src.toLowerCase()) return '';
+      return en;
+    }
+    if (this.ccMode === 'ta') return (msg.translation || msg.text || '').trim();
+    return '';
   }
 
   private openMicForUserTurn(): void {
@@ -494,9 +527,39 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.isAiThinking = false;
     this.waitingForUser = false;
 
-    const readyMsg = this.waitingForStartText ||
+    const startCue = 'Say "Bereit!" or "Ready!" to start.';
+    const withStartCue = (text: string): string => {
+      const t = (text || '').trim();
+      if (!t) return startCue;
+      if (/\b(ready|bereit)\b/i.test(t)) return t;
+      const needsPeriod = /[.!?]$/.test(t) ? '' : '.';
+      return `${t}${needsPeriod} ${startCue}`;
+    };
+    const readyMsgBase = this.waitingForStartText ||
       (this.payload?.module.rolePlayScenario?.studentGuidance?.trim()) ||
-      'Say "Bereit!" or "Ready!" to start the conversation.';
+      '';
+    const readyMsg = withStartCue(readyMsgBase || 'Say "Bereit!" or "Ready!" to start the conversation.');
+    const scenario = this.payload?.module.rolePlayScenario;
+    const roleParts: string[] = [];
+    if (scenario?.studentRole?.trim()) roleParts.push(`Your role: ${scenario.studentRole.trim()}.`);
+    if (scenario?.situation?.trim()) roleParts.push(`Situation: ${scenario.situation.trim()}.`);
+    if (scenario?.objective?.trim()) roleParts.push(`Goal: ${scenario.objective.trim()}.`);
+    const readyMsgEnglish = [
+      ...roleParts,
+      startCue,
+    ].join(' ');
+
+    // Show the role/start instruction as a visible chat bubble in English.
+    this.chatHistory = [
+      {
+        speaker: 'ai',
+        text: readyMsgEnglish,
+        // Keep original prompt in Tamil-caption slot as a soft fallback for CC mode.
+        translation: readyMsg || undefined,
+        translationEn: readyMsgEnglish,
+      },
+    ];
+    this.scrollChatToLatest();
 
     // Show + speak the start prompt
     this.displayLine = readyMsg;
@@ -529,6 +592,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       ...this.chatHistory,
       { speaker: 'student', text: transcript, score: ev.score ?? undefined },
     ];
+    this.scrollChatToLatest();
     this.displayLine = transcript;
     this.displaySub = scoreLabel ? `Pronunciation: ${scoreLabel}` : '';
 
@@ -593,6 +657,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
           translationEn: response.translatedEnglish || undefined,
         },
       ];
+      this.scrollChatToLatest();
 
       this.aiResponseText = response.text;
       this.aiResponseTamil = response.translatedTamil;

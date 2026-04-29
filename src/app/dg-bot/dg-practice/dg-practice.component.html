@@ -3,7 +3,12 @@
     {{ countdownLabel }}
   </div>
 
-  <canvas #waveCanvas class="dg-practice__wave" [class.dg-practice__wave--live]="recording"></canvas>
+  <canvas
+    #waveCanvas
+    *ngIf="recording"
+    class="dg-practice__wave"
+    [class.dg-practice__wave--live]="recording"
+  ></canvas>
 
   <p class="dg-practice__listen" *ngIf="recording && !processing">Listening…</p>
 
