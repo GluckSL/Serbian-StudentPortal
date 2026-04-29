@@ -89,10 +89,8 @@ if (process.env.OPENAI_API_KEY) {
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
 async function extractPdfText(filePath) {
-  const buffer = fs.readFileSync(filePath);
-
-  // Primary extractor: pdf.js (better structured text for worksheet parsing).
   try {
+    const buffer = fs.readFileSync(filePath);
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const data = new Uint8Array(buffer);
     const loadingTask = getDocument({
@@ -118,28 +116,9 @@ async function extractPdfText(filePath) {
       text: fullText,
       pages: pdf.numPages
     };
-  } catch (primaryErr) {
-    // Production fallback: some Node runtimes lack DOMMatrix required by pdf.js.
-    // pdf-parse is less strict and keeps PDF uploads functional.
-    console.warn('Primary PDF parse failed, trying fallback parser:', primaryErr?.message || primaryErr);
-    try {
-      const pdfParse = require('pdf-parse');
-      const parsed = await pdfParse(buffer);
-      const text = String(parsed?.text || '').trim();
-      if (!text) {
-        throw new Error('Fallback parser returned empty text');
-      }
-      return {
-        text,
-        pages: Number(parsed?.numpages || 0) || 1
-      };
-    } catch (fallbackErr) {
-      console.error('PDF parse error (primary + fallback):', {
-        primary: primaryErr?.message || primaryErr,
-        fallback: fallbackErr?.message || fallbackErr
-      });
-      throw new Error('Failed to extract text from PDF: ' + (fallbackErr?.message || primaryErr?.message || 'Unknown parser error'));
-    }
+  } catch (err) {
+    console.error('PDF parse error:', err);
+    throw new Error('Failed to extract text from PDF: ' + err.message);
   }
 }
 
