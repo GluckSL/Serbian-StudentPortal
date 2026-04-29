@@ -62,6 +62,8 @@ interface PlayerQuestion {
   selectedLeftIndex?: number | null;
   // Fill-blank state
   fillAnswers?: string[];
+  /** Singular/plural: one input per row (plural answer). */
+  singularPluralInputs?: string[];
   // Pronunciation state
   spokenText?: string;
   pronunciationScore?: number;
@@ -130,7 +132,8 @@ interface PlayerQuestion {
 type SpecialInputTarget =
   | { type: 'fill-blank'; blankIndex: number }
   | { type: 'question-answer' }
-  | { type: 'listening' };
+  | { type: 'listening' }
+  | { type: 'singular-plural'; rowIndex: number };
 
 @Component({
   selector: 'app-digital-exercise-player',
@@ -601,6 +604,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       } else if (q.type === 'fill-blank') {
         const count = countFillBlankRuns(q.sentence || '');
         pq.fillAnswers = new Array(count).fill('');
+      } else if (q.type === 'singular_plural') {
+        const n = (q.pairs || []).filter((p: any) => String(p?.singular || '').trim()).length;
+        pq.singularPluralInputs = new Array(Math.max(1, n)).fill('');
       } else if (q.type === 'pronunciation') {
         pq.spokenText = '';
         pq.pronunciationScore = 0;
@@ -1108,6 +1114,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         return { ...base, matchingSelections };
       }
       if (typ === 'fill-blank') return { ...base, fillAnswers: [...(pq.fillAnswers || [])] };
+      if (typ === 'singular_plural') return { ...base, singularPluralInputs: [...(pq.singularPluralInputs || [])] };
       if (typ === 'pronunciation') {
         return {
           ...base,
@@ -1175,6 +1182,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       for (let i = 0; i < n; i++) {
         if (item.fillAnswers[i] !== undefined) pq.fillAnswers![i] = item.fillAnswers[i];
       }
+    } else if (pq.data.type === 'singular_plural' && item.singularPluralInputs?.length) {
+      const n = pq.singularPluralInputs?.length || 0;
+      for (let i = 0; i < n; i++) {
+        if (item.singularPluralInputs[i] !== undefined) pq.singularPluralInputs![i] = item.singularPluralInputs[i];
+      }
     } else if (pq.data.type === 'pronunciation') {
       if (item.spokenText !== undefined) pq.spokenText = item.spokenText;
       if (item.pronunciationScore !== undefined) pq.pronunciationScore = item.pronunciationScore;
@@ -1219,6 +1231,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       });
     } else if (pq.data.type === 'fill-blank') {
       resp.fillBlankResponses = pq.fillAnswers || [];
+    } else if (pq.data.type === 'singular_plural') {
+      const n = (pq.data.pairs || []).filter((p: any) => String(p?.singular || '').trim()).length;
+      const raw = pq.singularPluralInputs || [];
+      resp.singularPluralResponses = Array.from({ length: n }, (_, i) => String(raw[i] ?? ''));
     } else if (pq.data.type === 'pronunciation') {
       resp.spokenText = pq.spokenText || '';
       resp.pronunciationScore = pq.pronunciationScore || 0;
@@ -1244,6 +1260,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (pq.data.type === 'matching' && res.correctAnswer?.pairs) {
       pq.data._correctPairs = res.correctAnswer.pairs;
+    }
+    if (pq.data.type === 'singular_plural' && Array.isArray(res.correctAnswer?.plurals)) {
+      pq.data._correctPlurals = res.correctAnswer.plurals;
     }
     if (res.allSubmitted) {
       this.vpOptimisticCompletion = false;
@@ -1272,6 +1291,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (it.selectedOption !== undefined && it.selectedOption !== null) return true;
     if (it.matchingSelections && it.matchingSelections.length > 0) return true;
     if (it.fillAnswers?.some((x) => String(x ?? '').trim() !== '')) return true;
+    if (it.singularPluralInputs?.some((x) => String(x ?? '').trim() !== '')) return true;
     if (String(it.qaResponse ?? '').trim() !== '') return true;
     if (String(it.listeningText ?? '').trim() !== '') return true;
     if (String(it.spokenText ?? '').trim() !== '') return true;
@@ -1406,6 +1426,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'mcq') return pq.selectedOption !== undefined && pq.selectedOption !== null;
     if (q.type === 'matching') return (pq.matchingLeft || []).every(l => l.matchedRightIndex !== null);
     if (q.type === 'fill-blank') return (pq.fillAnswers || []).every(a => a.trim() !== '');
+    if (q.type === 'singular_plural') {
+      const n = (q.pairs || []).filter((p: any) => String(p?.singular || '').trim()).length;
+      const inputs = pq.singularPluralInputs || [];
+      if (n <= 0) return inputs.length > 0 && inputs.every(s => (s || '').trim() !== '');
+      for (let i = 0; i < n; i++) {
+        if (!String(inputs[i] ?? '').trim()) return false;
+      }
+      return true;
+    }
     if (q.type === 'pronunciation') return pq.hasRecorded === true;
     if (q.type === 'question-answer') return (pq.qaResponse || '').trim().length > 0;
     if (q.type === 'listening') return (pq.listeningText || '').trim().length > 0;
@@ -1992,7 +2021,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           return { leftIndex: li, rightIndex, rightValue };
         });
       } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
-      else if (pq.data.type === 'pronunciation') {
+      else if (pq.data.type === 'singular_plural') {
+        const n = (pq.data.pairs || []).filter((p: any) => String(p?.singular || '').trim()).length;
+        const raw = pq.singularPluralInputs || [];
+        resp.singularPluralResponses = Array.from({ length: n }, (_, j) => String(raw[j] ?? ''));
+      } else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }       else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
@@ -2011,6 +2044,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'fill-blank' && correctAnswer.answers) {
       return 'Correct answers: ' + correctAnswer.answers.join(', ');
     }
+    if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
+      return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
+    }
     return '';
   }
 
@@ -2028,7 +2064,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           return { leftIndex: li, rightIndex, rightValue };
         });
       } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
-      else if (pq.data.type === 'pronunciation') {
+      else if (pq.data.type === 'singular_plural') {
+        const n = (pq.data.pairs || []).filter((p: any) => String(p?.singular || '').trim()).length;
+        const raw = pq.singularPluralInputs || [];
+        resp.singularPluralResponses = Array.from({ length: n }, (_, j) => String(raw[j] ?? ''));
+      } else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }       else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
@@ -2073,6 +2113,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         if (pq.data.type === 'matching' && detail.correctAnswer?.pairs) {
           pq.data._correctPairs = detail.correctAnswer.pairs;
         }
+        if (pq.data.type === 'singular_plural' && Array.isArray(detail.correctAnswer?.plurals)) {
+          pq.data._correctPlurals = detail.correctAnswer.plurals;
+        }
       }
     });
   }
@@ -2082,6 +2125,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'mcq' && correctAnswer.explanation) return correctAnswer.explanation;
     if (q.type === 'fill-blank' && correctAnswer.answers) {
       return 'Correct answers: ' + correctAnswer.answers.join(', ');
+    }
+    if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
+      return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
     }
     return '';
   }
@@ -2169,6 +2215,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const parts = (pq.fillAnswers || []).filter(a => a != null && a !== '');
       return parts.length ? parts.join(', ') : '—';
     }
+    if (pq.data.type === 'singular_plural') {
+      const rows = (pq.data.pairs || []).filter((p: any) => String(p?.singular || '').trim());
+      const inputs = pq.singularPluralInputs || [];
+      if (!rows.length) return '—';
+      return rows
+        .map((p: any, i: number) => `${p.singular} → ${String(inputs[i] ?? '').trim() || '—'}`)
+        .join('; ');
+    }
     if (pq.data.type === 'pronunciation') return (pq.spokenText || '—').trim();
     if (pq.data.type === 'question-answer') {
       if (this.isTrueFalseQuestion(pq.data)) {
@@ -2204,6 +2258,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'fill-blank') {
       const ans = (pq.data._correctAnswers || []).join(', ');
       return ans || '—';
+    }
+    if (pq.data.type === 'singular_plural') {
+      const rows = (pq.data.pairs || []).filter((p: any) => String(p?.singular || '').trim());
+      const plurals = pq.data._correctPlurals || [];
+      if (!rows.length) return '—';
+      return rows.map((p: any, i: number) => `${p.singular} → ${plurals[i] ?? '—'}`).join('; ');
     }
     if (pq.data.type === 'question-answer') {
       if (this.isTrueFalseQuestion(pq.data)) {
@@ -2287,10 +2347,35 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return splitFillBlankSentence(sentence || '');
   }
 
+  /** Rows with non-empty singular text (same order as `singularPluralInputs`). */
+  singularPluralDisplayRows(pq: PlayerQuestion): { singular: string }[] {
+    return (pq?.data?.pairs || [])
+      .filter((p: any) => String(p?.singular || '').trim())
+      .map((p: any) => ({ singular: String(p.singular) }));
+  }
+
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {
     const byType: Record<string, number[]> = {};
-    const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening', 'video-pronunciation': 'Video Pronunciation' };
-    const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones', 'video-pronunciation': 'videocam' };
+    const labels: Record<string, string> = {
+      mcq: 'Multiple Choice',
+      matching: 'Matching',
+      'fill-blank': 'Fill Blanks',
+      singular_plural: 'Singular / Plural',
+      pronunciation: 'Pronunciation',
+      'question-answer': 'Question / Answer',
+      listening: 'Listening',
+      'video-pronunciation': 'Video Pronunciation'
+    };
+    const icons: Record<string, string> = {
+      mcq: 'quiz',
+      matching: 'compare_arrows',
+      'fill-blank': 'text_fields',
+      singular_plural: 'swap_horiz',
+      pronunciation: 'record_voice_over',
+      'question-answer': 'short_text',
+      listening: 'headphones',
+      'video-pronunciation': 'videocam'
+    };
     this.playerQuestions.forEach((pq, i) => {
       const t = pq.data.type;
       if (!byType[t]) byType[t] = [];
@@ -2320,6 +2405,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   showSpecialCharacterPad(pq: PlayerQuestion | null | undefined): boolean {
     if (!pq?.data) return false;
     if (pq.data.type === 'fill-blank') return true;
+    if (pq.data.type === 'singular_plural') return true;
     if (pq.data.type === 'listening') return true;
     if (pq.data.type === 'question-answer') return !this.isTrueFalseQuestion(pq.data);
     return false;
@@ -2339,6 +2425,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     const pq = this.currentQuestion;
     if (!pq) return;
+
+    if (this.activeSpecialInputTarget?.type === 'singular-plural') {
+      const idx = this.activeSpecialInputTarget.rowIndex;
+      if (!Array.isArray(pq.singularPluralInputs) || idx < 0 || idx >= pq.singularPluralInputs.length) return;
+      pq.singularPluralInputs[idx] = `${pq.singularPluralInputs[idx] || ''}${char}`;
+      this.markAttempted(pq);
+      return;
+    }
 
     if (this.activeSpecialInputTarget?.type === 'fill-blank') {
       const idx = this.activeSpecialInputTarget.blankIndex;
@@ -2901,6 +2995,20 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return pq.data.caseSensitive
       ? given.trim() === correct.trim()
       : given.trim().toLowerCase() === correct.trim().toLowerCase();
+  }
+
+  isSpRowCorrect(pq: PlayerQuestion, rowIndex: number): boolean {
+    const expectedPl = (pq.data._correctPlurals || [])[rowIndex];
+    const given = (pq.singularPluralInputs || [])[rowIndex];
+    if (expectedPl === undefined || given === undefined) return false;
+    const a = String(given).trim().toLowerCase().replace(/\s+/g, ' ');
+    const b = String(expectedPl).trim().toLowerCase().replace(/\s+/g, ' ');
+    return a === b && a.length > 0;
+  }
+
+  getSpCorrectPlural(pq: PlayerQuestion, rowIndex: number): string {
+    const pl = (pq.data._correctPlurals || [])[rowIndex];
+    return pl != null ? String(pl) : '';
   }
 
   getCorrectFillAnswer(pq: PlayerQuestion, blankIndex: number): string {

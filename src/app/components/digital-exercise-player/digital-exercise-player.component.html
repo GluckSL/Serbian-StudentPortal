@@ -148,6 +148,7 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'mcq'" [innerHTML]="pq.data.question | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'" [innerHTML]="pq.data.instruction | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'" [innerHTML]="pq.data.sentence | safeHtml"></div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'singular_plural' && pq.data.instruction" [innerHTML]="pq.data.instruction | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data) && pq.data.storyParagraph"
                [innerHTML]="pq.data.storyParagraph | safeHtml">
@@ -1069,6 +1070,59 @@
           <div class="hint-label" *ngIf="currentQuestion.data.hint">
             <span class="material-icons">lightbulb</span>
             Hint: {{ currentQuestion.data.hint }}
+          </div>
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
+              </button>
+            </div>
+          </div>
+          <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
+            <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
+          </div>
+        </div>
+
+        <!-- ── SINGULAR / PLURAL ── -->
+        <div class="q-body singular-plural-body" *ngIf="currentQuestion.data.type === 'singular_plural'">
+          <div class="q-question-box" *ngIf="currentQuestion.data.instruction">
+            <div class="q-question-label">Instructions</div>
+            <div [innerHTML]="currentQuestion.data.instruction | safeHtml"></div>
+          </div>
+          <div class="sp-table-wrap">
+            <table class="sp-pairs-table" *ngIf="singularPluralDisplayRows(currentQuestion).length">
+              <thead>
+                <tr><th>Singular</th><th>Plural</th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let sp of singularPluralDisplayRows(currentQuestion); let ri = index">
+                  <td class="sp-singular-cell">{{ sp.singular }}</td>
+                  <td class="sp-plural-cell">
+                    <input
+                      type="text"
+                      class="blank-input sp-plural-input"
+                      [(ngModel)]="currentQuestion.singularPluralInputs![ri]"
+                      (ngModelChange)="markAttempted(currentQuestion)"
+                      (focus)="setActiveSpecialInputTarget({ type: 'singular-plural', rowIndex: ri })"
+                      [placeholder]="'Plural ' + (ri + 1)"
+                      [class.correct]="hasCurrentSubmitted && isSpRowCorrect(currentQuestion, ri)"
+                      [class.wrong]="hasCurrentSubmitted && !isSpRowCorrect(currentQuestion, ri)"
+                      [disabled]="hasCurrentSubmitted"
+                    />
+                    <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isSpRowCorrect(currentQuestion, ri)">
+                      → {{ getSpCorrectPlural(currentQuestion, ri) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
             <div class="special-char-label">Special letters</div>

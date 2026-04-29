@@ -87,13 +87,22 @@ function sanitizeQuestions(questions) {
         typeof a === 'string' ? sanitizeQuestionHtml(a) : a
       );
     }
-    // pairs (matching)
+    // pairs (matching, or singular/plural rows)
     if (Array.isArray(out.pairs)) {
-      out.pairs = out.pairs.map((p) =>
-        p && typeof p === 'object'
-          ? { ...p, left: sanitizeQuestionHtml(p.left), right: sanitizeQuestionHtml(p.right) }
-          : p
-      );
+      out.pairs = out.pairs.map((p) => {
+        if (!p || typeof p !== 'object') return p;
+        if (p.singular != null || p.plural != null) {
+          return {
+            singular: sanitizeQuestionHtml(p.singular),
+            plural: sanitizeQuestionHtml(p.plural)
+          };
+        }
+        return {
+          ...p,
+          left: sanitizeQuestionHtml(p.left),
+          right: sanitizeQuestionHtml(p.right)
+        };
+      });
     }
     // acceptedVariants
     if (Array.isArray(out.acceptedVariants)) {

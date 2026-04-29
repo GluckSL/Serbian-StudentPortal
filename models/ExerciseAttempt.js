@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 
 const QuestionResponseSchema = new mongoose.Schema({
   questionIndex: { type: Number, required: true },
-  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation'] },
+  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural'] },
   // MCQ response
   selectedOptionIndex: Number,
   // Matching response: array of { leftIndex, rightIndex }
@@ -16,6 +16,8 @@ const QuestionResponseSchema = new mongoose.Schema({
   }],
   // Fill-blank response: array of answers per blank
   fillBlankResponses: [String],
+  // Singular/plural: student typed plural per row (same order as question.pairs)
+  singularPluralResponses: [String],
   // Pronunciation response
   spokenText: String,
   pronunciationScore: Number, // 0-100

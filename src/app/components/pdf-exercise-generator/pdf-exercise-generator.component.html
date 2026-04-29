@@ -358,6 +358,7 @@
               <ng-container [ngSwitch]="q.type">
                 <span *ngSwitchCase="'mcq'">{{ q.question || '—' }}</span>
                 <span *ngSwitchCase="'matching'">{{ q.pairs?.length }} pairs</span>
+                <span *ngSwitchCase="'singular_plural'">{{ q.pairs?.length }} pair(s)</span>
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || '—' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || '—' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
@@ -443,6 +444,28 @@
                 <button class="btn-rm-sm" (click)="removePair(q, pi)"><span class="material-icons">close</span></button>
               </div>
               <button class="btn-add-sm" (click)="addPair(q)"><span class="material-icons">add</span> Add pair</button>
+            </div>
+          </ng-container>
+
+          <!-- Singular / Plural -->
+          <ng-container *ngIf="q.type === 'singular_plural'">
+            <div class="ed-field">
+              <label>Instruction</label>
+              <input type="text" [(ngModel)]="q.instruction" class="ed-input" />
+            </div>
+            <div class="ed-field">
+              <label>Word pairs <span class="hint-label">(singular = prompt, plural = correct answer)</span></label>
+              <table class="sp-pair-table" *ngIf="q.pairs?.length">
+                <thead><tr><th>Singular</th><th>Plural (answer)</th><th></th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let pair of q.pairs; let pi = index; trackBy: trackByIndex">
+                    <td><input type="text" [(ngModel)]="pair.singular" class="pair-input" [placeholder]="'Singular ' + (pi + 1)" (keydown)="$event.stopPropagation()" /></td>
+                    <td><input type="text" [(ngModel)]="pair.plural" class="pair-input" [placeholder]="'Plural ' + (pi + 1)" (keydown)="$event.stopPropagation()" /></td>
+                    <td><button class="btn-rm-sm" type="button" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 1"><span class="material-icons">close</span></button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <button class="btn-add-sm" type="button" (click)="addPair(q)"><span class="material-icons">add</span> Add pair</button>
             </div>
           </ng-container>
 

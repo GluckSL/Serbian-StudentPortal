@@ -14,7 +14,7 @@ import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-s
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 interface ReviewQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'singular_plural';
   worksheetKind?: string | null;
   // MCQ
   question?: string;
@@ -22,9 +22,9 @@ interface ReviewQuestion {
   options?: string[];
   correctAnswerIndex?: number;
   explanation?: string;
-  // Matching
+  // Matching / singular–plural (same `pairs` array shape differs by type)
   instruction?: string;
-  pairs?: Array<{ left: string; right: string }>;
+  pairs?: Array<{ left?: string; right?: string; singular?: string; plural?: string }>;
   // Fill-blank
   sentence?: string;
   answers?: string[];
@@ -101,7 +101,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     'question-answer': 0,
     'true-false': 0,
     'sentence-transformation': 0,
-    'singular-plural': 0,
+    singular_plural: 0,
     'table-profile-fill': 0,
     'free-writing-own-sentences': 0,
     'free-writing-profile': 0,
@@ -148,7 +148,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' },
     { value: 'true-false', label: 'Richtig / Falsch', desc: 'Entscheiden, ob eine Aussage richtig oder falsch ist', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
     { value: 'sentence-transformation', label: 'Sentence Transformation', desc: 'Transform the sentence (e.g. statement → question)', icon: 'transform', color: '#9333ea', bg: '#f3e8ff' },
-    { value: 'singular-plural', label: 'Singular → Plural', desc: 'Write the plural form with the right article', icon: 'swap_horiz', color: '#16a34a', bg: '#dcfce7' },
+    { value: 'singular_plural', label: 'Singular Plural', desc: 'Singular form shown; student writes the plural', icon: 'swap_horiz', color: '#16a34a', bg: '#dcfce7' },
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', desc: 'Fill values from a table/profile', icon: 'table_rows', color: '#64748b', bg: '#f1f5f9' },
     { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', desc: 'Write your own sentences', icon: 'edit_note', color: '#f97316', bg: '#fff7ed' },
     { value: 'free-writing-profile', label: 'Free Writing – profile', desc: 'Write a short profile (Steckbrief)', icon: 'badge', color: '#db2777', bg: '#fce7f3' },
@@ -266,7 +266,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         'question-answer': 5,
         'true-false': 0,
         'sentence-transformation': 0,
-        'singular-plural': 0,
+        singular_plural: 0,
         'table-profile-fill': 0,
         'free-writing-own-sentences': 0,
         'free-writing-profile': 0,
@@ -281,7 +281,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         'question-answer': 0,
         'true-false': 0,
         'sentence-transformation': 0,
-        'singular-plural': 0,
+        singular_plural: 0,
         'table-profile-fill': 0,
         'free-writing-own-sentences': 0,
         'free-writing-profile': 0,
@@ -334,7 +334,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       'question-answer': 0,
       'true-false': 0,
       'sentence-transformation': 0,
-      'singular-plural': 0,
+      singular_plural: 0,
       'table-profile-fill': 0,
       'free-writing-own-sentences': 0,
       'free-writing-profile': 0,
@@ -356,7 +356,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         'question-answer': 0,
         'true-false': 0,
         'sentence-transformation': 0,
-        'singular-plural': 0,
+        singular_plural: 0,
         'table-profile-fill': 0,
         'free-writing-own-sentences': 0,
         'free-writing-profile': 0,
@@ -373,7 +373,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       'question-answer': Number(detected['question-answer']) || 0,
       'true-false': Number(detected['true-false']) || 0,
       'sentence-transformation': Number(detected['sentence-transformation']) || 0,
-      'singular-plural': Number(detected['singular-plural']) || 0,
+      singular_plural: Number(detected['singular_plural']) || 0,
       'table-profile-fill': Number(detected['table-profile-fill']) || 0,
       'free-writing-own-sentences': Number(detected['free-writing-own-sentences']) || 0,
       'free-writing-profile': Number(detected['free-writing-profile']) || 0,
@@ -460,9 +460,6 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const selectedExerciseIds = this.exercises.filter(e => e.enabled).map(e => e.exerciseId);
     this.extractionProgress = { current: 0, total: Math.max(selectedExerciseIds.length, this.exercises.length, 1) };
     this.currentProgressMsg = `Extracting exercises (0 / ${this.extractionProgress.total})...`;
-    // #region agent log
-    fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fbfbea'},body:JSON.stringify({sessionId:'fbfbea',location:'pdf-exercise-generator.component.ts:startGeneration',message:'selectedExerciseIds sent to backend',data:{count:selectedExerciseIds.length,ids:selectedExerciseIds,totalExercisesInUI:this.exercises.length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     this.exerciseService.generateFromPdf({
       uploadId: this.uploadResult.uploadId,
       types: ['matching'],
@@ -706,13 +703,18 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     if (type === 'mcq') Object.assign(q, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0, explanation: '' });
     else if (type === 'matching') Object.assign(q, { instruction: 'Match the items.', pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
+    else if (type === 'singular_plural') {
+      Object.assign(q, {
+        instruction: 'Write the correct plural form.',
+        pairs: [{ singular: '', plural: '' }, { singular: '', plural: '' }]
+      });
+    }
     else if (type === 'fill-blank') Object.assign(q, { sentence: '', answers: [''], hint: '', caseSensitive: false });
     else if (type === 'pronunciation') Object.assign(q, { word: '', phonetic: '', translation: '', acceptedVariants: [] });
     else if (type === 'question-answer') Object.assign(q, { prompt: '', sampleAnswers: [''], similarityThreshold: 70, scoringMode: 'full' });
     else if ([
       'true-false',
       'sentence-transformation',
-      'singular-plural',
       'table-profile-fill',
       'free-writing-own-sentences',
       'free-writing-profile',
@@ -728,7 +730,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       } else if (type === 'true-false') {
         scoringMode = 'full';
         similarityThreshold = 75;
-      } else if (type === 'error-correction' || type === 'sentence-transformation' || type === 'singular-plural') {
+      } else if (type === 'error-correction' || type === 'sentence-transformation') {
         scoringMode = 'full';
         similarityThreshold = 70;
       }
@@ -753,7 +755,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   // Matching helpers
-  addPair(q: ReviewQuestion): void { q.pairs!.push({ left: '', right: '' }); }
+  addPair(q: ReviewQuestion): void {
+    if (q.type === 'singular_plural') q.pairs!.push({ singular: '', plural: '' });
+    else q.pairs!.push({ left: '', right: '' });
+  }
   removePair(q: ReviewQuestion, i: number): void { if (q.pairs!.length > 2) q.pairs!.splice(i, 1); }
 
   // Fill-blank
@@ -857,7 +862,11 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // Validation
   isQuestionValid(q: ReviewQuestion): boolean {
     if (q.type === 'mcq') return !!(q.question?.trim()) && (q.options?.filter(o => o.trim()).length ?? 0) >= 2;
-    if (q.type === 'matching') return (q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0) >= 2;
+    if (q.type === 'matching') return (q.pairs?.filter(p => (p.left || '').trim() && (p.right || '').trim()).length ?? 0) >= 2;
+    if (q.type === 'singular_plural') {
+      const rows = q.pairs?.filter(p => (p.singular || '').trim() && (p.plural || '').trim()) ?? [];
+      return rows.length >= 1;
+    }
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
@@ -876,8 +885,11 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       const filled = q.options?.filter(o => o?.trim()).length ?? 0;
       if (filled < 2) parts.push(`Need at least 2 filled answer options (currently ${filled}).`);
     } else if (q.type === 'matching') {
-      const good = q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0;
+      const good = q.pairs?.filter(p => (p.left || '').trim() && (p.right || '').trim()).length ?? 0;
       if (good < 2) parts.push(`Need at least 2 complete pairs with left and right text (currently ${good}).`);
+    } else if (q.type === 'singular_plural') {
+      const good = q.pairs?.filter(p => (p.singular || '').trim() && (p.plural || '').trim()).length ?? 0;
+      if (good < 1) parts.push('Add at least one row with both singular and plural (expected answer).');
     } else if (q.type === 'fill-blank') {
       if (!q.sentence?.trim()) {
         parts.push('Sentence is empty.');

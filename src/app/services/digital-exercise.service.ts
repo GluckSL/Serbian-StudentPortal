@@ -6,7 +6,7 @@ import { Observable, from } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
+export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural';
 
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
@@ -76,6 +76,16 @@ export interface QuestionAnswerQuestion extends QuestionCommonFields {
   points: number;
 }
 
+export interface SingularPluralQuestion extends QuestionCommonFields {
+  type: 'singular_plural';
+  _id?: string;
+  instruction?: string;
+  pairs: Array<{ singular: string; plural: string }>;
+  similarityThreshold?: number;
+  scoringMode?: 'full' | 'proportional';
+  points: number;
+}
+
 export interface ListeningQuestion extends QuestionCommonFields {
   type: 'listening';
   _id?: string;
@@ -117,7 +127,7 @@ export interface WorksheetQuestionMeta {
     | null;
 }
 
-export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion | VideoPronunciationQuestion) & WorksheetQuestionMeta;
+export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | SingularPluralQuestion | ListeningQuestion | VideoPronunciationQuestion) & WorksheetQuestionMeta;
 
 /** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
 export interface VideoExerciseFeedbackItem {
@@ -236,6 +246,7 @@ export interface QuestionResponse {
   selectedOptionIndex?: number;
   matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
   fillBlankResponses?: string[];
+  singularPluralResponses?: string[];
   spokenText?: string;
   pronunciationScore?: number;
   qaResponse?: string;
@@ -584,6 +595,7 @@ export class DigitalExerciseService {
       'fill-blank': 'Fill in the Blanks',
       pronunciation: 'Pronunciation Check',
       'question-answer': 'Question / Answer',
+      singular_plural: 'Singular / Plural',
       listening: 'Listening',
       'video-pronunciation': 'Video Pronunciation'
     };
@@ -597,6 +609,7 @@ export class DigitalExerciseService {
       'fill-blank': 'text_fields',
       pronunciation: 'record_voice_over',
       'question-answer': 'short_text',
+      singular_plural: 'swap_horiz',
       listening: 'headphones',
       'video-pronunciation': 'videocam'
     };

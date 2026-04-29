@@ -120,7 +120,7 @@ function detectQuestionTypes(text) {
     'question-answer': 0,
     'true-false': 0,
     'sentence-transformation': 0,
-    'singular-plural': 0,
+    singular_plural: 0,
     'table-profile-fill': 0,
     'free-writing-own-sentences': 0,
     'free-writing-profile': 0,
@@ -247,7 +247,7 @@ function detectQuestionTypes(text) {
   const spHeadings = lines.filter(l =>
     /Singular\s*(?:→|->)\s*Plural|Singular.*Plural/i.test(l)
   ).length;
-  counts['singular-plural'] = Math.min(spHeadings * 2, 20);
+  counts.singular_plural = Math.min(spHeadings * 2, 20);
 
   const tableHeadings = lines.filter(l =>
     /\b(Tabelle|Table)\b/i.test(l) && !/\b(Steckbrief)\b/i.test(l)
@@ -272,7 +272,7 @@ function detectQuestionTypes(text) {
   const pseudoSum = Object.values({
     'true-false': counts['true-false'],
     'sentence-transformation': counts['sentence-transformation'],
-    'singular-plural': counts['singular-plural'],
+    singular_plural: counts.singular_plural,
     'table-profile-fill': counts['table-profile-fill'],
     'free-writing-own-sentences': counts['free-writing-own-sentences'],
     'free-writing-profile': counts['free-writing-profile'],
@@ -685,7 +685,7 @@ OUTPUT FORMAT (STRICT JSON — return ONLY this, no markdown):
         {
           "exerciseId": "e.g. L1.1",
           "difficulty": "easy | medium | hard",
-          "type": "mcq | matching | fill_in_blank | error_correction | open_writing | transformation | true_false | short_answer",
+          "type": "mcq | matching | fill_in_blank | singular_plural | error_correction | open_writing | transformation | true_false | short_answer",
           "instruction_de": "German instruction verbatim",
           "instruction_en": "English instruction verbatim or empty string",
           "questions": [
@@ -694,7 +694,7 @@ OUTPUT FORMAT (STRICT JSON — return ONLY this, no markdown):
               "options": [],
               "correctAnswerIndex": null,
               "answers": [],
-              "pairs": [],
+              "pairs": [{"singular":"","plural":""}],
               "correctedText": ""
             }
           ]
@@ -734,7 +734,8 @@ const EXTRACTION_TYPE_MAP = {
   true_false:       'question-answer',
   short_answer:     'question-answer',
   mcq:              'mcq',
-  matching:         'matching'
+  matching:         'matching',
+  singular_plural:  'singular_plural'
 };
 
 const EXTRACTION_WORKSHEET_KIND = {
@@ -744,6 +745,135 @@ const EXTRACTION_WORKSHEET_KIND = {
   true_false:       'true-false'
 };
 
+/** Leading list / index noise: "1.", "1)", "(1)", "1 ", bullets (PDF/OCR). */
+const SP_LEADING_MARKER = /^(?:\(\d+\)\s*|\d+[.)]\s*|\d{1,2}\s+(?=der\b|die\b|das\b|ein\b|eine\b|einem\b|einen\b|einer\b|eines\b|[A-Za-zäöüÄÖÜß])|[•‣▪·\-–—*＊‧·]\s+)/u;
+
+/** Strip same markers (and stray inline index) from captured cells. */
+function stripSingularPluralCell(raw) {
+  let s = String(raw || '').replace(/\s+/g, ' ').trim();
+  s = s.replace(SP_LEADING_MARKER, '').trim();
+  s = s.replace(/\s+\(\d{1,2}\)\s*$/u, '').trim();
+  return s;
+}
+
+function singularPluralLineLooksLikeNoise(line) {
+  const t = line.trim();
+  if (t.length < 3) return true;
+  if (/^https?:\/\//i.test(t)) return true;
+  if (/^(?:seite|page|blatt)\s*[:#.]?\s*\d+/i.test(t)) return true;
+  if (/^(?:übung|aufgabe|exercise|task)\s*[:#.]?\s*\d*$/i.test(t)) return true;
+  if (/^[\d\s.:|°\-–—→>_=]{2,}$/i.test(t) && !/[a-zäöüß]/i.test(t)) return true;
+  return false;
+}
+
+function singularPluralPairLooksValid(singular, plural) {
+  if (!singular || !plural || singular === plural) return false;
+  if (singular.length < 2 || plural.length < 2) return false;
+  if (singular.length > 180 || plural.length > 180) return false;
+  const hasLetter = (s) => /[a-zA-ZäöüÄÖÜß]/.test(s);
+  if (!hasLetter(singular) || !hasLetter(plural)) return false;
+  return true;
+}
+
+function dedupeSingularPluralPairs(pairs) {
+  const seen = new Set();
+  const out = [];
+  for (const p of pairs) {
+    const key = `${p.singular.toLowerCase()}\0${p.plural.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Deterministic singular/plural row extraction from raw worksheet text (no AI).
+ * Supports: arrow (→ / ->), numbered + arrow (incl. "(1)" and short numeric prefix before articles),
+ * pipe, double-space columns; noise filtering and deduplication.
+ */
+function extractSingularPluralPairs(text) {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const pairs = [];
+
+  for (const line of lines) {
+    if (singularPluralLineLooksLikeNoise(line)) continue;
+
+    // Numbered / bulleted + arrow (incl. "(1) der Mann → …", "12 der Mann → …" before article)
+    let match = line.match(
+      /^(?:\(\d+\)\s*|\d+[.)]\s*|\d{1,2}\s+(?=der\b|die\b|das\b|ein\b|eine\b|einem\b|einen\b|einer\b|eines\b|[A-Za-zäöüÄÖÜß])|[•‣▪·\-–—*＊‧·]\s*)?(.+?)\s*(?:→|->)\s*(.+)$/u
+    );
+    if (match) {
+      const singular = stripSingularPluralCell(match[1]);
+      const plural = stripSingularPluralCell(match[2]);
+      if (singularPluralPairLooksValid(singular, plural)) {
+        pairs.push({ singular, plural });
+      }
+      continue;
+    }
+
+    // Table-like pipe (skip lines that look like markdown tables)
+    if (/^\|?\s*:?-{3,}/.test(line)) continue;
+    match = line.match(/^(.+?)\s*\|\s*(.+)$/);
+    if (match) {
+      const singular = stripSingularPluralCell(match[1]);
+      const plural = stripSingularPluralCell(match[2]);
+      if (singularPluralPairLooksValid(singular, plural)) {
+        pairs.push({ singular, plural });
+      }
+      continue;
+    }
+
+    // Two columns separated by 2+ spaces (ignore lines with arrow tokens — handled above)
+    if (/(?:→|->)/.test(line)) continue;
+    match = line.match(/^(.+?)\s{2,}(.+)$/);
+    if (match) {
+      const singular = stripSingularPluralCell(match[1]);
+      const plural = stripSingularPluralCell(match[2]);
+      if (singularPluralPairLooksValid(singular, plural)) {
+        pairs.push({ singular, plural });
+      }
+    }
+  }
+
+  return dedupeSingularPluralPairs(pairs);
+}
+
+/**
+ * Build { singular, plural }[] from raw block text (rules first) or AI extraction payload (fallback).
+ * @param {object} q - one question object from AI JSON
+ * @param {string} [rawBlockText] - full exercise block text when available (PDF pipeline)
+ */
+function pairsFromSingularPluralQuestion(q, rawBlockText) {
+  const questionText = String(rawBlockText || '').trim();
+  if (questionText.length) {
+    console.log('[SP RAW BLOCK]', questionText.slice(0, 200));
+    const deterministicPairs = extractSingularPluralPairs(questionText);
+    console.log('[SP PARSED PAIRS]', deterministicPairs.length);
+    if (deterministicPairs.length > 0) {
+      console.log('[SINGULAR_PLURAL DETECTED]', deterministicPairs.length);
+      return deterministicPairs;
+    }
+  }
+
+  const rawPairs = Array.isArray(q?.pairs) ? q.pairs : [];
+  const out = [];
+  for (const p of rawPairs) {
+    if (!p || typeof p !== 'object') continue;
+    const s = String(p.singular != null ? p.singular : p.left != null ? p.left : '').trim();
+    const pl = String(p.plural != null ? p.plural : p.right != null ? p.right : '').trim();
+    if (s && pl && s !== pl) out.push({ singular: s, plural: pl });
+  }
+  const qn = String(q?.question || '').trim();
+  const ca = q?.correctAnswer != null ? String(q.correctAnswer).trim() : '';
+  if (!out.length && qn && ca && qn !== ca) out.push({ singular: qn, plural: ca });
+  return out;
+}
+
 function flattenExtractionResult(parsed) {
   const flatQuestions = [];
 
@@ -752,6 +882,20 @@ function flattenExtractionResult(parsed) {
       const mappedType = EXTRACTION_TYPE_MAP[exercise.type] || 'question-answer';
       const worksheetKind = EXTRACTION_WORKSHEET_KIND[exercise.type] || null;
       const sectionTitle = [topic.title, exercise.exerciseId].filter(Boolean).join(' | ');
+
+      let singularPluralBulkDone = false;
+      let spPairsFromRaw = null;
+      if (mappedType === 'singular_plural') {
+        const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+        if (rawEx.length >= 5) {
+          console.log('[SP RAW BLOCK]', rawEx.slice(0, 200));
+          spPairsFromRaw = extractSingularPluralPairs(rawEx);
+          console.log('[SP PARSED PAIRS]', spPairsFromRaw.length);
+          if (spPairsFromRaw.length > 0) {
+            console.log('[SINGULAR_PLURAL DETECTED]', spPairsFromRaw.length);
+          }
+        }
+      }
 
       for (const q of (exercise.questions || [])) {
         const base = {
@@ -782,6 +926,28 @@ function flattenExtractionResult(parsed) {
             ...base,
             instruction: exercise.instruction_de || 'Match the items.',
             pairs
+          }));
+        } else if (mappedType === 'singular_plural') {
+          if (spPairsFromRaw && spPairsFromRaw.length > 0) {
+            if (!singularPluralBulkDone) {
+              singularPluralBulkDone = true;
+              flatQuestions.push(sanitizeQuestion({
+                ...base,
+                instruction: exercise.instruction_de || 'Write the plural form.',
+                pairs: spPairsFromRaw,
+                scoringMode: 'full',
+                aiGradingEnabled: false
+              }));
+            }
+            continue;
+          }
+          const pairs = pairsFromSingularPluralQuestion(q);
+          flatQuestions.push(sanitizeQuestion({
+            ...base,
+            instruction: exercise.instruction_de || 'Write the plural form.',
+            pairs,
+            scoringMode: 'full',
+            aiGradingEnabled: false
           }));
         } else if (mappedType === 'fill-blank') {
           const sentence = String(q.question || '');
@@ -1036,7 +1202,7 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     }
 
     try {
-      const questions = flattenSingleExercise(result);
+      const questions = flattenSingleExercise(result, block.content || '');
       allQuestions.push(...questions);
       // #region agent log
       try { fs2.appendFileSync('debug-fbfbea.log', JSON.stringify({sessionId:'fbfbea',location:'pdfExerciseGenerator.js:flattenSingleExercise',message:'questions from one exercise',data:{exerciseId:block.exerciseId,aiReturnedType:result.type,aiQuestionsCount:(result.questions||[]).length,flattenedCount:questions.length},timestamp:Date.now(),hypothesisId:'B_D'})+'\n'); } catch(e){}
@@ -1477,6 +1643,7 @@ CORE RULES (STRICT)
    - mcq           → options like (a / b) OR (und / aber) OR a. b. c.
    - matching       → two columns need pairing
    - fill_in_blank  → blanks like ___ exist
+   - singular_plural → singular/plural practice (Singular→Plural, Plural forms, etc.): one row per word pair; use pairs[{singular, plural}]
    - error_correction → sentences must be corrected
    - open_writing   → user writes their own sentences
    - transformation → sentence transformation required
@@ -1522,6 +1689,7 @@ CORE RULES (STRICT)
                        answers[] should contain that one transformed output
    - true_false:       each extracted question should represent one statement;
                        answers[] should contain "richtig" or "falsch"
+   - singular_plural: each question object is ONE row: either pairs: [{ "singular":"...", "plural":"..." }] OR legacy question + correctAnswer for a single row
    - short_answer/open_writing item tasks: one question per item with its mapped answer(s)
    - paragraph/profile writing: one question only for the full writing task
 
@@ -1536,8 +1704,7 @@ SELF-VALIDATION (MANDATORY BEFORE OUTPUT):
 ✓ No invented content
 ✓ No missing instructions
 ✓ For fill_in_blank, answers map per item (not globally merged)
-✓ pairs have both left and right (matching)
-✓ JSON is valid
+✓ For singular_plural, each question has pairs[] with singular and plural populated from CONTENT / SOLUTION_KEY
 
 ---
 
@@ -1555,7 +1722,7 @@ Return ONLY valid JSON in this EXACT shape:
       "options": [],
       "correctAnswerIndex": null,
       "answers": [],
-      "pairs": [],
+      "pairs": [{"singular":"","plural":""}],
       "correctedText": ""
     }
   ]
@@ -1892,10 +2059,34 @@ function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionTy
 // ─── Convert single-exercise extraction result to flat question(s) ────────────
 // Same type-mapping logic as flattenExtractionResult, but for one exercise.
 
-function flattenSingleExercise(result) {
+function flattenSingleExercise(result, rawExerciseContent = '') {
   const mappedType = EXTRACTION_TYPE_MAP[result.type] || 'question-answer';
   const worksheetKind = EXTRACTION_WORKSHEET_KIND[result.type] || null;
   const sectionTitle = [result.topic, result.exerciseId].filter(Boolean).join(' | ') || null;
+  const raw = String(rawExerciseContent || '').trim();
+
+  // One consolidated question from raw block when rules find pairs (avoids duplicate AI rows; no extra AI for SP content).
+  if (mappedType === 'singular_plural' && raw.length >= 5) {
+    console.log('[SP RAW BLOCK]', raw.slice(0, 200));
+    const det = extractSingularPluralPairs(raw);
+    console.log('[SP PARSED PAIRS]', det.length);
+    if (det.length > 0) {
+      console.log('[SINGULAR_PLURAL DETECTED]', det.length);
+      const base = {
+        type: mappedType,
+        points: 1,
+        sectionTitle,
+        instruction: result.instruction_de || null
+      };
+      return [sanitizeQuestion({
+        ...base,
+        instruction: result.instruction_de || 'Write the plural form.',
+        pairs: det,
+        scoringMode: 'full',
+        aiGradingEnabled: false
+      })];
+    }
+  }
 
   return (result.questions || []).map(q => {
     const base = {
@@ -1916,6 +2107,16 @@ function flattenSingleExercise(result) {
     if (mappedType === 'matching') {
       const pairs = Array.isArray(q.pairs) ? q.pairs.filter(p => p.left && p.right) : [];
       return sanitizeQuestion({ ...base, instruction: result.instruction_de || 'Match the items.', pairs });
+    }
+    if (mappedType === 'singular_plural') {
+      const pairs = pairsFromSingularPluralQuestion(q);
+      return sanitizeQuestion({
+        ...base,
+        instruction: result.instruction_de || 'Write the plural form.',
+        pairs,
+        scoringMode: 'full',
+        aiGradingEnabled: false
+      });
     }
     if (mappedType === 'fill-blank') {
       const sentence = String(q.question || '');
@@ -1971,7 +2172,7 @@ router.post('/extract-single-exercise',
         return res.status(500).json({ error: 'AI returned invalid JSON. Please try again.' });
       }
 
-      const questions = flattenSingleExercise(result);
+      const questions = flattenSingleExercise(result, content.trim());
       res.json({ success: true, exerciseId: result.exerciseId, type: result.type, questions });
 
     } catch (err) {
@@ -2105,6 +2306,31 @@ function sanitizeQuestion(q) {
       ...base,
       instruction: String(q.instruction || 'Match the items on the left with their correct pairs on the right.'),
       pairs: pairs.length >= 2 ? pairs : [{ left: 'Word 1', right: 'Translation 1' }, { left: 'Word 2', right: 'Translation 2' }]
+    };
+  }
+
+  if (q.type === 'singular_plural') {
+    let pairs = Array.isArray(q.pairs)
+      ? q.pairs.map((p) => {
+          if (!p || typeof p !== 'object') return null;
+          const s = String(p.singular != null ? p.singular : p.left != null ? p.left : '').trim();
+          const pl = String(p.plural != null ? p.plural : p.right != null ? p.right : '').trim();
+          if (s && pl) return { singular: s, plural: pl };
+          return null;
+        }).filter(Boolean)
+      : [];
+    if (!pairs.length && q.prompt && Array.isArray(q.sampleAnswers) && q.sampleAnswers.length) {
+      const s = String(q.prompt || '').trim();
+      const pl = String(q.sampleAnswers[0] || '').trim();
+      if (s && pl) pairs = [{ singular: s, plural: pl }];
+    }
+    const scoringMode = ['full', 'proportional'].includes(q.scoringMode) ? q.scoringMode : 'full';
+    return {
+      ...base,
+      instruction: String(q.instruction || 'Write the plural form (with article if shown).'),
+      pairs: pairs.length ? pairs : [{ singular: 'der Mann', plural: 'die Männer' }],
+      scoringMode,
+      aiGradingEnabled: q.aiGradingEnabled === true
     };
   }
 

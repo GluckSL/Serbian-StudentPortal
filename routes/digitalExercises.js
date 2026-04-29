@@ -249,6 +249,14 @@ function formatStudentAnswerForReview(q, r) {
     const arr = r.fillBlankResponses || [];
     return arr.length ? arr.map((x) => String(x || '—')).join(' / ') : '—';
   }
+  if (q.type === 'singular_plural') {
+    const pairs = q.pairs || [];
+    const resp = r.singularPluralResponses || [];
+    if (!pairs.length) return '—';
+    return pairs
+      .map((p, i) => `${p.singular || '—'} → ${String(resp[i] ?? '').trim() || '—'}`)
+      .join(' · ');
+  }
   if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
     const t = r.spokenText || '';
     const sc = r.pronunciationScore;
@@ -279,6 +287,12 @@ function formatCorrectAnswerForReview(q) {
     const a = q.answers || [];
     return a.length ? a.map((x) => String(x)).join(' / ') : '—';
   }
+  if (q.type === 'singular_plural') {
+    const pairs = q.pairs || [];
+    return pairs.length
+      ? pairs.map((p) => `${p.singular || '—'} → ${p.plural || '—'}`).join(' · ')
+      : '—';
+  }
   if (q.type === 'pronunciation') {
     return [q.word, q.phonetic].filter(Boolean).join(' ') || '—';
   }
@@ -297,7 +311,9 @@ function formatCorrectAnswerForReview(q) {
 
 function questionPromptSnippet(q, idx) {
   if (!q) return `Question ${idx + 1}`;
-  const text = q.question || q.prompt || q.instruction || q.sentence || q.word || q.caption || '';
+  const sp0 = q.type === 'singular_plural' && Array.isArray(q.pairs) ? q.pairs[0]?.singular : '';
+  const text =
+    q.question || q.prompt || sp0 || q.instruction || q.sentence || q.word || q.caption || '';
   return clipText(text, 100) || `Question ${idx + 1}`;
 }
 
@@ -831,6 +847,9 @@ router.get('/:id', verifyToken, async (req, res) => {
           stripped.shuffledRight = [...q.pairs.map(p => p.right)].sort(() => Math.random() - 0.5);
           stripped.pairs = q.pairs.map(p => ({ left: p.left }));
         }
+        if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
+          stripped.pairs = q.pairs.map(p => ({ singular: p.singular }));
+        }
         return stripped;
       });
     }
@@ -1276,6 +1295,26 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
           : (correctCount === total ? 100 : 0);
       }
       correctAnswer = { answers };
+    } else if (q.type === 'singular_plural') {
+      const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
+      const total = rows.length;
+      if (total > 0 && Array.isArray(resp.singularPluralResponses)) {
+        let correctCount = 0;
+        for (let i = 0; i < total; i++) {
+          const given = String(resp.singularPluralResponses[i] ?? '').trim();
+          const expected = String(rows[i].plural || '').trim();
+          if (
+            given.toLowerCase().replace(/\s+/g, ' ') ===
+            expected.toLowerCase().replace(/\s+/g, ' ')
+          ) {
+            correctCount += 1;
+          }
+        }
+        rawScore = useAdvancedGrading
+          ? Math.round((correctCount / total) * 100)
+          : (correctCount === total ? 100 : 0);
+      }
+      correctAnswer = { plurals: rows.map((row) => row.plural) };
     } else if (q.type === 'pronunciation') {
       rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
       correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
@@ -1353,6 +1392,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       selectedOptionIndex: resp.selectedOptionIndex,
       matchingResponse: resp.matchingResponse,
       fillBlankResponses: resp.fillBlankResponses,
+      singularPluralResponses: resp.singularPluralResponses,
       spokenText: resp.spokenText,
       pronunciationScore: resp.pronunciationScore,
       qaResponse: resp.qaResponse,
@@ -1512,6 +1552,26 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
             : (correctCount === total ? 100 : 0);
         }
         correctAnswer = { answers };
+      } else if (q.type === 'singular_plural') {
+        const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
+        const total = rows.length;
+        if (total > 0 && Array.isArray(resp.singularPluralResponses)) {
+          let correctCount = 0;
+          for (let idx = 0; idx < total; idx++) {
+            const given = String(resp.singularPluralResponses[idx] ?? '').trim();
+            const expected = String(rows[idx].plural || '').trim();
+            if (
+              given.toLowerCase().replace(/\s+/g, ' ') ===
+              expected.toLowerCase().replace(/\s+/g, ' ')
+            ) {
+              correctCount += 1;
+            }
+          }
+          rawScore = useAdvancedGrading
+            ? Math.round((correctCount / total) * 100)
+            : (correctCount === total ? 100 : 0);
+        }
+        correctAnswer = { plurals: rows.map((row) => row.plural) };
       } else if (q.type === 'pronunciation') {
         rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
         correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
@@ -1581,6 +1641,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         selectedOptionIndex: resp.selectedOptionIndex,
         matchingResponse: resp.matchingResponse,
         fillBlankResponses: resp.fillBlankResponses,
+        singularPluralResponses: resp.singularPluralResponses,
         spokenText: resp.spokenText,
         pronunciationScore: resp.pronunciationScore,
         qaResponse: resp.qaResponse,

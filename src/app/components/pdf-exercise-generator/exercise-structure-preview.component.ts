@@ -29,7 +29,7 @@ export class ExerciseStructurePreviewComponent implements OnChanges {
   @Output() extractAll = new EventEmitter<void>();
 
   readonly typeOptions = [
-    '', 'mcq', 'matching', 'fill_in_blank', 'error_correction', 'open_writing', 'transformation', 'true_false', 'short_answer'
+    '', 'mcq', 'matching', 'fill_in_blank', 'singular_plural', 'error_correction', 'open_writing', 'transformation', 'true_false', 'short_answer'
   ];
 
   grouped: Array<{ topic: string; items: ExercisePreview[] }> = [];

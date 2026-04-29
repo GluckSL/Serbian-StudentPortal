@@ -12,7 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural';
   worksheetKind?: string | null;
   context?: string;
   // MCQ
@@ -27,7 +27,7 @@ interface BuilderQuestion {
   instruction?: string;
   // Within-day sequence letter (a/b/c…); stored at exercise level, not question level
   // (kept here only for the builder's per-exercise form; not saved on question)
-  pairs?: Array<{ left: string; right: string }>;
+  pairs?: Array<{ left?: string; right?: string; singular?: string; plural?: string }>;
   // Fill-blank
   sentence?: string;
   answers?: string[];
@@ -138,7 +138,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types the correct answer.' },
     { value: 'true-false', label: 'Richtig / Falsch', icon: 'toggle_on', description: 'Entscheiden Sie, ob eine Aussage richtig oder falsch ist.' },
     { value: 'sentence-transformation', label: 'Sentence Transformation', icon: 'transform', description: 'Transform a sentence (statement → question, etc.).' },
-    { value: 'singular-plural', label: 'Singular → Plural', icon: 'swap_horiz', description: 'Write the plural form.' },
+    { value: 'singular_plural', label: 'Singular / Plural', icon: 'swap_horiz', description: 'Student sees the singular form and types the plural.' },
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', icon: 'table_rows', description: 'Fill values in a table/profile.' },
     { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', icon: 'edit_note', description: 'Write your own sentences.' },
     { value: 'free-writing-profile', label: 'Free Writing – profile', icon: 'badge', description: 'Write a short profile (Steckbrief).' },
@@ -229,6 +229,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         instruction: q.instruction || 'Match the items on the left with their correct pairs on the right.',
         pairs: (q.pairs || [{ left: '', right: '' }]).map((p: any) => ({ left: p.left, right: p.right }))
       });
+    } else if (q.type === 'singular_plural') {
+      Object.assign(base, {
+        instruction: q.instruction || 'Write the correct plural form.',
+        pairs: (q.pairs || [])
+          .map((p: any) => ({
+            singular: String(p.singular || '').trim(),
+            plural: String(p.plural || '').trim()
+          }))
+          .filter((p: { singular: string; plural: string }) => p.singular || p.plural)
+      });
     } else if (q.type === 'fill-blank') {
       Object.assign(base, {
         sentence: q.sentence || '',
@@ -286,7 +296,6 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     const worksheetKinds = [
       'true-false',
       'sentence-transformation',
-      'singular-plural',
       'table-profile-fill',
       'free-writing-own-sentences',
       'free-writing-profile',
@@ -319,6 +328,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     } else if (qType === 'matching') {
       q.instruction = 'Match the items on the left with their correct pairs on the right.';
       q.pairs = [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }];
+    } else if (qType === 'singular_plural') {
+      q.instruction = 'Write the correct plural form.';
+      q.pairs = [{ singular: '', plural: '' }, { singular: '', plural: '' }];
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
     } else if (qType === 'fill-blank') {
       q.sentence = '';
       q.answers = [''];
@@ -383,7 +397,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   // Matching helpers
-  addPair(q: BuilderQuestion): void { q.pairs!.push({ left: '', right: '' }); }
+  addPair(q: BuilderQuestion): void {
+    if (q.type === 'singular_plural') q.pairs!.push({ singular: '', plural: '' });
+    else q.pairs!.push({ left: '', right: '' });
+  }
   removePair(q: BuilderQuestion, i: number): void { q.pairs!.splice(i, 1); }
 
   // Fill-blank helpers
@@ -547,6 +564,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
     if (q.type === 'fill-blank' && q.answers?.length) {
       return q.answers.join(', ');
+    }
+    if (q.type === 'singular_plural' && q.pairs?.length) {
+      return q.pairs
+        .filter((p) => (p.singular || '').trim() && (p.plural || '').trim())
+        .map((p) => `${p.singular} → ${p.plural}`)
+        .join(' | ');
     }
     if (q.type === 'question-answer' && q.sampleAnswers?.length) {
       return q.sampleAnswers.join(' | ');
@@ -779,7 +802,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   isQuestionValid(q: BuilderQuestion): boolean {
     if (q.type === 'mcq') return !!(q.question?.trim()) && (q.options?.filter(o => o.trim()).length ?? 0) >= 2;
-    if (q.type === 'matching') return (q.pairs?.filter(p => p.left.trim() && p.right.trim()).length ?? 0) >= 2;
+    if (q.type === 'matching') return (q.pairs?.filter(p => (p.left || '').trim() && (p.right || '').trim()).length ?? 0) >= 2;
+    if (q.type === 'singular_plural') {
+      const rows = q.pairs?.filter(p => (p.singular || '').trim() && (p.plural || '').trim()) ?? [];
+      return rows.length >= 1;
+    }
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
@@ -815,17 +842,35 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
 
     this.saving = true;
-    const normalizedQuestions = this.questions.map((q) => ({
-      ...q,
-      context: String(q.context || '').trim(),
-      // Always send strings so JSON never drops keys; server persists banner fields for all types.
-      instruction: String(q.instruction ?? ''),
-      example: String(q.workedExample ?? ''),
-      secondaryCaption: q.type === 'video-pronunciation' ? String(q.secondaryCaption || '').trim() : q.secondaryCaption,
-      secondaryCaptionAtSeconds: q.type === 'video-pronunciation'
-        ? this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds)
-        : q.secondaryCaptionAtSeconds
-    }));
+    const normalizedQuestions = this.questions.map((q) => {
+      const row: any = {
+        ...q,
+        context: String(q.context || '').trim(),
+        instruction: String(q.instruction ?? ''),
+        example: String(q.workedExample ?? ''),
+        secondaryCaption: q.type === 'video-pronunciation' ? String(q.secondaryCaption || '').trim() : q.secondaryCaption,
+        secondaryCaptionAtSeconds: q.type === 'video-pronunciation'
+          ? this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds)
+          : q.secondaryCaptionAtSeconds
+      };
+      if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
+        row.pairs = q.pairs
+          .map((p: { singular?: string; plural?: string }) => ({
+            singular: String(p.singular || '').trim(),
+            plural: String(p.plural || '').trim()
+          }))
+          .filter((p: { singular: string; plural: string }) => p.singular && p.plural);
+        row.type = 'singular_plural';
+        row.worksheetKind = null;
+      }
+      if (q.type === 'matching' && Array.isArray(q.pairs)) {
+        row.pairs = q.pairs.map((p: { left?: string; right?: string }) => ({
+          left: String(p.left || '').trim(),
+          right: String(p.right || '').trim()
+        }));
+      }
+      return row;
+    });
 
     // Normalize sequenceLetter: single lowercase letter a-z, or null
     const rawLetter = this.sequenceLetter.trim().toLowerCase();
