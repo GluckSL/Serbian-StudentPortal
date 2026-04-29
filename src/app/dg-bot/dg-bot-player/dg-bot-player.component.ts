@@ -195,7 +195,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   get botDisplayName(): string {
-    return 'Kiro';
+    return 'Ooly';
   }
 
   highlightStartCue(text: string): string {
