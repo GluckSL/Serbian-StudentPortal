@@ -88,33 +88,16 @@ if (process.env.OPENAI_API_KEY) {
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
+const pdfParse = require('pdf-parse');
+
 async function extractPdfText(filePath) {
   try {
     const buffer = fs.readFileSync(filePath);
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const data = new Uint8Array(buffer);
-    const loadingTask = getDocument({
-      data,
-      isEvalSupported: false,
-      useSystemFonts: true
-    });
-    const pdf = await loadingTask.promise;
-    const pageChunks = [];
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const line = (content.items || [])
-        .map(item => (item && typeof item.str === 'string') ? item.str : '')
-        .filter(Boolean)
-        .join(' ');
-      pageChunks.push(line.trim());
-    }
-
-    const fullText = pageChunks.filter(Boolean).join('\n\n');
+    const data = await pdfParse(buffer);
+    console.log('📄 PDF parsed:', { pages: data.numpages, length: data.text.length });
     return {
-      text: fullText,
-      pages: pdf.numPages
+      text: data.text || '',
+      pages: data.numpages || 0
     };
   } catch (err) {
     console.error('PDF parse error:', err);
