@@ -81,6 +81,8 @@ export interface DgModuleSummary {
   language?: string;
   nativeLanguage?: string;
   minimumCompletionTime?: number;
+  minPracticeMinutes?: number;
+  maxPracticeMinutes?: number | null;
   courseDay?: number | null;
   characterId?: string | DgCharacterDoc;
   visibleToStudents?: boolean;
@@ -102,6 +104,8 @@ export interface DgPlayPayload {
     language?: string;
     nativeLanguage?: string;
     minimumCompletionTime?: number;
+    minPracticeMinutes?: number;
+    maxPracticeMinutes?: number | null;
     courseDay?: number | null;
     scenes: DgScene[];
     rolePlayScenario?: DgRolePlayScenario;
@@ -157,6 +161,8 @@ export interface DgConversationStartResponse {
   vocabCount: number;
   language: string;
   situation: string;
+  minPracticeMinutes?: number;
+  maxPracticeMinutes?: number | null;
 }
 
 /** Request body for POST /api/dg/conversation/respond. */
@@ -187,6 +193,11 @@ export interface DgConversationResponse {
   usedVocab?: string[];
   /** 'waiting_start' | 'started' | 'active' | 'complete' */
   phase: string;
+  completionReason?: string | null;
+  elapsedSeconds?: number;
+  minRequiredSeconds?: number;
+  maxAllowedSeconds?: number | null;
+  shouldWrapUp?: boolean;
 }
 
 /** One entry in the chat history shown on screen. */

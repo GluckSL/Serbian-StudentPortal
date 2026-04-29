@@ -85,6 +85,8 @@ const DGModuleSchema = new mongoose.Schema(
     /** Target language mirror; native = student's L1 (same as Learning Modules role-play). */
     nativeLanguage: { type: String, default: 'English' },
     minimumCompletionTime: { type: Number, default: 10, min: 5, max: 60 },
+    minPracticeMinutes: { type: Number, default: 10, min: 5, max: 120 },
+    maxPracticeMinutes: { type: Number, default: null, min: 5, max: 180 },
     /** 1–200 day in course journey; unset = general pool */
     courseDay: { type: Number, min: 1, max: 200 },
     rolePlayScenario: { type: DgRolePlayScenarioSchema, default: () => ({}) },
@@ -98,6 +100,17 @@ const DGModuleSchema = new mongoose.Schema(
 
 DGModuleSchema.index({ visibleToStudents: 1, isActive: 1, level: 1 });
 DGModuleSchema.index({ createdBy: 1 });
+
+DGModuleSchema.pre('validate', function dgValidatePracticeWindow(next) {
+  if (
+    this.maxPracticeMinutes != null &&
+    this.minPracticeMinutes != null &&
+    this.maxPracticeMinutes < this.minPracticeMinutes
+  ) {
+    this.invalidate('maxPracticeMinutes', 'Max practice minutes must be greater than or equal to min practice minutes.');
+  }
+  next();
+});
 
 DGModuleSchema.methods.getSortedScenes = function getSortedScenes() {
   return [...(this.scenes || [])].sort((a, b) => (a.order || 0) - (b.order || 0));

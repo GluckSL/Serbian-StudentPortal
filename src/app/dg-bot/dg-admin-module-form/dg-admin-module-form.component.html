@@ -89,6 +89,32 @@
                   <strong>Suggestions:</strong> Quick (5–8 min) | Standard (10–15 min) | Complex (15–20 min)
                 </small>
               </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label">Min Practice Time (minutes) *</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  [(ngModel)]="editMinPracticeMinutes"
+                  name="minPracticeMins"
+                  min="5"
+                  max="120"
+                  placeholder="10"
+                />
+                <small class="form-text text-muted">Default student practice floor (5–120).</small>
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label">Max Practice Time (minutes)</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  [(ngModel)]="editMaxPracticeMinutes"
+                  name="maxPracticeMins"
+                  min="5"
+                  max="180"
+                  placeholder="Optional"
+                />
+                <small class="form-text text-muted">Optional soft cap, must be >= min practice.</small>
+              </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">Course Day (Optional)</label>
                 <input

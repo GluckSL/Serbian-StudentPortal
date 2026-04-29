@@ -38,53 +38,62 @@
        [class.dg-player__stage-wrap--transition]="isTransitioning">
 
     <!-- ── INTRO / BRIEFING SCENES ── -->
-    <div class="dg-player__layout" *ngIf="!conversationMode">
+    <div class="dg-conv dg-conv--intro" *ngIf="!conversationMode">
+      <aside class="dg-conv__char">
+        <div class="dg-conv__mascot">
+          <app-dg-character
+            [name]="payload.character.name"
+            [animations]="payload.character.animations || null"
+          ></app-dg-character>
+        </div>
+        <p class="dg-conv__fox-state">{{ status === 'speaking' ? 'Speaking…' : 'Listening' }}</p>
+      </aside>
 
-      <section class="dg-player__char-pane">
-        <div class="dg-player__char-stack">
-          <app-dg-dialogue
-            class="dg-player__dialogue-host"
-            [line]="displayLine"
-            [subtitle]="displaySub"
-            [variant]="dialogueVariant"
-            [disabled]="status === 'speaking'"
-            [ccEnglish]="aiResponseText"
-            [ccTamil]="aiResponseTamil"
-            (replayTts)="replayTts()"
-          ></app-dg-dialogue>
+      <main class="dg-conv__chat">
+        <header class="dg-conv__chat-head">
+          <div class="dg-conv__brand">
+            <div class="dg-conv__brand-avatar" aria-hidden="true">
+              <mat-icon>smart_toy</mat-icon>
+            </div>
+            <div class="dg-conv__brand-text">
+              <h3>Conversation Session</h3>
+              <p>Practicing {{ payload.module.title }}</p>
+            </div>
+          </div>
+          <div class="dg-conv__head-tools">
+            <button
+              mat-stroked-button
+              type="button"
+              class="dg-conv__replay"
+              [disabled]="status === 'speaking' || isTransitioning"
+              (click)="replayTts()"
+            >
+              <mat-icon>volume_up</mat-icon>
+              Replay
+            </button>
+          </div>
+        </header>
+        <div class="dg-conv__session-divider">
+          <span>Session started - now</span>
+        </div>
 
-          <div class="dg-player__mascot">
-            <app-dg-character
-              [name]="payload.character.name"
-              [animations]="payload.character.animations || null"
-            ></app-dg-character>
+        <div class="dg-conv__history">
+          <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="displayLine">
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label">{{ botDisplayName }}</span>
+              <div class="dg-conv__msg-bubble">
+                <span class="dg-conv__msg-text">{{ displayLine }}</span>
+                <span class="dg-conv__msg-translation" *ngIf="displaySub">{{ displaySub }}</span>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
 
-      <section class="dg-player__learn-pane">
-        <div class="dg-player__hero-card" *ngIf="displayLine">
-          <p class="dg-player__hero-line">{{ displayLine }}</p>
-          <p class="dg-player__hero-sub" *ngIf="displaySub">({{ displaySub }})</p>
+        <div class="dg-conv__mic-area dg-conv__mic-area--intro">
+          <p class="dg-player__non-practice-text">Speak to continue.</p>
         </div>
-        <div class="dg-player__non-practice-hint">
-          <p class="dg-player__non-practice-text">
-            Speak to continue.
-          </p>
-        </div>
-      </section>
-
-      <footer class="dg-player__footer">
-        <app-dg-controls
-          [canReplay]="status !== 'speaking' && !isTransitioning"
-          [canNext]="false"
-          [showSkip]="false"
-          [busy]="status === 'speaking' || isTransitioning"
-          (replay)="replayTts()"
-          (next)="onNext()"
-          (skip)="onSkip()"
-        ></app-dg-controls>
-      </footer>
+      </main>
     </div>
 
     <!-- ── CONVERSATION MODE ── -->

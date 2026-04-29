@@ -47,6 +47,8 @@ exports.start = async (req, res) => {
       vocabCount: state.vocabList.length,
       language: modData.language || 'German',
       situation: scenario.situation || '',
+      minPracticeMinutes: state.moduleContext.minPracticeMinutes || 10,
+      maxPracticeMinutes: state.moduleContext.maxPracticeMinutes ?? null,
     });
   } catch (err) {
     console.error('[dgConversation.start]', err);
@@ -100,6 +102,13 @@ exports.respond = async (req, res) => {
           text: promptMsg, translatedTamil, translatedEnglish,
           turnCount: 0, conversationStarted: false, complete: false,
           vocabCoverage: 0, phase: 'waiting_start',
+          completionReason: null,
+          minRequiredSeconds: (state.moduleContext.minPracticeMinutes || 10) * 60,
+          maxAllowedSeconds:
+            state.moduleContext.maxPracticeMinutes != null
+              ? state.moduleContext.maxPracticeMinutes * 60
+              : null,
+          elapsedSeconds: Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000),
           // legacy
           turnNumber: 0, sceneComplete: false,
         });
@@ -122,6 +131,13 @@ exports.respond = async (req, res) => {
         text: openingText, translatedTamil, translatedEnglish,
         turnCount: 0, conversationStarted: true, complete: false,
         vocabCoverage: 0, phase: 'started',
+        completionReason: null,
+        minRequiredSeconds: (state.moduleContext.minPracticeMinutes || 10) * 60,
+        maxAllowedSeconds:
+          state.moduleContext.maxPracticeMinutes != null
+            ? state.moduleContext.maxPracticeMinutes * 60
+            : null,
+        elapsedSeconds: Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000),
         turnNumber: 0, sceneComplete: false,
       });
     }
@@ -145,6 +161,11 @@ exports.respond = async (req, res) => {
       vocabCoverage:      result.vocabCoverage,
       usedVocab:          result.usedVocab,
       phase:              result.complete ? 'complete' : 'active',
+      completionReason:   result.completionReason || null,
+      elapsedSeconds:     result.elapsedSeconds,
+      minRequiredSeconds: result.minRequiredSeconds,
+      maxAllowedSeconds:  result.maxAllowedSeconds ?? null,
+      shouldWrapUp:       !!result.shouldWrapUp,
       // legacy fields kept for backward compat
       turnNumber:         result.turnCount,
       sceneComplete:      result.complete,

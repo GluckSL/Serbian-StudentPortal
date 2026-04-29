@@ -5,13 +5,49 @@ function sortScenes(scenes) {
   return [...(scenes || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
+function normalizePracticeWindow(input) {
+  const out = { ...input };
+  const toNumOrUndef = (v) => {
+    if (v === undefined) return undefined;
+    if (v === null || String(v).trim() === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : NaN;
+  };
+
+  const min = toNumOrUndef(input.minPracticeMinutes);
+  const max = toNumOrUndef(input.maxPracticeMinutes);
+  if (min !== undefined) out.minPracticeMinutes = min;
+  if (max !== undefined) out.maxPracticeMinutes = max;
+
+  if (out.minPracticeMinutes !== undefined) {
+    if (Number.isNaN(out.minPracticeMinutes) || out.minPracticeMinutes < 5 || out.minPracticeMinutes > 120) {
+      throw new Error('Min practice minutes must be between 5 and 120.');
+    }
+  }
+  if (out.maxPracticeMinutes !== undefined && out.maxPracticeMinutes !== null) {
+    if (Number.isNaN(out.maxPracticeMinutes) || out.maxPracticeMinutes < 5 || out.maxPracticeMinutes > 180) {
+      throw new Error('Max practice minutes must be between 5 and 180.');
+    }
+  }
+  if (
+    out.minPracticeMinutes !== undefined &&
+    out.maxPracticeMinutes !== undefined &&
+    out.maxPracticeMinutes !== null &&
+    out.maxPracticeMinutes < out.minPracticeMinutes
+  ) {
+    throw new Error('Max practice minutes must be greater than or equal to min practice minutes.');
+  }
+
+  return out;
+}
+
 exports.create = async (req, res) => {
   try {
-    const payload = {
+    const payload = normalizePracticeWindow({
       ...req.body,
       scenes: sortScenes(req.body.scenes || []),
       createdBy: req.user.id,
-    };
+    });
     const doc = new DGModule(payload);
     await doc.save();
     await doc.populate('characterId');
@@ -23,7 +59,7 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const body = { ...req.body };
+    const body = normalizePracticeWindow({ ...req.body });
     if (Array.isArray(body.scenes)) body.scenes = sortScenes(body.scenes);
     delete body.createdBy;
     const doc = await DGModule.findByIdAndUpdate(req.params.id, body, {
@@ -186,6 +222,8 @@ exports.getPlay = async (req, res) => {
         language: mod.language,
         nativeLanguage: mod.nativeLanguage,
         minimumCompletionTime: mod.minimumCompletionTime,
+        minPracticeMinutes: mod.minPracticeMinutes,
+        maxPracticeMinutes: mod.maxPracticeMinutes,
         courseDay: mod.courseDay,
         scenes,
         rolePlayScenario: mod.rolePlayScenario,

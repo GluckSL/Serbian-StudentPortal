@@ -62,7 +62,7 @@ function buildDGPrompt(module, scene, runtime = {}) {
   const studentRole = scenario.studentRole || 'student';
   const personality = scenario.aiPersonality || 'friendly and natural';
   const setting = scenario.setting || '';
-  const durationMinutes = module.minimumCompletionTime || 10;
+  const durationMinutes = module.minPracticeMinutes || module.minimumCompletionTime || 10;
   const remainingSeconds =
     typeof runtime.remainingSeconds === 'number'
       ? Math.max(0, Math.floor(runtime.remainingSeconds))
@@ -82,9 +82,10 @@ function buildDGPrompt(module, scene, runtime = {}) {
 
 STRICT RULES:
 * Stay inside this role: ${role}
-* Only use these vocabulary words: ${vocabLine}
+* Prioritize these core vocabulary words: ${vocabLine}
 * You may use basic connectors (I, you, want, is, are, am, please, thank, yes, no, a, an, the, and, but, or, my, your, not, good, here, what, how)
-* Do NOT introduce new topic words outside the vocabulary list
+* You may add simple support words that fit CEFR level ${module.level || 'A1'} and the role-play context
+* Keep topic aligned with the scene objective and roles
 * Do NOT teach or explain grammar
 
 LANGUAGE:

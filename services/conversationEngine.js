@@ -22,6 +22,7 @@ const START_KEYWORDS = [
 function startConversation(sessionId, moduleData) {
   const vocab = _extractVocabWords(moduleData);
   const scenario = moduleData.rolePlayScenario || {};
+  const timing = _resolvePracticeWindow(moduleData);
 
   const state = {
     sessionId,
@@ -45,10 +46,15 @@ function startConversation(sessionId, moduleData) {
       language:         moduleData.language      || 'German',
       nativeLanguage:   moduleData.nativeLanguage || 'English',
       minimumCompletionTime: moduleData.minimumCompletionTime || 10,
+      minPracticeMinutes: timing.minPracticeMinutes,
+      maxPracticeMinutes: timing.maxPracticeMinutes,
       allowedVocabulary:  moduleData.allowedVocabulary  || [],
       aiTutorVocabulary:  moduleData.aiTutorVocabulary  || [],
       allowedGrammar:     moduleData.allowedGrammar      || [],
+      level: moduleData.level || 'A1',
     },
+    wrapUpStarted: false,
+    completionReason: null,
     createdAt: Date.now(),
   };
 
@@ -81,15 +87,72 @@ function checkStartTrigger(transcript) {
 }
 
 /**
- * Check whether a conversation should end:
- *  - 80 % of vocab covered, OR
- *  - turnCount >= maxTurns
+ * Compute completion status with time-first policy.
  */
 function isConversationComplete(state) {
-  if (state.turnCount >= state.maxTurns) return true;
-  if (state.vocabList.length === 0) return state.turnCount >= 8;
-  const coverage = state.usedVocab.length / state.vocabList.length;
-  return coverage >= 0.8;
+  const elapsedSec = Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000);
+  const minSeconds = Math.max(60, (state.moduleContext.minPracticeMinutes || 10) * 60);
+  const maxMinutes = state.moduleContext.maxPracticeMinutes;
+  const maxSeconds = maxMinutes != null ? Math.max(minSeconds, maxMinutes * 60) : null;
+
+  const vocabCoverage = state.vocabList.length > 0
+    ? state.usedVocab.length / state.vocabList.length
+    : 1;
+  const vocabGoalMet = vocabCoverage >= 0.8;
+  const minTimeMet = elapsedSec >= minSeconds;
+  const maxTimeReached = maxSeconds != null && elapsedSec >= maxSeconds;
+
+  if (!minTimeMet && !maxTimeReached) {
+    return {
+      complete: false,
+      reason: null,
+      elapsedSec,
+      minSeconds,
+      maxSeconds,
+      vocabCoverage,
+      vocabGoalMet,
+      shouldWrapUp: false,
+    };
+  }
+
+  if (maxTimeReached) {
+    return {
+      complete: true,
+      reason: 'max_time_reached',
+      elapsedSec,
+      minSeconds,
+      maxSeconds,
+      vocabCoverage,
+      vocabGoalMet,
+      shouldWrapUp: true,
+    };
+  }
+
+  if (vocabGoalMet) {
+    return {
+      complete: true,
+      reason: 'vocab_goal',
+      elapsedSec,
+      minSeconds,
+      maxSeconds,
+      vocabCoverage,
+      vocabGoalMet,
+      shouldWrapUp: false,
+    };
+  }
+
+  const remainingToMax = maxSeconds != null ? maxSeconds - elapsedSec : null;
+  const shouldWrapUp = remainingToMax != null && remainingToMax <= 90;
+  return {
+    complete: false,
+    reason: null,
+    elapsedSec,
+    minSeconds,
+    maxSeconds,
+    vocabCoverage,
+    vocabGoalMet,
+    shouldWrapUp,
+  };
 }
 
 /**
@@ -153,13 +216,18 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
   // Track vocab in student speech
   const usedVocab = _trackVocab(state.vocabList, state.usedVocab, transcript);
 
-  // Is the conversation over?
+  // Evaluate completion with current student turn before generating AI reply.
   const testState = { ...state, turnCount: newTurnCount, usedVocab };
-  const complete = isConversationComplete(testState);
+  const completion = isConversationComplete(testState);
 
   // Build AI reply
-  const systemPrompt = _buildSystemPrompt({ ...state, turnCount: newTurnCount, usedVocab });
-  let aiText = await _generateReply(systemPrompt, historyWithStudent, complete);
+  const systemPrompt = _buildSystemPrompt({
+    ...state,
+    turnCount: newTurnCount,
+    usedVocab,
+    wrapUpStarted: state.wrapUpStarted || completion.shouldWrapUp || completion.complete,
+  });
+  let aiText = await _generateReply(systemPrompt, historyWithStudent, completion.complete);
 
   // Track vocab in AI reply too
   const finalUsedVocab = _trackVocab(state.vocabList, usedVocab, aiText);
@@ -173,6 +241,8 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
     turnCount: newTurnCount,
     usedVocab: finalUsedVocab,
     history: finalHistory,
+    wrapUpStarted: state.wrapUpStarted || completion.shouldWrapUp || completion.complete,
+    completionReason: completion.complete ? completion.reason : null,
   });
 
   // Translate (non-blocking)
@@ -186,7 +256,12 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
     aiText,
     translatedTamil,
     turnCount: newTurnCount,
-    complete,
+    complete: completion.complete,
+    completionReason: completion.reason,
+    elapsedSeconds: completion.elapsedSec,
+    minRequiredSeconds: completion.minSeconds,
+    maxAllowedSeconds: completion.maxSeconds,
+    shouldWrapUp: completion.shouldWrapUp,
     vocabCoverage,
     usedVocab: finalUsedVocab,
   };
@@ -219,11 +294,30 @@ function _trackVocab(vocabList, currentUsed, text) {
   return [...used];
 }
 
+function _resolvePracticeWindow(moduleData) {
+  const fallbackMin = Number(moduleData.minimumCompletionTime || 10);
+  const minRaw = moduleData.minPracticeMinutes ?? fallbackMin;
+  const maxRaw = moduleData.maxPracticeMinutes;
+
+  const minPracticeMinutes = Number.isFinite(Number(minRaw))
+    ? Math.min(120, Math.max(5, Number(minRaw)))
+    : 10;
+  let maxPracticeMinutes = null;
+  if (maxRaw != null && maxRaw !== '') {
+    const parsed = Number(maxRaw);
+    if (Number.isFinite(parsed)) {
+      maxPracticeMinutes = Math.min(180, Math.max(minPracticeMinutes, parsed));
+    }
+  }
+  return { minPracticeMinutes, maxPracticeMinutes };
+}
+
 /**
  * Build the system prompt dynamically, reflecting current progress.
  */
 function _buildSystemPrompt(state) {
   const ctx = state.moduleContext;
+  const level = (ctx.level || 'A1').toUpperCase();
 
   const allVocab = [
     ...(ctx.allowedVocabulary  || []).map((v) => (typeof v === 'string' ? v : v.word)),
@@ -232,19 +326,23 @@ function _buildSystemPrompt(state) {
   const vocabStr = [...new Set(allVocab)].join(', ');
 
   const unusedVocab = state.vocabList.filter((w) => !state.usedVocab.includes(w));
-  const remaining   = state.maxTurns - state.turnCount;
   const coveragePct = state.vocabList.length > 0
     ? Math.round((state.usedVocab.length / state.vocabList.length) * 100)
     : 0;
+  const elapsedSec = Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000);
+  const minSec = Math.max(60, (ctx.minPracticeMinutes || 10) * 60);
+  const maxSec = ctx.maxPracticeMinutes != null ? Math.max(minSec, ctx.maxPracticeMinutes * 60) : null;
+  const remainingToMin = Math.max(0, minSec - elapsedSec);
+  const remainingToMax = maxSec != null ? Math.max(0, maxSec - elapsedSec) : null;
 
   let endingNote = '';
-  if (remaining <= 2) {
-    endingNote = '\nSESSION ENDING SOON: Wrap up warmly. Praise the student in 1–2 sentences.';
-  } else if (remaining <= 4) {
-    endingNote = '\nNearing end: Begin wrapping up the scenario naturally.';
+  if (state.wrapUpStarted || (remainingToMax != null && remainingToMax <= 90)) {
+    endingNote = '\nWRAP-UP MODE: Begin closing naturally, keep role consistency, and end in 1-2 turns.';
+  } else if (remainingToMin > 0) {
+    endingNote = `\nMIN PRACTICE TIME NOT REACHED: keep conversation active for at least ${Math.ceil(remainingToMin / 60)} more minute(s).`;
   }
 
-  return `You are a ${ctx.language} A1/A2 conversation partner playing the role of: ${ctx.aiRole}
+  return `You are a ${ctx.language} CEFR ${level} conversation partner playing the role of: ${ctx.aiRole}
 
 SITUATION: ${ctx.situation || 'General language practice'}
 SETTING: ${ctx.setting || 'Language learning'}
@@ -253,14 +351,15 @@ YOUR PERSONALITY: ${ctx.aiPersonality}
 
 STRICT RULES:
 - Speak ONLY in ${ctx.language}
-- Keep every reply SHORT — maximum 12 words
+- Keep every reply SHORT — maximum ${level.startsWith('A1') ? 10 : 14} words
 - Ask ONE question per turn
 - Sound like a REAL PERSON in the situation, not a teacher
-- Use at least ONE vocabulary word from "All allowed" in EVERY reply
-- Prefer vocabulary from "Still to introduce" before repeating already used words
+- Prioritize words from "Still to introduce" when natural
+- Use core vocabulary frequently, but you may add simple level-appropriate support words that fit the role and situation
 - NEVER say "wrong", "incorrect", or "mistake"
 - If the student errs, model the correct form naturally inside your reply
 - Vary responses — never repeat the same line
+- Stay in character as ${ctx.aiRole} and do not break role-play context
 
 VOCABULARY:
   All allowed: ${vocabStr || '(simple everyday words)'}

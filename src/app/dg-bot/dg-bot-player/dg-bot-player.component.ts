@@ -292,10 +292,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
             this.dgApi.conversationStart({ moduleId, sessionId: this.sessionId }),
           );
           this.waitingForStartText = convStart.roleMessage || '';
-          this.maxConversationTurns = Math.max(6, Math.min(8, convStart.maxTurns || 8));
+          this.maxConversationTurns = convStart.maxTurns || 12;
         } catch {
           this.waitingForStartText = '';
-          this.maxConversationTurns = 8;
+          this.maxConversationTurns = 12;
         }
       }
 
@@ -601,7 +601,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.charState.setState('thinking');
 
     const moduleId = this.payload!.module._id;
-    const durationMin = this.payload?.module.minimumCompletionTime || 10;
+    const durationMin =
+      this.payload?.module.minPracticeMinutes ||
+      this.payload?.module.minimumCompletionTime ||
+      10;
     const elapsedSec = this.moduleStartedAt
       ? Math.floor((Date.now() - this.moduleStartedAt) / 1000) : 0;
     const remainingSeconds = Math.max(0, durationMin * 60 - elapsedSec);
@@ -674,22 +677,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (phase === 'complete' || response.complete) {
         this.conversationComplete = true;
         await dgDelay(1500);
-        await this.finishModule();
-        return;
-      }
-
-      const vocabList = this.vocabListForConversation();
-      const allVocabUsed = vocabList.length > 0 && this.usedVocab.size >= vocabList.length;
-      const reachedTurnLimit = this.conversationTurn >= this.maxConversationTurns;
-      if (allVocabUsed || reachedTurnLimit) {
-        this.conversationComplete = true;
-        const endMsg = allVocabUsed
-          ? 'Excellent — you used all target vocabulary. Conversation complete.'
-          : 'Great effort — turn limit reached. Conversation complete.';
-        this.displayLine = endMsg;
-        this.displaySub = '';
-        await this.playTtsBlob(endMsg);
-        await dgDelay(1200);
         await this.finishModule();
         return;
       }

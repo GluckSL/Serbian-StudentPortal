@@ -52,6 +52,8 @@ export class DgAdminModuleFormComponent implements OnInit {
   editLanguage = 'German';
   editNativeLanguage = 'English';
   editMinimumCompletionTime = 10;
+  editMinPracticeMinutes = 10;
+  editMaxPracticeMinutes = '';
   editCourseDay = '';
   editCharacterId = '';
   editVisible = false;
@@ -144,6 +146,10 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editNativeLanguage = row.nativeLanguage || 'English';
     this.editMinimumCompletionTime =
       row.minimumCompletionTime != null ? row.minimumCompletionTime : 10;
+    this.editMinPracticeMinutes =
+      row.minPracticeMinutes != null ? row.minPracticeMinutes : (row.minimumCompletionTime != null ? row.minimumCompletionTime : 10);
+    this.editMaxPracticeMinutes =
+      row.maxPracticeMinutes != null ? String(row.maxPracticeMinutes) : '';
     this.editCourseDay =
       row.courseDay != null && row.courseDay > 0 ? String(row.courseDay) : '';
     this.editCharacterId =
@@ -166,6 +172,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editLanguage = 'German';
     this.editNativeLanguage = 'English';
     this.editMinimumCompletionTime = 10;
+    this.editMinPracticeMinutes = 10;
+    this.editMaxPracticeMinutes = '';
     this.editCourseDay = '';
     this.editCharacterId =
       this.characters.find((c) => c.isDefault)?._id || this.characters[0]?._id || '';
@@ -349,6 +357,9 @@ export class DgAdminModuleFormComponent implements OnInit {
 
   private buildModulePayload() {
     const mct = Number(this.editMinimumCompletionTime);
+    const minPractice = Number(this.editMinPracticeMinutes);
+    const maxPracticeRaw = (this.editMaxPracticeMinutes || '').trim();
+    const maxPractice = maxPracticeRaw === '' ? null : Number(maxPracticeRaw);
     const cdRaw = (this.editCourseDay || '').trim();
     const courseDayPayload = cdRaw === '' ? null : Number(cdRaw);
     return {
@@ -358,6 +369,8 @@ export class DgAdminModuleFormComponent implements OnInit {
       language: this.editLanguage,
       nativeLanguage: this.editNativeLanguage,
       minimumCompletionTime: mct,
+      minPracticeMinutes: minPractice,
+      maxPracticeMinutes: maxPractice,
       courseDay: courseDayPayload,
       characterId: this.editCharacterId,
       visibleToStudents: this.editVisible,
@@ -390,6 +403,19 @@ export class DgAdminModuleFormComponent implements OnInit {
     const mct = Number(this.editMinimumCompletionTime);
     if (Number.isNaN(mct) || mct < 5 || mct > 60) {
       missing.push('Minimum completion time (5–60 minutes)');
+    }
+    const minPractice = Number(this.editMinPracticeMinutes);
+    if (Number.isNaN(minPractice) || minPractice < 5 || minPractice > 120) {
+      missing.push('Min practice time (5–120 minutes)');
+    }
+    const maxPracticeRaw = (this.editMaxPracticeMinutes || '').trim();
+    if (maxPracticeRaw !== '') {
+      const maxPractice = Number(maxPracticeRaw);
+      if (Number.isNaN(maxPractice) || maxPractice < 5 || maxPractice > 180) {
+        missing.push('Max practice time (5–180 minutes or empty)');
+      } else if (!Number.isNaN(minPractice) && maxPractice < minPractice) {
+        missing.push('Max practice time must be >= min practice time');
+      }
     }
     if (!this.editRolePlay.situation?.trim()) missing.push('Situation');
     if (!this.editRolePlay.studentRole?.trim()) missing.push('Student role');
