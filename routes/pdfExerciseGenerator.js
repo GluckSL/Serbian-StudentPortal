@@ -1687,11 +1687,34 @@ function splitWorksheetIntoExercises(text) {
     const exerciseId = idMatch ? String(idMatch[1] || '') : '';
 
     if (!exerciseId) continue;
+
+    // Extract instruction_de from the lines immediately before this Übung header.
+    const beforeText = exerciseText.slice(0, start);
+    const beforeLines = beforeText.split('\n').map(l => l.trim()).filter(Boolean);
+    const instructionCandidates = beforeLines.filter(l =>
+      // must contain an instruction keyword
+      /zuordnungs|matching|lückentext|fill|plural|singular|frage|bilden|schreiben|fehler|korrigieren|choose|correct/i.test(l) &&
+      // must NOT be a numbered content line
+      !/^\d+[.)]/.test(l) &&
+      // must NOT contain blanks
+      !/_+/.test(l) &&
+      // must NOT be an arrow/answer line
+      !/→/.test(l)
+    );
+    let instruction_de = instructionCandidates.length > 0
+      ? instructionCandidates[instructionCandidates.length - 1]
+      : '';
+    instruction_de = instruction_de
+      .replace(/\/[^/]+$/, '')        // remove " / English part" after slash
+      .replace(/STUFE\s*\d+.*$/i, '') // remove STUFE suffix
+      .trim();
+    console.log('[CLEAN INSTRUCTION]', { id: exerciseId, instruction: instruction_de });
+
     exercises.push({
       exerciseId,
       topic: '',
       difficulty: 'easy',
-      instruction_de: '',
+      instruction_de,
       instruction_en: '',
       sectionType: currentSectionType || '',
       content: block,
@@ -1781,133 +1804,89 @@ function buildExercisesFromAiDetection(text, detections) {
 }
 
 function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionType = '', exerciseId = '') {
-  const text = `${instruction}\n${content}`.trim();
-  if (!text) return { type: '', questionCount: 0 };
+  if (!content && !instruction) return { type: '', questionCount: 0 };
   const rawContent = String(content || '');
   const lines = rawContent.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const instructionText = String(instruction || '').trim();
+  const instr = String(instruction || '').toLowerCase();
+  const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
 
-  const finalize = (type, questionCount) => {
-    const result = { type, questionCount: Math.max(1, Number(questionCount) || 1) };
-    console.log('[CLASSIFIER]', {
-      id: exerciseId || null,
-      type: result.type,
-      questionCount: result.questionCount
-    });
-    return result;
-  };
+  // Instruction is the sole source of truth for type.
+  // Priority order: matching > mcq > fill_blank > singular_plural > question > error_correction > writing
+  let type = 'unknown';
+  if (/zuordnungs|zuordnen|verbinden|matching|connect|pair/i.test(instr)) {
+    type = 'matching';
+  } else if (/welches|which|choose|wähle|passt/i.test(instr)) {
+    type = 'mcq';
+  } else if (/lückentext|ergänzen|fill/i.test(instr)) {
+    type = 'fill_in_blank';
+  } else if (/plural|singular/i.test(instr)) {
+    type = 'singular_plural';
+  } else if (/frage|formulier|bilden/i.test(instr)) {
+    type = 'short_answer';
+  } else if (/fehler|korrigieren|correct.*error|find.*error/i.test(instr)) {
+    type = 'error_correction';
+  } else if (/schreiben|write/i.test(instr)) {
+    if (/frage|question/i.test(instr)) {
+      type = 'short_answer';
+    } else if (/fehler|korrigieren|correct.*error|find.*error/i.test(instr)) {
+      type = 'error_correction';
+    } else {
+      type = 'open_writing';
+    }
+  }
 
-  // Section heading override (highest priority)
-  if (/zuordnungs|matching/i.test(String(sectionType || ''))) {
-    let questionCount = 0;
-    const leftItems = lines.filter(l => /^\d+[.)]/.test(l));
+  // Mixed instruction: correction wins over writing only when truly about error fixing.
+  if (/fehler|korrigieren|correct.*error|find.*error/i.test(instr) && /satz|write|schreiben/i.test(instr)) {
+    type = 'error_correction';
+  }
+
+  // Safe fallback for unresolved 'unknown' types.
+  if (type === 'unknown') {
+    console.log('[FALLBACK TYPE]', { id: exerciseId || null, instruction });
+    if (/connect|match|pair/i.test(instr)) {
+      type = 'matching';
+    } else if (/fill/i.test(instr)) {
+      type = 'fill_in_blank';
+    } else if (/question|frage/i.test(instr)) {
+      type = 'short_answer';
+    }
+  }
+
+  // Count based on type.
+  let questionCount = 1;
+  if (type === 'matching') {
+    const leftItems  = lines.filter(l => /^\d+[.)]/.test(l));
     const rightItems = lines.filter(l => /^[a-zA-Z][.)]/.test(l));
-
     if (leftItems.length && rightItems.length) {
       questionCount = Math.min(leftItems.length, rightItems.length);
     } else if (leftItems.length) {
       questionCount = leftItems.length;
     } else {
       const inlinePairs = lines.filter(l => /\d+[.)].+?[a-zA-Z][.)]/.test(l));
-      questionCount = inlinePairs.length;
+      questionCount = inlinePairs.length || 4;
     }
-
-    if (!questionCount || questionCount === 0) {
-      questionCount = 4;
-    }
-
     console.log('[MATCH COUNT]', {
       id: exerciseId || null,
       left: leftItems.length,
       right: rightItems.length,
       final: questionCount
     });
-
-    const result = finalize('matching', questionCount);
-    console.log('[SECTION CLASSIFIER]', {
-      id: exerciseId || null,
-      sectionType,
-      finalType: result.type
-    });
-    return result;
-  }
-  if (/lückentext|lueckentext|fill/i.test(String(sectionType || ''))) {
+  } else if (type === 'fill_in_blank') {
     const blankLines = lines.filter(l => /_+/.test(l)).length;
-    const result = finalize('fill_in_blank', Math.max(blankLines, 1));
-    console.log('[SECTION CLASSIFIER]', {
-      id: exerciseId || null,
-      sectionType,
-      finalType: result.type
-    });
-    return result;
-  }
-  if (/fragen|question/i.test(String(sectionType || ''))) {
-    const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
-    const result = finalize('short_answer', numbered.length > 0 ? numbered.length : 1);
-    console.log('[SECTION CLASSIFIER]', {
-      id: exerciseId || null,
-      sectionType,
-      finalType: result.type
-    });
-    return result;
-  }
-  if (/plural|singular/i.test(String(sectionType || ''))) {
-    const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
-    const result = finalize('transformation', numbered.length > 0 ? numbered.length : 1);
-    console.log('[SECTION CLASSIFIER]', {
-      id: exerciseId || null,
-      sectionType,
-      finalType: result.type
-    });
-    return result;
+    questionCount = Math.max(blankLines, 1);
+  } else if (type === 'open_writing') {
+    questionCount = 1;
+  } else {
+    questionCount = Math.max(numbered.length, 1);
   }
 
-  // STEP 1 — MATCHING (highest priority): keyword + column structure
-  const matchingInstruction = /\b(zuordnung|zuordnen|verbinden|match)\b/i.test(instructionText);
-  const columnPairs = lines.filter(line => {
-    return (
-      line.split(/\s{2,}|\t/).length >= 2 &&
-      line.length < 80
-    );
+  console.log('[FINAL CLASSIFIER]', {
+    id: exerciseId || null,
+    instruction,
+    detectedType: type
   });
 
-  if (matchingInstruction && columnPairs.length >= 3) {
-    console.log('[MATCH DETECT]', {
-      id: exerciseId || null,
-      columnPairs: columnPairs.length
-    });
-    return finalize('matching', columnPairs.length);
-  }
-
-  // STEP 2 — numbered structure
-  const numbered = rawContent.match(/^\s*\d+[.)]/gm) || [];
-
-  // STEP 3 — writing
-  if (/\b(schreiben|write)\b/i.test(instructionText)) {
-    const explicitCountMatch = /\b(\d+)\s*(?:sentences?|sätze)\b/i.exec(text);
-    const explicitCount = explicitCountMatch ? parseInt(explicitCountMatch[1], 10) : 0;
-    if (numbered.length > 0) return finalize('short_answer', numbered.length);
-    if (explicitCount > 0) return finalize('short_answer', explicitCount);
-    return finalize('short_answer', 1);
-  }
-
-  // STEP 4 — question formulation / transformation
-  if (/\b(frage|formulieren|bilden|w-frage)\b/i.test(text)) {
-    return finalize('short_answer', numbered.length > 0 ? numbered.length : 1);
-  }
-
-  // STEP 5 — fill in blank
-  if (/_+/.test(rawContent)) {
-    const blankLines = lines.filter(l => /_+/.test(l)).length;
-    return finalize('fill_in_blank', Math.max(blankLines, 1));
-  }
-
-  // STEP 6 — true/false
-  if (/\b(richtig|falsch|true|false)\b/i.test(text)) {
-    return finalize('true_false', numbered.length > 0 ? numbered.length : 1);
-  }
-
-  return finalize('short_answer', numbered.length > 0 ? numbered.length : 1);
+  return { type, questionCount };
 }
 
 // ─── Convert single-exercise extraction result to flat question(s) ────────────
