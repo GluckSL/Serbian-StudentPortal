@@ -83,7 +83,7 @@
             <div class="dg-conv__msg-stack">
               <span class="dg-conv__msg-label">{{ botDisplayName }}</span>
               <div class="dg-conv__msg-bubble">
-                <span class="dg-conv__msg-text">{{ displayLine }}</span>
+                <span class="dg-conv__msg-text" [innerHTML]="highlightStartCue(displayLine)"></span>
                 <span class="dg-conv__msg-translation" *ngIf="displaySub">{{ displaySub }}</span>
               </div>
             </div>
@@ -177,7 +177,8 @@
               <span class="dg-conv__msg-label" *ngIf="msg.speaker === 'ai'">{{ botDisplayName }}</span>
               <span class="dg-conv__msg-label dg-conv__msg-label--student" *ngIf="msg.speaker === 'student'">{{ studentDisplayName }}</span>
               <div class="dg-conv__msg-bubble">
-                <span class="dg-conv__msg-text">{{ msg.text }}</span>
+                <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'ai'" [innerHTML]="highlightStartCue(msg.text)"></span>
+                <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'student'">{{ msg.text }}</span>
                 <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
                   {{ getCcCaption(msg) }}
                 </span>

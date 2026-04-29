@@ -198,6 +198,18 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return 'Kiro';
   }
 
+  highlightStartCue(text: string): string {
+    const raw = String(text || '');
+    const escaped = raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escaped.replace(
+      /"((?:Bereit|Ready)!?)"/gi,
+      '<span class="dg-conv__start-cue">"$1"</span>',
+    );
+  }
+
   /** True when the module has conversation content (vocab / role-play scenario). */
   private get hasConversationContent(): boolean {
     const mod = this.payload?.module;
@@ -539,15 +551,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       (this.payload?.module.rolePlayScenario?.studentGuidance?.trim()) ||
       '';
     const readyMsg = withStartCue(readyMsgBase || 'Say "Bereit!" or "Ready!" to start the conversation.');
-    const scenario = this.payload?.module.rolePlayScenario;
-    const roleParts: string[] = [];
-    if (scenario?.studentRole?.trim()) roleParts.push(`Your role: ${scenario.studentRole.trim()}.`);
-    if (scenario?.situation?.trim()) roleParts.push(`Situation: ${scenario.situation.trim()}.`);
-    if (scenario?.objective?.trim()) roleParts.push(`Goal: ${scenario.objective.trim()}.`);
-    const readyMsgEnglish = [
-      ...roleParts,
-      startCue,
-    ].join(' ');
+    const readyMsgEnglish = readyMsg;
 
     // Show the role/start instruction as a visible chat bubble in English.
     this.chatHistory = [

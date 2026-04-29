@@ -811,6 +811,11 @@
   color: #64748b;
 }
 
+:host ::ng-deep .dg-conv__start-cue {
+  color: #15803d;
+  font-weight: 800;
+}
+
 .dg-conv__msg--student .dg-conv__msg-score {
   color: rgba(255, 255, 255, 0.8);
 }
