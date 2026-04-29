@@ -92,6 +92,7 @@ const pdfParse = require('pdf-parse');
 
 async function extractPdfText(filePath) {
   try {
+    console.log("🔥 USING PDF-PARSE VERSION");
     const buffer = fs.readFileSync(filePath);
     const data = await pdfParse(buffer);
     console.log('📄 PDF parsed:', { pages: data.numpages, length: data.text.length });
