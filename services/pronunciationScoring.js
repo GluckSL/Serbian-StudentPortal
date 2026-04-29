@@ -478,13 +478,35 @@ function evaluateThreshold(score, _threshold, sentenceLength = 7) {
 
 function evaluateThresholdAdvanced(score, _threshold, opts = {}) {
   const s = clamp(Number(score) || 0, 0, 100);
-  const sentenceLength = Number(opts.sentenceLength || 7);
+  const wordCoverage = Number(opts.wordCoverage || 0);
+
+  // Derive sentence length from the normalised expected string when not supplied
+  // directly, so dynamic thresholds calibrate correctly for short vs long phrases.
+  let sentenceLength = Number(opts.sentenceLength);
+  if (!sentenceLength || !Number.isFinite(sentenceLength)) {
+    const normExp = String(opts.normalizedExpected || '').trim();
+    sentenceLength = normExp ? normExp.split(/\s+/).filter(Boolean).length : 7;
+  }
+
   const { correct, almostCorrect } = getDynamicThresholds(sentenceLength);
+
+  // Hard coverage gate: student must say at least 80% of the expected words
+  // to ever be marked correct, regardless of the similarity score.
+  // This prevents partial speech from slipping through even if the scorer
+  // gives it a high score due to weighted minor-word matching.
+  const COVERAGE_GATE = 0.80;
+  const coverageOk = wordCoverage >= COVERAGE_GATE;
+
+  // Almost-correct band requires at least 50% word coverage.
+  const ALMOST_COVERAGE_GATE = 0.50;
+  const almostCoverageOk = wordCoverage >= ALMOST_COVERAGE_GATE;
+
   return {
-    isCorrect: s >= correct,
-    isAlmostCorrect: s >= almostCorrect && s < correct,
+    isCorrect: s >= correct && coverageOk,
+    isAlmostCorrect: (s >= almostCorrect && s < correct && almostCoverageOk) ||
+                     (s >= correct && !coverageOk && almostCoverageOk),
     threshold: correct,
-    wordCoverage: Number(opts.wordCoverage || 0),
+    wordCoverage,
   };
 }
 

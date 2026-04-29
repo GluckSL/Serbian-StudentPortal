@@ -3881,6 +3881,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .vp-mobile-wait {
@@ -3907,6 +3910,24 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-top: 2px;
+}
+
+.vp-mobile-shell .vp-mob-btn-row {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  /* Prevent buttons from visually blending into the scroll content. */
+  background: linear-gradient(165deg, rgba(250, 251, 255, 0.98) 0%, rgba(255, 255, 255, 0.98) 45%, rgba(248, 250, 252, 0.98) 100%);
+  padding-top: 6px;
+}
+
+/* Mobile VP: never show the "Need help?" overlay.
+   The spec for the wrong-state screen is only:
+   1) retry
+   2) next clip */
+.vp-mobile-shell .pron-help-wrap,
+.vp-mobile-outer .pron-help-wrap {
+  display: none !important;
 }
 
 .vp-mob-btn {
@@ -4663,4 +4684,73 @@
   text-overflow: ellipsis;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* ── Video-only pronunciation: "wrong" mobile minimal UI helpers ────────── */
+@media (max-width: 900px) {
+  .vp-wrong-minimal-hide-on-mobile {
+    display: none !important;
+  }
+
+  .vp-wrong-action-hide-on-mobile {
+    display: none !important;
+  }
+
+  .vp-wrong-feedback-hide-on-mobile {
+    display: none !important;
+  }
+
+  .vp-mob-wrong-feedback-hide {
+    display: none !important;
+  }
+
+  .vp-mob-wrong-extra-hide {
+    display: none !important;
+  }
+
+  .vp-mob-btn--wrong-mini {
+    padding: 10px 8px !important;
+    font-size: 0.82rem !important;
+    border-radius: 14px !important;
+  }
+
+  .vp-mob-btn--wrong-mini .material-icons {
+    font-size: 1.45rem !important;
+  }
+}
+
+/* Mobile shell: enforce minimal wrong UI regardless of viewport width.
+   The phone card uses `overflow: hidden`, so if extra elements aren't hidden
+   (e.g. on desktop widths), the retry buttons can be pushed off-screen. */
+.vp-mobile-shell .vp-mob-wrong-feedback-hide {
+  display: none !important;
+}
+
+.vp-mobile-shell .vp-mob-wrong-extra-hide {
+  display: none !important;
+}
+
+.vp-mobile-shell .vp-mob-btn--wrong-mini {
+  padding: 10px 8px !important;
+  font-size: 0.82rem !important;
+  border-radius: 14px !important;
+}
+
+.vp-mobile-shell .vp-mob-btn--wrong-mini .material-icons {
+  font-size: 1.45rem !important;
+}
+
+/* Desktop + mobile: minimal wrong UI (global).
+   These classes are applied only when vpResult !== 'correct', so it won't
+   affect the correct state screen. */
+.vp-wrong-minimal-hide-on-mobile {
+  display: none !important;
+}
+
+.vp-wrong-action-hide-on-mobile {
+  display: none !important;
+}
+
+.vp-wrong-feedback-hide-on-mobile {
+  display: none !important;
 }

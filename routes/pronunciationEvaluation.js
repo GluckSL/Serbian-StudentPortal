@@ -277,12 +277,15 @@ router.post(
         !normalization.normalized
       );
 
-      const transcriptHints = [expected, ...variants]
-        .map((v) => String(v || '').trim())
-        .filter(Boolean)
-        .slice(0, 6)
-        .join(' | ');
-      const transcribeRes = await transcribeAudio(normalization.path, language.whisper, transcriptHints);
+      // IMPORTANT: Do NOT pass the expected sentence as a Whisper prompt — it
+      // causes Whisper to autocomplete partial speech into the full target phrase,
+      // making any partial attempt appear as 100% correct.
+      // Use only a generic language-context hint so Whisper knows the language
+      // without being guided toward the expected answer.
+      const genericHint = language.full === 'German'
+        ? 'Deutsch. Sprachübung.'
+        : 'English. Language practice.';
+      const transcribeRes = await transcribeAudio(normalization.path, language.whisper, genericHint);
       const transcript = transcribeRes.text || '';
       const engine = transcribeRes.engine;
 

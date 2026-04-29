@@ -308,6 +308,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Current video-pronunciation element (for autoplay / replay). */
   private vpVideoElement: HTMLVideoElement | null = null;
 
+  /** We mute the reference video during recording to avoid the mic hearing the target audio. */
+  private vpMutedDuringPronunciation = false;
+  private vpVideoMutedBeforePronunciation = false;
+  private vpVideoVolumeBeforePronunciation = 1;
+  private vpVideoPausedBeforePronunciation = true;
+  private vpVideoTimeBeforePronunciation = 0;
+
   /** Admin-uploaded praise / retry clip (video exercises). */
   private vpFeedbackAudioEl: HTMLAudioElement | null = null;
   /** Hard timeout to stop stuck speech-recognition sessions. */
@@ -1346,6 +1353,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   get unansweredCount(): number { return this.playerQuestions.filter(q => q.isCorrect !== true && q.isCorrect !== false).length; }
   get submittedCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true || q.isCorrect === false).length; }
   get pendingCount(): number { return this.playerQuestions.length - this.submittedCount; }
+  /**
+   * 90% completion gating:
+   * Students can only finish once they've attempted at least 90% of clips/questions.
+   * Uses `answeredCount` because that's the existing "attempted" signal in this player.
+   */
+  get canCompleteByAttemptRate(): boolean {
+    const total = this.playerQuestions.length;
+    if (!total) return false;
+    const needed = Math.ceil(0.9 * total);
+    return this.answeredCount >= needed;
+  }
   /** Backward-compatible alias used by older template fragments. */
   get isSubmittedState(): boolean { return this.state === 'submitted'; }
 
@@ -1473,7 +1491,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.recordingCountdown = 0;
   }
 
-  private static readonly VP_PASS_SCORE = 20;
+  // Default pass threshold for video pronunciation when exercise config
+  // doesn't include `data.similarityThreshold`.
+  // Using a low default causes partial speech to be treated as "correct".
+  private static readonly VP_PASS_SCORE = 60;
   private static readonly VP_SECONDARY_CAPTION_DEFAULT_DELAY_SECONDS = 5;
   private static readonly VP_MAX_FAILED_ATTEMPTS_PER_CLIP = 3;
 
@@ -2522,6 +2543,49 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  private muteVpVideoDuringPronunciation(): void {
+    const v = this.vpVideoElement;
+    if (!v) return;
+    if (!this.vpMutedDuringPronunciation) {
+      this.vpVideoMutedBeforePronunciation = !!v.muted;
+      this.vpVideoVolumeBeforePronunciation = Number.isFinite(v.volume) ? v.volume : 1;
+      this.vpVideoPausedBeforePronunciation = !!v.paused;
+      this.vpVideoTimeBeforePronunciation = Number.isFinite(v.currentTime) ? v.currentTime : 0;
+      this.vpMutedDuringPronunciation = true;
+    }
+    // Use multiple guards (mute + volume + pause) because some setups can
+    // still leak reference audio into the mic even when `muted=true`.
+    v.muted = true;
+    v.volume = 0;
+    try { v.pause(); } catch { /* ignore */ }
+  }
+
+  private restoreVpVideoAfterPronunciation(): void {
+    const v = this.vpVideoElement;
+    if (!v) {
+      this.vpMutedDuringPronunciation = false;
+      return;
+    }
+    if (this.vpMutedDuringPronunciation) {
+      v.muted = this.vpVideoMutedBeforePronunciation;
+      v.volume = this.vpVideoVolumeBeforePronunciation;
+      const wasPaused = this.vpVideoPausedBeforePronunciation;
+      const t = this.vpVideoTimeBeforePronunciation;
+      this.vpMutedDuringPronunciation = false;
+      try {
+        // Restore playback position and pause state if we paused it for recording.
+        if (!wasPaused) {
+          v.currentTime = t;
+          void v.play();
+        } else {
+          v.currentTime = t;
+        }
+      } catch {
+        // If restoring fails (e.g. element detached), keep the safe muted state.
+      }
+    }
+  }
+
   /**
    * Entry point for video-pronunciation clips. Prefers the MediaRecorder +
    * backend Whisper flow; falls back to the legacy in-browser
@@ -2582,6 +2646,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.isRecording = true;
     pq.vpResult = 'idle';
     this.clearVpFeedbackUi();
+    this.muteVpVideoDuringPronunciation();
 
     const target = this.speakTargetCaptionForQuestion(pq);
     const variants = Array.isArray(pq.data.acceptedVariants) ? pq.data.acceptedVariants : [];
@@ -2595,6 +2660,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (finalized) return;
       finalized = true;
       pq.isRecording = false;
+      this.restoreVpVideoAfterPronunciation();
       if (this.recognition === rec) this.recognition = null;
       if (this.vpManualStopFinalize) this.vpManualStopFinalize = null;
       pq.vpFailCount = (pq.vpFailCount || 0) + 1;
@@ -2630,6 +2696,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (finalized) return;
       finalized = true;
       pq.isRecording = false;
+      this.restoreVpVideoAfterPronunciation();
       if (this.recognition === rec) this.recognition = null;
       if (this.vpManualStopFinalize) this.vpManualStopFinalize = null;
       if (!gotUsableResult) {
@@ -3137,8 +3204,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private async startAudioPronunciationForClip(pq: PlayerQuestion): Promise<void> {
     pq.vpResult = 'idle';
     this.clearVpFeedbackUi();
+    this.muteVpVideoDuringPronunciation();
     const started = await this.ensureRecordingStarted(pq);
     if (!started) {
+      this.restoreVpVideoAfterPronunciation();
       // Match legacy behaviour: count as a failed attempt so retry counters work.
       pq.vpFailCount = (pq.vpFailCount || 0) + 1;
       pq.vpResult = 'incorrect';
@@ -3299,6 +3368,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     } finally {
       this.clearPronProcessingSlowTimer();
       this.pronunciation.releaseObjectUrl(recording.objectUrl);
+      this.restoreVpVideoAfterPronunciation();
     }
   }
 
@@ -3352,6 +3422,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.isVideoOnlyExercise) {
       this.pushVpChat('tutor', pq.pronMessage);
     }
+
+    // Ensure we restore the reference video audio after this recording ends.
+    this.restoreVpVideoAfterPronunciation();
   }
 
   private applyVpSuccessFromAudioFlow(
@@ -3439,6 +3512,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (this.isVideoOnlyExercise) {
         this.pushVpChat('tutor', 'Network issue — please tap Speak once your connection is stable.');
       }
+      this.restoreVpVideoAfterPronunciation();
       return;
     }
 
@@ -3465,6 +3539,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         );
       }
     }
+
+    // Ensure we restore the reference video audio after this recording ends.
+    this.restoreVpVideoAfterPronunciation();
   }
 
   /**
