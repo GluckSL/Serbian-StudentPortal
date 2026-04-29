@@ -118,7 +118,8 @@ export class PerformanceHistoryComponent implements OnInit {
 
   get filteredMeetings(): any[] {
     const q = this.searchText.trim().toLowerCase();
-    const items = this.meetings.filter((m) => this.isInRangeByDay(this.getMeetingDay(m)));
+    // Only ended classes should contribute to tracking and KPI counts.
+    const items = this.meetings.filter((m) => m?.hasEnded && this.isInRangeByDay(this.getMeetingDay(m)));
     if (!q) return items;
     return items.filter((m) => {
       const text = `${m.topic || ''} ${m.teacher?.name || ''} ${this.getMeetingDay(m)}`.toLowerCase();
