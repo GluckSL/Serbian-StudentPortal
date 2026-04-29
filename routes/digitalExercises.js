@@ -697,6 +697,7 @@ router.get('/', verifyToken, async (req, res) => {
                 scorePercentage: '$scorePercentage',
                 completedAt: '$completedAt',
                 attemptNumber: '$attemptNumber',
+                timeSpentSeconds: '$timeSpentSeconds',
                 wrongCount: '$wrongCount',
                 correctCount: '$correctCount'
               }
@@ -720,6 +721,7 @@ router.get('/', verifyToken, async (req, res) => {
           scorePercentage: a.scorePercentage,
           completedAt: a.completedAt,
           attemptNumber: a.attemptNumber,
+          timeSpentSeconds: Number(a.timeSpentSeconds) || 0,
           wrongCount: Number(a.wrongCount) || 0,
           correctCount: Number(a.correctCount) || 0,
           totalQuestions: totalQ
