@@ -999,7 +999,7 @@
                 [class.wrong]="hasCurrentSubmitted && !isMatchCorrect(currentQuestion, li)"
                 (click)="selectLeft(currentQuestion, li)"
               >
-                {{ item.value }}
+                <span [innerHTML]="item.value | safeHtml"></span>
               </button>
             </div>
             <div class="matching-connector">
@@ -1026,7 +1026,7 @@
                 "
                 (click)="selectRight(currentQuestion, ri)"
               >
-                {{ item.value }}
+                <span [innerHTML]="item.value | safeHtml"></span>
               </button>
             </div>
           </div>

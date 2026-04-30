@@ -12,10 +12,13 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 export function sanitizeQuestionHtml(raw: string): string {
   if (!raw) return '';
 
-  // 1. Replace &amp; back to & so we don't double-encode
-  let html = raw;
+  // 1) Decode HTML entities first so encoded tags like "&lt;span&gt;"
+  // can be normalized and stripped/kept by the whitelist logic below.
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = raw;
+  let html = textarea.value;
 
-  // 2. Strip every tag except the whitelist
+  // 2) Strip every tag except the whitelist
   const ALLOWED = new Set(['b', 'strong', 'i', 'em', 'mark', 'br', 'u', 'span']);
   html = html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tagName) => {
     const tag = tagName.toLowerCase();
@@ -28,7 +31,7 @@ export function sanitizeQuestionHtml(raw: string): string {
     return `<${tag}>`;
   });
 
-  // 3. Collapse excessive blank lines
+  // 3) Collapse excessive blank lines
   html = html.replace(/(<br>\s*){3,}/gi, '<br><br>');
 
   return html;
