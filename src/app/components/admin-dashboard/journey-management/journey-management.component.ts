@@ -4544,31 +4544,11 @@ export class JourneyManagementComponent implements OnInit {
       }
     }
     this.savingConfig = true;
-    const payload: any = {
-      journeyLength: this.editJourneyLength,
-      batchCurrentDay: this.editBatchDay,
-      batchStartDate: this.editBatchStartDate || null,
-      notes: this.editNotes,
-      batchType: this.editBatchType,
-      strictJourneyRule: this.editStrictJourneyRule,
-      strictJourneyThresholdPercent: this.editStrictThresholdPercent
-    };
+    const payload = this.buildConfigPayload();
     this.http.put<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}`,
       payload, { withCredentials: true }).subscribe({
       next: r => {
-        this.selectedBatch!.journeyLength = r.config.journeyLength;
-        this.selectedBatch!.batchCurrentDay = r.config.batchCurrentDay;
-        this.selectedBatch!.batchStartDate = r.config.batchStartDate || null;
-        this.selectedBatch!.autoDay = !!r.config.batchStartDate;
-        this.selectedBatch!.notes = r.config.notes;
-        this.selectedBatch!.batchType = r.config.batchType === 'old' ? 'old' : 'new';
-        this.selectedBatch!.strictJourneyRule = !!r.config.strictJourneyRule;
-        this.selectedBatch!.strictJourneyThresholdPercent =
-          r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
-        this.editStrictJourneyRule = !!r.config.strictJourneyRule;
-        this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
-        this.editStrictThresholdPercent =
-          r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
+        this.syncSelectedBatchConfig(r?.config);
         this.savingConfig = false;
         this.notify.success('Batch config saved.');
       },
@@ -4582,17 +4562,62 @@ export class JourneyManagementComponent implements OnInit {
     this.notify.confirm('Apply Day', `Set ALL students in "${this.selectedBatch.batchName}" to Day ${day}?`).subscribe(ok => {
       if (!ok) return;
       this.applyingDay = true;
-      this.http.post<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch!.batchName)}/set-day`,
-        { day }, { withCredentials: true }).subscribe({
-        next: r => {
-          this.selectedBatch!.batchCurrentDay = day;
-          this.notify.success(`${r.message} (${r.studentsUpdated} student(s) updated)`);
-          this.applyingDay = false;
-          this.loadStudents(this.selectedBatch!.batchName);
+      const payload = this.buildConfigPayload();
+      // Persist settings first so date/type edits aren't lost when users click only "Apply Day".
+      this.http.put<any>(
+        `${this.apiUrl}/${encodeURIComponent(this.selectedBatch!.batchName)}`,
+        payload,
+        { withCredentials: true }
+      ).subscribe({
+        next: saveResp => {
+          this.syncSelectedBatchConfig(saveResp?.config);
+          this.http.post<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch!.batchName)}/set-day`,
+            { day }, { withCredentials: true }).subscribe({
+            next: r => {
+              this.selectedBatch!.batchCurrentDay = day;
+              this.notify.success(`${r.message} (${r.studentsUpdated} student(s) updated)`);
+              this.applyingDay = false;
+              this.loadStudents(this.selectedBatch!.batchName);
+            },
+            error: e => { console.error(e); this.applyingDay = false; this.notify.error('Failed to apply day.'); }
+          });
         },
-        error: e => { console.error(e); this.applyingDay = false; this.notify.error('Failed to apply day.'); }
+        error: e => {
+          console.error(e);
+          this.applyingDay = false;
+          this.notify.error('Failed to save batch config before applying day.');
+        }
       });
     });
+  }
+
+  private buildConfigPayload(): any {
+    return {
+      journeyLength: this.editJourneyLength,
+      batchCurrentDay: this.editBatchDay,
+      batchStartDate: this.editBatchStartDate || null,
+      notes: this.editNotes,
+      batchType: this.editBatchType,
+      strictJourneyRule: this.editStrictJourneyRule,
+      strictJourneyThresholdPercent: this.editStrictThresholdPercent
+    };
+  }
+
+  private syncSelectedBatchConfig(config: any): void {
+    if (!this.selectedBatch || !config) return;
+    this.selectedBatch.journeyLength = config.journeyLength;
+    this.selectedBatch.batchCurrentDay = config.batchCurrentDay;
+    this.selectedBatch.batchStartDate = config.batchStartDate || null;
+    this.selectedBatch.autoDay = !!config.batchStartDate;
+    this.selectedBatch.notes = config.notes;
+    this.selectedBatch.batchType = config.batchType === 'old' ? 'old' : 'new';
+    this.selectedBatch.strictJourneyRule = !!config.strictJourneyRule;
+    this.selectedBatch.strictJourneyThresholdPercent =
+      config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
+    this.editStrictJourneyRule = !!config.strictJourneyRule;
+    this.editBatchType = config.batchType === 'old' ? 'old' : 'new';
+    this.editStrictThresholdPercent =
+      config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
   }
 
   setStudentDay(s: StudentRow): void {
