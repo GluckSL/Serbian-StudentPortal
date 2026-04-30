@@ -14,7 +14,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
 const { resignExercise, resignExercises } = require('../config/presign');
-const { sanitizeQuestions } = require('../utils/sanitizeHtml');
+const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 
@@ -240,8 +240,10 @@ function formatStudentAnswerForReview(q, r) {
     const mr = r.matchingResponse || [];
     if (!mr.length) return '—';
     return mr.map((m) => {
-      const left = pairs[m.leftIndex]?.left ?? `L${(m.leftIndex ?? 0) + 1}`;
-      const given = m.rightValue != null ? m.rightValue : (pairs[m.rightIndex]?.right ?? '—');
+      const left = sanitizeQuestionPlainText(pairs[m.leftIndex]?.left ?? `L${(m.leftIndex ?? 0) + 1}`);
+      const given = sanitizeQuestionPlainText(
+        m.rightValue != null ? m.rightValue : (pairs[m.rightIndex]?.right ?? '—')
+      );
       return `${left} → ${given}`;
     }).join(' · ');
   }
@@ -254,7 +256,9 @@ function formatStudentAnswerForReview(q, r) {
     const resp = r.singularPluralResponses || [];
     if (!pairs.length) return '—';
     return pairs
-      .map((p, i) => `${p.singular || '—'} → ${String(resp[i] ?? '').trim() || '—'}`)
+      .map((p, i) =>
+        `${sanitizeQuestionPlainText(p.singular || '—')} → ${sanitizeQuestionPlainText(String(resp[i] ?? '').trim() || '—')}`
+      )
       .join(' · ');
   }
   if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
@@ -281,7 +285,11 @@ function formatCorrectAnswerForReview(q) {
   }
   if (q.type === 'matching') {
     const pairs = q.pairs || [];
-    return pairs.map((p) => `${p.left} → ${p.right ?? '—'}`).join(' · ') || '—';
+    return (
+      pairs
+        .map((p) => `${sanitizeQuestionPlainText(p.left)} → ${sanitizeQuestionPlainText(p.right ?? '—')}`)
+        .join(' · ') || '—'
+    );
   }
   if (q.type === 'fill-blank') {
     const a = q.answers || [];
@@ -290,7 +298,9 @@ function formatCorrectAnswerForReview(q) {
   if (q.type === 'singular_plural') {
     const pairs = q.pairs || [];
     return pairs.length
-      ? pairs.map((p) => `${p.singular || '—'} → ${p.plural || '—'}`).join(' · ')
+      ? pairs
+          .map((p) => `${sanitizeQuestionPlainText(p.singular || '—')} → ${sanitizeQuestionPlainText(p.plural || '—')}`)
+          .join(' · ')
       : '—';
   }
   if (q.type === 'pronunciation') {
@@ -314,7 +324,7 @@ function questionPromptSnippet(q, idx) {
   const sp0 = q.type === 'singular_plural' && Array.isArray(q.pairs) ? q.pairs[0]?.singular : '';
   const text =
     q.question || q.prompt || sp0 || q.instruction || q.sentence || q.word || q.caption || '';
-  return clipText(text, 100) || `Question ${idx + 1}`;
+  return clipText(sanitizeQuestionPlainText(text), 100) || `Question ${idx + 1}`;
 }
 
 /**
@@ -783,6 +793,34 @@ router.get('/:id', verifyToken, async (req, res) => {
 
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
+    // Normalize pair labels to plain text for all clients (prevents visible HTML tags).
+    if (Array.isArray(exercise.questions)) {
+      exercise.questions = exercise.questions.map((q) => {
+        if (!q || typeof q !== 'object') return q;
+        if (q.type === 'matching' && Array.isArray(q.pairs)) {
+          return {
+            ...q,
+            pairs: q.pairs.map((p) => ({
+              ...p,
+              left: sanitizeQuestionPlainText(p?.left),
+              right: sanitizeQuestionPlainText(p?.right)
+            }))
+          };
+        }
+        if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
+          return {
+            ...q,
+            pairs: q.pairs.map((p) => ({
+              ...p,
+              singular: sanitizeQuestionPlainText(p?.singular),
+              plural: sanitizeQuestionPlainText(p?.plural)
+            }))
+          };
+        }
+        return q;
+      });
+    }
+
     // Students can only see published exercises
     if (req.user.role === 'STUDENT' && !exercise.visibleToStudents) {
       return res.status(403).json({ error: 'Exercise not available' });
@@ -844,11 +882,11 @@ router.get('/:id', verifyToken, async (req, res) => {
         delete stripped.answers;
         // For matching, shuffle the right column
         if (q.type === 'matching' && q.pairs) {
-          stripped.shuffledRight = [...q.pairs.map(p => p.right)].sort(() => Math.random() - 0.5);
-          stripped.pairs = q.pairs.map(p => ({ left: p.left }));
+          stripped.shuffledRight = [...q.pairs.map((p) => sanitizeQuestionPlainText(p.right))].sort(() => Math.random() - 0.5);
+          stripped.pairs = q.pairs.map((p) => ({ left: sanitizeQuestionPlainText(p.left) }));
         }
         if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
-          stripped.pairs = q.pairs.map(p => ({ singular: p.singular }));
+          stripped.pairs = q.pairs.map((p) => ({ singular: sanitizeQuestionPlainText(p.singular) }));
         }
         return stripped;
       });

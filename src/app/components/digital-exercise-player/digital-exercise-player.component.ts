@@ -594,10 +594,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (q.type === 'mcq') {
         pq.selectedOption = undefined;
       } else if (q.type === 'matching') {
-        const leftItems = (q.pairs || []).map((p: any) => ({ value: p.left, matchedRightIndex: null }));
+        const leftItems = (q.pairs || []).map((p: any) => ({
+          value: this.normalizePlainDisplayText(p.left),
+          matchedRightIndex: null
+        }));
         const rightItems = q.shuffledRight
-          ? q.shuffledRight.map((r: string) => ({ value: r, matchedLeftIndex: null }))
-          : (q.pairs || []).map((_: any, idx: number) => ({ value: q.pairs[idx].right, matchedLeftIndex: null }));
+          ? q.shuffledRight.map((r: string) => ({ value: this.normalizePlainDisplayText(r), matchedLeftIndex: null }))
+          : (q.pairs || []).map((_: any, idx: number) => ({
+              value: this.normalizePlainDisplayText(q.pairs[idx].right),
+              matchedLeftIndex: null
+            }));
         pq.matchingLeft = leftItems;
         pq.matchingRight = rightItems;
         pq.selectedLeftIndex = null;
@@ -714,6 +720,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       pq.vpSecondaryCaptionShownInChat = false;
     });
+  }
+
+  private normalizePlainDisplayText(raw: any): string {
+    const decoded = String(raw ?? '')
+      .replace(/&#(\d+);/g, (_m, dec) => String.fromCharCode(parseInt(dec, 10)))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'");
+    return decoded.replace(/<\/?[^>]+>/g, '').replace(/\s+/g, ' ').trim();
   }
 
   pushVpChat(

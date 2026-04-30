@@ -26,6 +26,18 @@ function getSanitize() {
 
 const ALLOWED_TAGS = ['b', 'strong', 'i', 'em', 'mark', 'br', 'u', 'span'];
 
+function decodeHtmlEntities(raw) {
+  return String(raw ?? '')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
 /**
  * Sanitize a single HTML string coming from the client.
  * @param {string|null|undefined} raw
@@ -33,7 +45,7 @@ const ALLOWED_TAGS = ['b', 'strong', 'i', 'em', 'mark', 'br', 'u', 'span'];
  */
 function sanitizeQuestionHtml(raw) {
   if (raw == null) return '';
-  const str = String(raw);
+  const str = decodeHtmlEntities(raw);
 
   const sanitize = getSanitize();
   if (sanitize) {
@@ -52,6 +64,26 @@ function sanitizeQuestionHtml(raw) {
     if (match.startsWith('</')) return `</${tag}>`;
     return `<${tag}>`;
   });
+}
+
+/**
+ * Strip all HTML and return readable plain text.
+ * Used for fields that are expected to be plain labels/answers.
+ * @param {string|null|undefined} raw
+ * @returns {string}
+ */
+function sanitizeQuestionPlainText(raw) {
+  const decoded = decodeHtmlEntities(raw);
+  const sanitize = getSanitize();
+  if (sanitize) {
+    return sanitize(decoded, { allowedTags: [], allowedAttributes: {} })
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  return decoded
+    .replace(/<\/?[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -93,14 +125,14 @@ function sanitizeQuestions(questions) {
         if (!p || typeof p !== 'object') return p;
         if (p.singular != null || p.plural != null) {
           return {
-            singular: sanitizeQuestionHtml(p.singular),
-            plural: sanitizeQuestionHtml(p.plural)
+            singular: sanitizeQuestionPlainText(p.singular),
+            plural: sanitizeQuestionPlainText(p.plural)
           };
         }
         return {
           ...p,
-          left: sanitizeQuestionHtml(p.left),
-          right: sanitizeQuestionHtml(p.right)
+          left: sanitizeQuestionPlainText(p.left),
+          right: sanitizeQuestionPlainText(p.right)
         };
       });
     }
@@ -114,4 +146,4 @@ function sanitizeQuestions(questions) {
   });
 }
 
-module.exports = { sanitizeQuestionHtml, sanitizeQuestions };
+module.exports = { sanitizeQuestionHtml, sanitizeQuestionPlainText, sanitizeQuestions };
