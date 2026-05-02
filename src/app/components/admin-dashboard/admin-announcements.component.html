@@ -188,6 +188,23 @@
         </a>
       </div>
     </div>
+
+    <div class="ann-pagination" *ngIf="!loading && totalCount > 0">
+      <button type="button" class="ann-pagination__btn" [disabled]="currentPage <= 1" (click)="goToPage(currentPage - 1)">
+        Previous
+      </button>
+      <span class="ann-pagination__meta">
+        Page {{ currentPage }} of {{ totalPages || 1 }} · {{ totalCount }} total
+      </span>
+      <button
+        type="button"
+        class="ann-pagination__btn"
+        [disabled]="currentPage >= totalPages || totalPages <= 1"
+        (click)="goToPage(currentPage + 1)"
+      >
+        Next
+      </button>
+    </div>
   </section>
 
   <div class="ann-modal-backdrop" *ngIf="editModalOpen">

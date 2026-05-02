@@ -37,6 +37,13 @@ export interface AnnouncementTargetStudent {
   isTestAccount?: boolean;
 }
 
+export interface AnnouncementsAdminPage {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AnnouncementService {
   private readonly apiUrl = `${environment.apiUrl}/announcements`;
@@ -47,6 +54,25 @@ export class AnnouncementService {
     return this.http.get<{ success: boolean; data: AnnouncementItem[] }>(this.apiUrl, {
       withCredentials: true,
       params: { _ts: String(Date.now()) }
+    });
+  }
+
+  /** Paginated admin list; only the requested page is loaded from the server. */
+  getAdminPage(
+    page: number,
+    limit: number
+  ): Observable<{ success: boolean; data: AnnouncementItem[]; pagination: AnnouncementsAdminPage }> {
+    return this.http.get<{
+      success: boolean;
+      data: AnnouncementItem[];
+      pagination: AnnouncementsAdminPage;
+    }>(this.apiUrl, {
+      withCredentials: true,
+      params: {
+        page: String(Math.max(1, page)),
+        limit: String(limit),
+        _ts: String(Date.now())
+      }
     });
   }
 

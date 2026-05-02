@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { Router } from '@angular/router';
 import { PortalAnalyticsRange } from '../../services/portal-analytics-api.service';
 import { PortalAnalyticsDashboardComponent } from './dashboard/portal-analytics-dashboard.component';
 import { PortalAnalyticsStudentWiseComponent } from './student-wise/portal-analytics-student-wise.component';
@@ -32,6 +33,8 @@ import { PortalAnalyticsLearningComponent } from './learning/portal-analytics-le
   styleUrls: ['./portal-analytics.component.scss']
 })
 export class PortalAnalyticsComponent implements OnInit {
+  constructor(private readonly router: Router) {}
+
   private readonly analyticsTz = 'Asia/Kolkata';
   draftFrom = '';
   draftTo = '';
@@ -51,6 +54,16 @@ export class PortalAnalyticsComponent implements OnInit {
   setCohort(c: 'overall' | 'platinum' | 'go'): void {
     this.cohort = c;
     this.range = { ...this.range, cohort: c };
+  }
+
+  openDailyLogsInNewTab(): void {
+    if (!this.range?.from || !this.range?.to) return;
+    const q: Record<string, string> = { from: this.range.from, to: this.range.to };
+    if (this.cohort !== 'overall') q['cohort'] = this.cohort;
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/portal-analytics/daily-logs'], { queryParams: q })
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   setTodayRange(): void {

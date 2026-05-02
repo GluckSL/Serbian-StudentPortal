@@ -587,18 +587,16 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     // No speech at all → just retry mic
     if (!transcript) { this.openMicForUserTurn(); return; }
 
-    // Show score badge but never block
     this.status = 'result';
 
-    const scoreLabel = ev.score != null ? `${Math.round(ev.score)}%` : '';
-    // Add student bubble immediately
+    // Add student bubble immediately (score is stored but not displayed in conversation mode)
     this.chatHistory = [
       ...this.chatHistory,
       { speaker: 'student', text: transcript, score: ev.score ?? undefined },
     ];
     this.scrollChatToLatest();
     this.displayLine = transcript;
-    this.displaySub = scoreLabel ? `Pronunciation: ${scoreLabel}` : '';
+    this.displaySub = '';
 
     // Block mic while AI is thinking / speaking
     this.isAiThinking = true;

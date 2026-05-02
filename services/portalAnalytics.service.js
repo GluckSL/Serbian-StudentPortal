@@ -575,6 +575,156 @@ async function getTimeSeriesDaily(from, to, cohortIds = null) {
   ]);
 }
 
+/** IST calendar days from `from` through `to` (matches portal date picker). */
+function eachCalendarDayInIstRange(fromDate, toDate) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const endYmd = fmt.format(toDate);
+  const days = [];
+  let cur = new Date(fromDate.getTime());
+  for (let guard = 0; guard < 400; guard += 1) {
+    const ymd = fmt.format(cur);
+    if (!days.length || days[days.length - 1] !== ymd) days.push(ymd);
+    if (ymd >= endYmd) break;
+    cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return days;
+}
+
+/**
+ * Per-day rollup for admin "Logs" table: portal time, interaction count, avg per student,
+ * top page / student, plus detail breakdowns.
+ */
+async function getDailyPortalLogs(from, to, cohortIds = null) {
+  const tz = 'Asia/Kolkata';
+  const dayExpr = { $dateToString: { format: '%Y-%m-%d', date: '$startTime', timezone: tz } };
+  const matchCond = { startTime: { $gte: from, $lte: to } };
+  if (cohortIds) matchCond.studentId = { $in: cohortIds };
+
+  const [summary, pageByDay, studentByDay] = await Promise.all([
+    PageActivity.aggregate([
+      { $match: matchCond },
+      { $addFields: { day: dayExpr } },
+      {
+        $group: {
+          _id: '$day',
+          portalSeconds: { $sum: '$activeSeconds' },
+          interactions: { $sum: 1 },
+          studentIds: { $addToSet: '$studentId' }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          portalSeconds: 1,
+          interactions: 1,
+          uniqueStudents: { $size: '$studentIds' }
+        }
+      }
+    ]),
+    PageActivity.aggregate([
+      { $match: matchCond },
+      { $addFields: { day: dayExpr } },
+      { $group: { _id: { day: '$day', page: '$page' }, seconds: { $sum: '$activeSeconds' } } },
+      { $sort: { '_id.day': 1, seconds: -1 } },
+      {
+        $group: {
+          _id: '$_id.day',
+          pages: { $push: { page: '$_id.page', seconds: '$seconds' } }
+        }
+      },
+      { $addFields: { pages: { $slice: ['$pages', 25] } } },
+      { $project: { date: '$_id', pages: 1, _id: 0 } }
+    ]),
+    PageActivity.aggregate([
+      { $match: matchCond },
+      { $addFields: { day: dayExpr } },
+      {
+        $group: {
+          _id: { day: '$day', studentId: '$studentId' },
+          seconds: { $sum: '$activeSeconds' }
+        }
+      },
+      { $sort: { '_id.day': 1, seconds: -1 } },
+      {
+        $group: {
+          _id: '$_id.day',
+          students: { $push: { studentId: '$_id.studentId', seconds: '$seconds' } }
+        }
+      },
+      { $addFields: { students: { $slice: ['$students', 25] } } },
+      { $project: { date: '$_id', students: 1, _id: 0 } }
+    ])
+  ]);
+
+  const summaryMap = new Map(summary.map((r) => [r._id, r]));
+  const pageMap = new Map(pageByDay.map((r) => [r.date, r.pages]));
+  const studentMap = new Map(studentByDay.map((r) => [r.date, r.students]));
+
+  const allPageKeys = new Set();
+  for (const row of pageByDay) {
+    for (const p of row.pages || []) allPageKeys.add(p.page);
+  }
+  const titleMap = await buildDigitalExerciseTitleMapFromPages([...allPageKeys]);
+
+  const allStudentIds = new Set();
+  for (const row of studentByDay) {
+    for (const s of row.students || []) {
+      if (s.studentId) allStudentIds.add(String(s.studentId));
+    }
+  }
+  const sidArr = [...allStudentIds]
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  const users = sidArr.length ? await User.find({ _id: { $in: sidArr } }).select('name').lean() : [];
+  const nameById = new Map(users.map((u) => [String(u._id), u.name || 'Unknown']));
+
+  const calendarDays = eachCalendarDayInIstRange(from, to);
+  const sortedDesc = [...calendarDays].reverse();
+
+  const items = sortedDesc.map((date) => {
+    const sum = summaryMap.get(date);
+    const portalSeconds = sum ? Math.max(0, Math.floor(Number(sum.portalSeconds) || 0)) : 0;
+    const interactions = sum ? Math.max(0, Math.floor(Number(sum.interactions) || 0)) : 0;
+    const uniqueStudents = sum ? Math.max(0, Math.floor(Number(sum.uniqueStudents) || 0)) : 0;
+    const avgStudentSeconds =
+      uniqueStudents > 0 ? Math.round(portalSeconds / uniqueStudents) : 0;
+
+    const pagesRaw = pageMap.get(date) || [];
+    const pages = pagesRaw.map((p) => ({
+      page: prettyPageLabel(p.page, titleMap),
+      rawPage: String(p.page || ''),
+      seconds: Math.max(0, Math.floor(Number(p.seconds) || 0))
+    }));
+    const topPage = pages.length ? { page: pages[0].page, rawPage: pages[0].rawPage, seconds: pages[0].seconds } : null;
+
+    const studentsRaw = studentMap.get(date) || [];
+    const students = studentsRaw.map((s) => ({
+      studentId: String(s.studentId || ''),
+      name: nameById.get(String(s.studentId)) || 'Unknown',
+      seconds: Math.max(0, Math.floor(Number(s.seconds) || 0))
+    }));
+    const topStudent = students.length ? students[0] : null;
+
+    return {
+      date,
+      portalSeconds,
+      interactions,
+      uniqueStudents,
+      avgStudentSeconds,
+      topPage,
+      topStudent,
+      details: { pages, students }
+    };
+  });
+
+  return { items, range: { from, to }, timezone: tz };
+}
+
 async function getPageSharesForDonut(from, to, topN = 8, cohortIds = null) {
   const matchCond = { startTime: { $gte: from, $lte: to } };
   if (cohortIds) matchCond.studentId = { $in: cohortIds };
@@ -1521,5 +1671,6 @@ module.exports = {
   getTimeline,
   getSessionWise,
   getDashboard,
+  getDailyPortalLogs,
   getLearningAnalytics
 };

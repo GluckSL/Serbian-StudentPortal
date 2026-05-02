@@ -266,6 +266,7 @@ router.post(
         ? Math.max(0, Math.min(100, Math.round(thresholdRaw)))
         : DEFAULT_THRESHOLD;
       const clientMeta = parseClientMeta(req.body?.clientMeta);
+      const isFreeSpeech = clientMeta?.freeSpeech === true;
       const attemptCountRaw = Number(req.body?.attemptCount ?? clientMeta?.attemptCount ?? 0);
       const attemptCount = Number.isFinite(attemptCountRaw) ? Math.max(0, Math.floor(attemptCountRaw)) : 0;
       const normalization = normalizeAudioForTranscription(audioPath);
@@ -280,14 +281,68 @@ router.post(
       // IMPORTANT: Do NOT pass the expected sentence as a Whisper prompt — it
       // causes Whisper to autocomplete partial speech into the full target phrase,
       // making any partial attempt appear as 100% correct.
-      // Use only a generic language-context hint so Whisper knows the language
-      // without being guided toward the expected answer.
-      const genericHint = language.full === 'German'
-        ? 'Deutsch. Sprachübung.'
-        : 'English. Language practice.';
+      // For free-speech / conversation mode we enrich the hint with context about
+      // numbers, prices, times, and spellings so Whisper handles those better.
+      const genericHint = isFreeSpeech
+        ? (language.full === 'German'
+            ? 'Deutsch. Sprachübung. Kann Zahlen, Preise, Uhrzeiten, Buchstabieren oder kurze Sätze enthalten.'
+            : 'English. Language practice. May include numbers, prices, times, or spelled-out words.')
+        : (language.full === 'German'
+            ? 'Deutsch. Sprachübung.'
+            : 'English. Language practice.');
       const transcribeRes = await transcribeAudio(normalization.path, language.whisper, genericHint);
       const transcript = transcribeRes.text || '';
       const engine = transcribeRes.engine;
+
+      // Free-speech conversation mode: skip lexical scoring against the
+      // placeholder 'free speech' string — it produces meaningless 0% scores.
+      // Return the raw transcript with a neutral outcome instead.
+      if (isFreeSpeech) {
+        const durationMs = Date.now() - startedAt;
+        const cm = clientMeta || {};
+        pronAnalytics.record({
+          requestId,
+          userId: String(req.user?.id || req.user?._id || '').slice(-8),
+          engine,
+          language: language.bcp47,
+          score: 100,
+          threshold: DEFAULT_THRESHOLD,
+          isCorrect: true,
+          isAlmostCorrect: false,
+          confidence: 'high',
+          silenceRejected: !!cm.silenceRejected,
+          silenceReason: cm.silenceReason || null,
+          networkError: false,
+          assistedMode: false,
+          retryCount: Number(cm.retryCount) || 0,
+          deviceType: cm.deviceType === 'mobile' ? 'mobile' : 'desktop',
+          browser: String(cm.browser || ''),
+          durationMs,
+          lowAudioQuality,
+        });
+        return res.json({
+          requestId,
+          engine,
+          transcript,
+          score: 100,
+          isCorrect: true,
+          isAlmostCorrect: false,
+          confidence: 'high',
+          threshold: DEFAULT_THRESHOLD,
+          assistedMode: false,
+          matchedAgainst: 'free_speech',
+          normalizedExpected: '',
+          normalizedSpoken: transcript,
+          expectedText: '',
+          spokenText: transcript,
+          wordAnalysis: [],
+          hints: [],
+          feedback: { missingWords: [], extraWords: [], matchedWords: [], suggestion: '' },
+          flags: { lowAudioQuality, freeSpeech: true },
+          durationMs,
+          transcriptionError: transcribeRes.error || null,
+        });
+      }
 
       const scoreRes = scorePronunciation(expected, transcript, {
         variants,

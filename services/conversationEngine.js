@@ -13,6 +13,17 @@ const START_KEYWORDS = [
   "let's start", 'lets start', 'ja', 'yes', 'okay', 'ok',
 ];
 
+// ─── Session-end / session-continue keywords (checked when choice is offered) ─
+const END_KEYWORDS = [
+  'end', 'stop', 'finish', 'done', 'bye', 'goodbye', 'quit', 'exit',
+  'tschüss', 'tschüs', 'tschuss', 'tschues', 'auf wiedersehen', 'wiedersehen',
+  'fertig', 'genug', 'schluss', 'aufhören', 'aufhoeren', 'beenden', 'stopp', 'ende',
+];
+const CONTINUE_KEYWORDS = [
+  'continue', 'keep going', 'more', 'carry on', 'go on',
+  'weiter', 'weitermachen', 'noch', 'nochmal', 'bitte mehr', 'noch mehr',
+];
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -55,6 +66,9 @@ function startConversation(sessionId, moduleData) {
     },
     wrapUpStarted: false,
     completionReason: null,
+    // ── Session-choice flags (end or continue after all vocab used) ──────────
+    sessionChoiceOffered: false,
+    sessionChoiceResolved: false,   // true = student chose to continue
     createdAt: Date.now(),
   };
 
@@ -87,7 +101,27 @@ function checkStartTrigger(transcript) {
 }
 
 /**
- * Compute completion status with time-first policy.
+ * Classify a student response as 'end', 'continue', or 'ambiguous'
+ * when the bot has offered the session-end choice.
+ */
+function _detectEndOrContinue(transcript) {
+  const lower = (transcript || '').toLowerCase();
+  const wantsEnd = END_KEYWORDS.some((kw) => lower.includes(kw));
+  const wantsContinue = CONTINUE_KEYWORDS.some((kw) => lower.includes(kw));
+  if (wantsEnd && !wantsContinue) return 'end';
+  if (wantsContinue && !wantsEnd) return 'continue';
+  // Bare "yes / ja / okay" with nothing else → treat as "continue" (keep going)
+  if (/^\s*(yes|ja|okay|ok|sure|klar|gerne)\s*[.!]?\s*$/.test(lower)) return 'continue';
+  return 'ambiguous';
+}
+
+/**
+ * Compute completion status.
+ * - Hard finish on max time reached.
+ * - Vocabulary coverage alone no longer auto-completes; completion is driven
+ *   by the student explicitly choosing to end after the session-choice prompt.
+ * - 'student_chose_end' is set directly in processStudentTurn and propagated
+ *   back to the caller; this function only needs to cover time-based exits.
  */
 function isConversationComplete(state) {
   const elapsedSec = Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000);
@@ -102,19 +136,6 @@ function isConversationComplete(state) {
   const minTimeMet = elapsedSec >= minSeconds;
   const maxTimeReached = maxSeconds != null && elapsedSec >= maxSeconds;
 
-  if (!minTimeMet && !maxTimeReached) {
-    return {
-      complete: false,
-      reason: null,
-      elapsedSec,
-      minSeconds,
-      maxSeconds,
-      vocabCoverage,
-      vocabGoalMet,
-      shouldWrapUp: false,
-    };
-  }
-
   if (maxTimeReached) {
     return {
       complete: true,
@@ -128,21 +149,9 @@ function isConversationComplete(state) {
     };
   }
 
-  if (vocabGoalMet) {
-    return {
-      complete: true,
-      reason: 'vocab_goal',
-      elapsedSec,
-      minSeconds,
-      maxSeconds,
-      vocabCoverage,
-      vocabGoalMet,
-      shouldWrapUp: false,
-    };
-  }
-
   const remainingToMax = maxSeconds != null ? maxSeconds - elapsedSec : null;
   const shouldWrapUp = remainingToMax != null && remainingToMax <= 90;
+
   return {
     complete: false,
     reason: null,
@@ -196,9 +205,10 @@ async function generateOpeningMessage(state) {
  * Process one student turn:
  *  1. Record student message
  *  2. Track vocab usage
- *  3. Generate AI reply
- *  4. Update + persist state
- *  5. Return { aiText, translatedTamil, turnCount, complete, vocabCoverage }
+ *  3. Handle session-choice flow (end or continue after all vocab is covered)
+ *  4. Generate AI reply
+ *  5. Update + persist state
+ *  6. Return { aiText, translatedTamil, turnCount, complete, vocabCoverage }
  */
 async function processStudentTurn(sessionId, transcript, pronunciationScore) {
   const state = getState(sessionId);
@@ -216,18 +226,56 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
   // Track vocab in student speech
   const usedVocab = _trackVocab(state.vocabList, state.usedVocab, transcript);
 
-  // Evaluate completion with current student turn before generating AI reply.
+  // ── Session-choice handling ──────────────────────────────────────────────────
+  const unusedVocab = state.vocabList.filter((w) => !usedVocab.includes(w));
+  const allVocabCovered = state.vocabList.length > 0 && unusedVocab.length === 0;
+
+  let sessionChoiceOffered = state.sessionChoiceOffered;
+  let sessionChoiceResolved = state.sessionChoiceResolved;
+  let choiceResult = null; // 'end' | 'continue' | 'ambiguous' | null
+
+  if (sessionChoiceOffered && !sessionChoiceResolved) {
+    // Student is responding to the end-or-continue prompt
+    choiceResult = _detectEndOrContinue(transcript);
+    if (choiceResult === 'continue') {
+      sessionChoiceResolved = true;
+    }
+    // 'end' and 'ambiguous' are handled below — for 'end' we will complete the
+    // session after generating the AI farewell; for 'ambiguous' the AI re-asks.
+  } else if (allVocabCovered && !sessionChoiceOffered) {
+    // All vocab used for the first time — offer the choice next AI turn
+    sessionChoiceOffered = true;
+  }
+
+  // Time-based completion check (max time is still a hard cap)
   const testState = { ...state, turnCount: newTurnCount, usedVocab };
-  const completion = isConversationComplete(testState);
+  const timeCompletion = isConversationComplete(testState);
+
+  // Student explicitly ended the session
+  const studentChoseEnd = sessionChoiceOffered && !sessionChoiceResolved && choiceResult === 'end';
+  const isComplete = timeCompletion.complete || studentChoseEnd;
+  const completionReason = timeCompletion.complete
+    ? timeCompletion.reason
+    : studentChoseEnd
+      ? 'student_chose_end'
+      : null;
 
   // Build AI reply
   const systemPrompt = _buildSystemPrompt({
     ...state,
     turnCount: newTurnCount,
     usedVocab,
-    wrapUpStarted: state.wrapUpStarted || completion.shouldWrapUp || completion.complete,
+    wrapUpStarted: state.wrapUpStarted || timeCompletion.shouldWrapUp || isComplete,
+    sessionChoiceOffered,
+    sessionChoiceResolved,
+    choiceResult,
   });
-  let aiText = await _generateReply(systemPrompt, historyWithStudent, completion.complete);
+  let aiText = await _generateReply(
+    systemPrompt,
+    historyWithStudent,
+    isComplete,
+    !state.wrapUpStarted && !timeCompletion.shouldWrapUp,
+  );
 
   // Track vocab in AI reply too
   const finalUsedVocab = _trackVocab(state.vocabList, usedVocab, aiText);
@@ -241,8 +289,10 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
     turnCount: newTurnCount,
     usedVocab: finalUsedVocab,
     history: finalHistory,
-    wrapUpStarted: state.wrapUpStarted || completion.shouldWrapUp || completion.complete,
-    completionReason: completion.complete ? completion.reason : null,
+    wrapUpStarted: state.wrapUpStarted || timeCompletion.shouldWrapUp || isComplete,
+    completionReason: isComplete ? completionReason : null,
+    sessionChoiceOffered,
+    sessionChoiceResolved,
   });
 
   // Translate (non-blocking)
@@ -256,12 +306,12 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
     aiText,
     translatedTamil,
     turnCount: newTurnCount,
-    complete: completion.complete,
-    completionReason: completion.reason,
-    elapsedSeconds: completion.elapsedSec,
-    minRequiredSeconds: completion.minSeconds,
-    maxAllowedSeconds: completion.maxSeconds,
-    shouldWrapUp: completion.shouldWrapUp,
+    complete: isComplete,
+    completionReason,
+    elapsedSeconds: timeCompletion.elapsedSec,
+    minRequiredSeconds: timeCompletion.minSeconds,
+    maxAllowedSeconds: timeCompletion.maxSeconds,
+    shouldWrapUp: timeCompletion.shouldWrapUp,
     vocabCoverage,
     usedVocab: finalUsedVocab,
   };
@@ -314,6 +364,9 @@ function _resolvePracticeWindow(moduleData) {
 
 /**
  * Build the system prompt dynamically, reflecting current progress.
+ * Extra sections injected based on session state:
+ *  - RECENT AI QUESTIONS → anti-repeat guidance
+ *  - SESSION CHOICE      → ask end-or-continue when all vocab covered
  */
 function _buildSystemPrompt(state) {
   const ctx = state.moduleContext;
@@ -335,6 +388,34 @@ function _buildSystemPrompt(state) {
   const remainingToMin = Math.max(0, minSec - elapsedSec);
   const remainingToMax = maxSec != null ? Math.max(0, maxSec - elapsedSec) : null;
 
+  // ── Anti-repeat: surface the last few AI questions ──────────────────────────
+  const recentAiLines = (state.history || [])
+    .filter((m) => m.speaker === 'ai')
+    .slice(-6)
+    .map((m) => m.text);
+  const recentQuestions = recentAiLines.filter((l) => l.trim().endsWith('?')).slice(-4);
+  const antiRepeatNote = recentQuestions.length > 0
+    ? `\nRECENT QUESTIONS ALREADY ASKED (do NOT ask the same thing again — find a different angle or move the conversation forward):\n${recentQuestions.map((q) => `  • "${q}"`).join('\n')}`
+    : '';
+
+  // ── Session-choice section ──────────────────────────────────────────────────
+  let sessionChoiceNote = '';
+  if (state.sessionChoiceOffered && !state.sessionChoiceResolved) {
+    if (state.choiceResult === 'ambiguous') {
+      sessionChoiceNote = `\nSESSION CHOICE (student was unclear): Ask ONE more time, very briefly, whether they want to end or continue. In ${ctx.language} only. Keep it under 10 words.`;
+    } else {
+      // First time offering the choice
+      const isGerman = (ctx.language || '').toLowerCase().includes('german') || ctx.language === 'Deutsch';
+      const choicePrompt = isGerman
+        ? 'Wollen wir aufhören oder weitermachen?'
+        : 'Shall we end here or would you like to continue?';
+      sessionChoiceNote = `\nSESSION CHOICE REQUIRED: All vocabulary has been practised. Your NEXT reply MUST end with this question (translated naturally into ${ctx.language}): "${choicePrompt}" — keep the rest of your reply short (under 8 words before the question).`;
+    }
+  } else if (state.sessionChoiceResolved) {
+    sessionChoiceNote = '\nSTUDENT CHOSE TO CONTINUE: Keep the conversation going naturally. Do NOT ask about ending again unless the student brings it up.';
+  }
+
+  // ── Time / wrap-up note ─────────────────────────────────────────────────────
   let endingNote = '';
   if (state.wrapUpStarted || (remainingToMax != null && remainingToMax <= 90)) {
     endingNote = '\nWRAP-UP MODE: Begin closing naturally, keep role consistency, and end in 1-2 turns.';
@@ -352,14 +433,15 @@ YOUR PERSONALITY: ${ctx.aiPersonality}
 STRICT RULES:
 - Speak ONLY in ${ctx.language}
 - Keep every reply SHORT — maximum ${level.startsWith('A1') ? 10 : 14} words
-- Ask ONE question per turn
+- Ask at most ONE question per turn
 - Sound like a REAL PERSON in the situation, not a teacher
 - Prioritize words from "Still to introduce" when natural
 - Use core vocabulary frequently, but you may add simple level-appropriate support words that fit the role and situation
 - NEVER say "wrong", "incorrect", or "mistake"
 - If the student errs, model the correct form naturally inside your reply
-- Vary responses — never repeat the same line
+- Vary responses — never repeat the same line or rephrase a question you already asked
 - Stay in character as ${ctx.aiRole} and do not break role-play context
+${antiRepeatNote}
 
 VOCABULARY:
   All allowed: ${vocabStr || '(simple everyday words)'}
@@ -367,10 +449,15 @@ VOCABULARY:
   Still to introduce: ${unusedVocab.join(', ') || '✓ all covered'}
 
 OBJECTIVE: ${ctx.objective || 'Complete the scenario naturally'}
-${endingNote}`;
+${sessionChoiceNote}${endingNote}`;
 }
 
-async function _generateReply(systemPrompt, history, isClosing) {
+/**
+ * Generate a single AI reply.
+ * `isClosing` bumps max_tokens slightly for a proper farewell.
+ * `allowHigherTemp` bumps temperature when not in wrap-up mode to reduce loops.
+ */
+async function _generateReply(systemPrompt, history, isClosing, allowHigherTemp = false) {
   try {
     const openai = _openai();
     const messages = [
@@ -385,7 +472,7 @@ async function _generateReply(systemPrompt, history, isClosing) {
         model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages,
         max_tokens: isClosing ? 80 : 60,
-        temperature: 0.7,
+        temperature: allowHigherTemp ? 0.85 : 0.7,
       }),
       _timeout(10000, 'AI reply timeout'),
     ]);

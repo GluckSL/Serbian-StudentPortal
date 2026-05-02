@@ -40,6 +40,10 @@ export class PortalAnalyticsApiService {
     });
   }
 
+  getDailyLogs(range: PortalAnalyticsRange): Observable<unknown> {
+    return this.http.get(`${this.base}/daily-logs`, { params: this.params(range), withCredentials: true });
+  }
+
   getOverview(range: PortalAnalyticsRange): Observable<unknown> {
     return this.http.get(`${this.base}/overview`, { params: this.params(range), withCredentials: true });
   }

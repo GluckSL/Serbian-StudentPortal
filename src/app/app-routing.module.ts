@@ -275,6 +275,15 @@ export const routes: Routes = [
   { path: 'audio-test', loadComponent: () => import('./components/audio-test/audio-test.component').then(m => m.AudioTestComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'TEACHER_ADMIN'] } },
 
   {
+    path: 'portal-analytics/daily-logs',
+    loadComponent: () =>
+      import('./pages/portal-analytics/portal-analytics-daily-logs-page.component').then(
+        (m) => m.PortalAnalyticsDailyLogsPageComponent
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+  {
     path: 'portal-analytics',
     loadComponent: () =>
       import('./pages/portal-analytics/portal-analytics.component').then((m) => m.PortalAnalyticsComponent),

@@ -116,6 +116,19 @@ exports.timeline = async (req, res) => {
   }
 };
 
+exports.dailyLogs = async (req, res) => {
+  try {
+    const { from, to } = portalAnalytics.parseDateRange(req.query);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const cohortIds = cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null;
+    const data = await portalAnalytics.getDailyPortalLogs(from, to, cohortIds);
+    res.json(data);
+  } catch (err) {
+    console.error('[portal-analytics] dailyLogs', err);
+    res.status(500).json({ message: 'Failed to load daily logs' });
+  }
+};
+
 exports.sessionWise = async (req, res) => {
   try {
     const { from, to } = portalAnalytics.parseDateRange(req.query);

@@ -42,7 +42,7 @@ export class NavService {
     journey: [
       '/admin/journey'
     ],
-    'portal-analytics': ['/portal-analytics'],
+    'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
     'go-students': [
       '/admin/go-students'
     ]

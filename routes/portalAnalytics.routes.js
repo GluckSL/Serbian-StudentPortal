@@ -12,6 +12,7 @@ const analyticsRouter = express.Router();
 
 analyticsRouter.get('/overview', verifyToken, isAdmin, ctrl.overview);
 analyticsRouter.get('/dashboard', verifyToken, isAdmin, ctrl.dashboard);
+analyticsRouter.get('/daily-logs', verifyToken, isAdmin, ctrl.dailyLogs);
 analyticsRouter.get('/student-wise', verifyToken, isAdmin, ctrl.studentWise);
 analyticsRouter.get('/page-wise', verifyToken, isAdmin, ctrl.pageWise);
 analyticsRouter.get('/timeline', verifyToken, isAdmin, ctrl.timeline);

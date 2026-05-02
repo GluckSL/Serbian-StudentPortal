@@ -42,6 +42,11 @@ export class AdminAnnouncementsComponent implements OnInit {
   saving = false;
   announcements: AnnouncementItem[] = [];
   refreshing = false;
+  /** Server-backed pagination: only one page of rows is loaded at a time. */
+  readonly pageSize = 5;
+  currentPage = 1;
+  totalPages = 0;
+  totalCount = 0;
   actionAnnouncementId = '';
   editModalOpen = false;
   editForm = {
@@ -60,7 +65,7 @@ export class AdminAnnouncementsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadBatches();
-    this.loadAnnouncements();
+    this.loadAnnouncements(1);
   }
 
   get isScheduled(): boolean {
@@ -80,31 +85,52 @@ export class AdminAnnouncementsComponent implements OnInit {
       });
   }
 
-  loadAnnouncements(): void {
-    this.loading = true;
-    this.announcementService.getAll().subscribe({
-      next: (res) => {
-        this.announcements = res?.data || [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.notify.error('Failed to load announcements.');
-      }
-    });
+  loadAnnouncements(page?: number): void {
+    const target = page ?? this.currentPage;
+    this.loadAnnouncementsPage(target, 'list');
   }
 
   refreshAnnouncements(): void {
-    this.refreshing = true;
-    this.announcementService.getAll().subscribe({
+    this.loadAnnouncementsPage(this.currentPage, 'refresh');
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages || page === this.currentPage) return;
+    this.loadAnnouncementsPage(page, 'list');
+  }
+
+  private loadAnnouncementsPage(page: number, mode: 'list' | 'refresh'): void {
+    const isListLoad = mode === 'list';
+    if (isListLoad) this.loading = true;
+    else this.refreshing = true;
+
+    this.announcementService.getAdminPage(page, this.pageSize).subscribe({
       next: (res) => {
-        this.announcements = res?.data || [];
-        this.refreshing = false;
-        this.notify.success('Announcements refreshed.');
+        const items = res?.data || [];
+        const pag = res?.pagination;
+        if (pag) {
+          this.currentPage = pag.page;
+          this.totalCount = pag.total;
+          this.totalPages = pag.totalPages;
+        }
+
+        if (!items.length && page > 1) {
+          this.loadAnnouncementsPage(page - 1, mode);
+          return;
+        }
+
+        this.announcements = items;
+
+        if (isListLoad) this.loading = false;
+        else {
+          this.refreshing = false;
+          this.notify.success('Announcements refreshed.');
+        }
       },
       error: () => {
-        this.refreshing = false;
-        this.notify.error('Failed to refresh announcements.');
+        if (isListLoad) this.loading = false;
+        else this.refreshing = false;
+        this.notify.error(isListLoad ? 'Failed to load announcements.' : 'Failed to refresh announcements.');
       }
     });
   }
@@ -249,7 +275,7 @@ export class AdminAnnouncementsComponent implements OnInit {
           this.saving = false;
           this.notify.success('Announcement created successfully.');
           this.resetForm();
-          this.loadAnnouncements();
+          this.loadAnnouncements(1);
         },
         error: (err) => {
           this.saving = false;
@@ -309,7 +335,7 @@ export class AdminAnnouncementsComponent implements OnInit {
         this.actionAnnouncementId = '';
         this.editModalOpen = false;
         this.notify.success('Announcement updated.');
-        this.loadAnnouncements();
+        this.loadAnnouncements(this.currentPage);
       },
       error: (err) => {
         this.actionAnnouncementId = '';
@@ -328,8 +354,8 @@ export class AdminAnnouncementsComponent implements OnInit {
     this.announcementService.delete(item._id).subscribe({
       next: () => {
         this.actionAnnouncementId = '';
-        this.announcements = this.announcements.filter((a) => a._id !== item._id);
         this.notify.success('Announcement deleted.');
+        this.loadAnnouncements(this.currentPage);
       },
       error: (err) => {
         this.actionAnnouncementId = '';

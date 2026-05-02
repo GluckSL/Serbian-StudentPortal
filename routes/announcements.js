@@ -170,12 +170,38 @@ async function sendAnnouncementEmails({ recipients, subject, body, title }) {
 router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const list = await Announcement.find({ channel: 'website' })
+    const filter = { channel: 'website' };
+    const rawPage = req.query.page;
+    const hasPage = rawPage !== undefined && rawPage !== null && String(rawPage).trim() !== '';
+
+    if (!hasPage) {
+      const list = await Announcement.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .populate('createdBy', 'name role')
+        .lean();
+      return res.json({ success: true, data: list });
+    }
+
+    const page = Math.max(1, parseInt(String(rawPage), 10) || 1);
+    let limit = parseInt(String(req.query.limit ?? '5'), 10) || 5;
+    if (!Number.isFinite(limit) || limit < 1) limit = 5;
+    if (limit > 50) limit = 50;
+
+    const total = await Announcement.countDocuments(filter);
+    const list = await Announcement.find(filter)
       .sort({ createdAt: -1 })
-      .limit(200)
+      .skip((page - 1) * limit)
+      .limit(limit)
       .populate('createdBy', 'name role')
       .lean();
-    res.json({ success: true, data: list });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+    return res.json({
+      success: true,
+      data: list,
+      pagination: { total, page, limit, totalPages }
+    });
   } catch (error) {
     console.error('announcements GET / failed', error);
     res.status(500).json({ success: false, message: 'Failed to load announcements.' });
