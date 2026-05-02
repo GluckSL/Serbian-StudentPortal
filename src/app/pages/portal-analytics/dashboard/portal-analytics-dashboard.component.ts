@@ -18,7 +18,7 @@ export interface PortalDashboardPayload {
     topPage: { page: string; seconds: number } | null;
     topStudent: { studentId: string; name: string; seconds: number } | null;
   };
-  timeSeries: { date: string; seconds: number }[];
+  timeSeries: { date: string; seconds: number; interactions: number; uniqueStudents: number }[];
   donut: { labels: string[]; values: number[] };
   activeStudents: { name: string; email: string; lastHeartbeatAt: string; sessionId: string }[];
   recentActivity: {
@@ -92,7 +92,7 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
     plugins: { legend: { display: false } },
     scales: {
       x: { grid: { display: false }, ticks: { maxRotation: 0 } },
-      y: { beginAtZero: true, title: { display: true, text: 'Minutes' } }
+      y: { beginAtZero: true, title: { display: true, text: 'Hours' } }
     }
   };
 
@@ -161,6 +161,133 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
     return v;
   }
 
+  /** Calendar span for the selected filter range (inclusive), used for axis density. */
+  private daysInclusiveInRange(): number {
+    const from = this.range?.from?.trim();
+    const to = this.range?.to?.trim();
+    if (!from || !to) return 7;
+    const a = new Date(`${from}T00:00:00.000Z`).getTime();
+    const b = new Date(`${to}T00:00:00.000Z`).getTime();
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return 7;
+    return Math.floor(Math.abs(b - a) / 86400000) + 1;
+  }
+
+  /** Matches portal date picker / server buckets (Asia/Kolkata). */
+  private readonly portalChartTimeZone = 'Asia/Kolkata';
+
+  private parseSeriesDay(ymd: string): Date | null {
+    const raw = String(ymd || '').split('T')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const d = new Date(raw);
+      return Number.isFinite(d.getTime()) ? d : null;
+    }
+    const d = new Date(`${raw}T00:00:00+05:30`);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+
+  /** X-axis: short dates so weekly view does not crowd (e.g. Sun, 26 Apr). */
+  private formatTimeSeriesAxisDate(ymd: string): string {
+    const d = this.parseSeriesDay(ymd);
+    if (!d) return String(ymd || '—');
+    const span = this.daysInclusiveInRange();
+    const tz = this.portalChartTimeZone;
+    if (span <= 14) {
+      return new Intl.DateTimeFormat('en-IN', {
+        timeZone: tz,
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
+      }).format(d);
+    }
+    if (span <= 62) {
+      return new Intl.DateTimeFormat('en-IN', { timeZone: tz, day: 'numeric', month: 'short' }).format(d);
+    }
+    return new Intl.DateTimeFormat('en-IN', { timeZone: tz, month: 'short', year: 'numeric' }).format(d);
+  }
+
+  private formatTimeSeriesTooltipTitle(ymd: string): string {
+    const d = this.parseSeriesDay(ymd);
+    if (!d) return String(ymd || '');
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: this.portalChartTimeZone,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(d);
+  }
+
+  private secondsToChartHours(seconds: number): number {
+    const s = Number(seconds) || 0;
+    return Math.round((s / 3600) * 100) / 100;
+  }
+
+  private formatHoursForTooltip(hours: number): string {
+    if (!Number.isFinite(hours)) return '0 h';
+    const rounded = Math.round(hours * 100) / 100;
+    const text = rounded % 1 === 0 ? String(rounded) : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+    return `${text} h`;
+  }
+
+  private formatYAxisHourTick(value: number): string {
+    if (!Number.isFinite(value)) return '';
+    if (Math.abs(value - Math.round(value)) < 1e-6) return String(Math.round(value));
+    return value.toFixed(1);
+  }
+
+  private applyLineChartScales(ts: PortalDashboardPayload['timeSeries'], empty: boolean): void {
+    const spanDays = this.daysInclusiveInRange();
+    const maxTicks = spanDays <= 10 ? 14 : spanDays <= 31 ? 12 : 8;
+    this.lineChartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: !empty,
+          callbacks: {
+            title: (items) => {
+              const idx = items[0]?.dataIndex ?? 0;
+              const row = ts[idx];
+              return row ? this.formatTimeSeriesTooltipTitle(row.date) : '';
+            },
+            label: (ctx) => {
+              const h = ctx.parsed.y as number;
+              return ` Portal time: ${this.formatHoursForTooltip(h)}`;
+            },
+            afterBody: (items) => {
+              const idx = items[0]?.dataIndex ?? 0;
+              const row = ts[idx];
+              if (!row) return [];
+              const n = Math.max(0, Math.floor(Number(row.interactions) || 0));
+              const s = Math.max(0, Math.floor(Number(row.uniqueStudents) || 0));
+              return [` Total interactions: ${n}`, ` Students with activity: ${s}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            maxRotation: spanDays > 10 ? 40 : 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: maxTicks
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Hours' },
+          ticks: {
+            callback: (val) => this.formatYAxisHourTick(Number(val))
+          }
+        }
+      }
+    };
+  }
+
   private load(showLoader = true): void {
     if (showLoader) this.loading = true;
     this.error = '';
@@ -190,7 +317,7 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
         datasets: [
           {
             data: [0],
-            label: 'Portal minutes',
+            label: 'Portal hours',
             borderColor: '#cbd5e1',
             backgroundColor: 'rgba(148, 163, 184, 0.15)',
             fill: true,
@@ -199,21 +326,24 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
           }
         ]
       };
+      this.applyLineChartScales(ts, true);
     } else {
       this.lineChartData = {
-        labels: ts.map((x) => x.date),
+        labels: ts.map((x) => this.formatTimeSeriesAxisDate(x.date)),
         datasets: [
           {
-            data: ts.map((x) => Math.round(x.seconds / 60)),
-            label: 'Portal minutes',
+            data: ts.map((x) => this.secondsToChartHours(x.seconds)),
+            label: 'Portal hours',
             borderColor: '#2563eb',
             backgroundColor: 'rgba(37, 99, 235, 0.12)',
             fill: true,
             tension: 0.35,
-            pointRadius: 2
+            pointRadius: 3,
+            pointHoverRadius: 5
           }
         ]
       };
+      this.applyLineChartScales(ts, false);
     }
 
     const labels = d.donut?.labels || [];
@@ -319,10 +449,15 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
           : null
       },
       timeSeries: Array.isArray(src.timeSeries)
-        ? src.timeSeries.map((x) => ({
-            date: String(x.date || ''),
-            seconds: normalizeNum(x.seconds)
-          }))
+        ? src.timeSeries.map((x) => {
+            const r = x as Record<string, unknown>;
+            return {
+              date: String(r['date'] || ''),
+              seconds: normalizeNum(r['seconds']),
+              interactions: normalizeNum(r['interactions']),
+              uniqueStudents: normalizeNum(r['uniqueStudents'])
+            };
+          })
         : [],
       donut: {
         labels: Array.isArray(src.donut?.labels) ? src.donut.labels.map((x) => String(x || '—')) : [],

@@ -312,34 +312,51 @@ async function closeStaleSessions() {
 }
 
 async function getOverview(from, to, cohortIds = null) {
-  const match = { ...sessionTimeRangeMatch(from, to) };
-  if (cohortIds) match.studentId = { $in: cohortIds };
-  const now = new Date();
-  const sessions = await PortalSession.find(match)
-    .select('studentId totalActiveSeconds isActive lastHeartbeatAt')
-    .lean();
+  /** Same window as getTimeSeriesDaily / donut — summed PageActivity segments (not PortalSession rollups). */
+  const trackedMatch = {
+    startTime: { $gte: from, $lte: to },
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
+  };
 
-  const perStudent = new Map();
-  const distinctStudents = new Set();
-  let totalSeconds = 0;
-
-  for (const s of sessions) {
-    const studentIdStr = String(s.studentId);
-    distinctStudents.add(studentIdStr);
-
-    let seconds = Number(s.totalActiveSeconds || 0);
-    if (s.isActive && s.lastHeartbeatAt) {
-      const extraSec = Math.floor((now.getTime() - new Date(s.lastHeartbeatAt).getTime()) / 1000);
-      seconds += Math.max(0, Math.min(extraSec, 30));
+  const aggRows = await PageActivity.aggregate([
+    { $match: trackedMatch },
+    {
+      $facet: {
+        totals: [
+          {
+            $group: {
+              _id: null,
+              totalSeconds: { $sum: '$activeSeconds' },
+              students: { $addToSet: '$studentId' }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              totalSeconds: 1,
+              studentCount: { $size: '$students' }
+            }
+          }
+        ],
+        topPage: [
+          { $group: { _id: '$page', seconds: { $sum: '$activeSeconds' } } },
+          { $sort: { seconds: -1 } },
+          { $limit: 1 }
+        ],
+        topStudent: [
+          { $group: { _id: '$studentId', seconds: { $sum: '$activeSeconds' } } },
+          { $sort: { seconds: -1 } },
+          { $limit: 1 }
+        ]
+      }
     }
+  ]);
+  const agg = aggRows[0];
 
-    totalSeconds += seconds;
-    perStudent.set(studentIdStr, (perStudent.get(studentIdStr) || 0) + seconds);
-  }
-
-  const studentCount = distinctStudents.size;
+  const totalsRow = agg?.totals?.[0];
+  const totalSeconds = Math.max(0, Math.floor(Number(totalsRow?.totalSeconds) || 0));
+  const studentCount = Math.max(0, Math.floor(Number(totalsRow?.studentCount) || 0));
   const avgTimePerStudent = studentCount > 0 ? Math.round(totalSeconds / studentCount) : 0;
-  console.log('TOTAL TIME CALCULATED:', totalSeconds);
 
   const activeCutoff = new Date(Date.now() - 5 * 60 * 1000);
   const activeStudents = await PortalSession.distinct('studentId', {
@@ -348,31 +365,14 @@ async function getOverview(from, to, cohortIds = null) {
     ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
   });
 
-  const pageMatch = {
-    startTime: { $lte: to },
-    $or: [{ endTime: null }, { endTime: { $gte: from } }, { endTime: { $exists: false } }],
-    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
-  };
+  const topPage = agg?.topPage?.[0] || null;
+  const topPageTitleMap = await buildDigitalExerciseTitleMapFromPages(topPage ? [topPage._id] : []);
 
-  const [topPage] = await PageActivity.aggregate([
-    { $match: pageMatch },
-    { $group: { _id: '$page', seconds: { $sum: '$activeSeconds' } } },
-    { $sort: { seconds: -1 } },
-    { $limit: 1 }
-  ]);
-  const topPageTitleMap = await buildDigitalExerciseTitleMapFromPages([topPage?._id]);
-
-  let topStudent = null;
-  for (const [studentId, seconds] of perStudent.entries()) {
-    if (!topStudent || seconds > topStudent.seconds) {
-      topStudent = { _id: studentId, seconds };
-    }
-  }
-
+  const topStudentRow = agg?.topStudent?.[0] || null;
   let topStudentName = null;
-  if (topStudent?._id) {
-    const u = await User.findById(topStudent._id).select('name').lean();
-    topStudentName = u?.name || String(topStudent._id);
+  if (topStudentRow?._id) {
+    const u = await User.findById(topStudentRow._id).select('name').lean();
+    topStudentName = u?.name || String(topStudentRow._id);
   }
 
   return {
@@ -380,8 +380,8 @@ async function getOverview(from, to, cohortIds = null) {
     activeStudents: activeStudents.length,
     avgTimePerStudent,
     topPage: topPage ? { page: prettyPageLabel(topPage._id, topPageTitleMap), seconds: topPage.seconds } : null,
-    topStudent: topStudent
-      ? { studentId: topStudent._id, name: topStudentName, seconds: topStudent.seconds }
+    topStudent: topStudentRow
+      ? { studentId: topStudentRow._id, name: topStudentName, seconds: topStudentRow.seconds }
       : null,
     range: { from, to }
   };
@@ -560,18 +560,30 @@ async function getTimeline(from, to, limit = 50, skip = 0, cohortIds = null) {
 }
 
 async function getTimeSeriesDaily(from, to, cohortIds = null) {
+  /** Must match parseDateRange / daily logs — date-only filters are IST calendar days. */
+  const tz = 'Asia/Kolkata';
   const matchCond = { startTime: { $gte: from, $lte: to } };
   if (cohortIds) matchCond.studentId = { $in: cohortIds };
   return PageActivity.aggregate([
     { $match: matchCond },
     {
       $group: {
-        _id: { $dateToString: { format: '%Y-%m-%d', date: '$startTime' } },
-        seconds: { $sum: '$activeSeconds' }
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$startTime', timezone: tz } },
+        seconds: { $sum: '$activeSeconds' },
+        interactions: { $sum: 1 },
+        studentIds: { $addToSet: '$studentId' }
       }
     },
     { $sort: { _id: 1 } },
-    { $project: { date: '$_id', seconds: 1, _id: 0 } }
+    {
+      $project: {
+        date: '$_id',
+        seconds: 1,
+        interactions: 1,
+        uniqueStudents: { $size: '$studentIds' },
+        _id: 0
+      }
+    }
   ]);
 }
 
