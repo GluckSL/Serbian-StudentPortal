@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -100,8 +100,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   conversationComplete = false;
   /** Full visible chat history (AI + student bubbles). */
   chatHistory: DgChatMessage[] = [];
-  /** Vocab coverage 0-100. */
+  /** Vocab coverage 0-100 (still updated from API; not shown in UI). */
   vocabCoverage = 0;
+  /** Per-bucket coverage from API (for milestone buttons). */
+  studentVocabCoverage = 0;
+  aiVocabCoverage = 0;
+  /** Elapsed seconds since conversation practice started (after "Ready"). */
+  sessionElapsedSec = 0;
+  private conversationPracticeStartedAt = 0;
+  private sessionTimerHandle: ReturnType<typeof setInterval> | null = null;
   /** True while waiting for the student turn input. */
   waitingForUser = false;
   /** Incremented to reset the mic for the next student turn. */
@@ -134,6 +141,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   private moduleStartedAt = 0;
 
   constructor(
+    private ngZone: NgZone,
     private route: ActivatedRoute,
     private router: Router,
     private dgApi: DgApiService,
@@ -158,9 +166,43 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   get progressPct(): number {
-    if (this.conversationMode) return this.vocabCoverage;
+    if (this.conversationMode && this.conversationStarted) {
+      const target = this.conversationMinTargetSeconds;
+      if (target > 0) {
+        return Math.min(100, Math.round((this.sessionElapsedSec / target) * 100));
+      }
+    }
+    if (this.conversationMode) return 0;
     if (!this.scenes.length) return 0;
     return Math.round((this.index / this.scenes.length) * 100);
+  }
+
+  /** Minimum practice window from admin (minutes). */
+  get conversationMinTargetMinutes(): number {
+    const m =
+      this.payload?.module.minPracticeMinutes ??
+      this.payload?.module.minimumCompletionTime ??
+      10;
+    const n = Number(m);
+    return Number.isFinite(n) && n > 0 ? Math.min(120, Math.max(1, n)) : 10;
+  }
+
+  get conversationMinTargetSeconds(): number {
+    return this.conversationMinTargetMinutes * 60;
+  }
+
+  /** Progress 0–100 toward admin min practice time (for optional bar). */
+  get sessionTimerProgressPct(): number {
+    const t = this.conversationMinTargetSeconds;
+    if (t <= 0) return 0;
+    return Math.min(100, Math.round((this.sessionElapsedSec / t) * 100));
+  }
+
+  formatMmSs(totalSeconds: number): string {
+    const s = Math.max(0, Math.floor(totalSeconds || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r.toString().padStart(2, '0')}`;
   }
 
   get goalSteps(): DgGoalStep[] {
@@ -187,6 +229,14 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     if (!this.waitingForUser) return false;
     if (this.isAiThinking) return false;
     return this.status !== 'speaking';
+  }
+
+  /** Show Continue / Complete when all admin vocab is covered OR min practice time reached. */
+  get showMilestoneActions(): boolean {
+    if (!this.conversationStarted || this.conversationComplete) return false;
+    const minMet = this.sessionElapsedSec >= this.conversationMinTargetSeconds;
+    const vocabDone = this.studentVocabCoverage >= 100 && this.aiVocabCoverage >= 100;
+    return vocabDone || minMet;
   }
 
   get studentDisplayName(): string {
@@ -245,7 +295,24 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     }, 0);
   }
 
+  /**
+   * Speaks the suggested German hint only when the user taps the speaker icon (never auto-played).
+   */
+  async playHintPronunciation(germanText: string): Promise<void> {
+    const t = (germanText || '').trim();
+    if (!t || this.characterSpeechLocked) return;
+    try {
+      await this.playTtsBlob(t);
+    } catch {
+      /* ignore */
+    }
+  }
+
   getCcCaption(msg: DgChatMessage): string {
+    if (msg.speaker === 'hint') {
+      if (this.ccMode === 'en') return (msg.translationEn || '').trim();
+      return '';
+    }
     if (msg.speaker !== 'ai') return '';
     if (this.ccMode === 'en') {
       const en = (msg.translationEn || '').trim();
@@ -267,6 +334,30 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.convRetryTick++;
   }
 
+  private startConversationPracticeTimer(): void {
+    if (this.sessionTimerHandle) return;
+    this.conversationPracticeStartedAt = Date.now();
+    this.sessionElapsedSec = 0;
+    this.tickSessionElapsed();
+    this.sessionTimerHandle = setInterval(() => this.tickSessionElapsed(), 1000);
+  }
+
+  private tickSessionElapsed(): void {
+    if (!this.conversationPracticeStartedAt) return;
+    const next = Math.floor((Date.now() - this.conversationPracticeStartedAt) / 1000);
+    this.ngZone.run(() => {
+      this.sessionElapsedSec = Math.max(0, next);
+    });
+  }
+
+  private stopConversationPracticeTimer(): void {
+    if (this.sessionTimerHandle) {
+      clearInterval(this.sessionTimerHandle);
+      this.sessionTimerHandle = null;
+    }
+    this.conversationPracticeStartedAt = 0;
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
@@ -277,6 +368,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyAborted = true;
+    this.stopConversationPracticeTimer();
     this.clearPendingAdvance();
     if (this.confettiOff) { clearTimeout(this.confettiOff); this.confettiOff = null; }
     this.stopAudio();
@@ -527,11 +619,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
    * Called by advance() once all intro scenes have played.
    */
   private async enterConversationMode(): Promise<void> {
+    this.stopConversationPracticeTimer();
+    this.sessionElapsedSec = 0;
     this.conversationMode = true;
     this.conversationStarted = false;
     this.conversationComplete = false;
     this.chatHistory = [];
     this.vocabCoverage = 0;
+    this.studentVocabCoverage = 0;
+    this.aiVocabCoverage = 0;
     this.usedVocab.clear();
     this.conversationTurn = 0;
     this.convRetryTick = 0;
@@ -630,29 +726,54 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
       this.isAiThinking = false;
 
-      // Persist conversation started state
+      // Persist conversation started state + start session timer toward admin min time
       if (response.conversationStarted && !this.conversationStarted) {
         this.conversationStarted = true;
+        this.startConversationPracticeTimer();
       }
 
-      // Update vocab coverage
       if (response.vocabCoverage != null) {
         this.vocabCoverage = response.vocabCoverage;
+      }
+      if (response.studentVocabCoverage != null) {
+        this.studentVocabCoverage = response.studentVocabCoverage;
+      }
+      if (response.aiVocabCoverage != null) {
+        this.aiVocabCoverage = response.aiVocabCoverage;
       }
       for (const w of response.usedVocab || []) {
         const t = String(w || '').trim().toLowerCase();
         if (t) this.usedVocab.add(t);
       }
+
+      // German-only: student used English — show hint, do not advance server dialogue
+      if (response.languageHint && response.hintDe) {
+        this.conversationTurn = response.turnCount ?? response.turnNumber ?? this.conversationTurn;
+        this.chatHistory = [
+          ...this.chatHistory,
+          {
+            speaker: 'hint',
+            text: response.hintDe,
+            translationEn: (response.hintEn || 'Say this in German to continue.').trim(),
+          },
+        ];
+        this.scrollChatToLatest();
+        this.displayLine = response.hintDe;
+        this.displaySub = (response.hintEn || '').trim();
+        this.charState.setState('idle');
+        await dgDelay(220);
+        this.openMicForUserTurn();
+        return;
+      }
+
       this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
 
-      // Push AI response to history
       this.conversationHistory = [
         ...this.conversationHistory,
         { role: 'user', text: transcript },
         { role: 'ai', text: response.text },
       ];
 
-      // Add AI bubble
       this.chatHistory = [
         ...this.chatHistory,
         {
@@ -683,7 +804,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Reset for next student turn
       await dgDelay(220);
       this.charState.setState('idle');
       this.openMicForUserTurn();
@@ -693,6 +813,83 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.isAiThinking = false;
       this.charState.setState('idle');
       this.openMicForUserTurn(); // re-open mic even on error
+    }
+  }
+
+  /** Continue or Complete after milestone (vocab done or min time reached). */
+  async postConversationClientAction(action: 'continue' | 'complete'): Promise<void> {
+    if (!this.sessionId || !this.payload || this.conversationComplete) return;
+    this.waitingForUser = false;
+    this.isAiThinking = true;
+    this.charState.setState('thinking');
+    const moduleId = this.payload.module._id;
+    const durationMin =
+      this.payload.module.minPracticeMinutes ||
+      this.payload.module.minimumCompletionTime ||
+      10;
+    const elapsedSec = this.moduleStartedAt
+      ? Math.floor((Date.now() - this.moduleStartedAt) / 1000)
+      : 0;
+    const remainingSeconds = Math.max(0, durationMin * 60 - elapsedSec);
+    try {
+      const response = await firstValueFrom(
+        this.dgApi.conversationRespond({
+          moduleId,
+          sessionId: this.sessionId,
+          sceneIndex: 0,
+          userText: '',
+          pronunciationScore: 0,
+          remainingSeconds,
+          turnNumber: this.conversationTurn,
+          history: this.conversationHistory.slice(-8),
+          clientAction: action,
+        } as any),
+      );
+      this.isAiThinking = false;
+      if (response.vocabCoverage != null) this.vocabCoverage = response.vocabCoverage;
+      if (response.studentVocabCoverage != null) {
+        this.studentVocabCoverage = response.studentVocabCoverage;
+      }
+      if (response.aiVocabCoverage != null) {
+        this.aiVocabCoverage = response.aiVocabCoverage;
+      }
+      for (const w of response.usedVocab || []) {
+        const t = String(w || '').trim().toLowerCase();
+        if (t) this.usedVocab.add(t);
+      }
+      const text = (response.text || '').trim();
+      if (text) {
+        this.conversationHistory = [...this.conversationHistory, { role: 'ai', text }];
+        this.chatHistory = [
+          ...this.chatHistory,
+          {
+            speaker: 'ai',
+            text,
+            translation: response.translatedTamil || undefined,
+            translationEn: response.translatedEnglish || undefined,
+          },
+        ];
+        this.scrollChatToLatest();
+        this.displayLine = text;
+        this.displaySub = response.translatedTamil || '';
+        this.charState.setState('speaking');
+        await this.logTts();
+        await this.playTtsBlob(text);
+      }
+      if (response.complete) {
+        this.conversationComplete = true;
+        await dgDelay(1200);
+        await this.finishModule();
+        return;
+      }
+      await dgDelay(200);
+      this.charState.setState('idle');
+      this.openMicForUserTurn();
+    } catch (e) {
+      console.error('[dg-player] client action failed', e);
+      this.isAiThinking = false;
+      this.charState.setState('idle');
+      this.openMicForUserTurn();
     }
   }
 
@@ -768,6 +965,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   private async finishModule(): Promise<void> {
+    this.stopConversationPracticeTimer();
     if (this.sessionId) {
       const finalScore = this.score != null ? Math.min(100, this.score) : 0;
       await firstValueFrom(this.dgApi.completeSession(this.sessionId, finalScore)).catch(() => {});

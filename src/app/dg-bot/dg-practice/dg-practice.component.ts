@@ -237,8 +237,8 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
         firstValueFrom(
           this.pronunciation.evaluateAudio(result.blob, {
             expected: this.expected || 'free speech',
-            // Free-speech conversation: let backend auto-detect input language
-            // so English utterances are transcribed as English (not forced German).
+            // Free-speech conversation: omit `language` so the API uses auto-detect
+            // (see pronunciationEvaluation.js — forced German was turning English into German text).
             language: this.allowFreeSpeech ? undefined : this.language,
             clientMeta: { source: 'dg-bot', freeSpeech: this.allowFreeSpeech, silenceReason: silence.reason || null },
           }),

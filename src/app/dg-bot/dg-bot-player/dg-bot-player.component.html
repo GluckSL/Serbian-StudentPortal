@@ -21,7 +21,7 @@
         <span class="dg-player__step-pill" *ngIf="conversationMode">
           <span *ngIf="!conversationStarted">Starting…</span>
           <span *ngIf="conversationStarted && !conversationComplete">
-            Vocab {{ vocabCoverage }}% covered
+            {{ formatMmSs(sessionElapsedSec) }} / {{ formatMmSs(conversationMinTargetSeconds) }}
           </span>
           <span *ngIf="conversationComplete">Complete!</span>
         </span>
@@ -153,15 +153,19 @@
           🎤 Your turn — speak now
         </div>
 
-        <!-- Vocab coverage bar -->
-        <div class="dg-conv__vocab-bar" *ngIf="conversationStarted">
-          <span class="dg-conv__vocab-label">Vocab covered</span>
-          <div class="dg-conv__vocab-track">
-            <div class="dg-conv__vocab-fill"
-                 [style.width.%]="vocabCoverage"
-                 [class.dg-conv__vocab-fill--done]="vocabCoverage >= 80"></div>
+        <!-- Session timer (counts up to admin minimum practice time) -->
+        <div class="dg-conv__session-timer" *ngIf="conversationStarted">
+          <span class="dg-conv__timer-label">Session time</span>
+          <div class="dg-conv__timer-main">
+            <span class="dg-conv__timer-elapsed">{{ formatMmSs(sessionElapsedSec) }}</span>
+            <span class="dg-conv__timer-sep">/</span>
+            <span class="dg-conv__timer-target">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
           </div>
-          <span class="dg-conv__vocab-pct">{{ vocabCoverage }}%</span>
+          <div class="dg-conv__timer-track" aria-hidden="true">
+            <div class="dg-conv__timer-fill"
+                 [style.width.%]="sessionTimerProgressPct"
+                 [class.dg-conv__timer-fill--goal]="sessionTimerProgressPct >= 100"></div>
+          </div>
         </div>
 
         <!-- Chat history -->
@@ -171,16 +175,36 @@
             class="dg-conv__msg"
             [class.dg-conv__msg--ai]="msg.speaker === 'ai'"
             [class.dg-conv__msg--student]="msg.speaker === 'student'"
+            [class.dg-conv__msg--hint]="msg.speaker === 'hint'"
           >
             <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" *ngIf="msg.speaker === 'ai'" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--hint" *ngIf="msg.speaker === 'hint'" aria-hidden="true">💡</div>
             <div class="dg-conv__msg-stack">
               <span class="dg-conv__msg-label" *ngIf="msg.speaker === 'ai'">{{ botDisplayName }}</span>
               <span class="dg-conv__msg-label dg-conv__msg-label--student" *ngIf="msg.speaker === 'student'">{{ studentDisplayName }}</span>
-              <div class="dg-conv__msg-bubble">
+              <span class="dg-conv__msg-label dg-conv__msg-label--hint" *ngIf="msg.speaker === 'hint'">Hint</span>
+              <div class="dg-conv__msg-bubble" [class.dg-conv__msg-bubble--hint]="msg.speaker === 'hint'">
                 <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'ai'" [innerHTML]="highlightStartCue(msg.text)"></span>
                 <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'student'">{{ msg.text }}</span>
+                <div class="dg-conv__hint-de-row" *ngIf="msg.speaker === 'hint'">
+                  <span class="dg-conv__msg-text dg-conv__msg-text--hint-de">{{ msg.text }}</span>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="dg-conv__hint-speak-btn"
+                    [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+                    (click)="playHintPronunciation(msg.text)"
+                    aria-label="Play pronunciation"
+                    title="Play pronunciation"
+                  >
+                    <mat-icon>volume_up</mat-icon>
+                  </button>
+                </div>
                 <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
                   {{ getCcCaption(msg) }}
+                </span>
+                <span class="dg-conv__msg-translation dg-conv__msg-translation--hint" *ngIf="msg.speaker === 'hint' && (msg.translationEn || getCcCaption(msg))">
+                  {{ msg.translationEn || getCcCaption(msg) }}
                 </span>
               </div>
             </div>
@@ -198,6 +222,31 @@
           </div>
         </div>
         <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+
+        <div class="dg-conv__milestone-row" *ngIf="showMilestoneActions">
+          <span class="dg-conv__milestone-label">Session goal reached — choose next step:</span>
+          <div class="dg-conv__milestone-btns">
+            <button
+              mat-stroked-button
+              type="button"
+              class="dg-conv__milestone-btn"
+              color="primary"
+              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+              (click)="postConversationClientAction('continue')"
+            >
+              Continue
+            </button>
+            <button
+              mat-stroked-button
+              type="button"
+              class="dg-conv__milestone-btn"
+              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+              (click)="postConversationClientAction('complete')"
+            >
+              Complete
+            </button>
+          </div>
+        </div>
 
         <!-- Mic / practice area -->
         <div class="dg-conv__mic-area">

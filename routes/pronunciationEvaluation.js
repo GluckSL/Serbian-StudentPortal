@@ -140,9 +140,19 @@ function normalizeAudioForTranscription(inputPath) {
   };
 }
 
-function normaliseLanguage(input) {
+/**
+ * @param {string|undefined} input
+ * @param {{ freeSpeech?: boolean }} [opts]
+ */
+function normaliseLanguage(input, opts = {}) {
   const raw = String(input || '').trim();
-  if (!raw) return { full: 'German', bcp47: 'de-DE', whisper: 'de' };
+  if (!raw) {
+    // Conversation mode omits `language` so Whisper can detect what the student actually spoke.
+    if (opts.freeSpeech) {
+      return { full: 'Auto', bcp47: 'auto', whisper: null };
+    }
+    return { full: 'German', bcp47: 'de-DE', whisper: 'de' };
+  }
   const lower = raw.toLowerCase();
   if (lower === 'english' || lower === 'en' || lower === 'en-us') {
     return { full: 'English', bcp47: 'en-US', whisper: 'en' };
@@ -259,14 +269,14 @@ router.post(
         });
       }
 
-      const language = normaliseLanguage(req.body?.language);
+      const clientMeta = parseClientMeta(req.body?.clientMeta);
+      const isFreeSpeech = clientMeta?.freeSpeech === true;
+      const language = normaliseLanguage(req.body?.language, { freeSpeech: isFreeSpeech });
       const variants = parseVariants(req.body?.variants);
       const thresholdRaw = Number(req.body?.threshold);
       const threshold = Number.isFinite(thresholdRaw)
         ? Math.max(0, Math.min(100, Math.round(thresholdRaw)))
         : DEFAULT_THRESHOLD;
-      const clientMeta = parseClientMeta(req.body?.clientMeta);
-      const isFreeSpeech = clientMeta?.freeSpeech === true;
       const attemptCountRaw = Number(req.body?.attemptCount ?? clientMeta?.attemptCount ?? 0);
       const attemptCount = Number.isFinite(attemptCountRaw) ? Math.max(0, Math.floor(attemptCountRaw)) : 0;
       const normalization = normalizeAudioForTranscription(audioPath);
@@ -283,14 +293,18 @@ router.post(
       // making any partial attempt appear as 100% correct.
       // For free-speech / conversation mode we enrich the hint with context about
       // numbers, prices, times, and spellings so Whisper handles those better.
+      // Free speech: do not pin Whisper to German — that made English answers transcribe as German
+      // and bypassed the "reply in German" hint flow in DG conversation.
       const genericHint = isFreeSpeech
-        ? (language.full === 'German'
-            ? 'Deutsch. Sprachübung. Kann Zahlen, Preise, Uhrzeiten, Buchstabieren oder kurze Sätze enthalten.'
-            : 'English. Language practice. May include numbers, prices, times, or spelled-out words.')
+        ? 'Language tutoring dialogue. The learner may answer in English or German. Names, numbers, prices, times, spelled letters, short phrases.'
         : (language.full === 'German'
             ? 'Deutsch. Sprachübung.'
             : 'English. Language practice.');
-      const transcribeRes = await transcribeAudio(normalization.path, language.whisper, genericHint);
+      const transcribeRes = await transcribeAudio(
+        normalization.path,
+        language.whisper == null ? undefined : language.whisper,
+        genericHint,
+      );
       const transcript = transcribeRes.text || '';
       const engine = transcribeRes.engine;
 

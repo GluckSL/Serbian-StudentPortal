@@ -175,6 +175,8 @@ export interface DgConversationRequest {
   remainingSeconds: number;
   turnNumber: number;
   history: DgConversationMessage[];
+  /** When set, server handles Continue / Complete without a spoken transcript. */
+  clientAction?: 'continue' | 'complete';
 }
 
 /** Response from POST /api/dg/conversation/respond. */
@@ -191,18 +193,30 @@ export interface DgConversationResponse {
   conversationStarted: boolean;
   vocabCoverage: number;
   usedVocab?: string[];
-  /** 'waiting_start' | 'started' | 'active' | 'complete' */
+  /**
+   * 'waiting_start' | 'started' | 'core' | 'extension' | 'complete'
+   * 'core'      = still working through admin vocab lists
+   * 'extension' = core done; continuing at same CEFR level on scenario thread
+   */
   phase: string;
+  /** Percentage of student-list words the student has produced (0–100). */
+  studentVocabCoverage?: number | null;
+  /** Percentage of AI-list words the bot has modelled (0–100). */
+  aiVocabCoverage?: number | null;
   completionReason?: string | null;
   elapsedSeconds?: number;
   minRequiredSeconds?: number;
   maxAllowedSeconds?: number | null;
   shouldWrapUp?: boolean;
+  /** True when student should repeat in the target language; client shows `hintDe` / `hintEn`. */
+  languageHint?: boolean;
+  hintDe?: string;
+  hintEn?: string;
 }
 
 /** One entry in the chat history shown on screen. */
 export interface DgChatMessage {
-  speaker: 'ai' | 'student';
+  speaker: 'ai' | 'student' | 'hint';
   text: string;
   score?: number;
   translation?: string;

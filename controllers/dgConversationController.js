@@ -10,6 +10,52 @@ const {
   processStudentTurn,
 } = require('../services/conversationEngine');
 const { translateToTamil, translateText } = require('../services/dgConversationService');
+const {
+  shouldRequestGermanHint,
+  suggestGermanLine,
+} = require('../services/dgGermanHintService');
+
+function _lastAiTextFromHistory(history) {
+  const ai = (history || []).filter((m) => m.speaker === 'ai').map((m) => m.text);
+  return ai.length ? String(ai[ai.length - 1] || '').trim() : '';
+}
+
+function _snapshotFromState(state) {
+  if (!state) return null;
+  const elapsedSeconds = Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000);
+  const minSec = Math.max(60, (state.moduleContext.minPracticeMinutes || 10) * 60);
+  const maxMin = state.moduleContext.maxPracticeMinutes;
+  const maxSec = maxMin != null ? Math.max(minSec, maxMin * 60) : null;
+  const unionPct = state.vocabList?.length
+    ? Math.round((state.usedVocab.length / state.vocabList.length) * 100)
+    : 100;
+  const studPct = state.vocabStudent?.length
+    ? Math.round((state.usedStudentVocab.length / state.vocabStudent.length) * 100)
+    : 100;
+  const aiPct = state.vocabAi?.length
+    ? Math.round((state.usedAiVocab.length / state.vocabAi.length) * 100)
+    : 100;
+  const studentDone =
+    !state.vocabStudent?.length ||
+    state.vocabStudent.every((w) => (state.usedStudentVocab || []).includes(w));
+  const aiDone =
+    !state.vocabAi?.length ||
+    state.vocabAi.every((w) => (state.usedAiVocab || []).includes(w));
+  const coreDone = studentDone && aiDone;
+  const phase = coreDone ? 'extension' : 'core';
+  return {
+    turnCount: state.turnCount || 0,
+    vocabCoverage: unionPct,
+    studentVocabCoverage: studPct,
+    aiVocabCoverage: aiPct,
+    usedVocab: [...(state.usedVocab || [])],
+    phase,
+    elapsedSeconds,
+    minRequiredSeconds: minSec,
+    maxAllowedSeconds: maxSec,
+    shouldWrapUp: maxSec != null && maxSec - elapsedSeconds <= 90,
+  };
+}
 
 // ─── POST /api/dg/conversation/start ─────────────────────────────────────────
 /**
@@ -68,11 +114,11 @@ exports.start = async (req, res) => {
  */
 exports.respond = async (req, res) => {
   try {
-    const { moduleId, sessionId, userText, pronunciationScore } = req.body;
+    const { moduleId, sessionId, userText, pronunciationScore, clientAction } = req.body;
 
-    if (!moduleId || !sessionId || !userText) {
+    if (!moduleId || !sessionId) {
       return res.status(400).json({
-        message: 'moduleId, sessionId, and userText are required',
+        message: 'moduleId and sessionId are required',
       });
     }
 
@@ -88,6 +134,80 @@ exports.respond = async (req, res) => {
     }
 
     const targetLang = state.moduleContext.language || 'German';
+    const snap = () => _snapshotFromState(getState(sessionId));
+
+    // ── UI actions: Continue / Complete (no spoken userText required) ────────
+    if (clientAction === 'continue' || clientAction === 'complete') {
+      if (!state.conversationStarted) {
+        return res.status(400).json({ message: 'Conversation has not started yet' });
+      }
+      if (clientAction === 'continue') {
+        setState(sessionId, { sessionChoiceResolved: true });
+        const msg =
+          String(targetLang).toLowerCase().includes('german') || targetLang === 'Deutsch'
+            ? 'Sehr gut, wir machen weiter!'
+            : 'Great, let\'s keep going!';
+        const translatedTamil = await translateToTamil(msg, targetLang).catch(() => '');
+        const translatedEnglish = await translateText(msg, targetLang, 'English').catch(() => '');
+        const s = snap();
+        return res.json({
+          text: msg,
+          translatedTamil,
+          translatedEnglish,
+          turnCount: s.turnCount,
+          conversationStarted: true,
+          complete: false,
+          vocabCoverage: s.vocabCoverage,
+          usedVocab: s.usedVocab,
+          phase: 'extension',
+          studentVocabCoverage: s.studentVocabCoverage,
+          aiVocabCoverage: s.aiVocabCoverage,
+          completionReason: null,
+          elapsedSeconds: s.elapsedSeconds,
+          minRequiredSeconds: s.minRequiredSeconds,
+          maxAllowedSeconds: s.maxAllowedSeconds,
+          shouldWrapUp: s.shouldWrapUp,
+          turnNumber: s.turnCount,
+          sceneComplete: false,
+          languageHint: false,
+        });
+      }
+      // complete
+      const farewell =
+        String(targetLang).toLowerCase().includes('german') || targetLang === 'Deutsch'
+          ? 'Vielen Dank! Auf Wiedersehen!'
+          : 'Thank you! Goodbye!';
+      const translatedTamil = await translateToTamil(farewell, targetLang).catch(() => '');
+      const translatedEnglish = await translateText(farewell, targetLang, 'English').catch(() => '');
+      const s = snap();
+      return res.json({
+        text: farewell,
+        translatedTamil,
+        translatedEnglish,
+        turnCount: s.turnCount,
+        conversationStarted: true,
+        complete: true,
+        vocabCoverage: s.vocabCoverage,
+        usedVocab: s.usedVocab,
+        phase: 'complete',
+        studentVocabCoverage: s.studentVocabCoverage,
+        aiVocabCoverage: s.aiVocabCoverage,
+        completionReason: 'client_complete_button',
+        elapsedSeconds: s.elapsedSeconds,
+        minRequiredSeconds: s.minRequiredSeconds,
+        maxAllowedSeconds: s.maxAllowedSeconds,
+        shouldWrapUp: true,
+        turnNumber: s.turnCount,
+        sceneComplete: true,
+        languageHint: false,
+      });
+    }
+
+    if (!clientAction && (!userText || !String(userText).trim())) {
+      return res.status(400).json({
+        message: 'userText is required',
+      });
+    }
 
     // ── Phase: waiting for start trigger ─────────────────────────────────────
     if (!state.conversationStarted) {
@@ -142,33 +262,70 @@ exports.respond = async (req, res) => {
       });
     }
 
+    // ── German-only: hint instead of advancing when student used English ───────
+    if (shouldRequestGermanHint(userText, targetLang)) {
+      const lastAi = _lastAiTextFromHistory(state.history);
+      const hintDe = await suggestGermanLine(lastAi, userText);
+      const hintEn = 'Say this in German to continue.';
+      const s = snap();
+      const translatedTamil = await translateToTamil(hintDe, targetLang).catch(() => '');
+      const translatedEnglish = await translateText(hintDe, targetLang, 'English').catch(() => '');
+      return res.json({
+        text: '',
+        translatedTamil,
+        translatedEnglish,
+        hintDe,
+        hintEn,
+        languageHint: true,
+        turnCount: s.turnCount,
+        conversationStarted: true,
+        complete: false,
+        vocabCoverage: s.vocabCoverage,
+        usedVocab: s.usedVocab,
+        phase: s.phase,
+        studentVocabCoverage: s.studentVocabCoverage,
+        aiVocabCoverage: s.aiVocabCoverage,
+        completionReason: null,
+        elapsedSeconds: s.elapsedSeconds,
+        minRequiredSeconds: s.minRequiredSeconds,
+        maxAllowedSeconds: s.maxAllowedSeconds,
+        shouldWrapUp: s.shouldWrapUp,
+        turnNumber: s.turnCount,
+        sceneComplete: false,
+      });
+    }
+
     // ── Phase: active conversation ────────────────────────────────────────────
     const result = await processStudentTurn(sessionId, userText, pronunciationScore || 0);
 
     console.log(
-      `[dgConversation] session=${sessionId} turn=${result.turnCount} vocab=${result.vocabCoverage}% complete=${result.complete}`,
+      `[dgConversation] session=${sessionId} turn=${result.turnCount} vocab=${result.vocabCoverage}% phase=${result.phase} complete=${result.complete}`,
     );
 
     const translatedEnglish =
       await translateText(result.aiText, targetLang, 'English').catch(() => '');
     res.json({
-      text:               result.aiText,
+      text:                 result.aiText,
       translatedEnglish,
-      translatedTamil:    result.translatedTamil,
-      turnCount:          result.turnCount,
-      conversationStarted: true,
-      complete:           result.complete,
-      vocabCoverage:      result.vocabCoverage,
-      usedVocab:          result.usedVocab,
-      phase:              result.complete ? 'complete' : 'active',
-      completionReason:   result.completionReason || null,
-      elapsedSeconds:     result.elapsedSeconds,
-      minRequiredSeconds: result.minRequiredSeconds,
-      maxAllowedSeconds:  result.maxAllowedSeconds ?? null,
-      shouldWrapUp:       !!result.shouldWrapUp,
+      translatedTamil:      result.translatedTamil,
+      turnCount:            result.turnCount,
+      conversationStarted:  true,
+      complete:             result.complete,
+      vocabCoverage:        result.vocabCoverage,
+      usedVocab:            result.usedVocab,
+      // Phased vocab coverage (per-bucket)
+      phase:                result.complete ? 'complete' : (result.phase || 'active'),
+      studentVocabCoverage: result.studentVocabCoverage ?? null,
+      aiVocabCoverage:      result.aiVocabCoverage ?? null,
+      completionReason:     result.completionReason || null,
+      elapsedSeconds:       result.elapsedSeconds,
+      minRequiredSeconds:   result.minRequiredSeconds,
+      maxAllowedSeconds:    result.maxAllowedSeconds ?? null,
+      shouldWrapUp:         !!result.shouldWrapUp,
+      languageHint:         false,
       // legacy fields kept for backward compat
-      turnNumber:         result.turnCount,
-      sceneComplete:      result.complete,
+      turnNumber:           result.turnCount,
+      sceneComplete:        result.complete,
     });
   } catch (err) {
     console.error('[dgConversationController.respond]', err);
