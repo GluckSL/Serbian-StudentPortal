@@ -1,5 +1,5 @@
 /**
- * Sends Zoom class join-link emails ~10 minutes before start (not at schedule time).
+ * Sends class reminder emails ~10 minutes before start (portal instructions, no Zoom links).
  * Runs every minute via node-cron.
  */
 const cron = require('node-cron');

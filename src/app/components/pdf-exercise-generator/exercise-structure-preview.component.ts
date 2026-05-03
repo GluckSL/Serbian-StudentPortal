@@ -1,9 +1,11 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 export interface ExercisePreview {
   exerciseId: string;
+  /** Same as exerciseId when provided by API */
+  id?: string;
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard' | string;
   type: string;
@@ -11,6 +13,16 @@ export interface ExercisePreview {
   enabled: boolean;
   instruction_de?: string;
   instruction_en?: string;
+  /** Merged DE/EN banner (set on upload when available) */
+  instruction?: string;
+  /** Verbatim Übung block from PDF */
+  rawText?: string;
+  /** Fill-blank rows: { sentence, answer } from deterministic pipeline */
+  questions?: Array<{ sentence?: string; answer?: string }>;
+  /** Matching rows: { left, right } from deterministic pipeline */
+  pairs?: Array<{ left?: string; right?: string }>;
+  /** Flattened questions from extraction, matched by sectionTitle */
+  extractedItems?: any[];
 }
 
 @Component({
@@ -56,6 +68,43 @@ export class ExerciseStructurePreviewComponent implements OnChanges {
 
   trackByTopic(_: number, g: { topic: string }): string { return g.topic; }
   trackByExId(_: number, ex: ExercisePreview): string { return ex.exerciseId; }
+
+  selectedExercise: ExercisePreview | null = null;
+  isPreviewOpen = false;
+
+  openPreview(ex: ExercisePreview): void {
+    this.selectedExercise = ex;
+    this.isPreviewOpen = true;
+  }
+
+  closePreview(): void {
+    this.isPreviewOpen = false;
+    this.selectedExercise = null;
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscapeClose(ev: KeyboardEvent): void {
+    if (!this.isPreviewOpen) return;
+    ev.preventDefault();
+    this.closePreview();
+  }
+
+  previewTitle(ex: ExercisePreview | null): string {
+    if (!ex) return '';
+    return String(ex.id || ex.exerciseId || 'Exercise');
+  }
+
+  hasExtracted(ex: ExercisePreview | null): boolean {
+    const items = ex?.extractedItems;
+    return Array.isArray(items) && items.length > 0;
+  }
+
+  /** Parsed pairs/questions from upload (answer key + layout), before AI extraction. */
+  hasDeterministic(ex: ExercisePreview | null): boolean {
+    const p = ex?.pairs;
+    const q = ex?.questions;
+    return (Array.isArray(p) && p.length > 0) || (Array.isArray(q) && q.length > 0);
+  }
 
   typeLabel(t: string): string {
     if (!t) return 'Unclassified';

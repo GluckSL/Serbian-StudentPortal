@@ -215,6 +215,11 @@ function normalizeTextForExactCompare(raw) {
     .replace(/\s+/g, ' ');
 }
 
+/** Must match what students see (GET handler sanitizes pair rights before shuffle). */
+function matchingRightsEqual(expectedRight, givenRight) {
+  return sanitizeQuestionPlainText(expectedRight) === sanitizeQuestionPlainText(givenRight);
+}
+
 function applyThresholdScoring(q, rawScore) {
   const threshold = normalizeThresholdForQuestion(q);
   const scoringMode = normalizeScoringModeForQuestion(q);
@@ -1306,7 +1311,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
           if (!match) continue;
           const expectedRight = pairs[li]?.right;
           const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
-          if (expectedRight !== undefined && givenRight !== undefined && String(expectedRight) === String(givenRight)) {
+          if (expectedRight !== undefined && givenRight !== undefined && matchingRightsEqual(expectedRight, givenRight)) {
             correctCount += 1;
           }
         }
@@ -1314,7 +1319,9 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
           ? Math.round((correctCount / total) * 100)
           : (correctCount === total ? 100 : 0);
       }
-      correctAnswer = { pairs: pairs.map((p, i) => ({ leftIndex: i, rightValue: p.right })) };
+      correctAnswer = {
+        pairs: pairs.map((p, i) => ({ leftIndex: i, rightValue: sanitizeQuestionPlainText(p.right) }))
+      };
     } else if (q.type === 'fill-blank') {
       const answers = q.answers || [];
       const total = answers.length;
@@ -1323,16 +1330,18 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         for (let i = 0; i < total; i++) {
           const ans = String(resp.fillBlankResponses[i] ?? '');
           const correct = answers[i];
+          const ansNorm = sanitizeQuestionPlainText(ans);
+          const corrNorm = sanitizeQuestionPlainText(correct);
           const ok = q.caseSensitive
-            ? ans.trim() === String(correct || '').trim()
-            : ans.trim().toLowerCase() === String(correct || '').trim().toLowerCase();
+            ? ansNorm === corrNorm
+            : ansNorm.toLowerCase() === corrNorm.toLowerCase();
           if (ok) correctCount += 1;
         }
         rawScore = useAdvancedGrading
           ? Math.round((correctCount / total) * 100)
           : (correctCount === total ? 100 : 0);
       }
-      correctAnswer = { answers };
+      correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
     } else if (q.type === 'singular_plural') {
       const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
       const total = rows.length;
@@ -1563,7 +1572,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
             if (!match) continue;
             const expectedRight = pairs[li]?.right;
             const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
-            if (expectedRight !== undefined && givenRight !== undefined && String(expectedRight) === String(givenRight)) {
+            if (expectedRight !== undefined && givenRight !== undefined && matchingRightsEqual(expectedRight, givenRight)) {
               correctCount += 1;
             }
           }
@@ -1571,7 +1580,9 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
             ? Math.round((correctCount / total) * 100)
             : (correctCount === total ? 100 : 0);
         }
-        correctAnswer = { pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: p.right })) };
+        correctAnswer = {
+          pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: sanitizeQuestionPlainText(p.right) }))
+        };
       } else if (q.type === 'fill-blank') {
         const answers = q.answers || [];
         const total = answers.length;
@@ -1580,16 +1591,18 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
           for (let idx = 0; idx < total; idx++) {
             const ans = String(resp.fillBlankResponses[idx] ?? '');
             const correct = answers[idx];
+            const ansNorm = sanitizeQuestionPlainText(ans);
+            const corrNorm = sanitizeQuestionPlainText(correct);
             const ok = q.caseSensitive
-              ? ans.trim() === String(correct || '').trim()
-              : ans.trim().toLowerCase() === String(correct || '').trim().toLowerCase();
+              ? ansNorm === corrNorm
+              : ansNorm.toLowerCase() === corrNorm.toLowerCase();
             if (ok) correctCount += 1;
           }
           rawScore = useAdvancedGrading
             ? Math.round((correctCount / total) * 100)
             : (correctCount === total ? 100 : 0);
         }
-        correctAnswer = { answers };
+        correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
       } else if (q.type === 'singular_plural') {
         const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
         const total = rows.length;

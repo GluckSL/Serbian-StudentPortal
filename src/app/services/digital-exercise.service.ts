@@ -3,7 +3,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, from } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { switchMap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural';
@@ -550,11 +550,13 @@ export class DigitalExerciseService {
     level?: string;
     selectedExerciseIds?: string[];
   }): Observable<any> {
-    return this.http.post<any>(
-      `${environment.apiUrl}/pdf-exercises/extract-exercises-sequential`,
-      options,
-      { withCredentials: true }
-    );
+    return this.http
+      .post<any>(
+        `${environment.apiUrl}/pdf-exercises/extract-exercises-sequential`,
+        options,
+        { withCredentials: true }
+      )
+      .pipe(timeout(55 * 60 * 1000));
   }
 
   // ─── Manual Listening Worksheet Extraction ──────────────────────────────

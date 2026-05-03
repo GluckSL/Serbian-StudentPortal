@@ -301,16 +301,25 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         this.uploadResult = res;
         this.uploading = false;
         this.applyDetectedTypes(res.detectedTypes);
-        this.exercises = (res.exercises || []).map((e: any) => ({
-          exerciseId: String(e.exerciseId || ''),
-          topic: String(e.topic || ''),
-          difficulty: String(e.difficulty || 'easy'),
-          type: String(e.type || ''),
-          questionCount: Number(e.questionCount || 0),
-          instruction_de: String(e.instruction_de || ''),
-          instruction_en: String(e.instruction_en || ''),
-          enabled: true
-        }));
+        this.exercises = (res.exercises || []).map((e: any) => {
+          const exerciseId = String(e.exerciseId || e.id || '');
+          return {
+            exerciseId,
+            id: String(e.id || exerciseId),
+            topic: String(e.topic || ''),
+            difficulty: String(e.difficulty || 'easy'),
+            type: String(e.type || ''),
+            questionCount: Number(e.questionCount || 0),
+            instruction: String(e.instruction || e.instruction_de || ''),
+            instruction_de: String(e.instruction_de || ''),
+            instruction_en: String(e.instruction_en || ''),
+            rawText: String(e.rawText ?? e.content ?? ''),
+            questions: Array.isArray(e.questions) ? e.questions : [],
+            pairs: Array.isArray(e.pairs) ? e.pairs : [],
+            extractedItems: [] as any[],
+            enabled: true
+          };
+        });
         // If server detected a worksheet, auto-enable worksheet mode label for display
         if (res.worksheetMode) {
           this.pdfDetectedTypes = true;
@@ -491,6 +500,24 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Map flat review questions back onto worksheet exercise rows (sectionTitle contains exerciseId segment). */
+  private attachExtractedQuestionsToExercises(): void {
+    const qs = this.reviewQuestions || [];
+    this.exercises = this.exercises.map((ex) => {
+      const id = String(ex.exerciseId || '').trim();
+      const extractedItems =
+        !id || !qs.length
+          ? []
+          : qs.filter((q: any) => {
+              const st = String(q.sectionTitle || '').trim();
+              if (!st) return false;
+              const segments = st.split('|').map((s: string) => s.trim());
+              return segments.includes(id);
+            });
+      return { ...ex, extractedItems };
+    });
+  }
+
   private applyExtractionResult(res: any): void {
     this.clearProgressTimer();
     this.clearExtractionPollTimer();
@@ -513,6 +540,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       expanded: false,
       aiGenerated: true
     }));
+    this.attachExtractedQuestionsToExercises();
     this.exerciseTitle = res.suggestedTitle || '';
     this.exerciseDescription = res.suggestedDescription || '';
     if (res.detectedLevel) this.level = res.detectedLevel;
@@ -525,7 +553,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   private startExtractionPolling(jobId: string): void {
     this.clearExtractionPollTimer();
     this.extractionPollBusy = false;
-    let retries = 0;
+    const pollStartedAt = Date.now();
+    /** Sequential AI extraction needs several minutes per worksheet (many Übungen × OpenAI calls). */
+    const total = Math.max(this.extractionProgress.total || 1, 1);
+    const maxPollMs = Math.min(60 * 60 * 1000, Math.max(35 * 60 * 1000, total * 5 * 60 * 1000));
 
     this.extractionPollTimer = setInterval(() => {
       if (this.extractionPollBusy) return;
@@ -562,13 +593,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
             return;
           }
 
-          retries++;
-          if (retries > 120) {
+          if (Date.now() - pollStartedAt > maxPollMs) {
             clearInterval(this.extractionPollTimer);
             this.extractionPollTimer = null;
             this.clearProgressTimer();
             this.generating = false;
-            this.generationError = 'Extraction timeout. Please try again.';
+            this.generationError =
+              'Extraction is still running on the server but the browser stopped waiting. ' +
+              'Wait a minute and use Try Again, or split the PDF into fewer exercises.';
           }
         },
         error: () => {

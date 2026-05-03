@@ -8,9 +8,8 @@ import { DgApiService } from '../dg-api.service';
 import { DgTtsService } from '../dg-tts.service';
 import { DgSceneEngineService } from '../dg-scene-engine.service';
 import { DgCharacterComponent } from '../dg-character/dg-character.component';
-import { DgDialogueComponent, type DgDialogueVariant } from '../dg-dialogue/dg-dialogue.component';
+import type { DgDialogueVariant } from '../dg-dialogue/dg-dialogue.component';
 import { DgPracticeComponent, type DgPracticePhase } from '../dg-practice/dg-practice.component';
-import { DgControlsComponent } from '../dg-controls/dg-controls.component';
 import type {
   DgChatMessage,
   DgConversationMessage,
@@ -60,9 +59,7 @@ export interface DgSceneFlowItem {
     MatButtonModule,
     MatIconModule,
     DgCharacterComponent,
-    DgDialogueComponent,
     DgPracticeComponent,
-    DgControlsComponent,
   ],
   templateUrl: './dg-bot-player.component.html',
   styleUrl: './dg-bot-player.component.scss',

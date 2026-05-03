@@ -149,6 +149,11 @@ const mongoUri =
     ? process.env.MONGO_URI
     : process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/Updated-Gluck-Portal';
 
+if (!mongoUri || typeof mongoUri !== 'string') {
+  console.error('❌ MONGO_URI is missing or invalid. Set it in .env (Atlas URI or local mongodb://…).');
+  process.exit(1);
+}
+
 const { ensureDefaultDgCharacter } = require('./services/dgCharacterSeed');
 
 function parseMongoHosts(uri) {
@@ -210,35 +215,16 @@ async function warnIfSuspiciousMongoDns(uri) {
   }
 }
 
-warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
-
-mongoose.connect(mongoUri)
-  .then(async () => {
-    console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
-    await ensureDefaultDgCharacter();
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err);
+/** Wait for MongoDB before accepting traffic / crons — avoids Mongoose “buffering timed out” spam when Atlas is unreachable. */
+async function connectMongoDb() {
+  await warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 45_000,
+    socketTimeoutMS: 45_000,
   });
-
-/* Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('✅ Connected to MongoDB Atlas'))
-  .catch(err => console.error('❌ Error connecting to MongoDB Atlas:', err));
-*/
-
-
-/* Connect to local MongoDB for development
-mongoose.connect("mongodb://127.0.0.1:27017/Updated-Gluck-Portal", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('✅ Connected to LOCAL MongoDB'))
-  .catch(err => console.error('❌ Error connecting to MongoDB:', err));
-*/
+  console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
+  await ensureDefaultDgCharacter();
+}
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -370,25 +356,34 @@ app.post('/api/grade-assignment', async (req, res) => {
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  
-  // Initialize cron jobs
-  scheduleMetaToMondaySync();
-  scheduleAutoFetchAttendance();
-  scheduleJourneyDayRollover();
-  scheduleZoomMeetingReminderEmails();
 
-  // WhatsApp CRM notification jobs
-  scheduleClassReminders();
-  scheduleAbsenceAlerts();
-  scheduleMissedActivitiesAlerts();
-  scheduleWeeklyReports();
-  scheduleConsecutiveAbsenceAlerts();
-  scheduleStudentPortalCrmFullSync();
-  schedulePortalSessionStaleClose();
-});
+connectMongoDb()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+
+      scheduleMetaToMondaySync();
+      scheduleAutoFetchAttendance();
+      scheduleJourneyDayRollover();
+      scheduleZoomMeetingReminderEmails();
+
+      scheduleClassReminders();
+      scheduleAbsenceAlerts();
+      scheduleMissedActivitiesAlerts();
+      scheduleWeeklyReports();
+      scheduleConsecutiveAbsenceAlerts();
+      scheduleStudentPortalCrmFullSync();
+      schedulePortalSessionStaleClose();
+    });
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection failed — server not started:', err.message || err);
+    console.error(
+      '   Fix: verify MONGO_URI, Atlas Database User password, and Network Access (IP allowlist: add 0.0.0.0/0 for testing or your current IP). ' +
+      'SRV DNS can succeed while the driver still cannot complete TLS/auth.'
+    );
+    process.exit(1);
+  });
 
 

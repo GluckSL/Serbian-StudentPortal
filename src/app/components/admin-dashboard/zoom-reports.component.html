@@ -49,16 +49,16 @@
     <div class="zr-filters">
       <input class="zr-input zr-input--search" type="text"
              placeholder="Search topic, teacher, batch…"
-             [(ngModel)]="searchQuery" (ngModelChange)="onFilterChange()">
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
 
       <select class="zr-select" [(ngModel)]="teacherFilter" (ngModelChange)="onFilterChange()" *ngIf="!isTeacherRole">
         <option value="all">All Teachers</option>
-        <option *ngFor="let t of getUniqueTeachers()" [value]="t">{{ t }}</option>
+        <option *ngFor="let t of teacherOptions" [value]="t">{{ t }}</option>
       </select>
 
       <select class="zr-select" [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
         <option value="all">All Batches</option>
-        <option *ngFor="let b of getUniqueBatches()" [value]="b">{{ b }}</option>
+        <option *ngFor="let b of journeyBatchNames" [value]="b">{{ b }}</option>
       </select>
 
       <select class="zr-select" [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()">

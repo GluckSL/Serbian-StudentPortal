@@ -1,8 +1,24 @@
 /**
- * HTML + send helpers for Zoom class invitation emails (10 min before start via cron).
+ * HTML + send helpers for class reminder emails (~10 min before start via cron).
+ * Join happens only through the student portal — no Zoom links or passwords in email.
  */
 
 const DEFAULT_TZ = 'Asia/Colombo';
+
+function portalJoinInstructionsHtml() {
+  return `
+                  <div style="background:#e7f3ff; padding:18px; border-radius:8px; margin:24px 0; text-align:left; border:1px solid #b8daff;">
+                    <p style="margin:0 0 12px 0; font-weight:bold; color:#000e89;">How to join</p>
+                    <ol style="margin:0; padding-left:22px; font-size:14px; color:#333; line-height:1.6;">
+                      <li style="margin-bottom:8px;">Open the <strong>Glück Global</strong> student portal and sign in.</li>
+                      <li style="margin-bottom:8px;">Go to the <strong>My Class</strong> tab.</li>
+                      <li style="margin-bottom:8px;">Under <strong>Upcoming</strong>, find this class — when it is time, use <strong>Join now</strong>.</li>
+                      <li style="margin-bottom:8px;">You can also open <strong>Live class</strong> and click <strong>Join</strong> when the session is active.</li>
+                      <li>Join using your <strong>registered name</strong> (exactly as on your account) so attendance is recorded correctly.</li>
+                    </ol>
+                  </div>
+                `;
+}
 
 function buildInvitationHtml({
   studentName,
@@ -12,9 +28,6 @@ function buildInvitationHtml({
   batch,
   plan,
   agenda,
-  joinUrl,
-  password,
-  meetingId,
   introParagraph,
   timeZone = DEFAULT_TZ
 }) {
@@ -54,34 +67,14 @@ function buildInvitationHtml({
 
                   ${agenda ? `<p style="color:#666; font-style:italic;">${agenda}</p>` : ''}
 
-                  <div style="margin:30px 0;">
-                    <a href="${joinUrl}" target="_blank"
-                      style="display:inline-block; background-color:#000e89; color:#fff;
-                            text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                      🎥 Join Zoom Meeting
-                    </a>
-                  </div>
-
-                  ${password ? `
-                    <div style="background:#fff3cd; border:1px solid #ffc107; padding:10px; border-radius:6px; margin:20px 0;">
-                      <p style="margin:0; color:#856404;">
-                        <strong>🔒 Meeting Password:</strong> <code style="background:#fff; padding:5px 10px; border-radius:4px; font-size:16px;">${password}</code>
-                      </p>
-                    </div>
-                  ` : ''}
-
-                  <div style="background:#e7f3ff; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold; color:#000e89;">📝 Meeting Details:</p>
-                    <p style="margin:5px 0; font-size:14px;"><strong>Meeting ID:</strong> ${meetingId}</p>
-                    <p style="margin:5px 0; font-size:14px;"><strong>Join link:</strong> <a href="${joinUrl}" style="color:#000e89; word-break:break-all;">${joinUrl}</a></p>
-                  </div>
+                  ${portalJoinInstructionsHtml()}
 
                   <div style="background:#d4edda; border:1px solid #c3e6cb; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold; color:#155724;">✅ Tips:</p>
+                    <p style="margin:0 0 10px 0; font-weight:bold; color:#155724;">✅ Reminder:</p>
                     <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#155724;">
-                      <li>Use this link to join so your attendance can be recorded</li>
-                      <li>You can join a few minutes before the scheduled time</li>
-                      <li>Please don’t share your link with others</li>
+                      <li>Do not share your portal login with others.</li>
+                      <li>You can join from a few minutes before the class starts.</li>
+                      <li>Use your registered display name in the meeting so attendance matches your account.</li>
                     </ul>
                   </div>
 
@@ -109,7 +102,7 @@ function buildInvitationHtml({
 async function sendInvitationEmailsToAttendees(meeting, transporter, options = {}) {
   const intro =
     options.introParagraph ||
-    'Your German class starts in about <strong>10 minutes</strong>. Join using the link below:';
+    'Your German class starts in about <strong>10 minutes</strong>. Please join through the student portal — follow the steps below (no join link is sent by email).';
 
   const emailResults = {
     attempted: 0,
@@ -120,8 +113,6 @@ async function sendInvitationEmailsToAttendees(meeting, transporter, options = {
   };
 
   const timeZone = meeting.timezone || DEFAULT_TZ;
-  const joinUrl = meeting.joinUrl || meeting.link;
-  const meetingId = meeting.zoomMeetingId || '';
 
   const recipientList =
     options.onlyAttendees && options.onlyAttendees.length
@@ -143,9 +134,6 @@ async function sendInvitationEmailsToAttendees(meeting, transporter, options = {
         batch: meeting.batch,
         plan: meeting.plan,
         agenda: meeting.agenda || '',
-        joinUrl: att.joinUrl || joinUrl,
-        password: meeting.zoomPassword || '',
-        meetingId,
         introParagraph: intro,
         timeZone
       });
@@ -153,7 +141,7 @@ async function sendInvitationEmailsToAttendees(meeting, transporter, options = {
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
-        subject: options.subject || '🎓 Zoom class starting in ~10 minutes - Glück Global',
+        subject: options.subject || '🎓 Class starting in ~10 minutes — join via portal (Glück Global)',
         html
       });
       emailResults.successful++;

@@ -440,7 +440,7 @@
               <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index; trackBy: trackByIndex">
                 <input type="text" [(ngModel)]="pair.left" class="pair-input" [placeholder]="'Left '+(pi+1)" (keydown)="$event.stopPropagation()" />
                 <span class="pair-sep">↔</span>
-                <input type="text" [(ngModel)]="pair.right" class="pair-input" [placeholder]="'Right '+(pi+1)" (keydown)="$event.stopPropagation()" />
+                <input type="text" [(ngModel)]="pair.right" class="pair-input" placeholder="" (keydown)="$event.stopPropagation()" />
                 <button class="btn-rm-sm" (click)="removePair(q, pi)"><span class="material-icons">close</span></button>
               </div>
               <button class="btn-add-sm" (click)="addPair(q)"><span class="material-icons">add</span> Add pair</button>

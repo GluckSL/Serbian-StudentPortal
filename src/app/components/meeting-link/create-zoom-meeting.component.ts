@@ -694,7 +694,7 @@ export class CreateZoomMeetingComponent implements OnInit {
             this.successMessage =
               `✅ ${createdCount} meeting(s) created with ${response.data.attendeesCount || this.selectedStudents.length} students each. ` +
               (emailStatus.message ||
-                'Students will receive the join link by email about 10 minutes before class starts.');
+                'Students will receive a reminder email about 10 minutes before class starts with instructions to join via the portal.');
           } else if (emailStatus?.allSent) {
             this.successMessage = `✅ Zoom meeting created successfully with ${response.data.attendeesCount} students! All invitation emails sent.`;
           } else if (emailStatus?.totalFailure) {

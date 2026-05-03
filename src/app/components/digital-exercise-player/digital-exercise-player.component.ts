@@ -594,15 +594,22 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (q.type === 'mcq') {
         pq.selectedOption = undefined;
       } else if (q.type === 'matching') {
-        const leftItems = (q.pairs || []).map((p: any) => ({
+        const pairsRaw = (q.pairs || []).filter(
+          (p: any) =>
+            String(p?.left ?? '').trim().length > 0 && String(p?.right ?? '').trim().length > 0,
+        );
+        const leftItems = pairsRaw.map((p: any) => ({
           value: this.normalizePlainDisplayText(p.left),
-          matchedRightIndex: null
+          matchedRightIndex: null,
         }));
         const rightItems = q.shuffledRight
-          ? q.shuffledRight.map((r: string) => ({ value: this.normalizePlainDisplayText(r), matchedLeftIndex: null }))
-          : (q.pairs || []).map((_: any, idx: number) => ({
-              value: this.normalizePlainDisplayText(q.pairs[idx].right),
-              matchedLeftIndex: null
+          ? q.shuffledRight.map((r: string) => ({
+              value: this.normalizePlainDisplayText(r),
+              matchedLeftIndex: null,
+            }))
+          : pairsRaw.map((p: any) => ({
+              value: this.normalizePlainDisplayText(p.right),
+              matchedLeftIndex: null,
             }));
         pq.matchingLeft = leftItems;
         pq.matchingRight = rightItems;
@@ -2998,22 +3005,32 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.scheduleDraftSave();
   }
 
+  /** Aligns with server `sanitizeQuestionPlainText` for per-item feedback after submit. */
+  private normExercisePlainText(v: unknown): string {
+    return String(v ?? '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   isMatchCorrect(pq: PlayerQuestion, leftIndex: number): boolean {
     const matchedRightIndex = pq.matchingLeft![leftIndex].matchedRightIndex;
     if (matchedRightIndex === null || matchedRightIndex === undefined) return false;
     const matchedRightValue = pq.matchingRight![matchedRightIndex].value;
     const correctPairs = pq.data._correctPairs || [];
     const correctForLeft = correctPairs.find((p: any) => p.leftIndex === leftIndex);
-    return correctForLeft ? correctForLeft.rightValue === matchedRightValue : false;
+    if (!correctForLeft) return false;
+    return this.normExercisePlainText(correctForLeft.rightValue) === this.normExercisePlainText(matchedRightValue);
   }
 
   isFillCorrect(pq: PlayerQuestion, blankIndex: number): boolean {
     const correct = (pq.data._correctAnswers || [])[blankIndex];
     const given = (pq.fillAnswers || [])[blankIndex];
-    if (!correct || given === undefined) return false;
-    return pq.data.caseSensitive
-      ? given.trim() === correct.trim()
-      : given.trim().toLowerCase() === correct.trim().toLowerCase();
+    if (correct === undefined || given === undefined) return false;
+    const a = this.normExercisePlainText(given);
+    const b = this.normExercisePlainText(correct);
+    return pq.data.caseSensitive ? a === b : a.toLowerCase() === b.toLowerCase();
   }
 
   isSpRowCorrect(pq: PlayerQuestion, rowIndex: number): boolean {
@@ -3046,6 +3063,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (score >= 70) return '👍';
     if (score >= 60) return '💪';
     return '📚';
+  }
+
+  /**
+   * Worksheet headings from PDF extraction: German first, then English, then legacy merged `instruction`.
+   */
+  worksheetInstructionDisplay(data: any): string {
+    if (!data) return '';
+    const de = String(data.instruction_de ?? '').trim();
+    const en = String(data.instruction_en ?? '').trim();
+    if (de) return de;
+    if (en) return en;
+    return String(data.instruction ?? '').trim();
   }
 
   /**
