@@ -6,9 +6,9 @@
 }
 
 .dg-char__stage {
-  width: min(100%, 420px);
+  width: min(100%, 520px);
   aspect-ratio: 3 / 5;
-  max-height: min(520px, 70vh);
+  max-height: min(640px, 76vh);
   border-radius: 1.25rem;
   background: transparent;
   display: flex;
@@ -24,11 +24,20 @@
 /* Full-body fox only — class kept for player overrides */
 .dg-char--pose-full .dg-char__stage {
   aspect-ratio: 3 / 5;
-  max-height: min(520px, 70vh);
+  max-height: min(640px, 76vh);
 }
 
 .dg-char__stage--motion {
   will-change: transform;
+}
+
+/* DG Bot player: flat mascot — no mood labels or inset/glow rings */
+.dg-char--minimal-ui .dg-char__stage {
+  box-shadow: none !important;
+}
+
+.dg-char--minimal-ui[data-char-state='listening'] .dg-char__stage {
+  animation: none;
 }
 
 .dg-char[data-char-state='speaking'] .dg-char__stage {
@@ -214,6 +223,10 @@
   .dg-char__emoji,
   .dg-char__badge {
     transition: none !important;
+    animation: none !important;
+  }
+
+  .dg-char--minimal-ui[data-char-state='idle'] .dg-char__stage {
     animation: none !important;
   }
 

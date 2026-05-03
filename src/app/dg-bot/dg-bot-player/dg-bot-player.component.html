@@ -42,11 +42,11 @@
       <aside class="dg-conv__char">
         <div class="dg-conv__mascot">
           <app-dg-character
+            [minimalChrome]="true"
             [name]="payload.character.name"
             [animations]="payload.character.animations || null"
           ></app-dg-character>
         </div>
-        <p class="dg-conv__fox-state">{{ status === 'speaking' ? 'Speaking…' : 'Listening' }}</p>
       </aside>
 
       <main class="dg-conv__chat">
@@ -103,11 +103,11 @@
       <aside class="dg-conv__char">
         <div class="dg-conv__mascot">
           <app-dg-character
+            [minimalChrome]="true"
             [name]="payload.character.name"
             [animations]="payload.character.animations || null"
           ></app-dg-character>
         </div>
-        <p class="dg-conv__fox-state">{{ isAiThinking ? 'Thinking…' : status === 'speaking' ? 'Speaking…' : 'Listening' }}</p>
       </aside>
 
       <!-- Chat column -->

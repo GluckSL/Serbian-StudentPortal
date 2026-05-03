@@ -42,6 +42,8 @@ export class DgCharacterComponent implements OnInit {
   /** Unused: all art is full-body fox. Kept for template compatibility. */
   @Input() pose: typeof FOX_POSE = FOX_POSE;
   @Input() animations: Record<string, string> | null = null;
+  /** Player layout: hide mood pill + colored stage outline (must live here — parent CSS cannot pierce encapsulation). */
+  @Input() minimalChrome = false;
 
   constructor() {
     this.charState.state$.pipe(takeUntilDestroyed()).subscribe((s) => {
