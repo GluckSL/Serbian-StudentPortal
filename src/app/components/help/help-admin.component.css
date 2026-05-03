@@ -51,7 +51,7 @@
 /* ── KPIs ── */
 .ha-kpis {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -84,6 +84,8 @@
 .ha-kpi--red strong { color: #b91c1c; }
 .ha-kpi--neutral { border-color: #e2e8f0; }
 .ha-kpi--neutral strong { color: #374151; }
+.ha-kpi--slate { border-color: #cbd5e1; }
+.ha-kpi--slate strong { color: #475569; }
 
 /* ── Filters ── */
 .ha-filters {
@@ -193,6 +195,16 @@
 .ha-submitter small {
   color: #94a3b8;
   font-size: 11px;
+}
+
+.ha-batch {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ha-subject {

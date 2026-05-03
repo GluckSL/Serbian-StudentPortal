@@ -203,9 +203,10 @@
                 <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
                   {{ getCcCaption(msg) }}
                 </span>
-                <span class="dg-conv__msg-translation dg-conv__msg-translation--hint" *ngIf="msg.speaker === 'hint' && (msg.translationEn || getCcCaption(msg))">
-                  {{ msg.translationEn || getCcCaption(msg) }}
+                <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'hint' && getCcCaption(msg)">
+                  {{ getCcCaption(msg) }}
                 </span>
+                <span class="dg-conv__hint-instruction" *ngIf="msg.speaker === 'hint' && msg.instructionEn">{{ msg.instructionEn }}</span>
               </div>
             </div>
             <div class="dg-conv__msg-avatar dg-conv__msg-avatar--student" *ngIf="msg.speaker === 'student'" aria-hidden="true">👤</div>

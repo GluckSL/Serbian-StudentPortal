@@ -74,7 +74,8 @@ export class HelpAdminComponent implements OnInit {
         t.subject?.toLowerCase().includes(q) ||
         t.name?.toLowerCase().includes(q) ||
         t.email?.toLowerCase().includes(q) ||
-        t.ticketNumber?.toLowerCase().includes(q)
+        t.ticketNumber?.toLowerCase().includes(q) ||
+        (t.batch && String(t.batch).toLowerCase().includes(q))
       );
     }
     if (this.filterStatus) {
@@ -130,7 +131,10 @@ export class HelpAdminComponent implements OnInit {
             // update local ticket
             const updated = res.data;
             const idx = this.tickets.findIndex(t => t._id === updated._id);
-            if (idx >= 0) this.tickets[idx] = updated;
+            if (idx >= 0) {
+              const prevBatch = this.tickets[idx].batch;
+              this.tickets[idx] = { ...updated, batch: updated.batch ?? prevBatch ?? null };
+            }
             this.applyFilters();
             this.selectedTicket = updated;
             this.replyDraft[ticket._id!] = '';
@@ -166,4 +170,5 @@ export class HelpAdminComponent implements OnInit {
   get inProgressCount(): number { return this.tickets.filter(t => t.status === 'in-progress').length; }
   get resolvedCount(): number { return this.tickets.filter(t => t.status === 'resolved').length; }
   get highPriorityCount(): number { return this.tickets.filter(t => t.priority === 'high' && t.status === 'open').length; }
+  get closedCount(): number { return this.tickets.filter(t => t.status === 'closed').length; }
 }

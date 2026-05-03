@@ -181,6 +181,15 @@
                         <div class="action-buttons">
                           <button
                             type="button"
+                            class="btn btn-sm btn-outline-purple me-1"
+                            (click)="goAnalytics(m)"
+                            [disabled]="!m._id"
+                            title="Session analytics — time, completion, chat"
+                          >
+                            <i class="fas fa-chart-bar"></i>
+                          </button>
+                          <button
+                            type="button"
                             class="btn btn-sm btn-outline-primary me-1"
                             (click)="goEdit(m)"
                             [disabled]="!m._id"

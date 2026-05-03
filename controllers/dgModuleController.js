@@ -1,5 +1,11 @@
 const DGModule = require('../models/DGModule');
-const DGCharacter = require('../models/DGCharacter');
+const LearningModule = require('../models/LearningModule');
+const {
+  buildDgModulePayloadFromLearning,
+  resolveDefaultCharacterId,
+} = require('../services/mapLearningToDgPayload');
+
+const MAX_LEARNING_IMPORT_BATCH = 20;
 
 function sortScenes(scenes) {
   return [...(scenes || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -40,6 +46,67 @@ function normalizePracticeWindow(input) {
 
   return out;
 }
+
+exports.createFromLearning = async (req, res) => {
+  try {
+    const ids = req.body.learningModuleIds;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'learningModuleIds must be a non-empty array' });
+    }
+    if (ids.length > MAX_LEARNING_IMPORT_BATCH) {
+      return res.status(400).json({
+        message: `At most ${MAX_LEARNING_IMPORT_BATCH} modules per request`,
+      });
+    }
+
+    let characterId;
+    try {
+      characterId = await resolveDefaultCharacterId();
+    } catch (e) {
+      return res.status(400).json({ message: e.message || 'No default character' });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const rawId of ids) {
+      const learningModuleId = String(rawId);
+      try {
+        const lm = await LearningModule.findById(learningModuleId).lean();
+        if (!lm || lm.isDeleted) {
+          errors.push({ learningModuleId, message: 'Learning module not found' });
+          continue;
+        }
+
+        const basePayload = await buildDgModulePayloadFromLearning(lm, characterId);
+        const payload = normalizePracticeWindow({
+          ...basePayload,
+          scenes: sortScenes(basePayload.scenes || []),
+          createdBy: req.user.id,
+        });
+
+        const doc = new DGModule(payload);
+        await doc.save();
+
+        results.push({
+          learningModuleId,
+          dgModuleId: doc._id.toString(),
+          title: doc.title,
+        });
+      } catch (e) {
+        errors.push({
+          learningModuleId,
+          message: e.message || 'Create failed',
+        });
+      }
+    }
+
+    const statusCode = results.length === 0 ? 400 : 200;
+    res.status(statusCode).json({ results, errors });
+  } catch (e) {
+    res.status(500).json({ message: e.message || 'Import failed' });
+  }
+};
 
 exports.create = async (req, res) => {
   try {

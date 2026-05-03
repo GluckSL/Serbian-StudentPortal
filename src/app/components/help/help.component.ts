@@ -28,6 +28,8 @@ export interface SupportTicket {
   createdAt?: string;
   updatedAt?: string;
   userId?: string;
+  /** Set on admin list from linked User (by userId or email). */
+  batch?: string | null;
 }
 
 @Component({

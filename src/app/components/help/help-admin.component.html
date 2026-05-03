@@ -28,6 +28,10 @@
       <span>High Priority (Open)</span>
       <strong>{{ highPriorityCount }}</strong>
     </div>
+    <div class="ha-kpi ha-kpi--slate">
+      <span>Closed</span>
+      <strong>{{ closedCount }}</strong>
+    </div>
     <div class="ha-kpi ha-kpi--neutral">
       <span>Total</span>
       <strong>{{ tickets.length }}</strong>
@@ -39,7 +43,7 @@
     <div class="ha-search-wrap">
       <i class="fas fa-search"></i>
       <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilters()"
-             placeholder="Search by name, email, subject or ticket number…">
+             placeholder="Search by name, email, batch, subject or ticket number…">
     </div>
     <select [(ngModel)]="filterStatus" (ngModelChange)="applyFilters()">
       <option value="">All Statuses</option>
@@ -76,6 +80,7 @@
         <tr>
           <th>Ticket #</th>
           <th>Submitter</th>
+          <th>Batch</th>
           <th>Subject</th>
           <th>Category</th>
           <th>Priority</th>
@@ -94,6 +99,7 @@
                 <small>{{ ticket.email }}</small>
               </div>
             </td>
+            <td class="ha-batch">{{ ticket.batch || '—' }}</td>
             <td class="ha-subject">{{ ticket.subject }}</td>
             <td><span class="ha-cat-badge">{{ getCategoryLabel(ticket.category) }}</span></td>
             <td>
@@ -120,7 +126,7 @@
           </tr>
           <!-- Expanded Row -->
           <tr *ngIf="selectedTicket?._id === ticket._id" class="ha-expand-row">
-            <td colspan="8">
+            <td colspan="9">
               <div class="ha-expand-content">
                 <h4>Description</h4>
                 <p>{{ ticket.description }}</p>

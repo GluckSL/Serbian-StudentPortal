@@ -801,9 +801,13 @@
   font-size: 0.92rem;
 }
 
-.dg-conv__msg-translation--hint {
-  color: #92400e !important;
+.dg-conv__hint-instruction {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.74rem;
+  color: #92400e;
   font-weight: 600;
+  line-height: 1.35;
 }
 
 .dg-conv__milestone-row {

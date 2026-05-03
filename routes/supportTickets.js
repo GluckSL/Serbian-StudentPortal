@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const SupportTicket = require('../models/SupportTicket');
+const User = require('../models/User');
 const upload = require('../config/supportTicketUpload');
 const transporter = require('../config/emailConfig');
 const { verifyToken, checkRole } = require('../middleware/auth');
@@ -135,8 +136,50 @@ router.get('/tickets/my', verifyToken, async (req, res) => {
 // GET /api/support/tickets (admin)
 router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const tickets = await SupportTicket.find().sort({ createdAt: -1 });
-    return res.json({ success: true, data: tickets });
+    const tickets = await SupportTicket.find()
+      .sort({ createdAt: -1 })
+      .populate({ path: 'userId', select: 'batch email' });
+
+    const rows = tickets.map((doc) => {
+      const o = doc.toObject();
+      let batch = null;
+      let userId = o.userId;
+      if (userId && typeof userId === 'object' && userId.batch) {
+        batch = userId.batch;
+        userId = userId._id;
+      } else if (userId && typeof userId === 'object') {
+        userId = userId._id;
+      }
+      return { ...o, userId, batch: batch || null };
+    });
+
+    const emailsNeedingBatch = [
+      ...new Set(
+        rows
+          .filter((r) => !r.batch && r.email)
+          .map((r) => String(r.email).trim().toLowerCase())
+      )
+    ];
+
+    if (emailsNeedingBatch.length) {
+      const users = await User.find({
+        $expr: { $in: [{ $toLower: '$email' }, emailsNeedingBatch] }
+      })
+        .select('email batch')
+        .lean();
+      const emailToBatch = new Map(
+        users.map((u) => [String(u.email || '').trim().toLowerCase(), u.batch || ''])
+      );
+      for (const row of rows) {
+        if (!row.batch && row.email) {
+          const key = String(row.email).trim().toLowerCase();
+          const b = emailToBatch.get(key);
+          if (b) row.batch = b;
+        }
+      }
+    }
+
+    return res.json({ success: true, data: rows });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to load tickets.' });
   }

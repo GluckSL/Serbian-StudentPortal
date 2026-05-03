@@ -198,6 +198,7 @@ async function resignExercise(exercise) {
       if (isS3Url(q.mediaUrl))  q.mediaUrl  = await presignS3Url(q.mediaUrl);
       if (isS3Url(q.videoUrl))  q.videoUrl  = await presignS3Url(q.videoUrl);
       if (isS3Url(q.imageUrl))  q.imageUrl  = await presignS3Url(q.imageUrl);
+      if (isS3Url(q.attachmentUrl)) q.attachmentUrl = await presignS3Url(q.attachmentUrl);
     }
   }
 

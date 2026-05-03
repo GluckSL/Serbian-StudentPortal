@@ -443,6 +443,16 @@
   color: #fff;
 }
 
+.dg-admin-mm .btn-outline-purple {
+  color: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.dg-admin-mm .btn-outline-purple:hover {
+  background: #7c3aed;
+  color: #fff;
+}
+
 @media (max-width: 768px) {
   .dg-admin-mm .action-buttons {
     flex-direction: column;

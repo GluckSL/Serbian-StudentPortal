@@ -18,12 +18,24 @@ router.delete('/character/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
 
 router.get('/modules/student', verifyToken, checkRole(['STUDENT']), dgModuleController.listStudent);
 router.get('/modules', verifyToken, checkRole(staffRoles), dgModuleController.listAdmin);
+router.post(
+  '/modules/from-learning',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  dgModuleController.createFromLearning,
+);
 router.get('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.getAdminById);
 router.post('/modules', verifyToken, checkRole(staffRoles), dgModuleController.create);
 router.put('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.update);
 router.patch('/modules/:id/visibility', verifyToken, checkRole(staffRoles), dgModuleController.patchVisibility);
 router.delete('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.remove);
 router.get('/modules/:id/play', verifyToken, dgModuleController.getPlay);
+router.get(
+  '/modules/:moduleId/session-insights',
+  verifyToken,
+  checkRole(staffRoles),
+  dgSessionController.listByModuleAdmin,
+);
 
 router.post('/session/start', verifyToken, dgSessionController.start);
 router.post('/session/update', verifyToken, dgSessionController.update);

@@ -342,13 +342,13 @@
             <!-- Preview based on file type -->
             <div *ngIf="q.attachmentUrl && !q.attachmentUploading" class="attachment-preview">
               <ng-container [ngSwitch]="getAttachmentType(q.attachmentUrl)">
-                <img *ngSwitchCase="'image'" [src]="q.attachmentUrl" alt="Attachment" class="attachment-img-preview" />
-                <audio *ngSwitchCase="'audio'" [src]="q.attachmentUrl" controls class="attachment-audio-preview"></audio>
-                <video *ngSwitchCase="'video'" [src]="q.attachmentUrl" controls class="attachment-video-preview"></video>
-                <a *ngSwitchCase="'pdf'" [href]="q.attachmentUrl" target="_blank" class="attachment-file-link">
+                <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(q.attachmentUrl)" alt="Attachment" class="attachment-img-preview" />
+                <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-audio-preview"></audio>
+                <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-video-preview"></video>
+                <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" class="attachment-file-link">
                   <span class="material-icons">picture_as_pdf</span> View PDF
                 </a>
-                <a *ngSwitchDefault [href]="q.attachmentUrl" target="_blank" class="attachment-file-link">
+                <a *ngSwitchDefault [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" class="attachment-file-link">
                   <span class="material-icons">insert_drive_file</span> View file
                 </a>
               </ng-container>

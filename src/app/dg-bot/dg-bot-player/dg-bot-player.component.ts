@@ -310,7 +310,14 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   getCcCaption(msg: DgChatMessage): string {
     if (msg.speaker === 'hint') {
-      if (this.ccMode === 'en') return (msg.translationEn || '').trim();
+      if (this.ccMode === 'en') {
+        const en = (msg.translationEn || '').trim();
+        const src = (msg.text || '').trim();
+        if (!en) return '';
+        if (en.toLowerCase() === src.toLowerCase()) return '';
+        return en;
+      }
+      if (this.ccMode === 'ta') return (msg.translation || '').trim();
       return '';
     }
     if (msg.speaker !== 'ai') return '';
@@ -661,6 +668,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     ];
     this.scrollChatToLatest();
 
+    if (this.sessionId) {
+      firstValueFrom(
+        this.dgApi.updateSession({
+          sessionId: this.sessionId,
+          event: 'conv_ai',
+          sceneIndex: this.index,
+          meta: { text: readyMsgEnglish, kind: 'briefing' },
+        }),
+      ).catch(() => {});
+    }
+
     // Show + speak the start prompt
     this.displayLine = readyMsg;
     this.displaySub = 'Say "Bereit!" or "Ready!" when you are ready to begin.';
@@ -707,6 +725,19 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       ? Math.floor((Date.now() - this.moduleStartedAt) / 1000) : 0;
     const remainingSeconds = Math.max(0, durationMin * 60 - elapsedSec);
 
+    if (this.sessionId) {
+      firstValueFrom(
+        this.dgApi.updateSession({
+          sessionId: this.sessionId,
+          event: 'conv_student',
+          sceneIndex: this.index,
+          transcript,
+          score: ev.score ?? null,
+          meta: { mode: 'conversation' },
+        }),
+      ).catch(() => {});
+    }
+
     try {
       const response = await firstValueFrom(
         this.dgApi.conversationRespond({
@@ -749,17 +780,32 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       // German-only: student used English — show hint, do not advance server dialogue
       if (response.languageHint && response.hintDe) {
         this.conversationTurn = response.turnCount ?? response.turnNumber ?? this.conversationTurn;
+        if (this.sessionId) {
+          firstValueFrom(
+            this.dgApi.updateSession({
+              sessionId: this.sessionId,
+              event: 'conv_hint',
+              sceneIndex: this.index,
+              meta: {
+                text: response.hintDe,
+                instructionEn: (response.hintEn || 'Say this in German to continue.').trim(),
+              },
+            }),
+          ).catch(() => {});
+        }
         this.chatHistory = [
           ...this.chatHistory,
           {
             speaker: 'hint',
             text: response.hintDe,
-            translationEn: (response.hintEn || 'Say this in German to continue.').trim(),
+            translation: (response.translatedTamil || '').trim() || undefined,
+            translationEn: (response.translatedEnglish || '').trim() || undefined,
+            instructionEn: (response.hintEn || 'Say this in German to continue.').trim(),
           },
         ];
         this.scrollChatToLatest();
         this.displayLine = response.hintDe;
-        this.displaySub = (response.hintEn || '').trim();
+        this.displaySub = (response.translatedEnglish || response.hintEn || '').trim();
         this.charState.setState('idle');
         await dgDelay(220);
         this.openMicForUserTurn();
@@ -784,6 +830,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         },
       ];
       this.scrollChatToLatest();
+
+      if (this.sessionId && (response.text || '').trim()) {
+        firstValueFrom(
+          this.dgApi.updateSession({
+            sessionId: this.sessionId,
+            event: 'conv_ai',
+            sceneIndex: this.index,
+            meta: { text: (response.text || '').trim() },
+          }),
+        ).catch(() => {});
+      }
 
       this.aiResponseText = response.text;
       this.aiResponseTamil = response.translatedTamil;
@@ -859,6 +916,16 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       }
       const text = (response.text || '').trim();
       if (text) {
+        if (this.sessionId) {
+          firstValueFrom(
+            this.dgApi.updateSession({
+              sessionId: this.sessionId,
+              event: 'conv_ai',
+              sceneIndex: this.index,
+              meta: { text, clientAction: action },
+            }),
+          ).catch(() => {});
+        }
         this.conversationHistory = [...this.conversationHistory, { role: 'ai', text }];
         this.chatHistory = [
           ...this.chatHistory,

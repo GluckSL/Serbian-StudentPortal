@@ -221,4 +221,6 @@ export interface DgChatMessage {
   score?: number;
   translation?: string;
   translationEn?: string;
+  /** Hint bubble: instructional line (always shown), separate from CC line translation. */
+  instructionEn?: string;
 }

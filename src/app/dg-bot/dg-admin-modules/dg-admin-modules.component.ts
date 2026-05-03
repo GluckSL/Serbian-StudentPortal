@@ -111,6 +111,11 @@ export class DgAdminModulesComponent implements OnInit {
     this.router.navigate(['/dg-bot', m._id, 'play']);
   }
 
+  goAnalytics(m: DgModuleSummary): void {
+    if (!m._id) return;
+    this.router.navigate(['/admin/dg-modules', m._id, 'analytics']);
+  }
+
   async archiveModule(m: DgModuleSummary): Promise<void> {
     if (!m._id) return;
     if (!confirm('Archive this DG module?')) return;

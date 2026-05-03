@@ -133,13 +133,13 @@
           <!-- Attachment in review -->
           <div class="q-attachment-box" *ngIf="pq.data.attachmentUrl">
             <ng-container [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)">
-              <img *ngSwitchCase="'image'" [src]="pq.data.attachmentUrl" alt="Attachment" class="q-attachment-img" />
-              <audio *ngSwitchCase="'audio'" [src]="pq.data.attachmentUrl" controls class="q-attachment-audio"></audio>
-              <video *ngSwitchCase="'video'" [src]="pq.data.attachmentUrl" controls class="q-attachment-video"></video>
-              <a *ngSwitchCase="'pdf'" [href]="pq.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+              <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" alt="Attachment" class="q-attachment-img" />
+              <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
+              <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" controls class="q-attachment-video"></video>
+              <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(pq.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
                 <span class="material-icons">picture_as_pdf</span> Open PDF
               </a>
-              <a *ngSwitchDefault [href]="pq.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+              <a *ngSwitchDefault [href]="getMediaFullUrl(pq.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
                 <span class="material-icons">insert_drive_file</span> Open file
               </a>
             </ng-container>
@@ -888,13 +888,13 @@
       <!-- Per-question attachment (image / audio / video / PDF) -->
       <div class="q-attachment-box" *ngIf="currentQuestion.data.attachmentUrl">
         <ng-container [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)">
-          <img *ngSwitchCase="'image'" [src]="currentQuestion.data.attachmentUrl" alt="Question attachment" class="q-attachment-img" />
-          <audio *ngSwitchCase="'audio'" [src]="currentQuestion.data.attachmentUrl" controls class="q-attachment-audio"></audio>
-          <video *ngSwitchCase="'video'" [src]="currentQuestion.data.attachmentUrl" controls class="q-attachment-video"></video>
-          <a *ngSwitchCase="'pdf'" [href]="currentQuestion.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+          <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" alt="Question attachment" class="q-attachment-img" />
+          <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
+          <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-video"></video>
+          <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
             <span class="material-icons">picture_as_pdf</span> Open PDF
           </a>
-          <a *ngSwitchDefault [href]="currentQuestion.data.attachmentUrl" target="_blank" class="q-attachment-file-link">
+          <a *ngSwitchDefault [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
             <span class="material-icons">insert_drive_file</span> Open file
           </a>
         </ng-container>

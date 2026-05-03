@@ -1,0 +1,180 @@
+<div class="dg-analytics admin-modules">
+  <div class="admin-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <button type="button" class="btn btn-link dg-analytics__back p-0 mb-1" (click)="back()">
+            <i class="fas fa-arrow-left me-1"></i>
+            DG Bot modules
+          </button>
+          <h1 class="admin-title mb-0">
+            <i class="fas fa-chart-line"></i>
+            Session analytics
+          </h1>
+          <p class="admin-subtitle mb-0" *ngIf="data?.module?.title">
+            {{ data!.module.title }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-content">
+    <div class="container-fluid">
+      <div class="loading-state text-center py-5" *ngIf="loading">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-3 mb-0 text-muted small">Loading sessions…</p>
+      </div>
+
+      <div class="alert alert-danger rounded-3" *ngIf="!loading && error">{{ error }}</div>
+
+      <ng-container *ngIf="!loading && data && !error">
+        <div class="stats-section mb-3">
+          <div class="row g-2">
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-primary text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.sessionCount }}</h3>
+                  <p>Sessions</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-success text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.completedCount }}</h3>
+                  <p>Completed</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-info text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.avgScore }}%</h3>
+                  <p>Avg score</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-secondary text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.avgMinutes }}</h3>
+                  <p>Avg minutes</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-muted small mb-2" *ngIf="data.sessions.length === 0">
+          No student sessions yet. Chat and speaking turns are stored when learners use the DG Bot player (newer
+          builds log full role-play dialogue).
+        </p>
+
+        <div class="dg-analytics__table-wrap" *ngIf="data.sessions.length > 0">
+          <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 dg-analytics__table">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Student</th>
+                    <th>Reg / Level</th>
+                    <th>Started</th>
+                    <th class="text-end">Minutes</th>
+                    <th class="text-end">Score</th>
+                    <th>Status</th>
+                    <th class="text-center">Chat log</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <ng-container *ngFor="let s of data.sessions; trackBy: trackBySession">
+                    <tr class="dg-analytics__row">
+                      <td>
+                        <div class="fw-semibold">{{ s.student?.name || 'Unknown' }}</div>
+                        <div class="small text-muted text-truncate" style="max-width: 220px">
+                          {{ s.student?.email || '—' }}
+                        </div>
+                      </td>
+                      <td>
+                        <span class="small">{{ s.student?.regNo || '—' }}</span>
+                        <div class="small text-muted">{{ s.student?.level || '' }}</div>
+                      </td>
+                      <td class="small">{{ formatDt(s.createdAt) }}</td>
+                      <td class="text-end small">{{ s.timeMinutes || '—' }}</td>
+                      <td class="text-end">
+                        <span class="badge rounded-pill" [class.bg-success]="s.completed" [class.bg-secondary]="!s.completed">
+                          {{ s.score ?? 0 }}%
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          class="badge rounded-pill"
+                          [class.mm-badge-live]="s.completed"
+                          [class.mm-badge-draft]="!s.completed"
+                        >
+                          {{ statusLabel(s.completed) }}
+                        </span>
+                        <div class="small text-muted mt-1" *ngIf="s.attempts || s.successCount || s.failureCount">
+                          tries {{ s.attempts }} · OK {{ s.successCount }} / miss {{ s.failureCount }}
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                          (click)="toggleExpand(s._id)"
+                          [attr.aria-expanded]="expandedId === s._id"
+                        >
+                          <i class="fas" [class.fa-chevron-down]="expandedId !== s._id" [class.fa-chevron-up]="expandedId === s._id"></i>
+                          {{ expandedId === s._id ? 'Hide' : 'View' }}
+                          <span class="ms-1 text-muted">({{ s.chatTurns.length }})</span>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr class="dg-analytics__expand" *ngIf="expandedId === s._id">
+                      <td colspan="7" class="p-0 border-0">
+                        <div class="dg-analytics__chat-panel">
+                          <div class="dg-analytics__chat-inner" *ngIf="s.chatTurns.length > 0; else noChat">
+                            <div
+                              *ngFor="let t of s.chatTurns; let i = index"
+                              class="dg-analytics__turn"
+                              [class.dg-analytics__turn--student]="t.speaker === 'student'"
+                              [class.dg-analytics__turn--ai]="t.speaker === 'ai'"
+                              [class.dg-analytics__turn--hint]="t.speaker === 'hint'"
+                            >
+                              <div class="dg-analytics__turn-meta">
+                                <span class="dg-analytics__turn-label">{{ speakerLabel(t) }}</span>
+                                <span class="dg-analytics__turn-time">{{ formatDt(t.at) }}</span>
+                                <span class="dg-analytics__turn-score" *ngIf="t.score != null && t.speaker === 'student'">
+                                  score {{ t.score | number : '1.0-1' }}
+                                </span>
+                              </div>
+                              <div class="dg-analytics__bubble">{{ t.text }}</div>
+                              <div class="dg-analytics__hint-note small" *ngIf="t.speaker === 'hint' && t.instructionEn">
+                                {{ t.instructionEn }}
+                              </div>
+                            </div>
+                          </div>
+                          <ng-template #noChat>
+                            <p class="text-muted small mb-0 py-3 px-3">
+                              No stored dialogue for this session. Older runs may only show practice transcripts; new
+                              sessions log each student line and bot reply automatically.
+                            </p>
+                          </ng-template>
+                        </div>
+                      </td>
+                    </tr>
+                  </ng-container>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

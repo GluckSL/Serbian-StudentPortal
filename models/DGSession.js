@@ -15,6 +15,10 @@ const DGSessionLogSchema = new mongoose.Schema(
         'scene_complete',
         'session_update',
         'session_complete',
+        /** Role-play conversation (persisted for admin analytics). */
+        'conv_student',
+        'conv_ai',
+        'conv_hint',
       ],
       required: true,
     },

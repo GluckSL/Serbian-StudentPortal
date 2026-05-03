@@ -313,6 +313,15 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], dgFormMode: 'create' },
   },
   {
+    path: 'admin/dg-modules/:moduleId/analytics',
+    loadComponent: () =>
+      import('./dg-bot/dg-admin-module-analytics/dg-admin-module-analytics.component').then(
+        (m) => m.DgAdminModuleAnalyticsComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] },
+  },
+  {
     path: 'admin/dg-modules/:id/edit',
     loadComponent: () =>
       import('./dg-bot/dg-admin-module-form/dg-admin-module-form.component').then(

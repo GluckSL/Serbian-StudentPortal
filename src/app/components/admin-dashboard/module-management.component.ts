@@ -8,6 +8,7 @@ import { LearningModulesService } from '../../services/learning-modules.service'
 import { ModuleTrashService } from '../../services/module-trash.service';
 import { NotificationService } from '../../services/notification.service';
 import { AdminAnalyticsService } from '../../services/admin-analytics.service';
+import { DgApiService } from '../../dg-bot/dg-api.service';
 
 interface ModuleWithStats {
   _id: string;
@@ -86,6 +87,15 @@ interface ModuleWithStats {
                 <button class="btn btn-trash-module" routerLink="/admin-trash">
                   <i class="fas fa-trash"></i>
                   Trash
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-copy-dg-module"
+                  [disabled]="selectedModuleCount === 0 || copyingToDgBot"
+                  (click)="copySelectedToDgBot()"
+                >
+                  <i class="fas fa-robot" [class.fa-spin]="copyingToDgBot"></i>
+                  Copy to DG Bot
                 </button>
               </div>
               <div class="col-md-6 text-end">
@@ -195,6 +205,16 @@ interface ModuleWithStats {
                   <table class="table table-hover mb-0">
                     <thead class="table-dark">
                       <tr>
+                        <th class="text-center dg-select-col">
+                          <input
+                            type="checkbox"
+                            class="form-check-input"
+                            title="Select all on this page"
+                            [checked]="allModulesOnPageSelected"
+                            [disabled]="modules.length === 0 || copyingToDgBot"
+                            (change)="toggleSelectAllOnPage($any($event.target).checked)"
+                          />
+                        </th>
                         <th>Module</th>
                         <th>Level/Category</th>
                         <th>Journey day</th>
@@ -208,6 +228,15 @@ interface ModuleWithStats {
                     </thead>
                     <tbody>
                       <tr *ngFor="let module of modules; trackBy: trackByModuleId">
+                        <td class="text-center dg-select-col align-middle">
+                          <input
+                            type="checkbox"
+                            class="form-check-input"
+                            [checked]="selectedModuleIds.has(module._id)"
+                            [disabled]="copyingToDgBot"
+                            (change)="toggleModuleSelected(module._id, $any($event.target).checked)"
+                          />
+                        </td>
                         <td>
                           <div class="module-info">
                             <div class="module-title">{{ module.title }}</div>
@@ -561,6 +590,36 @@ interface ModuleWithStats {
 
     .btn-trash-module:hover { background: #be123c; color: #fff; }
 
+    .btn-copy-dg-module {
+      background: #7c3aed;
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 8px;
+      margin-left: 6px;
+      font-size: 11px;
+      font-family: inherit;
+    }
+
+    .btn-copy-dg-module:hover:not(:disabled) { background: #6d28d9; color: #fff; }
+
+    .btn-copy-dg-module:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .dg-select-col {
+      width: 38px;
+      max-width: 42px;
+      vertical-align: middle;
+    }
+
+    .dg-select-col .form-check-input {
+      margin: 0;
+      cursor: pointer;
+    }
+
     .filter-options .form-select {
       border: 1px solid #e2e8f0;
       border-radius: 8px;
@@ -633,7 +692,7 @@ interface ModuleWithStats {
     .skeleton-table { border: 1px solid #eef2f7; border-radius: 10px; overflow: hidden; }
     .skeleton-row {
       display: grid;
-      grid-template-columns: 2.2fr 1.1fr 0.8fr 1fr 1fr 0.8fr 0.8fr 0.8fr 1.4fr;
+      grid-template-columns: 0.35fr 2.2fr 1.1fr 0.8fr 1fr 1fr 0.8fr 0.8fr 0.8fr 1.4fr;
       gap: 8px;
       padding: 10px 12px;
       border-bottom: 1px solid #f1f5f9;
@@ -1043,10 +1102,24 @@ export class ModuleManagementComponent implements OnInit {
   pagination: any = null;
   loading = true;
   readonly skeletonRows = Array.from({ length: 7 });
-  readonly skeletonColumns = Array.from({ length: 9 });
+  readonly skeletonColumns = Array.from({ length: 10 });
   readonly skeletonStats = Array.from({ length: 5 });
   statusFilter = 'all';
   selectedModuleHistory: any = null;
+
+  /** Learning module IDs selected on the current page (cleared when changing page/filter). */
+  selectedModuleIds = new Set<string>();
+  copyingToDgBot = false;
+
+  get selectedModuleCount(): number {
+    return this.selectedModuleIds.size;
+  }
+
+  get allModulesOnPageSelected(): boolean {
+    return (
+      this.modules.length > 0 && this.modules.every((m) => this.selectedModuleIds.has(m._id))
+    );
+  }
 
   // ── Analytics Modal State ──
   analyticsModal = {
@@ -1067,6 +1140,7 @@ export class ModuleManagementComponent implements OnInit {
     private learningModulesService: LearningModulesService,
     private moduleTrashService: ModuleTrashService,
     private adminAnalyticsService: AdminAnalyticsService,
+    private dgApi: DgApiService,
     private router: Router,
     private notify: NotificationService
   ) {}
@@ -1091,6 +1165,7 @@ export class ModuleManagementComponent implements OnInit {
         this.summary = response.summary;
         this.pagination = response.pagination;
         this.loading = false;
+        this.selectedModuleIds = new Set();
       },
       error: (error) => {
         console.error('Error loading modules:', error);
@@ -1196,6 +1271,76 @@ export class ModuleManagementComponent implements OnInit {
         error: () => this.notify.error('Failed to delete module')
       });
     });
+  }
+
+  toggleSelectAllOnPage(checked: boolean): void {
+    const next = new Set(this.selectedModuleIds);
+    if (checked) {
+      this.modules.forEach((m) => next.add(m._id));
+    } else {
+      this.modules.forEach((m) => next.delete(m._id));
+    }
+    this.selectedModuleIds = next;
+  }
+
+  toggleModuleSelected(id: string, checked: boolean): void {
+    const next = new Set(this.selectedModuleIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    this.selectedModuleIds = next;
+  }
+
+  copySelectedToDgBot(): void {
+    const ids = [...this.selectedModuleIds];
+    if (!ids.length) return;
+    const n = ids.length;
+    this.notify
+      .confirm(
+        'Copy to DG Bot',
+        `Create ${n} DG Bot draft module(s) from the selected Learning module(s)? Shared fields will be copied; DG defaults apply for character and scenes.`,
+        'Copy',
+        'Cancel',
+      )
+      .subscribe((ok) => {
+        if (!ok) return;
+        this.copyingToDgBot = true;
+        this.dgApi.importFromLearning(ids).subscribe({
+          next: (res) => {
+            this.copyingToDgBot = false;
+            const okCount = res.results?.length ?? 0;
+            const errCount = res.errors?.length ?? 0;
+            this.selectedModuleIds = new Set();
+            if (okCount && !errCount) {
+              this.notify.success(`Created ${okCount} DG Bot module(s).`);
+            } else if (okCount && errCount) {
+              const errSummary = res.errors.map((e) => e.message).join('; ');
+              this.notify.success(
+                `Created ${okCount} DG Bot module(s). ${errCount} failed: ${errSummary}`,
+              );
+            } else if (!okCount && errCount) {
+              this.notify.error(res.errors.map((e) => e.message).join('; ') || 'Copy failed');
+              return;
+            }
+            this.router.navigate(['/admin/dg-modules'], { queryParams: { status: 'all' } });
+          },
+          error: (err: any) => {
+            this.copyingToDgBot = false;
+            const body = err?.error;
+            if (
+              err?.status === 400 &&
+              body &&
+              Array.isArray(body.errors) &&
+              Array.isArray(body.results) &&
+              body.results.length === 0 &&
+              body.errors.length > 0
+            ) {
+              this.notify.error(body.errors.map((e: { message: string }) => e.message).join('; ') || 'Copy failed');
+              return;
+            }
+            this.notify.error(body?.message || 'Failed to copy to DG Bot');
+          },
+        });
+      });
   }
 
   // ── Analytics Modal Methods ──
