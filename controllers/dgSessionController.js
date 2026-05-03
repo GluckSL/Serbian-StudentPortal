@@ -1,5 +1,9 @@
 const DGSession = require('../models/DGSession');
 const DGModule = require('../models/DGModule');
+const {
+  getStudentDgJourneyAccess,
+  dgModuleUnlockedForStudentDay,
+} = require('../utils/dgStudentJourneyGate');
 
 function extractChatTurns(logs) {
   const out = [];
@@ -77,6 +81,30 @@ exports.start = async (req, res) => {
     }
     if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
       return res.status(403).json({ message: 'Module not available' });
+    }
+
+    if (req.user.role === 'STUDENT') {
+      const access = await getStudentDgJourneyAccess(req.user.id);
+      if (!access.enabled) {
+        return res.status(403).json({
+          message: 'Journey content is not enabled for your batch yet.',
+          code: 'JOURNEY_NOT_ACTIVE',
+        });
+      }
+      if (access.learningEnabled === false) {
+        return res.status(403).json({
+          message: 'DG modules are not available for your batch.',
+          code: 'LEARNING_CONTENT_DISABLED',
+        });
+      }
+      if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
+        return res.status(403).json({
+          message: 'This module unlocks on a later day of your course.',
+          code: 'COURSE_DAY_LOCKED',
+          studentCourseDay: access.courseDay,
+          moduleCourseDay: mod.courseDay,
+        });
+      }
     }
 
     const session = new DGSession({

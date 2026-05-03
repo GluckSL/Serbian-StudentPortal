@@ -113,10 +113,14 @@ export class DgApiService {
     return this.http.put<DgModuleSummary>(`${this.base}/modules/${id}`, body);
   }
 
-  patchModuleVisibility(id: string, visibleToStudents: boolean): Observable<{ success: boolean }> {
-    return this.http.patch<{ success: boolean }>(`${this.base}/modules/${id}/visibility`, {
-      visibleToStudents,
-    });
+  patchModuleVisibility(
+    id: string,
+    visibleToStudents: boolean,
+  ): Observable<{ success: boolean; visibleToStudents?: boolean }> {
+    return this.http.patch<{ success: boolean; visibleToStudents?: boolean }>(
+      `${this.base}/modules/${id}/visibility`,
+      { visibleToStudents },
+    );
   }
 
   deleteModule(id: string): Observable<{ success: boolean }> {

@@ -651,22 +651,27 @@ CRITICAL RULES (MANDATORY)
    - instruction_de (German, copied verbatim from source)
    - instruction_en (English, copied verbatim if present in source; otherwise "")
 
-5. ANSWER MAPPING (VERY IMPORTANT)
+5. fill_in_blank LINE FORMAT
+   In each question's "question" field put ONLY the sentence with underscore blanks — no leading item numbers ("1.", "2)").
+   If a line ends with "→ ____" or "-> ____" where ONLY underscores follow the arrow, omit that arrow and gap unless the answer key gives a separate translation answer for it (layout scaffold, not a second graded blank).
+   Optional Beispiel / Example lines for the exercise → put verbatim in an "example" field on the first question row of that exercise.
+
+6. ANSWER MAPPING (VERY IMPORTANT)
    If a LÖSUNGSSCHLÜSSEL / Answer Key section exists:
    - Map answers EXACTLY as written
    - DO NOT GUESS
    Rules:
    - mcq            → correctAnswerIndex must match the correct option (0-based)
    - matching       → return correct pairs as { "left": "...", "right": "..." }
-   - fill_in_blank  → answers array must have exactly one entry per blank
+   - fill_in_blank  → answers array must have exactly one entry per blank that remains after applying rule 5
    - error_correction → correctedText is the corrected sentence from the key
    - open_writing / transformation / short_answer → put accepted answers in answers[]
 
-6. LANGUAGE RULE
+7. LANGUAGE RULE
    Keep ALL questions in original language (${contentLanguage}).
    Do NOT translate.
 
-7. SKIP IF UNCLEAR
+8. SKIP IF UNCLEAR
    If any part is unclear → skip that question.
    DO NOT hallucinate.
 
@@ -691,6 +696,7 @@ OUTPUT FORMAT (STRICT JSON — return ONLY this, no markdown):
           "questions": [
             {
               "question": "question text verbatim from source",
+              "example": "optional worked example line for this exercise block",
               "options": [],
               "correctAnswerIndex": null,
               "answers": [],
@@ -744,6 +750,52 @@ const EXTRACTION_WORKSHEET_KIND = {
   transformation:   'sentence-transformation',
   true_false:       'true-false'
 };
+
+/** Combine German + English worksheet headings for one instruction banner. */
+function mergeWorksheetInstructions(instruction_de, instruction_en) {
+  const de = String(instruction_de || '').trim();
+  const en = String(instruction_en || '').trim();
+  if (de && en) return `${de} — ${en}`;
+  return de || en || '';
+}
+
+/**
+ * Normalize extracted fill-blank lines:
+ * - Strip worksheet item index (1., (2), …) from the sentence body.
+ * - Remove trailing translation scaffold "→ ____" / "-> ____" (underscore-only gap after arrow).
+ * - Align answers[] length with real blank count (single lemma keys stay valid).
+ */
+function normalizeFillBlankExtract(sentence, answers) {
+  let s = String(sentence || '').replace(/\s+/g, ' ').trim();
+  let ans = Array.isArray(answers) ? answers.map((a) => String(a ?? '')) : [];
+
+  s = s.replace(/^(?:\(\d+\)\s*|\d{1,3}[.)]\s+)/u, '').trim();
+
+  const translationTail = /\s*(?:→|->)\s*_+\s*$/u;
+  const hadTranslationTail = translationTail.test(s);
+  if (hadTranslationTail) {
+    s = s.replace(translationTail, '').trim();
+  }
+
+  let blanks = (s.match(/_+/g) || []).length;
+  if (blanks === 0) {
+    return { sentence: s, answers: ans };
+  }
+
+  while (ans.length < blanks) ans.push('');
+  if (ans.length > blanks) ans = ans.slice(0, blanks);
+
+  if (hadTranslationTail && blanks === 1) {
+    const firstFilled = ans.findIndex((a) => (a || '').trim());
+    if (firstFilled >= 0) {
+      ans = [ans[firstFilled]];
+    } else {
+      ans = [''];
+    }
+  }
+
+  return { sentence: s, answers: ans };
+}
 
 /** Leading list / index noise: "1.", "1)", "(1)", "1 ", bullets (PDF/OCR). */
 const SP_LEADING_MARKER = /^(?:\(\d+\)\s*|\d+[.)]\s*|\d{1,2}\s+(?=der\b|die\b|das\b|ein\b|eine\b|einem\b|einen\b|einer\b|eines\b|[A-Za-zäöüÄÖÜß])|[•‣▪·\-–—*＊‧·]\s+)/u;
@@ -902,7 +954,7 @@ function flattenExtractionResult(parsed) {
           type: mappedType,
           points: 1,
           sectionTitle: sectionTitle || null,
-          instruction: exercise.instruction_de || null
+          instruction: mergeWorksheetInstructions(exercise.instruction_de, exercise.instruction_en) || null
         };
         if (worksheetKind) base.worksheetKind = worksheetKind;
 
@@ -924,7 +976,7 @@ function flattenExtractionResult(parsed) {
             : [];
           flatQuestions.push(sanitizeQuestion({
             ...base,
-            instruction: exercise.instruction_de || 'Match the items.',
+            instruction: base.instruction || 'Match the items.',
             pairs
           }));
         } else if (mappedType === 'singular_plural') {
@@ -933,7 +985,7 @@ function flattenExtractionResult(parsed) {
               singularPluralBulkDone = true;
               flatQuestions.push(sanitizeQuestion({
                 ...base,
-                instruction: exercise.instruction_de || 'Write the plural form.',
+                instruction: base.instruction || 'Write the plural form.',
                 pairs: spPairsFromRaw,
                 scoringMode: 'full',
                 aiGradingEnabled: false
@@ -944,21 +996,21 @@ function flattenExtractionResult(parsed) {
           const pairs = pairsFromSingularPluralQuestion(q);
           flatQuestions.push(sanitizeQuestion({
             ...base,
-            instruction: exercise.instruction_de || 'Write the plural form.',
+            instruction: base.instruction || 'Write the plural form.',
             pairs,
             scoringMode: 'full',
             aiGradingEnabled: false
           }));
         } else if (mappedType === 'fill-blank') {
-          const sentence = String(q.question || '');
-          const blanks = (sentence.match(/_+/g) || []).length;
-          const answers = Array.isArray(q.answers) ? q.answers.map(String) : [];
-          while (answers.length < blanks) answers.push('');
+          const rawSentence = String(q.question || '');
+          const rawAnswers = Array.isArray(q.answers) ? q.answers.map(String) : [];
+          const norm = normalizeFillBlankExtract(rawSentence, rawAnswers);
           flatQuestions.push(sanitizeQuestion({
             ...base,
-            sentence,
-            answers: answers.slice(0, blanks),
-            hint: '',
+            sentence: norm.sentence,
+            answers: norm.answers,
+            example: String(q.example || '').trim(),
+            hint: String(q.hint || ''),
             caseSensitive: false
           }));
         } else {
@@ -1662,7 +1714,7 @@ CORE RULES (STRICT)
 
    Splitting rules:
    - matching           → each pair = ONE question
-   - fill_in_blank      → each sentence/item = ONE question
+   - fill_in_blank      → each sentence/item = ONE question (see fill-blank formatting rules below)
    - transformation     → each sentence/item = ONE question
    - error_correction   → each sentence/item = ONE question
    - singular/plural or table/profile pair tasks → each word/value pair = ONE question
@@ -1695,7 +1747,15 @@ CORE RULES (STRICT)
 
    If no solution → leave answer fields empty / null.
 
-6. NO HALLUCINATION — if any part is unclear, leave fields empty. DO NOT guess.
+6. fill_in_blank FORMATTING (VERY IMPORTANT)
+   - Put ONLY the clause students fill in inside "question": underscore blanks (_) as in the PDF.
+   - Do NOT prefix with worksheet item numbers (no leading "1." / "2)" — those are layout only).
+   - If a line ends with a translation scaffold like "→ ____" or "-> ____" where ONLY underscores follow the arrow (no words), OMIT that arrow and second gap — it is not a separate graded blank unless the answer key lists a distinct translation answer for it.
+   - If the worksheet shows a worked example ("Beispiel:", "Example:", "z.B.") that belongs to this exercise block, copy it verbatim into "example" on the FIRST question row only (leave "" on other rows unless an example is tied to one specific item).
+
+7. instruction_en — copy verbatim from INSTRUCTION_EN above when provided; otherwise extract English from bilingual headings in CONTENT (text after " / " or after "Hinweis / Note") into instruction_en.
+
+8. NO HALLUCINATION — if any part is unclear, leave fields empty. DO NOT guess.
 
 ---
 
@@ -1703,7 +1763,7 @@ SELF-VALIDATION (MANDATORY BEFORE OUTPUT):
 ✓ questions array count matches real worksheet items for this exercise type
 ✓ No invented content
 ✓ No missing instructions
-✓ For fill_in_blank, answers map per item (not globally merged)
+✓ For fill_in_blank, answers map per item (not globally merged); blank count in "question" must equal answers.length when answers are known
 ✓ For singular_plural, each question has pairs[] with singular and plural populated from CONTENT / SOLUTION_KEY
 
 ---
@@ -1719,6 +1779,7 @@ Return ONLY valid JSON in this EXACT shape:
   "questions": [
     {
       "question": "",
+      "example": "",
       "options": [],
       "correctAnswerIndex": null,
       "answers": [],
@@ -1871,18 +1932,30 @@ function splitWorksheetIntoExercises(text) {
     let instruction_de = instructionCandidates.length > 0
       ? instructionCandidates[instructionCandidates.length - 1]
       : '';
+    let instruction_en = '';
+    const slashSplit = instruction_de.split(/\s*\/\s*/);
+    if (slashSplit.length >= 2) {
+      instruction_de = slashSplit[0].trim();
+      instruction_en = slashSplit.slice(1).join(' / ').trim();
+    }
+    if (!instruction_en) {
+      const hn = /\s+Hinweis\s*\/\s*Note\s*:?\s*/i.exec(instruction_de);
+      if (hn) {
+        instruction_en = instruction_de.slice(hn.index + hn[0].length).trim();
+        instruction_de = instruction_de.slice(0, hn.index).trim();
+      }
+    }
     instruction_de = instruction_de
-      .replace(/\/[^/]+$/, '')        // remove " / English part" after slash
       .replace(/STUFE\s*\d+.*$/i, '') // remove STUFE suffix
       .trim();
-    console.log('[CLEAN INSTRUCTION]', { id: exerciseId, instruction: instruction_de });
+    console.log('[CLEAN INSTRUCTION]', { id: exerciseId, instruction_de, instruction_en });
 
     exercises.push({
       exerciseId,
       topic: '',
       difficulty: 'easy',
       instruction_de,
-      instruction_en: '',
+      instruction_en,
       sectionType: currentSectionType || '',
       content: block,
       solution_key: ''
@@ -2076,11 +2149,11 @@ function flattenSingleExercise(result, rawExerciseContent = '') {
         type: mappedType,
         points: 1,
         sectionTitle,
-        instruction: result.instruction_de || null
+        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || null
       };
       return [sanitizeQuestion({
         ...base,
-        instruction: result.instruction_de || 'Write the plural form.',
+        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || 'Write the plural form.',
         pairs: det,
         scoringMode: 'full',
         aiGradingEnabled: false
@@ -2093,7 +2166,7 @@ function flattenSingleExercise(result, rawExerciseContent = '') {
       type: mappedType,
       points: 1,
       sectionTitle,
-      instruction: result.instruction_de || null
+      instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || null
     };
     if (worksheetKind) base.worksheetKind = worksheetKind;
 
@@ -2106,24 +2179,34 @@ function flattenSingleExercise(result, rawExerciseContent = '') {
     }
     if (mappedType === 'matching') {
       const pairs = Array.isArray(q.pairs) ? q.pairs.filter(p => p.left && p.right) : [];
-      return sanitizeQuestion({ ...base, instruction: result.instruction_de || 'Match the items.', pairs });
+      return sanitizeQuestion({
+        ...base,
+        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || 'Match the items.',
+        pairs
+      });
     }
     if (mappedType === 'singular_plural') {
       const pairs = pairsFromSingularPluralQuestion(q);
       return sanitizeQuestion({
         ...base,
-        instruction: result.instruction_de || 'Write the plural form.',
+        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || 'Write the plural form.',
         pairs,
         scoringMode: 'full',
         aiGradingEnabled: false
       });
     }
     if (mappedType === 'fill-blank') {
-      const sentence = String(q.question || '');
-      const blanks = (sentence.match(/_+/g) || []).length;
-      const answers = Array.isArray(q.answers) ? q.answers.map(String) : [];
-      while (answers.length < blanks) answers.push('');
-      return sanitizeQuestion({ ...base, sentence, answers: answers.slice(0, blanks), hint: '', caseSensitive: false });
+      const rawSentence = String(q.question || '');
+      const rawAnswers = Array.isArray(q.answers) ? q.answers.map(String) : [];
+      const norm = normalizeFillBlankExtract(rawSentence, rawAnswers);
+      return sanitizeQuestion({
+        ...base,
+        sentence: norm.sentence,
+        answers: norm.answers,
+        example: String(q.example || '').trim(),
+        hint: String(q.hint || ''),
+        caseSensitive: false
+      });
     }
     const rawAnswers = Array.isArray(q.answers) && q.answers.length
       ? q.answers
@@ -2335,19 +2418,26 @@ function sanitizeQuestion(q) {
   }
 
   if (q.type === 'fill-blank') {
-    const sentence = String(q.sentence || '');
+    const rawSentence = String(q.sentence || '');
+    const rawAnswers = Array.isArray(q.answers) ? q.answers.map(String) : [];
+    const norm = normalizeFillBlankExtract(rawSentence, rawAnswers);
+    const sentence = norm.sentence;
     const blanks = (sentence.match(/_+/g) || []).length;
-    const answers = Array.isArray(q.answers)
-      ? q.answers.slice(0, blanks).map(String)
-      : new Array(blanks).fill('');
+    let answers = norm.answers.map(String);
     while (answers.length < blanks) answers.push('');
-    return {
+    if (answers.length > blanks) answers = answers.slice(0, blanks);
+    const out = {
       ...base,
       sentence,
       answers,
       hint: String(q.hint || ''),
       caseSensitive: false
     };
+    const ins = String(q.instruction || '').trim();
+    if (ins) out.instruction = ins;
+    const ex = String(q.example || '').trim();
+    if (ex) out.example = ex;
+    return out;
   }
 
   if (q.type === 'pronunciation') {

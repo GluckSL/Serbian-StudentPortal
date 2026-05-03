@@ -30,6 +30,8 @@ interface ReviewQuestion {
   answers?: string[];
   hint?: string;
   caseSensitive?: boolean;
+  /** Worked sample from worksheet (stored as question.example on save). */
+  example?: string;
   // Pronunciation
   word?: string;
   phonetic?: string;
@@ -305,6 +307,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
           difficulty: String(e.difficulty || 'easy'),
           type: String(e.type || ''),
           questionCount: Number(e.questionCount || 0),
+          instruction_de: String(e.instruction_de || ''),
+          instruction_en: String(e.instruction_en || ''),
           enabled: true
         }));
         // If server detected a worksheet, auto-enable worksheet mode label for display
@@ -623,8 +627,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       topic: ex.topic,
       exerciseId: ex.exerciseId,
       level: ex.difficulty,
-      instruction_de: (ex as any).instruction_de || '',
-      instruction_en: (ex as any).instruction_en || '',
+      instruction_de: ex.instruction_de || '',
+      instruction_en: ex.instruction_en || '',
       content: this.uploadResult.previewText,
       solution_key: ''
     }).subscribe({
@@ -709,7 +713,16 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         pairs: [{ singular: '', plural: '' }, { singular: '', plural: '' }]
       });
     }
-    else if (type === 'fill-blank') Object.assign(q, { sentence: '', answers: [''], hint: '', caseSensitive: false });
+    else if (type === 'fill-blank') {
+      Object.assign(q, {
+        sentence: '',
+        answers: [''],
+        hint: '',
+        caseSensitive: false,
+        instruction: '',
+        example: ''
+      });
+    }
     else if (type === 'pronunciation') Object.assign(q, { word: '', phonetic: '', translation: '', acceptedVariants: [] });
     else if (type === 'question-answer') Object.assign(q, { prompt: '', sampleAnswers: [''], similarityThreshold: 70, scoringMode: 'full' });
     else if ([

@@ -472,6 +472,14 @@
           <!-- Fill-blank Editor -->
           <ng-container *ngIf="q.type === 'fill-blank'">
             <div class="ed-field">
+              <label>Instruction <span class="opt-label">(from worksheet heading)</span></label>
+              <input type="text" [(ngModel)]="q.instruction" class="ed-input" placeholder="What students should do (German / English)" />
+            </div>
+            <div class="ed-field">
+              <label>Example <span class="opt-label">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.example" class="ed-input" placeholder="Worked example line (Beispiel …)" />
+            </div>
+            <div class="ed-field">
               <div class="sentence-label-row">
                 <label>Sentence <span class="hint-label">(use _ or ___ for blanks)</span></label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"

@@ -2,6 +2,10 @@
 
 const DGModule = require('../models/DGModule');
 const {
+  getStudentDgJourneyAccess,
+  dgModuleUnlockedForStudentDay,
+} = require('../utils/dgStudentJourneyGate');
+const {
   startConversation,
   getState,
   setState,
@@ -14,6 +18,42 @@ const {
   shouldRequestGermanHint,
   suggestGermanLine,
 } = require('../services/dgGermanHintService');
+
+/** @returns {Promise<{ status: number, body: object }|null>} error payload or null if allowed */
+async function denyIfStudentDgJourneyLocked(req, mod) {
+  if (req.user.role !== 'STUDENT') return null;
+  const access = await getStudentDgJourneyAccess(req.user.id);
+  if (!access.enabled) {
+    return {
+      status: 403,
+      body: {
+        message: 'Journey content is not enabled for your batch yet.',
+        code: 'JOURNEY_NOT_ACTIVE',
+      },
+    };
+  }
+  if (access.learningEnabled === false) {
+    return {
+      status: 403,
+      body: {
+        message: 'DG modules are not available for your batch.',
+        code: 'LEARNING_CONTENT_DISABLED',
+      },
+    };
+  }
+  if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
+    return {
+      status: 403,
+      body: {
+        message: 'This module unlocks on a later day of your course.',
+        code: 'COURSE_DAY_LOCKED',
+        studentCourseDay: access.courseDay,
+        moduleCourseDay: mod.courseDay,
+      },
+    };
+  }
+  return null;
+}
 
 function _lastAiTextFromHistory(history) {
   const ai = (history || []).filter((m) => m.speaker === 'ai').map((m) => m.text);
@@ -76,6 +116,9 @@ exports.start = async (req, res) => {
       return res.status(403).json({ message: 'Module not available' });
     }
 
+    const journeyDeny = await denyIfStudentDgJourneyLocked(req, mod);
+    if (journeyDeny) return res.status(journeyDeny.status).json(journeyDeny.body);
+
     const modData = mod.toObject ? mod.toObject() : mod;
     const state = startConversation(sessionId, modData);
 
@@ -130,6 +173,8 @@ exports.respond = async (req, res) => {
       if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
         return res.status(403).json({ message: 'Module not available' });
       }
+      const journeyDeny = await denyIfStudentDgJourneyLocked(req, mod);
+      if (journeyDeny) return res.status(journeyDeny.status).json(journeyDeny.body);
       state = startConversation(sessionId, mod.toObject ? mod.toObject() : mod);
     }
 

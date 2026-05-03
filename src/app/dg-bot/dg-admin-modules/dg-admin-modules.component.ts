@@ -21,6 +21,8 @@ export class DgAdminModulesComponent implements OnInit {
   statusFilter: 'all' | 'live' | 'draft' = 'all';
   loading = true;
   message: string | null = null;
+  /** Row id while PATCH visibility is in flight */
+  visibilityBusyId: string | null = null;
 
   get filteredModules(): DgModuleSummary[] {
     let list = this.modules;
@@ -114,6 +116,25 @@ export class DgAdminModulesComponent implements OnInit {
   goAnalytics(m: DgModuleSummary): void {
     if (!m._id) return;
     this.router.navigate(['/admin/dg-modules', m._id, 'analytics']);
+  }
+
+  async toggleStudentVisibility(m: DgModuleSummary): Promise<void> {
+    const id = m._id;
+    if (!id || this.visibilityBusyId) return;
+    const next = !m.visibleToStudents;
+    this.visibilityBusyId = id;
+    this.message = null;
+    try {
+      const res = await firstValueFrom(this.dgApi.patchModuleVisibility(id, next));
+      m.visibleToStudents = res.visibleToStudents ?? next;
+      this.message = next
+        ? 'Shown to students when their journey day reaches this module’s day.'
+        : 'Hidden from students.';
+    } catch (e: any) {
+      this.message = e?.error?.message || 'Could not update visibility';
+    } finally {
+      this.visibilityBusyId = null;
+    }
   }
 
   async archiveModule(m: DgModuleSummary): Promise<void> {

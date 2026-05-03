@@ -1,6 +1,10 @@
 const DGModule = require('../models/DGModule');
 const LearningModule = require('../models/LearningModule');
 const {
+  getStudentDgJourneyAccess,
+  dgModuleUnlockedForStudentDay,
+} = require('../utils/dgStudentJourneyGate');
+const {
   buildDgModulePayloadFromLearning,
   resolveDefaultCharacterId,
 } = require('../services/mapLearningToDgPayload');
@@ -173,12 +177,25 @@ exports.listAdmin = async (req, res) => {
 
 exports.listStudent = async (req, res) => {
   try {
+    const access = await getStudentDgJourneyAccess(req.user.id);
+    if (!access.enabled || access.learningEnabled === false) {
+      return res.json({ modules: [] });
+    }
+    const studentDay = access.courseDay;
+
     const modules = await DGModule.find({
       isActive: true,
       visibleToStudents: true,
+      $or: [
+        { courseDay: null },
+        { courseDay: { $exists: false } },
+        { courseDay: { $lte: studentDay } },
+      ],
     })
       .populate('characterId')
-      .select('title description level characterId visibleToStudents updatedAt createdAt scenes')
+      .select(
+        'title description level characterId visibleToStudents updatedAt createdAt scenes courseDay'
+      )
       .sort({ title: 1 })
       .lean();
     const sanitized = modules.map((m) => ({
@@ -208,6 +225,30 @@ exports.getPlay = async (req, res) => {
 
     if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
       return res.status(403).json({ message: 'Module not available' });
+    }
+
+    if (req.user.role === 'STUDENT') {
+      const access = await getStudentDgJourneyAccess(req.user.id);
+      if (!access.enabled) {
+        return res.status(403).json({
+          message: 'Journey content is not enabled for your batch yet.',
+          code: 'JOURNEY_NOT_ACTIVE',
+        });
+      }
+      if (access.learningEnabled === false) {
+        return res.status(403).json({
+          message: 'DG modules are not available for your batch.',
+          code: 'LEARNING_CONTENT_DISABLED',
+        });
+      }
+      if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
+        return res.status(403).json({
+          message: 'This module unlocks on a later day of your course.',
+          code: 'COURSE_DAY_LOCKED',
+          studentCourseDay: access.courseDay,
+          moduleCourseDay: mod.courseDay,
+        });
+      }
     }
 
     // Plain objects so JSON always includes optional audioUrl (pre-generated audio) per scene.

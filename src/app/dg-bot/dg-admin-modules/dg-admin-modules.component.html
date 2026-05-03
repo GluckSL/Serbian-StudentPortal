@@ -145,6 +145,7 @@
                       <th>Journey day</th>
                       <th>Language</th>
                       <th>Status</th>
+                      <th class="text-center dg-mm-col-visibility">Student view</th>
                       <th class="text-center">Actions</th>
                     </tr>
                   </thead>
@@ -176,6 +177,23 @@
                         <span class="badge" [class.mm-badge-live]="m.visibleToStudents" [class.mm-badge-draft]="!m.visibleToStudents">
                           {{ m.visibleToStudents ? 'Live' : 'Draft' }}
                         </span>
+                      </td>
+                      <td class="text-center dg-mm-col-visibility">
+                        <button
+                          type="button"
+                          class="btn btn-sm dg-mm-btn-visibility"
+                          [class.dg-mm-btn-visibility--on]="m.visibleToStudents"
+                          [class.dg-mm-btn-visibility--off]="!m.visibleToStudents"
+                          [disabled]="!m._id || visibilityBusyId === m._id"
+                          (click)="toggleStudentVisibility(m)"
+                          [title]="
+                            m.visibleToStudents
+                              ? 'Students see this once journey day reaches the assigned day. Click to hide.'
+                              : 'Hidden from students. Click to show (still gated by journey day).'
+                          "
+                        >
+                          <i class="fas" [ngClass]="m.visibleToStudents ? 'fa-eye' : 'fa-eye-slash'"></i>
+                        </button>
                       </td>
                       <td class="text-center">
                         <div class="action-buttons">
