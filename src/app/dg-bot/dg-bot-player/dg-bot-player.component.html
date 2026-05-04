@@ -52,6 +52,12 @@
     <!-- ── INTRO / BRIEFING SCENES ── -->
     <div class="dg-conv dg-conv--intro" *ngIf="!conversationMode">
       <aside class="dg-conv__char">
+        <!-- Mic area in char header (all screens) -->
+        <div class="dg-conv__char-header">
+          <div class="dg-conv__mic-area dg-conv__mic-area--intro">
+            <p class="dg-player__non-practice-text">Speak to continue.</p>
+          </div>
+        </div>
         <div class="dg-conv__mascot">
           <app-dg-character
             [minimalChrome]="true"
@@ -101,10 +107,6 @@
             </div>
           </div>
         </div>
-
-        <div class="dg-conv__mic-area dg-conv__mic-area--intro">
-          <p class="dg-player__non-practice-text">Speak to continue.</p>
-        </div>
       </main>
     </div>
 
@@ -112,7 +114,55 @@
     <div class="dg-conv" *ngIf="conversationMode">
 
       <!-- Character column -->
-      <aside class="dg-conv__char">
+      <aside class="dg-conv__char dg-conv__char--has-header">
+        <!-- Mic/practice area in char header (all screens) -->
+        <div class="dg-conv__char-header">
+          <div class="dg-conv__mic-area">
+            <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
+              🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
+            </p>
+            <app-dg-practice
+              *ngIf="showStudentTurnUi"
+              [expected]="''"
+              [allowFreeSpeech]="true"
+              [instantStart]="true"
+              [language]="pronLanguage"
+              [hint]="''"
+              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+              [retryTick]="convRetryTick"
+              [sceneKey]="'conv-' + convRetryTick"
+              (evaluated)="onEvaluated($event)"
+              (silence)="onSilence()"
+              (phaseChange)="onPracticePhase($event)"
+            ></app-dg-practice>
+
+            <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
+              <mat-icon>check_circle</mat-icon>
+              Conversation complete!
+            </div>
+
+            <button
+              mat-button
+              type="button"
+              class="dg-conv__skip"
+              *ngIf="!conversationComplete && conversationStarted"
+              [disabled]="status === 'speaking' || isAiThinking"
+              (click)="onSkip()"
+            >
+              I can't speak right now
+            </button>
+          </div>
+        </div>
+            <button
+              mat-button
+              type="button"
+              class="dg-conv__skip"
+              *ngIf="!conversationComplete && conversationStarted"
+              [disabled]="status === 'speaking' || isAiThinking"
+              (click)="onSkip()"
+            >
+              I can't speak right now
+            </button>
         <div class="dg-conv__mascot">
           <app-dg-character
             [minimalChrome]="true"
@@ -265,14 +315,12 @@
           </div>
         </div>
 
-        <!-- Mic / practice area -->
-        <div class="dg-conv__mic-area">
+        <!-- Mic / practice area removed - now in char header -->
           <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
             🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
           </p>
           <app-dg-practice
             *ngIf="showStudentTurnUi"
-            #convPractice
             [expected]="''"
             [allowFreeSpeech]="true"
             [instantStart]="true"
@@ -302,10 +350,7 @@
           >
             I can't speak right now
           </button>
-
-        </div>
       </main>
     </div>
 
   </div><!-- /stage-wrap -->
-</div><!-- /dg-player -->

@@ -463,17 +463,29 @@
 
 .dg-conv__char {
   border-radius: 18px;
-  padding: 0.8rem;
   background: rgba(255, 255, 255, 0.62);
   border: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  padding-top: 0.5rem;
+}
+
+.dg-conv__char-header {
+  width: 100%;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: center;
+  border-bottom: 1px solid #eef2f8;
+  box-sizing: border-box;
 }
 
 .dg-conv__mascot {
+  padding: 0.8rem;
   width: 100%;
   display: flex;
   align-items: center;
@@ -1030,7 +1042,6 @@
 
 .dg-conv__mic-area {
   padding: 0.55rem 0.95rem 0.85rem;
-  background: #fff;
   display: grid;
   gap: 0.55rem;
 }
@@ -1245,6 +1256,10 @@
 
   .dg-conv__head-tools {
     max-width: 55%;
+  }
+
+  .dg-conv__history {
+    border-bottom: 0;
   }
 
   .dg-player__sk-grid {
