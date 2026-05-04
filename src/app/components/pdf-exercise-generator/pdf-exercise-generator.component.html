@@ -136,9 +136,11 @@
     <app-exercise-structure-preview
       [exercises]="exercises"
       [extracting]="generating"
+      [aiRescanning]="aiRescanning"
       [progressCurrent]="extractionProgress.current"
       [progressTotal]="extractionProgress.total"
       (rescan)="rescanPdfStructure()"
+      (useAiRescan)="rescanPdfStructureWithAi()"
       (extractAll)="extractAllExercises()"
     ></app-exercise-structure-preview>
   </div>
@@ -346,6 +348,10 @@
       <div class="review-header">
         <h3>Questions <span class="q-count">{{ reviewQuestions.length }}</span></h3>
         <div class="review-stats">
+          <button class="btn-gen-answers" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI fills missing answers for fill-blank and Q&A questions">
+            <span class="material-icons">{{ generatingAnswers ? 'hourglass_top' : 'auto_fix_high' }}</span>
+            {{ generatingAnswers ? 'Generating…' : 'Generate missing answers' }}
+          </button>
           <span
             class="valid-count"
             [class.all-good]="validCount === reviewQuestions.length"
@@ -365,7 +371,17 @@
         <!-- Question row header -->
         <div class="rq-header" (click)="toggleQuestion(i)">
           <div class="rq-left">
-            <span class="q-num">{{ i + 1 }}</span>
+            <input
+              type="number"
+              class="q-num-input"
+              [value]="i + 1"
+              min="1"
+              [max]="reviewQuestions.length"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="$event.preventDefault(); applyQuestionRank(i, $any($event.target).valueAsNumber)"
+              (blur)="applyQuestionRank(i, $any($event.target).valueAsNumber)"
+              title="Enter position to move this question there"
+            />
             <span
               class="q-type-pill"
               [style.background]="q.type === 'question-answer' && q.worksheetKind ? getTypeInfo(q.worksheetKind).bg : getTypeInfo(q.type).bg"
@@ -390,6 +406,7 @@
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || '—' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
                 <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen' }} ({{ q.mediaUrl ? 'audio' : '—' }})</span>
+                <span *ngSwitchCase="'jumble-word'">{{ q.scrambledText || '—' }}</span>
               </ng-container>
             </span>
           </div>
@@ -598,6 +615,31 @@
             </div>
           </ng-container>
 
+          <!-- Jumble Word Editor -->
+          <ng-container *ngIf="q.type === 'jumble-word'">
+            <div class="ed-field">
+              <label>Instruction <span class="opt-label">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.instruction" class="ed-input" placeholder="e.g. Unscramble the letters to form a word." />
+            </div>
+            <div class="ed-field">
+              <label>Category Tip <span class="opt-label">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.categoryTip" class="ed-input" placeholder="e.g. Rooms and furniture" />
+            </div>
+            <div class="ed-field">
+              <label>Scrambled Text <span class="required">*</span></label>
+              <input type="text" [(ngModel)]="q.scrambledText" class="ed-input" placeholder="e.g. Z I M M E W O H N R" />
+              <span class="field-hint">Enter the scrambled letters exactly as shown to students (spaces allowed).</span>
+            </div>
+            <div class="ed-field">
+              <label>Bold Letter (hint) <span class="opt-label">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.boldLetter" class="ed-input" maxlength="1" placeholder="Single letter shown bold, e.g. W" style="width:80px" />
+            </div>
+            <div class="ed-field">
+              <label>Expected Word <span class="required">*</span></label>
+              <input type="text" [(ngModel)]="q.expectedWord" class="ed-input" placeholder="e.g. Wohnzimmer" />
+            </div>
+          </ng-container>
+
           <ng-container *ngIf="q.type === 'question-answer'">
             <div class="ed-field">
               <label>Question <span class="required">*</span></label>
@@ -702,6 +744,10 @@
           <button class="add-q-btn" (click)="addBlankQuestion('listening')"
             style="background:#fef3c7;color:#b45309">
             <span class="material-icons">headphones</span> Listening
+          </button>
+          <button class="add-q-btn" (click)="addBlankQuestion('jumble-word')"
+            style="background:#fef3c7;color:#b45309">
+            <span class="material-icons">shuffle</span> Jumble Word
           </button>
         </div>
       </div>

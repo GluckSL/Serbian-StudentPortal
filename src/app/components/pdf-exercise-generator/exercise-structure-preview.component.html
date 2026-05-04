@@ -28,7 +28,18 @@
         <select class="field-select type-select" [(ngModel)]="ex.type">
           <option *ngFor="let t of typeOptions" [value]="t">{{ typeLabel(t) }}</option>
         </select>
-        <span class="q-count">{{ ex.questionCount || 0 }} questions</span>
+        <label class="q-count-input-wrap">
+          <input
+            type="number"
+            class="q-count-input"
+            min="0"
+            step="1"
+            [ngModel]="ex.questionCount || 0"
+            (ngModelChange)="setQuestionCount(ex, $event)"
+            (click)="$event.stopPropagation()"
+          />
+          <span class="q-count-label">questions</span>
+        </label>
         <button
           type="button"
           class="ex-view-btn"
@@ -41,10 +52,14 @@
   </ng-container>
 
   <div class="step-footer">
-    <button class="btn-secondary" (click)="rescan.emit()" [disabled]="extracting">
+    <button class="btn-secondary" (click)="rescan.emit()" [disabled]="extracting || aiRescanning">
       <span class="material-icons">refresh</span> Re-scan PDF
     </button>
-    <button class="btn-primary" (click)="extractAll.emit()" [disabled]="extracting">
+    <button class="btn-ai" (click)="useAiRescan.emit()" [disabled]="extracting || aiRescanning">
+      <span class="material-icons">{{ aiRescanning ? 'hourglass_empty' : 'auto_awesome' }}</span>
+      {{ aiRescanning ? 'Running AI...' : 'Use AI' }}
+    </button>
+    <button class="btn-primary" (click)="extractAll.emit()" [disabled]="extracting || aiRescanning">
       <span class="material-icons">play_arrow</span> Extract All Exercises
     </button>
   </div>
@@ -124,6 +139,14 @@
             <ul class="pair-list" *ngIf="q.pairs?.length">
               <li *ngFor="let p of q.pairs">{{ p.singular }} → {{ p.plural }}</li>
             </ul>
+          </div>
+
+          <div *ngSwitchCase="'jumble-word'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <p *ngIf="q.categoryTip"><strong>Category:</strong> {{ q.categoryTip }}</p>
+            <p><strong>Scrambled:</strong> {{ q.scrambledText || '—' }}</p>
+            <p *ngIf="q.boldLetter"><strong>Bold hint:</strong> {{ q.boldLetter }}</p>
+            <p><strong>Expected word:</strong> {{ q.expectedWord || '—' }}</p>
           </div>
 
           <div *ngSwitchCase="'question-answer'" class="preview-sub">

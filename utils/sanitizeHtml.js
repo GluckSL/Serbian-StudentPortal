@@ -97,7 +97,8 @@ function sanitizeQuestions(questions) {
   const TEXT_FIELDS = [
     'question', 'prompt', 'instruction', 'example', 'sentence',
     'hint', 'explanation', 'answerExplanation', 'word', 'phonetic',
-    'translation', 'storyParagraph', 'context', 'caption', 'secondaryCaption'
+    'translation', 'storyParagraph', 'context', 'caption', 'secondaryCaption',
+    'scrambledText', 'boldLetter', 'expectedWord', 'categoryTip'
   ];
   return questions.map((q) => {
     if (!q || typeof q !== 'object') return q;

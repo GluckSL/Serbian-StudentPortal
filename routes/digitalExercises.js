@@ -1422,6 +1422,11 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       const expected = normalizeListeningAnswer(q.expectedTranscript || '');
       rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
       correctAnswer = { expectedTranscript: q.expectedTranscript };
+    } else if (q.type === 'jumble-word') {
+      const studentWord = String(resp.jumbleWordResponse || '').trim().toLowerCase().replace(/\s+/g, '');
+      const expectedWord = String(q.expectedWord || '').trim().toLowerCase().replace(/\s+/g, '');
+      rawScore = (expectedWord && studentWord === expectedWord) ? 100 : 0;
+      correctAnswer = { expectedWord: q.expectedWord };
     }
 
     if (useAdvancedGrading) {
@@ -1463,6 +1468,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       pronunciationScore: resp.pronunciationScore,
       qaResponse: resp.qaResponse,
       listeningText: resp.listeningText,
+      jumbleWordResponse: resp.jumbleWordResponse,
       isCorrect,
       pointsEarned
     };
@@ -1674,6 +1680,11 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         const expected = normalizeListeningAnswer(q.expectedTranscript || '');
         rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
         correctAnswer = { expectedTranscript: q.expectedTranscript };
+      } else if (q.type === 'jumble-word') {
+        const studentWord = String(resp.jumbleWordResponse || '').trim().toLowerCase().replace(/\s+/g, '');
+        const expectedWord = String(q.expectedWord || '').trim().toLowerCase().replace(/\s+/g, '');
+        rawScore = (expectedWord && studentWord === expectedWord) ? 100 : 0;
+        correctAnswer = { expectedWord: q.expectedWord };
       }
 
       if (useAdvancedGrading) {
@@ -1716,6 +1727,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         pronunciationScore: resp.pronunciationScore,
         qaResponse: resp.qaResponse,
         listeningText: resp.listeningText,
+        jumbleWordResponse: resp.jumbleWordResponse,
         isCorrect,
         pointsEarned
       });
@@ -2191,6 +2203,123 @@ router.post(
       return res.json({ explanation });
     } catch (err) {
       console.error('POST /digital-exercises/generate-explanation error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/digital-exercises/generate-missing-answers
+// Body: { questions: [{ index, type, sentence?, instruction?, hint?, answers?, prompt?, sampleAnswers? }] }
+// Returns: { results: [{ index, answers?, sampleAnswers? }] }
+router.post(
+  '/generate-missing-answers',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { questions } = req.body;
+      if (!Array.isArray(questions) || questions.length === 0) {
+        return res.status(400).json({ error: 'questions array is required' });
+      }
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(503).json({ error: 'OpenAI not configured' });
+      }
+
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      // Build a compact JSON description of each incomplete question for the AI
+      const questionDescriptions = questions.map((q) => {
+        const idx = Number(q.index);
+        const obj = { index: Number.isFinite(idx) ? idx : q.index, type: q.type };
+        if (q.instruction) obj.instruction = q.instruction;
+        if (q.hint) obj.hint = q.hint;
+        if (q.type === 'fill-blank') {
+          const sentence = q.sentence || '';
+          obj.sentence = sentence;
+          // One blank per contiguous run of underscores (single "_" counts, same as student UI).
+          const blankCount = (String(sentence).match(/_+/g) || []).length;
+          obj.blankCount = blankCount;
+          obj.existingAnswers = Array.isArray(q.answers) ? q.answers : [];
+        } else {
+          obj.prompt = q.prompt || q.question || '';
+          obj.existingAnswers = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+        }
+        return obj;
+      });
+
+      const systemPrompt = `You are an expert language teacher. The user will send a JSON array of questions that need missing answers filled in.
+
+Rules:
+- For type "fill-blank": each blank is one contiguous run of underscore characters in "sentence" (a single "_" is one blank; "___" is still one blank). Return exactly "blankCount" strings in "answers", in left-to-right blank order. Do not change the sentence.
+- For type "question-answer": return "sampleAnswers" with 1–3 short acceptable strings.
+- For type "jumble-word": return "expectedWord" as the correct word.
+
+You MUST respond with a single JSON object of this exact shape (no markdown, no prose):
+{ "results": [ { "index": <number matching input>, "answers"?: string[], "sampleAnswers"?: string[], "expectedWord"?: string } ] }
+
+Include one object in "results" for every input question, using the same "index" value each question was given.`;
+
+      const userContent = `Questions to fill:\n${JSON.stringify(questionDescriptions, null, 2)}`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent }
+        ],
+        max_tokens: 800,
+        temperature: 0.3,
+        response_format: { type: 'json_object' }
+      });
+
+      let rawContent = completion.choices[0]?.message?.content?.trim() || '{}';
+      let parsed;
+      try {
+        parsed = JSON.parse(rawContent);
+      } catch {
+        return res.status(500).json({ error: 'AI returned invalid JSON', raw: rawContent });
+      }
+
+      const extractResultsArray = (p, inputQs) => {
+        if (Array.isArray(p)) return p;
+        if (Array.isArray(p?.results)) return p.results;
+        if (Array.isArray(p?.items)) return p.items;
+        if (Array.isArray(p?.data)) return p.data;
+        const numericKeys = Object.keys(p || {}).filter((k) => /^\d+$/.test(k));
+        if (numericKeys.length) {
+          return numericKeys
+            .sort((a, b) => Number(a) - Number(b))
+            .map((k) => p[k])
+            .filter((x) => x && typeof x === 'object');
+        }
+        if (inputQs.length === 1 && Array.isArray(p?.answers)) {
+          return [{ index: inputQs[0].index, answers: p.answers }];
+        }
+        return [];
+      };
+
+      const results = extractResultsArray(parsed, questions);
+
+      // Validate and sanitize per-item (index may be string from some models)
+      const safe = results
+        .filter((r) => r && typeof r === 'object' && Number.isFinite(Number(r.index)))
+        .map((r) => {
+          const out = { index: Number(r.index) };
+          if (Array.isArray(r.answers)) {
+            out.answers = r.answers.map((a) => String(a ?? '').trim());
+          }
+          if (Array.isArray(r.sampleAnswers)) {
+            out.sampleAnswers = r.sampleAnswers.map((a) => String(a ?? '').trim());
+          }
+          if (r.expectedWord != null) {
+            out.expectedWord = String(r.expectedWord).trim();
+          }
+          return out;
+        });
+
+      return res.json({ results: safe });
+    } catch (err) {
+      console.error('POST /digital-exercises/generate-missing-answers error:', err);
       return res.status(500).json({ error: err.message });
     }
   }

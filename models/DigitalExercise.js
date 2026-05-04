@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word'], required: true },
     // Common optional context shown above the question to students.
     context: { type: String, default: '' },
     // Instruction and example shown in a highlighted banner above the question body.
@@ -140,7 +140,12 @@ const DigitalExerciseSchema = new mongoose.Schema({
     ,
     // Worksheet category label for question-answer style tasks.
     // Example: "true-false", "sentence-transformation", "error-correction", etc.
-    worksheetKind: { type: String, default: null }
+    worksheetKind: { type: String, default: null },
+    // Jumble-word fields
+    scrambledText: { type: String, default: '' },  // e.g. "Z I M M E W O H N R"
+    boldLetter: { type: String, default: '' },      // single character shown bold as a hint
+    expectedWord: { type: String, default: '' },    // correct assembled word
+    categoryTip: { type: String, default: '' }      // optional hint text below instruction
   }],
 
   // Optional shared audio for manual listening worksheets.

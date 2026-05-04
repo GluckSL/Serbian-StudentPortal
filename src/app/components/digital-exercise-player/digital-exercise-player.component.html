@@ -155,6 +155,7 @@
           </div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'" [innerHTML]="pq.data.prompt | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'listening'" [innerHTML]="pq.data.prompt | safeHtml"></div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'jumble-word'">{{ pq.data.scrambledText || '—' }}</div>
           <div class="listening-audio-wrap review-listening-audio" *ngIf="getListeningSupplementalAudioUrl(pq.data)">
             <audio [src]="getMediaFullUrl(getListeningSupplementalAudioUrl(pq.data))" controls></audio>
           </div>
@@ -1377,6 +1378,33 @@
               </button>
             </div>
           </div>
+        </div>
+
+        <!-- Jumble Word body -->
+        <div class="q-body jumble-body" *ngIf="currentQuestion.data.type === 'jumble-word'">
+          <div class="q-question-box" *ngIf="worksheetInstructionDisplay(currentQuestion.data)">
+            <div class="q-question-label">Instructions</div>
+            <div class="q-instruction-text" [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"></div>
+          </div>
+          <div class="jumble-category-tip" *ngIf="currentQuestion.data.categoryTip">
+            {{ currentQuestion.data.categoryTip }}
+          </div>
+          <div class="jumble-scramble">
+            <ng-container *ngFor="let token of getJumbleTokens(currentQuestion.data); let ti = index">
+              <span *ngIf="token !== ' '" class="jumble-letter" [class.jumble-letter--bold]="token === currentQuestion.data.boldLetter && ti === getFirstBoldIndex(currentQuestion.data)">{{ token }}</span>
+              <span *ngIf="token === ' '" class="jumble-space"> </span>
+            </ng-container>
+          </div>
+          <label class="qa-input-label">Form the word:</label>
+          <input
+            type="text"
+            class="jumble-input"
+            placeholder="Type the word..."
+            [(ngModel)]="currentQuestion.jumbleWordResponse"
+            (ngModelChange)="markAttempted(currentQuestion)"
+            [disabled]="hasCurrentSubmitted"
+            (keydown.enter)="$event.preventDefault()"
+          />
         </div>
 
         <!-- Video Pronunciation (mixed exercises only — video-only uses split layout above) -->

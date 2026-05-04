@@ -12,7 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word';
   worksheetKind?: string | null;
   context?: string;
   // MCQ
@@ -66,6 +66,11 @@ interface BuilderQuestion {
   // Teacher explanation shown to students in review
   answerExplanation?: string;
   generatingExplanation?: boolean;
+  // Jumble Word
+  scrambledText?: string;
+  boldLetter?: string;
+  expectedWord?: string;
+  categoryTip?: string;
 }
 
 interface VideoFeedbackAudioRow {
@@ -142,7 +147,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', icon: 'table_rows', description: 'Fill values in a table/profile.' },
     { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', icon: 'edit_note', description: 'Write your own sentences.' },
     { value: 'free-writing-profile', label: 'Free Writing – profile', icon: 'badge', description: 'Write a short profile (Steckbrief).' },
-    { value: 'error-correction', label: 'Error Correction', icon: 'error', description: 'Correct mistakes and write the right sentence.' }
+    { value: 'error-correction', label: 'Error Correction', icon: 'error', description: 'Correct mistakes and write the right sentence.' },
+    { value: 'jumble-word', label: 'Jumble Word', icon: 'shuffle', description: 'Scrambled letters → student forms the correct word.' }
   ];
 
   constructor(
@@ -365,6 +371,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.mediaUrl = '';
       q.expectedTranscript = '';
       q.attemptMode = 'typing';
+    } else if (type === 'jumble-word') {
+      (q as any).scrambledText = '';
+      (q as any).boldLetter = '';
+      (q as any).expectedWord = '';
+      (q as any).categoryTip = '';
+      q.instruction = '';
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
     }
     this.questions.push(q);
     this.expandedQuestion = this.questions.length - 1;
@@ -816,6 +830,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
     if (q.type === 'listening') return this.hasListeningAudio(q) && !!(q.expectedTranscript?.trim());
     if (q.type === 'video-pronunciation') return !!(q.videoUrl?.trim()) && !!(q.caption?.trim());
+    if ((q.type as any) === 'jumble-word') return !!(q as any).scrambledText?.trim() && !!(q as any).expectedWord?.trim();
     return false;
   }
 

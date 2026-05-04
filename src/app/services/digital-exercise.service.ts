@@ -6,7 +6,7 @@ import { Observable, from, of, throwError } from 'rxjs';
 import { switchMap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural';
+export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word';
 
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
@@ -127,7 +127,15 @@ export interface WorksheetQuestionMeta {
     | null;
 }
 
-export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | SingularPluralQuestion | ListeningQuestion | VideoPronunciationQuestion) & WorksheetQuestionMeta;
+export interface JumbleWordQuestion extends QuestionCommonFields {
+  type: 'jumble-word';
+  scrambledText: string;
+  boldLetter?: string;
+  expectedWord: string;
+  categoryTip?: string;
+}
+
+export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | SingularPluralQuestion | ListeningQuestion | VideoPronunciationQuestion | JumbleWordQuestion) & WorksheetQuestionMeta;
 
 /** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
 export interface VideoExerciseFeedbackItem {
@@ -251,6 +259,7 @@ export interface QuestionResponse {
   pronunciationScore?: number;
   qaResponse?: string;
   listeningText?: string;
+  jumbleWordResponse?: string;
 }
 
 
@@ -482,6 +491,14 @@ export class DigitalExerciseService {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, { withCredentials: true });
   }
 
+  detectPdfStructureWithAi(uploadId: string): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/pdf-exercises/detect-structure-ai`,
+      { uploadId },
+      { withCredentials: true }
+    );
+  }
+
   generateFromPdf(options: {
     uploadId: string;
     types: string[];
@@ -493,6 +510,7 @@ export class DigitalExerciseService {
     maxQuestions: number;
     worksheetMode?: boolean;
     selectedExerciseIds?: string[];
+    selectedExercises?: Array<{ exerciseId: string; questionCount?: number }>;
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
   }
@@ -620,7 +638,8 @@ export class DigitalExerciseService {
       'question-answer': 'Question / Answer',
       singular_plural: 'Singular / Plural',
       listening: 'Listening',
-      'video-pronunciation': 'Video Pronunciation'
+      'video-pronunciation': 'Video Pronunciation',
+      'jumble-word': 'Jumble Word'
     };
     return labels[type] || type;
   }
@@ -634,7 +653,8 @@ export class DigitalExerciseService {
       'question-answer': 'short_text',
       singular_plural: 'swap_horiz',
       listening: 'headphones',
-      'video-pronunciation': 'videocam'
+      'video-pronunciation': 'videocam',
+      'jumble-word': 'shuffle'
     };
     return icons[type] || 'help';
   }
@@ -740,6 +760,23 @@ export class DigitalExerciseService {
     return this.http.post<{ explanation: string }>(
       `${environment.apiUrl}/digital-exercises/generate-explanation`,
       data,
+      { withCredentials: true }
+    );
+  }
+
+  generateMissingAnswers(questions: Array<{
+    index: number;
+    type: string;
+    sentence?: string;
+    instruction?: string;
+    hint?: string;
+    answers?: string[];
+    prompt?: string;
+    sampleAnswers?: string[];
+  }>): Observable<{ results: Array<{ index: number; answers?: string[]; sampleAnswers?: string[]; expectedWord?: string }> }> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/digital-exercises/generate-missing-answers`,
+      { questions },
       { withCredentials: true }
     );
   }

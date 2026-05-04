@@ -99,6 +99,8 @@ interface PlayerQuestion {
   qaResponse?: string;
   // Listening state
   listeningText?: string;
+  // Jumble-word state
+  jumbleWordResponse?: string;
   // Video Pronunciation state
   vpSpokenText?: string;
   vpResult?: 'idle' | 'correct' | 'almostCorrect' | 'incorrect';
@@ -640,6 +642,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.qaResponse = '';
       } else if (q.type === 'listening') {
         pq.listeningText = '';
+      } else if ((q.type as string) === 'jumble-word') {
+        pq.jumbleWordResponse = '';
       } else if (q.type === 'video-pronunciation') {
         pq.vpSpokenText = '';
         pq.vpResult = 'idle';
@@ -1170,6 +1174,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       if (typ === 'question-answer') return { ...base, qaResponse: pq.qaResponse };
       if (typ === 'listening') return { ...base, listeningText: pq.listeningText };
+      if (typ === 'jumble-word') return { ...base, jumbleWordResponse: pq.jumbleWordResponse };
       if (typ === 'video-pronunciation') {
         return {
           ...base,
@@ -1240,6 +1245,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.qaResponse = item.qaResponse;
     } else if (pq.data.type === 'listening' && item.listeningText !== undefined) {
       pq.listeningText = item.listeningText;
+    } else if ((pq.data.type as string) === 'jumble-word' && item.jumbleWordResponse !== undefined) {
+      pq.jumbleWordResponse = item.jumbleWordResponse;
     } else if (pq.data.type === 'video-pronunciation') {
       if (item.vpSpokenText !== undefined) pq.vpSpokenText = item.vpSpokenText;
       if (item.vpResult !== undefined) pq.vpResult = item.vpResult;
@@ -1287,6 +1294,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       resp.qaResponse = pq.qaResponse || '';
     } else if (pq.data.type === 'listening') {
       resp.listeningText = pq.listeningText || '';
+    } else if ((pq.data.type as string) === 'jumble-word') {
+      resp.jumbleWordResponse = pq.jumbleWordResponse || '';
     } else if (pq.data.type === 'video-pronunciation') {
       resp.spokenText = pq.vpSpokenText || '';
       resp.pronunciationScore = pq.pronunciationScore || 0;
@@ -1339,6 +1348,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (it.singularPluralInputs?.some((x) => String(x ?? '').trim() !== '')) return true;
     if (String(it.qaResponse ?? '').trim() !== '') return true;
     if (String(it.listeningText ?? '').trim() !== '') return true;
+    if (String(it.jumbleWordResponse ?? '').trim() !== '') return true;
     if (String(it.spokenText ?? '').trim() !== '') return true;
     if (String(it.vpSpokenText ?? '').trim() !== '') return true;
     if (it.hasRecorded) return true;
@@ -1483,6 +1493,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'pronunciation') return pq.hasRecorded === true;
     if (q.type === 'question-answer') return (pq.qaResponse || '').trim().length > 0;
     if (q.type === 'listening') return (pq.listeningText || '').trim().length > 0;
+    if ((q.type as string) === 'jumble-word') return (pq.jumbleWordResponse || '').trim().length > 0;
     if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
     return false;
   }
@@ -2075,6 +2086,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }       else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
       else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
+      else if ((pq.data.type as string) === 'jumble-word') resp.jumbleWordResponse = pq.jumbleWordResponse || '';
       else if (pq.data.type === 'video-pronunciation') {
         resp.spokenText = pq.vpSpokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
@@ -2091,6 +2103,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
       return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
+    }
+    if ((q.type as string) === 'jumble-word' && correctAnswer.expectedWord) {
+      return 'Correct word: ' + correctAnswer.expectedWord;
     }
     return '';
   }
@@ -2118,6 +2133,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }       else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
       else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
+      else if ((pq.data.type as string) === 'jumble-word') resp.jumbleWordResponse = pq.jumbleWordResponse || '';
       else if (pq.data.type === 'video-pronunciation') {
         resp.spokenText = pq.vpSpokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
@@ -2173,6 +2189,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
       return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
+    }
+    if ((q.type as string) === 'jumble-word' && correctAnswer.expectedWord) {
+      return 'Correct word: ' + correctAnswer.expectedWord;
     }
     return '';
   }
@@ -2277,6 +2296,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return (pq.qaResponse || '—').trim();
     }
     if (pq.data.type === 'listening') return (pq.listeningText || '—').trim();
+    if ((pq.data.type as string) === 'jumble-word') return (pq.jumbleWordResponse || '—').trim();
     if (pq.data.type === 'video-pronunciation') return (pq.vpSpokenText || '—').trim();
     return '—';
   }
@@ -2322,6 +2342,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return samples.length ? samples.join('; ') : '(AI graded)';
     }
     if (pq.data.type === 'listening') return pq.data.expectedTranscript || '—';
+    if ((pq.data.type as string) === 'jumble-word') return (pq.data as any).expectedWord || '—';
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
     if (pq.data.type === 'video-pronunciation') {
       const first = String(pq.data.caption || '').trim();
@@ -2333,6 +2354,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return first || '—';
     }
     return '—';
+  }
+
+  getJumbleTokens(data: any): string[] {
+    const text = String(data?.scrambledText || '');
+    return text.split('').filter((c) => c !== '');
+  }
+
+  getFirstBoldIndex(data: any): number {
+    const tokens = this.getJumbleTokens(data);
+    const bold = String(data?.boldLetter || '');
+    if (!bold) return -1;
+    return tokens.findIndex((t) => t === bold);
   }
 
   parseTrueFalse(raw: any): boolean | null {
@@ -2409,7 +2442,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pronunciation: 'Pronunciation',
       'question-answer': 'Question / Answer',
       listening: 'Listening',
-      'video-pronunciation': 'Video Pronunciation'
+      'video-pronunciation': 'Video Pronunciation',
+      'jumble-word': 'Jumble Word'
     };
     const icons: Record<string, string> = {
       mcq: 'quiz',
@@ -2419,7 +2453,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pronunciation: 'record_voice_over',
       'question-answer': 'short_text',
       listening: 'headphones',
-      'video-pronunciation': 'videocam'
+      'video-pronunciation': 'videocam',
+      'jumble-word': 'shuffle'
     };
     this.playerQuestions.forEach((pq, i) => {
       const t = pq.data.type;

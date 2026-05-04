@@ -35,13 +35,25 @@ export interface ExercisePreview {
 export class ExerciseStructurePreviewComponent implements OnChanges {
   @Input() exercises: ExercisePreview[] = [];
   @Input() extracting = false;
+  @Input() aiRescanning = false;
   @Input() progressCurrent = 0;
   @Input() progressTotal = 0;
   @Output() rescan = new EventEmitter<void>();
+  @Output() useAiRescan = new EventEmitter<void>();
   @Output() extractAll = new EventEmitter<void>();
 
   readonly typeOptions = [
-    '', 'mcq', 'matching', 'fill_in_blank', 'singular_plural', 'error_correction', 'open_writing', 'transformation', 'true_false', 'short_answer'
+    '',
+    'mcq',
+    'matching',
+    'fill_in_blank',
+    'singular_plural',
+    'jumbled_words',
+    'error_correction',
+    'open_writing',
+    'transformation',
+    'true_false',
+    'short_answer'
   ];
 
   grouped: Array<{ topic: string; items: ExercisePreview[] }> = [];
@@ -108,7 +120,14 @@ export class ExerciseStructurePreviewComponent implements OnChanges {
 
   typeLabel(t: string): string {
     if (!t) return 'Unclassified';
+    if (t === 'jumbled_words' || t === 'jumble-word') return 'Jumble Word';
     return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  setQuestionCount(ex: ExercisePreview, raw: number | string): void {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+    ex.questionCount = Math.max(0, Math.floor(parsed));
   }
 }
 

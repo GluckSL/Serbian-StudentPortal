@@ -16,7 +16,7 @@ import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-s
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 interface ReviewQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'singular_plural';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'singular_plural' | 'jumble-word';
   worksheetKind?: string | null;
   // MCQ
   question?: string;
@@ -49,6 +49,11 @@ interface ReviewQuestion {
   expectedTranscript?: string;
   attemptMode?: 'typing' | 'typing-or-speech';
   transcribing?: boolean;
+  // Jumble Word
+  scrambledText?: string;
+  boldLetter?: string;
+  expectedWord?: string;
+  categoryTip?: string;
   // Common
   points: number;
   // Editor state
@@ -83,6 +88,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   selectedFile: File | null = null;
   isDragging = false;
   uploading = false;
+  aiRescanning = false;
+  generatingAnswers = false;
   uploadResult: any = null;
 
   selectedText = '';
@@ -167,7 +174,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', desc: 'Fill values from a table/profile', icon: 'table_rows', color: '#64748b', bg: '#f1f5f9' },
     { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', desc: 'Write your own sentences', icon: 'edit_note', color: '#f97316', bg: '#fff7ed' },
     { value: 'free-writing-profile', label: 'Free Writing – profile', desc: 'Write a short profile (Steckbrief)', icon: 'badge', color: '#db2777', bg: '#fce7f3' },
-    { value: 'error-correction', label: 'Error Correction', desc: 'Correct mistakes and write the right sentence', icon: 'error', color: '#dc2626', bg: '#fee2e2' }
+    { value: 'error-correction', label: 'Error Correction', desc: 'Correct mistakes and write the right sentence', icon: 'error', color: '#dc2626', bg: '#fee2e2' },
+    { value: 'jumble-word',      label: 'Jumble Word',       desc: 'Scrambled letters → form the correct word', icon: 'shuffle', color: '#b45309', bg: '#fef3c7' }
   ];
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -311,38 +319,63 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
     this.exerciseService.uploadPdf(this.selectedFile).subscribe({
       next: (res) => {
-        this.uploadResult = res;
         this.uploading = false;
-        this.applyDetectedTypes(res.detectedTypes);
-        this.exercises = (res.exercises || []).map((e: any) => {
-          const exerciseId = String(e.exerciseId || e.id || '');
-          return {
-            exerciseId,
-            id: String(e.id || exerciseId),
-            topic: String(e.topic || ''),
-            difficulty: String(e.difficulty || 'easy'),
-            type: String(e.type || ''),
-            questionCount: Number(e.questionCount || 0),
-            instruction: String(e.instruction || e.instruction_de || ''),
-            instruction_de: String(e.instruction_de || ''),
-            instruction_en: String(e.instruction_en || ''),
-            rawText: String(e.rawText ?? e.content ?? ''),
-            questions: Array.isArray(e.questions) ? e.questions : [],
-            pairs: Array.isArray(e.pairs) ? e.pairs : [],
-            extractedItems: [] as any[],
-            enabled: true
-          };
-        });
-        // If server detected a worksheet, auto-enable worksheet mode label for display
-        if (res.worksheetMode) {
-          this.pdfDetectedTypes = true;
-        }
+        this.applyStructureResponse(res);
       },
       error: (err) => {
         this.uploading = false;
         this.showError(err.error?.error || 'Upload failed. Please try again.');
       }
     });
+  }
+
+  rescanPdfStructureWithAi(): void {
+    if (!this.uploadResult?.uploadId) {
+      this.showError('Please upload a PDF first.');
+      return;
+    }
+    this.aiRescanning = true;
+    this.exerciseService.detectPdfStructureWithAi(String(this.uploadResult.uploadId)).subscribe({
+      next: (res) => {
+        this.aiRescanning = false;
+        this.applyStructureResponse(res);
+        this.showSuccess('AI structure scan completed.');
+      },
+      error: (err) => {
+        this.aiRescanning = false;
+        this.showError(err.error?.error || 'AI structure scan failed.');
+      }
+    });
+  }
+
+  private applyStructureResponse(res: any): void {
+    this.uploadResult = {
+      ...(this.uploadResult || {}),
+      ...(res || {})
+    };
+    this.applyDetectedTypes(res.detectedTypes);
+    this.exercises = (res.exercises || []).map((e: any) => {
+      const exerciseId = String(e.exerciseId || e.id || '');
+      return {
+        exerciseId,
+        id: String(e.id || exerciseId),
+        topic: String(e.topic || ''),
+        difficulty: String(e.difficulty || 'easy'),
+        type: String(e.type || ''),
+        questionCount: Number(e.questionCount || 0),
+        instruction: String(e.instruction || e.instruction_de || ''),
+        instruction_de: String(e.instruction_de || ''),
+        instruction_en: String(e.instruction_en || ''),
+        rawText: String(e.rawText ?? e.content ?? ''),
+        questions: Array.isArray(e.questions) ? e.questions : [],
+        pairs: Array.isArray(e.pairs) ? e.pairs : [],
+        extractedItems: [] as any[],
+        enabled: true
+      };
+    });
+    if (res.worksheetMode) {
+      this.pdfDetectedTypes = true;
+    }
   }
 
   removeFile(): void {
@@ -483,7 +516,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.currentProgressMsg = PROGRESS_MESSAGES[0];
     this.startProgressSimulation();
 
-    const selectedExerciseIds = this.exercises.filter(e => e.enabled).map(e => e.exerciseId);
+    const selectedExercises = this.exercises
+      .filter(e => e.enabled)
+      .map(e => ({
+        exerciseId: String(e.exerciseId || '').trim(),
+        questionCount: Math.max(0, Math.floor(Number(e.questionCount || 0)))
+      }))
+      .filter(e => !!e.exerciseId);
+    const selectedExerciseIds = selectedExercises.map(e => e.exerciseId);
     this.extractionProgress = { current: 0, total: Math.max(selectedExerciseIds.length, this.exercises.length, 1) };
     this.currentProgressMsg = `Extracting exercises (0 / ${this.extractionProgress.total})...`;
     this.exerciseService.generateFromPdf({
@@ -496,7 +536,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       difficulty: this.difficulty,
       maxQuestions: 10,
       worksheetMode: true,
-      selectedExerciseIds
+      selectedExerciseIds,
+      selectedExercises
     }).subscribe({
       next: (res) => {
         if (res?.jobId) {
@@ -992,6 +1033,102 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     [this.reviewQuestions[i], this.reviewQuestions[j]] = [this.reviewQuestions[j], this.reviewQuestions[i]];
   }
 
+  applyQuestionRank(fromIndex: number, newRank: number): void {
+    const n = this.reviewQuestions.length;
+    if (!Number.isFinite(newRank) || newRank < 1 || newRank > n) return;
+    const toIndex = Math.round(newRank) - 1;
+    if (toIndex === fromIndex) return;
+    const [item] = this.reviewQuestions.splice(fromIndex, 1);
+    this.reviewQuestions.splice(toIndex, 0, item);
+  }
+
+  generateMissingAnswers(): void {
+    // Collect questions that are missing answers
+    const candidates: Array<{ index: number; q: ReviewQuestion }> = [];
+    this.reviewQuestions.forEach((q, i) => {
+      if (q.type === 'fill-blank') {
+        const blankRuns = countFillBlankRuns((q as any).sentence || '');
+        if (blankRuns < 1) return;
+        const raw = Array.isArray((q as any).answers) ? (q as any).answers : [];
+        const padded = [...raw];
+        while (padded.length < blankRuns) padded.push('');
+        const anyMissing = padded.slice(0, blankRuns).some((a: string) => !String(a ?? '').trim());
+        if (anyMissing) candidates.push({ index: i, q });
+      } else if (q.type === 'question-answer') {
+        const hasSample = Array.isArray((q as any).sampleAnswers) && (q as any).sampleAnswers.some((a: string) => String(a || '').trim());
+        if (!hasSample) candidates.push({ index: i, q });
+      } else if ((q.type as any) === 'jumble-word') {
+        if (!String((q as any).expectedWord || '').trim()) candidates.push({ index: i, q });
+      }
+    });
+
+    if (candidates.length === 0) {
+      this.showSuccess('All questions already have answers.');
+      return;
+    }
+
+    this.generatingAnswers = true;
+    const payload = candidates.map(({ index, q }) => {
+      const base: any = { index, type: q.type };
+      if (q.type === 'fill-blank') {
+        base.sentence = (q as any).sentence || '';
+        base.instruction = (q as any).instruction || '';
+        base.hint = (q as any).hint || '';
+        base.answers = (q as any).answers || [];
+      } else if (q.type === 'question-answer') {
+        base.prompt = (q as any).prompt || '';
+        base.instruction = (q as any).instruction || '';
+        base.sampleAnswers = (q as any).sampleAnswers || [];
+      } else if ((q.type as any) === 'jumble-word') {
+        base.prompt = (q as any).scrambledText || '';
+        base.hint = (q as any).boldLetter || '';
+      }
+      return base;
+    });
+
+    this.exerciseService.generateMissingAnswers(payload).subscribe({
+      next: (res) => {
+        this.generatingAnswers = false;
+        const touched = new Set<number>();
+        (res.results || []).forEach((r: any) => {
+          const idx = Number(r?.index);
+          if (!Number.isFinite(idx) || idx < 0 || idx >= this.reviewQuestions.length) return;
+          const q = this.reviewQuestions[idx] as any;
+          if (!q) return;
+          if (q.type === 'fill-blank' && Array.isArray(r.answers) && r.answers.length) {
+            const n = countFillBlankRuns(String(q.sentence || ''));
+            const merged: string[] = [];
+            for (let j = 0; j < Math.max(n, 1); j++) {
+              const ai = String(r.answers[j] ?? '').trim();
+              const prev = String((q.answers && q.answers[j]) ?? '').trim();
+              merged.push(ai || prev);
+            }
+            q.answers = merged;
+            if (merged.some((x) => String(x || '').trim())) touched.add(idx);
+          }
+          if (q.type === 'question-answer' && Array.isArray(r.sampleAnswers) && r.sampleAnswers.length) {
+            q.sampleAnswers = r.sampleAnswers;
+            touched.add(idx);
+          }
+          if ((q.type as string) === 'jumble-word' && r.expectedWord) {
+            q.expectedWord = String(r.expectedWord).trim();
+            touched.add(idx);
+          }
+        });
+        const filled = touched.size;
+        this.showSuccess(
+          filled > 0
+            ? `Generated answers for ${filled} question(s).`
+            : 'No answers were applied. Try again, or check that blanks use underscores (_) in the sentence.'
+        );
+      },
+      error: (err) => {
+        this.generatingAnswers = false;
+        this.showError(err.error?.error || 'Failed to generate missing answers.');
+      }
+    });
+  }
+
   addBlankQuestion(type: string): void {
     // These worksheet categories are represented using the existing question-answer
     // engine, with an extra `worksheetKind` label for UI rendering.
@@ -1047,6 +1184,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       });
     }
     else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
+    else if (type === 'jumble-word') Object.assign(q, { scrambledText: '', boldLetter: '', expectedWord: '', categoryTip: '', instruction: '' });
 
     this.reviewQuestions.push(q);
     this.addingType = '';
@@ -1176,6 +1314,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
     if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
+    if ((q.type as any) === 'jumble-word') return !!(q as any).scrambledText?.trim() && !!(q as any).expectedWord?.trim();
     return false;
   }
 
