@@ -594,10 +594,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (q.type === 'mcq') {
         pq.selectedOption = undefined;
       } else if (q.type === 'matching') {
-        const pairsRaw = (q.pairs || []).filter(
-          (p: any) =>
-            String(p?.left ?? '').trim().length > 0 && String(p?.right ?? '').trim().length > 0,
-        );
+        // Student (and ?asStudent) payloads omit `right` on each pair and send `shuffledRight` instead.
+        const hasShuffledRight = Array.isArray(q.shuffledRight) && q.shuffledRight.length > 0;
+        const pairsRaw = (q.pairs || []).filter((p: any) => {
+          const leftOk = String(p?.left ?? '').trim().length > 0;
+          const rightOk = String(p?.right ?? '').trim().length > 0;
+          if (hasShuffledRight) return leftOk;
+          return leftOk && rightOk;
+        });
         const leftItems = pairsRaw.map((p: any) => ({
           value: this.normalizePlainDisplayText(p.left),
           matchedRightIndex: null,
