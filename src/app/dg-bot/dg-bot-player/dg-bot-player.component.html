@@ -1,9 +1,21 @@
 <!-- ── Loading ── -->
-<div class="dg-player__loading" *ngIf="loading">
-  <div class="dg-player__loading-inner">
-    <span class="dg-player__loading-dot"></span>
-    Loading your lesson…
-  </div>
+<div class="dg-player" *ngIf="loading">
+    <!-- Header -->
+    <div class="dg-player__sk-full-header"></div>
+
+    <!-- Character & Chat area -->
+    <div class="dg-player__sk-grid">
+      <div class="dg-player__sk-char"></div>
+      <div class="dg-player__sk-chat-wrap">
+        <div class="dg-player__sk-chat-header"></div>
+        <div class="dg-player__sk-chat-body">
+          <div class="dg-player__sk-datetime-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+        </div>
+      </div>
+    </div>
 </div>
 <div class="dg-player__err" *ngIf="error">{{ error }}</div>
 
@@ -28,9 +40,9 @@
         <span class="dg-player__module-title">{{ payload.module.title }}</span>
       </div>
     </div>
-    <button mat-stroked-button type="button" class="dg-player__exit" (click)="exit()">
-      <mat-icon>close</mat-icon> Exit
-    </button>
+    <div class="dg-player__exit" (click)="exit()" role="button" tabindex="0" aria-label="Exit">
+      <mat-icon>close</mat-icon>
+    </div>
   </header>
 
   <!-- Stage -->
@@ -39,7 +51,14 @@
 
     <!-- ── INTRO / BRIEFING SCENES ── -->
     <div class="dg-conv dg-conv--intro" *ngIf="!conversationMode">
-      <aside class="dg-conv__char">
+      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+        <!-- Mobile: mic area in char header (big screens: hidden) -->
+        <div class="dg-conv__char-header" *ngIf="isMobile">
+          <div class="dg-conv__mic-area dg-conv__mic-area--intro">
+            <p class="dg-player__non-practice-text">Speak to continue.</p>
+          </div>
+          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+        </div>
         <div class="dg-conv__mascot">
           <app-dg-character
             [minimalChrome]="true"
@@ -89,10 +108,6 @@
             </div>
           </div>
         </div>
-
-        <div class="dg-conv__mic-area dg-conv__mic-area--intro">
-          <p class="dg-player__non-practice-text">Speak to continue.</p>
-        </div>
       </main>
     </div>
 
@@ -100,7 +115,36 @@
     <div class="dg-conv" *ngIf="conversationMode">
 
       <!-- Character column -->
-      <aside class="dg-conv__char">
+      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+        <!-- Mobile: mic/practice area in char header (big screens: hidden) -->
+        <div class="dg-conv__char-header" *ngIf="isMobile">
+          <div class="dg-conv__mic-area">
+            <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+            <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
+              🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
+            </p>
+            <app-dg-practice
+              *ngIf="showStudentTurnUi"
+              #convPractice
+              [expected]="''"
+              [allowFreeSpeech]="true"
+              [instantStart]="true"
+              [language]="pronLanguage"
+              [hint]="''"
+              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+              [retryTick]="convRetryTick"
+              [sceneKey]="'conv-' + convRetryTick"
+              (evaluated)="onEvaluated($event)"
+              (silence)="onSilence()"
+              (phaseChange)="onPracticePhase($event)"
+            ></app-dg-practice>
+
+            <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
+              <mat-icon>check_circle</mat-icon>
+              Conversation complete!
+            </div>
+          </div>
+        </div>
         <div class="dg-conv__mascot">
           <app-dg-character
             [minimalChrome]="true"
@@ -123,20 +167,24 @@
             </div>
           </div>
           <div class="dg-conv__head-tools">
-            <div class="dg-conv__cc">
-              <button type="button" class="dg-conv__cc-btn" [class.dg-conv__cc-btn--active]="ccMode==='en'" (click)="ccMode = ccMode==='en' ? 'none' : 'en'">CC EN</button>
-              <button type="button" class="dg-conv__cc-btn" [class.dg-conv__cc-btn--active]="ccMode==='ta'" (click)="ccMode = ccMode==='ta' ? 'none' : 'ta'">CC தமிழ்</button>
+            <div class="dg-conv__menu-wrap">
+              <button type="button" class="dg-conv__menu-trigger" (click)="toggleMenu()" [class.dg-conv__menu-trigger--active]="menuOpen" aria-label="Tools menu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <div class="dg-conv__menu-dropdown" *ngIf="menuOpen">
+                <button type="button" class="dg-conv__menu-item" [class.dg-conv__menu-item--active]="ccMode==='en'" (click)="ccMode = ccMode==='en' ? 'none' : 'en'; menuOpen = false">CC EN</button>
+                <button type="button" class="dg-conv__menu-item" [class.dg-conv__menu-item--active]="ccMode==='ta'" (click)="ccMode = ccMode==='ta' ? 'none' : 'ta'; menuOpen = false">CC தமிழ்</button>
+                <div class="dg-conv__menu-sep"></div>
+                <button
+                  type="button"
+                  class="dg-conv__menu-item dg-conv__menu-item--replay"
+                  [disabled]="status === 'speaking' || isAiThinking"
+                  (click)="replayTts(); menuOpen = false"
+                >
+                  <mat-icon>volume_up</mat-icon> Replay
+                </button>
+              </div>
             </div>
-            <button
-              mat-stroked-button
-              type="button"
-              class="dg-conv__replay"
-              [disabled]="status === 'speaking' || isAiThinking"
-              (click)="replayTts()"
-            >
-              <mat-icon>volume_up</mat-icon>
-              Replay
-            </button>
           </div>
         </header>
         <div class="dg-conv__session-divider">
@@ -222,7 +270,6 @@
             </p>
           </div>
         </div>
-        <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
 
         <div class="dg-conv__milestone-row" *ngIf="showMilestoneActions">
           <span class="dg-conv__milestone-label">Session goal reached — choose next step:</span>
@@ -249,14 +296,14 @@
           </div>
         </div>
 
-        <!-- Mic / practice area -->
-        <div class="dg-conv__mic-area">
+        <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
+        <div class="dg-conv__mic-area" *ngIf="!isMobile">
           <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
             🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
           </p>
+          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
           <app-dg-practice
             *ngIf="showStudentTurnUi"
-            #convPractice
             [expected]="''"
             [allowFreeSpeech]="true"
             [instantStart]="true"
@@ -286,7 +333,6 @@
           >
             I can't speak right now
           </button>
-
         </div>
       </main>
     </div>
