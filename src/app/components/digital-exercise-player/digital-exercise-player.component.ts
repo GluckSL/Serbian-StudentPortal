@@ -606,7 +606,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           value: this.normalizePlainDisplayText(p.left),
           matchedRightIndex: null,
         }));
-        const rightItems = q.shuffledRight
+        let rightItems = q.shuffledRight
           ? q.shuffledRight.map((r: string) => ({
               value: this.normalizePlainDisplayText(r),
               matchedLeftIndex: null,
@@ -615,6 +615,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
               value: this.normalizePlainDisplayText(p.right),
               matchedLeftIndex: null,
             }));
+        // Randomize right-column order (API used unstable sort before; avoid row-aligned "answers").
+        if (rightItems.length > 1) {
+          rightItems = [...rightItems];
+          this.shuffleInPlace(rightItems);
+        }
         pq.matchingLeft = leftItems;
         pq.matchingRight = rightItems;
         pq.selectedLeftIndex = null;
@@ -731,6 +736,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       pq.vpSecondaryCaptionShownInChat = false;
     });
+  }
+
+  /** Fisher–Yates shuffle (in-place). */
+  private shuffleInPlace<T>(items: T[]): void {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
   }
 
   private normalizePlainDisplayText(raw: any): string {

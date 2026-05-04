@@ -193,6 +193,16 @@ function clipText(s, max = 120) {
   return `${t.slice(0, max - 1)}…`;
 }
 
+/** Uniform random permutation (Fisher–Yates). Does not mutate the input array. */
+function shuffleArray(arr) {
+  const a = Array.isArray(arr) ? [...arr] : [];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 function normalizeThresholdForQuestion(q) {
   const raw = Number(q?.similarityThreshold);
   if (Number.isFinite(raw)) return Math.max(0, Math.min(100, Math.round(raw)));
@@ -887,7 +897,7 @@ router.get('/:id', verifyToken, async (req, res) => {
         delete stripped.answers;
         // For matching, shuffle the right column
         if (q.type === 'matching' && q.pairs) {
-          stripped.shuffledRight = [...q.pairs.map((p) => sanitizeQuestionPlainText(p.right))].sort(() => Math.random() - 0.5);
+          stripped.shuffledRight = shuffleArray(q.pairs.map((p) => sanitizeQuestionPlainText(p.right)));
           stripped.pairs = q.pairs.map((p) => ({ left: sanitizeQuestionPlainText(p.left) }));
         }
         if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
