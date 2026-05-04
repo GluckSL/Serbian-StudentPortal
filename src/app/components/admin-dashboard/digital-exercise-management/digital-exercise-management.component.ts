@@ -27,9 +27,6 @@ import { MaterialModule } from '../../../shared/material.module';
       <p>Create and manage interactive digital exercises for students</p>
     </div>
     <div class="header-actions">
-      <button type="button" class="btn-dg-ai" (click)="navigateToDgAi()" matTooltip="Worksheet extractor and AI Stage pipeline (Phases 1–3)">
-        <span class="material-icons">auto_awesome</span> dg ai
-      </button>
       <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
         <span class="material-icons">schema</span> Extract from PDF
       </button>
@@ -336,24 +333,6 @@ import { MaterialModule } from '../../../shared/material.module';
     .dem-title-area p { margin: 2px 0 0; font-size: 11px; opacity: 0.65; }
 
     .header-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-
-    .btn-dg-ai {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      background: #0d9488;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 5px 12px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      text-transform: lowercase;
-    }
-    .btn-dg-ai:hover { background: #0f766e; }
-    .btn-dg-ai .material-icons { font-size: 14px; }
 
     .btn-generate-ai {
       display: inline-flex;
@@ -834,10 +813,6 @@ export class DigitalExerciseManagementComponent implements OnInit {
   }
 
   navigateToAiGenerator(): void {
-    this.router.navigate(['/admin/digital-exercises/generate-ai']);
-  }
-
-  navigateToDgAi(): void {
     this.router.navigate(['/admin/digital-exercises/generate-ai']);
   }
 

@@ -398,13 +398,6 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
-  // Worksheet AI Builder — new standalone AI extraction UI
-  {
-    path: 'admin/worksheet-ai-builder',
-    loadComponent: () => import('./components/worksheet-ai-builder/worksheet-ai-builder.component').then(m => m.WorksheetAiBuilderComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
-  },
   // Admin/Teacher: Exercise completion analytics (details page)
   {
     path: 'admin/digital-exercises/:id/completions',
