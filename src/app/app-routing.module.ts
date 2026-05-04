@@ -391,12 +391,19 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
-  // Admin/Teacher: AI PDF Generator
+  // Worksheet PDF / AI Stage generator
   {
     path: 'admin/digital-exercises/generate-ai',
     loadComponent: () => import('./components/pdf-exercise-generator/pdf-exercise-generator.component').then(m => m.PdfExerciseGeneratorComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Worksheet AI Builder — new standalone AI extraction UI
+  {
+    path: 'admin/worksheet-ai-builder',
+    loadComponent: () => import('./components/worksheet-ai-builder/worksheet-ai-builder.component').then(m => m.WorksheetAiBuilderComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   // Admin/Teacher: Exercise completion analytics (details page)
   {

@@ -281,6 +281,13 @@ app.use('/api/crm-student-portal', crmStudentPortalRoutes);
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
 
+const aiStagePhase1Routes = require('./routes/aiStagePhase1');
+const aiStagePhase2Routes = require('./routes/aiStagePhase2');
+const aiStagePhase3Routes = require('./routes/aiStagePhase3');
+app.use('/api/ai-stage', aiStagePhase1Routes);
+app.use('/api/ai-stage', aiStagePhase2Routes);
+app.use('/api/ai-stage', aiStagePhase3Routes);
+
 const listeningMediaRoutes = require('./routes/listeningMedia');
 app.use('/api/listening-media', listeningMediaRoutes);
 const r2UploadsRoutes = require('./routes/r2Uploads');

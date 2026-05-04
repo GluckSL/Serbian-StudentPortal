@@ -946,10 +946,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
   }
 
+  /** DISABLED: PDF worksheet / AI exercise generator — re-enable app route generate-ai + builder HTML. */
   navigateToAiGenerator(): void {
-    this.router.navigate(['/admin/digital-exercises/generate-ai'], {
-      queryParams: this.courseDayQueryParams()
-    });
+    // this.router.navigate(['/admin/digital-exercises/generate-ai'], {
+    //   queryParams: this.courseDayQueryParams()
+    // });
   }
 
   navigateToListeningGenerator(): void {

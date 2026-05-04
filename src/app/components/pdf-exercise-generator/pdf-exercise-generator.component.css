@@ -1444,3 +1444,248 @@
   vertical-align: middle;
   line-height: 1.6;
 }
+
+/* ── AI Stage admin preview (edit before save) ───────────────────────────── */
+.generator-page--wide {
+  max-width: 1320px;
+}
+
+.ai-stage-toolbar {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  background: #fafafa;
+}
+
+.ai-stage-toolbar__title {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.ai-stage-toolbar__title .material-icons {
+  color: #7c3aed;
+  margin-top: 2px;
+}
+
+.ai-stage-toolbar__hint {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.ai-stage-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.ai-stage-key-input {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.ai-stage-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-stage-error {
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.review-layout {
+  display: block;
+}
+
+.review-layout--split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .review-layout--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-layout__aside {
+  position: sticky;
+  top: 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+}
+
+.ai-stage-aside__heading {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  color: #1e293b;
+}
+
+.ai-stage-aside__sub {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ai-stage-ex-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-stage-ex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.ai-stage-ex-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai-stage-ex-id {
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.ai-stage-ex-type {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.ai-stage-ex-count {
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.ai-stage-editor {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+  margin-top: 4px;
+}
+
+.ai-stage-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.ai-stage-field-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.ai-stage-pair-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.ai-stage-pair-table td {
+  padding: 4px 4px 4px 0;
+  vertical-align: middle;
+}
+
+.ai-stage-pair-sep {
+  color: #94a3b8;
+  width: 28px;
+  text-align: center;
+}
+
+.ai-stage-q-block,
+.ai-stage-mcq-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.ai-stage-opt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-stage-remove-q {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.ai-stage-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.field-invalid {
+  border-color: #e11d48 !important;
+  box-shadow: 0 0 0 1px #fecdd3;
+}
+
+.ai-stage-generic-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 8px;
+}
+
+.ai-stage-json-pre {
+  margin: 0;
+  padding: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  overflow: auto;
+  max-height: 240px;
+}

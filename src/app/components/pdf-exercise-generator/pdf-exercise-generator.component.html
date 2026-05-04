@@ -1,6 +1,6 @@
 <!-- pdf-exercise-generator.component.html -->
 <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
-<div class="generator-page">
+<div class="generator-page" [class.generator-page--wide]="currentStep === 5 && aiStageExercises.length > 0">
 
   <!-- ── Top Bar ── -->
   <div class="top-bar">
@@ -236,6 +236,31 @@
   <!-- STEP 5: Review & Save                                                    -->
   <!-- ════════════════════════════════════════════════════════════════════════ -->
   <div class="step-panel review-panel" *ngIf="currentStep === 5">
+    <div class="ai-stage-toolbar" *ngIf="selectedFile">
+      <div class="ai-stage-toolbar__title">
+        <span class="material-icons">tune</span>
+        <div>
+          <strong>AI Stage (Phases 1–3)</strong>
+          <p class="ai-stage-toolbar__hint">Rules-based extraction. Review and edit on the right after running — nothing is overwritten until you click Save there.</p>
+        </div>
+      </div>
+      <label class="ai-stage-label">Answer key (optional, for Phase 3)</label>
+      <textarea
+        class="ai-stage-key-input"
+        rows="3"
+        [(ngModel)]="aiStageAnswerKeyText"
+        placeholder="e.g. L1.1: 1 - a komme&#10;L1.2: 1. ist 2. hat"
+        [disabled]="aiStageBusy"
+      ></textarea>
+      <div class="ai-stage-toolbar__actions">
+        <button type="button" class="btn-secondary" (click)="runAiStagePipeline()" [disabled]="aiStageBusy || !selectedFile">
+          <span class="material-icons">{{ aiStageBusy ? 'hourglass_empty' : 'play_arrow' }}</span>
+          {{ aiStageBusy ? 'Running…' : 'Run AI Stage pipeline' }}
+        </button>
+        <span class="ai-stage-error" *ngIf="aiStageError">{{ aiStageError }}</span>
+      </div>
+    </div>
+
     <div class="step-header">
       <div class="step-icon-wrap success-icon-wrap"><span class="material-icons step-icon">check_circle</span></div>
       <div>
@@ -260,6 +285,8 @@
       </div>
     </div>
 
+    <div class="review-layout" [class.review-layout--split]="aiStageExercises.length > 0">
+    <div class="review-layout__main">
     <!-- Exercise Metadata -->
     <div class="metadata-section">
       <div class="meta-field full">
@@ -678,6 +705,108 @@
           </button>
         </div>
       </div>
+    </div>
+    </div>
+
+    <aside class="review-layout__aside ai-stage-aside" *ngIf="aiStageExercises.length > 0">
+      <h3 class="ai-stage-aside__heading">Edit before save</h3>
+      <p class="ai-stage-aside__sub">Click <strong>View</strong>, change fields, then <strong>Save</strong> to update the list.</p>
+
+      <ul class="ai-stage-ex-list">
+        <li *ngFor="let ex of aiStageExercises" class="ai-stage-ex-row">
+          <div class="ai-stage-ex-row__meta">
+            <span class="ai-stage-ex-id">{{ ex.id }}</span>
+            <span class="ai-stage-ex-type">{{ ex.type }}</span>
+            <span class="ai-stage-ex-count">{{ getAiStageItemCount(ex) }} items</span>
+          </div>
+          <button type="button" class="btn-secondary btn-sm" (click)="selectExercise(ex)">View</button>
+        </li>
+      </ul>
+
+      <div class="ai-stage-editor" *ngIf="selectedExercise">
+        <div class="ai-stage-editor__head">
+          <span class="ai-stage-ex-id">{{ selectedExercise.id }}</span>
+          <span class="ai-stage-ex-type">{{ selectedExercise.type }}</span>
+          <span class="ai-stage-ex-count">{{ getAiStageItemCount(selectedExercise) }} items</span>
+        </div>
+
+        <label class="ai-stage-field-label">Instruction</label>
+        <input type="text" class="meta-input" [(ngModel)]="selectedExercise.instruction" />
+
+        <ng-container [ngSwitch]="selectedExercise.type">
+          <ng-container *ngSwitchCase="'matching'">
+            <table class="ai-stage-pair-table">
+              <tr *ngFor="let p of selectedExercise.pairs; let i = index">
+                <td><input class="meta-input" [(ngModel)]="p.left" [class.field-invalid]="!(p.left || '').trim()" /></td>
+                <td class="ai-stage-pair-sep">↔</td>
+                <td><input class="meta-input" [(ngModel)]="p.right" [class.field-invalid]="!(p.right || '').trim()" /></td>
+                <td><button type="button" class="btn-rm-sm" (click)="removeAiStagePair(i)" title="Delete row"><span class="material-icons">close</span></button></td>
+              </tr>
+            </table>
+            <button type="button" class="btn-add-sm" (click)="addAiStagePair()"><span class="material-icons">add</span> Add row</button>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'fill_in_blank'">
+            <div *ngFor="let q of selectedExercise.questions; let i = index" class="ai-stage-q-block">
+              <input type="text" class="meta-input" [(ngModel)]="q.sentence" placeholder="Sentence" />
+              <input type="text" class="meta-input" [(ngModel)]="q.answer" placeholder="Answer" [class.field-invalid]="!(q.answer || '').trim()" />
+              <button type="button" class="btn-rm-sm" (click)="removeAiStageFillRow(i)"><span class="material-icons">close</span></button>
+            </div>
+            <button type="button" class="btn-add-sm" (click)="addAiStageFillRow()"><span class="material-icons">add</span> Add row</button>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'mcq'">
+            <div *ngFor="let q of selectedExercise.questions; let qi = index" class="ai-stage-mcq-block">
+              <input type="text" class="meta-input" [(ngModel)]="q.question" placeholder="Question" />
+              <div *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex" class="ai-stage-opt-row">
+                <input type="text" class="meta-input" [(ngModel)]="q.options[oi]" [placeholder]="'Option ' + (oi + 1)" />
+                <button type="button" class="btn-rm-sm" *ngIf="q.options.length > 2" (click)="removeAiStageMcqOption(qi, oi)"><span class="material-icons">close</span></button>
+              </div>
+              <button type="button" class="btn-add-sm" (click)="addAiStageMcqOption(qi)"><span class="material-icons">add</span> Add option</button>
+              <button type="button" class="btn-rm-sm ai-stage-remove-q" (click)="removeAiStageMcqQuestion(qi)"><span class="material-icons">delete_outline</span> Remove question</button>
+            </div>
+            <button type="button" class="btn-add-sm" (click)="addAiStageMcqQuestion()"><span class="material-icons">add</span> Add question</button>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'short_answer'">
+            <div *ngFor="let q of selectedExercise.questions; let i = index" class="ai-stage-q-block">
+              <input type="text" class="meta-input" [(ngModel)]="q.question" placeholder="Question" />
+              <button type="button" class="btn-rm-sm" (click)="removeAiStageShortRow(i)"><span class="material-icons">close</span></button>
+            </div>
+            <button type="button" class="btn-add-sm" (click)="addAiStageShortRow()"><span class="material-icons">add</span> Add row</button>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'error_correction'">
+            <div *ngFor="let q of selectedExercise.questions; let i = index" class="ai-stage-q-block">
+              <input type="text" class="meta-input" [(ngModel)]="q.sentence" placeholder="Sentence (with error)" />
+              <input type="text" class="meta-input" [(ngModel)]="q.corrected" placeholder="Corrected (optional)" />
+              <button type="button" class="btn-rm-sm" (click)="removeAiStageErrorRow(i)"><span class="material-icons">close</span></button>
+            </div>
+            <button type="button" class="btn-add-sm" (click)="addAiStageErrorRow()"><span class="material-icons">add</span> Add row</button>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'singular_plural'">
+            <div *ngFor="let q of selectedExercise.questions; let i = index" class="ai-stage-q-block">
+              <input type="text" class="meta-input" [(ngModel)]="q.item" placeholder="Item" />
+              <input type="text" class="meta-input" [(ngModel)]="q.answer" placeholder="Answer" />
+              <button type="button" class="btn-rm-sm" (click)="removeAiStageSingularPluralRow(i)"><span class="material-icons">close</span></button>
+            </div>
+            <button type="button" class="btn-add-sm" (click)="addAiStageSingularPluralRow()"><span class="material-icons">add</span> Add row</button>
+          </ng-container>
+
+          <ng-container *ngSwitchDefault>
+            <p class="ai-stage-generic-hint">Read-only snapshot for this type (edit in a future pass or re-run pipeline).</p>
+            <pre class="ai-stage-json-pre">{{ selectedExercise | json }}</pre>
+          </ng-container>
+        </ng-container>
+
+        <div class="ai-stage-editor__actions">
+          <button type="button" class="btn-primary" (click)="saveEdited()">Save</button>
+          <button type="button" class="btn-secondary" (click)="resetSelectedToOriginal()">Reset to original</button>
+          <button type="button" class="btn-secondary" (click)="closeAiStageEditor()">Close</button>
+        </div>
+      </div>
+    </aside>
     </div>
 
     <!-- Save Actions -->
