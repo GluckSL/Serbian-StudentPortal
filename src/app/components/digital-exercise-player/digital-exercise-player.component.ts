@@ -154,6 +154,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   submitting = false;
   showFinishSummary = false;
   finishingAll = false;
+  /** Remap broken /uploads links to R2 public URLs when objects still exist. */
+  mediaRefetchInProgress = false;
 
   startTime = 0;
   elapsedSeconds = 0;
@@ -2555,6 +2557,125 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
     if (/\.pdf$/.test(lower)) return 'pdf';
     return 'other';
+  }
+
+  /**
+   * Listening clip when attachment is not audio — uses legacy mediaUrl (attachment audio is shown in the shared attachment box).
+   */
+  getListeningSupplementalAudioUrl(data: any): string {
+    if (data?.type !== 'listening') return '';
+    const att = String(data.attachmentUrl || '').trim();
+    if (att && this.getAttachmentType(att) === 'audio') return '';
+    return String(data.mediaUrl || '').trim();
+  }
+
+  private collectExerciseMediaUrlsForRecovery(): string[] {
+    const urls: string[] = [];
+    const add = (u?: string | null) => {
+      const s = String(u || '').trim();
+      if (!s) return;
+      const lower = s.toLowerCase();
+      if (
+        lower.includes('listening-media') ||
+        lower.includes('exercise-attachments') ||
+        s.startsWith('/uploads/')
+      ) {
+        urls.push(s);
+      }
+    };
+    const ex = this.exercise;
+    if (!ex) return [];
+    add(ex.sharedAudioUrl);
+    for (const row of ex.videoSuccessFeedback || []) add(row.audioUrl);
+    for (const row of ex.videoRetryFeedback || []) add(row.audioUrl);
+    const rawQuestions = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
+    for (const q of rawQuestions) {
+      add(q['attachmentUrl'] as string | undefined);
+      add(q['mediaUrl'] as string | undefined);
+      add(q['audioUrl'] as string | undefined);
+    }
+    return [...new Set(urls)];
+  }
+
+  refetchMediaFromR2(): void {
+    if (!this.exercise || this.mediaRefetchInProgress) return;
+    const urls = this.collectExerciseMediaUrlsForRecovery();
+    if (urls.length === 0) {
+      this.snackBar.open('No uploaded audio paths to recover in this exercise.', 'Close', { duration: 3500 });
+      return;
+    }
+    this.mediaRefetchInProgress = true;
+    this.exerciseService.resolveMediaFromR2(urls).subscribe({
+      next: ({ resolutions }) => {
+        this.mediaRefetchInProgress = false;
+        const mapFound = new Map(
+          resolutions.filter((r) => r.found).map((r) => [r.original, r.url])
+        );
+        if (mapFound.size === 0) {
+          this.snackBar.open('No matching files found in cloud storage.', 'Close', { duration: 4500 });
+          return;
+        }
+
+        let updated = 0;
+        const patchVal = (before: string | undefined | null): string | undefined | null => {
+          const s = String(before || '').trim();
+          if (!s) return before;
+          const r = mapFound.get(s);
+          return r !== undefined ? r : before;
+        };
+
+        const ex = this.exercise!;
+        const nextShared = patchVal(ex.sharedAudioUrl);
+        if (nextShared !== ex.sharedAudioUrl) {
+          ex.sharedAudioUrl = nextShared ?? undefined;
+          updated++;
+        }
+
+        for (const row of ex.videoSuccessFeedback || []) {
+          const n = patchVal(row.audioUrl);
+          if (n !== row.audioUrl) {
+            row.audioUrl = (n as string) || '';
+            updated++;
+          }
+        }
+        for (const row of ex.videoRetryFeedback || []) {
+          const n = patchVal(row.audioUrl);
+          if (n !== row.audioUrl) {
+            row.audioUrl = (n as string) || '';
+            updated++;
+          }
+        }
+        const qs = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
+        for (const q of qs) {
+          const na = patchVal(q['attachmentUrl'] as string | undefined);
+          if (na !== q['attachmentUrl']) {
+            q['attachmentUrl'] = na ?? undefined;
+            updated++;
+          }
+          const nm = patchVal(q['mediaUrl'] as string | undefined);
+          if (nm !== q['mediaUrl']) {
+            q['mediaUrl'] = nm;
+            updated++;
+          }
+          const nau = patchVal(q['audioUrl'] as string | undefined);
+          if (nau !== q['audioUrl']) {
+            q['audioUrl'] = nau;
+            updated++;
+          }
+        }
+
+        this.snackBar.open(
+          updated > 0 ? `Restored ${updated} media link(s) from cloud storage.` : 'Checked cloud storage; links already current.',
+          'Close',
+          { duration: 4500 }
+        );
+      },
+      error: (err) => {
+        this.mediaRefetchInProgress = false;
+        const msg = err?.error?.error || err?.message || 'Could not recover media.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+      },
+    });
   }
 
   startListeningSpeech(pq: PlayerQuestion): void {

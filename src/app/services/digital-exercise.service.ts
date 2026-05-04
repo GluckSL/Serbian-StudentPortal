@@ -2,7 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, from } from 'rxjs';
+import { Observable, from, of, throwError } from 'rxjs';
 import { switchMap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
@@ -639,40 +639,47 @@ export class DigitalExerciseService {
     return icons[type] || 'help';
   }
 
-  uploadVideoMedia(file: File): Observable<{ success: boolean; url: string }> {
-    return this.http.post<{ uploadUrl: string; fileUrl: string }>(
-      `${environment.apiUrl}/r2/generate-upload-url`,
-      {
-        filename: file.name,
-        contentType: file.type || 'application/octet-stream'
-      },
-      { withCredentials: true }
-    ).pipe(
-      switchMap(({ uploadUrl, fileUrl }) =>
-        from(fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-          body: file
-        })).pipe(
-          switchMap((response) => {
-            if (!response.ok) {
-              throw new Error(`R2 upload failed with status ${response.status}`);
-            }
-            return from(Promise.resolve({ success: true, url: fileUrl }));
-          })
-        )
+  uploadBlobToR2(
+    file: File,
+    prefix: 'listening-media' | 'exercise-attachments'
+  ): Observable<{ success: boolean; url: string }> {
+    return this.http
+      .post<{ uploadUrl: string; fileUrl: string }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+          prefix,
+        },
+        { withCredentials: true }
       )
-    );
+      .pipe(
+        switchMap(({ uploadUrl, fileUrl }) =>
+          from(
+            fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type || 'application/octet-stream' },
+              body: file,
+            })
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(() => new Error(`R2 upload failed with status ${response.status}`));
+              }
+              return of({ success: true, url: fileUrl });
+            })
+          )
+        )
+      );
   }
 
+  uploadVideoMedia(file: File): Observable<{ success: boolean; url: string }> {
+    return this.uploadBlobToR2(file, 'listening-media');
+  }
+
+  /** Listening / feedback clips — direct R2 upload only (same bucket as server-side audio). */
   uploadListeningMedia(file: File): Observable<{ success: boolean; url: string }> {
-    const formData = new FormData();
-    formData.append('media', file);
-    return this.http.post<{ success: boolean; url: string }>(
-      `${environment.apiUrl}/listening-media/upload`,
-      formData,
-      { withCredentials: true }
-    );
+    return this.uploadBlobToR2(file, 'listening-media');
   }
 
   fetchListeningFromUrl(url: string): Observable<{ success: boolean; url: string }> {
@@ -691,7 +698,12 @@ export class DigitalExerciseService {
     );
   }
 
+  /** Per-question attachment: audio goes to R2 only; other types use multipart (disk/S3). */
   uploadQuestionAttachment(file: File): Observable<{ success: boolean; url: string }> {
+    const mt = (file.type || '').toLowerCase();
+    if (mt.startsWith('audio/')) {
+      return this.uploadBlobToR2(file, 'exercise-attachments');
+    }
     const formData = new FormData();
     formData.append('attachment', file);
     return this.http.post<{ success: boolean; url: string }>(
@@ -699,6 +711,21 @@ export class DigitalExerciseService {
       formData,
       { withCredentials: true }
     );
+  }
+
+  /**
+   * When stored URLs point at missing local files, remap to canonical R2 public URLs if the object exists.
+   */
+  resolveMediaFromR2(urls: string[]): Observable<{
+    resolutions: Array<{ original: string; url: string; found: boolean }>;
+  }> {
+    const uniq = [...new Set((urls || []).map((u) => String(u || '').trim()).filter(Boolean))];
+    if (uniq.length === 0) {
+      return of({ resolutions: [] });
+    }
+    return this.http.post<{
+      resolutions: Array<{ original: string; url: string; found: boolean }>;
+    }>(`${environment.apiUrl}/r2/resolve-media-urls`, { urls: uniq }, { withCredentials: true });
   }
 
   generateExplanation(data: {

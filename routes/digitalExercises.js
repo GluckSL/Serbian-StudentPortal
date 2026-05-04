@@ -17,6 +17,7 @@ const { resignExercise, resignExercises } = require('../config/presign');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -61,16 +62,24 @@ const attachmentS3Storage = multerS3({
   }
 });
 
+/** Audio attachments never touch disk or S3 — only memory → R2 in the route handler. */
+const attachmentMemoryStorage = multer.memoryStorage();
+
 const attachmentHybridStorage = {
   _handleFile(req, file, cb) {
-    if (isVideoOrImageMime(file.mimetype)) {
+    const mt = String(file.mimetype || '').toLowerCase();
+    if (mt.startsWith('audio/')) {
+      attachmentMemoryStorage._handleFile(req, file, cb);
+    } else if (isVideoOrImageMime(file.mimetype)) {
       attachmentS3Storage._handleFile(req, file, cb);
     } else {
       attachmentDiskStorage._handleFile(req, file, cb);
     }
   },
   _removeFile(req, file, cb) {
-    if (file.location) {
+    if (file.buffer) {
+      cb(null);
+    } else if (file.location) {
       cb(null);
     } else if (file.path) {
       fs.unlink(file.path, cb);
@@ -2083,10 +2092,29 @@ router.post(
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   attachmentUpload.single('attachment'),
-  (req, res) => {
+  async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-      // S3 files have .location; disk files use a relative path
+
+      const mt = String(req.file.mimetype || '').toLowerCase();
+      if (mt.startsWith('audio/')) {
+        if (!req.file.buffer?.length) {
+          return res.status(400).json({ error: 'Empty audio upload' });
+        }
+        if (!isExerciseR2Configured()) {
+          return res.status(503).json({
+            error:
+              'Audio attachments require Cloudflare R2. Set R2 credentials and R2_PUBLIC_BASE_URL.',
+          });
+        }
+        const ext = path.extname(req.file.originalname || '') || '.mp3';
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+        const key = `exercise-attachments/${filename}`;
+        const url = await putExerciseMediaBuffer(req.file.buffer, key, mt || 'audio/mpeg');
+        return res.json({ success: true, url });
+      }
+
+      // S3 (image/video): .location; PDF/docs: disk relative path
       const url = req.file.location || `/uploads/exercise-attachments/${req.file.filename}`;
       return res.json({ success: true, url });
     } catch (err) {

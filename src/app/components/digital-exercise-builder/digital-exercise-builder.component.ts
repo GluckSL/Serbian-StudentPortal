@@ -524,6 +524,21 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     return 'other';
   }
 
+  /** Listening audio may live on attachment (preferred) or legacy mediaUrl. */
+  hasListeningAudio(q: BuilderQuestion): boolean {
+    if (q.type !== 'listening') return false;
+    const att = String(q.attachmentUrl || '').trim();
+    if (att && this.getAttachmentType(att) === 'audio') return true;
+    return !!(q.mediaUrl || '').trim();
+  }
+
+  getListeningPreviewAudioUrl(q: BuilderQuestion): string | null {
+    const att = String(q.attachmentUrl || '').trim();
+    if (att && this.getAttachmentType(att) === 'audio') return att;
+    const m = String(q.mediaUrl || '').trim();
+    return m || null;
+  }
+
   // ─── AI explanation helpers ────────────────────────────────────────────────
 
   useAiExplanation(q: BuilderQuestion): void {
@@ -602,17 +617,6 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.showSuccess('Audio uploaded');
       },
       error: (err) => this.showError(err.error?.error || 'Upload failed')
-    });
-  }
-
-  fetchListeningFromUrl(q: BuilderQuestion, url: string): void {
-    if (!url?.trim()) { this.showError('Enter a valid URL'); return; }
-    this.exerciseService.fetchListeningFromUrl(url.trim()).subscribe({
-      next: (res) => {
-        q.mediaUrl = res.url;
-        this.showSuccess('Audio fetched');
-      },
-      error: (err) => this.showError(err.error?.error || 'Fetch failed')
     });
   }
 
@@ -810,7 +814,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
-    if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
+    if (q.type === 'listening') return this.hasListeningAudio(q) && !!(q.expectedTranscript?.trim());
     if (q.type === 'video-pronunciation') return !!(q.videoUrl?.trim()) && !!(q.caption?.trim());
     return false;
   }

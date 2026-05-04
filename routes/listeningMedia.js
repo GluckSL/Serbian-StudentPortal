@@ -1,31 +1,19 @@
 // routes/listeningMedia.js
-// Upload audio/video for listening/pronunciation questions + AI transcription (Whisper)
+// Upload audio for listening/pronunciation questions + AI transcription (Whisper)
 //
 // Storage strategy:
-//   • Video files (mp4 / webm / mov) → AWS S3  (full https://…amazonaws.com URL stored)
-//   • Audio files                    → Local disk under uploads/listening-media/
-//     served by app.use('/uploads', express.static(...)) in app.js
+//   • Audio → Cloudflare R2 only (multipart buffered in memory, never disk/S3)
+//   • Video → use POST /api/r2/generate-upload-url from the client (not this route)
 
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const multerS3 = require('multer-s3');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const s3Client = require('../config/s3');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { presignS3Url } = require('../config/presign');
-
-const LISTENING_MEDIA_DIR = path.join(__dirname, '..', 'uploads', 'listening-media');
-
-function ensureListeningMediaDir() {
-  if (!fs.existsSync(LISTENING_MEDIA_DIR)) {
-    fs.mkdirSync(LISTENING_MEDIA_DIR, { recursive: true });
-  }
-}
+const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 
 // ─── Extension helper ─────────────────────────────────────────────────────────
 function inferExtension(file) {
@@ -45,111 +33,59 @@ function inferExtension(file) {
     'audio/webm': '.webm',
     'audio/ogg': '.ogg',
     'audio/flac': '.flac',
-    'video/mp4': '.mp4',
-    'video/webm': '.webm',
-    'video/quicktime': '.mov',
   };
   return map[mt] || '.bin';
 }
 
-function isVideoMime(mt) {
-  const m = String(mt || '').toLowerCase();
-  return m === 'video/mp4' || m === 'video/webm' || m === 'video/quicktime';
-}
-
 const mediaFilter = (req, file, cb) => {
   const mt = String(file.mimetype || '').toLowerCase();
-  if (isVideoMime(mt)) {
+  if (mt.startsWith('video/')) {
     return cb(new Error('Video uploads must use direct R2 upload via presigned URL.'), false);
   }
   if (mt.startsWith('audio/')) return cb(null, true);
   return cb(new Error(`Only audio/* is allowed on this endpoint. Received: ${mt || 'unknown'}`), false);
 };
 
-// ─── Multer: video → S3, audio → disk ────────────────────────────────────────
-
-const diskStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    ensureListeningMediaDir();
-    cb(null, LISTENING_MEDIA_DIR);
-  },
-  filename: (req, file, cb) => {
-    const ext = inferExtension(file);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
-
-const s3Storage = multerS3({
-  s3: s3Client,
-  bucket: process.env.S3_BUCKET,
-  contentType: multerS3.AUTO_CONTENT_TYPE,
-  key: (req, file, cb) => {
-    const prefix = process.env.S3_PREFIX || 'uploads';
-    const ext = inferExtension(file);
-    cb(null, `${prefix}/listening-media/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
-
-// Custom storage that delegates to disk or S3 based on mimetype
-const hybridStorage = {
-  _handleFile(req, file, cb) {
-    if (isVideoMime(file.mimetype)) {
-      s3Storage._handleFile(req, file, cb);
-    } else {
-      diskStorage._handleFile(req, file, cb);
-    }
-  },
-  _removeFile(req, file, cb) {
-    if (isVideoMime(file.mimetype)) {
-      s3Storage._removeFile(req, file, cb);
-    } else {
-      diskStorage._removeFile(req, file, cb);
-    }
-  },
-};
-
 const upload = multer({
-  storage: hybridStorage,
+  storage: multer.memoryStorage(),
   fileFilter: mediaFilter,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
 });
 
-// ─── POST /upload ────────────────────────────────────────────────────────────
 const uploadSingleMedia = (req, res, next) => {
   upload.single('media')(req, res, (err) => {
     if (err) {
       console.error('Listening media upload error (multer):', err);
-      if (err.message && err.message.includes('bucket')) {
-        console.error(`S3 config: bucket="${process.env.S3_BUCKET}" region="${process.env.AWS_REGION}"`);
-        return res.status(400).json({
-          error: `S3 upload failed: ${err.message}. Bucket="${process.env.S3_BUCKET || 'undefined'}" Region="${process.env.AWS_REGION || 'undefined'}"`,
-        });
-      }
       return res.status(400).json({ error: err.message || 'Upload failed' });
     }
     next();
   });
 };
 
-router.post('/upload',
+router.post(
+  '/upload',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   uploadSingleMedia,
   async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: 'No media file uploaded' });
+      if (!req.file?.buffer) return res.status(400).json({ error: 'No media file uploaded' });
 
-      // S3 (video): req.file.location is the full https://…amazonaws.com/… URL
-      // Disk (audio): build a relative /uploads/… URL served by express.static
-      let url = req.file.location
-        ? req.file.location
-        : `/uploads/listening-media/${req.file.filename}`;
-
-      // If presigning is enabled, sign the S3 URL right away so the admin
-      // video preview works without making the bucket public.
-      if (req.file.location) {
-        url = await presignS3Url(url);
+      if (!isExerciseR2Configured()) {
+        return res.status(503).json({
+          error:
+            'Audio storage is not configured. Set R2 credentials and R2_PUBLIC_BASE_URL for Cloudflare R2.',
+        });
       }
+
+      const ext = inferExtension(req.file);
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+      const key = `listening-media/${filename}`;
+      const url = await putExerciseMediaBuffer(
+        req.file.buffer,
+        key,
+        req.file.mimetype || 'audio/mpeg'
+      );
 
       res.json({ success: true, url });
     } catch (err) {
@@ -160,8 +96,8 @@ router.post('/upload',
 );
 
 // ─── POST /fetch-from-url ────────────────────────────────────────────────────
-// Fetches audio from an external URL → saves to disk (audio only use-case)
-router.post('/fetch-from-url',
+router.post(
+  '/fetch-from-url',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   async (req, res) => {
@@ -170,31 +106,40 @@ router.post('/fetch-from-url',
       return res.status(400).json({ error: 'URL is required' });
     }
 
+    if (!isExerciseR2Configured()) {
+      return res.status(503).json({
+        error:
+          'Audio storage is not configured. Set R2 credentials and R2_PUBLIC_BASE_URL for Cloudflare R2.',
+      });
+    }
+
     try {
       const parsed = new URL(url);
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return res.status(400).json({ error: 'Invalid URL protocol' });
       }
 
-      const buffer = await new Promise((resolve, reject) => {
+      const { buffer, contentType } = await new Promise((resolve, reject) => {
         const client = parsed.protocol === 'https:' ? https : http;
         const chunks = [];
         client.get(url, { timeout: 30000 }, (response) => {
           if (response.statusCode !== 200) {
             return reject(new Error(`Failed to fetch: ${response.statusCode}`));
           }
+          const ct = String(response.headers?.['content-type'] || '').split(';')[0].trim();
           response.on('data', (chunk) => chunks.push(chunk));
-          response.on('end', () => resolve(Buffer.concat(chunks)));
+          response.on('end', () =>
+            resolve({ buffer: Buffer.concat(chunks), contentType: ct || 'audio/mpeg' })
+          );
           response.on('error', reject);
         }).on('error', reject);
       });
 
       const ext = path.extname(parsed.pathname) || '.mp3';
-      ensureListeningMediaDir();
       const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
-      fs.writeFileSync(path.join(LISTENING_MEDIA_DIR, filename), buffer);
-
-      res.json({ success: true, url: `/uploads/listening-media/${filename}` });
+      const key = `listening-media/${filename}`;
+      const outUrl = await putExerciseMediaBuffer(buffer, key, contentType || 'audio/mpeg');
+      return res.json({ success: true, url: outUrl });
     } catch (err) {
       console.error('Fetch from URL error:', err);
       res.status(500).json({ error: err.message || 'Failed to fetch audio from URL' });
@@ -202,7 +147,7 @@ router.post('/fetch-from-url',
   }
 );
 
-// ─── Resolve /uploads/… path to absolute file (for transcribe) ───────────────
+// ─── Resolve /uploads/… path to absolute file (for transcribe legacy paths only) ─
 function resolveUploadsFilePath(mediaUrl) {
   const s = String(mediaUrl || '').trim();
   if (!s.startsWith('/uploads/')) return null;
@@ -213,7 +158,8 @@ function resolveUploadsFilePath(mediaUrl) {
 }
 
 // ─── POST /transcribe ─────────────────────────────────────────────────────────
-router.post('/transcribe',
+router.post(
+  '/transcribe',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   async (req, res) => {
@@ -248,7 +194,7 @@ router.post('/transcribe',
         });
       } else {
         return res.status(400).json({
-          error: 'mediaUrl must be a /uploads/... path on this server or a full HTTP/HTTPS URL',
+          error: 'mediaUrl must be a public HTTP/HTTPS URL or a legacy /uploads/... path on this server',
         });
       }
 

@@ -2,6 +2,12 @@ const express = require('express');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const {
+  isExerciseR2Configured,
+  headExerciseMediaKey,
+  extractMediaKeyFromUrl,
+  publicUrlForKey,
+} = require('../services/exerciseMediaR2');
 
 const router = express.Router();
 
@@ -36,7 +42,10 @@ router.post(
       if (!filename) return res.status(400).json({ error: 'filename is required' });
       if (!contentType) return res.status(400).json({ error: 'contentType is required' });
 
-      const key = `listening-media/${Date.now()}-${filename}`;
+      const p = String(req.body?.prefix || 'listening-media').trim();
+      const prefix = p === 'exercise-attachments' ? 'exercise-attachments' : 'listening-media';
+
+      const key = `${prefix}/${Date.now()}-${filename}`;
 
       const client = new S3Client({
         region: 'auto',
@@ -61,5 +70,48 @@ router.post(
     }
   }
 );
+
+/**
+ * POST /api/r2/resolve-media-urls
+ * For each stored URL, if the same object key exists in R2, return the canonical public URL.
+ * Lets clients remap broken /uploads/… links after redeploys when objects still exist in R2.
+ */
+router.post('/resolve-media-urls', verifyToken, async (req, res) => {
+  try {
+    const urls = req.body?.urls;
+    if (!Array.isArray(urls)) {
+      return res.status(400).json({ error: 'urls array is required' });
+    }
+    if (!isExerciseR2Configured()) {
+      return res.status(503).json({ error: 'Media recovery is not configured (R2).' });
+    }
+
+    const resolutions = [];
+    const seen = new Set();
+    for (const raw of urls) {
+      const original = String(raw || '').trim();
+      if (!original || seen.has(original)) continue;
+      seen.add(original);
+
+      const key = extractMediaKeyFromUrl(original);
+      if (!key) {
+        resolutions.push({ original, url: original, found: false });
+        continue;
+      }
+      const exists = await headExerciseMediaKey(key);
+      const canonical = publicUrlForKey(key);
+      resolutions.push({
+        original,
+        url: exists && canonical ? canonical : original,
+        found: Boolean(exists && canonical),
+      });
+    }
+
+    return res.json({ resolutions });
+  } catch (err) {
+    console.error('R2 resolve-media-urls failed:', err);
+    return res.status(500).json({ error: err.message || 'Resolve failed' });
+  }
+});
 
 module.exports = router;

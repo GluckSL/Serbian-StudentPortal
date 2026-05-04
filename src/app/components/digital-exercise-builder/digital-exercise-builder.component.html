@@ -286,7 +286,7 @@
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
-                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ hasListeningAudio(q) ? 'audio ready' : 'no audio' }})</span>
                 <span *ngSwitchCase="'video-pronunciation'">
                   {{ q.caption || 'No caption' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})
                 </span>
@@ -332,7 +332,9 @@
           <div class="field-group full">
             <label class="field-label">
               <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">attach_file</span>
-              Attachment <span class="label-optional">(optional — image, audio, PDF, video)</span>
+              Attachment
+              <span *ngIf="q.type !== 'listening'" class="label-optional">(optional — image, audio, PDF, video)</span>
+              <span *ngIf="q.type === 'listening'" class="label-optional">(required — attach audio file here)</span>
             </label>
             <div *ngIf="!q.attachmentUrl && !q.attachmentUploading" class="attachment-upload-row">
               <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
@@ -535,30 +537,11 @@
           <ng-container *ngIf="q.type === 'listening'">
             <div class="info-banner">
               <span class="material-icons">headphones</span>
-              Add a question, upload audio, and set the correct answer. Students listen and type the answer.
+              Attach audio in <strong>Attachment</strong> above, add the question text and correct answer. Students listen and type what they hear.
             </div>
             <div class="field-group full">
               <label class="field-label required">Question</label>
               <app-rich-text-input [(ngModel)]="q.prompt" placeholder="e.g. What is the name of the person?"></app-rich-text-input>
-            </div>
-            <div class="field-group full">
-              <label class="field-label required">Audio</label>
-              <div class="listening-upload-row">
-                <div class="upload-option">
-                  <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
-                    <span class="material-icons">upload_file</span> Upload from computer
-                  </button>
-                </div>
-                <span class="upload-or">or</span>
-                <div class="upload-option upload-url">
-                  <input type="text" #listeningUrl placeholder="Paste audio URL..." class="field-input" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
-                  <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
-                </div>
-              </div>
-              <div *ngIf="q.mediaUrl" class="audio-preview">
-                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
-                <span class="media-url">{{ q.mediaUrl }}</span>
-              </div>
             </div>
             <div class="field-group full">
               <label class="field-label required">Answer</label>
@@ -1102,8 +1085,8 @@
           <div *ngIf="q.type === 'listening'" class="pq-body">
             <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
-            <div *ngIf="q.mediaUrl" class="pq-audio">
-              <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+            <div *ngIf="getListeningPreviewAudioUrl(q)" class="pq-audio">
+              <audio [src]="getMediaFullUrl(getListeningPreviewAudioUrl(q)!)" controls></audio>
             </div>
             <div class="pq-qa-answer-box">Student types or speaks what they hear...</div>
           </div>
