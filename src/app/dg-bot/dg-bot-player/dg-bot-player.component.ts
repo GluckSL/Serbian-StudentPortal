@@ -120,6 +120,14 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   aiResponseTamil = '';
   ccMode: 'none' | 'en' | 'ta' = 'none';
   menuOpen = false;
+  isMobile = false;
+
+  @HostListener('window:resize')
+  onResize(): void {
+    this.ngZone.run(() => {
+      this.isMobile = window.innerWidth < 900;
+    });
+  }
 
   toggleMenu(): void {
     this.menuOpen = !this.menuOpen;
@@ -375,6 +383,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     document.addEventListener('click', this.onDocClick, true);
+    this.isMobile = window.innerWidth < 900;
     const id = this.route.snapshot.paramMap.get('moduleId');
     if (!id) { this.error = 'Missing module'; this.loading = false; return; }
     this.boot(id);

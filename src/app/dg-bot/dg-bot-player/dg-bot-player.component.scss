@@ -463,20 +463,46 @@
 
 .dg-conv__char {
   border-radius: 18px;
+  padding: 0.8rem;
   background: rgba(255, 255, 255, 0.62);
   border: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
-  padding-top: 0.5rem;
+}
+
+.dg-conv__char--has-header {
+  justify-content: flex-start;
+  padding-top: 0;
+}
+
+/* Desktop: hide char header, show chat footer mic area */
+@media (min-width: 900px) {
+  .dg-conv__char-header { display: none !important; }
+  .dg-conv__mic-area { display: flex !important; }
+}
+
+.dg-conv__char--has-header {
+  justify-content: flex-start;
+  padding-top: 0;
+}
+
+.dg-conv__mascot {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 440px;
+  padding: 0.8rem;
+  box-sizing: border-box;
 }
 
 .dg-conv__char-header {
   width: 100%;
-  padding: 0.8rem;
-  display: flex;
+  padding: 1rem;
+  display: none;
   flex-direction: column;
   gap: 0.55rem;
   align-items: center;
@@ -490,7 +516,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 440px;
+  height: 440px;
 }
 
 .dg-conv__chat {
@@ -1018,9 +1044,7 @@
 }
 
 .dg-conv__turn-pill {
-  align-self: center;
-  margin-top: 1rem;
-  margin-bottom: -2.45rem;
+  width: fit-content;
   font-size: 0.63rem;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -1029,7 +1053,6 @@
   border: 1px solid #bbf7d0;
   border-radius: 999px;
   padding: 0.18rem 0.62rem;
-  transform: translateX(3.2rem);
 }
 
 .dg-conv__mic-hint {
@@ -1040,20 +1063,20 @@
   line-height: 1.4;
 }
 
-.dg-conv__mic-area {
+.dg-chat__mic-area {
   padding: 0.55rem 0.95rem 0.85rem;
   display: grid;
   gap: 0.55rem;
 }
 
-.dg-conv__mic-area ::ng-deep .dg-practice {
+.dg-chat__mic-area ::ng-deep .dg-practice {
   border: 0;
   box-shadow: none;
   background: transparent;
   padding-top: 0.2rem;
 }
 
-.dg-conv__mic-area ::ng-deep .dg-practice__wave {
+.dg-chat__mic-area ::ng-deep .dg-practice__wave {
   margin-top: 0.45rem;
   width: 52%;
   min-width: 180px;
@@ -1065,14 +1088,14 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.dg-conv__mic-area ::ng-deep .dg-practice__mic-block {
+.dg-chat__mic-area ::ng-deep .dg-practice__mic-block {
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
 }
 
-.dg-conv__mic-area ::ng-deep .dg-practice__rec {
+.dg-chat__mic-area ::ng-deep .dg-practice__rec {
   border-radius: 50% !important;
   width: 62px !important;
   height: 62px !important;
@@ -1080,12 +1103,19 @@
   box-shadow: 0 8px 24px rgba(67, 56, 202, 0.28);
 }
 
-.dg-conv__mic-area ::ng-deep .dg-practice__hint {
+.dg-chat__mic-area ::ng-deep .dg-practice__hint {
   margin: -0.5rem 0 0 5.15rem !important;
   align-self: center;
   text-align: left;
   max-width: none;
   white-space: nowrap;
+}
+
+.dg-conv__mic-area {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .dg-conv__composer {
@@ -1272,5 +1302,9 @@
 
   .dg-player__sk-chat-wrap {
     min-height: 520px;
+  }
+
+  .dg-conv__char-header {
+    display: flex;
   }
 }
