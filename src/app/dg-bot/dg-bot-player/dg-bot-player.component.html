@@ -1,9 +1,21 @@
 <!-- ── Loading ── -->
-<div class="dg-player__loading" *ngIf="loading">
-  <div class="dg-player__loading-inner">
-    <span class="dg-player__loading-dot"></span>
-    Loading your lesson…
-  </div>
+<div class="dg-player" *ngIf="loading">
+    <!-- Header -->
+    <div class="dg-player__sk-full-header"></div>
+
+    <!-- Character & Chat area -->
+    <div class="dg-player__sk-grid">
+      <div class="dg-player__sk-char"></div>
+      <div class="dg-player__sk-chat-wrap">
+        <div class="dg-player__sk-chat-header"></div>
+        <div class="dg-player__sk-chat-body">
+          <div class="dg-player__sk-datetime-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+        </div>
+      </div>
+    </div>
 </div>
 <div class="dg-player__err" *ngIf="error">{{ error }}</div>
 
@@ -28,9 +40,9 @@
         <span class="dg-player__module-title">{{ payload.module.title }}</span>
       </div>
     </div>
-    <button mat-stroked-button type="button" class="dg-player__exit" (click)="exit()">
-      <mat-icon>close</mat-icon> Exit
-    </button>
+    <div class="dg-player__exit" (click)="exit()" role="button" tabindex="0" aria-label="Exit">
+      <mat-icon>close</mat-icon>
+    </div>
   </header>
 
   <!-- Stage -->
