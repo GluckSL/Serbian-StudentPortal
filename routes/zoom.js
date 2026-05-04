@@ -345,7 +345,8 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       },
       emailStatus: {
         deferred: true,
-        message: 'Invitation emails are sent about 10 minutes before each class starts.',
+        message:
+          'Reminder emails are sent about 10 minutes before each class starts with instructions to join via the student portal.',
         attempted: 0,
         successful: 0,
         failed: 0,
@@ -378,6 +379,19 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
  * - Teachers see only their own meetings
  * - Admins see all meetings from all teachers
  */
+function escapeRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** YYYY-MM-DD for a calendar day in Asia/Kolkata */
+function istYmdFromDate(d) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+function istMidnightUtcMsFromYmd(ymd) {
+  return new Date(`${ymd}T00:00:00.000+05:30`).getTime();
+}
+
 router.get('/meetings', verifyToken, async (req, res) => {
   try {
     const { status, batch, date } = req.query;
@@ -419,6 +433,56 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     if (req.query.plan) andClauses.push({ plan: req.query.plan });
 
+    // ── Reports filters (range / teacher / search) — applied before pagination ──
+    const teacherNameParam = String(req.query.teacherName || '').trim();
+    if (
+      teacherNameParam &&
+      teacherNameParam.toLowerCase() !== 'all' &&
+      (user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN')
+    ) {
+      const teacherDocs = await User.find({
+        name: teacherNameParam,
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
+      })
+        .select('_id')
+        .lean();
+      const tids = teacherDocs.map((t) => t._id);
+      if (!tids.length) {
+        andClauses.push({ _id: { $in: [] } });
+      } else {
+        andClauses.push({
+          $or: [{ assignedTeacher: { $in: tids } }, { createdBy: { $in: tids } }]
+        });
+      }
+    }
+
+    const searchRaw = String(req.query.search || '').trim();
+    if (searchRaw) {
+      const rx = new RegExp(escapeRegex(searchRaw), 'i');
+      const teacherHits = await User.find({
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+        name: rx
+      })
+        .select('_id')
+        .lean();
+      const searchTeacherIds = teacherHits.map((u) => u._id);
+      const searchOr = [{ topic: rx }];
+      if (searchTeacherIds.length) {
+        searchOr.push({ assignedTeacher: { $in: searchTeacherIds } });
+        searchOr.push({ createdBy: { $in: searchTeacherIds } });
+      }
+      searchOr.push({
+        $expr: {
+          $regexMatch: {
+            input: { $toString: '$batch' },
+            regex: escapeRegex(searchRaw),
+            options: 'i'
+          }
+        }
+      });
+      andClauses.push({ $or: searchOr });
+    }
+
     // Calendar day in India (IST) — [dayStart, nextDayStart) avoids end-of-day ms bugs
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
       const ymd = String(date).trim();
@@ -427,6 +491,37 @@ router.get('/meetings', verifyToken, async (req, res) => {
       andClauses.push({
         startTime: { $gte: dayStartColombo, $lt: nextDayStart }
       });
+    }
+
+    const datePreset = String(req.query.datePreset || '').trim().toLowerCase();
+    const df = String(req.query.dateFrom || '').trim();
+    const dt = String(req.query.dateTo || '').trim();
+
+    if (!date && datePreset && datePreset !== 'all') {
+      const now = new Date();
+      if (datePreset === 'today') {
+        const ymd = istYmdFromDate(now);
+        const start = new Date(`${ymd}T00:00:00.000+05:30`);
+        const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+        andClauses.push({ startTime: { $gte: start, $lt: end } });
+      } else if (datePreset === 'week') {
+        const todayStart = istMidnightUtcMsFromYmd(istYmdFromDate(now));
+        const weekAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
+        andClauses.push({ startTime: { $gte: new Date(weekAgo), $lte: now } });
+      } else if (datePreset === 'month') {
+        const todayStart = istMidnightUtcMsFromYmd(istYmdFromDate(now));
+        const monthAgo = todayStart - 30 * 24 * 60 * 60 * 1000;
+        andClauses.push({ startTime: { $gte: new Date(monthAgo), $lte: now } });
+      } else if (datePreset === 'custom') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(df)) {
+          const start = new Date(`${df}T00:00:00.000+05:30`);
+          andClauses.push({ startTime: { $gte: start } });
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+          const end = new Date(`${dt}T23:59:59.999+05:30`);
+          andClauses.push({ startTime: { $lte: end } });
+        }
+      }
     }
 
     if (String(req.query.completed).toLowerCase() === 'true') {
@@ -450,6 +545,67 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     const sortOrder = date ? 1 : -1;
     const totalCount = await MeetingLink.countDocuments(query);
+
+    const summaryAgg = await MeetingLink.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          totalStudents: { $size: { $ifNull: ['$attendees', []] } },
+          attendedCount: {
+            $size: {
+              $filter: {
+                input: { $ifNull: ['$attendance', []] },
+                as: 'a',
+                cond: { $eq: ['$$a.attended', true] }
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          attendanceRate: {
+            $cond: [
+              { $gt: ['$totalStudents', 0] },
+              { $multiply: [{ $divide: ['$attendedCount', '$totalStudents'] }, 100] },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          meetingCount: { $sum: 1 },
+          sumStudentSlots: { $sum: '$totalStudents' },
+          sumDuration: { $sum: { $ifNull: ['$duration', 0] } },
+          sumRates: { $sum: '$attendanceRate' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalMeetings: '$meetingCount',
+          totalStudents: '$sumStudentSlots',
+          totalDurationMinutes: '$sumDuration',
+          avgAttendance: {
+            $cond: [
+              { $gt: ['$meetingCount', 0] },
+              { $round: [{ $divide: ['$sumRates', '$meetingCount'] }, 0] },
+              0
+            ]
+          }
+        }
+      }
+    ]);
+
+    const summaryRow = summaryAgg[0] || {
+      totalMeetings: 0,
+      totalStudents: 0,
+      avgAttendance: 0,
+      totalDurationMinutes: 0
+    };
+
     const meetings = await MeetingLink.find(query)
       .populate('createdBy', 'name email role')
       .populate('assignedTeacher', 'name email')
@@ -473,6 +629,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
         hasNext: pageNum < totalPages,
         hasPrev: pageNum > 1
       },
+      summary: summaryRow,
       data: meetings,
       userRole: user.role // Include role in response for frontend
     });
@@ -819,12 +976,12 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
             email: s.email,
             joinUrl: meeting.joinUrl
           }));
-          console.log(`📧 Sending join links to ${newStudents.length} newly added students (reminder already sent)...`);
+          console.log(`📧 Sending portal join reminders to ${newStudents.length} newly added students (reminder already sent)...`);
           await sendInvitationEmailsToAttendees(meeting, transporter, {
             onlyAttendees,
-            subject: '🎓 Zoom class — join link (Glück Global)',
+            subject: '🎓 Class reminder — join via portal (Glück Global)',
             introParagraph:
-              'You have been added to this class. It is starting soon — please join using the link below:'
+              'You have been added to this class. It is starting soon — join through the student portal using the steps below (no join link is sent by email).'
           });
         } catch (emailError) {
           console.error('⚠️ Error sending emails to new attendees (non-critical):', emailError.message);

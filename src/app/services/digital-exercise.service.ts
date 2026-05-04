@@ -3,7 +3,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, from } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { switchMap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural';
@@ -518,6 +518,27 @@ export class DigitalExerciseService {
     return this.http.delete<any>(`${environment.apiUrl}/pdf-exercises/cleanup/${uploadId}`, { withCredentials: true });
   }
 
+  /** AI Stage Phase 1: PDF → blocks (multipart field name: `file`). */
+  runAiStagePhase1(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<any>(`${environment.apiUrl}/ai-stage/phase-1`, formData, { withCredentials: true });
+  }
+
+  /** AI Stage Phase 2: blocks → parsed results. */
+  runAiStagePhase2(blocks: unknown[]): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/ai-stage/phase-2`,
+      { blocks },
+      { withCredentials: true }
+    );
+  }
+
+  /** AI Stage Phase 3: blocks + phase-2 results + optional answer key → final exercises. */
+  runAiStagePhase3(payload: { blocks: unknown[]; parsedResults: unknown[]; answerKeyText?: string }): Observable<any> {
+    return this.http.post<any>(`${environment.apiUrl}/ai-stage/phase-3`, payload, { withCredentials: true });
+  }
+
   /**
    * Re-extract a single exercise block precisely using the per-exercise prompt.
    * Use this when you need to refine or re-process one Übung at a time.
@@ -550,11 +571,13 @@ export class DigitalExerciseService {
     level?: string;
     selectedExerciseIds?: string[];
   }): Observable<any> {
-    return this.http.post<any>(
-      `${environment.apiUrl}/pdf-exercises/extract-exercises-sequential`,
-      options,
-      { withCredentials: true }
-    );
+    return this.http
+      .post<any>(
+        `${environment.apiUrl}/pdf-exercises/extract-exercises-sequential`,
+        options,
+        { withCredentials: true }
+      )
+      .pipe(timeout(55 * 60 * 1000));
   }
 
   // ─── Manual Listening Worksheet Extraction ──────────────────────────────

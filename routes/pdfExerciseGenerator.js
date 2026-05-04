@@ -83,7 +83,10 @@ const upload = multer({
 
 let openai = null;
 if (process.env.OPENAI_API_KEY) {
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: Math.min(parseInt(process.env.OPENAI_TIMEOUT_MS || '180000', 10) || 180000, 600000)
+  });
 }
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
@@ -646,10 +649,11 @@ CRITICAL RULES (MANDATORY)
    - short_answer → direct short answers with no rewrite
    DO NOT MISCLASSIFY.
 
-4. INSTRUCTION EXTRACTION
+4. INSTRUCTION + BLOCK TEXT
    Each exercise MUST include:
    - instruction_de (German, copied verbatim from source)
    - instruction_en (English, copied verbatim if present in source; otherwise "")
+   - content: the FULL raw text of this exercise block from the document (every content line for this Übung), verbatim — never summarize or omit (required for downstream deterministic parsing)
 
 5. fill_in_blank LINE FORMAT
    In each question's "question" field put ONLY the sentence with underscore blanks — no leading item numbers ("1.", "2)").
@@ -693,6 +697,7 @@ OUTPUT FORMAT (STRICT JSON — return ONLY this, no markdown):
           "type": "mcq | matching | fill_in_blank | singular_plural | error_correction | open_writing | transformation | true_false | short_answer",
           "instruction_de": "German instruction verbatim",
           "instruction_en": "English instruction verbatim or empty string",
+          "content": "FULL verbatim exercise block text from the source (every line belonging to this Übung); required for deterministic parsing — do not summarize",
           "questions": [
             {
               "question": "question text verbatim from source",
@@ -765,11 +770,203 @@ function mergeWorksheetInstructions(instruction_de, instruction_en) {
  * - Remove trailing translation scaffold "→ ____" / "-> ____" (underscore-only gap after arrow).
  * - Align answers[] length with real blank count (single lemma keys stay valid).
  */
-function normalizeFillBlankExtract(sentence, answers) {
+/** Skip worksheet/OCR noise lines — not matching pair rows. */
+function matchingPairLineLooksLikeNoise(line) {
+  const t = String(line || '').trim();
+  if (t.length < 2) return true;
+  if (/^(?:Übung|Ubung|aufgabe|exercise)\s*[.:]?\s*[A-Z]?\d+/i.test(t)) return true;
+  if (/^lösungschlüssel|^losungsschlussel|^answer\s*key/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * Structured matching: numbered lines (`1. ich`) = left column, letter lines (`a. komme`) = right column.
+ * Zips by index only — no invented rights.
+ */
+function extractMatchingPairs(text) {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const leftItems = [];
+  const rightItems = [];
+
+  for (const line of lines) {
+    if (matchingPairLineLooksLikeNoise(line)) continue;
+
+    // a. komme
+    if (/^[a-z]\./i.test(line)) {
+      rightItems.push(line.replace(/^[a-z]\.\s*/i, '').trim());
+      continue;
+    }
+
+    // 1. ich — must not treat "1." as letter line (already handled above)
+    if (/^\d+\./.test(line)) {
+      leftItems.push(line.replace(/^\d+\.\s*/, '').trim());
+      continue;
+    }
+  }
+
+  const pairs = [];
+  const count = Math.min(leftItems.length, rightItems.length);
+  for (let i = 0; i < count; i++) {
+    pairs.push({
+      left: leftItems[i],
+      right: rightItems[i],
+    });
+  }
+
+  console.log('[MATCH FIXED]', { leftItems, rightItems, pairs });
+
+  if (pairs.length > 0) return pairs;
+
+  // Fallback only when column layout did not apply: explicit arrows with real left/right text.
+  return extractMatchingPairsArrowFallback(text);
+}
+
+/** Arrow rows when worksheets use → instead of two columns (no synthetic values). */
+function extractMatchingPairsArrowFallback(text) {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const pairs = [];
+  for (const line of lines) {
+    if (matchingPairLineLooksLikeNoise(line)) continue;
+    if (!/(?:→|->)/.test(line)) continue;
+    const m = line.match(/^(.*?)(?:→|->)(.*)$/);
+    let left = String(m?.[1] ?? '').trim();
+    let right = String(m?.[2] ?? '').trim();
+    left = left.replace(/^\d+\.\s*/, '').replace(/^[a-z]\.\s*/i, '').trim();
+    right = right.replace(/^\d+\.\s*/, '').replace(/^[a-z]\.\s*/i, '').trim();
+    if (left && right) pairs.push({ left, right });
+  }
+  return pairs;
+}
+
+/**
+ * Answers from bracket hints on lines that already contain blanks (first parenthesis group per line).
+ */
+function extractFillAnswers(text) {
+  const answers = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    if (!/_{2,}/.test(line)) continue;
+    const match = line.match(/\((.*?)\)/);
+    if (match) answers.push(match[1].trim());
+  }
+  return answers;
+}
+
+/** All parenthesis answers on blank lines in source order (when one line has multiple blanks). */
+function extractFillAnswersAllParenOnBlankLines(text) {
+  const answers = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    if (!/_{2,}/.test(line)) continue;
+    for (const m of line.matchAll(/\(([^)]*)\)/g)) {
+      const v = String(m[1] || '').trim();
+      if (v) answers.push(v);
+    }
+  }
+  return answers;
+}
+
+/**
+ * Answer-key driven blank: replace first occurrence of `answer` in `sentence` with ___.
+ * @returns {{ sentence: string, answer: string } | null}
+ */
+function generateFillBlank(sentence, answer) {
+  const a = String(answer || '').trim();
+  if (!a) return null;
+  const src = String(sentence || '');
+  const safe = src.replace(a, '___');
+  if (safe === src) return null;
+  return { sentence: safe, answer: a };
+}
+
+/** Try each provided answer until one successfully blanks the sentence. */
+function tryGenerateFillBlankFromAnswers(sentence, answers) {
+  const list = Array.isArray(answers)
+    ? answers.map((x) => String(x ?? '').trim()).filter(Boolean)
+    : [];
+  for (const a of list) {
+    const g = generateFillBlank(sentence, a);
+    if (g) return g;
+  }
+  return null;
+}
+
+/** First word blanked when worksheet expects conjugation / sein-haben style but OCR delivered plain sentences. */
+function convertToFillBlank(sentence) {
+  const s = String(sentence || '').trim();
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return null;
+  const answer = words[0];
+  const rest = words.slice(1).join(' ');
+  return {
+    sentence: `___ ${rest}`,
+    answer,
+  };
+}
+
+function instructionImpliesFillBlank(instr) {
+  const t = String(instr || '');
+  return /\b(sein|haben|ergänzen|ergaenzen|fill[-\s]?in|lücken|luecken|lückentext|lueckentext|verbform|verb\s*form|konjugier|richtige\s+form|passende\s+form)\b/i.test(
+    t,
+  );
+}
+
+/** Merge AI answers with bracket extraction by blank index (prefer AI slot, then brackets). */
+function mergeFillBracketAnswers(sentence, aiAnswers) {
+  const blanks = (String(sentence || '').match(/_+/g) || []).length;
+  let bracket = extractFillAnswers(String(sentence || ''));
+  if (bracket.length < blanks) {
+    bracket = extractFillAnswersAllParenOnBlankLines(String(sentence || ''));
+  }
+  const ai = Array.isArray(aiAnswers) ? aiAnswers.map((a) => String(a ?? '').trim()) : [];
+  const out = [];
+  for (let i = 0; i < blanks; i++) {
+    out.push(ai[i] || bracket[i] || '');
+  }
+  return out;
+}
+
+function normalizeFillBlankExtract(sentence, answers, instructionHint = '') {
   let s = String(sentence || '').replace(/\s+/g, ' ').trim();
   let ans = Array.isArray(answers) ? answers.map((a) => String(a ?? '')) : [];
 
   s = s.replace(/^(?:\(\d+\)\s*|\d{1,3}[.)]\s+)/u, '').trim();
+
+  let blanks = (s.match(/_+/g) || []).length;
+  const hint = String(instructionHint || '').trim();
+
+  // Answer key / AI answers: insert blank by substituting the known answer (e.g. "Sie ist Ärztin." + "ist" → "Sie ___ Ärztin.")
+  if (blanks === 0 && s.length >= 2) {
+    const fromKey = tryGenerateFillBlankFromAnswers(s, ans);
+    if (fromKey) {
+      s = fromKey.sentence.replace(/\s+/g, ' ').trim();
+      ans = [fromKey.answer];
+      blanks = (s.match(/_+/g) || []).length;
+    }
+  }
+
+  if (
+    blanks === 0 &&
+    hint &&
+    instructionImpliesFillBlank(hint) &&
+    s.length >= 3
+  ) {
+    const conv = convertToFillBlank(s);
+    if (conv) {
+      s = conv.sentence.replace(/\s+/g, ' ').trim();
+      if (!ans.some((a) => String(a).trim())) {
+        ans = [conv.answer];
+      }
+      blanks = (s.match(/_+/g) || []).length;
+    }
+  }
 
   const translationTail = /\s*(?:→|->)\s*_+\s*$/u;
   const hadTranslationTail = translationTail.test(s);
@@ -777,10 +974,12 @@ function normalizeFillBlankExtract(sentence, answers) {
     s = s.replace(translationTail, '').trim();
   }
 
-  let blanks = (s.match(/_+/g) || []).length;
+  blanks = (s.match(/_+/g) || []).length;
   if (blanks === 0) {
     return { sentence: s, answers: ans };
   }
+
+  ans = mergeFillBracketAnswers(s, ans);
 
   while (ans.length < blanks) ans.push('');
   if (ans.length > blanks) ans = ans.slice(0, blanks);
@@ -949,19 +1148,34 @@ function flattenExtractionResult(parsed) {
         }
       }
 
+      let matchingBulkDone = false;
+      let matchingDetPairs = null;
+      if (mappedType === 'matching') {
+        const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+        console.log('[BLOCK]', rawEx);
+        matchingDetPairs = rawEx.length >= 5 ? extractMatchingPairs(rawEx) : [];
+        console.log('[MATCH PAIRS]', matchingDetPairs);
+      }
+
+      const exDe = String(exercise.instruction_de || '').trim();
+      const exEn = String(exercise.instruction_en || '').trim();
+      const exMergedInstr = mergeWorksheetInstructions(exDe, exEn) || null;
+
       for (const q of (exercise.questions || [])) {
         const base = {
           type: mappedType,
           points: 1,
           sectionTitle: sectionTitle || null,
-          instruction: mergeWorksheetInstructions(exercise.instruction_de, exercise.instruction_en) || null
+          instruction_de: exDe || undefined,
+          instruction_en: exEn || undefined,
+          instruction: exMergedInstr
         };
         if (worksheetKind) base.worksheetKind = worksheetKind;
 
         if (mappedType === 'mcq') {
           const options = Array.isArray(q.options) && q.options.length
-            ? q.options.map(String)
-            : ['Option A', 'Option B', 'Option C', 'Option D'];
+            ? q.options.map(String).filter(Boolean)
+            : [];
           const cai = parseInt(q.correctAnswerIndex);
           flatQuestions.push(sanitizeQuestion({
             ...base,
@@ -971,12 +1185,26 @@ function flattenExtractionResult(parsed) {
             explanation: ''
           }));
         } else if (mappedType === 'matching') {
-          const pairs = Array.isArray(q.pairs)
-            ? q.pairs.filter(p => p.left && p.right)
-            : [];
+          if (matchingDetPairs && matchingDetPairs.length > 0) {
+            if (!matchingBulkDone) {
+              matchingBulkDone = true;
+              flatQuestions.push(sanitizeQuestion({
+                ...base,
+                pairs: matchingDetPairs
+              }));
+            }
+            continue;
+          }
+          const subRaw = String(q.question || '').trim();
+          const subDet = subRaw.length >= 3 ? extractMatchingPairs(subRaw) : [];
+          const pairs = subDet.length > 0
+            ? subDet
+            : (Array.isArray(q.pairs) ? q.pairs : []).map((p) => ({
+                left: String(p?.left != null ? p.left : '').trim(),
+                right: String(p?.right != null ? p.right : '').trim()
+              })).filter((p) => p.left || p.right);
           flatQuestions.push(sanitizeQuestion({
             ...base,
-            instruction: base.instruction || 'Match the items.',
             pairs
           }));
         } else if (mappedType === 'singular_plural') {
@@ -985,7 +1213,6 @@ function flattenExtractionResult(parsed) {
               singularPluralBulkDone = true;
               flatQuestions.push(sanitizeQuestion({
                 ...base,
-                instruction: base.instruction || 'Write the plural form.',
                 pairs: spPairsFromRaw,
                 scoringMode: 'full',
                 aiGradingEnabled: false
@@ -993,10 +1220,10 @@ function flattenExtractionResult(parsed) {
             }
             continue;
           }
-          const pairs = pairsFromSingularPluralQuestion(q);
+          const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+          const pairs = pairsFromSingularPluralQuestion(q, rawEx);
           flatQuestions.push(sanitizeQuestion({
             ...base,
-            instruction: base.instruction || 'Write the plural form.',
             pairs,
             scoringMode: 'full',
             aiGradingEnabled: false
@@ -1004,7 +1231,8 @@ function flattenExtractionResult(parsed) {
         } else if (mappedType === 'fill-blank') {
           const rawSentence = String(q.question || '');
           const rawAnswers = Array.isArray(q.answers) ? q.answers.map(String) : [];
-          const norm = normalizeFillBlankExtract(rawSentence, rawAnswers);
+          const norm = normalizeFillBlankExtract(rawSentence, rawAnswers, exMergedInstr || '');
+          console.log('[FILL ANSWERS]', norm.answers);
           flatQuestions.push(sanitizeQuestion({
             ...base,
             sentence: norm.sentence,
@@ -1223,6 +1451,8 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
       });
     }
 
+    console.log('[BLOCK]', block.content);
+
     if (!block.content || block.content.length < 20) {
       console.warn(`⚠️ Skipped exercise ${block.exerciseId}: content too short`);
       failedExercises.push(block.exerciseId || 'unknown');
@@ -1254,7 +1484,10 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     }
 
     try {
-      const questions = flattenSingleExercise(result, block.content || '');
+      const questions = flattenSingleExercise(result, block.content || '', {
+        instruction_de: block.instruction_de,
+        instruction_en: block.instruction_en
+      });
       allQuestions.push(...questions);
       // #region agent log
       try { fs2.appendFileSync('debug-fbfbea.log', JSON.stringify({sessionId:'fbfbea',location:'pdfExerciseGenerator.js:flattenSingleExercise',message:'questions from one exercise',data:{exerciseId:block.exerciseId,aiReturnedType:result.type,aiQuestionsCount:(result.questions||[]).length,flattenedCount:questions.length},timestamp:Date.now(),hypothesisId:'B_D'})+'\n'); } catch(e){}
@@ -1289,17 +1522,54 @@ router.post('/upload',
       const previewText = result.text.substring(0, 2000);
       const rawDetected = detectQuestionTypes(result.text);
       const { _worksheetMode, ...detectedTypes } = rawDetected;
+      const normalizedFull = normalizePdfText(result.text);
       const split = splitWorksheetIntoExercises(result.text);
-      const exercises = (split.exercises || []).map(ex => {
-        const detected = detectExerciseTypeAndQuestionCount(ex.content, ex.instruction_de, ex.sectionType, ex.exerciseId);
+      const answerKeyText =
+        split.solutionBlock && String(split.solutionBlock).trim().length > 20
+          ? split.solutionBlock
+          : extractAnswerKey(normalizedFull);
+      const answerMap = parseAnswerKey(answerKeyText);
+      const exercises = (split.exercises || []).map((ex) => {
+        const detected = detectExerciseTypeAndQuestionCount(
+          ex.content,
+          ex.instruction_de,
+          ex.sectionType,
+          ex.exerciseId,
+        );
+        const id = String(ex.exerciseId || ex.id || '');
+        const rawText = String(ex.content || '');
+        const preview = processExerciseForPreview(
+          id,
+          ex.content,
+          answerMap,
+          ex.instruction_de,
+          ex.instruction_en,
+        );
+        const mergedInstruction =
+          (preview.instruction && preview.instruction.trim()) ||
+          mergeWorksheetInstructions(ex.instruction_de, ex.instruction_en);
+        let type = detected.type;
+        let questionCount = detected.questionCount;
+        if (preview.type === 'matching' && preview.pairs.length) {
+          type = 'matching';
+          questionCount = preview.pairs.length;
+        } else if (preview.type === 'fill_in_blank' && preview.questions.length) {
+          type = 'fill_in_blank';
+          questionCount = preview.questions.length;
+        }
         return {
-          exerciseId: ex.exerciseId || '',
+          id,
+          exerciseId: id,
           topic: ex.topic || '',
           difficulty: ex.difficulty || 'easy',
           instruction_de: ex.instruction_de || '',
           instruction_en: ex.instruction_en || '',
-          type: detected.type,
-          questionCount: detected.questionCount
+          instruction: mergedInstruction,
+          type,
+          questionCount,
+          rawText,
+          questions: preview.questions || [],
+          pairs: preview.pairs || [],
         };
       });
 
@@ -1830,6 +2100,177 @@ function normalizePdfText(text) {
   return t;
 }
 
+/** Answer-key tail when splitter did not isolate it (e.g. marker appears early). */
+function extractAnswerKey(fullText) {
+  const m = String(fullText || '').match(
+    /L[ÖO]SUNGSSCHL[ÜU]SSEL|Lösungsschlüssel|Lösungen|Answer Key[\s\S]*/i,
+  );
+  return m ? m[0] : '';
+}
+
+/** Map exercise id → raw answer subsection text (from Übung header to next Übung or EOF). */
+function parseAnswerKey(answerText) {
+  const map = {};
+  const t = String(answerText || '');
+  const re = /Übung\s+([A-Za-z]?\d+(?:\.\d+)+)/gi;
+  const hits = [];
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    hits.push({ id: String(m[1] || '').trim(), index: m.index });
+  }
+  for (let i = 0; i < hits.length; i++) {
+    const end = i + 1 < hits.length ? hits[i + 1].index : t.length;
+    const slice = t.slice(hits[i].index, end).trim();
+    const id = hits[i].id;
+    if (!id) continue;
+    map[id] = slice;
+    const noL = id.replace(/^L/i, '');
+    if (noL !== id && !map[noL]) map[noL] = slice;
+    if (!/^L/i.test(id)) {
+      const withL = `L${id}`;
+      if (!map[withL]) map[withL] = slice;
+    }
+  }
+  return map;
+}
+
+function resolveAnswerBlock(answerMap, exerciseId) {
+  const id = String(exerciseId || '').trim();
+  if (!id || !answerMap || typeof answerMap !== 'object') return '';
+  const candidates = [id, id.replace(/^L/i, ''), id.match(/^\d/) ? `L${id}` : id];
+  for (const c of candidates) {
+    if (c && answerMap[c]) return answerMap[c];
+  }
+  for (const key of Object.keys(answerMap)) {
+    const kn = key.replace(/^L/i, '');
+    const in_ = id.replace(/^L/i, '');
+    if (key === id || kn === in_) return answerMap[key];
+  }
+  return '';
+}
+
+function stripWorksheetExerciseHeader(blockText) {
+  const lines = String(blockText || '').split('\n');
+  if (!lines.length) return String(blockText || '').trim();
+  const first = lines[0].trim();
+  if (/^(?:Ü\s*b\s*u\s*n\s*g|Übung|Ubung)\s+[A-Z]?\d+(?:\.\d+)?/i.test(first)) {
+    return lines.slice(1).join('\n').trim();
+  }
+  return String(blockText || '').trim();
+}
+
+/**
+ * Inline matching: one line like `1. ich a. kommen` (OCR spacing tolerant).
+ * Prefer answer-key lines `1 – a Wort` for the right column — do not trust OCR right column when key exists.
+ */
+function extractInlineMatching(blockText) {
+  const items = [];
+  const body = stripWorksheetExerciseHeader(blockText);
+  const regex = /^(\d+)\.\s+(.+?)\s+([a-z])\.\s+(.+)$/i;
+  for (const line of body.split('\n')) {
+    const m = line.trim().match(regex);
+    if (!m) continue;
+    items.push({
+      index: parseInt(m[1], 10),
+      left: String(m[2] || '').trim(),
+      option: String(m[3] || '').toLowerCase(),
+      rawRight: String(m[4] || '').trim(),
+    });
+  }
+  return items;
+}
+
+function applyMatchingAnswerKey(items, answerBlock) {
+  const map = {};
+  const block = String(answerBlock || '');
+  const patterns = [
+    /(\d+)\s*[\u2013\u2014\-–]\s*([a-z])\s+(.+)/gi,
+    /(\d+)\.\s*([a-z])\s*[.):\-–]\s*(.+)/gi,
+    /(\d+)\s+([a-z])\s*[.):\-–]\s*(.+)/gi,
+  ];
+  for (const re of patterns) {
+    let mm;
+    while ((mm = re.exec(block)) !== null) {
+      map[`${parseInt(mm[1], 10)}-${String(mm[2]).toLowerCase()}`] = String(mm[3] || '').trim();
+    }
+  }
+  const hasKeyLines = Object.keys(map).length > 0;
+  return (items || []).map((item) => {
+    const key = `${item.index}-${String(item.option).toLowerCase()}`;
+    const fromKey = map[key];
+    const right = fromKey || (!hasKeyLines ? item.rawRight : '');
+    return { left: item.left, right };
+  });
+}
+
+function extractFillBlankLines(blockText) {
+  const questions = [];
+  const re = /^\d+\.\s*(.*)$/;
+  for (const line of String(blockText || '').split('\n')) {
+    const m = line.trim().match(re);
+    if (m) questions.push({ raw: String(m[1] || '').trim() });
+  }
+  return questions;
+}
+
+function parseFillAnswerLinesFromBlock(answerBlock) {
+  const answers = [];
+  for (const line of String(answerBlock || '').split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    const m = t.match(/^\d+\s*[.)\-–]\s*(.+)$/);
+    if (m) answers.push(String(m[1] || '').trim());
+  }
+  return answers;
+}
+
+function applyFillAnswersFromBlock(questions, answerBlock) {
+  const answers = parseFillAnswerLinesFromBlock(answerBlock);
+  return (questions || []).map((q, i) => {
+    const answer = String(answers[i] || '').trim();
+    let sentence = q.raw;
+    if (answer && !/_{2,}/.test(sentence)) {
+      const g = generateFillBlank(sentence, answer);
+      if (g) {
+        return { sentence: g.sentence, answer: g.answer };
+      }
+    }
+    if (answer && /_{2,}/.test(sentence)) {
+      return { sentence, answer };
+    }
+    return { sentence, answer };
+  });
+}
+
+/** Deterministic worksheet preview: matching (inline + key) or fill-in-blank (numbered lines + key). */
+function processExerciseForPreview(exerciseId, blockText, answerMap, instruction_de, instruction_en) {
+  const instruction = mergeWorksheetInstructions(instruction_de, instruction_en);
+  const answerBlock = resolveAnswerBlock(answerMap, exerciseId);
+  const block = String(blockText || '');
+  const body = stripWorksheetExerciseHeader(block);
+  const hay = `${instruction_de}\n${instruction_en}\n${body}`;
+
+  if (/\b(zuordnen|zuordnungs|matching|connect|pair|verbinden)\b/i.test(hay)) {
+    const items = extractInlineMatching(block);
+    if (items.length) {
+      const pairs = applyMatchingAnswerKey(items, answerBlock).filter((p) => p.left && p.right);
+      if (pairs.length) {
+        return { type: 'matching', instruction, pairs, questions: [] };
+      }
+    }
+  }
+  if (/\b(lückentext|lueckentext|fill[-\s]?in|lücken|luecken)\b/i.test(hay)) {
+    const rows = extractFillBlankLines(body);
+    if (rows.length) {
+      const questions = applyFillAnswersFromBlock(rows, answerBlock);
+      if (questions.length) {
+        return { type: 'fill_in_blank', instruction, questions, pairs: [] };
+      }
+    }
+  }
+  return { type: '', instruction, questions: [], pairs: [] };
+}
+
 function splitWorksheetIntoExercises(text) {
   const rawText = String(text || '');
   const normalized = normalizePdfText(text);
@@ -1951,6 +2392,7 @@ function splitWorksheetIntoExercises(text) {
     console.log('[CLEAN INSTRUCTION]', { id: exerciseId, instruction_de, instruction_en });
 
     exercises.push({
+      id: exerciseId,
       exerciseId,
       topic: '',
       difficulty: 'easy',
@@ -2031,6 +2473,7 @@ function buildExercisesFromAiDetection(text, detections) {
     }
     seenExerciseIds.add(cur.exerciseId);
     exercises.push({
+      id: cur.exerciseId,
       exerciseId: cur.exerciseId,
       topic: '',
       difficulty: 'easy',
@@ -2095,8 +2538,8 @@ function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionTy
   // Count based on type.
   let questionCount = 1;
   if (type === 'matching') {
-    const leftItems  = lines.filter(l => /^\d+[.)]/.test(l));
-    const rightItems = lines.filter(l => /^[a-zA-Z][.)]/.test(l));
+    const leftItems = lines.filter(l => /^\d+\./.test(l));
+    const rightItems = lines.filter(l => /^[a-z]\./i.test(l));
     if (leftItems.length && rightItems.length) {
       questionCount = Math.min(leftItems.length, rightItems.length);
     } else if (leftItems.length) {
@@ -2131,12 +2574,26 @@ function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionTy
 
 // ─── Convert single-exercise extraction result to flat question(s) ────────────
 // Same type-mapping logic as flattenExtractionResult, but for one exercise.
+// `blockMeta` optional: { instruction_de, instruction_en } from splitWorksheetIntoExercises (AI may omit).
 
-function flattenSingleExercise(result, rawExerciseContent = '') {
+function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null) {
   const mappedType = EXTRACTION_TYPE_MAP[result.type] || 'question-answer';
   const worksheetKind = EXTRACTION_WORKSHEET_KIND[result.type] || null;
   const sectionTitle = [result.topic, result.exerciseId].filter(Boolean).join(' | ') || null;
   const raw = String(rawExerciseContent || '').trim();
+  const deInstr = String(result.instruction_de || blockMeta?.instruction_de || '').trim();
+  const enInstr = String(result.instruction_en || blockMeta?.instruction_en || '').trim();
+  const mergedInstr = mergeWorksheetInstructions(deInstr, enInstr) || null;
+
+  const exerciseBase = () => ({
+    type: mappedType,
+    points: 1,
+    sectionTitle,
+    worksheetKind: worksheetKind || undefined,
+    instruction_de: deInstr || undefined,
+    instruction_en: enInstr || undefined,
+    instruction: mergedInstr
+  });
 
   // One consolidated question from raw block when rules find pairs (avoids duplicate AI rows; no extra AI for SP content).
   if (mappedType === 'singular_plural' && raw.length >= 5) {
@@ -2145,15 +2602,8 @@ function flattenSingleExercise(result, rawExerciseContent = '') {
     console.log('[SP PARSED PAIRS]', det.length);
     if (det.length > 0) {
       console.log('[SINGULAR_PLURAL DETECTED]', det.length);
-      const base = {
-        type: mappedType,
-        points: 1,
-        sectionTitle,
-        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || null
-      };
       return [sanitizeQuestion({
-        ...base,
-        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || 'Write the plural form.',
+        ...exerciseBase(),
         pairs: det,
         scoringMode: 'full',
         aiGradingEnabled: false
@@ -2161,35 +2611,46 @@ function flattenSingleExercise(result, rawExerciseContent = '') {
     }
   }
 
+  if (mappedType === 'matching' && raw.length >= 5) {
+    console.log('[BLOCK]', raw);
+    const det = extractMatchingPairs(raw);
+    console.log('[MATCH PAIRS]', det);
+    if (det.length > 0) {
+      return [sanitizeQuestion({
+        ...exerciseBase(),
+        pairs: det
+      })];
+    }
+  }
+
   return (result.questions || []).map(q => {
-    const base = {
-      type: mappedType,
-      points: 1,
-      sectionTitle,
-      instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || null
-    };
-    if (worksheetKind) base.worksheetKind = worksheetKind;
+    const base = exerciseBase();
 
     if (mappedType === 'mcq') {
       const options = Array.isArray(q.options) && q.options.length
-        ? q.options.map(String)
-        : ['Option A', 'Option B'];
+        ? q.options.map(String).filter(Boolean)
+        : [];
       const cai = parseInt(q.correctAnswerIndex);
       return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '' });
     }
     if (mappedType === 'matching') {
-      const pairs = Array.isArray(q.pairs) ? q.pairs.filter(p => p.left && p.right) : [];
+      const subRaw = String(q.question || '').trim();
+      const subDet = subRaw.length >= 3 ? extractMatchingPairs(subRaw) : [];
+      const pairs = subDet.length > 0
+        ? subDet
+        : (Array.isArray(q.pairs) ? q.pairs : []).map((p) => ({
+            left: String(p?.left != null ? p.left : '').trim(),
+            right: String(p?.right != null ? p.right : '').trim()
+          })).filter((p) => p.left || p.right);
       return sanitizeQuestion({
         ...base,
-        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || 'Match the items.',
         pairs
       });
     }
     if (mappedType === 'singular_plural') {
-      const pairs = pairsFromSingularPluralQuestion(q);
+      const pairs = pairsFromSingularPluralQuestion(q, raw);
       return sanitizeQuestion({
         ...base,
-        instruction: mergeWorksheetInstructions(result.instruction_de, result.instruction_en) || 'Write the plural form.',
         pairs,
         scoringMode: 'full',
         aiGradingEnabled: false
@@ -2198,7 +2659,8 @@ function flattenSingleExercise(result, rawExerciseContent = '') {
     if (mappedType === 'fill-blank') {
       const rawSentence = String(q.question || '');
       const rawAnswers = Array.isArray(q.answers) ? q.answers.map(String) : [];
-      const norm = normalizeFillBlankExtract(rawSentence, rawAnswers);
+      const norm = normalizeFillBlankExtract(rawSentence, rawAnswers, mergedInstr || '');
+      console.log('[FILL ANSWERS]', norm.answers);
       return sanitizeQuestion({
         ...base,
         sentence: norm.sentence,
@@ -2255,7 +2717,10 @@ router.post('/extract-single-exercise',
         return res.status(500).json({ error: 'AI returned invalid JSON. Please try again.' });
       }
 
-      const questions = flattenSingleExercise(result, content.trim());
+      const questions = flattenSingleExercise(result, content.trim(), {
+        instruction_de: instruction_de || '',
+        instruction_en: instruction_en || ''
+      });
       res.json({ success: true, exerciseId: result.exerciseId, type: result.type, questions });
 
     } catch (err) {
@@ -2367,29 +2832,43 @@ function sanitizeQuestion(q) {
   if (q.worksheetKind && typeof q.worksheetKind === 'string') {
     base.worksheetKind = q.worksheetKind.trim();
   }
+  const deIns = q.instruction_de != null ? String(q.instruction_de).trim() : '';
+  const enIns = q.instruction_en != null ? String(q.instruction_en).trim() : '';
+  if (deIns) base.instruction_de = deIns;
+  if (enIns) base.instruction_en = enIns;
+  const mergedIns = q.instruction != null ? String(q.instruction).trim() : '';
+  if (mergedIns) base.instruction = mergedIns;
 
   if (q.type === 'mcq') {
-    const options = Array.isArray(q.options) ? q.options.map(String) : ['Option A', 'Option B', 'Option C', 'Option D'];
+    const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
     const cai = parseInt(q.correctAnswerIndex);
+    const maxIdx = Math.max(0, options.length - 1);
     return {
       ...base,
-      question: String(q.question || 'Question'),
+      question: String(q.question || ''),
       imageUrl: q.imageUrl || null,
       options: options.slice(0, 6),
-      correctAnswerIndex: (isNaN(cai) || cai < 0 || cai >= options.length) ? 0 : cai,
+      correctAnswerIndex: options.length === 0 || isNaN(cai) || cai < 0 ? 0 : Math.min(cai, maxIdx),
       explanation: String(q.explanation || '')
     };
   }
 
   if (q.type === 'matching') {
     const pairs = Array.isArray(q.pairs)
-      ? q.pairs.filter(p => p.left && p.right).map(p => ({ left: String(p.left), right: String(p.right) }))
+      ? q.pairs
+          .map((p) => ({
+            left: String(p?.left != null ? p.left : '').trim(),
+            right: String(p?.right != null ? p.right : '').trim()
+          }))
+          .filter((p) => p.left || p.right)
       : [];
-    return {
+    const out = {
       ...base,
-      instruction: String(q.instruction || 'Match the items on the left with their correct pairs on the right.'),
-      pairs: pairs.length >= 2 ? pairs : [{ left: 'Word 1', right: 'Translation 1' }, { left: 'Word 2', right: 'Translation 2' }]
+      pairs
     };
+    const ins = String(q.instruction || '').trim();
+    if (ins) out.instruction = ins;
+    return out;
   }
 
   if (q.type === 'singular_plural') {
@@ -2408,19 +2887,25 @@ function sanitizeQuestion(q) {
       if (s && pl) pairs = [{ singular: s, plural: pl }];
     }
     const scoringMode = ['full', 'proportional'].includes(q.scoringMode) ? q.scoringMode : 'full';
-    return {
+    const out = {
       ...base,
-      instruction: String(q.instruction || 'Write the plural form (with article if shown).'),
-      pairs: pairs.length ? pairs : [{ singular: 'der Mann', plural: 'die Männer' }],
+      pairs,
       scoringMode,
       aiGradingEnabled: q.aiGradingEnabled === true
     };
+    const ins = String(q.instruction || '').trim();
+    if (ins) out.instruction = ins;
+    return out;
   }
 
   if (q.type === 'fill-blank') {
     const rawSentence = String(q.sentence || '');
     const rawAnswers = Array.isArray(q.answers) ? q.answers.map(String) : [];
-    const norm = normalizeFillBlankExtract(rawSentence, rawAnswers);
+    const hint = mergeWorksheetInstructions(
+      q.instruction_de != null ? String(q.instruction_de) : '',
+      q.instruction_en != null ? String(q.instruction_en) : '',
+    );
+    const norm = normalizeFillBlankExtract(rawSentence, rawAnswers, hint || String(q.instruction || '').trim());
     const sentence = norm.sentence;
     const blanks = (sentence.match(/_+/g) || []).length;
     let answers = norm.answers.map(String);

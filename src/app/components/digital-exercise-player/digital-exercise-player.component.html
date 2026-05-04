@@ -146,9 +146,9 @@
           </div>
 
           <div class="review-q-text" *ngIf="pq.data.type === 'mcq'" [innerHTML]="pq.data.question | safeHtml"></div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'matching'" [innerHTML]="pq.data.instruction | safeHtml"></div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'matching'" [innerHTML]="worksheetInstructionDisplay(pq.data) | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'" [innerHTML]="pq.data.sentence | safeHtml"></div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'singular_plural' && pq.data.instruction" [innerHTML]="pq.data.instruction | safeHtml"></div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'singular_plural' && worksheetInstructionDisplay(pq.data)" [innerHTML]="worksheetInstructionDisplay(pq.data) | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data) && pq.data.storyParagraph"
                [innerHTML]="pq.data.storyParagraph | safeHtml">
@@ -923,7 +923,7 @@
           class="q-guidance-stack"
           *ngIf="
             currentQuestion.data.context ||
-            (currentQuestion.data.instruction && currentQuestion.data.type !== 'matching') ||
+            (worksheetInstructionDisplay(currentQuestion.data) && currentQuestion.data.type !== 'matching') ||
             currentQuestion.data.example
           "
         >
@@ -933,9 +933,9 @@
 
           <!-- Instruction banner (matching uses instruction as its main prompt inside q-body) -->
           <div class="q-instruction-banner"
-               *ngIf="currentQuestion.data.instruction && currentQuestion.data.type !== 'matching'">
+               *ngIf="worksheetInstructionDisplay(currentQuestion.data) && currentQuestion.data.type !== 'matching'">
             <span class="q-instruction-label">Instruction</span>
-            <span class="q-instruction-text" [innerHTML]="currentQuestion.data.instruction | safeHtml"></span>
+            <span class="q-instruction-text" [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"></span>
           </div>
 
           <div class="q-example-banner" *ngIf="currentQuestion.data.example">
@@ -984,7 +984,7 @@
         <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
           <div class="q-question-box">
             <div class="q-question-label">Question</div>
-            <p class="q-text" [innerHTML]="currentQuestion.data.instruction | safeHtml"></p>
+            <p class="q-text" [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"></p>
           </div>
           <div class="matching-container">
             <div class="matching-col left-col">
@@ -1092,9 +1092,9 @@
 
         <!-- ── SINGULAR / PLURAL ── -->
         <div class="q-body singular-plural-body" *ngIf="currentQuestion.data.type === 'singular_plural'">
-          <div class="q-question-box" *ngIf="currentQuestion.data.instruction">
+          <div class="q-question-box" *ngIf="worksheetInstructionDisplay(currentQuestion.data)">
             <div class="q-question-label">Instructions</div>
-            <div [innerHTML]="currentQuestion.data.instruction | safeHtml"></div>
+            <div [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"></div>
           </div>
           <div class="sp-table-wrap">
             <table class="sp-pairs-table" *ngIf="singularPluralDisplayRows(currentQuestion).length">

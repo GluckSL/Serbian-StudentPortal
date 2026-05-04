@@ -5,7 +5,7 @@
   <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
   <input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
 
-  <!-- AI Generator Banner (create mode only) -->
+  <!-- DISABLED: AI PDF generator banner (route admin/digital-exercises/generate-ai off)
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
     <div class="ai-banner-left">
       <div class="ai-banner-icon">
@@ -20,6 +20,7 @@
       <span class="material-icons">upload_file</span> Upload PDF
     </button>
   </div>
+  -->
 
   <!-- Header -->
   <div class="builder-header">
@@ -210,10 +211,12 @@
 
         <div class="info-alt-row">
           <span class="info-alt-row__label">From files</span>
+          <!-- DISABLED: AI (PDF) — same as worksheet extractor
           <button type="button" class="btn-alt btn-alt--ai" (click)="navigateToAiGenerator()">
             <span class="material-icons">auto_awesome</span>
             AI (PDF)
           </button>
+          -->
           <button type="button" class="btn-alt btn-alt--audio" (click)="navigateToListeningGenerator()">
             <span class="material-icons">headphones</span>
             Audio + PDF

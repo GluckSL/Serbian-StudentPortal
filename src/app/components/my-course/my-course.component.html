@@ -183,8 +183,8 @@
           <div class="mc-update__body">
             <p class="mc-update__title">Digital exercise ahead</p>
             <p class="mc-update__text">
-              <strong>{{ nextLockedDigitalExercise?.title }}</strong>
-              is tied to <strong>day {{ nextLockedDigitalExercise?.courseDay }}</strong>.
+              <strong>{{ nextLockedDigitalExercise.title }}</strong>
+              is tied to <strong>day {{ nextLockedDigitalExercise.courseDay }}</strong>.
               {{ nextLockedDigitalExercise ? lockedExerciseUnlockText(nextLockedDigitalExercise) : '' }}
             </p>
           </div>
@@ -204,7 +204,7 @@
           <div class="mc-update__body">
             <p class="mc-update__title">New exercise available</p>
             <p class="mc-update__text">
-              <strong>{{ nextNewDigitalExercise?.title }}</strong>
+              <strong>{{ nextNewDigitalExercise.title }}</strong>
               <span class="mc-update__when">is ready now</span>
             </p>
           </div>
@@ -224,7 +224,7 @@
           <div class="mc-update__body">
             <p class="mc-update__title">New module available</p>
             <p class="mc-update__text">
-              <strong>{{ nextNewAccessibleModule?.title }}</strong>
+              <strong>{{ nextNewAccessibleModule.title }}</strong>
               <span class="mc-update__when">{{ nextNewAccessibleModule.level }} · {{ nextNewAccessibleModule.category }}</span>
             </p>
           </div>

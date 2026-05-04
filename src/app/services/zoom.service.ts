@@ -219,6 +219,11 @@ export class ZoomService {
     page?: number;
     limit?: number;
     completed?: boolean;
+    search?: string;
+    teacherName?: string;
+    datePreset?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }): Observable<any> {
     let url = `${this.apiUrl}/meetings`;
     const params = new URLSearchParams();
@@ -229,6 +234,11 @@ export class ZoomService {
     if (filters?.page) params.append('page', String(filters.page));
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.completed !== undefined) params.append('completed', String(filters.completed));
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.teacherName) params.append('teacherName', filters.teacherName);
+    if (filters?.datePreset) params.append('datePreset', filters.datePreset);
+    if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.append('dateTo', filters.dateTo);
     const qs = params.toString();
     if (qs) url += `?${qs}`;
 

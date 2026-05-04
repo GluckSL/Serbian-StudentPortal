@@ -1,6 +1,8 @@
 // src/app/components/pdf-exercise-generator/pdf-exercise-generator.component.ts
 
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
+import { throwError } from 'rxjs';
+import { finalize, switchMap } from 'rxjs/operators';
 import { resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { CommonModule } from '@angular/common';
@@ -130,6 +132,17 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // ── Step 5: Review ──────────────────────────────────────────────────────────
   reviewQuestions: ReviewQuestion[] = [];
   generationMeta: any = null;
+
+  /** Phase 3 normalized exercises (rules pipeline) — admin edits before any downstream save. */
+  aiStageExercises: any[] = [];
+  /** Snapshot for “Reset to original”. */
+  aiStageOriginalExercises: any[] = [];
+  /** Deep-cloned exercise shown in the right-hand preview editor. */
+  selectedExercise: any = null;
+  /** Optional answer key text passed to Phase 3. */
+  aiStageAnswerKeyText = '';
+  aiStageBusy = false;
+  aiStageError = '';
 
   // Exercise metadata
   exerciseTitle = '';
@@ -301,16 +314,25 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         this.uploadResult = res;
         this.uploading = false;
         this.applyDetectedTypes(res.detectedTypes);
-        this.exercises = (res.exercises || []).map((e: any) => ({
-          exerciseId: String(e.exerciseId || ''),
-          topic: String(e.topic || ''),
-          difficulty: String(e.difficulty || 'easy'),
-          type: String(e.type || ''),
-          questionCount: Number(e.questionCount || 0),
-          instruction_de: String(e.instruction_de || ''),
-          instruction_en: String(e.instruction_en || ''),
-          enabled: true
-        }));
+        this.exercises = (res.exercises || []).map((e: any) => {
+          const exerciseId = String(e.exerciseId || e.id || '');
+          return {
+            exerciseId,
+            id: String(e.id || exerciseId),
+            topic: String(e.topic || ''),
+            difficulty: String(e.difficulty || 'easy'),
+            type: String(e.type || ''),
+            questionCount: Number(e.questionCount || 0),
+            instruction: String(e.instruction || e.instruction_de || ''),
+            instruction_de: String(e.instruction_de || ''),
+            instruction_en: String(e.instruction_en || ''),
+            rawText: String(e.rawText ?? e.content ?? ''),
+            questions: Array.isArray(e.questions) ? e.questions : [],
+            pairs: Array.isArray(e.pairs) ? e.pairs : [],
+            extractedItems: [] as any[],
+            enabled: true
+          };
+        });
         // If server detected a worksheet, auto-enable worksheet mode label for display
         if (res.worksheetMode) {
           this.pdfDetectedTypes = true;
@@ -491,6 +513,24 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Map flat review questions back onto worksheet exercise rows (sectionTitle contains exerciseId segment). */
+  private attachExtractedQuestionsToExercises(): void {
+    const qs = this.reviewQuestions || [];
+    this.exercises = this.exercises.map((ex) => {
+      const id = String(ex.exerciseId || '').trim();
+      const extractedItems =
+        !id || !qs.length
+          ? []
+          : qs.filter((q: any) => {
+              const st = String(q.sectionTitle || '').trim();
+              if (!st) return false;
+              const segments = st.split('|').map((s: string) => s.trim());
+              return segments.includes(id);
+            });
+      return { ...ex, extractedItems };
+    });
+  }
+
   private applyExtractionResult(res: any): void {
     this.clearProgressTimer();
     this.clearExtractionPollTimer();
@@ -513,6 +553,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       expanded: false,
       aiGenerated: true
     }));
+    this.attachExtractedQuestionsToExercises();
     this.exerciseTitle = res.suggestedTitle || '';
     this.exerciseDescription = res.suggestedDescription || '';
     if (res.detectedLevel) this.level = res.detectedLevel;
@@ -525,7 +566,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   private startExtractionPolling(jobId: string): void {
     this.clearExtractionPollTimer();
     this.extractionPollBusy = false;
-    let retries = 0;
+    const pollStartedAt = Date.now();
+    /** Sequential AI extraction needs several minutes per worksheet (many Übungen × OpenAI calls). */
+    const total = Math.max(this.extractionProgress.total || 1, 1);
+    const maxPollMs = Math.min(60 * 60 * 1000, Math.max(35 * 60 * 1000, total * 5 * 60 * 1000));
 
     this.extractionPollTimer = setInterval(() => {
       if (this.extractionPollBusy) return;
@@ -562,13 +606,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
             return;
           }
 
-          retries++;
-          if (retries > 120) {
+          if (Date.now() - pollStartedAt > maxPollMs) {
             clearInterval(this.extractionPollTimer);
             this.extractionPollTimer = null;
             this.clearProgressTimer();
             this.generating = false;
-            this.generationError = 'Extraction timeout. Please try again.';
+            this.generationError =
+              'Extraction is still running on the server but the browser stopped waiting. ' +
+              'Wait a minute and use Try Again, or split the PDF into fewer exercises.';
           }
         },
         error: () => {
@@ -682,6 +727,253 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   continueToReview(): void {
     this.currentStep = 5;
+  }
+
+  /** Run Phases 1→3 (deterministic pipeline). Requires the same PDF file still selected in step 1. */
+  runAiStagePipeline(): void {
+    if (!this.selectedFile) {
+      this.showError('Select a PDF in step 1 first, then run AI Stage here.');
+      return;
+    }
+    this.aiStageBusy = true;
+    this.aiStageError = '';
+    this.exerciseService
+      .runAiStagePhase1(this.selectedFile)
+      .pipe(
+        switchMap((p1: any) => {
+          const blocks = Array.isArray(p1?.blocks) ? p1.blocks : [];
+          if (!blocks.length) {
+            return throwError(() => new Error('Phase 1 returned no blocks.'));
+          }
+          return this.exerciseService.runAiStagePhase2(blocks).pipe(
+            switchMap((p2: any) => {
+              const parsedResults = Array.isArray(p2?.results) ? p2.results : [];
+              return this.exerciseService.runAiStagePhase3({
+                blocks,
+                parsedResults,
+                answerKeyText: (this.aiStageAnswerKeyText || '').trim()
+              });
+            })
+          );
+        }),
+        finalize(() => {
+          this.aiStageBusy = false;
+        })
+      )
+      .subscribe({
+        next: (p3: any) => {
+          const raw = Array.isArray(p3?.exercises) ? p3.exercises : [];
+          this.aiStageExercises = raw.map((ex: any) => this.ensureAiStageEditorShape(ex));
+          this.aiStageOriginalExercises = JSON.parse(JSON.stringify(this.aiStageExercises));
+          this.selectedExercise = null;
+          this.showSuccess(`AI Stage: ${this.aiStageExercises.length} exercise(s) ready to review.`);
+        },
+        error: (err: any) => {
+          const msg = err?.error?.error || err?.message || 'AI Stage pipeline failed.';
+          this.aiStageError = msg;
+          this.showError(msg);
+        }
+      });
+  }
+
+  selectExercise(ex: any): void {
+    this.selectedExercise = JSON.parse(JSON.stringify(ex));
+  }
+
+  saveEdited(): void {
+    if (!this.selectedExercise?.id) return;
+    const validated = this.validateAiStageExercise(JSON.parse(JSON.stringify(this.selectedExercise)));
+    const index = this.aiStageExercises.findIndex((e) => e.id === validated.id);
+    if (index !== -1) {
+      this.aiStageExercises[index] = validated;
+    }
+    this.selectedExercise = null;
+  }
+
+  resetSelectedToOriginal(): void {
+    if (!this.selectedExercise?.id) return;
+    const orig = this.aiStageOriginalExercises.find((e) => e.id === this.selectedExercise.id);
+    if (!orig) return;
+    this.selectedExercise = JSON.parse(JSON.stringify(orig));
+  }
+
+  closeAiStageEditor(): void {
+    this.selectedExercise = null;
+  }
+
+  getAiStageItemCount(ex: any): number {
+    if (!ex) return 0;
+    if (ex.type === 'matching' && Array.isArray(ex.pairs)) return ex.pairs.length;
+    if (Array.isArray(ex.questions)) return ex.questions.length;
+    return 0;
+  }
+
+  addAiStagePair(): void {
+    if (!this.selectedExercise || this.selectedExercise.type !== 'matching') return;
+    if (!Array.isArray(this.selectedExercise.pairs)) this.selectedExercise.pairs = [];
+    this.selectedExercise.pairs.push({ left: '', right: '' });
+  }
+
+  removeAiStagePair(index: number): void {
+    if (!this.selectedExercise?.pairs) return;
+    this.selectedExercise.pairs.splice(index, 1);
+  }
+
+  addAiStageFillRow(): void {
+    if (!this.selectedExercise || this.selectedExercise.type !== 'fill_in_blank') return;
+    if (!Array.isArray(this.selectedExercise.questions)) this.selectedExercise.questions = [];
+    this.selectedExercise.questions.push({ sentence: '', answer: '' });
+  }
+
+  removeAiStageFillRow(index: number): void {
+    if (!this.selectedExercise?.questions) return;
+    this.selectedExercise.questions.splice(index, 1);
+  }
+
+  addAiStageMcqQuestion(): void {
+    if (!this.selectedExercise || this.selectedExercise.type !== 'mcq') return;
+    if (!Array.isArray(this.selectedExercise.questions)) this.selectedExercise.questions = [];
+    this.selectedExercise.questions.push({ question: '', options: ['', ''] });
+  }
+
+  removeAiStageMcqQuestion(index: number): void {
+    if (!this.selectedExercise?.questions) return;
+    this.selectedExercise.questions.splice(index, 1);
+  }
+
+  addAiStageMcqOption(qIndex: number): void {
+    const q = this.selectedExercise?.questions?.[qIndex];
+    if (!q) return;
+    if (!Array.isArray(q.options)) q.options = [];
+    q.options.push('');
+  }
+
+  removeAiStageMcqOption(qIndex: number, optIndex: number): void {
+    const q = this.selectedExercise?.questions?.[qIndex];
+    if (!q?.options || q.options.length <= 2) return;
+    q.options.splice(optIndex, 1);
+  }
+
+  addAiStageShortRow(): void {
+    if (!this.selectedExercise || this.selectedExercise.type !== 'short_answer') return;
+    if (!Array.isArray(this.selectedExercise.questions)) this.selectedExercise.questions = [];
+    this.selectedExercise.questions.push({ question: '' });
+  }
+
+  removeAiStageShortRow(index: number): void {
+    if (!this.selectedExercise?.questions) return;
+    this.selectedExercise.questions.splice(index, 1);
+  }
+
+  addAiStageErrorRow(): void {
+    if (!this.selectedExercise || this.selectedExercise.type !== 'error_correction') return;
+    if (!Array.isArray(this.selectedExercise.questions)) this.selectedExercise.questions = [];
+    this.selectedExercise.questions.push({ sentence: '', corrected: '' });
+  }
+
+  removeAiStageErrorRow(index: number): void {
+    if (!this.selectedExercise?.questions) return;
+    this.selectedExercise.questions.splice(index, 1);
+  }
+
+  addAiStageSingularPluralRow(): void {
+    if (!this.selectedExercise || this.selectedExercise.type !== 'singular_plural') return;
+    if (!Array.isArray(this.selectedExercise.questions)) this.selectedExercise.questions = [];
+    this.selectedExercise.questions.push({ item: '', answer: '' });
+  }
+
+  removeAiStageSingularPluralRow(index: number): void {
+    if (!this.selectedExercise?.questions) return;
+    this.selectedExercise.questions.splice(index, 1);
+  }
+
+  /** Strip empty rows (deterministic) before merging back into the list. */
+  validateAiStageExercise(ex: any): any {
+    const out = ex;
+    if (out.type === 'matching' && Array.isArray(out.pairs)) {
+      out.pairs = out.pairs.filter((p: any) => (p?.left || '').trim() && (p?.right || '').trim());
+    }
+    if (out.type === 'fill_in_blank' && Array.isArray(out.questions)) {
+      out.questions = out.questions.filter((q: any) => (q?.sentence || '').trim());
+    }
+    if (out.type === 'mcq' && Array.isArray(out.questions)) {
+      out.questions = out.questions
+        .map((q: any) => ({
+          question: String(q?.question ?? '').trim(),
+          options: (Array.isArray(q?.options) ? q.options : []).map((o: any) => String(o ?? '').trim())
+        }))
+        .filter((q: any) => q.question && q.options.filter((o: string) => o).length >= 2);
+    }
+    if (out.type === 'short_answer' && Array.isArray(out.questions)) {
+      out.questions = out.questions.filter((q: any) => (q?.question || '').trim());
+    }
+    if (out.type === 'error_correction' && Array.isArray(out.questions)) {
+      out.questions = out.questions.filter((q: any) => (q?.sentence || '').trim());
+    }
+    if (out.type === 'singular_plural' && Array.isArray(out.questions)) {
+      out.questions = out.questions.filter((q: any) => (q?.item || '').trim());
+    }
+    return out;
+  }
+
+  private ensureAiStageEditorShape(ex: any): any {
+    const e = JSON.parse(JSON.stringify(ex));
+    const t = String(e.type || '');
+    if (t === 'matching') {
+      e.pairs = Array.isArray(e.pairs)
+        ? e.pairs.map((p: any) => ({
+            left: String(p?.left ?? ''),
+            right: String(p?.right ?? '')
+          }))
+        : [];
+      return e;
+    }
+    if (t === 'fill_in_blank') {
+      e.questions = Array.isArray(e.questions)
+        ? e.questions.map((q: any) => ({
+            sentence: String(q?.sentence ?? ''),
+            answer: String(q?.answer ?? '')
+          }))
+        : [];
+      return e;
+    }
+    if (t === 'mcq') {
+      e.questions = Array.isArray(e.questions)
+        ? e.questions.map((q: any) => ({
+            question: String(q?.question ?? ''),
+            options: Array.isArray(q?.options) && q.options.length ? q.options.map((o: any) => String(o ?? '')) : ['', '']
+          }))
+        : [];
+      return e;
+    }
+    if (t === 'short_answer') {
+      e.questions = Array.isArray(e.questions)
+        ? e.questions.map((q: any) => ({
+            question: String(q?.question ?? '')
+          }))
+        : [];
+      return e;
+    }
+    if (t === 'error_correction') {
+      e.questions = Array.isArray(e.questions)
+        ? e.questions.map((q: any) => ({
+            sentence: String(q?.sentence ?? ''),
+            corrected: String(q?.corrected ?? '')
+          }))
+        : [];
+      return e;
+    }
+    if (t === 'singular_plural') {
+      e.questions = Array.isArray(e.questions)
+        ? e.questions.map((q: any) => ({
+            item: String(q?.item ?? q?.sentence ?? ''),
+            answer: String(q?.answer ?? '')
+          }))
+        : [];
+      return e;
+    }
+    e.questions = Array.isArray(e.questions) ? e.questions : [];
+    return e;
   }
 
   // ── Step 4: Review & Edit ───────────────────────────────────────────────────

@@ -1,0 +1,342 @@
+<div class="wab-container">
+
+  <!-- ══════════════════════════════════════════════════════════
+       PAGE HEADER
+  ════════════════════════════════════════════════════════════ -->
+  <div class="wab-header">
+    <span class="material-icons wab-header__icon">auto_awesome</span>
+    <div>
+      <h1 class="wab-header__title">Worksheet AI Builder</h1>
+      <p class="wab-header__sub">Upload a PDF worksheet → Extract exercises → Review &amp; edit → Save</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       ALERTS
+  ════════════════════════════════════════════════════════════ -->
+  <div class="wab-alert wab-alert--error" *ngIf="errorMessage">
+    <span class="material-icons">error_outline</span> {{ errorMessage }}
+  </div>
+  <div class="wab-alert wab-alert--success" *ngIf="successMessage">
+    <span class="material-icons">check_circle_outline</span> {{ successMessage }}
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 1 + 2  — UPLOAD & PIPELINE
+  ════════════════════════════════════════════════════════════ -->
+  <div class="wab-card">
+    <div class="wab-card__head">
+      <span class="step-badge">1</span>
+      <h2>Upload PDF &amp; Run Extraction</h2>
+    </div>
+
+    <div class="wab-upload-row">
+      <!-- PDF picker -->
+      <label class="wab-file-label">
+        <span class="material-icons">upload_file</span>
+        <span>{{ selectedFile ? selectedFile.name : 'Choose PDF file' }}</span>
+        <input type="file" accept=".pdf" (change)="onFileSelected($event)" hidden />
+      </label>
+
+      <!-- Run button -->
+      <button class="wab-btn wab-btn--primary"
+              [disabled]="loading || !selectedFile"
+              (click)="runAiPipeline()">
+        <span class="material-icons" *ngIf="!loading">auto_awesome</span>
+        <span class="wab-spinner" *ngIf="loading"></span>
+        {{ loading ? 'Extracting…' : 'Run AI Extraction' }}
+      </button>
+    </div>
+
+    <!-- Answer key -->
+    <div class="wab-answer-key">
+      <label>Answer Key <small>(optional — paste the answer key section of the PDF)</small></label>
+      <textarea [(ngModel)]="answerKeyText"
+                rows="4"
+                placeholder="Paste answer key text here…"
+                [disabled]="loading"></textarea>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 3  — PREVIEW + EDIT
+  ════════════════════════════════════════════════════════════ -->
+  <div class="wab-card" *ngIf="exercises.length > 0">
+    <div class="wab-card__head">
+      <span class="step-badge">2</span>
+      <h2>Preview &amp; Edit  <span class="count-badge">{{ exercises.length }} exercises</span></h2>
+    </div>
+
+    <div class="wab-split-layout">
+
+      <!-- ── LEFT LIST ───────────────────────────────────────── -->
+      <div class="wab-ex-list">
+        <div class="wab-ex-item"
+             *ngFor="let ex of exercises; trackBy: trackByIndex"
+             [class.wab-ex-item--active]="selectedExercise?.id === ex.id"
+             (click)="selectExercise(ex)">
+          <div class="wab-ex-item__id">{{ ex.id }}</div>
+          <div class="wab-ex-item__meta">
+            <span class="type-pill type-pill--{{ ex.type }}">{{ typeLabel(ex.type) }}</span>
+            <span class="q-count">{{ questionCount(ex) }} Qs</span>
+          </div>
+          <div class="wab-ex-item__instr" [title]="ex.instruction">{{ ex.instruction | slice:0:60 }}…</div>
+        </div>
+      </div>
+
+      <!-- ── RIGHT EDITOR ───────────────────────────────────── -->
+      <div class="wab-editor" *ngIf="selectedExercise; else noSelection">
+
+        <!-- Editor header -->
+        <div class="wab-editor__head">
+          <span class="material-icons">edit_note</span>
+          <strong>{{ selectedExercise.id }}</strong>
+          <button class="icon-btn" (click)="closeEditor()" title="Close">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+
+        <!-- Instruction -->
+        <div class="form-group" [class.form-group--error]="validationErrors['instruction']">
+          <label>Instruction</label>
+          <input type="text" [(ngModel)]="selectedExercise.instruction"
+                 [class.input--error]="validationErrors['instruction']"
+                 placeholder="Exercise instruction" />
+          <small class="err-hint" *ngIf="validationErrors['instruction']">Instruction is required</small>
+        </div>
+
+        <!-- Type selector -->
+        <div class="form-group">
+          <label>Type</label>
+          <select [(ngModel)]="selectedExercise.type">
+            <option *ngFor="let t of EXERCISE_TYPES" [value]="t">{{ typeLabel(t) }}</option>
+          </select>
+        </div>
+
+        <!-- ── MATCHING ─────────────────────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'matching'">
+          <div class="editor-section">
+            <div class="editor-section__head">
+              <span>Matching Pairs</span>
+              <button class="wab-btn wab-btn--sm" (click)="addPair()">
+                <span class="material-icons">add</span> Add Row
+              </button>
+            </div>
+            <table class="match-table">
+              <thead><tr><th>Left</th><th>Right</th><th></th></tr></thead>
+              <tbody>
+                <tr *ngFor="let p of selectedExercise.pairs; let i = index; trackBy: trackByIndex">
+                  <td>
+                    <input type="text" [(ngModel)]="p.left"
+                           [class.input--error]="validationErrors['pair_left_' + i]"
+                           placeholder="Left side" />
+                  </td>
+                  <td>
+                    <input type="text" [(ngModel)]="p.right"
+                           [class.input--error]="validationErrors['pair_right_' + i]"
+                           placeholder="Right side" />
+                  </td>
+                  <td>
+                    <button class="icon-btn icon-btn--danger" (click)="removePair(i)">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </ng-container>
+
+        <!-- ── FILL IN BLANK ───────────────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'fill_in_blank'">
+          <div class="editor-section">
+            <div class="editor-section__head">
+              <span>Fill-in-Blank Questions</span>
+              <button class="wab-btn wab-btn--sm" (click)="addQuestion()">
+                <span class="material-icons">add</span> Add Row
+              </button>
+            </div>
+            <div class="fill-row" *ngFor="let q of selectedExercise.questions; let i = index; trackBy: trackByIndex">
+              <div class="fill-row__inputs">
+                <div class="form-group" [class.form-group--error]="validationErrors['fill_sentence_' + i]">
+                  <label>Sentence #{{ i + 1 }}</label>
+                  <input type="text" [(ngModel)]="asFillQuestion(q).sentence"
+                         [class.input--error]="validationErrors['fill_sentence_' + i]"
+                         placeholder="Full sentence with ___ for blank" />
+                  <small class="err-hint" *ngIf="validationErrors['fill_sentence_' + i]">Sentence is required</small>
+                </div>
+                <div class="form-group">
+                  <label>Answer</label>
+                  <input type="text" [(ngModel)]="asFillQuestion(q).answer" placeholder="Correct answer" />
+                </div>
+              </div>
+              <button class="icon-btn icon-btn--danger" (click)="removeQuestion(i)">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ── MCQ ────────────────────────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'mcq'">
+          <div class="editor-section">
+            <div class="editor-section__head">
+              <span>MCQ Questions</span>
+              <button class="wab-btn wab-btn--sm" (click)="addQuestion()">
+                <span class="material-icons">add</span> Add Question
+              </button>
+            </div>
+            <div class="mcq-block" *ngFor="let q of selectedExercise.questions; let i = index; trackBy: trackByIndex">
+              <div class="mcq-block__head">
+                <span>Q{{ i + 1 }}</span>
+                <button class="icon-btn icon-btn--danger" (click)="removeQuestion(i)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </div>
+              <div class="form-group" [class.form-group--error]="validationErrors['mcq_q_' + i]">
+                <label>Question</label>
+                <input type="text" [(ngModel)]="asMcqQuestion(q).question"
+                       [class.input--error]="validationErrors['mcq_q_' + i]"
+                       placeholder="Question text" />
+              </div>
+              <div class="form-group">
+                <label>Correct Answer</label>
+                <input type="text" [(ngModel)]="asMcqQuestion(q).correctAnswer" placeholder="Correct answer" />
+              </div>
+              <div class="mcq-options">
+                <div class="mcq-option" *ngFor="let opt of asMcqQuestion(q).options; let oi = index; trackBy: trackByIndex">
+                  <input type="text" [(ngModel)]="opt.text" placeholder="Option {{ oi + 1 }}" />
+                  <button class="icon-btn icon-btn--danger" (click)="removeMcqOption(i, oi)">
+                    <span class="material-icons">remove_circle_outline</span>
+                  </button>
+                </div>
+                <button class="wab-btn wab-btn--sm wab-btn--ghost" (click)="addMcqOption(i)">
+                  <span class="material-icons">add</span> Add Option
+                </button>
+                <small class="err-hint" *ngIf="validationErrors['mcq_opts_' + i]">At least 2 options required</small>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ── SHORT ANSWER ──────────────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'short_answer'">
+          <div class="editor-section">
+            <div class="editor-section__head">
+              <span>Short Answer Questions</span>
+              <button class="wab-btn wab-btn--sm" (click)="addQuestion()">
+                <span class="material-icons">add</span> Add
+              </button>
+            </div>
+            <div class="form-group" *ngFor="let q of selectedExercise.questions; let i = index; trackBy: trackByIndex">
+              <label>Q{{ i + 1 }}
+                <button class="icon-btn icon-btn--danger inline-del" (click)="removeQuestion(i)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </label>
+              <input type="text" [(ngModel)]="asShortAnswerQuestion(q).question" placeholder="Question" />
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ── ERROR CORRECTION ──────────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'error_correction'">
+          <div class="editor-section">
+            <div class="editor-section__head">
+              <span>Error Correction</span>
+              <button class="wab-btn wab-btn--sm" (click)="addQuestion()">
+                <span class="material-icons">add</span> Add
+              </button>
+            </div>
+            <div class="fill-row" *ngFor="let q of selectedExercise.questions; let i = index; trackBy: trackByIndex">
+              <div class="fill-row__inputs">
+                <div class="form-group">
+                  <label>Sentence #{{ i + 1 }}</label>
+                  <input type="text" [(ngModel)]="asErrorQuestion(q).sentence" placeholder="Sentence with error" />
+                </div>
+                <div class="form-group">
+                  <label>Corrected</label>
+                  <input type="text" [(ngModel)]="asErrorQuestion(q).corrected" placeholder="Corrected version" />
+                </div>
+              </div>
+              <button class="icon-btn icon-btn--danger" (click)="removeQuestion(i)">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ── SINGULAR / PLURAL ─────────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'singular_plural'">
+          <div class="editor-section">
+            <div class="editor-section__head">
+              <span>Singular / Plural Table</span>
+              <button class="wab-btn wab-btn--sm" (click)="addQuestion()">
+                <span class="material-icons">add</span> Add Row
+              </button>
+            </div>
+            <table class="match-table">
+              <thead><tr><th>Singular</th><th>Plural</th><th></th></tr></thead>
+              <tbody>
+                <tr *ngFor="let q of selectedExercise.questions; let i = index; trackBy: trackByIndex">
+                  <td><input type="text" [(ngModel)]="asSingularPluralRow(q).singular" placeholder="Singular" /></td>
+                  <td><input type="text" [(ngModel)]="asSingularPluralRow(q).plural" placeholder="Plural" /></td>
+                  <td>
+                    <button class="icon-btn icon-btn--danger" (click)="removeQuestion(i)">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </ng-container>
+
+        <!-- ── OPEN WRITING / UNKNOWN ────────────────────── -->
+        <ng-container *ngIf="selectedExercise.type === 'open_writing' || selectedExercise.type === 'unknown'">
+          <div class="editor-section">
+            <p class="wab-info">No structured fields for this type. Review the instruction above.</p>
+            <pre class="raw-json">{{ selectedExercise | json }}</pre>
+          </div>
+        </ng-container>
+
+        <!-- Editor actions -->
+        <div class="wab-editor__actions">
+          <button class="wab-btn wab-btn--primary" (click)="saveExercise()">
+            <span class="material-icons">save</span> Save Exercise
+          </button>
+          <button class="wab-btn wab-btn--ghost" (click)="resetExercise()">
+            <span class="material-icons">restore</span> Reset to Original
+          </button>
+          <button class="wab-btn wab-btn--ghost" (click)="closeEditor()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- placeholder when nothing selected -->
+      <ng-template #noSelection>
+        <div class="wab-editor wab-editor--empty">
+          <span class="material-icons">touch_app</span>
+          <p>Click an exercise on the left to start editing.</p>
+        </div>
+      </ng-template>
+
+    </div><!-- /split-layout -->
+
+  </div><!-- /step-3 card -->
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 4  — SAVE ALL
+  ════════════════════════════════════════════════════════════ -->
+  <div class="wab-card wab-save-all" *ngIf="exercises.length > 0">
+    <div class="wab-card__head">
+      <span class="step-badge">3</span>
+      <h2>Finalize &amp; Save</h2>
+    </div>
+    <p>Review all exercises above, then click <strong>Save All Exercises</strong> to finalise.</p>
+    <button class="wab-btn wab-btn--primary wab-btn--lg" (click)="saveAll()">
+      <span class="material-icons">cloud_upload</span>
+      Save All Exercises ({{ exercises.length }})
+    </button>
+  </div>
+
+</div>

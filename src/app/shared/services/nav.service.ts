@@ -33,8 +33,11 @@ export class NavService {
       '/admin/digital-exercises',
       '/admin/digital-exercises/create',
       '/admin/digital-exercises/create-video',
-      '/admin/digital-exercises/generate-ai',
+      // '/admin/digital-exercises/generate-ai', // DISABLED: PDF worksheet extractor route
       '/admin/digital-exercises/generate-listening-manual'
+    ],
+    'worksheet-ai-builder': [
+      '/admin/worksheet-ai-builder'
     ],
     'manage-classes': [
       '/teacher/meetings'
@@ -74,6 +77,7 @@ export class NavService {
         { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',             subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: '🦊', route: '/admin/dg-modules',          subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: '🏋️', route: '/admin/digital-exercises',   subGroup: null },
+        { id: 'worksheet-ai-builder', label: 'Worksheet AI Builder', icon: '🤖', route: '/admin/worksheet-ai-builder', subGroup: null },
         { id: 'teacher-resources', label: 'Teacher Resources', icon: '🗂️', route: '/admin/teacher-resources', subGroup: null },
         { id: 'journey',           label: 'Journey',            icon: '📅', route: '/admin/journey',             subGroup: null },
         { id: 'go-students',       label: 'GO Students',        icon: '🚀', route: '/admin/go-students',         subGroup: null }
