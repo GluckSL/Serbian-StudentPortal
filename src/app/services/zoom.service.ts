@@ -224,6 +224,9 @@ export class ZoomService {
     datePreset?: string;
     dateFrom?: string;
     dateTo?: string;
+    /** scheduled | ongoing | ended — server filters entire collection before pagination */
+    lifecycle?: string;
+    includeTabCounts?: boolean;
   }): Observable<any> {
     let url = `${this.apiUrl}/meetings`;
     const params = new URLSearchParams();
@@ -239,6 +242,8 @@ export class ZoomService {
     if (filters?.datePreset) params.append('datePreset', filters.datePreset);
     if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
     if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters?.lifecycle) params.append('lifecycle', filters.lifecycle);
+    if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
     const qs = params.toString();
     if (qs) url += `?${qs}`;
 

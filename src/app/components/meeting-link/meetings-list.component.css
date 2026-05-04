@@ -116,6 +116,47 @@
 
 .loading-container ::ng-deep .mat-mdc-progress-spinner circle { stroke: #005b96; }
 
+/* ── Skeleton loading ── */
+.meetings-skeleton {
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  margin-bottom: 10px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.skeleton-line {
+  height: 13px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e2e8f0 0%, #f8fafc 40%, #e2e8f0 80%);
+  background-size: 220% 100%;
+  animation: meetings-skel-shimmer 1.15s ease-in-out infinite;
+}
+
+.skeleton-line--short { width: 72px; flex-shrink: 0; }
+.skeleton-line--medium { width: 130px; flex-shrink: 0; }
+.skeleton-line--long { flex: 1; min-width: 100px; }
+
+@keyframes meetings-skel-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.meetings-paginator {
+  margin-top: 12px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+}
+
 /* ── Error Card ── */
 .error-card {
   display: flex;

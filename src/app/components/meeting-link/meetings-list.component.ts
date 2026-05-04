@@ -4,6 +4,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { PageEvent } from '@angular/material/paginator';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
@@ -24,8 +25,7 @@ import { catchError } from 'rxjs/operators';
 })
 export class MeetingsListComponent implements OnInit, OnDestroy {
   meetings: any[] = [];
-  filteredMeetings: any[] = [];
-  loading: boolean = true;
+  loading = true;
   isDeletingSelected = false;
   error: string = '';
   userRole: string = ''; // Track user role
@@ -36,8 +36,22 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   batchFilter: string = 'all';
   searchQuery: string = '';
 
+  /** Server pagination (filters apply to full collection, then slice) */
+  pageIndex = 0;
+  pageSize = 15;
+  totalCount = 0;
+  tabCounts: { scheduled: number; ongoing: number; ended: number } = {
+    scheduled: 0,
+    ongoing: 0,
+    ended: 0
+  };
+  availableBatches: string[] = [];
+
   /** mat-tab-group index ↔ statusTab */
   tabIndex = 0;
+
+  private loadSeq = 0;
+  private filterDebounceTimer?: ReturnType<typeof setTimeout>;
 
   displayedColumnsAdmin: string[] = [
     'status', 'topic', 'teacher', 'dateTime', 'duration', 'participants', 'batch', 'actions'
@@ -66,55 +80,68 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     if (this.joinLabelTimer) {
       clearInterval(this.joinLabelTimer);
     }
+    if (this.filterDebounceTimer) {
+      clearTimeout(this.filterDebounceTimer);
+    }
   }
 
   loadMeetings(): void {
+    const seq = ++this.loadSeq;
     this.loading = true;
     this.error = '';
 
-    this.zoomService.getAllMeetings().subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.meetings = response.data;
-          this.userRole = response.userRole || ''; // Store user role
-          this.applyFilters();
-        } else {
-          this.error = response.message || 'Failed to load meetings';
+    const batchParam = this.batchFilter !== 'all' ? this.batchFilter : undefined;
+    const searchTrim = this.searchQuery.trim();
+
+    this.zoomService
+      .getAllMeetings({
+        lifecycle: this.statusTab,
+        page: this.pageIndex + 1,
+        limit: this.pageSize,
+        search: searchTrim || undefined,
+        batch: batchParam,
+        includeTabCounts: true
+      })
+      .subscribe({
+        next: (response) => {
+          if (seq !== this.loadSeq) return;
+          if (response.success) {
+            this.meetings = response.data || [];
+            this.userRole = response.userRole || '';
+            this.totalCount = Number(response.totalCount) || 0;
+            const lastPageIndex = Math.max(Math.ceil(this.totalCount / this.pageSize) - 1, 0);
+            if (this.pageIndex > lastPageIndex) {
+              this.pageIndex = lastPageIndex;
+              this.loading = false;
+              this.isDeletingSelected = false;
+              this.loadMeetings();
+              return;
+            }
+            if (response.tabCounts) {
+              this.tabCounts = {
+                scheduled: response.tabCounts.scheduled ?? 0,
+                ongoing: response.tabCounts.ongoing ?? 0,
+                ended: response.tabCounts.ended ?? 0
+              };
+            }
+            if (Array.isArray(response.availableBatches)) {
+              this.availableBatches = response.availableBatches;
+            }
+            this.pruneSelection();
+          } else {
+            this.error = response.message || 'Failed to load meetings';
+          }
+          this.loading = false;
+          this.isDeletingSelected = false;
+        },
+        error: (err) => {
+          if (seq !== this.loadSeq) return;
+          console.error('Error loading meetings:', err);
+          this.error = err.error?.message || 'Failed to load meetings';
+          this.loading = false;
+          this.isDeletingSelected = false;
         }
-        this.loading = false;
-        this.isDeletingSelected = false;
-      },
-      error: (err) => {
-        console.error('Error loading meetings:', err);
-        this.error = err.error?.message || 'Failed to load meetings';
-        this.loading = false;
-        this.isDeletingSelected = false;
-      }
-    });
-  }
-
-  applyFilters(): void {
-    this.filteredMeetings = this.meetings.filter(meeting => {
-      if (this.effectiveTabStatus(meeting) !== this.statusTab) {
-        return false;
-      }
-
-      if (this.batchFilter !== 'all' && meeting.batch !== this.batchFilter) {
-        return false;
-      }
-
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        return (
-          meeting.topic?.toLowerCase().includes(query) ||
-          meeting.batch?.toLowerCase().includes(query) ||
-          meeting.agenda?.toLowerCase().includes(query)
-        );
-      }
-
-      return true;
-    });
-    this.pruneSelection();
+      });
   }
 
   /** Map DB row + time window → which of the three tabs this meeting belongs to */
@@ -133,25 +160,35 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     this.tabIndex = index;
     const map: Array<'scheduled' | 'ongoing' | 'ended'> = ['scheduled', 'ongoing', 'ended'];
     this.statusTab = map[index] ?? 'scheduled';
+    this.pageIndex = 0;
     if (!this.canBulkDelete()) {
       this.selectedMeetingIds.clear();
     }
-    this.applyFilters();
+    this.loadMeetings();
   }
 
   tabCount(tab: 'scheduled' | 'ongoing' | 'ended'): number {
-    return this.meetings.filter((m) => {
-      if (this.batchFilter !== 'all' && m.batch !== this.batchFilter) return false;
-      if (this.searchQuery) {
-        const q = this.searchQuery.toLowerCase();
-        return (
-          m.topic?.toLowerCase().includes(q) ||
-          m.batch?.toLowerCase().includes(q) ||
-          m.agenda?.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    }).filter((m) => this.effectiveTabStatus(m) === tab).length;
+    return this.tabCounts[tab] ?? 0;
+  }
+
+  onSearchChange(): void {
+    if (this.filterDebounceTimer) clearTimeout(this.filterDebounceTimer);
+    this.filterDebounceTimer = setTimeout(() => {
+      this.filterDebounceTimer = undefined;
+      this.pageIndex = 0;
+      this.loadMeetings();
+    }, 350);
+  }
+
+  onBatchFilterChange(): void {
+    this.pageIndex = 0;
+    this.loadMeetings();
+  }
+
+  onPageChange(ev: PageEvent): void {
+    this.pageIndex = ev.pageIndex;
+    this.pageSize = ev.pageSize;
+    this.loadMeetings();
   }
 
   tableColumns(): string[] {
@@ -159,9 +196,6 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     return this.canBulkDelete() ? ['select', ...base] : base;
   }
 
-  onFilterChange(): void {
-    this.applyFilters();
-  }
 
   canBulkDelete(): boolean {
     return this.statusTab === 'scheduled';
@@ -180,21 +214,21 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   }
 
   areAllFilteredSelected(): boolean {
-    if (!this.filteredMeetings.length) return false;
-    return this.filteredMeetings.every((m) => this.selectedMeetingIds.has(m._id));
+    if (!this.meetings.length) return false;
+    return this.meetings.every((m) => this.selectedMeetingIds.has(m._id));
   }
 
   hasSomeFilteredSelected(): boolean {
-    if (!this.filteredMeetings.length) return false;
-    const selectedCount = this.filteredMeetings.filter((m) => this.selectedMeetingIds.has(m._id)).length;
-    return selectedCount > 0 && selectedCount < this.filteredMeetings.length;
+    if (!this.meetings.length) return false;
+    const selectedCount = this.meetings.filter((m) => this.selectedMeetingIds.has(m._id)).length;
+    return selectedCount > 0 && selectedCount < this.meetings.length;
   }
 
   toggleSelectAllFiltered(checked: boolean): void {
     if (checked) {
-      this.filteredMeetings.forEach((m) => this.selectedMeetingIds.add(m._id));
+      this.meetings.forEach((m) => this.selectedMeetingIds.add(m._id));
     } else {
-      this.filteredMeetings.forEach((m) => this.selectedMeetingIds.delete(m._id));
+      this.meetings.forEach((m) => this.selectedMeetingIds.delete(m._id));
     }
   }
 
@@ -247,7 +281,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   }
 
   private pruneSelection(): void {
-    const visibleIds = new Set(this.filteredMeetings.map((m) => m._id));
+    const visibleIds = new Set(this.meetings.map((m) => m._id));
     Array.from(this.selectedMeetingIds).forEach((id) => {
       if (!visibleIds.has(id)) this.selectedMeetingIds.delete(id);
     });
@@ -367,8 +401,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   }
 
   getUniqueBatches(): string[] {
-    const batches = this.meetings.map(m => m.batch).filter(Boolean);
-    return [...new Set(batches)].sort();
+    return this.availableBatches.length ? this.availableBatches : [];
   }
 
   isAdmin(): boolean {

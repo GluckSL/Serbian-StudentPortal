@@ -14,13 +14,13 @@
   <mat-card class="filters-card">
     <div class="filters">
       <mat-form-field appearance="outline">
-        <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onFilterChange()" placeholder="Search by topic, batch...">
+        <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Search by topic, batch...">
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Batch</mat-label>
-        <mat-select [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
+        <mat-select [(ngModel)]="batchFilter" (ngModelChange)="onBatchFilterChange()">
           <mat-option value="all">All Batches</mat-option>
           <mat-option *ngFor="let batch of getUniqueBatches()" [value]="batch">
             {{ batch }}
@@ -29,12 +29,6 @@
       </mat-form-field>
     </div>
   </mat-card>
-
-  <!-- Loading State -->
-  <div *ngIf="loading" class="loading-container">
-    <mat-spinner></mat-spinner>
-    <p>Loading meetings...</p>
-  </div>
 
   <!-- Error State -->
   <mat-card *ngIf="error && !loading" class="error-card">
@@ -46,8 +40,7 @@
     </button>
   </mat-card>
 
-  <ng-container *ngIf="!loading && !error">
-    <mat-tab-group
+  <mat-tab-group
       class="meetings-tabs"
       [selectedIndex]="tabIndex"
       (selectedIndexChange)="onTabIndexChange($event)"
@@ -55,30 +48,40 @@
       <mat-tab>
         <ng-template mat-tab-label>
           <span class="tab-label">Scheduled</span>
-          <span class="tab-count" *ngIf="tabCount('scheduled') > 0">{{ tabCount('scheduled') }}</span>
+          <span class="tab-count">{{ tabCount('scheduled') }}</span>
         </ng-template>
       </mat-tab>
       <mat-tab>
         <ng-template mat-tab-label>
           <span class="tab-label">Ongoing</span>
-          <span class="tab-count" *ngIf="tabCount('ongoing') > 0">{{ tabCount('ongoing') }}</span>
+          <span class="tab-count">{{ tabCount('ongoing') }}</span>
         </ng-template>
       </mat-tab>
       <mat-tab>
         <ng-template mat-tab-label>
           <span class="tab-label">Ended</span>
-          <span class="tab-count" *ngIf="tabCount('ended') > 0">{{ tabCount('ended') }}</span>
+          <span class="tab-count">{{ tabCount('ended') }}</span>
         </ng-template>
       </mat-tab>
     </mat-tab-group>
 
-    <mat-card *ngIf="canBulkDelete() && filteredMeetings.length > 0" class="bulk-actions-card">
+  <!-- Skeleton while loading -->
+  <div *ngIf="loading" class="meetings-skeleton" aria-busy="true">
+    <div class="skeleton-row" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+      <div class="skeleton-line skeleton-line--short"></div>
+      <div class="skeleton-line skeleton-line--long"></div>
+      <div class="skeleton-line skeleton-line--medium"></div>
+    </div>
+  </div>
+
+  <ng-container *ngIf="!loading && !error">
+    <mat-card *ngIf="canBulkDelete() && meetings.length > 0" class="bulk-actions-card">
       <div class="bulk-actions-row">
         <mat-checkbox
           [checked]="areAllFilteredSelected()"
           [indeterminate]="hasSomeFilteredSelected()"
           (change)="toggleSelectAllFiltered($event.checked)">
-          Select all in this list
+          Select all on this page
         </mat-checkbox>
         <div class="bulk-actions-right">
           <span class="selected-count" *ngIf="selectedCount() > 0">{{ selectedCount() }} selected</span>
@@ -94,7 +97,7 @@
 
     <div class="meetings-content">
     <!-- No Meetings -->
-    <mat-card *ngIf="filteredMeetings.length === 0" class="no-meetings-card">
+    <mat-card *ngIf="meetings.length === 0" class="no-meetings-card">
       <mat-icon>event_busy</mat-icon>
       <h3>No meetings in this tab</h3>
       <p *ngIf="searchQuery || batchFilter !== 'all'">
@@ -110,8 +113,8 @@
     </mat-card>
 
     <!-- Desktop: table -->
-    <div *ngIf="filteredMeetings.length > 0" class="meetings-table-wrap">
-      <table mat-table [dataSource]="filteredMeetings" class="meetings-table mat-elevation-z1">
+    <div *ngIf="meetings.length > 0" class="meetings-table-wrap">
+      <table mat-table [dataSource]="meetings" class="meetings-table mat-elevation-z1">
 
         <ng-container matColumnDef="select">
           <th mat-header-cell *matHeaderCellDef>
@@ -199,9 +202,9 @@
     </div>
 
     <!-- Mobile: cards -->
-    <div *ngIf="filteredMeetings.length > 0" class="meetings-cards-wrap">
+    <div *ngIf="meetings.length > 0" class="meetings-cards-wrap">
       <mat-card
-        *ngFor="let meeting of filteredMeetings"
+        *ngFor="let meeting of meetings"
         class="meeting-card"
         (click)="viewMeeting(meeting._id)">
 
@@ -260,6 +263,17 @@
         </mat-card-actions>
       </mat-card>
     </div>
+
+    <mat-paginator
+      *ngIf="totalCount > 0"
+      class="meetings-paginator"
+      [length]="totalCount"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="[10, 15, 25, 50]"
+      [showFirstLastButtons]="true"
+      (page)="onPageChange($event)">
+    </mat-paginator>
     </div>
   </ng-container>
 </div>

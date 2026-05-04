@@ -392,6 +392,55 @@ function istMidnightUtcMsFromYmd(ymd) {
   return new Date(`${ymd}T00:00:00.000+05:30`).getTime();
 }
 
+/**
+ * Time-based lifecycle for meeting list tabs (matches Angular meetings-list `getMeetingStatus` / `effectiveTabStatus`).
+ */
+function lifecycleExprClause(lifecycle) {
+  const durationMs = { $multiply: [{ $toLong: { $ifNull: ['$duration', 0] } }, 60000] };
+  const endTime = { $add: ['$startTime', durationMs] };
+  if (lifecycle === 'scheduled') {
+    return {
+      $expr: {
+        $and: [
+          { $ne: [{ $ifNull: ['$status', ''] }, 'cancelled'] },
+          { $ne: ['$startTime', null] },
+          { $lt: ['$$NOW', '$startTime'] }
+        ]
+      }
+    };
+  }
+  if (lifecycle === 'ongoing') {
+    return {
+      $expr: {
+        $and: [
+          { $ne: [{ $ifNull: ['$status', ''] }, 'cancelled'] },
+          { $ne: ['$startTime', null] },
+          { $gte: ['$$NOW', '$startTime'] },
+          { $lte: ['$$NOW', endTime] }
+        ]
+      }
+    };
+  }
+  if (lifecycle === 'ended') {
+    return {
+      $expr: {
+        $or: [
+          { $eq: [{ $ifNull: ['$status', ''] }, 'cancelled'] },
+          { $eq: ['$startTime', null] },
+          { $gt: ['$$NOW', endTime] }
+        ]
+      }
+    };
+  }
+  return null;
+}
+
+function mergeAndClauses(baseClauses, extraClause) {
+  if (!extraClause) return baseClauses.length ? { $and: baseClauses } : {};
+  if (!baseClauses.length) return { $and: [extraClause] };
+  return { $and: [...baseClauses, extraClause] };
+}
+
 router.get('/meetings', verifyToken, async (req, res) => {
   try {
     const { status, batch, date } = req.query;
@@ -466,7 +515,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
         .select('_id')
         .lean();
       const searchTeacherIds = teacherHits.map((u) => u._id);
-      const searchOr = [{ topic: rx }];
+      const searchOr = [{ topic: rx }, { agenda: rx }];
       if (searchTeacherIds.length) {
         searchOr.push({ assignedTeacher: { $in: searchTeacherIds } });
         searchOr.push({ createdBy: { $in: searchTeacherIds } });
@@ -539,6 +588,17 @@ router.get('/meetings', verifyToken, async (req, res) => {
           ]
         }
       });
+    }
+
+    const coreAndClauses = [...andClauses];
+
+    const lifecycleRaw = String(req.query.lifecycle || '').trim().toLowerCase();
+    const lifecycle = ['scheduled', 'ongoing', 'ended'].includes(lifecycleRaw) ? lifecycleRaw : null;
+    const includeTabCounts = String(req.query.includeTabCounts || '').toLowerCase() === 'true';
+
+    if (lifecycle) {
+      const lc = lifecycleExprClause(lifecycle);
+      if (lc) andClauses.push(lc);
     }
 
     const query = andClauses.length ? { $and: andClauses } : {};
@@ -616,8 +676,30 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
 
+    let tabCounts;
+    let availableBatches;
+    if (includeTabCounts) {
+      const batchOnlyClauses = [];
+      if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
+        batchOnlyClauses.push({
+          $or: [{ createdBy: userId }, { assignedTeacher: userId }]
+        });
+      }
+      const batchQuery = batchOnlyClauses.length ? { $and: batchOnlyClauses } : {};
+      const [cScheduled, cOngoing, cEnded, rawBatches] = await Promise.all([
+        MeetingLink.countDocuments(mergeAndClauses(coreAndClauses, lifecycleExprClause('scheduled'))),
+        MeetingLink.countDocuments(mergeAndClauses(coreAndClauses, lifecycleExprClause('ongoing'))),
+        MeetingLink.countDocuments(mergeAndClauses(coreAndClauses, lifecycleExprClause('ended'))),
+        MeetingLink.distinct('batch', batchQuery)
+      ]);
+      tabCounts = { scheduled: cScheduled, ongoing: cOngoing, ended: cEnded };
+      availableBatches = [...new Set(rawBatches.map((b) => String(b || '').trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true })
+      );
+    }
+
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.status(200).json({
+    const payload = {
       success: true,
       count: meetings.length,
       totalCount,
@@ -631,8 +713,11 @@ router.get('/meetings', verifyToken, async (req, res) => {
       },
       summary: summaryRow,
       data: meetings,
-      userRole: user.role // Include role in response for frontend
-    });
+      userRole: user.role
+    };
+    if (tabCounts) payload.tabCounts = tabCounts;
+    if (availableBatches) payload.availableBatches = availableBatches;
+    res.status(200).json(payload);
 
   } catch (error) {
     console.error('❌ Error fetching meetings:', error);
