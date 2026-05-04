@@ -46,7 +46,17 @@ async function putExerciseMediaBuffer(buffer, key, contentType) {
       ContentType: contentType || 'application/octet-stream',
     })
   );
-  return `${cfg.publicBaseUrl}/${normalizedKey}`;
+  const publicUrl = `${cfg.publicBaseUrl}/${normalizedKey}`;
+  const bytes = Buffer.isBuffer(buffer) ? buffer.length : 0;
+  console.log(
+    '[R2 exercise audio] Upload complete (server PutObject) bucket=%s key=%s contentType=%s bytes=%s publicUrl=%s',
+    cfg.bucket,
+    normalizedKey,
+    contentType || 'application/octet-stream',
+    bytes,
+    publicUrl
+  );
+  return publicUrl;
 }
 
 async function headExerciseMediaKey(key) {

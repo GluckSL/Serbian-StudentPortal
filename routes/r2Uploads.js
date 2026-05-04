@@ -63,6 +63,17 @@ router.post(
       const uploadUrl = await getSignedUrl(client, command, { expiresIn: 900 });
       const fileUrl = `${String(publicBaseUrl).replace(/\/+$/, '')}/${key}`;
 
+      const uid = req.user?.id != null ? String(req.user.id) : 'unknown';
+      const role = req.user?.role || '';
+      console.log(
+        '[R2 exercise audio] Presigned PUT issued user=%s role=%s key=%s contentType=%s publicUrl=%s (client will PUT next)',
+        uid,
+        role,
+        key,
+        contentType,
+        fileUrl
+      );
+
       return res.json({ uploadUrl, fileUrl });
     } catch (err) {
       console.error('R2 presign generation failed:', err);
