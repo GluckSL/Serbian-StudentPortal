@@ -228,7 +228,6 @@ export class NavService {
       group: 'My Course',
       items: [
         { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null },
-        { id: 'dg-bot', label: 'DG Bot', icon: '🦊', route: '/dg-bot', subGroup: null },
         { id: 'student-announcements', label: 'Announcements', icon: '📢', route: '/student/announcements', subGroup: null }
       ]
     },

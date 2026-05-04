@@ -1,4 +1,5 @@
 const DGModule = require('../models/DGModule');
+const DGSession = require('../models/DGSession');
 const LearningModule = require('../models/LearningModule');
 const {
   getStudentDgJourneyAccess,
@@ -206,7 +207,19 @@ exports.listStudent = async (req, res) => {
         order: s.order,
       })),
     }));
-    res.json({ modules: sanitized });
+
+    const completedModuleIds = await DGSession.distinct('moduleId', {
+      studentId: req.user.id,
+      completed: true,
+    });
+    const completedSet = new Set((completedModuleIds || []).map((id) => String(id)));
+
+    const out = sanitized.map((m) => ({
+      ...m,
+      studentProgress: { completed: completedSet.has(String(m._id)) },
+    }));
+
+    res.json({ modules: out, studentCourseDay: studentDay });
   } catch (e) {
     res.status(500).json({ message: e.message || 'List failed' });
   }

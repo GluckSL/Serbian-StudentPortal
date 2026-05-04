@@ -1,5 +1,5 @@
-<div class="dg-hub">
-  <header class="dg-hub__header">
+<div class="dg-hub" [class.dg-hub--embedded]="embedded" [class.dg-hub--journey-day]="journeyFixedDay != null">
+  <header class="dg-hub__header" *ngIf="!embedded">
     <div class="dg-hub__header-main">
       <h1 class="dg-hub__title">
         <mat-icon>smart_toy</mat-icon>
@@ -15,11 +15,21 @@
     </div>
   </header>
 
+  <header class="dg-hub__header dg-hub__header--embedded" *ngIf="embedded && !hideEmbeddedHeader">
+    <div class="dg-hub__header-main">
+      <h1 class="dg-hub__title dg-hub__title--embedded">
+        <mat-icon>forum</mat-icon>
+        Talk Buddy
+      </h1>
+      <p class="dg-hub__lead">Guided speaking practice — same lessons as DG Bot, organized by your journey day.</p>
+    </div>
+  </header>
+
   <div *ngIf="loading" class="dg-hub__state">Loading…</div>
   <div *ngIf="error" class="dg-hub__err">{{ error }}</div>
 
   <ng-container *ngIf="!loading && !error">
-    <section class="dg-hub__stats">
+    <section class="dg-hub__stats" *ngIf="!embedded && modules.length > 0">
       <article class="dg-hub__stat-card dg-hub__stat-card--primary">
         <span class="dg-hub__stat-value">{{ totalModules }}</span>
         <span class="dg-hub__stat-label">Modules</span>
@@ -42,17 +52,93 @@
       </article>
     </section>
 
-    <section class="dg-hub__summary">
+    <section class="dg-hub__summary" *ngIf="!embedded && modules.length > 0">
       <span class="dg-hub__summary-count">{{ totalModules }}</span>
       <span class="dg-hub__summary-text">modules available for practice</span>
     </section>
 
-    <section class="dg-hub__table-card" *ngIf="modules.length > 0">
+    <!-- Standalone hub: full filters -->
+    <div class="dg-hub__filters" *ngIf="showFullFilters()">
+      <div class="dg-hub__search-wrap">
+        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
+        <input
+          type="text"
+          class="dg-hub__search-input"
+          [placeholder]="searchInputPlaceholder"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchInput()"
+        />
+        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dg-hub__filter-row">
+        <mat-form-field appearance="outline" class="dg-hub__filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+          <mat-select
+            [(ngModel)]="selectedLevel"
+            (selectionChange)="onFilterChange()"
+            panelClass="dg-hub-select-panel"
+            aria-label="Filter by level"
+          >
+            <mat-option value="">All levels</mat-option>
+            <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="dg-hub__filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+          <mat-select
+            [(ngModel)]="selectedLanguage"
+            (selectionChange)="onFilterChange()"
+            panelClass="dg-hub-select-panel"
+            aria-label="Filter by language"
+          >
+            <mat-option value="">All languages</mat-option>
+            <mat-option *ngFor="let lang of languageOptions" [value]="lang">{{ lang }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <span class="dg-hub__journey-hint">{{ journeyWeekHint }}</span>
+        <button type="button" class="dg-hub__clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+          <span class="material-icons">filter_alt_off</span>
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- My Course → Talk Buddy tab: optional title search only -->
+    <div class="dg-hub__filters dg-hub__filters--search-only" *ngIf="showEmbeddedSearchOnly()">
+      <div class="dg-hub__search-wrap">
+        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
+        <input
+          type="text"
+          class="dg-hub__search-input"
+          [placeholder]="searchInputPlaceholder"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchInput()"
+        />
+        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="dg-hub__tabs" *ngIf="modules.length > 0">
+      <div class="dg-hub__tabs-inner">
+        <button type="button" class="dg-hub__tab" [class.dg-hub__tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
+          Completed
+        </button>
+        <button type="button" class="dg-hub__tab" [class.dg-hub__tab--on]="activeTab === 'pending'" (click)="setTab('pending')">
+          Pending
+        </button>
+        <button type="button" class="dg-hub__tab" [class.dg-hub__tab--on]="activeTab === 'new'" (click)="setTab('new')">New</button>
+      </div>
+    </div>
+
+    <section class="dg-hub__table-card" *ngIf="modules.length > 0 && filteredModules.length > 0">
       <div class="dg-hub__table-wrap">
         <table class="dg-hub__table">
           <thead>
             <tr>
               <th>Module</th>
+              <th *ngIf="journeyFixedDay == null">Journey day</th>
               <th>Level</th>
               <th>Language</th>
               <th>Status</th>
@@ -60,10 +146,13 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let m of modules; trackBy: trackModule">
+            <tr *ngFor="let m of paginatedModules; trackBy: trackModule">
               <td>
                 <div class="dg-hub__module-title">{{ m.title }}</div>
                 <div class="dg-hub__module-desc">{{ m.description || 'Guided speaking practice' }}</div>
+              </td>
+              <td *ngIf="journeyFixedDay == null">
+                <span class="dg-hub__day-pill">{{ journeyDayLabel(m) }}</span>
               </td>
               <td>
                 <span class="dg-hub__level-badge">{{ m.level || '—' }}</span>
@@ -74,32 +163,63 @@
               <td>
                 <span
                   class="dg-hub__status-badge"
-                  [class.dg-hub__status-badge--live]="m.visibleToStudents"
-                  [class.dg-hub__status-badge--draft]="!m.visibleToStudents"
+                  [class.dg-hub__status-badge--done]="isModuleCompleted(m)"
+                  [class.dg-hub__status-badge--live]="!isModuleCompleted(m) && m.visibleToStudents"
                 >
-                  {{ m.visibleToStudents ? 'Live' : 'Draft' }}
+                  {{ isModuleCompleted(m) ? 'Completed' : m.visibleToStudents ? 'Available' : 'Draft' }}
                 </span>
               </td>
               <td class="dg-hub__actions">
-                <a
-                  mat-stroked-button
-                  class="dg-hub__action-btn"
-                  [routerLink]="['/dg-bot', m._id, 'play']"
-                >
+                <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']">
                   <mat-icon>play_arrow</mat-icon>
-                  Preview
+                  {{ isModuleCompleted(m) ? 'Practice again' : 'Start' }}
                 </a>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <div class="dg-hub__pager" *ngIf="totalPages > 1">
+        <button type="button" class="dg-hub__pager-btn" [disabled]="currentPage <= 1" (click)="changePage(currentPage - 1)">
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+        <button
+          type="button"
+          class="dg-hub__pager-num"
+          *ngFor="let p of getPageNumbers()"
+          [class.dg-hub__pager-num--on]="p === currentPage"
+          (click)="changePage(p)"
+        >
+          {{ p }}
+        </button>
+        <button
+          type="button"
+          class="dg-hub__pager-btn"
+          [disabled]="currentPage >= totalPages"
+          (click)="changePage(currentPage + 1)"
+        >
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+      </div>
     </section>
 
-    <section *ngIf="modules.length === 0" class="dg-hub__empty">
+    <section *ngIf="modules.length > 0 && filteredModules.length === 0" class="dg-hub__empty dg-hub__empty--soft">
+      <div class="dg-hub__empty-icon">🦊</div>
+      <h3>No modules in this view</h3>
+      <p>Try another tab<span *ngIf="showFullFilters() || showEmbeddedSearchOnly()"> or clear filters</span>.</p>
+    </section>
+
+    <section *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">
+      <div class="dg-hub__empty-icon">🦊</div>
+      <h3>No Talk Buddy for this day</h3>
+      <p>There are no speaking lessons assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
+    </section>
+
+    <section *ngIf="modules.length === 0 && rawModuleCount === 0" class="dg-hub__empty">
       <div class="dg-hub__empty-icon">🦊</div>
       <h3>No published DG modules yet</h3>
-      <p>Ask your teacher to publish DG Bot lessons.</p>
+      <p>Ask your teacher to publish Talk Buddy lessons.</p>
     </section>
   </ng-container>
 </div>

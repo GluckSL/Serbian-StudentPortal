@@ -13,7 +13,9 @@ import { NotificationService } from '../../services/notification.service';
 import { StudentMeetingsComponent } from '../meeting-link/student-meetings.component';
 import { StudentRecordingsComponent } from '../class-recordings/student-recordings/student-recordings.component';
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
-import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
+// Digital learning modules (Modules tab) removed from student My Course — use Talk Buddy for DG speaking practice.
+// import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
+import { DgBotHubComponent } from '../../dg-bot/dg-bot-hub/dg-bot-hub.component';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -23,7 +25,7 @@ import {
   JourneyPendingCelebrationData
 } from './journey-pending-celebration-dialog.component';
 
-type MyCourseTab = 'classes' | 'exercises' | 'modules' | 'journey';
+type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey';
 type JourneyFilter = 'all' | 'completed' | 'pending';
 type ProgressRange = 'weekly' | 'overall';
 
@@ -37,12 +39,18 @@ type ProgressRange = 'weekly' | 'overall';
     StudentMeetingsComponent,
     StudentRecordingsComponent,
     DigitalExercisesComponent,
-    LearningModulesComponent
+    DgBotHubComponent
   ],
   templateUrl: './my-course.component.html',
   styleUrls: ['./my-course.component.scss']
 })
 export class MyCourseComponent implements OnInit {
+  /**
+   * When false, digital learning modules are hidden everywhere in My Course
+   * (journey day lists, progress donuts). Talk Buddy (DG) remains available.
+   */
+  readonly showLearningModulesInJourney = false;
+
   /** Row placeholders for the loading skeleton (My class tab). */
   readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
   readonly skeletonSideLines = [0, 1, 2];
@@ -73,8 +81,6 @@ export class MyCourseComponent implements OnInit {
   /** Quick access: newest unlocked + not-started exercise. */
   nextNewDigitalExercise: DigitalExercise | null = null;
 
-  /** Quick access: newest accessible module not completed. */
-  nextNewAccessibleModule: LearningModule | null = null;
   latestAnnouncement: AnnouncementItem | null = null;
   announcementDismissed = false;
   announcementExpanded = false;
@@ -189,10 +195,19 @@ export class MyCourseComponent implements OnInit {
     // Announcements are shown under Help & Support (messenger) → Announcements.
 
     this.route.queryParamMap.subscribe((q) => {
-      const t = q.get('tab');
-      if ((t === 'exercises' || t === 'modules') && !this.allowsLearningContent) {
+      let t = q.get('tab');
+      if (t === 'modules') {
+        t = 'talk-buddy';
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { tab: 'talk-buddy' },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+      }
+      if ((t === 'exercises' || t === 'talk-buddy') && !this.allowsLearningContent) {
         this.activeTab = 'classes';
-      } else if (t === 'exercises' || t === 'modules' || t === 'classes') {
+      } else if (t === 'exercises' || t === 'talk-buddy' || t === 'classes') {
         this.activeTab = t;
       } else if (t === 'journey') {
         this.activeTab = t;
@@ -207,8 +222,6 @@ export class MyCourseComponent implements OnInit {
   private loadQuickAccess(): void {
     if (this.destroyed) return;
     this.nextNewDigitalExercise = null;
-    this.nextNewAccessibleModule = null;
-
     const courseDay = this.journeyCourseDay;
     const levelRaw = this.profile?.currentLevel || this.profile?.currentLevelCode || this.profile?.level;
     const studentLevel = typeof levelRaw === 'string' ? levelRaw.split(/\s+/)[0] : '';
@@ -243,7 +256,7 @@ export class MyCourseComponent implements OnInit {
         }
       });
 
-    if (studentLevel) {
+    if (studentLevel && this.showLearningModulesInJourney) {
       this.learningModulesService
         .getAccessibleModules(studentLevel, { page: 1, limit: 500 })
         .pipe(takeUntilDestroyed(this.destroyRef))
@@ -251,15 +264,6 @@ export class MyCourseComponent implements OnInit {
           next: (res) => {
             const modules: LearningModule[] = Array.isArray(res?.modules) ? res.modules : [];
             this.journeyDayModules = modules;
-            const candidates = modules.filter((m: any) => {
-              const moduleDay = m?.courseDay;
-              const unlockedByJourney = moduleDay != null && Number(moduleDay) <= courseDay;
-              if (!unlockedByJourney) return false;
-              // Module is "new/available" if student hasn't completed it.
-              return !m.studentProgress || m.studentProgress.status !== 'completed';
-            });
-            candidates.sort((a: any, b: any) => this.getPublishedTs(b) - this.getPublishedTs(a));
-            this.nextNewAccessibleModule = candidates[0] || null;
           },
           error: () => {}
         });
@@ -326,18 +330,16 @@ export class MyCourseComponent implements OnInit {
   get updatesPrimaryTab(): MyCourseTab {
     if (!this.allowsLearningContent) return 'classes';
     if (this.nextNewDigitalExercise || this.nextLockedDigitalExercise) return 'exercises';
-    if (this.nextNewAccessibleModule) return 'modules';
     return 'exercises';
   }
 
   get updatesLinkText(): string {
     if (!this.allowsLearningContent) return 'Go to classes';
-    if (this.updatesPrimaryTab === 'modules') return 'Go to modules';
     return 'Go to exercises';
   }
 
   setTab(tab: MyCourseTab): void {
-    if (!this.allowsLearningContent && (tab === 'exercises' || tab === 'modules')) {
+    if (!this.allowsLearningContent && (tab === 'exercises' || tab === 'talk-buddy')) {
       tab = 'classes';
     }
     this.activeTab = tab;
@@ -562,6 +564,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   get selectedDayModules(): LearningModule[] {
+    if (!this.showLearningModulesInJourney) return [];
     let list = this.journeyDayModules.filter((m) => Number((m as any).courseDay || 0) === this.selectedJourneyDay);
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.moduleDone(x));
     if (this.journeyFilter === 'pending') list = list.filter((x) => !this.moduleDone(x));
@@ -729,6 +732,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   private get progressModulesList(): LearningModule[] {
+    if (!this.showLearningModulesInJourney) return [];
     if (this.progressRange === 'overall') return this.journeyDayModules;
     return this.journeyDayModules.filter((m: any) => this.isInWeeklyJourneyWindow(m?.courseDay));
   }

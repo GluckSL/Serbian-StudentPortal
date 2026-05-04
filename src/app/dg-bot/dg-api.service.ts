@@ -68,8 +68,10 @@ export class DgApiService {
 
   constructor(private http: HttpClient) {}
 
-  listStudentModules(): Observable<{ modules: DgModuleSummary[] }> {
-    return this.http.get<{ modules: DgModuleSummary[] }>(`${this.base}/modules/student`);
+  listStudentModules(): Observable<{ modules: DgModuleSummary[]; studentCourseDay?: number }> {
+    return this.http.get<{ modules: DgModuleSummary[]; studentCourseDay?: number }>(
+      `${this.base}/modules/student`,
+    );
   }
 
   listAdminModules(): Observable<{ modules: DgModuleSummary[] }> {

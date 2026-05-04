@@ -493,7 +493,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   exit(): void {
     const u = this.auth.getSnapshotUser();
-    this.router.navigate(u?.role === 'STUDENT' ? ['/dg-bot'] : ['/admin/dg-modules']);
+    if (u?.role === 'STUDENT') {
+      this.router.navigate(['/student/my-course'], { queryParams: { tab: 'talk-buddy' } });
+    } else {
+      this.router.navigate(['/admin/dg-modules']);
+    }
   }
 
   async replayTts(): Promise<void> {

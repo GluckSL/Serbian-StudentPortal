@@ -1787,6 +1787,25 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
 }
+
+.mc-day-section__count--muted {
+  font-weight: 600;
+  color: #64748b;
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.mc-day-section__intro {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.mc-day-section-card--talkbuddy {
+  margin-top: 10px;
+}
+
 .mc-day-item {
   display: grid;
   grid-template-columns: 1fr auto auto;

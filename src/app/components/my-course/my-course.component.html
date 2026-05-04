@@ -4,7 +4,7 @@
       <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
       <p class="mc-hero__sub">
         <ng-container *ngIf="allowsLearningContent; else classesOnlyHero">
-          Join live classes, practice with exercises, and work through modules-all in one place.
+          Join live classes, practice with exercises, and open Talk Buddy for speaking practice—all in one place.
         </ng-container>
         <ng-template #classesOnlyHero>
           Join live classes and watch your class recordings in one place.
@@ -100,12 +100,13 @@
         Exercises
       </button>
       <button
+        *ngIf="allowsLearningContent"
         type="button"
         role="tab"
         class="mc-tab"
-        [class.mc-tab--on]="activeTab === 'modules'"
-        (click)="setTab('modules')">
-        Modules
+        [class.mc-tab--on]="activeTab === 'talk-buddy'"
+        (click)="setTab('talk-buddy')">
+        Talk Buddy
       </button>
       <button
         type="button"
@@ -211,31 +212,11 @@
         </div>
 
         <div
-          class="mc-update"
-          *ngIf="allowsLearningContent && nextNewAccessibleModule"
-          role="button"
-          tabindex="0"
-          (click)="setTab('modules')"
-          (keydown.enter)="setTab('modules')"
-        >
-          <span class="mc-update__icon mc-update__icon--module" aria-hidden="true">
-            <span class="material-icons">school</span>
-          </span>
-          <div class="mc-update__body">
-            <p class="mc-update__title">New module available</p>
-            <p class="mc-update__text">
-              <strong>{{ nextNewAccessibleModule.title }}</strong>
-              <span class="mc-update__when">{{ nextNewAccessibleModule.level }} · {{ nextNewAccessibleModule.category }}</span>
-            </p>
-          </div>
-        </div>
-
-        <div
           class="mc-update mc-update--empty"
-          *ngIf="allowsLearningContent && !nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise && !nextNewAccessibleModule"
+          *ngIf="allowsLearningContent && !nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise"
         >
           <span class="material-icons" aria-hidden="true">notifications_none</span>
-          <p>No new class, module, or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Modules</strong> anytime.</p>
+          <p>No new class or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Talk Buddy</strong> anytime.</p>
         </div>
 
         <button
@@ -254,8 +235,10 @@
     <app-digital-exercises [embedded]="true"></app-digital-exercises>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'modules'" role="tabpanel">
-    <app-learning-modules [embedded]="true"></app-learning-modules>
+  <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
+
+  <div class="mc-panel" *ngIf="activeTab === 'talk-buddy'" role="tabpanel">
+    <app-dg-bot-hub [embedded]="true"></app-dg-bot-hub>
   </div>
 
   <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
@@ -292,7 +275,7 @@
           <h4>Progress</h4>
           <p>
             <ng-container *ngIf="allowsLearningContent; else classesOnlyProgressText">
-              Weekly or overall completion across classes, modules, and exercises.
+              Weekly or overall completion across classes and exercises.
             </ng-container>
             <ng-template #classesOnlyProgressText>
               Weekly or overall completion across your classes.
@@ -347,7 +330,7 @@
           </div>
         </div>
 
-        <div class="mc-progress-card mc-progress-card--modules" tabindex="0" *ngIf="allowsLearningContent">
+        <div class="mc-progress-card mc-progress-card--modules" tabindex="0" *ngIf="allowsLearningContent && showLearningModulesInJourney">
           <div class="mc-progress-card__front">
             <div class="mc-progress-donut mc-progress-donut--amber" [style.--mc-p]="progressModulesPct + '%'" aria-hidden="true">
               <span>{{ progressModulesPct }}%</span>
@@ -446,14 +429,14 @@
 
     <div class="mc-day-empty" *ngIf="!selectedDayHasItems">
       <ng-container *ngIf="allowsLearningContent; else classesOnlyDayEmpty">
-        No modules or exercises assigned for this day.
+        No exercises assigned for this day.
       </ng-container>
       <ng-template #classesOnlyDayEmpty>
-        No modules or exercises for this batch type. Check your live classes below.
+        No exercises for this batch type. Check your live classes below.
       </ng-template>
     </div>
 
-    <div class="mc-day-sections" *ngIf="allowsLearningContent && selectedDayHasItems">
+    <div class="mc-day-sections" *ngIf="allowsLearningContent">
       <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises" *ngIf="selectedDayExercises.length">
         <div class="mc-day-section__head">
           <h4>Exercises</h4>
@@ -518,6 +501,19 @@
             {{ mod.studentProgress?.status === 'completed' ? 'Open' : 'Start' }}
           </button>
         </div>
+      </div>
+
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy">
+        <div class="mc-day-section__head">
+          <h4>Talk Buddy</h4>
+          <span class="mc-day-section__count mc-day-section__count--muted">Day {{ selectedJourneyDay }}</span>
+        </div>
+        <p class="mc-day-section__intro">Speaking role-play for this journey day (Completed / Pending / New).</p>
+        <app-dg-bot-hub
+          [embedded]="true"
+          [journeyFixedDay]="selectedJourneyDay"
+          [hideEmbeddedHeader]="true"
+        ></app-dg-bot-hub>
       </div>
     </div>
 
