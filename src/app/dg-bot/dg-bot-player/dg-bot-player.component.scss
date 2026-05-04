@@ -540,6 +540,9 @@
   font-weight: 700;
   color: #1e293b;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dg-conv__brand-text p {
@@ -585,17 +588,99 @@
   color: #fff;
 }
 
-.dg-conv__replay mat-icon {
-  margin-right: 0.25rem;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-}
-
 .dg-conv__replay {
   border-color: #d9e4ff !important;
   color: #334155 !important;
   background: #f8fbff !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  mat-icon {
+    margin-right: 0.25rem;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.dg-conv__menu-wrap {
+  position: relative;
+}
+
+.dg-conv__menu-trigger {
+  color: #4f46e5 !important;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.58), 0 4px 14px rgba(56, 189, 248, 0.16);
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  border: none;
+
+  mat-icon {
+    flex-shrink: 0;
+  }
+}
+
+.dg-conv__menu-trigger--active {
+  background: rgba(79, 70, 229, 0.1) !important;
+}
+
+.dg-conv__menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  z-index: 20;
+  min-width: 140px;
+}
+
+.dg-conv__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.dg-conv__menu-item--active {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.dg-conv__menu-item--replay mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.dg-conv__menu-sep {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.15rem 0;
 }
 
 .dg-conv__session-divider {

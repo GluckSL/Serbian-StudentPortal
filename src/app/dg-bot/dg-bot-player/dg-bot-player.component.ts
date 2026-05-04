@@ -122,6 +122,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   aiResponseText = '';
   aiResponseTamil = '';
   ccMode: 'none' | 'en' | 'ta' = 'none';
+  menuOpen = false;
+
+  toggleMenu(): void {
+    this.menuOpen = !this.menuOpen;
+  }
+
+  closeMenu(): void {
+    this.menuOpen = false;
+  }
 
   // ── Internals ────────────────────────────────────────────────────────────────
   private sceneEnteredAt = 0;
@@ -368,6 +377,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
+    document.addEventListener('click', this.onDocClick, true);
     const id = this.route.snapshot.paramMap.get('moduleId');
     if (!id) { this.error = 'Missing module'; this.loading = false; return; }
     this.boot(id);
@@ -381,7 +391,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.stopAudio();
     this.audioCache.clear();
     this.charState.forceIdle();
+    document.removeEventListener('click', this.onDocClick, true);
   }
+
+  private onDocClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest('.dg-conv__menu-wrap')) {
+      this.ngZone.run(() => { this.menuOpen = false; });
+    }
+  };
 
   // ── Boot ─────────────────────────────────────────────────────────────────────
 
