@@ -626,7 +626,6 @@
 .row-details {
   display: flex;
   flex-direction: column;
-  gap: 3px;
   min-width: 0;
 }
 
@@ -645,6 +644,12 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.ex-category {
+  display: none;
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
 .row-level .level-badge {
@@ -1216,100 +1221,92 @@
     display: none;
   }
 
-  /* Phone: stacked card — default (teacher / no journey day column) */
+  /* Phone: stacked card — modern, optimized space usage */
   .exercise-row {
-    display: grid;
-    grid-template-columns: 40px 1fr 1fr minmax(76px, auto);
-    grid-template-rows: auto auto auto auto;
-    gap: 8px 10px;
-    align-items: center;
-    min-width: 0 !important;
-    padding: 14px 12px;
-  }
-
-  .row-icon {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    align-self: start;
-  }
-
-  .row-details {
-    grid-column: 2 / -1;
-    grid-row: 1;
-    min-width: 0;
-  }
-
-  .row-details .ex-title {
-    font-size: 0.95rem;
-    overflow-wrap: anywhere;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #eef2f7;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    position: relative;
+    margin-bottom: 8px;
   }
 
   .row-level {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: start;
-    min-width: 0;
-  }
-
-  .row-category {
-    grid-column: 3 / -1;
-    grid-row: 2;
-    justify-self: end;
-    text-align: right;
-    min-width: 0;
-    font-size: 0.8rem;
-    overflow-wrap: anywhere;
+    position: absolute;
+    top: 14px;
+    right: 14px;
   }
 
   .row-level .level-badge {
     font-size: 0.65rem;
+    padding: 3px 6px;
+    border-radius: 6px;
   }
 
-  /* Meta row: volume · duration · status (teacher: col1 empty on row 3) */
-  .row-volume {
-    grid-column: 2;
-    grid-row: 3;
-    justify-self: center;
-    text-align: center;
-    min-width: 0;
-    padding-top: 10px;
-    margin-top: 4px;
-    border-top: 1px solid #eef2f7;
+  .row-icon {
+    display: none; /* Hide icon on mobile for more text space */
   }
 
-  .row-duration {
-    grid-column: 3;
-    grid-row: 3;
-    justify-self: center;
-    text-align: center;
-    min-width: 0;
-    padding-top: 10px;
-    margin-top: 4px;
-    border-top: 1px solid #eef2f7;
+  .row-details {
+    padding-right: 30px; /* Space for the absolute badge */
   }
 
-  .row-priority {
-    grid-column: 4;
-    grid-row: 3;
-    justify-self: end;
-    margin-left: 0;
-    padding-top: 10px;
-    margin-top: 4px;
-    border-top: 1px solid #eef2f7;
+  .row-details .ex-title {
+    font-size: 1.05rem;
+    line-height: 1.3;
   }
+
+  .row-details .ex-desc {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+
+  .ex-category {
+    display: block;
+  }
+
+  .row-category {
+    display: none;
+  }
+/* Footer meta-row */
+.row-meta-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.row-stats-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
+}
+
+.row-day, .row-volume, .row-duration, .row-priority {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+}
 
   .row-action {
-    grid-column: 1 / -1;
-    grid-row: 4;
     display: flex;
     justify-content: stretch;
     width: 100%;
-  }
-
-  .row-action .btn-start {
-    width: 100%;
-    min-height: 44px;
-    font-size: 0.9rem;
   }
 
   /* Student: journey day sits in column 1 on meta row; shift volume/duration */
@@ -1317,7 +1314,7 @@
     grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) minmax(72px, auto);
   }
 
-  .exercise-list--student .row-day {
+  .exercise-list--student {
     grid-column: 1;
     grid-row: 3;
     justify-self: center;
@@ -1388,15 +1385,41 @@
   }
 }
 
-/* Small tablet only — phones use 640px block above (avoid overriding phone padding) */
-@media (max-width: 768px) and (min-width: 641px) {
-  .exercises-page {
-    width: 100%;
-    padding: 16px 12px 32px;
+.status-ring-compact {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.status-ring-compact.completed {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.status-ring-compact.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+@media (max-width: 640px) {
+  .desktop-only-wrapper {
+    display: none !important;
   }
-  .page-header { flex-direction: column; align-items: stretch; }
-  .header-subtitle { max-width: 100%; overflow-wrap: anywhere; }
-  .filters-section { padding: 12px; flex-direction: column; align-items: stretch; }
-  .mc-tabs-wrap { gap: 20px; }
-  .mc-tab { font-size: 0.85rem; }
+
+  .row-meta-footer {
+    display: flex;
+  }
+}
+
+@media (min-width: 641px) {
+  .desktop-only-wrapper {
+    display: contents;
+  }
+
+  .row-meta-footer {
+    display: none !important;
+  }
 }

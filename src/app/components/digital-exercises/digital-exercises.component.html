@@ -116,61 +116,45 @@
       <span class="col-priority">STATUS</span>
       <span class="col-action">ACTION</span>
     </div>
-    <div class="exercise-row" *ngFor="let ex of paginatedExercises">
+  <div class="exercise-row" *ngFor="let ex of paginatedExercises">
       <div class="row-icon">
         <span class="material-icons">{{ getCategoryIcon(ex.category) }}</span>
       </div>
       <div class="row-details">
+        <span class="ex-category">{{ ex.category }}</span>
         <span class="ex-title">{{ ex.title }}</span>
         <span class="ex-desc">{{ ex.description }}</span>
       </div>
       <div class="row-level">
-        <span class="level-badge" [style.background]="getLevelColor(ex.level)">LEVEL {{ ex.level }}</span>
+        <span class="level-badge" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
       </div>
-      <div class="row-category">{{ ex.category }}</div>
-      <div class="row-day" *ngIf="userRole === 'STUDENT'">
-        <span class="journey-day-pill" [class.journey-day-pill--any]="ex.courseDay == null">
-          {{ journeyDaySequenceLabel(ex) }}
-        </span>
-      </div>
-      <div class="row-volume">
-        <span class="vol-num">{{ ex.questions.length || 0 }}</span>
-        <span class="vol-label">ITEMS</span>
-      </div>
-      <div class="row-duration">
-        <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
-        <span class="dur-label">EST.</span>
-      </div>
-      <div class="row-priority">
-        <div class="priority-stack">
-          <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
-            <svg class="ring-svg" viewBox="0 0 36 36">
-              <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            </svg>
-            <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+
+      <!-- Mobile: Meta Row (visible on mobile only) -->
+      <div class="row-meta-footer">
+        <div class="row-stats-group">
+          <div class="row-day" *ngIf="userRole === 'STUDENT'">
+            <span class="vol-num">{{ journeyDaySequenceLabel(ex) }}</span>
+            <span class="vol-label">DAY / SEQ</span>
           </div>
-          <span
-            class="wrong-hint"
-            *ngIf="userRole === 'STUDENT' && ex.studentAttempt && (ex.studentAttempt.wrongCount ?? 0) > 0"
-          >{{ ex.studentAttempt.wrongCount }} wrong</span>
-          <span
-            class="wrong-hint wrong-hint--ok"
-            *ngIf="userRole === 'STUDENT' && ex.studentAttempt && (ex.studentAttempt.wrongCount ?? 0) === 0 && isAttemptPassing(ex.studentAttempt)"
-          >0 wrong</span>
+          <div class="row-volume">
+            <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+            <span class="vol-label">ITEMS</span>
+          </div>
+          <div class="row-duration">
+            <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
+            <span class="dur-label">EST.</span>
+          </div>
+          <div class="row-priority">
+            <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+              <svg class="ring-svg" viewBox="0 0 36 36">
+                <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              </svg>
+              <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="row-action">
-        <div class="row-action-inner">
-          <button
-            *ngIf="userRole === 'STUDENT' && ex.studentAttempt"
-            type="button"
-            class="btn-icon-analytics"
-            (click)="openExerciseReview(ex, $event)"
-            title="Open full analytics: your answers and corrections"
-          >
-            <span class="material-icons">analytics</span>
-          </button>
+        <div class="row-action">
           <button
             *ngIf="!isExerciseJourneyLocked(ex)"
             type="button"
@@ -179,16 +163,65 @@
           >
             {{ ex.studentAttempt ? 'Retry' : 'Start' }}
           </button>
-          <button
-            *ngIf="isExerciseJourneyLocked(ex)"
-            type="button"
-            class="btn-start btn-start--locked"
-            [class.btn-start--unlock-link]="!isExerciseDayLocked(ex) && canOpenPrerequisiteExercise(ex)"
-            [disabled]="isExerciseDayLocked(ex) || !canOpenPrerequisiteExercise(ex)"
-            (click)="openPrerequisiteExercise(ex)"
-          >
-            {{ journeyUnlockButtonLabel(ex) }}
-          </button>
+        </div>
+      </div>
+      <!-- End Mobile Footer -->
+
+      <!-- Desktop-only elements (grid items) -->
+      <div class="desktop-only-wrapper">
+        <div class="row-category">{{ ex.category }}</div>
+        <div class="row-day" *ngIf="userRole === 'STUDENT'">
+          <span class="journey-day-pill" [class.journey-day-pill--any]="ex.courseDay == null">
+            {{ journeyDaySequenceLabel(ex) }}
+          </span>
+        </div>
+        <div class="row-volume">
+          <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+          <span class="vol-label">ITEMS</span>
+        </div>
+        <div class="row-duration">
+          <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
+          <span class="dur-label">EST.</span>
+        </div>
+        <div class="row-priority">
+          <div class="priority-stack">
+            <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+              <svg class="ring-svg" viewBox="0 0 36 36">
+                <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              </svg>
+              <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="row-action">
+          <div class="row-action-inner">
+            <button
+              *ngIf="userRole === 'STUDENT' && ex.studentAttempt"
+              type="button"
+              class="btn-icon-analytics"
+              (click)="openExerciseReview(ex, $event)"
+              title="Analytics"
+            >
+              <span class="material-icons">analytics</span>
+            </button>
+            <button
+              *ngIf="!isExerciseJourneyLocked(ex)"
+              type="button"
+              class="btn-start"
+              (click)="startExercise(ex)"
+            >
+              {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+            </button>
+            <button
+              *ngIf="isExerciseJourneyLocked(ex)"
+              type="button"
+              class="btn-start btn-start--locked"
+              (click)="openPrerequisiteExercise(ex)"
+            >
+              {{ journeyUnlockButtonLabel(ex) }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
