@@ -89,6 +89,13 @@ const DGModuleSchema = new mongoose.Schema(
     maxPracticeMinutes: { type: Number, default: null, min: 5, max: 180 },
     /** 1–200 day in course journey; unset = general pool */
     courseDay: { type: Number, min: 1, max: 200 },
+    /**
+     * Optional batch targeting.
+     * Empty / missing = visible to all batches (subject to other gating like journey day).
+     *
+     * Stored as normalized batch keys (see utils/effectiveStudentBatch.normalizeBatch).
+     */
+    targetBatchKeys: { type: [String], default: [] },
     rolePlayScenario: { type: DgRolePlayScenarioSchema, default: () => ({}) },
     allowedVocabulary: { type: [DgVocabEntrySchema], default: [] },
     aiTutorVocabulary: { type: [DgVocabEntrySchema], default: [] },
@@ -100,6 +107,7 @@ const DGModuleSchema = new mongoose.Schema(
 
 DGModuleSchema.index({ visibleToStudents: 1, isActive: 1, level: 1 });
 DGModuleSchema.index({ createdBy: 1 });
+DGModuleSchema.index({ targetBatchKeys: 1, visibleToStudents: 1, isActive: 1, courseDay: 1 });
 
 DGModuleSchema.pre('validate', function dgValidatePracticeWindow(next) {
   if (

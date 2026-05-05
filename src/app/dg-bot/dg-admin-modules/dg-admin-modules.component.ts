@@ -2,9 +2,15 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { DgApiService } from '../dg-api.service';
+import { environment } from '../../../environments/environment';
 import type { DgModuleSummary } from '../dg-bot.types';
+
+interface BatchSummary {
+  batchName: string;
+}
 
 @Component({
   selector: 'app-dg-admin-modules',
@@ -23,6 +29,13 @@ export class DgAdminModulesComponent implements OnInit {
   message: string | null = null;
   /** Row id while PATCH visibility is in flight */
   visibilityBusyId: string | null = null;
+
+  // ── Batch assignment ──────────────────────────────────────────────────────
+  batches: BatchSummary[] = [];
+  assignModalOpen = false;
+  assigning = false;
+  assignModule: DgModuleSummary | null = null;
+  assignSelectedBatches: string[] = [];
 
   get filteredModules(): DgModuleSummary[] {
     let list = this.modules;
@@ -70,6 +83,7 @@ export class DgAdminModulesComponent implements OnInit {
     private dgApi: DgApiService,
     private router: Router,
     private route: ActivatedRoute,
+    private http: HttpClient,
   ) {}
 
   ngOnInit(): void {
@@ -83,7 +97,21 @@ export class DgAdminModulesComponent implements OnInit {
         this.message = 'Module saved successfully.';
       }
     });
+    this.loadBatches();
     this.reload();
+  }
+
+  loadBatches(): void {
+    this.http
+      .get<{ batches: BatchSummary[] }>(`${environment.apiUrl}/batch-journey`, { withCredentials: true })
+      .subscribe({
+        next: (res) => {
+          this.batches = (res?.batches || []).sort((a, b) => a.batchName.localeCompare(b.batchName));
+        },
+        error: () => {
+          this.batches = [];
+        },
+      });
   }
 
   reload(): void {
@@ -97,6 +125,63 @@ export class DgAdminModulesComponent implements OnInit {
         this.message = e?.error?.message || 'Load failed';
         this.loading = false;
       });
+  }
+
+  batchSummaryLabel(m: DgModuleSummary): string {
+    const list = (m.targetBatches || []).filter(Boolean);
+    if (!list.length) return 'All';
+    if (list.length <= 2) return list.join(', ');
+    return `${list.slice(0, 2).join(', ')} +${list.length - 2}`;
+  }
+
+  openAssignBatches(m: DgModuleSummary): void {
+    this.message = null;
+    this.assignModule = m;
+    this.assignSelectedBatches = [...((m.targetBatches || []).filter(Boolean) as string[])];
+    this.assignModalOpen = true;
+  }
+
+  closeAssignModal(): void {
+    if (this.assigning) return;
+    this.assignModalOpen = false;
+    this.assignModule = null;
+    this.assignSelectedBatches = [];
+  }
+
+  toggleAssignBatch(name: string): void {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const idx = this.assignSelectedBatches.indexOf(v);
+    if (idx >= 0) this.assignSelectedBatches.splice(idx, 1);
+    else this.assignSelectedBatches.push(v);
+  }
+
+  isAssignBatchSelected(name: string): boolean {
+    return this.assignSelectedBatches.includes(name);
+  }
+
+  clearAssignBatches(): void {
+    this.assignSelectedBatches = [];
+  }
+
+  async saveAssignedBatches(): Promise<void> {
+    if (!this.assignModule?._id) return;
+    this.assigning = true;
+    this.message = null;
+    const id = this.assignModule._id;
+    try {
+      const updated = await firstValueFrom(
+        this.dgApi.updateModule(id, { targetBatches: this.assignSelectedBatches } as any),
+      );
+      const next = Array.isArray(updated?.targetBatches) ? updated.targetBatches : this.assignSelectedBatches;
+      this.modules = this.modules.map((row) => (row._id === id ? { ...row, targetBatches: next } : row));
+      this.closeAssignModal();
+      this.message = 'Batches updated.';
+    } catch (e: any) {
+      this.message = e?.error?.message || 'Failed to update batches';
+    } finally {
+      this.assigning = false;
+    }
   }
 
   goCreate(): void {

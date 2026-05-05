@@ -219,6 +219,14 @@ const LearningModuleSchema = new mongoose.Schema({
    * Omit or null = general pool.
    */
   courseDay: { type: Number, default: null, min: 1, max: 200 },
+
+  /**
+   * Optional batch targeting.
+   * Empty / missing = visible to all batches (subject to other gating like journey day).
+   *
+   * Stored as normalized batch keys (see utils/effectiveStudentBatch.normalizeBatch).
+   */
+  targetBatchKeys: { type: [String], default: [] },
   
   // Update history for admin tracking
   updateHistory: [{
@@ -285,6 +293,7 @@ LearningModuleSchema.index({ level: 1, category: 1, isActive: 1 });
 LearningModuleSchema.index({ createdBy: 1 });
 LearningModuleSchema.index({ tags: 1 });
 LearningModuleSchema.index({ isDeleted: 1, scheduledDeletionDate: 1 }); // For trash management
+LearningModuleSchema.index({ targetBatchKeys: 1, visibleToStudents: 1, isActive: 1, courseDay: 1 });
 
 // Static method to soft delete a module (move to trash)
 LearningModuleSchema.statics.moveToTrash = function(moduleId, userId, reason = 'Deleted by admin') {
