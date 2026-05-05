@@ -25,7 +25,10 @@
     </div>
   </header>
 
-  <div *ngIf="loading" class="dg-hub__state">Loading…</div>
+  <div *ngIf="loading" class="dg-hub__loading-cards">
+    <div class="dg-hub__skeleton-card" *ngFor="let _ of [1,2,3,4,5]"></div>
+  </div>
+
   <div *ngIf="error" class="dg-hub__err">{{ error }}</div>
 
   <ng-container *ngIf="!loading && !error">
@@ -134,7 +137,11 @@
       </div>
     </div>
 
-    <section class="dg-hub__list" *ngIf="modules.length > 0 && filteredModules.length > 0">
+    <div class="dg-hub__loading-cards" *ngIf="loading">
+      <div class="dg-hub__skeleton-card" *ngFor="let _ of [1,2,3,4,5]"></div>
+    </div>
+
+    <section class="dg-hub__list" *ngIf="!loading && modules.length > 0 && filteredModules.length > 0">
       <div class="dg-hub__card" *ngFor="let m of paginatedModules; trackBy: trackModule">
         <div class="dg-hub__card-main">
           <div class="dg-hub__module-title">{{ m.title }}</div>

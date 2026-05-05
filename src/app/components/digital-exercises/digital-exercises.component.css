@@ -1083,7 +1083,7 @@
   :host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
     min-height: 0 !important;
     height: 38px;
-    padding: 0px 4px !important;
+    padding: 0px 0px !important;
     border-top: 0;
     display: flex;
     align-items: center;
