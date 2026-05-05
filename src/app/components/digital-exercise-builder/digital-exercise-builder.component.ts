@@ -281,6 +281,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         expectedTranscript: q.expectedTranscript || '',
         attemptMode: q.attemptMode || 'typing'
       });
+    } else if (q.type === 'jumble-word') {
+      Object.assign(base, {
+        scrambledText: q.scrambledText || '',
+        boldLetter: q.boldLetter || '',
+        expectedWord: q.expectedWord || '',
+        categoryTip: q.categoryTip || '',
+        // Jumble words are exact-match; keep advanced grading off.
+        aiGradingEnabled: false,
+        scoringMode: 'full'
+      });
     }
     return base;
   }
@@ -608,6 +618,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
     if (q.type === 'pronunciation' && q.word) {
       return q.word;
+    }
+    if (q.type === 'jumble-word' && q.expectedWord) {
+      return q.expectedWord;
     }
     return '';
   }

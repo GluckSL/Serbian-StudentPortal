@@ -1096,10 +1096,6 @@
 
         <!-- ── SINGULAR / PLURAL ── -->
         <div class="q-body singular-plural-body" *ngIf="currentQuestion.data.type === 'singular_plural'">
-          <div class="q-question-box" *ngIf="worksheetInstructionDisplay(currentQuestion.data)">
-            <div class="q-question-label">Instructions</div>
-            <div [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"></div>
-          </div>
           <div class="sp-table-wrap">
             <table class="sp-pairs-table" *ngIf="singularPluralDisplayRows(currentQuestion).length">
               <thead>
@@ -1382,10 +1378,6 @@
 
         <!-- Jumble Word body -->
         <div class="q-body jumble-body" *ngIf="currentQuestion.data.type === 'jumble-word'">
-          <div class="q-question-box" *ngIf="worksheetInstructionDisplay(currentQuestion.data)">
-            <div class="q-question-label">Instructions</div>
-            <div class="q-instruction-text" [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"></div>
-          </div>
           <div class="jumble-category-tip" *ngIf="currentQuestion.data.categoryTip">
             {{ currentQuestion.data.categoryTip }}
           </div>

@@ -2955,9 +2955,12 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
           }
         }
       }
+      // Only show a category tip if it was explicitly provided (PDF field `category_tip`
+      // or an existing `categoryTip`). Do not auto-fill from inferred worksheet category,
+      // otherwise the player shows a "tip" even when the teacher left it blank.
       const categoryTip = String(
         q.category_tip != null ? q.category_tip
-          : (q.categoryTip != null ? q.categoryTip : norm.category)
+          : (q.categoryTip != null ? q.categoryTip : '')
       ).trim();
       return sanitizeQuestion({
         ...base,
