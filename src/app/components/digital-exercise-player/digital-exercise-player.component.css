@@ -4925,3 +4925,24 @@
   from { opacity: 1; }
   to { opacity: 0; pointer-events: none; }
 }
+/* Skeleton loader styles */
+.player-skeleton {
+  display: flex;
+  gap: 24px;
+  padding: 60px 24px;
+  height: 100vh;
+}
+.sk-sidebar-left, .sk-sidebar-right { width: 250px; flex-shrink: 0; }
+.sk-main { flex: 1; }
+.sk-box {
+  background: #f3f3f3;
+  border-radius: 8px;
+  animation: shimmer 1.5s infinite linear;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
