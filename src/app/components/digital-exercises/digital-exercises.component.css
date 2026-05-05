@@ -323,7 +323,7 @@
 :host ::ng-deep .dex-filter-field .mat-mdc-text-field-wrapper {
   background: #fff;
   border-radius: 8px;
-  padding: 0 4px 0 0;
+  padding: 8px 0;
 }
 
 :host ::ng-deep .dex-filter-field .mat-mdc-form-field-flex {
@@ -331,39 +331,28 @@
 }
 
 :host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
-  min-height: 42px;
-  padding-top: 10px !important;
-  padding-bottom: 10px !important;
+  min-height: 0;
+  padding: 0px 4px !important;
   border-top: 0;
 }
 
-:host ::ng-deep .dex-filter-field .mdc-notched-outline .mdc-notched-outline__leading,
-:host ::ng-deep .dex-filter-field .mdc-notched-outline .mdc-notched-outline__notch,
-:host ::ng-deep .dex-filter-field .mdc-notched-outline .mdc-notched-outline__trailing {
-  border-color: #e5e7eb !important;
-  border-width: 1px !important;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-notch-piece {
-  border-color: #e5e7eb !important;
-}
-
-:host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__leading,
-:host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__notch,
-:host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__trailing,
-:host ::ng-deep .dex-filter-field.mat-focused .mat-mdc-notch-piece {
-  border-color: #7c3aed !important;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-select-value,
 :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #374151;
+  padding: 0px 8px !important;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+:host ::ng-deep .dex-filter-field .mat-mdc-select-value-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  letter-spacing: -0.025em;
 }
 
 :host ::ng-deep .dex-filter-field .mat-mdc-select-arrow-wrapper {
-  transform: translateY(0);
+  transform: scale(0.88);
 }
 
 .clear-filters-btn {
@@ -388,37 +377,63 @@
 
 
 /* ─── Tabs + student analytics chip ─────────────────────────────────────────── */
-.tabs-bar {
+.mc-tabs-wrap {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
-  padding-bottom: 2px;
-  border-bottom: 1px solid #e9e5ff;
-  max-width: 100%;
+  padding: 0 2px;
   min-width: 0;
   flex-wrap: nowrap;
 }
 
-.tabs-bar-tabs {
+.mc-tabs {
   display: flex;
-  gap: 22px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  max-width: 100%;
   min-width: 0;
-  /* Hide scrollbar (tabs still scroll on touch / trackpad); avoids UI next to Analytics */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding-bottom: 2px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.tabs-bar-tabs::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+.mc-tab {
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 12px;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  line-height: 1 !important;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mc-tab:hover {
+  color: #0f172a;
+}
+
+.mc-tab--on {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
 .tabs-analytics-btn {
@@ -426,8 +441,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 12px 8px;
-  margin-bottom: 1px;
+  padding: 0 12px;
+  height: 34px;
   border: 1px solid #c7d2fe;
   border-radius: 10px;
   background: #fff;
@@ -448,42 +463,6 @@
   background: #eef2ff;
   border-color: #818cf8;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.18);
-}
-
-.tab-btn {
-  padding: 6px 0;
-  border: none;
-  background: none;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #64748b;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.2s;
-  flex: 0 0 auto;
-  white-space: nowrap;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-.tab-btn:hover {
-  color: #1e293b;
-}
-
-.tab-btn.active {
-  font-weight: 700;
-  color: #6d28d9;
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -5px;
-  height: 3px;
-  background: #7c3aed;
-  border-radius: 2px;
 }
 
 /* ─── Loading skeleton ────────────────────────────────────────────────────── */
@@ -1080,16 +1059,16 @@
 
   /* One consistent “card” height for all three mat-selects (matches All Levels) */
   :host ::ng-deep .dex-filter-field.mat-mdc-form-field {
-    --mat-form-field-container-height: 48px;
+    --mat-form-field-container-height: 38px;
     margin-bottom: 0 !important;
-    height: 48px;
+    height: 38px;
   }
 
   :host ::ng-deep .dex-filter-field .mat-mdc-text-field-wrapper {
     border-radius: 10px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-    height: 48px;
-    padding: 0 4px 0 0;
+    height: 38px;
+    padding: 8px 0;
     align-self: stretch;
   }
 
@@ -1100,10 +1079,8 @@
 
   :host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
     min-height: 0 !important;
-    height: 48px;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 7px !important;
+    height: 38px;
+    padding: 0px 4px !important;
     border-top: 0;
     display: flex;
     align-items: center;
@@ -1111,19 +1088,18 @@
   }
 
   :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-    min-height: 48px !important;
-    height: 48px !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 0 !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0px 8px !important;
     box-sizing: border-box;
+    align-items: center;
   }
 
-  /* Slightly smaller than 16px so “All Categories / All Difficulties” fit in 3 columns; may cause brief iOS zoom on open */
+  /* Reduced font size so “All Categories / All Difficulties” fit in 3 columns without chopping */
   :host ::ng-deep .dex-filter-field .mat-mdc-select-value,
   :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     max-width: 100%;
     min-width: 0;
   }
@@ -1134,7 +1110,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
-    line-height: 1.2;
     letter-spacing: -0.025em;
   }
 
@@ -1201,13 +1176,30 @@
     min-height: 44px;
   }
 
-  .tabs-bar {
+  .mc-tabs-wrap {
     gap: 18px;
     padding-bottom: 6px;
   }
 
-  .tab-btn {
-    font-size: 0.875rem;
+  .mc-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex-wrap: nowrap;
+    background: #fff;
+    padding: 4px;
+    border-radius: 12px;
+  }
+
+  .mc-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mc-tab {
+    padding: 0 10px;
+    flex: 0 0 auto;
   }
 
   .exercise-list {
@@ -1402,6 +1394,6 @@
   .page-header { flex-direction: column; align-items: stretch; }
   .header-subtitle { max-width: 100%; overflow-wrap: anywhere; }
   .filters-section { padding: 12px; flex-direction: column; align-items: stretch; }
-  .tabs-bar { gap: 20px; }
-  .tab-btn { font-size: 0.85rem; }
+  .mc-tabs-wrap { gap: 20px; }
+  .mc-tab { font-size: 0.85rem; }
 }
