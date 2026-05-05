@@ -134,52 +134,30 @@
       </div>
     </div>
 
-    <section class="dg-hub__table-card" *ngIf="modules.length > 0 && filteredModules.length > 0">
-      <div class="dg-hub__table-wrap">
-        <table class="dg-hub__table">
-          <thead>
-            <tr>
-              <th>Module</th>
-              <th *ngIf="journeyFixedDay == null">Journey day</th>
-              <th>Level</th>
-              <th>Language</th>
-              <th>Status</th>
-              <th class="dg-hub__th-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let m of paginatedModules; trackBy: trackModule">
-              <td>
-                <div class="dg-hub__module-title">{{ m.title }}</div>
-                <div class="dg-hub__module-desc">{{ m.description || 'Guided speaking practice' }}</div>
-              </td>
-              <td *ngIf="journeyFixedDay == null">
-                <span class="dg-hub__day-pill">{{ journeyDayLabel(m) }}</span>
-              </td>
-              <td>
-                <span class="dg-hub__level-badge">{{ m.level || '—' }}</span>
-              </td>
-              <td>
-                <span class="dg-hub__lang">{{ m.language || 'German' }}</span>
-              </td>
-              <td>
-                <span
-                  class="dg-hub__status-badge"
-                  [class.dg-hub__status-badge--done]="isModuleCompleted(m)"
-                  [class.dg-hub__status-badge--live]="!isModuleCompleted(m) && m.visibleToStudents"
-                >
-                  {{ isModuleCompleted(m) ? 'Completed' : m.visibleToStudents ? 'Available' : 'Draft' }}
-                </span>
-              </td>
-              <td class="dg-hub__actions">
-                <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']">
-                  <mat-icon>play_arrow</mat-icon>
-                  {{ isModuleCompleted(m) ? 'Practice again' : 'Start' }}
-                </a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <section class="dg-hub__list" *ngIf="modules.length > 0 && filteredModules.length > 0">
+      <div class="dg-hub__card" *ngFor="let m of paginatedModules; trackBy: trackModule">
+        <div class="dg-hub__card-main">
+          <div class="dg-hub__module-title">{{ m.title }}</div>
+          <div class="dg-hub__module-desc">{{ m.description || 'Guided speaking practice' }}</div>
+          <div class="dg-hub__meta">
+            <div class="dg-hub__meta-items">
+              <span class="dg-hub__day-pill" *ngIf="journeyFixedDay == null">{{ journeyDayLabel(m) }}</span>
+              <span class="dg-hub__level-badge">{{ m.level || '—' }}</span>
+              <span class="dg-hub__lang">{{ m.language || 'German' }}</span>
+              <span
+                class="dg-hub__status-badge"
+                [class.dg-hub__status-badge--done]="isModuleCompleted(m)"
+                [class.dg-hub__status-badge--live]="!isModuleCompleted(m) && m.visibleToStudents"
+              >
+                {{ isModuleCompleted(m) ? 'Completed' : m.visibleToStudents ? 'Available' : 'Draft' }}
+              </span>
+            </div>
+            <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']">
+              <mat-icon>play_arrow</mat-icon>
+              {{ isModuleCompleted(m) ? 'Practice again' : 'Start' }}
+            </a>
+          </div>
+        </div>
       </div>
 
       <div class="dg-hub__pager" *ngIf="totalPages > 1">

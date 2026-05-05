@@ -130,43 +130,60 @@
   font-size: 11px;
 }
 
-.dg-hub__table-card {
+.dg-hub__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.dg-hub__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
   background: #fff;
-  border-radius: 14px;
   border: 1px solid #e8ecf4;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
-  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.2s, border-color 0.2s;
+
+  &:hover {
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.12);
+    border-color: #c7d2fe;
+  }
 }
 
-.dg-hub__table-wrap {
-  overflow: auto;
+.dg-hub__card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.dg-hub__table {
+.dg-hub__meta {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
   width: 100%;
-  border-collapse: collapse;
+}
 
-  thead th {
-    background: #03396c;
-    color: #fff;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
-    padding: 8px 10px;
-    text-align: left;
-    white-space: nowrap;
-  }
+.dg-hub__meta-items {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
-  tbody td {
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 12px;
-    padding: 8px 10px;
-    vertical-align: middle;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: none;
+@media (max-width: 640px) {
+  .dg-hub__meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }
 
@@ -176,14 +193,22 @@
 }
 
 .dg-hub__action-btn {
-  height: 28px !important;
-  border-radius: 6px !important;
-  border-color: #93c5fd !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #93c5fd !important;
   color: #1d4ed8 !important;
   background: #eff6ff !important;
-  font-size: 11px !important;
+  border-radius: 8px !important;
+  padding: 0 14px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  line-height: 1 !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
-  padding: 0 10px !important;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 
   &:hover {
     background: #dbeafe !important;
@@ -191,10 +216,10 @@
   }
 
   mat-icon {
-    margin-right: 4px;
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
+    margin-right: 6px;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
   }
 }
 
@@ -547,12 +572,7 @@
   }
 
   .dg-hub__header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .dg-hub__header-stat {
-    align-self: flex-end;
+    display: none;
   }
 
   .dg-hub__stats {
