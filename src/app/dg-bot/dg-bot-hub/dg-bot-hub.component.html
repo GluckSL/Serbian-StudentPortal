@@ -120,15 +120,17 @@
       </div>
     </div>
 
-    <div class="dg-hub__tabs" *ngIf="modules.length > 0">
-      <div class="dg-hub__tabs-inner">
-        <button type="button" class="dg-hub__tab" [class.dg-hub__tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
+    <div class="mc-tabs-wrap" *ngIf="modules.length > 0">
+      <div class="mc-tabs">
+        <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
           Completed
         </button>
-        <button type="button" class="dg-hub__tab" [class.dg-hub__tab--on]="activeTab === 'pending'" (click)="setTab('pending')">
+        <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending')">
           Pending
         </button>
-        <button type="button" class="dg-hub__tab" [class.dg-hub__tab--on]="activeTab === 'new'" (click)="setTab('new')">New</button>
+        <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new')">
+          New
+        </button>
       </div>
     </div>
 

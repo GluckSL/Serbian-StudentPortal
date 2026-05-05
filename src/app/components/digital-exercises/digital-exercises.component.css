@@ -406,6 +406,9 @@
 }
 
 .mc-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   cursor: pointer;
   font-size: 11px;
@@ -1098,7 +1101,7 @@
   /* Reduced font size so “All Categories / All Difficulties” fit in 3 columns without chopping */
   :host ::ng-deep .dex-filter-field .mat-mdc-select-value,
   :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-    font-size: 12px;
+    font-size: 10.5px;
     font-weight: 700;
     max-width: 100%;
     min-width: 0;

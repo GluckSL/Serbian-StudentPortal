@@ -18,7 +18,7 @@
 }
 
 .dg-hub__header {
-  background: #b3cde0;
+  background: #f3f0ff;
   color: #011f4b;
   border-radius: 14px;
   padding: 14px 18px;
@@ -278,7 +278,6 @@
   border-radius: 10px;
   padding: 6px 10px;
   background: #fafafa;
-  margin-bottom: 10px;
 }
 
 .dg-hub__search-icon {
@@ -350,31 +349,93 @@
   }
 }
 
-.dg-hub__tabs {
-  margin-bottom: 10px;
+/* ─── Tabs ─────────────────────────────────────────────────────────── */
+.mc-tabs-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 0 2px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
-.dg-hub__tabs-inner {
-  display: inline-flex;
-  gap: 6px;
-  flex-wrap: wrap;
+.mc-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.dg-hub__tab {
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
+.mc-tab {
+  border: none;
   cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 12px;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  line-height: 1 !important;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.dg-hub__tab--on {
-  background: #1d4ed8;
-  color: #fff;
-  border-color: #1d4ed8;
+.mc-tab:hover {
+  color: #0f172a;
+}
+
+.mc-tab--on {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+
+@media (min-width: 480px) {
+  .mc-tab {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .mc-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex-wrap: nowrap;
+    background: #fff;
+    padding: 4px;
+    border-radius: 12px;
+  }
+
+  .mc-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mc-tab {
+    padding: 0 10px;
+    flex: 0 0 auto;
+  }
 }
 
 .dg-hub__day-pill {
