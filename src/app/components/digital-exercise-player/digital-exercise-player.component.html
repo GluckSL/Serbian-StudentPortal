@@ -1453,6 +1453,11 @@
                 {{ t }}
               </div>
             </div>
+
+            <div class="rearrange-answer-box" *ngIf="currentQuestion.isAnswered">
+              <div class="rearrange-answer-label">Your answer is</div>
+              <div class="rearrange-answer-text">{{ getRearrangePreviewText(currentQuestion) || '—' }}</div>
+            </div>
           </div>
         </div>
 

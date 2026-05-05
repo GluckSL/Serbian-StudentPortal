@@ -709,6 +709,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return i;
   }
 
+  getRearrangePreviewText(pq: PlayerQuestion): string {
+    const toks = Array.isArray(pq?.rearrangeTokens) ? pq.rearrangeTokens : [];
+    return toks.map((t) => String(t ?? '').trim()).filter(Boolean).join(' ');
+  }
+
   /** True when every question is a video-pronunciation clip (split chat UI). */
   get isVideoOnlyExercise(): boolean {
     return (
@@ -1546,8 +1551,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'listening') return (pq.listeningText || '').trim().length > 0;
     if ((q.type as string) === 'jumble-word') return (pq.jumbleWordResponse || '').trim().length > 0;
     if ((q.type as string) === 'rearrange') {
-      const toks = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
-      return toks.length > 0;
+      // tokens always exist; count as answered only after the learner moves at least one tile
+      return pq.isAnswered === true;
     }
     if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
     return false;

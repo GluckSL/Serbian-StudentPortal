@@ -1473,6 +1473,29 @@
   background: rgba(99, 102, 241, 0.08);
 }
 
+.rearrange-answer-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+.rearrange-answer-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(51, 65, 85, 0.70);
+  margin-bottom: 6px;
+}
+.rearrange-answer-text {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #0f172a;
+  word-break: break-word;
+}
+
 /* Result Banner */
 .result-banner { padding: 12px 20px; border-top: 1.5px solid #f0f0f0; }
 .result-correct { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; font-weight: 700; color: #15803d; }
