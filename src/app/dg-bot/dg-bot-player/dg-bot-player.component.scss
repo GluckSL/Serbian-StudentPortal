@@ -521,7 +521,7 @@
   min-width: 240px;
   max-width: 95%;
   text-align: center;
-  border: 1px solid #eef2f8;
+  border: 1px solid #cbd5e1;
   animation: dg-bubble-in 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   p {
@@ -1072,9 +1072,9 @@
 
 .dg-chat__mic-area ::ng-deep .dg-practice__wave {
   margin-top: 0.45rem;
-  width: 52%;
-  min-width: 180px;
-  max-width: 260px;
+  width: 80%;
+  min-width: 200px;
+  max-width: 360px;
   height: 24px;
   background: linear-gradient(180deg, #991b1b 0%, #dc2626 100%);
   box-shadow:
@@ -1107,6 +1107,7 @@
 
 .dg-conv__mic-area {
   display: flex;
+  gap: 0.56rem;
   flex-direction: column;
   justify-content: center;
   align-items: center;
