@@ -308,7 +308,7 @@
             <span
               class="material-icons expand-icon"
               matTooltip="{{ expandedQuestion === i ? 'Collapse question' : 'Expand question' }}"
-              aria-label="{{ expandedQuestion === i ? 'Collapse question' : 'Expand question' }}"
+              [attr.aria-label]="expandedQuestion === i ? 'Collapse question' : 'Expand question'"
             >{{ expandedQuestion === i ? 'expand_less' : 'expand_more' }}</span>
           </div>
         </div>
