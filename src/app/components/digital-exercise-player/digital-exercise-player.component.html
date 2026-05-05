@@ -1,11 +1,21 @@
 <!-- digital-exercise-player.component.html -->
 <div class="player-page">
 
-  <!-- ─── LOADING ─────────────────────────────────────────────────────────── -->
-  <div class="state-centered" *ngIf="state === 'loading'">
-    <div class="spinner"></div>
-    <p>Loading exercise...</p>
-  </div>
+    <!-- Skeleton loader for 3-col layout -->
+    <div class="player-skeleton" *ngIf="state === 'loading'">
+      <div class="sk-sidebar-left">
+        <div class="sk-box" style="height: 100px; margin-bottom: 16px;"></div>
+        <div class="sk-box" style="height: 200px;"></div>
+      </div>
+      <div class="sk-main">
+        <div class="sk-box" style="height: 400px; margin-bottom: 24px;"></div>
+        <div class="sk-box" style="height: 60px;"></div>
+      </div>
+      <div class="sk-sidebar-right">
+        <div class="sk-box" style="height: 50px; margin-bottom: 16px;"></div>
+        <div class="sk-box" style="height: 200px;"></div>
+      </div>
+    </div>
 
   <!-- ─── ERROR ───────────────────────────────────────────────────────────── -->
   <div class="state-centered" *ngIf="state === 'error'">
@@ -250,13 +260,26 @@
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
   <div class="player-layout" *ngIf="state === 'playing'" [class.player-layout--vp-only]="isVideoOnlyExercise">
 
-    <!-- Browser guidance banner: nudges non-recommended browsers toward Chrome -->
+    <!-- Skeleton loader for 3-col layout -->
+    <div class="player-skeleton" *ngIf="!exercise">
+      <div class="sk-sidebar-left">
+        <div class="sk-box" style="height: 100px; margin-bottom: 16px;"></div>
+        <div class="sk-box" style="height: 200px;"></div>
+      </div>
+      <div class="sk-main">
+        <div class="sk-box" style="height: 400px; margin-bottom: 24px;"></div>
+        <div class="sk-box" style="height: 60px;"></div>
+      </div>
+      <div class="sk-sidebar-right">
+        <div class="sk-box" style="height: 50px; margin-bottom: 16px;"></div>
+        <div class="sk-box" style="height: 200px;"></div>
+      </div>
+    </div>
+
+    <!-- Browser guidance banner -->
     <div class="browser-guidance" *ngIf="showBrowserGuidance" role="status">
       <span class="material-icons">info</span>
-      <span class="browser-guidance__text">
-        For the best microphone experience, we recommend <strong>Chrome</strong> on desktop.
-        <ng-container *ngIf="pronCapabilities?.isIOS">On iPhone/iPad make sure iOS is up-to-date.</ng-container>
-      </span>
+      <span class="browser-guidance__text">Best experience in <strong>Chrome</strong> on desktop.</span>
       <button type="button" class="browser-guidance__close" (click)="dismissBrowserGuidance()" aria-label="Dismiss">
         <span class="material-icons">close</span>
       </button>
@@ -873,7 +896,7 @@
             <div><strong>{{ totalPoints }}</strong> Total Points</div>
           </div>
         </div>
-        <div class="info-specs">
+        <div class="info-specs desktop-only">
           <div class="spec-label">Question types</div>
           <div class="spec-pills">
             <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
@@ -1759,8 +1782,8 @@
       </div>
     </div>
 
-      <!-- RIGHT: Question Navigator + Status -->
-      <aside class="question-sidebar">
+    <!-- RIGHT: Question Navigator + Status -->
+    <aside class="question-sidebar">
         <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
         <button
           type="button"
@@ -1785,6 +1808,18 @@
             [title]="'Question ' + (i + 1) + ' - ' + getQuestionTypeLabelForDisplay(pq.data)"
           >{{ i + 1 }}</button>
         </div>
+
+        <!-- Mobile: Question types -->
+        <div class="info-specs mobile-only">
+          <div class="spec-label">Question types</div>
+          <div class="spec-pills">
+            <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
+              <span class="material-icons">{{ qt.icon }}</span>
+              {{ qt.indices.join(', ') }}: {{ qt.label }}
+            </span>
+          </div>
+        </div>
+
         <div class="status-legend">
           <span class="status-item correct">
             <span class="status-icon correct"></span>
@@ -1799,7 +1834,7 @@
             {{ unattemptedCount }} Unanswered
           </span>
         </div>
-      </aside>
+    </aside>
     </div>
 
     <!-- Finish Summary Modal -->

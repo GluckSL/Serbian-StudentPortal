@@ -106,7 +106,7 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   max-width: 100%;
   text-align: left;
-  flex-wrap: wrap;
+  /* flex-wrap: wrap; */
   white-space: normal;
 }
 
@@ -212,7 +212,8 @@
   }
 
   .mc-hero__pill {
-    padding: 6px 12px;
+    gap: 4px;
+    padding: 4px 12px;
     font-size: 0.75rem;
     flex-shrink: 1;
     min-width: 0;
@@ -389,7 +390,8 @@
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
-  padding: 8px 4px;
+  padding: 10 14px;
+  line-height: 1 !important;
   border-radius: 999px;
   background: transparent;
   color: #64748b;
@@ -422,7 +424,6 @@
 @media (min-width: 480px) {
   .mc-tab {
     font-size: 12px;
-    padding: 8px 6px;
   }
 }
 
@@ -467,10 +468,6 @@
     padding-inline: 10px;
     font-size: 11px;
   }
-}
-
-.mc-tab:hover {
-  color: #0f172a;
 }
 
 .mc-tab--on {

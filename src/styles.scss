@@ -433,9 +433,9 @@ button:disabled,
 
 /* Minimum 44px touch targets for interactive elements */
 @media (max-width: 768px) {
-  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play),
+  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play):not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
   .btn,
-  a[role="button"],
+  a[role="button"]:not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
   [mat-button],
   [mat-raised-button],
   [mat-flat-button],
@@ -562,4 +562,17 @@ body.teacher-read-only {
 
   /* ── Role-change selects ── */
   .form-select { pointer-events: none !important; opacity: 0.7; }
+}
+
+/* ── Digital Exercises Filter Panels (Mobile Typography) ── */
+@media (max-width: 640px) {
+  .dex-select-panel .mat-mdc-option {
+    font-size: 12px !important;
+    min-height: 34px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .dex-select-panel .mdc-list-item__primary-text {
+    font-size: 12px !important;
+  }
 }

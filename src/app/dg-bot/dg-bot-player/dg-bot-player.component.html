@@ -27,16 +27,12 @@
   <header class="dg-player__top">
     <div class="dg-player__progress-block">
       <div class="dg-player__progress-head">
-        <span class="dg-player__step-pill" *ngIf="!conversationMode">
-          Step {{ index + 1 }} <span class="dg-player__step-of">/</span> {{ scenes.length }}
-        </span>
-        <span class="dg-player__step-pill" *ngIf="conversationMode">
-          <span *ngIf="!conversationStarted">Starting…</span>
+        <!--<span class="dg-player__step-pill" *ngIf="conversationMode && (conversationStarted || conversationComplete)">
           <span *ngIf="conversationStarted && !conversationComplete">
             {{ formatMmSs(sessionElapsedSec) }} / {{ formatMmSs(conversationMinTargetSeconds) }}
           </span>
           <span *ngIf="conversationComplete">Complete!</span>
-        </span>
+        </span>-->
         <span class="dg-player__module-title">{{ payload.module.title }}</span>
       </div>
     </div>
@@ -60,6 +56,9 @@
           <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
         </div>
         <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
           <app-dg-character
             [minimalChrome]="true"
             [name]="payload.character.name"
@@ -146,6 +145,9 @@
           </div>
         </div>
         <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
           <app-dg-character
             [minimalChrome]="true"
             [name]="payload.character.name"
@@ -164,24 +166,32 @@
             <div class="dg-conv__brand-text">
               <h3>Conversation Session</h3>
               <p>Practicing {{ payload.module.title }}</p>
-            </div>
-          </div>
-          <div class="dg-conv__head-tools">
-            <div class="dg-conv__menu-wrap">
-              <button type="button" class="dg-conv__menu-trigger" (click)="toggleMenu()" [class.dg-conv__menu-trigger--active]="menuOpen" aria-label="Tools menu">
-                <mat-icon>more_vert</mat-icon>
-              </button>
-              <div class="dg-conv__menu-dropdown" *ngIf="menuOpen">
-                <button type="button" class="dg-conv__menu-item" [class.dg-conv__menu-item--active]="ccMode==='en'" (click)="ccMode = ccMode==='en' ? 'none' : 'en'; menuOpen = false">CC EN</button>
-                <button type="button" class="dg-conv__menu-item" [class.dg-conv__menu-item--active]="ccMode==='ta'" (click)="ccMode = ccMode==='ta' ? 'none' : 'ta'; menuOpen = false">CC தமிழ்</button>
-                <div class="dg-conv__menu-sep"></div>
+
+              <div class="dg-conv__actions-row">
                 <button
                   type="button"
-                  class="dg-conv__menu-item dg-conv__menu-item--replay"
-                  [disabled]="status === 'speaking' || isAiThinking"
-                  (click)="replayTts(); menuOpen = false"
+                  class="dg-conv__action-btn"
+                  [class.dg-conv__action-btn--active]="ccMode === 'en'"
+                  (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
                 >
-                  <mat-icon>volume_up</mat-icon> Replay
+                  CC EN
+                </button>
+                <button
+                  type="button"
+                  class="dg-conv__action-btn"
+                  [class.dg-conv__action-btn--active]="ccMode === 'ta'"
+                  (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
+                >
+                  CC தமிழ்
+                </button>
+                <button
+                  type="button"
+                  class="dg-conv__action-btn dg-conv__action-btn--replay"
+                  [disabled]="status === 'speaking' || isAiThinking"
+                  (click)="replayTts()"
+                >
+                  <mat-icon>volume_up</mat-icon>
+                  Replay
                 </button>
               </div>
             </div>

@@ -323,7 +323,7 @@
 :host ::ng-deep .dex-filter-field .mat-mdc-text-field-wrapper {
   background: #fff;
   border-radius: 8px;
-  padding: 0 4px 0 0;
+  padding: 8px 0;
 }
 
 :host ::ng-deep .dex-filter-field .mat-mdc-form-field-flex {
@@ -331,39 +331,28 @@
 }
 
 :host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
-  min-height: 42px;
-  padding-top: 10px !important;
-  padding-bottom: 10px !important;
+  min-height: 0;
+  padding: 0px 4px !important;
   border-top: 0;
 }
 
-:host ::ng-deep .dex-filter-field .mdc-notched-outline .mdc-notched-outline__leading,
-:host ::ng-deep .dex-filter-field .mdc-notched-outline .mdc-notched-outline__notch,
-:host ::ng-deep .dex-filter-field .mdc-notched-outline .mdc-notched-outline__trailing {
-  border-color: #e5e7eb !important;
-  border-width: 1px !important;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-notch-piece {
-  border-color: #e5e7eb !important;
-}
-
-:host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__leading,
-:host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__notch,
-:host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__trailing,
-:host ::ng-deep .dex-filter-field.mat-focused .mat-mdc-notch-piece {
-  border-color: #7c3aed !important;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-select-value,
 :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #374151;
+  padding: 0px 8px !important;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+:host ::ng-deep .dex-filter-field .mat-mdc-select-value-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  letter-spacing: -0.025em;
 }
 
 :host ::ng-deep .dex-filter-field .mat-mdc-select-arrow-wrapper {
-  transform: translateY(0);
+  transform: scale(0.88);
 }
 
 .clear-filters-btn {
@@ -388,37 +377,66 @@
 
 
 /* ─── Tabs + student analytics chip ─────────────────────────────────────────── */
-.tabs-bar {
+.mc-tabs-wrap {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
-  padding-bottom: 2px;
-  border-bottom: 1px solid #e9e5ff;
-  max-width: 100%;
+  padding: 0 2px;
   min-width: 0;
   flex-wrap: nowrap;
 }
 
-.tabs-bar-tabs {
+.mc-tabs {
   display: flex;
-  gap: 22px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  max-width: 100%;
   min-width: 0;
-  /* Hide scrollbar (tabs still scroll on touch / trackpad); avoids UI next to Analytics */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding-bottom: 2px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.tabs-bar-tabs::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+.mc-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 12px;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  line-height: 1 !important;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mc-tab:hover {
+  color: #0f172a;
+}
+
+.mc-tab--on {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
 .tabs-analytics-btn {
@@ -426,8 +444,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 12px 8px;
-  margin-bottom: 1px;
+  padding: 0 12px;
+  height: 34px;
   border: 1px solid #c7d2fe;
   border-radius: 10px;
   background: #fff;
@@ -448,42 +466,6 @@
   background: #eef2ff;
   border-color: #818cf8;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.18);
-}
-
-.tab-btn {
-  padding: 6px 0;
-  border: none;
-  background: none;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #64748b;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.2s;
-  flex: 0 0 auto;
-  white-space: nowrap;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-.tab-btn:hover {
-  color: #1e293b;
-}
-
-.tab-btn.active {
-  font-weight: 700;
-  color: #6d28d9;
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -5px;
-  height: 3px;
-  background: #7c3aed;
-  border-radius: 2px;
 }
 
 /* ─── Loading skeleton ────────────────────────────────────────────────────── */
@@ -644,7 +626,6 @@
 .row-details {
   display: flex;
   flex-direction: column;
-  gap: 3px;
   min-width: 0;
 }
 
@@ -663,6 +644,12 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.ex-category {
+  display: none;
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
 .row-level .level-badge {
@@ -1080,16 +1067,16 @@
 
   /* One consistent “card” height for all three mat-selects (matches All Levels) */
   :host ::ng-deep .dex-filter-field.mat-mdc-form-field {
-    --mat-form-field-container-height: 48px;
+    --mat-form-field-container-height: 38px;
     margin-bottom: 0 !important;
-    height: 48px;
+    height: 38px;
   }
 
   :host ::ng-deep .dex-filter-field .mat-mdc-text-field-wrapper {
     border-radius: 10px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-    height: 48px;
-    padding: 0 4px 0 0;
+    height: 38px;
+    padding: 8px 0;
     align-self: stretch;
   }
 
@@ -1100,10 +1087,8 @@
 
   :host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
     min-height: 0 !important;
-    height: 48px;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 7px !important;
+    height: 38px;
+    padding: 0px 0px !important;
     border-top: 0;
     display: flex;
     align-items: center;
@@ -1111,19 +1096,18 @@
   }
 
   :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-    min-height: 48px !important;
-    height: 48px !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 0 !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0px 8px !important;
     box-sizing: border-box;
+    align-items: center;
   }
 
-  /* Slightly smaller than 16px so “All Categories / All Difficulties” fit in 3 columns; may cause brief iOS zoom on open */
+  /* Reduced font size so “All Categories / All Difficulties” fit in 3 columns without chopping */
   :host ::ng-deep .dex-filter-field .mat-mdc-select-value,
   :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 10.5px;
+    font-weight: 700;
     max-width: 100%;
     min-width: 0;
   }
@@ -1134,7 +1118,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
-    line-height: 1.2;
     letter-spacing: -0.025em;
   }
 
@@ -1201,13 +1184,30 @@
     min-height: 44px;
   }
 
-  .tabs-bar {
+  .mc-tabs-wrap {
     gap: 18px;
     padding-bottom: 6px;
   }
 
-  .tab-btn {
-    font-size: 0.875rem;
+  .mc-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex-wrap: nowrap;
+    background: #fff;
+    padding: 4px;
+    border-radius: 12px;
+  }
+
+  .mc-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mc-tab {
+    padding: 0 10px;
+    flex: 0 0 auto;
   }
 
   .exercise-list {
@@ -1221,100 +1221,92 @@
     display: none;
   }
 
-  /* Phone: stacked card — default (teacher / no journey day column) */
+  /* Phone: stacked card — modern, optimized space usage */
   .exercise-row {
-    display: grid;
-    grid-template-columns: 40px 1fr 1fr minmax(76px, auto);
-    grid-template-rows: auto auto auto auto;
-    gap: 8px 10px;
-    align-items: center;
-    min-width: 0 !important;
-    padding: 14px 12px;
-  }
-
-  .row-icon {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    align-self: start;
-  }
-
-  .row-details {
-    grid-column: 2 / -1;
-    grid-row: 1;
-    min-width: 0;
-  }
-
-  .row-details .ex-title {
-    font-size: 0.95rem;
-    overflow-wrap: anywhere;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #eef2f7;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    position: relative;
+    margin-bottom: 8px;
   }
 
   .row-level {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: start;
-    min-width: 0;
-  }
-
-  .row-category {
-    grid-column: 3 / -1;
-    grid-row: 2;
-    justify-self: end;
-    text-align: right;
-    min-width: 0;
-    font-size: 0.8rem;
-    overflow-wrap: anywhere;
+    position: absolute;
+    top: 14px;
+    right: 14px;
   }
 
   .row-level .level-badge {
     font-size: 0.65rem;
+    padding: 3px 6px;
+    border-radius: 6px;
   }
 
-  /* Meta row: volume · duration · status (teacher: col1 empty on row 3) */
-  .row-volume {
-    grid-column: 2;
-    grid-row: 3;
-    justify-self: center;
-    text-align: center;
-    min-width: 0;
-    padding-top: 10px;
-    margin-top: 4px;
-    border-top: 1px solid #eef2f7;
+  .row-icon {
+    display: none; /* Hide icon on mobile for more text space */
   }
 
-  .row-duration {
-    grid-column: 3;
-    grid-row: 3;
-    justify-self: center;
-    text-align: center;
-    min-width: 0;
-    padding-top: 10px;
-    margin-top: 4px;
-    border-top: 1px solid #eef2f7;
+  .row-details {
+    padding-right: 30px; /* Space for the absolute badge */
   }
 
-  .row-priority {
-    grid-column: 4;
-    grid-row: 3;
-    justify-self: end;
-    margin-left: 0;
-    padding-top: 10px;
-    margin-top: 4px;
-    border-top: 1px solid #eef2f7;
+  .row-details .ex-title {
+    font-size: 1.05rem;
+    line-height: 1.3;
   }
+
+  .row-details .ex-desc {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+
+  .ex-category {
+    display: block;
+  }
+
+  .row-category {
+    display: none;
+  }
+/* Footer meta-row */
+.row-meta-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.row-stats-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
+}
+
+.row-day, .row-volume, .row-duration, .row-priority {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+}
 
   .row-action {
-    grid-column: 1 / -1;
-    grid-row: 4;
     display: flex;
     justify-content: stretch;
     width: 100%;
-  }
-
-  .row-action .btn-start {
-    width: 100%;
-    min-height: 44px;
-    font-size: 0.9rem;
   }
 
   /* Student: journey day sits in column 1 on meta row; shift volume/duration */
@@ -1322,7 +1314,7 @@
     grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) minmax(72px, auto);
   }
 
-  .exercise-list--student .row-day {
+  .exercise-list--student {
     grid-column: 1;
     grid-row: 3;
     justify-self: center;
@@ -1393,15 +1385,41 @@
   }
 }
 
-/* Small tablet only — phones use 640px block above (avoid overriding phone padding) */
-@media (max-width: 768px) and (min-width: 641px) {
-  .exercises-page {
-    width: 100%;
-    padding: 16px 12px 32px;
+.status-ring-compact {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.status-ring-compact.completed {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.status-ring-compact.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+@media (max-width: 640px) {
+  .desktop-only-wrapper {
+    display: none !important;
   }
-  .page-header { flex-direction: column; align-items: stretch; }
-  .header-subtitle { max-width: 100%; overflow-wrap: anywhere; }
-  .filters-section { padding: 12px; flex-direction: column; align-items: stretch; }
-  .tabs-bar { gap: 20px; }
-  .tab-btn { font-size: 0.85rem; }
+
+  .row-meta-footer {
+    display: flex;
+  }
+}
+
+@media (min-width: 641px) {
+  .desktop-only-wrapper {
+    display: contents;
+  }
+
+  .row-meta-footer {
+    display: none !important;
+  }
 }

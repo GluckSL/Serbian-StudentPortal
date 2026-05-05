@@ -7,12 +7,12 @@
 
 .dg-char__stage {
   width: min(100%, 520px);
-  aspect-ratio: 3 / 5;
-  max-height: min(640px, 76vh);
+  aspect-ratio: 1 / 1.1;
+  max-height: min(500px, 70vh);
   border-radius: 1.25rem;
   background: transparent;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   overflow: hidden;
   transition:
@@ -23,8 +23,8 @@
 
 /* Full-body fox only — class kept for player overrides */
 .dg-char--pose-full .dg-char__stage {
-  aspect-ratio: 3 / 5;
-  max-height: min(640px, 76vh);
+  aspect-ratio: 1 / 1.1;
+  max-height: min(500px, 70vh);
 }
 
 .dg-char__stage--motion {
