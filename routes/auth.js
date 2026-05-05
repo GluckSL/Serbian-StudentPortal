@@ -33,6 +33,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "teachers",
   "user-roles",
   "modules",
+  "dg-bot",
   "exercises",
   "teacher-resources",
   "journey",
