@@ -248,14 +248,10 @@
 
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
   <div class="player-layout" *ngIf="state === 'playing'" [class.player-layout--vp-only]="isVideoOnlyExercise">
-
-    <!-- Browser guidance banner: nudges non-recommended browsers toward Chrome -->
+    <!-- Browser guidance banner -->
     <div class="browser-guidance" *ngIf="showBrowserGuidance" role="status">
       <span class="material-icons">info</span>
-      <span class="browser-guidance__text">
-        For the best microphone experience, we recommend <strong>Chrome</strong> on desktop.
-        <ng-container *ngIf="pronCapabilities?.isIOS">On iPhone/iPad make sure iOS is up-to-date.</ng-container>
-      </span>
+      <span class="browser-guidance__text">Best experience in <strong>Chrome</strong> on desktop.</span>
       <button type="button" class="browser-guidance__close" (click)="dismissBrowserGuidance()" aria-label="Dismiss">
         <span class="material-icons">close</span>
       </button>
@@ -875,7 +871,7 @@
             <div><strong>{{ totalPoints }}</strong> Total Points</div>
           </div>
         </div>
-        <div class="info-specs">
+        <div class="info-specs desktop-only">
           <div class="spec-label">Question types</div>
           <div class="spec-pills">
             <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
@@ -1705,8 +1701,8 @@
       </div>
     </div>
 
-      <!-- RIGHT: Question Navigator + Status -->
-      <aside class="question-sidebar">
+    <!-- RIGHT: Question Navigator + Status -->
+    <aside class="question-sidebar">
         <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
         <button
           type="button"
@@ -1731,6 +1727,18 @@
             [title]="'Question ' + (i + 1) + ' - ' + getQuestionTypeLabelForDisplay(pq.data)"
           >{{ i + 1 }}</button>
         </div>
+        
+        <!-- Mobile: Question types -->
+        <div class="info-specs mobile-only">
+          <div class="spec-label">Question types</div>
+          <div class="spec-pills">
+            <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
+              <span class="material-icons">{{ qt.icon }}</span>
+              {{ qt.indices.join(', ') }}: {{ qt.label }}
+            </span>
+          </div>
+        </div>
+
         <div class="status-legend">
           <span class="status-item correct">
             <span class="status-icon correct"></span>
@@ -1745,7 +1753,7 @@
             {{ unattemptedCount }} Unanswered
           </span>
         </div>
-      </aside>
+    </aside>
     </div>
 
     <!-- Finish Summary Modal -->
