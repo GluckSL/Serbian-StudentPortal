@@ -84,6 +84,8 @@ export interface DgModuleSummary {
   minPracticeMinutes?: number;
   maxPracticeMinutes?: number | null;
   courseDay?: number | null;
+  /** Optional targeting: empty/unset = visible to all batches. */
+  targetBatches?: string[];
   characterId?: string | DgCharacterDoc;
   visibleToStudents?: boolean;
   scenes?: DgScene[];

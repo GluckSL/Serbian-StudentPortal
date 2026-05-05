@@ -4,8 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 import { DgApiService } from '../dg-api.service';
 import { LearningModulesService } from '../../services/learning-modules.service';
+import { environment } from '../../../environments/environment';
 import type {
   DgCharacterDoc,
   DgConversationFlowStage,
@@ -16,6 +18,10 @@ import type {
   DgSceneType,
   DgVocabEntry,
 } from '../dg-bot.types';
+
+interface BatchSummary {
+  batchName: string;
+}
 
 function emptyRolePlayScenario(): DgRolePlayScenario {
   return {
@@ -73,6 +79,10 @@ export class DgAdminModuleFormComponent implements OnInit {
   allowedGrammar: DgGrammarEntry[] = [];
   conversationFlow: DgConversationFlowStage[] = [];
 
+  batches: BatchSummary[] = [];
+  batchToAdd = '';
+  targetBatches: string[] = [];
+
   newVocabWord = '';
   newVocabTranslation = '';
   newVocabCategory = '';
@@ -100,6 +110,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private learningModules: LearningModulesService,
+    private http: HttpClient,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -114,6 +125,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.loading = true;
     this.message = null;
     try {
+      await this.loadBatches();
       const { characters } = await firstValueFrom(this.dgApi.listCharacters());
       this.characters = characters || [];
       if (this.formMode === 'create') {
@@ -131,6 +143,49 @@ export class DgAdminModuleFormComponent implements OnInit {
     } finally {
       this.loading = false;
     }
+  }
+
+  private async loadBatches(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ batches: BatchSummary[] }>(`${environment.apiUrl}/batch-journey`, {
+          withCredentials: true,
+        }),
+      );
+      this.batches = (res?.batches || []).sort((a, b) => a.batchName.localeCompare(b.batchName));
+    } catch {
+      this.batches = [];
+    }
+  }
+
+  isBatchSelected(name: string): boolean {
+    return this.targetBatches.includes(name);
+  }
+
+  toggleBatch(name: string): void {
+    const v = String(name || '').trim();
+    if (!v) return;
+    const idx = this.targetBatches.indexOf(v);
+    if (idx >= 0) this.targetBatches.splice(idx, 1);
+    else this.targetBatches.push(v);
+  }
+
+  removeBatch(name: string): void {
+    const v = String(name || '').trim();
+    if (!v) return;
+    this.targetBatches = this.targetBatches.filter((b) => b !== v);
+  }
+
+  clearBatches(): void {
+    this.targetBatches = [];
+  }
+
+  onBatchDropdownChange(): void {
+    const v = String(this.batchToAdd || '').trim();
+    if (v && !this.targetBatches.includes(v)) {
+      this.targetBatches = [...this.targetBatches, v];
+    }
+    this.batchToAdd = '';
   }
 
   goBack(): void {
@@ -155,6 +210,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editCharacterId =
       typeof row.characterId === 'string' ? row.characterId : (row.characterId as any)?._id || '';
     this.editVisible = !!row.visibleToStudents;
+    this.targetBatches = Array.isArray(row.targetBatches) ? [...row.targetBatches] : [];
     this.editScenes = JSON.parse(JSON.stringify(row.scenes || [])).sort(
       (a: DgScene, b: DgScene) => (a.order || 0) - (b.order || 0),
     );
@@ -178,6 +234,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editCharacterId =
       this.characters.find((c) => c.isDefault)?._id || this.characters[0]?._id || '';
     this.editVisible = false;
+    this.targetBatches = [];
     this.editScenes = [
       {
         type: 'intro',
@@ -374,6 +431,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       courseDay: courseDayPayload,
       characterId: this.editCharacterId,
       visibleToStudents: this.editVisible,
+      targetBatches: this.targetBatches,
       rolePlayScenario: this.editRolePlay,
       allowedVocabulary: this.allowedVocabulary,
       aiTutorVocabulary: this.aiTutorVocabulary,

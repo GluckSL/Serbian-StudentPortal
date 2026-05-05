@@ -5,6 +5,8 @@ const {
   getStudentDgJourneyAccess,
   dgModuleUnlockedForStudentDay,
 } = require('../utils/dgStudentJourneyGate');
+const User = require('../models/User');
+const { studentTargetBatchKeys, moduleTargetingQuery, normalizeBatchKeys } = require('../utils/batchTargeting');
 const {
   buildDgModulePayloadFromLearning,
   resolveDefaultCharacterId,
@@ -120,10 +122,18 @@ exports.create = async (req, res) => {
       scenes: sortScenes(req.body.scenes || []),
       createdBy: req.user.id,
     });
+    // Accept human-readable batch names as `targetBatches` and store normalized keys.
+    if (Array.isArray(req.body?.targetBatches)) {
+      payload.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
+    }
     const doc = new DGModule(payload);
     await doc.save();
     await doc.populate('characterId');
-    res.status(201).json(doc);
+    const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+    res.status(201).json({
+      ...plain,
+      targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
+    });
   } catch (e) {
     res.status(400).json({ message: e.message || 'Create module failed' });
   }
@@ -134,12 +144,19 @@ exports.update = async (req, res) => {
     const body = normalizePracticeWindow({ ...req.body });
     if (Array.isArray(body.scenes)) body.scenes = sortScenes(body.scenes);
     delete body.createdBy;
+    if (Array.isArray(req.body?.targetBatches)) {
+      body.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
+    }
     const doc = await DGModule.findByIdAndUpdate(req.params.id, body, {
       new: true,
       runValidators: true,
     }).populate('characterId');
     if (!doc) return res.status(404).json({ message: 'Module not found' });
-    res.json(doc);
+    const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+    res.json({
+      ...plain,
+      targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
+    });
   } catch (e) {
     res.status(400).json({ message: e.message || 'Update failed' });
   }
@@ -154,7 +171,11 @@ exports.getAdminById = async (req, res) => {
     if (req.user.role === 'TEACHER' && doc.createdBy.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Forbidden' });
     }
-    res.json(doc);
+    const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+    res.json({
+      ...plain,
+      targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
+    });
   } catch (e) {
     res.status(500).json({ message: e.message || 'Load failed' });
   }
@@ -170,7 +191,12 @@ exports.listAdmin = async (req, res) => {
       .populate('characterId')
       .sort({ updatedAt: -1 })
       .lean();
-    res.json({ modules });
+    res.json({
+      modules: (modules || []).map((m) => ({
+        ...m,
+        targetBatches: Array.isArray(m.targetBatchKeys) ? m.targetBatchKeys : [],
+      })),
+    });
   } catch (e) {
     res.status(500).json({ message: e.message || 'List failed' });
   }
@@ -183,10 +209,15 @@ exports.listStudent = async (req, res) => {
       return res.json({ modules: [] });
     }
     const studentDay = access.courseDay;
+    const student = await User.findById(req.user.id)
+      .select('batch goStatus subscription role')
+      .lean();
+    const studentKeys = studentTargetBatchKeys(student);
 
     const modules = await DGModule.find({
       isActive: true,
       visibleToStudents: true,
+      ...moduleTargetingQuery(studentKeys),
       $or: [
         { courseDay: null },
         { courseDay: { $exists: false } },
@@ -195,7 +226,7 @@ exports.listStudent = async (req, res) => {
     })
       .populate('characterId')
       .select(
-        'title description level characterId visibleToStudents updatedAt createdAt scenes courseDay'
+        'title description level characterId visibleToStudents updatedAt createdAt scenes courseDay targetBatchKeys'
       )
       .sort({ title: 1 })
       .lean();
@@ -253,6 +284,21 @@ exports.getPlay = async (req, res) => {
           message: 'DG modules are not available for your batch.',
           code: 'LEARNING_CONTENT_DISABLED',
         });
+      }
+      const student = await User.findById(req.user.id)
+        .select('batch goStatus subscription role')
+        .lean();
+      const keys = studentTargetBatchKeys(student);
+      const modKeys = Array.isArray(mod.targetBatchKeys) ? mod.targetBatchKeys : [];
+      if (modKeys.length) {
+        const keySet = new Set(keys);
+        const ok = modKeys.some((k) => keySet.has(String(k)));
+        if (!ok) {
+          return res.status(403).json({
+            message: 'This module is not assigned to your batch.',
+            code: 'BATCH_NOT_ASSIGNED',
+          });
+        }
       }
       if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
         return res.status(403).json({
