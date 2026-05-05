@@ -561,6 +561,33 @@
             </div>
           </ng-container>
 
+          <!-- Rearrange Editor -->
+          <ng-container *ngIf="q.type === 'rearrange'">
+            <div class="info-banner">
+              <span class="material-icons">reorder</span>
+              Students will rearrange the tokens into the correct order (drag-drop) or type the final sentence.
+              Provide either a full expected sentence or a token list (recommended).
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Question</label>
+              <app-rich-text-input [(ngModel)]="q.rearrangePrompt" [rows]="2" placeholder="e.g. Rearrange the words to form a correct sentence."></app-rich-text-input>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">Expected sentence <span class="label-optional">(optional if tokens are provided)</span></label>
+              <input type="text" [(ngModel)]="q.rearrangeAnswer" class="field-input" placeholder="e.g. Ich gehe heute nach Hause." />
+            </div>
+            <div class="field-group full">
+              <label class="field-label">Correct token order <span class="label-optional">(recommended)</span></label>
+              <textarea
+                [(ngModel)]="q.rearrangeTokens"
+                class="field-input"
+                rows="6"
+                placeholder="One token per line, in correct order&#10;Ich&#10;gehe&#10;heute&#10;nach&#10;Hause."
+              ></textarea>
+              <p class="hint-text">Tip: include punctuation in the token (e.g. <code>Hause.</code>) if you want it attached.</p>
+            </div>
+          </ng-container>
+
           <!-- Listening Editor -->
           <ng-container *ngIf="q.type === 'listening'">
             <div class="info-banner">

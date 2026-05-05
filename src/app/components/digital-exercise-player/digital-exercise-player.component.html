@@ -156,6 +156,7 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'" [innerHTML]="pq.data.prompt | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'listening'" [innerHTML]="pq.data.prompt | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'jumble-word'">{{ pq.data.scrambledText || '—' }}</div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'rearrange'" [innerHTML]="pq.data.rearrangePrompt | safeHtml"></div>
           <div class="listening-audio-wrap review-listening-audio" *ngIf="getListeningSupplementalAudioUrl(pq.data)">
             <audio [src]="getMediaFullUrl(getListeningSupplementalAudioUrl(pq.data))" controls></audio>
           </div>
@@ -320,9 +321,6 @@
           <span class="material-icons">schedule</span>
           Remaining: {{ formatTime(sessionRemainingSeconds) }}
         </div>
-        <button class="btn-submit top-submit" *ngIf="!isSubmittedState" (click)="submitExercise()" [disabled]="submitting">
-          {{ submitting ? 'Submitting...' : 'Submit' }}
-        </button>
       </div>
     </div>
 
@@ -467,12 +465,12 @@
                 </div>
 
                 <div class="vp-stage-ui-center">
-                  <div class="vp-stage-final-submit" *ngIf="showVpFinalSubmit && canCompleteByAttemptRate">
+                  <div class="vp-stage-final-submit" *ngIf="showVpFinalSubmit">
                     <button
                       type="button"
                       class="vp-stage-submit-cta"
                       (click)="openFinishSummary()"
-                      [disabled]="finishingAll || submitting"
+                      [disabled]="finishingAll || submitting || !canCompleteByAttemptRate"
                     >
                       <span class="material-icons">send</span>
                       Submit
@@ -671,11 +669,11 @@
                         Continue anyway
                       </button>
                       <button
-                        *ngIf="isLastQuestion && canCompleteByAttemptRate"
+                        *ngIf="isLastQuestion"
                         type="button"
                         class="vp-stage-pill vp-stage-pill--finish"
                         (click)="finishVideoExercise()"
-                        [disabled]="finishingAll || submitting"
+                        [disabled]="finishingAll || submitting || !canCompleteByAttemptRate"
                       >
                         <span class="material-icons">flag</span>
                         {{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}
@@ -707,11 +705,11 @@
                         Go to next clip
                       </button>
                       <button
-                        *ngIf="isLastQuestion && canCompleteByAttemptRate"
+                        *ngIf="isLastQuestion"
                         type="button"
                         class="vp-stage-pill vp-stage-pill--finish"
                         (click)="finishVideoExercise()"
-                        [disabled]="finishingAll || submitting"
+                        [disabled]="finishingAll || submitting || !canCompleteByAttemptRate"
                       >
                         <span class="material-icons">flag</span>
                         {{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}
@@ -1383,7 +1381,16 @@
           </div>
           <div class="jumble-scramble">
             <ng-container *ngFor="let token of getJumbleTokens(currentQuestion.data); let ti = index">
-              <span *ngIf="token !== ' '" class="jumble-letter" [class.jumble-letter--bold]="token === currentQuestion.data.boldLetter && ti === getFirstBoldIndex(currentQuestion.data)">{{ token }}</span>
+              <button
+                *ngIf="token !== ' '"
+                type="button"
+                class="jumble-letter jumble-letter-btn"
+                [class.jumble-letter--bold]="token === currentQuestion.data.boldLetter && ti === getFirstBoldIndex(currentQuestion.data)"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertJumbleToken(token)"
+                [disabled]="hasCurrentSubmitted"
+                [attr.aria-label]="'Insert ' + token"
+              >{{ token }}</button>
               <span *ngIf="token === ' '" class="jumble-space"> </span>
             </ng-container>
           </div>
@@ -1392,11 +1399,61 @@
             type="text"
             class="jumble-input"
             placeholder="Type the word..."
+            #jumbleInput
             [(ngModel)]="currentQuestion.jumbleWordResponse"
             (ngModelChange)="markAttempted(currentQuestion)"
+            (focus)="setActiveSpecialInputTarget({ type: 'jumble-word' })"
             [disabled]="hasCurrentSubmitted"
             (keydown.enter)="$event.preventDefault()"
           />
+
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rearrange body -->
+        <div class="q-body rearrange-body" *ngIf="currentQuestion.data.type === 'rearrange'">
+          <div class="q-question-box">
+            <div class="q-question-label">Question</div>
+            <div class="qa-prompt" [innerHTML]="(currentQuestion.data.rearrangePrompt || '') | safeHtml"></div>
+          </div>
+
+          <div class="rearrange-tokens-wrap" *ngIf="currentQuestion.rearrangeTokens?.length">
+            <div class="rearrange-label">Drag to rearrange:</div>
+            <div
+              cdkDropList
+              class="rearrange-drop"
+              cdkDropListOrientation="horizontal"
+              [cdkDropListSortingDisabled]="false"
+              [cdkDropListData]="currentQuestion.rearrangeTokens"
+              [class.disabled]="hasCurrentSubmitted"
+              (cdkDropListDropped)="onRearrangeDrop(currentQuestion, $event)"
+            >
+              <div
+                class="rearrange-token"
+                *ngFor="let t of currentQuestion.rearrangeTokens; let ti = index; trackBy: trackByIndex"
+                cdkDrag
+                [cdkDragDisabled]="hasCurrentSubmitted"
+                (cdkDragStarted)="onRearrangeDragStarted(currentQuestion, $event)"
+                (cdkDragEnded)="onRearrangeDragEnded(currentQuestion, $event)"
+                (mousedown)="$event.preventDefault()"
+              >
+                {{ t }}
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Video Pronunciation (mixed exercises only — video-only uses split layout above) -->
@@ -1535,11 +1592,11 @@
                       <span>Next clip</span>
                     </button>
                     <button
-                      *ngIf="isLastQuestion && canCompleteByAttemptRate"
+                      *ngIf="isLastQuestion"
                       type="button"
                       class="vp-mob-btn vp-mob-btn--finish vp-mob-btn--wrong-mini"
                       (click)="finishVideoExercise()"
-                      [disabled]="finishingAll || submitting"
+                      [disabled]="finishingAll || submitting || !canCompleteByAttemptRate"
                     >
                       <span class="material-icons">flag</span>
                       <span>{{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}</span>
@@ -1580,11 +1637,11 @@
                       <span>Next clip</span>
                     </button>
                     <button
-                      *ngIf="isLastQuestion && canCompleteByAttemptRate"
+                      *ngIf="isLastQuestion"
                       type="button"
                       class="vp-mob-btn vp-mob-btn--finish vp-mob-btn--wrong-mini"
                       (click)="finishVideoExercise()"
-                      [disabled]="finishingAll || submitting"
+                      [disabled]="finishingAll || submitting || !canCompleteByAttemptRate"
                     >
                       <span class="material-icons">flag</span>
                       <span>{{ finishingAll ? 'Submitting…' : 'Submit Exercise' }}</span>
@@ -1689,7 +1746,7 @@
           <button class="btn-nav btn-next" *ngIf="!isLastQuestion" (click)="nextQuestion()" [disabled]="finishingAll">
             Next <span class="material-icons">arrow_forward</span>
           </button>
-          <button class="btn-submit btn-finish" *ngIf="isLastQuestion && canCompleteByAttemptRate" (click)="openFinishSummary()" [disabled]="finishingAll">
+          <button class="btn-submit btn-finish" *ngIf="isLastQuestion" (click)="openFinishSummary()" [disabled]="finishingAll || !canCompleteByAttemptRate">
             <span class="material-icons">{{ finishingAll ? 'hourglass_empty' : 'flag' }}</span>
             {{ finishingAll ? 'Finishing...' : 'Finish & Submit' }}
           </button>

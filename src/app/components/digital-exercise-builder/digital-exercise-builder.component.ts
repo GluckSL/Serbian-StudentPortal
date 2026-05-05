@@ -12,7 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word' | 'rearrange';
   worksheetKind?: string | null;
   context?: string;
   // MCQ
@@ -71,6 +71,11 @@ interface BuilderQuestion {
   boldLetter?: string;
   expectedWord?: string;
   categoryTip?: string;
+  // Rearrange (builder-only)
+  rearrangePrompt?: string;
+  rearrangeAnswer?: string;
+  /** Newline-separated correct token order (stored to API as string[]) */
+  rearrangeTokens?: string;
 }
 
 interface VideoFeedbackAudioRow {
@@ -148,7 +153,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', icon: 'edit_note', description: 'Write your own sentences.' },
     { value: 'free-writing-profile', label: 'Free Writing – profile', icon: 'badge', description: 'Write a short profile (Steckbrief).' },
     { value: 'error-correction', label: 'Error Correction', icon: 'error', description: 'Correct mistakes and write the right sentence.' },
-    { value: 'jumble-word', label: 'Jumble Word', icon: 'shuffle', description: 'Scrambled letters → student forms the correct word.' }
+    { value: 'jumble-word', label: 'Jumble Word', icon: 'shuffle', description: 'Scrambled letters → student forms the correct word.' },
+    { value: 'rearrange', label: 'Rearrange', icon: 'reorder', description: 'Student rearranges words into the correct order (drag-drop or typing).' }
   ];
 
   constructor(
@@ -291,6 +297,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         aiGradingEnabled: false,
         scoringMode: 'full'
       });
+    } else if ((q.type as any) === 'rearrange') {
+      Object.assign(base, {
+        rearrangePrompt: q.rearrangePrompt || '',
+        rearrangeAnswer: q.rearrangeAnswer || '',
+        rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens.join('\n') : '',
+        aiGradingEnabled: false,
+        scoringMode: 'full'
+      });
     }
     return base;
   }
@@ -387,6 +401,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       (q as any).expectedWord = '';
       (q as any).categoryTip = '';
       q.instruction = '';
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
+    } else if (type === 'rearrange') {
+      (q as any).rearrangePrompt = '';
+      (q as any).rearrangeAnswer = '';
+      (q as any).rearrangeTokens = '';
       q.aiGradingEnabled = false;
       q.scoringMode = 'full';
     }
@@ -622,6 +642,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'jumble-word' && q.expectedWord) {
       return q.expectedWord;
     }
+    if ((q.type as any) === 'rearrange') {
+      const toks = String((q as any).rearrangeTokens || '').trim();
+      if (toks) return toks.split('\n').map((x) => x.trim()).filter(Boolean).join(' ');
+      const ans = String((q as any).rearrangeAnswer || '').trim();
+      return ans;
+    }
     return '';
   }
 
@@ -844,6 +870,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (q.type === 'listening') return this.hasListeningAudio(q) && !!(q.expectedTranscript?.trim());
     if (q.type === 'video-pronunciation') return !!(q.videoUrl?.trim()) && !!(q.caption?.trim());
     if ((q.type as any) === 'jumble-word') return !!(q as any).scrambledText?.trim() && !!(q as any).expectedWord?.trim();
+    if ((q.type as any) === 'rearrange') {
+      const promptOk = !!String((q as any).rearrangePrompt || '').trim();
+      const ansOk = !!String((q as any).rearrangeAnswer || '').trim();
+      const toksOk = !!String((q as any).rearrangeTokens || '').trim();
+      return promptOk && (ansOk || toksOk);
+    }
     return false;
   }
 
@@ -900,6 +932,26 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           left: String(p.left || '').trim(),
           right: String(p.right || '').trim()
         }));
+      }
+      if ((q.type as any) === 'rearrange') {
+        const tokensRaw = String((q as any).rearrangeTokens || '');
+        let tokens = tokensRaw
+          .split('\n')
+          .map((x) => x.trim())
+          .filter(Boolean);
+        row.rearrangePrompt = String((q as any).rearrangePrompt || '').trim();
+        row.rearrangeAnswer = String((q as any).rearrangeAnswer || '').trim();
+        // Convenience: if teacher didn't provide tokens, try splitting prompt like "Lampe / an / die / ist"
+        if ((!tokens || tokens.length === 0) && row.rearrangePrompt) {
+          const maybe = String(row.rearrangePrompt)
+            .split('/')
+            .map((x) => x.trim())
+            .filter((x) => x && x !== '/');
+          if (maybe.length >= 2) tokens = maybe;
+        }
+        // Remove any bare "/" tokens if present
+        tokens = (tokens || []).map((t: string) => String(t).trim()).filter((t: string) => t && t !== '/');
+        row.rearrangeTokens = tokens;
       }
       return row;
     });

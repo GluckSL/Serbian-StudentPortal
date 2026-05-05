@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 
 const QuestionResponseSchema = new mongoose.Schema({
   questionIndex: { type: Number, required: true },
-  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word'] },
+  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'] },
   // MCQ response
   selectedOptionIndex: Number,
   // Matching response: array of { leftIndex, rightIndex }

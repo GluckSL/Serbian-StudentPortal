@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'], required: true },
     // Common optional context shown above the question to students.
     context: { type: String, default: '' },
     // Instruction and example shown in a highlighted banner above the question body.
@@ -145,7 +145,11 @@ const DigitalExerciseSchema = new mongoose.Schema({
     scrambledText: { type: String, default: '' },  // e.g. "Z I M M E W O H N R"
     boldLetter: { type: String, default: '' },      // single character shown bold as a hint
     expectedWord: { type: String, default: '' },    // correct assembled word
-    categoryTip: { type: String, default: '' }      // optional hint text below instruction
+    categoryTip: { type: String, default: '' },      // optional hint text below instruction
+    // Rearrange fields (word / sentence ordering)
+    rearrangePrompt: { type: String, default: '' },  // question text shown to students
+    rearrangeAnswer: { type: String, default: '' },  // correct ordered sentence (for typing compare)
+    rearrangeTokens: [{ type: String }]              // correct ordered tokens (for drag/drop compare)
   }],
 
   // Optional shared audio for manual listening worksheets.

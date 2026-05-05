@@ -1367,6 +1367,112 @@
 .jumble-input:focus { outline: none; border-color: #6366f1; }
 .jumble-input:disabled { background: #f3f4f6; color: #9ca3af; }
 
+/* Rearrange body */
+.rearrange-body { display: flex; flex-direction: column; gap: 14px; }
+.rearrange-tokens-wrap { margin-top: 6px; }
+.rearrange-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.rearrange-drop {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 14px 16px;
+  padding-right: 56px; /* makes dropping at end reliable */
+  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 70%);
+  border: 1.5px dashed #a5b4fc;
+  border-radius: 12px;
+  min-height: 56px;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-shadow:
+    0 10px 24px rgba(99, 102, 241, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.rearrange-drop::before {
+  content: 'Drop words here';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(51, 65, 85, 0.42);
+  pointer-events: none;
+}
+.rearrange-drop:has(.rearrange-token)::before {
+  content: '';
+}
+.rearrange-drop.cdk-drop-list-dragging {
+  border-color: #6366f1;
+  box-shadow:
+    0 14px 34px rgba(99, 102, 241, 0.18),
+    0 0 0 3px rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.rearrange-drop.disabled {
+  opacity: 0.6;
+  filter: grayscale(0.1);
+}
+.rearrange-token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1.5px solid rgba(99, 102, 241, 0.40);
+  border-radius: 12px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.08),
+    0 1px 0 rgba(15, 23, 42, 0.05);
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.rearrange-token:hover {
+  border-color: rgba(99, 102, 241, 0.9);
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.10),
+    0 0 0 3px rgba(99, 102, 241, 0.10);
+}
+.rearrange-token:active {
+  cursor: grabbing;
+  transform: scale(0.98);
+}
+
+/* CDK drag/drop visuals (rearrange tiles) */
+.rearrange-drop.cdk-drop-list-dragging .rearrange-token:not(.cdk-drag-placeholder) {
+  transition: transform 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+.rearrange-token.cdk-drag-preview {
+  border-color: rgba(99, 102, 241, 0.95);
+  box-shadow:
+    0 18px 40px rgba(15, 23, 42, 0.18),
+    0 0 0 4px rgba(99, 102, 241, 0.18);
+  transform: rotate(1deg);
+}
+.rearrange-token.cdk-drag-placeholder {
+  opacity: 0.35;
+}
+.rearrange-drop .cdk-drop-list-placeholder,
+.rearrange-drop .cdk-drag-placeholder {
+  display: inline-flex;
+  width: 90px;
+  height: 42px;
+  border-radius: 12px;
+  border: 2px dashed rgba(99, 102, 241, 0.55);
+  background: rgba(99, 102, 241, 0.08);
+}
+
 /* Result Banner */
 .result-banner { padding: 12px 20px; border-top: 1.5px solid #f0f0f0; }
 .result-correct { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; font-weight: 700; color: #15803d; }

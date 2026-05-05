@@ -6,7 +6,17 @@ import { Observable, from, of, throwError } from 'rxjs';
 import { switchMap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word';
+export type QuestionType =
+  | 'mcq'
+  | 'matching'
+  | 'fill-blank'
+  | 'pronunciation'
+  | 'question-answer'
+  | 'listening'
+  | 'video-pronunciation'
+  | 'singular_plural'
+  | 'jumble-word'
+  | 'rearrange';
 
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
@@ -135,7 +145,27 @@ export interface JumbleWordQuestion extends QuestionCommonFields {
   categoryTip?: string;
 }
 
-export type ExerciseQuestion = (MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | SingularPluralQuestion | ListeningQuestion | VideoPronunciationQuestion | JumbleWordQuestion) & WorksheetQuestionMeta;
+export interface RearrangeQuestion extends QuestionCommonFields {
+  type: 'rearrange';
+  rearrangePrompt: string;
+  rearrangeAnswer?: string;
+  rearrangeTokens?: string[];
+  shuffledTokens?: string[]; // provided by server during play
+  points: number;
+}
+
+export type ExerciseQuestion = (
+  | MCQQuestion
+  | MatchingQuestion
+  | FillBlankQuestion
+  | PronunciationQuestion
+  | QuestionAnswerQuestion
+  | SingularPluralQuestion
+  | ListeningQuestion
+  | VideoPronunciationQuestion
+  | JumbleWordQuestion
+  | RearrangeQuestion
+) & WorksheetQuestionMeta;
 
 /** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
 export interface VideoExerciseFeedbackItem {
@@ -260,6 +290,8 @@ export interface QuestionResponse {
   qaResponse?: string;
   listeningText?: string;
   jumbleWordResponse?: string;
+  rearrangeTextResponse?: string;
+  rearrangeTokensResponse?: string[];
 }
 
 
@@ -639,7 +671,8 @@ export class DigitalExerciseService {
       singular_plural: 'Singular / Plural',
       listening: 'Listening',
       'video-pronunciation': 'Video Pronunciation',
-      'jumble-word': 'Jumble Word'
+      'jumble-word': 'Jumble Word',
+      rearrange: 'Rearrange'
     };
     return labels[type] || type;
   }
@@ -654,7 +687,8 @@ export class DigitalExerciseService {
       singular_plural: 'swap_horiz',
       listening: 'headphones',
       'video-pronunciation': 'videocam',
-      'jumble-word': 'shuffle'
+      'jumble-word': 'shuffle',
+      rearrange: 'reorder'
     };
     return icons[type] || 'help';
   }

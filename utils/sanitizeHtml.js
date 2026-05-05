@@ -98,7 +98,9 @@ function sanitizeQuestions(questions) {
     'question', 'prompt', 'instruction', 'example', 'sentence',
     'hint', 'explanation', 'answerExplanation', 'word', 'phonetic',
     'translation', 'storyParagraph', 'context', 'caption', 'secondaryCaption',
-    'scrambledText', 'boldLetter', 'expectedWord', 'categoryTip'
+    'scrambledText', 'boldLetter', 'expectedWord', 'categoryTip',
+    // Rearrange
+    'rearrangePrompt', 'rearrangeAnswer'
   ];
   return questions.map((q) => {
     if (!q || typeof q !== 'object') return q;
@@ -142,6 +144,12 @@ function sanitizeQuestions(questions) {
       out.acceptedVariants = out.acceptedVariants.map((v) =>
         typeof v === 'string' ? sanitizeQuestionHtml(v) : v
       );
+    }
+    // rearrangeTokens
+    if (Array.isArray(out.rearrangeTokens)) {
+      out.rearrangeTokens = out.rearrangeTokens
+        .map((t) => sanitizeQuestionPlainText(t))
+        .filter((t) => typeof t === 'string' && t.trim().length > 0);
     }
     return out;
   });

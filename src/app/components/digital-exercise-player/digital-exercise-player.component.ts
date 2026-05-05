@@ -5,6 +5,15 @@ import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
+  CdkDragDrop,
+  CdkDragStart,
+  CdkDragEnd,
+  CdkDragMove,
+  CdkDragSortEvent,
+  DragDropModule,
+  moveItemInArray,
+} from '@angular/cdk/drag-drop';
+import {
   DigitalExerciseService, DigitalExercise,
   QuestionResponse, SubmitResult, SubmitQuestionResult
 } from '../../services/digital-exercise.service';
@@ -101,6 +110,9 @@ interface PlayerQuestion {
   listeningText?: string;
   // Jumble-word state
   jumbleWordResponse?: string;
+  // Rearrange state
+  rearrangeTokens?: string[];
+  rearrangeDragActive?: boolean;
   // Video Pronunciation state
   vpSpokenText?: string;
   vpResult?: 'idle' | 'correct' | 'almostCorrect' | 'incorrect';
@@ -135,12 +147,14 @@ type SpecialInputTarget =
   | { type: 'fill-blank'; blankIndex: number }
   | { type: 'question-answer' }
   | { type: 'listening' }
-  | { type: 'singular-plural'; rowIndex: number };
+  | { type: 'singular-plural'; rowIndex: number }
+  | { type: 'jumble-word' }
+  | { type: 'rearrange' };
 
 @Component({
   selector: 'app-digital-exercise-player',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe, AudioVisualizerComponent, PronunciationComparisonViewComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, SafeHtmlPipe, AudioVisualizerComponent, PronunciationComparisonViewComponent, DragDropModule],
   templateUrl: './digital-exercise-player.component.html',
   styleUrls: ['./digital-exercise-player.component.css']
 })
@@ -348,6 +362,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   };
 
   @ViewChild('vpChatScroll') vpChatScroll?: ElementRef<HTMLDivElement>;
+  @ViewChild('jumbleInput') jumbleInput?: ElementRef<HTMLInputElement>;
 
   constructor(
     private route: ActivatedRoute,
@@ -644,6 +659,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.listeningText = '';
       } else if ((q.type as string) === 'jumble-word') {
         pq.jumbleWordResponse = '';
+      } else if ((q.type as string) === 'rearrange') {
+        const tokens: string[] = Array.isArray(q.shuffledTokens)
+          ? q.shuffledTokens.map((t: any) => String(t ?? '').trim()).filter((t: string) => t.length > 0)
+          : [];
+        pq.rearrangeTokens = tokens;
+        pq.rearrangeDragActive = false;
       } else if (q.type === 'video-pronunciation') {
         pq.vpSpokenText = '';
         pq.vpResult = 'idle';
@@ -658,6 +679,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return pq;
     });
     this.resetVpChat();
+  }
+
+  onRearrangeDrop(pq: PlayerQuestion, event: CdkDragDrop<string[] | undefined>): void {
+    if (this.state === 'submitted' || !pq) return;
+    if (!event?.isPointerOverContainer) return;
+    if (!Array.isArray(pq.rearrangeTokens)) return;
+    const arr = pq.rearrangeTokens;
+    const prev = event.previousIndex;
+    let curr = event.currentIndex;
+    if (!Number.isFinite(prev) || !Number.isFinite(curr)) return;
+    curr = Math.max(0, Math.min(arr.length - 1, curr));
+    if (prev === curr) return;
+    moveItemInArray(arr, prev, curr);
+    this.markAttempted(pq);
+  }
+
+  onRearrangeDragStarted(pq: PlayerQuestion, _ev: CdkDragStart): void {
+    if (this.state === 'submitted' || !pq) return;
+    pq.rearrangeDragActive = true;
+  }
+
+  onRearrangeDragEnded(pq: PlayerQuestion, _ev: CdkDragEnd): void {
+    if (!pq) return;
+    pq.rearrangeDragActive = false;
+  }
+
+  trackByIndex(i: number): number {
+    return i;
   }
 
   /** True when every question is a video-pronunciation clip (split chat UI). */
@@ -1296,6 +1345,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       resp.listeningText = pq.listeningText || '';
     } else if ((pq.data.type as string) === 'jumble-word') {
       resp.jumbleWordResponse = pq.jumbleWordResponse || '';
+    } else if ((pq.data.type as string) === 'rearrange') {
+      resp.rearrangeTokensResponse = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
     } else if (pq.data.type === 'video-pronunciation') {
       resp.spokenText = pq.vpSpokenText || '';
       resp.pronunciationScore = pq.pronunciationScore || 0;
@@ -1494,6 +1545,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (q.type === 'question-answer') return (pq.qaResponse || '').trim().length > 0;
     if (q.type === 'listening') return (pq.listeningText || '').trim().length > 0;
     if ((q.type as string) === 'jumble-word') return (pq.jumbleWordResponse || '').trim().length > 0;
+    if ((q.type as string) === 'rearrange') {
+      const toks = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
+      return toks.length > 0;
+    }
     if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
     return false;
   }
@@ -2487,6 +2542,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'fill-blank') return true;
     if (pq.data.type === 'singular_plural') return true;
     if (pq.data.type === 'listening') return true;
+    if (pq.data.type === 'jumble-word') return true;
+    if ((pq.data.type as string) === 'rearrange') return true;
     if (pq.data.type === 'question-answer') return !this.isTrueFalseQuestion(pq.data);
     return false;
   }
@@ -2531,7 +2588,36 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.activeSpecialInputTarget?.type === 'listening') {
       pq.listeningText = `${pq.listeningText || ''}${char}`;
       this.markAttempted(pq);
+      return;
     }
+
+    if (this.activeSpecialInputTarget?.type === 'jumble-word') {
+      pq.jumbleWordResponse = `${pq.jumbleWordResponse || ''}${char}`;
+      this.markAttempted(pq);
+      return;
+    }
+  }
+
+  insertJumbleToken(token: string): void {
+    if (this.state === 'submitted') return;
+    const pq = this.currentQuestion;
+    if (!pq || (pq.data?.type as string) !== 'jumble-word') return;
+    if (!token || token === ' ') return;
+
+    const input = this.jumbleInput?.nativeElement;
+    if (input && !input.disabled) {
+      this.insertAtCaretInControl(input, token);
+      try {
+        input.focus();
+      } catch {
+        // ignore
+      }
+      this.markAttempted(pq);
+      return;
+    }
+
+    pq.jumbleWordResponse = `${pq.jumbleWordResponse || ''}${token}`;
+    this.markAttempted(pq);
   }
 
   private insertAtCaretInFocusedControl(char: string): boolean {
@@ -2552,6 +2638,21 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       // Ignore for controls that do not support explicit selection range.
     }
     return true;
+  }
+
+  private insertAtCaretInControl(control: HTMLInputElement | HTMLTextAreaElement, text: string): void {
+    const value = control.value ?? '';
+    const start = control.selectionStart ?? value.length;
+    const end = control.selectionEnd ?? value.length;
+    const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
+    control.value = next;
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    const caret = start + text.length;
+    try {
+      control.setSelectionRange(caret, caret);
+    } catch {
+      // Ignore for controls that do not support explicit selection range.
+    }
   }
 
   private getWorksheetKindLabel(kind: string | null | undefined): string | null {
@@ -3180,8 +3281,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Aligns with server `sanitizeQuestionPlainText` for per-item feedback after submit. */
   private normExercisePlainText(v: unknown): string {
-    return String(v ?? '')
+    const decoded = String(v ?? '')
+      // numeric entities
+      .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      // common named entities
       .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      // strip any leftover tags (answers should be plain text)
+      .replace(/<\/?[^>]+>/g, '');
+
+    return decoded
+      // normalize Unicode so “ä” vs “ä” compare equal
+      .normalize('NFKC')
+      // remove zero-width characters that can sneak in from copy/paste
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      // normalize NBSP
       .replace(/\u00a0/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();

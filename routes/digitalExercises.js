@@ -912,6 +912,55 @@ router.get('/:id', verifyToken, async (req, res) => {
         if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
           stripped.pairs = q.pairs.map((p) => ({ singular: sanitizeQuestionPlainText(p.singular) }));
         }
+        if (q.type === 'rearrange') {
+          const cleanTokens = (arr) =>
+            (Array.isArray(arr) ? arr : [])
+              .map((t) => sanitizeQuestionPlainText(String(t ?? '')).trim())
+              .filter((t) => t && t !== '/');
+
+          const collapseSpacedLetters = (s) => {
+            const parts = String(s || '').trim().split(/\s+/).filter(Boolean);
+            if (parts.length >= 2 && parts.every((p) => p.length === 1)) {
+              return parts.join('');
+            }
+            return String(s || '').trim();
+          };
+
+          const fromAnswer = (ans) =>
+            sanitizeQuestionPlainText(String(ans ?? ''))
+              .trim()
+              .split(/\s+/)
+              .map((t) => t.trim())
+              .filter(Boolean);
+
+          const fromPrompt = (prompt) => {
+            const raw = sanitizeQuestionPlainText(String(prompt ?? '')).trim();
+            if (!raw) return [];
+            if (raw.includes('/')) {
+              const parts = raw
+                .split('/')
+                .map((x) => collapseSpacedLetters(x))
+                .filter((x) => x && x !== '/');
+              if (parts.length >= 2) return parts;
+            }
+            // If prompt is written like "w e i c h i s t", collapse to "weichist"
+            const collapsed = collapseSpacedLetters(raw);
+            if (collapsed !== raw) return [collapsed];
+            return raw.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+          };
+
+          const expectedTokens = cleanTokens(q.rearrangeTokens);
+          const baseTokens =
+            expectedTokens.length
+              ? expectedTokens
+              : (String(q.rearrangeAnswer || '').trim()
+                  ? fromAnswer(q.rearrangeAnswer).map(collapseSpacedLetters).filter(Boolean)
+                  : fromPrompt(q.rearrangePrompt));
+
+          stripped.shuffledTokens = shuffleArray(baseTokens);
+          delete stripped.rearrangeTokens;
+          delete stripped.rearrangeAnswer;
+        }
         return stripped;
       });
     }
