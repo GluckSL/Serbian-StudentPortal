@@ -56,6 +56,9 @@
           <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
         </div>
         <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
           <app-dg-character
             [minimalChrome]="true"
             [name]="payload.character.name"
@@ -142,6 +145,9 @@
           </div>
         </div>
         <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
           <app-dg-character
             [minimalChrome]="true"
             [name]="payload.character.name"

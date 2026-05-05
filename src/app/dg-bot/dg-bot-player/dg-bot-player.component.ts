@@ -81,6 +81,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   practicePassed = false;
   displayLine = '';
   displaySub = '';
+  mascotSpeechText = '';
   canNext = false;
   isTransitioning = false;
   showConfetti = false;
@@ -524,6 +525,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   onPracticePhase(p: DgPracticePhase): void {
     if (p === 'listening') {
       this.status = 'listening';
+      this.mascotSpeechText = '';
       if (!this.characterSpeechLocked) this.charState.setState('listening');
       return;
     }
@@ -544,6 +546,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   async onEvaluated(ev: PronunciationEvaluateResponse): Promise<void> {
     if (!this.sessionId) return;
     this.pushDebugSpeech(ev.transcript || '');
+    this.mascotSpeechText = '';
 
     // ── Conversation mode: always continue regardless of score ────────────────
     if (this.conversationMode) {
@@ -579,6 +582,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       const lines = this.engine.feedbackLines(true, false);
       this.displayLine = `Great job! ${lines.en}`;
       this.displaySub = lines.de;
+      this.mascotSpeechText = lines.de;
       await this.playFeedbackTts(lines.de, 'happy');
       this.scheduleAutoAdvance(1600);
     } else {
@@ -589,9 +593,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       const lines = this.engine.feedbackLines(false, false);
       this.displayLine = `${lines.en} Try again when you're ready.`;
       this.displaySub = lines.de;
+      this.mascotSpeechText = lines.de;
       await this.playFeedbackTts(lines.de, 'sad');
       this.displayLine = this.scene?.text || '';
       this.displaySub = this.scene?.translation || '';
+      this.mascotSpeechText = this.scene?.text || '';
       this.dialogueVariant = 'default';
       this.canNext = false;
       this.practiceRetryTick += 1;
@@ -622,6 +628,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     const lines = this.engine.feedbackLines(false, true);
     this.displayLine = lines.en;
     this.displaySub = lines.de;
+    this.mascotSpeechText = lines.de;
     await this.playFeedbackTts(lines.de, this.emotionSvc.getEmotion('feedback', { isSilent: true }));
     await dgDelay(400);
     this.dialogueVariant = 'default';
@@ -692,6 +699,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     // Show + speak the start prompt
     this.displayLine = readyMsg;
     this.displaySub = 'Say "Bereit!" or "Ready!" when you are ready to begin.';
+    this.mascotSpeechText = readyMsg;
     this.charState.setState('idle');
     await this.logTts();
     await this.playTtsBlob(readyMsg);
@@ -707,6 +715,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   private async handleConversationEval(ev: PronunciationEvaluateResponse): Promise<void> {
     const transcript = (ev.transcript || '').trim();
     this.waitingForUser = false;
+    this.mascotSpeechText = '';
 
     // No speech at all → just retry mic
     if (!transcript) { this.openMicForUserTurn(); return; }
@@ -816,6 +825,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.scrollChatToLatest();
         this.displayLine = response.hintDe;
         this.displaySub = (response.translatedEnglish || response.hintEn || '').trim();
+        this.mascotSpeechText = response.hintDe;
         this.charState.setState('idle');
         await dgDelay(220);
         this.openMicForUserTurn();
@@ -856,6 +866,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.aiResponseTamil = response.translatedTamil;
       this.displayLine = response.text;
       this.displaySub = response.translatedTamil || '';
+      this.mascotSpeechText = response.text;
       this.dialogueVariant = 'default';
       this.charState.setState('speaking');
 
@@ -887,6 +898,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   async postConversationClientAction(action: 'continue' | 'complete'): Promise<void> {
     if (!this.sessionId || !this.payload || this.conversationComplete) return;
     this.waitingForUser = false;
+    this.mascotSpeechText = '';
     this.isAiThinking = true;
     this.charState.setState('thinking');
     const moduleId = this.payload.module._id;
@@ -949,6 +961,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.scrollChatToLatest();
         this.displayLine = text;
         this.displaySub = response.translatedTamil || '';
+        this.mascotSpeechText = text;
         this.charState.setState('speaking');
         await this.logTts();
         await this.playTtsBlob(text);
@@ -989,6 +1002,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.canNext = false;
     this.displaySub = s.translation || '';
     this.displayLine = s.text || '';
+    this.mascotSpeechText = s.text || '';
     this.charState.setState(this.emotionSvc.getEmotion(s.type, undefined, { hasText: !!(s.text?.trim() || s.audioUrl) }));
 
     const preGen = s.audioUrl?.trim();
