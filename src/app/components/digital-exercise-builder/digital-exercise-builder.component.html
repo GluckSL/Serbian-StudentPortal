@@ -294,8 +294,8 @@
             </span>
           </div>
           <div class="question-header-right">
-            <span class="q-valid" *ngIf="isQuestionValid(q)">✓</span>
-            <span class="q-invalid" *ngIf="!isQuestionValid(q)">!</span>
+            <span class="q-valid" *ngIf="isQuestionValid(q)" matTooltip="This question is complete">✓</span>
+            <span class="q-invalid" *ngIf="!isQuestionValid(q)" matTooltip="This question is incomplete — open it to see required fields">!</span>
             <button class="btn-move" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i === 0" matTooltip="Move up">
               <span class="material-icons">keyboard_arrow_up</span>
             </button>
@@ -305,7 +305,11 @@
             <button class="btn-remove" (click)="$event.stopPropagation(); removeQuestion(i)" matTooltip="Remove">
               <span class="material-icons">delete_outline</span>
             </button>
-            <span class="material-icons expand-icon">{{ expandedQuestion === i ? 'expand_less' : 'expand_more' }}</span>
+            <span
+              class="material-icons expand-icon"
+              matTooltip="{{ expandedQuestion === i ? 'Collapse question' : 'Expand question' }}"
+              [attr.aria-label]="expandedQuestion === i ? 'Collapse question' : 'Expand question'"
+            >{{ expandedQuestion === i ? 'expand_less' : 'expand_more' }}</span>
           </div>
         </div>
 
