@@ -979,6 +979,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return this.secondaryCaptionForQuestion(pq.data) || this.primaryCaptionForQuestion(pq.data);
   }
 
+  getMatchingIndices(pq: any): number[] {
+    const len = Math.max(pq.matchingLeft?.length || 0, pq.matchingRight?.length || 0);
+    return Array.from({ length: len }, (_, i) => i);
+  }
+
   getVpPromptCaption(pq: PlayerQuestion | null | undefined): string {
     if (!pq || pq.data?.type !== 'video-pronunciation') return '';
     const primary = this.primaryCaptionForQuestion(pq.data);
@@ -2855,6 +2860,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   getProgressPercentage(): number {
     if (this.playerQuestions.length === 0) return 0;
     return Math.round((this.answeredCount / this.playerQuestions.length) * 100);
+  }
+
+  readonly progressRingR = 15.9155;
+  get progressRingCircumference(): number {
+    return 2 * Math.PI * this.progressRingR;
+  }
+  get progressRingOffset(): number {
+    return this.progressRingCircumference * (1 - this.getProgressPercentage() / 100);
   }
 
   getScoreClass(score: number): string {
