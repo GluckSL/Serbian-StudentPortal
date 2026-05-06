@@ -546,6 +546,7 @@
   align-items: center;
   gap: 4px;
   font-family: inherit;
+  height: 24px !important;
 }
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -612,7 +613,6 @@
   .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
   .stats-section { grid-template-columns: 1fr 1fr; }
   .requirements-grid { grid-template-columns: 1fr; }
-  .requirements-table { min-width: 640px; }
   .filters-row { grid-template-columns: 1fr; }
   .documents-grid { grid-template-columns: 1fr; }
   .document-actions { flex-direction: column; }
@@ -621,4 +621,100 @@
 
 @media (max-width: 480px) {
   .stats-section { grid-template-columns: 1fr; }
+}
+
+/* ── Requirements: responsive card/mobile view ── */
+.req-view--desktop { display: block; }
+.req-view--mobile { display: none; }
+
+@media (max-width: 768px) {
+  .req-view--desktop { display: none; }
+  .req-view--mobile { display: block; }
+}
+
+.requirements-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.req-card {
+  background: #fff;
+  border: 1px solid #e8ecf4;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+}
+
+.req-card--required {
+  border-left: 3px solid #fc5c65;
+}
+
+.req-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.req-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.req-card-icon {
+  font-size: 13px;
+  color: #005b96;
+}
+
+.req-card-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.req-card-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.req-card-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.req-card-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.req-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.req-card-actions .btn {
+  white-space: nowrap;
+}
+
+.badge--not-uploaded {
+  background: #f9fafb !important;
+  color: #6b7280 !important;
+  border: 1px dashed #d1d5db;
 }
