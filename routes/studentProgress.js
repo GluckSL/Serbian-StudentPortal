@@ -8,9 +8,13 @@ const AiTutorSession = require('../models/AiTutorSession');
 const mongoose = require('mongoose');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { EXCLUDE_TEST } = require('../utils/analyticsFilters');
+const { computeAdminProgressMetrics } = require('../utils/studentProgressMetrics');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const StudentDocument = require('../models/StudentDocument');
 const DigitalExercise = require('../models/DigitalExercise');
+const DGSession = require('../models/DGSession');
+const ExerciseAttempt = require('../models/ExerciseAttempt');
+const MeetingLink = require('../models/MeetingLink');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 
 // Helper: build documents list cross-referencing requirements with uploads
@@ -991,47 +995,86 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
     const StudentPayment = require('../models/StudentPayment');
     const VisaTracking = require('../models/VisaTracking');
 
-    const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-
     // Get all students (test accounts excluded from analytics export)
     const students = await User.find({ role: 'STUDENT', ...EXCLUDE_TEST })
-      .select('name email regNo batch level servicesOpted languageLevelOpted studentStatus assignedTeacher enrollmentDate courseStartDates courseCompletionDates')
+      .select('name email regNo batch level servicesOpted languageLevelOpted studentStatus assignedTeacher enrollmentDate courseStartDates courseCompletionDates currentCourseDay')
       .populate('assignedTeacher', 'name')
       .lean();
 
     // Batch fetch related data
     const studentIds = students.map(s => s._id);
-    const studentIdStrs = studentIds.map(id => id.toString());
 
-    // Attendance counts per student
-    const attendanceAgg = await SessionRecord.aggregate([
-      { $match: { studentId: { $in: studentIds } } },
-      { $group: {
-        _id: '$studentId',
-        total: { $sum: 1 },
-        attended: { $sum: { $cond: [{ $in: ['$sessionState', ['completed', 'manually_ended']] }, 1, 0] } }
-      }}
-    ]);
-    const attendanceMap = {};
-    attendanceAgg.forEach(a => { attendanceMap[a._id.toString()] = a; });
+    // Journey-based class progress:
+    // for each student => classes in student's batch where courseDay <= currentCourseDay
+    const batchKeys = Array.from(new Set(students.map((s) => String(s.batch || '').trim()).filter(Boolean)));
+    const meetingBatchOr = [];
+    for (const b of batchKeys) {
+      meetingBatchOr.push({ batch: b });
+      const bn = Number(b);
+      if (Number.isFinite(bn) && String(bn) === b) meetingBatchOr.push({ batch: bn });
+    }
+    const journeyMeetings = meetingBatchOr.length
+      ? await MeetingLink.find({
+          $or: meetingBatchOr,
+          status: { $ne: 'cancelled' },
+          courseDay: { $gte: 1, $lte: 200 }
+        })
+          .select('batch courseDay attendance')
+          .lean()
+      : [];
+    const meetingsByBatch = {};
+    for (const m of journeyMeetings) {
+      const key = String(m.batch || '').trim();
+      if (!key) continue;
+      if (!meetingsByBatch[key]) meetingsByBatch[key] = [];
+      meetingsByBatch[key].push(m);
+    }
 
-    // Module progress per student
-    const moduleAgg = await StudentProgress.aggregate([
+    // Highest exercise score per student
+    const exerciseAgg = await ExerciseAttempt.aggregate([
       { $match: { studentId: { $in: studentIds } } },
-      { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'mod' } },
-      { $unwind: '$mod' },
-      { $group: {
-        _id: { studentId: '$studentId', level: '$mod.level' },
-        total: { $sum: 1 },
-        completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }
-      }}
+      {
+        $group: {
+          _id: '$studentId',
+          attemptedExerciseIds: { $addToSet: '$exerciseId' }
+        }
+      }
     ]);
-    const moduleMap = {};
-    moduleAgg.forEach(m => {
-      const sid = m._id.studentId.toString();
-      if (!moduleMap[sid]) moduleMap[sid] = {};
-      moduleMap[sid][m._id.level] = { total: m.total, completed: m.completed };
+    const exerciseAttemptedMap = {};
+    exerciseAgg.forEach(e => {
+      exerciseAttemptedMap[e._id.toString()] = new Set(
+        (e.attemptedExerciseIds || []).map((id) => String(id))
+      );
     });
+
+    // Exercises scheduled by journey day (1..200), same source as Journey timeline.
+    const allJourneyExercises = await DigitalExercise.find({
+      isDeleted: { $ne: true },
+      isActive: true,
+      visibleToStudents: true,
+      courseDay: { $gte: 1, $lte: 200 }
+    })
+      .select('_id courseDay')
+      .lean();
+
+    // DG: highest minutes spent in a single session per student
+    const dgSessions = await DGSession.find({ studentId: { $in: studentIds } })
+      .select('studentId logs')
+      .lean();
+    const dgMinutesByStudent = {};
+    for (const s of dgSessions) {
+      const sid = s.studentId?.toString();
+      if (!sid) continue;
+      const sessionMs = (Array.isArray(s.logs) ? s.logs : []).reduce(
+        (sum, l) => sum + (Number.isFinite(l?.durationMs) ? l.durationMs : 0),
+        0
+      );
+      const sessionMinutes = Math.round(sessionMs / 60000);
+      if (sessionMinutes > (dgMinutesByStudent[sid] || 0)) {
+        dgMinutesByStudent[sid] = sessionMinutes;
+      }
+    }
+    const maxDgMinutes = Math.max(0, ...Object.values(dgMinutesByStudent));
 
     // Documents per student
     const docAgg = await StudentDocument.aggregate([
@@ -1058,50 +1101,57 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
     // Build response
     const result = students.map(s => {
       const sid = s._id.toString();
-      const att = attendanceMap[sid] || { total: 0, attended: 0 };
       const doc = docMap[sid] || { total: 0, verified: 0 };
       const pay = payMap[sid] || null;
       const visa = visaMap[sid] || null;
-      const mods = moduleMap[sid] || {};
+      const studentDay = Math.max(1, Math.min(200, Number(s.currentCourseDay || 1)));
+      const batchMeetings = meetingsByBatch[String(s.batch || '').trim()] || [];
+      const scheduledMeetings = batchMeetings.filter((m) => Number(m.courseDay || 0) <= studentDay);
+      const totalClasses = scheduledMeetings.length;
+      const attendedClasses = scheduledMeetings.reduce((sum, m) => {
+        const row = (m.attendance || []).find((a) => String(a?.studentId || '') === sid);
+        const joined = !!row && (row.attended === true || row.status === 'attended');
+        return sum + (joined ? 1 : 0);
+      }, 0);
 
-      // Level progression
-      const currentLevelIndex = allLevels.indexOf(s.level);
-      const opted = (s.languageLevelOpted || '').trim();
-      let displayLevels;
-      if (!opted) { displayLevels = ['A1', 'A2', 'B1', 'B2']; }
-      else if (opted.includes('-')) {
-        const [st, en] = opted.split('-');
-        const si = allLevels.indexOf(st), ei = allLevels.indexOf(en);
-        displayLevels = (si >= 0 && ei >= 0 && ei >= si) ? allLevels.slice(si, ei + 1) : ['A1', 'A2', 'B1', 'B2'];
-      } else {
-        const oi = allLevels.indexOf(opted);
-        displayLevels = oi >= 0 ? allLevels.slice(0, Math.max(oi, currentLevelIndex) + 1) : ['A1', 'A2', 'B1', 'B2'];
-      }
+      const {
+        learningPct,
+        docsPct,
+        payPct,
+        visaPct,
+        levelsCompleted,
+        totalLevels
+      } = computeAdminProgressMetrics(s, doc, pay, visa);
 
-      const levelsCompleted = displayLevels.filter(lv => {
-        const li = allLevels.indexOf(lv);
-        return s.courseCompletionDates?.[lv + 'CompletionDate'] || li < currentLevelIndex;
-      }).length;
-      const learningPct = displayLevels.length ? Math.round((levelsCompleted / displayLevels.length) * 100) : 0;
-
-      const docsPct = doc.total ? Math.round((doc.verified / doc.total) * 100) : 0;
-      const payPct = pay && pay.totalPackageAmount ? Math.round((pay.totalPaid / pay.totalPackageAmount) * 100) : 0;
-
-      let visaSteps = 0, visaCurrent = 0;
+      let visaSteps = 0;
+      let visaCurrent = 0;
       if (visa) {
         visaSteps = visa.visaType === 'au_pair' ? 5 : 6;
-        // Compute current stage from stages array outcomes
         if (visa.stages && visa.stages.length) {
           for (let i = 0; i < visa.stages.length; i++) {
-            if (visa.stages[i].outcome !== 'completed') { visaCurrent = i; break; }
+            if (visa.stages[i].outcome !== 'completed') {
+              visaCurrent = i;
+              break;
+            }
             if (i === visa.stages.length - 1) visaCurrent = i;
           }
         }
       }
-      const visaPct = visaSteps > 1 ? Math.round((visaCurrent / (visaSteps - 1)) * 100) : 0;
 
-      const overallPct = Math.round((learningPct * 0.4 + docsPct * 0.2 + payPct * 0.2 + visaPct * 0.2));
-      const attRate = att.total ? Math.round((att.attended / att.total) * 100) : 0;
+      const attRate = totalClasses ? Math.round((attendedClasses / totalClasses) * 100) : 0;
+      const classPct = attRate;
+      const eligibleExerciseIds = allJourneyExercises
+        .filter((ex) => Number(ex.courseDay || 0) <= studentDay)
+        .map((ex) => String(ex._id));
+      const exerciseTotal = eligibleExerciseIds.length;
+      const attemptedSet = exerciseAttemptedMap[sid] || new Set();
+      const exerciseAttempted = exerciseTotal
+        ? eligibleExerciseIds.reduce((sum, id) => sum + (attemptedSet.has(id) ? 1 : 0), 0)
+        : 0;
+      const exercisePct = exerciseTotal ? Math.round((exerciseAttempted / exerciseTotal) * 100) : 0;
+      const dgMaxMinutes = dgMinutesByStudent[sid] || 0;
+      const dgPct = maxDgMinutes > 0 ? Math.round((dgMaxMinutes / maxDgMinutes) * 100) : 0;
+      const overallPct = Math.round((classPct + exercisePct + dgPct) / 3);
 
       return {
         _id: sid,
@@ -1116,10 +1166,17 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
         enrollmentDate: s.enrollmentDate,
         overallPct,
         learningPct,
+        classPct,
+        exercisePct,
+        dgPct,
+        classProgressText: `${attendedClasses}/${totalClasses}`,
+        exerciseTopScore: exercisePct,
+        exerciseProgressText: `${exerciseAttempted}/${exerciseTotal}`,
+        dgTopMinutes: dgMaxMinutes,
         currentLevel: s.level,
         levelsCompleted,
-        totalLevels: displayLevels.length,
-        attendance: { attended: att.attended, total: att.total, rate: attRate },
+        totalLevels,
+        attendance: { attended: attendedClasses, total: totalClasses, rate: attRate },
         docs: { verified: doc.verified, total: doc.total, pct: docsPct },
         payment: pay ? { currency: pay.currency, total: pay.totalPackageAmount, paid: pay.totalPaid, pending: pay.pendingPayment, pct: payPct } : null,
         visa: visa ? { type: visa.visaType, current: visaCurrent, total: visaSteps, pct: visaPct } : null

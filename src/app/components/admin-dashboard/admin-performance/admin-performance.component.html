@@ -1,0 +1,472 @@
+<div class="perf">
+  <div class="perf__head">
+    <div>
+      <h1 class="perf__title">Performance</h1>
+      <p class="perf__sub">Portal time, live classes, exercises, and DG bot — refined by student or batch.</p>
+    </div>
+  </div>
+
+  <mat-tab-group
+    *ngIf="!studentDetailsMode"
+    class="perf__main-tabs"
+    animationDuration="200ms"
+    [(selectedIndex)]="mainTabIndex"
+    (selectedIndexChange)="onMainTabChange($event)"
+  >
+    <mat-tab label="Students">
+      <div class="perf__tab-body">
+        <div class="perf__toolbar perf__toolbar--modern">
+          <mat-form-field appearance="outline" class="perf__field perf__field--grow perf__field--modern">
+            <mat-label>Find student</mat-label>
+            <mat-icon matPrefix class="perf__input-icon">search</mat-icon>
+            <input
+              matInput
+              [(ngModel)]="studentSearch"
+              [matAutocomplete]="autoStudent"
+              (input)="onStudentSearchInput()"
+              placeholder="Name, email, or reg no"
+            />
+            <mat-autocomplete
+              #autoStudent="matAutocomplete"
+              [displayWith]="displayWithStudent"
+              (optionSelected)="onStudentOption($event)"
+            >
+              <mat-option *ngFor="let s of filteredStudents" [value]="s">
+                {{ s.name }} · {{ s.email }}<span *ngIf="s.regNo"> · {{ s.regNo }}</span>
+              </mat-option>
+            </mat-autocomplete>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="perf__field perf__field--modern">
+            <mat-label>Batch</mat-label>
+            <mat-icon matPrefix class="perf__input-icon">groups</mat-icon>
+            <mat-select [(ngModel)]="selectedOverviewBatch" (selectionChange)="onOverviewBatchChange()">
+              <mat-option value="">All batches</mat-option>
+              <mat-option *ngFor="let b of overviewBatchOptions" [value]="b">{{ b }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="perf__field perf__field--modern">
+            <mat-label>Date range</mat-label>
+            <mat-icon matPrefix class="perf__input-icon">event</mat-icon>
+            <mat-select [(ngModel)]="selectedDatePreset" (selectionChange)="onDatePresetChange()">
+              <mat-option value="today">Today</mat-option>
+              <mat-option value="yesterday">Yesterday</mat-option>
+              <mat-option value="weekly">Weekly</mat-option>
+              <mat-option value="overall">Overall</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <p class="perf__hint" *ngIf="loadingOverview">
+          <mat-spinner diameter="20"></mat-spinner>
+          Loading student directory…
+        </p>
+        <div class="perf__sk perf__sk--table" *ngIf="loadingOverview">
+          <div class="perf__sk-row" *ngFor="let _ of [1, 2, 3, 4, 5, 6]">
+            <span class="perf__sk-cell perf__sk-cell--lg"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+          </div>
+        </div>
+        <p class="perf__err" *ngIf="errorMsg && mainTabIndex === 0">{{ errorMsg }}</p>
+
+        <mat-card class="perf__panel perf__panel--spotlight" *ngIf="false && !loadingOverview && overviewStudents.length">
+          <div class="perf__panel-head">
+            <div class="perf__panel-head-icon" aria-hidden="true">
+              <mat-icon>emoji_events</mat-icon>
+            </div>
+            <div>
+              <h2 class="perf__panel-title">Top 15 · all batches</h2>
+              <p class="perf__panel-desc">Ranked by overall progress. Use "More information" to open the dashboard in a new tab.</p>
+            </div>
+          </div>
+          <div class="perf__table-wrap perf__table-wrap--elevated">
+            <table class="perf__table perf__table--interactive">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Student</th>
+                  <th>Batch</th>
+                  <th>Overall</th>
+                  <th>Class</th>
+                  <th>Exercises</th>
+                  <th>Bot</th>
+                  <th>More</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let s of top15Students; let i = index; trackBy: trackByStudentId"
+                >
+                  <td><span class="perf__rank">{{ i + 1 }}</span></td>
+                  <td>
+                    <span class="perf__cell-name">{{ s.name }}</span>
+                    <span class="perf__cell-sub">{{ s.email }}</span>
+                  </td>
+                  <td>{{ s.batch || '—' }}</td>
+                  <td><span class="perf__pct">{{ s.overallPct ?? 0 }}%</span></td>
+                  <td>{{ s.classProgressText || '0/0' }}</td>
+                  <td>{{ s.exerciseProgressText || '0/0' }}</td>
+                  <td>{{ s.dgTopMinutes ?? 0 }} min</td>
+                  <td>
+                    <button mat-stroked-button type="button" class="perf__more-btn" (click)="openStudentDetails(s, $event)">
+                      More information
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </mat-card>
+
+        <mat-card class="perf__panel" *ngIf="!loadingOverview && directoryTotal > 0">
+          <div class="perf__panel-head perf__panel-head--split">
+            <div>
+              <h2 class="perf__panel-title">All students</h2>
+              <p class="perf__panel-desc">Ranked by overall progress. Page 1 shows top {{ topSpotlightCount }}.</p>
+            </div>
+          </div>
+          <div class="perf__table-wrap perf__table-wrap--elevated">
+            <table class="perf__table perf__table--interactive">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Batch</th>
+                  <th>Overall</th>
+                  <th>Class</th>
+                  <th>Exercises</th>
+                  <th>Bot</th>
+                  <th>More</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let s of directorySlice; trackBy: trackByStudentId"
+                >
+                  <td>
+                    <span class="perf__cell-name">{{ s.name }}</span>
+                    <span class="perf__cell-sub">{{ s.email }}</span>
+                  </td>
+                  <td>{{ s.batch || '—' }}</td>
+                  <td><span class="perf__pct">{{ s.overallPct ?? 0 }}%</span></td>
+                  <td>{{ s.classProgressText || '0/0' }}</td>
+                  <td>{{ s.exerciseProgressText || '0/0' }}</td>
+                  <td>{{ s.dgTopMinutes ?? 0 }} min</td>
+                  <td>
+                    <button mat-stroked-button type="button" class="perf__more-btn" (click)="openStudentDetails(s, $event)">
+                      More information
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <mat-paginator
+            class="perf__paginator"
+            [length]="directoryTotal"
+            [pageSize]="directoryPageSize"
+            [pageIndex]="dirPageIndex"
+            [pageSizeOptions]="[15, 30, 50]"
+            [showFirstLastButtons]="true"
+            (page)="onDirectoryPage($event)"
+          />
+        </mat-card>
+
+        <div class="perf__empty" *ngIf="!loadingOverview && !overviewStudents.length">
+          No students loaded. Check your connection or try again later.
+        </div>
+
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Batch">
+      <div class="perf__tab-body">
+        <mat-card class="perf__panel perf__panel--journey">
+          <div class="perf__panel-head">
+            <div class="perf__panel-head-icon perf__panel-head-icon--violet" aria-hidden="true">
+              <mat-icon>route</mat-icon>
+            </div>
+            <div>
+              <h2 class="perf__panel-title">All batches</h2>
+              <p class="perf__panel-desc">Batch, teacher, students, overall completion and progress-only quick view.</p>
+            </div>
+          </div>
+
+          <p class="perf__hint" *ngIf="loadingJourneyBatches">
+            <mat-spinner diameter="20"></mat-spinner>
+            Loading journey batches…
+          </p>
+        <div class="perf__sk perf__sk--table" *ngIf="loadingJourneyBatches">
+          <div class="perf__sk-row" *ngFor="let _ of [1, 2, 3, 4, 5]">
+            <span class="perf__sk-cell perf__sk-cell--lg"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+            <span class="perf__sk-cell"></span>
+          </div>
+        </div>
+
+          <div class="perf__table-wrap perf__table-wrap--elevated" *ngIf="!loadingJourneyBatches && journeyBatchTotal">
+            <table class="perf__table perf__table--rich">
+              <thead>
+                <tr>
+                  <th>Batch</th>
+                  <th>Teacher</th>
+                  <th>Total students</th>
+                  <th>Journey day</th>
+                  <th>Overall completion</th>
+                  <th>Status</th>
+                  <th>View</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let jb of journeyBatchSlice; trackBy: trackByBatchName">
+                  <td><strong>{{ jb.batchName }}</strong></td>
+                  <td>{{ jb.teacherName || '—' }}</td>
+                  <td>{{ jb.studentCount || 0 }}</td>
+                  <td>{{ jb.batchCurrentDay }} / {{ jb.journeyLength }}</td>
+                  <td><span class="perf__pct">{{ batchCompletionPct(jb) }}%</span></td>
+                  <td>{{ jb.journeyActive ? 'Journey started' : 'Upcoming' }}</td>
+                  <td>
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="perf__more-btn"
+                      [disabled]="!jb.journeyActive"
+                      (click)="openJourneyForBatch(jb.batchName, $event)"
+                    >
+                      View information
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <mat-paginator
+            class="perf__paginator perf__paginator--journey"
+            *ngIf="!loadingJourneyBatches && journeyBatchTotal > 0"
+            [length]="journeyBatchTotal"
+            [pageSize]="batchGridPageSize"
+            [pageIndex]="batchGridPageIndex"
+            [pageSizeOptions]="[6, 9, 12]"
+            [showFirstLastButtons]="true"
+            (page)="onJourneyBatchPage($event)"
+          />
+
+          <div class="perf__empty perf__empty--tight" *ngIf="!loadingJourneyBatches && !journeyBatchTotal">
+            No batches found.
+          </div>
+        </mat-card>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+
+  <div *ngIf="studentDetailsMode">
+    <p class="perf__err" *ngIf="errorMsg">{{ errorMsg }}</p>
+
+    <div class="perf__loading" *ngIf="loadingPerformance">
+      <mat-spinner diameter="40"></mat-spinner>
+    </div>
+    <div class="perf__sk perf__sk--details" *ngIf="loadingPerformance">
+      <div class="perf__sk-block perf__sk-block--hero"></div>
+      <div class="perf__sk-grid4">
+        <div class="perf__sk-block perf__sk-block--card" *ngFor="let _ of [1, 2, 3, 4]"></div>
+      </div>
+      <div class="perf__sk-grid3">
+        <div class="perf__sk-block perf__sk-block--chart" *ngFor="let _ of [1, 2, 3]"></div>
+      </div>
+      <div class="perf__sk-block perf__sk-block--table"></div>
+    </div>
+
+    <ng-container *ngIf="selectedStudent && studentPayload as p">
+      <div class="perf__student-hero">
+        <div class="perf__student-hero-main">
+          <div class="perf__student-avatar">
+            {{ (p.student.name || 'S').slice(0, 1).toUpperCase() }}
+          </div>
+          <div>
+            <h2 class="perf__student-name">{{ p.student.name }}</h2>
+            <p class="perf__student-sub">Student performance profile</p>
+          </div>
+        </div>
+        <div class="perf__student-meta">
+          <span class="perf__meta-pill"><mat-icon>groups</mat-icon>Batch: {{ p.student.batch || '—' }}</span>
+          <span class="perf__meta-pill"><mat-icon>mail</mat-icon>{{ p.student.email || '—' }}</span>
+          <span class="perf__meta-pill"><mat-icon>badge</mat-icon>Reg: {{ p.student.regNo || '—' }}</span>
+        </div>
+      </div>
+      <div class="perf__kpis">
+        <mat-card class="perf__kpi perf__kpi--indigo">
+          <mat-icon class="perf__kpi-ico">schedule</mat-icon>
+          <div class="perf__kpi-val">{{ formatDuration(p.kpis.totalPortalSecondsAllTime) }}</div>
+          <div class="perf__kpi-lbl">Total portal time</div>
+          <div class="perf__kpi-note">All tracked activity</div>
+        </mat-card>
+        <mat-card class="perf__kpi perf__kpi--sky">
+          <mat-icon class="perf__kpi-ico">today</mat-icon>
+          <div class="perf__kpi-val">{{ formatDuration(p.kpis.totalPortalSecondsToday) }}</div>
+          <div class="perf__kpi-lbl">Today</div>
+          <div class="perf__kpi-note">Colombo calendar day</div>
+        </mat-card>
+        <mat-card class="perf__kpi perf__kpi--amber">
+          <mat-icon class="perf__kpi-ico">trending_up</mat-icon>
+          <div class="perf__kpi-val perf__kpi-val--sm">{{ p.kpis.mostUsedPageInRange?.label || '—' }}</div>
+          <div class="perf__kpi-lbl">Most used page</div>
+          <div class="perf__kpi-note" *ngIf="p.kpis.mostUsedPageInRange">
+            {{ formatDuration(p.kpis.mostUsedPageInRange.seconds) }} in range
+          </div>
+          <div class="perf__kpi-note" *ngIf="!p.kpis.mostUsedPageInRange">No activity in range</div>
+        </mat-card>
+        <mat-card class="perf__kpi perf__kpi--emerald">
+          <mat-icon class="perf__kpi-ico">workspace_premium</mat-icon>
+          <div class="perf__kpi-val">{{ p.kpis.overallPct }}%</div>
+          <div class="perf__kpi-lbl">Overall progress</div>
+          <div class="perf__kpi-note">Matches Student Progress</div>
+        </mat-card>
+      </div>
+
+      <div class="perf__charts">
+        <mat-card class="perf__chart-card">
+          <h3 class="perf__chart-title">
+            <mat-icon>videocam</mat-icon>
+            Live classes · attendance
+            <span class="perf__chart-spacer"></span>
+            <button mat-icon-button type="button" class="perf__range-icon-btn" (click)="toggleChartRangePicker('classes')">
+              <mat-icon>date_range</mat-icon>
+            </button>
+          </h3>
+          <p class="perf__chart-sub">3D-style bars + trend line</p>
+          <div class="perf__chart-range-pop" *ngIf="activeChartRangePicker === 'classes'">
+            <label>From <input type="date" [(ngModel)]="dateFrom" /></label>
+            <label>To <input type="date" [(ngModel)]="dateTo" /></label>
+            <button mat-flat-button type="button" (click)="applyChartRange('classes', $event)">Apply</button>
+          </div>
+          <div class="perf__chart">
+            <canvas baseChart [data]="classesChart" [options]="chartOptions" [type]="chartBaseType"></canvas>
+          </div>
+        </mat-card>
+        <mat-card class="perf__chart-card">
+          <h3 class="perf__chart-title">
+            <mat-icon>fitness_center</mat-icon>
+            Exercises
+            <span class="perf__chart-spacer"></span>
+            <button mat-icon-button type="button" class="perf__range-icon-btn" (click)="toggleChartRangePicker('exercises')">
+              <mat-icon>date_range</mat-icon>
+            </button>
+          </h3>
+          <p class="perf__chart-sub">Attempts vs. average score</p>
+          <div class="perf__chart-range-pop" *ngIf="activeChartRangePicker === 'exercises'">
+            <label>From <input type="date" [(ngModel)]="dateFrom" /></label>
+            <label>To <input type="date" [(ngModel)]="dateTo" /></label>
+            <button mat-flat-button type="button" (click)="applyChartRange('exercises', $event)">Apply</button>
+          </div>
+          <div class="perf__chart">
+            <canvas baseChart [data]="exercisesChart" [options]="chartOptions" [type]="chartBaseType"></canvas>
+          </div>
+        </mat-card>
+        <mat-card class="perf__chart-card">
+          <h3 class="perf__chart-title">
+            <mat-icon>smart_toy</mat-icon>
+            DG bot
+            <span class="perf__chart-spacer"></span>
+            <button mat-icon-button type="button" class="perf__range-icon-btn" (click)="toggleChartRangePicker('dg')">
+              <mat-icon>date_range</mat-icon>
+            </button>
+          </h3>
+          <p class="perf__chart-sub">Sessions vs. practice minutes</p>
+          <div class="perf__chart-range-pop" *ngIf="activeChartRangePicker === 'dg'">
+            <label>From <input type="date" [(ngModel)]="dateFrom" /></label>
+            <label>To <input type="date" [(ngModel)]="dateTo" /></label>
+            <button mat-flat-button type="button" (click)="applyChartRange('dg', $event)">Apply</button>
+          </div>
+          <div class="perf__chart">
+            <canvas baseChart [data]="dgChart" [options]="chartOptions" [type]="chartBaseType"></canvas>
+          </div>
+        </mat-card>
+      </div>
+
+      <mat-tab-group [(selectedIndex)]="detailTabIndex" class="perf__detail-tabs perf__detail-tabs--color">
+        <mat-tab label="Classes">
+          <div class="perf__table-wrap">
+            <table class="perf__table perf__table--rich">
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th>When</th>
+                  <th>Attended</th>
+                  <th>Min</th>
+                  <th>%</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let r of p.tables.classes">
+                  <td>{{ r.topic }}</td>
+                  <td>{{ r.startTime | date : 'medium' }}</td>
+                  <td>{{ r.attended ? 'Yes' : 'No' }}</td>
+                  <td>{{ r.durationMinutes ?? '—' }}</td>
+                  <td>{{ r.attendancePercent ?? '—' }}</td>
+                  <td>{{ r.status }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </mat-tab>
+        <mat-tab label="Exercises">
+          <div class="perf__table-wrap">
+            <table class="perf__table perf__table--rich">
+              <thead>
+                <tr>
+                  <th>Exercise</th>
+                  <th>Score</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Completed</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let r of p.tables.exercises">
+                  <td>{{ r.exerciseTitle }}</td>
+                  <td>{{ r.scorePercentage }}%</td>
+                  <td>{{ formatDuration(r.timeSpentSeconds || 0) }}</td>
+                  <td>{{ r.status }}</td>
+                  <td>{{ r.completedAt | date : 'medium' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </mat-tab>
+        <mat-tab label="Bot">
+          <div class="perf__table-wrap">
+            <table class="perf__table perf__table--rich">
+              <thead>
+                <tr>
+                  <th>Module</th>
+                  <th>Score</th>
+                  <th>Practice min</th>
+                  <th>Done</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let r of p.tables.dg">
+                  <td>{{ r.moduleTitle }}</td>
+                  <td>{{ r.score }}</td>
+                  <td>{{ r.practiceMinutes }}</td>
+                  <td>{{ r.completed ? 'Yes' : 'No' }}</td>
+                  <td>{{ (r.completedAt || r.createdAt) | date : 'medium' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </ng-container>
+  </div>
+</div>

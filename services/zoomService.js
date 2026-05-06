@@ -199,6 +199,26 @@ class ZoomService {
     }
   }
 
+  async getPastMeetingInstances(token, meetingId) {
+    try {
+      const response = await axios.get(
+        `${zoomConfig.apiBaseUrl}/past_meetings/${meetingId}/instances`,
+        { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 30 } }
+      );
+      const meetings = Array.isArray(response.data?.meetings) ? response.data.meetings : [];
+      return meetings
+        .filter((m) => m && m.uuid)
+        .map((m) => ({
+          uuid: String(m.uuid),
+          startTime: m.start_time ? new Date(m.start_time) : null,
+          endTime: m.end_time ? new Date(m.end_time) : null,
+          participantsCount: Number(m.participants_count || 0),
+        }));
+    } catch (error) {
+      return [];
+    }
+  }
+
   async getMeetingParticipants(meetingId, options = {}) {
     try {
       const token = await this.getAccessToken();
@@ -234,6 +254,37 @@ class ZoomService {
           } catch (error) {
             lastError = error;
           }
+        }
+      }
+
+      // Zoom sometimes returns an incomplete participant list for a meeting ID/instance.
+      // If we got 0-1 participants, probe all past instances and select the richest dataset.
+      if (participants.length <= 1) {
+        const instances = await this.getPastMeetingInstances(token, meetingId);
+        if (instances.length > 0) {
+          let bestParticipants = participants;
+          let bestScore = participants.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
+
+          for (const instance of instances) {
+            if (!instance.uuid) continue;
+            try {
+              const instanceParticipants = await this.fetchPastMeetingParticipants(
+                token,
+                this.encodeUuidForZoom(instance.uuid)
+              );
+              const countScore = instanceParticipants.length * 100000;
+              const durationScore = instanceParticipants.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
+              const combinedScore = countScore + durationScore;
+              if (combinedScore > bestScore) {
+                bestScore = combinedScore;
+                bestParticipants = instanceParticipants;
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+
+          participants = bestParticipants;
         }
       }
 

@@ -46,6 +46,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "documents",
   "visa-tracking",
   "student-progress",
+  "admin-performance",
   "payments",
   "invoices",
   "payment-approvals",
