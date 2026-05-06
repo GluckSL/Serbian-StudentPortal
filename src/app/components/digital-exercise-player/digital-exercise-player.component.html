@@ -158,6 +158,9 @@
           <div class="review-q-text" *ngIf="pq.data.type === 'mcq'" [innerHTML]="pq.data.question | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'matching'" [innerHTML]="worksheetInstructionDisplay(pq.data) | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'" [innerHTML]="pq.data.sentence | safeHtml"></div>
+          <div class="review-q-text" *ngIf="pq.data.type === 'word_bank_fill'">
+            Word bank: {{ (pq.data.wordBank || []).join(' · ') }}
+          </div>
           <div class="review-q-text" *ngIf="pq.data.type === 'singular_plural' && worksheetInstructionDisplay(pq.data)" [innerHTML]="worksheetInstructionDisplay(pq.data) | safeHtml"></div>
           <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
           <div class="review-q-text" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data) && pq.data.storyParagraph"
@@ -1112,6 +1115,70 @@
           </div>
           <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
             <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
+          </div>
+        </div>
+
+        <!-- ── WORD BANK FILL ── -->
+        <div class="q-body word-bank-fill-body" *ngIf="currentQuestion.data.type === 'word_bank_fill'">
+          <div class="word-bank-box">
+            <div class="q-question-label">Word Bank</div>
+            <div class="word-bank-pills">
+              <button
+                type="button"
+                class="word-bank-pill"
+                [class.used]="!isWordBankReusable(currentQuestion) && isWordAlreadyUsed(currentQuestion, bankWord)"
+                *ngFor="let bankWord of currentQuestion.data.wordBank || []; trackBy: trackByIndex"
+                (click)="fillActiveWordBankBlank(currentQuestion, bankWord)"
+              >
+                {{ bankWord }}
+              </button>
+            </div>
+          </div>
+
+          <div class="word-bank-items">
+            <div class="word-bank-item-row" *ngFor="let item of getWordBankItems(currentQuestion); let wi = index; trackBy: trackByIndex">
+              <div class="word-bank-prompt">{{ wi + 1 }}. <span [innerHTML]="displayWordBankPrompt(item, wi) | safeHtml"></span></div>
+              <div class="word-bank-answer-wrap word-bank-dropzone">
+                <input
+                  type="text"
+                  class="blank-input word-bank-answer-input"
+                  [class.active]="currentQuestion.activeBlankIndex === wi"
+                  [class.correct]="hasCurrentSubmitted && isWordBankItemCorrect(currentQuestion, wi)"
+                  [class.wrong]="hasCurrentSubmitted && !isWordBankItemCorrect(currentQuestion, wi)"
+                  [ngModel]="currentQuestion.wordBankAnswers?.[wi]?.value || ''"
+                  (ngModelChange)="onWordBankAnswerChange(currentQuestion, wi, $event)"
+                  (focus)="onWordBankBlankFocus(currentQuestion, wi)"
+                  [placeholder]="'Answer ' + (wi + 1)"
+                  [disabled]="hasCurrentSubmitted"
+                />
+                <button
+                  type="button"
+                  class="btn-text-sm word-bank-clear-btn"
+                  *ngIf="!hasCurrentSubmitted && (currentQuestion.wordBankAnswers?.[wi]?.value || '').trim()"
+                  (click)="clearWordBankAnswer(currentQuestion, wi)"
+                >
+                  <span class="material-icons">close</span> Clear
+                </button>
+                <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isWordBankItemCorrect(currentQuestion, wi)">
+                  → {{ getWordBankCorrectAnswer(currentQuestion, wi) }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
+            <div class="special-char-label">Special letters</div>
+            <div class="special-char-list" role="group" aria-label="German special letters">
+              <button
+                type="button"
+                class="special-char-btn"
+                *ngFor="let char of specialCharacters"
+                (mousedown)="$event.preventDefault()"
+                (click)="insertSpecialCharacter(char)"
+              >
+                {{ char }}
+              </button>
+            </div>
           </div>
         </div>
 

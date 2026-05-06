@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 
 const QuestionResponseSchema = new mongoose.Schema({
   questionIndex: { type: Number, required: true },
-  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'] },
+  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'] },
   // MCQ response
   selectedOptionIndex: Number,
   // Matching response: array of { leftIndex, rightIndex }
@@ -16,6 +16,11 @@ const QuestionResponseSchema = new mongoose.Schema({
   }],
   // Fill-blank response: array of answers per blank
   fillBlankResponses: [String],
+  // Word-bank-fill response: selected/typed value per item index
+  wordBankAnswers: [{
+    index: Number,
+    value: String
+  }],
   // Singular/plural: student typed plural per row (same order as question.pairs)
   singularPluralResponses: [String],
   // Pronunciation response
@@ -27,6 +32,9 @@ const QuestionResponseSchema = new mongoose.Schema({
   listeningText: String,
   // Jumble-word response
   jumbleWordResponse: String,
+  // Rearrange response
+  rearrangeTextResponse: String,
+  rearrangeTokensResponse: [String],
   // Common
   isCorrect: { type: Boolean, default: false },
   pointsEarned: { type: Number, default: 0 }

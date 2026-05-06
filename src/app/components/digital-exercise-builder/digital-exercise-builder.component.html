@@ -284,6 +284,7 @@
                 <span *ngSwitchCase="'matching'">{{ q.pairs?.length || 0 }} pairs</span>
                 <span *ngSwitchCase="'singular_plural'">{{ q.pairs?.length || 0 }} row(s)</span>
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
+                <span *ngSwitchCase="'word_bank_fill'">{{ q.items?.length || 0 }} prompt(s) · {{ q.wordBank?.length || 0 }} word(s)</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
                 <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ hasListeningAudio(q) ? 'audio ready' : 'no audio' }})</span>
@@ -451,6 +452,45 @@
             <div class="field-group full">
               <label class="field-label">Explanation (shown after answer)</label>
               <app-rich-text-input [(ngModel)]="q.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
+            </div>
+          </ng-container>
+
+          <!-- Word Bank Fill Editor -->
+          <ng-container *ngIf="q.type === 'word_bank_fill'">
+            <div class="field-group full">
+              <label class="field-label required">Word Bank</label>
+              <div class="answer-row" *ngFor="let word of q.wordBank; let wi = index; trackBy: trackByIndex">
+                <span class="blank-label">Word {{ wi + 1 }}</span>
+                <input type="text" [(ngModel)]="q.wordBank![wi]" class="answer-input" [placeholder]="'Word ' + (wi + 1)" />
+                <button class="btn-remove-opt" (click)="removeWordBankWord(q, wi)" *ngIf="(q.wordBank?.length || 0) > 2">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" (click)="addWordBankWord(q)">
+                <span class="material-icons">add</span> Add Word
+              </button>
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Prompts and Answers</label>
+              <div class="pair-row word-bank-item-row" *ngFor="let item of q.items; let ii = index">
+                <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Prompt ' + (ii + 1)" />
+                <span class="pair-arrow">→</span>
+                <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Answer ' + (ii + 1)" />
+                <button class="btn-remove-opt" (click)="removeWordBankItem(q, ii)" *ngIf="(q.items?.length || 0) > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" (click)="addWordBankItem(q)">
+                <span class="material-icons">add</span> Add Prompt
+              </button>
+            </div>
+
+            <div class="field-group full">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.reusableWords" />
+                Reusable words (same word can be used in multiple blanks)
+              </label>
             </div>
           </ng-container>
 
@@ -1125,6 +1165,21 @@
               <span *ngFor="let ans of q.answers; let ai = index" class="pq-answer">
                 Blank {{ ai + 1 }}: <strong>{{ ans }}</strong>
               </span>
+            </div>
+          </div>
+
+          <!-- Word Bank Fill Preview -->
+          <div *ngIf="q.type === 'word_bank_fill'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
+            <div class="pq-answers">
+              <span *ngFor="let word of q.wordBank" class="pq-answer"><strong>{{ word }}</strong></span>
+            </div>
+            <div class="pq-pairs" style="margin-top: 8px;">
+              <div *ngFor="let item of q.items; let ii = index" class="pq-pair">
+                <span class="pair-item left">{{ ii + 1 }}. {{ item.prompt }}</span>
+                <span class="pair-arrow">→</span>
+                <span class="pair-item right">{{ item.answer }}</span>
+              </div>
             </div>
           </div>
 

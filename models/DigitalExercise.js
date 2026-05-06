@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'], required: true },
     // Common optional context shown above the question to students.
     context: { type: String, default: '' },
     // Instruction and example shown in a highlighted banner above the question body.
@@ -105,6 +105,13 @@ const DigitalExerciseSchema = new mongoose.Schema({
     answers: [String],
     hint: String,
     caseSensitive: { type: Boolean, default: false },
+    // Word-bank-fill fields
+    wordBank: [String],
+    items: [{
+      prompt: String,
+      answer: String
+    }],
+    reusableWords: { type: Boolean, default: true },
     // Pronunciation fields
     word: String,
     phonetic: String,

@@ -122,10 +122,25 @@ function normalizeQuestionContexts(rawQuestions) {
   if (!Array.isArray(rawQuestions)) return rawQuestions;
   // Sanitize HTML in text fields, then normalise context whitespace
   const sanitized = sanitizeQuestions(rawQuestions);
-  return sanitized.map((q) => ({
-    ...q,
-    context: String(q?.context || '').trim()
-  }));
+  return sanitized.map((q) => {
+    const out = {
+      ...q,
+      context: String(q?.context || '').trim()
+    };
+    if (q?.type === 'word_bank_fill') {
+      out.wordBank = (Array.isArray(q.wordBank) ? q.wordBank : [])
+        .map((x) => sanitizeQuestionPlainText(x))
+        .filter(Boolean);
+      out.items = (Array.isArray(q.items) ? q.items : [])
+        .map((item) => ({
+          prompt: sanitizeQuestionPlainText(item?.prompt || ''),
+          answer: sanitizeQuestionPlainText(item?.answer || '')
+        }))
+        .filter((item) => item.prompt && item.answer);
+      out.reusableWords = q.reusableWords !== false;
+    }
+    return out;
+  });
 }
 
 // ─── AI answer grader ─────────────────────────────────────────────────────────
@@ -234,6 +249,34 @@ function normalizeTextForExactCompare(raw) {
     .replace(/\s+/g, ' ');
 }
 
+function normalizeWordBankValue(raw) {
+  return sanitizeQuestionPlainText(String(raw ?? ''))
+    .trim()
+    .toLowerCase()
+    .normalize('NFC')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeRearrangeToken(raw) {
+  return sanitizeQuestionPlainText(String(raw ?? ''))
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeRearrangeTokens(rawTokens) {
+  return (Array.isArray(rawTokens) ? rawTokens : [])
+    .map(normalizeRearrangeToken)
+    .filter(Boolean);
+}
+
+function normalizeRearrangeSentence(raw) {
+  return sanitizeQuestionPlainText(String(raw ?? ''))
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 /** Must match what students see (GET handler sanitizes pair rights before shuffle). */
 function matchingRightsEqual(expectedRight, givenRight) {
   return sanitizeQuestionPlainText(expectedRight) === sanitizeQuestionPlainText(givenRight);
@@ -275,6 +318,18 @@ function formatStudentAnswerForReview(q, r) {
     const arr = r.fillBlankResponses || [];
     return arr.length ? arr.map((x) => String(x || '—')).join(' / ') : '—';
   }
+  if (q.type === 'word_bank_fill') {
+    const answers = Array.isArray(r.wordBankAnswers) ? r.wordBankAnswers : [];
+    if (!answers.length) return '—';
+    const byIndex = {};
+    answers.forEach((x) => {
+      byIndex[Number(x?.index)] = String(x?.value ?? '').trim();
+    });
+    const rows = Array.isArray(q.items) ? q.items : [];
+    return rows
+      .map((item, idx) => `${sanitizeQuestionPlainText(item?.prompt || `Item ${idx + 1}`)} → ${byIndex[idx] || '—'}`)
+      .join(' · ');
+  }
   if (q.type === 'singular_plural') {
     const pairs = q.pairs || [];
     const resp = r.singularPluralResponses || [];
@@ -298,6 +353,16 @@ function formatStudentAnswerForReview(q, r) {
     const t = r.listeningText || r.qaResponse || '';
     return t ? String(t).trim() : '—';
   }
+  if (q.type === 'jumble-word') {
+    const t = r.jumbleWordResponse || '';
+    return t ? String(t).trim() : '—';
+  }
+  if (q.type === 'rearrange') {
+    const toks = Array.isArray(r.rearrangeTokensResponse) ? r.rearrangeTokensResponse : [];
+    if (toks.length) return toks.map((t) => sanitizeQuestionPlainText(t)).join(' ');
+    const text = String(r.rearrangeTextResponse || '').trim();
+    return text || '—';
+  }
   return '—';
 }
 
@@ -318,6 +383,14 @@ function formatCorrectAnswerForReview(q) {
   if (q.type === 'fill-blank') {
     const a = q.answers || [];
     return a.length ? a.map((x) => String(x)).join(' / ') : '—';
+  }
+  if (q.type === 'word_bank_fill') {
+    const rows = Array.isArray(q.items) ? q.items : [];
+    return rows.length
+      ? rows
+          .map((item, idx) => `${sanitizeQuestionPlainText(item?.prompt || `Item ${idx + 1}`)} → ${sanitizeQuestionPlainText(item?.answer || '—')}`)
+          .join(' · ')
+      : '—';
   }
   if (q.type === 'singular_plural') {
     const pairs = q.pairs || [];
@@ -340,14 +413,23 @@ function formatCorrectAnswerForReview(q) {
   if (q.type === 'listening') {
     return q.expectedTranscript ? String(q.expectedTranscript) : '—';
   }
+  if (q.type === 'jumble-word') {
+    return q.expectedWord ? String(q.expectedWord) : '—';
+  }
+  if (q.type === 'rearrange') {
+    const toks = Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [];
+    if (toks.length) return toks.map((t) => sanitizeQuestionPlainText(t)).join(' ');
+    return q.rearrangeAnswer ? String(q.rearrangeAnswer) : '—';
+  }
   return '—';
 }
 
 function questionPromptSnippet(q, idx) {
   if (!q) return `Question ${idx + 1}`;
   const sp0 = q.type === 'singular_plural' && Array.isArray(q.pairs) ? q.pairs[0]?.singular : '';
+  const wb0 = q.type === 'word_bank_fill' && Array.isArray(q.items) ? q.items[0]?.prompt : '';
   const text =
-    q.question || q.prompt || sp0 || q.instruction || q.sentence || q.word || q.caption || '';
+    q.question || q.prompt || q.rearrangePrompt || wb0 || sp0 || q.instruction || q.sentence || q.word || q.caption || '';
   return clipText(sanitizeQuestionPlainText(text), 100) || `Question ${idx + 1}`;
 }
 
@@ -909,6 +991,13 @@ router.get('/:id', verifyToken, async (req, res) => {
           stripped.shuffledRight = shuffleArray(q.pairs.map((p) => sanitizeQuestionPlainText(p.right)));
           stripped.pairs = q.pairs.map((p) => ({ left: sanitizeQuestionPlainText(p.left) }));
         }
+        if (q.type === 'word_bank_fill') {
+          stripped.wordBank = (Array.isArray(q.wordBank) ? q.wordBank : []).map((w) => sanitizeQuestionPlainText(w));
+          stripped.items = (Array.isArray(q.items) ? q.items : []).map((item) => ({
+            prompt: sanitizeQuestionPlainText(item?.prompt || '')
+          }));
+          stripped.reusableWords = q.reusableWords !== false;
+        }
         if (q.type === 'singular_plural' && Array.isArray(q.pairs)) {
           stripped.pairs = q.pairs.map((p) => ({ singular: sanitizeQuestionPlainText(p.singular) }));
         }
@@ -1410,6 +1499,36 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
           : (correctCount === total ? 100 : 0);
       }
       correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
+    } else if (q.type === 'word_bank_fill') {
+      const rows = Array.isArray(q.items) ? q.items : [];
+      const total = rows.length;
+      if (total > 0 && Array.isArray(resp.wordBankAnswers)) {
+        const byIndex = {};
+        resp.wordBankAnswers.forEach((entry) => {
+          const key = Number(entry?.index);
+          if (Number.isInteger(key) && key >= 0 && key < total) {
+            byIndex[key] = entry?.value;
+          }
+        });
+        let correctCount = 0;
+        for (let i = 0; i < total; i++) {
+          const given = normalizeWordBankValue(byIndex[i]);
+          const expected = normalizeWordBankValue(rows[i]?.answer);
+          if (given && expected && given === expected) correctCount += 1;
+        }
+        rawScore = useAdvancedGrading
+          ? Math.round((correctCount / total) * 100)
+          : (correctCount === total ? 100 : 0);
+      }
+      correctAnswer = {
+        wordBank: (Array.isArray(q.wordBank) ? q.wordBank : []).map((w) => sanitizeQuestionPlainText(w)),
+        reusableWords: q.reusableWords !== false,
+        items: rows.map((item, index) => ({
+          index,
+          prompt: sanitizeQuestionPlainText(item?.prompt || ''),
+          answer: sanitizeQuestionPlainText(item?.answer || '')
+        }))
+      };
     } else if (q.type === 'singular_plural') {
       const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
       const total = rows.length;
@@ -1476,6 +1595,21 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       const expectedWord = String(q.expectedWord || '').trim().toLowerCase().replace(/\s+/g, '');
       rawScore = (expectedWord && studentWord === expectedWord) ? 100 : 0;
       correctAnswer = { expectedWord: q.expectedWord };
+    } else if (q.type === 'rearrange') {
+      const expectedTokens = normalizeRearrangeTokens(q.rearrangeTokens);
+      const givenTokens = normalizeRearrangeTokens(resp.rearrangeTokensResponse);
+      const expectedSentence = normalizeRearrangeSentence(q.rearrangeAnswer);
+      const givenSentence = normalizeRearrangeSentence(resp.rearrangeTextResponse);
+      const tokensMatch =
+        expectedTokens.length > 0 &&
+        givenTokens.length === expectedTokens.length &&
+        expectedTokens.every((t, i) => t === givenTokens[i]);
+      const sentenceMatch = !!(expectedSentence && givenSentence && expectedSentence === givenSentence);
+      rawScore = (tokensMatch || sentenceMatch) ? 100 : 0;
+      correctAnswer = {
+        rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
+        rearrangeAnswer: q.rearrangeAnswer || ''
+      };
     }
 
     if (useAdvancedGrading) {
@@ -1512,12 +1646,15 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       selectedOptionIndex: resp.selectedOptionIndex,
       matchingResponse: resp.matchingResponse,
       fillBlankResponses: resp.fillBlankResponses,
+      wordBankAnswers: resp.wordBankAnswers,
       singularPluralResponses: resp.singularPluralResponses,
       spokenText: resp.spokenText,
       pronunciationScore: resp.pronunciationScore,
       qaResponse: resp.qaResponse,
       listeningText: resp.listeningText,
       jumbleWordResponse: resp.jumbleWordResponse,
+      rearrangeTextResponse: resp.rearrangeTextResponse,
+      rearrangeTokensResponse: resp.rearrangeTokensResponse,
       isCorrect,
       pointsEarned
     };
@@ -1677,6 +1814,36 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
             : (correctCount === total ? 100 : 0);
         }
         correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
+      } else if (q.type === 'word_bank_fill') {
+        const rows = Array.isArray(q.items) ? q.items : [];
+        const total = rows.length;
+        if (total > 0 && Array.isArray(resp.wordBankAnswers)) {
+          const byIndex = {};
+          resp.wordBankAnswers.forEach((entry) => {
+            const key = Number(entry?.index);
+            if (Number.isInteger(key) && key >= 0 && key < total) {
+              byIndex[key] = entry?.value;
+            }
+          });
+          let correctCount = 0;
+          for (let idx = 0; idx < total; idx++) {
+            const given = normalizeWordBankValue(byIndex[idx]);
+            const expected = normalizeWordBankValue(rows[idx]?.answer);
+            if (given && expected && given === expected) correctCount += 1;
+          }
+          rawScore = useAdvancedGrading
+            ? Math.round((correctCount / total) * 100)
+            : (correctCount === total ? 100 : 0);
+        }
+        correctAnswer = {
+          wordBank: (Array.isArray(q.wordBank) ? q.wordBank : []).map((w) => sanitizeQuestionPlainText(w)),
+          reusableWords: q.reusableWords !== false,
+          items: rows.map((item, index) => ({
+            index,
+            prompt: sanitizeQuestionPlainText(item?.prompt || ''),
+            answer: sanitizeQuestionPlainText(item?.answer || '')
+          }))
+        };
       } else if (q.type === 'singular_plural') {
         const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
         const total = rows.length;
@@ -1734,6 +1901,21 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         const expectedWord = String(q.expectedWord || '').trim().toLowerCase().replace(/\s+/g, '');
         rawScore = (expectedWord && studentWord === expectedWord) ? 100 : 0;
         correctAnswer = { expectedWord: q.expectedWord };
+      } else if (q.type === 'rearrange') {
+        const expectedTokens = normalizeRearrangeTokens(q.rearrangeTokens);
+        const givenTokens = normalizeRearrangeTokens(resp.rearrangeTokensResponse);
+        const expectedSentence = normalizeRearrangeSentence(q.rearrangeAnswer);
+        const givenSentence = normalizeRearrangeSentence(resp.rearrangeTextResponse);
+        const tokensMatch =
+          expectedTokens.length > 0 &&
+          givenTokens.length === expectedTokens.length &&
+          expectedTokens.every((t, idx) => t === givenTokens[idx]);
+        const sentenceMatch = !!(expectedSentence && givenSentence && expectedSentence === givenSentence);
+        rawScore = (tokensMatch || sentenceMatch) ? 100 : 0;
+        correctAnswer = {
+          rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
+          rearrangeAnswer: q.rearrangeAnswer || ''
+        };
       }
 
       if (useAdvancedGrading) {
@@ -1771,12 +1953,15 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         selectedOptionIndex: resp.selectedOptionIndex,
         matchingResponse: resp.matchingResponse,
         fillBlankResponses: resp.fillBlankResponses,
+        wordBankAnswers: resp.wordBankAnswers,
         singularPluralResponses: resp.singularPluralResponses,
         spokenText: resp.spokenText,
         pronunciationScore: resp.pronunciationScore,
         qaResponse: resp.qaResponse,
         listeningText: resp.listeningText,
         jumbleWordResponse: resp.jumbleWordResponse,
+        rearrangeTextResponse: resp.rearrangeTextResponse,
+        rearrangeTokensResponse: resp.rearrangeTokensResponse,
         isCorrect,
         pointsEarned
       });

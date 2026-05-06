@@ -14,6 +14,8 @@ export interface DigitalExerciseDraftItem {
   /** Matching: pair each left column row with the chosen right label (stable across reshuffled columns). */
   matchingSelections?: Array<{ leftIndex: number; rightValue: string }>;
   fillAnswers?: string[];
+  wordBankAnswers?: Array<{ index: number; value: string }>;
+  activeBlankIndex?: number | null;
   singularPluralInputs?: string[];
   spokenText?: string;
   pronunciationScore?: number;
