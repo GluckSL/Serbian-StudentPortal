@@ -2,6 +2,7 @@
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
@@ -45,7 +46,7 @@ interface QuestionStats {
 @Component({
   selector: 'app-exercise-completion-details',
   standalone: true,
-  imports: [CommonModule, TestAccountBadgeComponent],
+  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
   templateUrl: './exercise-completion-details.component.html',
   styleUrls: ['./exercise-completion-details.component.css']
 })
@@ -61,6 +62,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
   totalCompletions = 0;
   avgScore = 0;
   uniqueStudents = 0;
+  allAttempts: Attempt[] = [];
+  selectedBatch = 'all';
 
   constructor(
     private route: ActivatedRoute,
@@ -90,8 +93,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     this.loading = true;
     this.exerciseService.getExerciseCompletions(this.exerciseId, { limit: 500 }).subscribe({
       next: (res) => {
-        this.attempts = res.attempts || [];
-        this.computeAnalytics();
+        this.allAttempts = res.attempts || [];
+        this.applyFilters();
         this.loading = false;
       },
       error: () => {
@@ -101,7 +104,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     });
   }
 
-  private computeAnalytics(): void {
+  private computeAnalytics(sourceAttempts: Attempt[]): void {
+    this.attempts = sourceAttempts;
     this.totalCompletions = this.attempts.length;
 
     // Student summaries
@@ -168,6 +172,61 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         failureRate: total > 0 ? Math.round((stats.wrong / total) * 100) : 0
       };
     }).sort((a, b) => b.failureRate - a.failureRate);
+  }
+
+  private applyFilters(): void {
+    const filtered = this.selectedBatch === 'all'
+      ? this.allAttempts
+      : this.allAttempts.filter((a) => {
+        const student = a.studentId as any;
+        const batch = String(student?.batch || a.studentBatch || '').trim();
+        return batch === this.selectedBatch;
+      });
+    this.computeAnalytics(filtered);
+  }
+
+  onBatchChange(): void {
+    this.applyFilters();
+  }
+
+  get batchOptions(): string[] {
+    const set = new Set<string>();
+    (this.allAttempts || []).forEach((a) => {
+      const student = a.studentId as any;
+      const batch = String(student?.batch || a.studentBatch || '').trim();
+      if (batch) set.add(batch);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  }
+
+  exportStudentSummaryCsv(): void {
+    const rows = this.studentSummaries || [];
+    const headers = ['Student Name', 'Email', 'Batch', 'Level', 'Attempts', 'Best Score (%)', 'Last Attempt'];
+    const lines = [headers.join(',')];
+    rows.forEach((s) => {
+      lines.push([
+        this.csvCell(s.name || ''),
+        this.csvCell(s.email || ''),
+        this.csvCell(s.batch || ''),
+        this.csvCell(s.level || ''),
+        this.csvCell(String(s.attempts || 0)),
+        this.csvCell(String(s.bestScore || 0)),
+        this.csvCell(this.formatDate(s.lastAttemptAt))
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const batchPart = this.selectedBatch === 'all' ? 'all-batches' : this.selectedBatch.replace(/[^a-z0-9_-]+/gi, '-');
+    a.href = url;
+    a.download = `exercise-completions-${this.exerciseId}-${batchPart}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private csvCell(v: string): string {
+    const safe = String(v ?? '');
+    return `"${safe.replace(/"/g, '""')}"`;
   }
 
   private getQuestionPrompt(q: any, idx: number): string {

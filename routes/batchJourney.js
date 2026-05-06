@@ -11,6 +11,8 @@ const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
+const DGModule = require('../models/DGModule');
+const DGSession = require('../models/DGSession');
 const {
   computeJourneyDayCompletion,
   meetsStrictThreshold
@@ -1357,6 +1359,189 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   } catch (err) {
     console.error('batch-journey GET /:batchName/progress', err);
     res.status(500).json({ message: 'Failed to fetch batch progress', error: err.message });
+  }
+});
+
+// ─── GET /api/batch-journey/:batchName/progress/week/:week/students ───────────
+// Per-student weekly detail rows for "View more" page.
+router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const bn = String(req.params.batchName || '').trim();
+    const week = parseInt(String(req.params.week || ''), 10);
+    if (!bn) return res.status(400).json({ message: 'batchName is required' });
+    if (!Number.isFinite(week) || week < 1) return res.status(400).json({ message: 'week must be >= 1' });
+    if (!(await teacherCanAccessBatch(req, bn))) {
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
+    }
+
+    const dayStart = (week - 1) * 7 + 1;
+    const dayEnd = week * 7;
+    const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
+
+    const students = await User.find({ batch: batchRegex, role: 'STUDENT', ...EXCLUDE_TEST })
+      .select('_id name regNo email level currentCourseDay')
+      .lean();
+
+    if (!students.length) {
+      return res.json({ week, dayStart, dayEnd, rows: [] });
+    }
+
+    const studentIds = students.map((s) => s._id);
+    const [weekExercises, weekModules, weekMeetings, weekDgModules] = await Promise.all([
+      DigitalExercise.find({
+        courseDay: { $gte: dayStart, $lte: dayEnd },
+        isDeleted: { $ne: true },
+        visibleToStudents: true,
+        isActive: true
+      }).select('_id title courseDay').lean(),
+      LearningModule.find({
+        courseDay: { $gte: dayStart, $lte: dayEnd },
+        isDeleted: { $ne: true },
+        visibleToStudents: true
+      }).select('_id title courseDay').lean(),
+      MeetingLink.find({
+        batch: batchRegex,
+        status: { $ne: 'cancelled' },
+        courseDay: { $gte: dayStart, $lte: dayEnd }
+      }).select('_id topic courseDay attendance').lean(),
+      DGModule.find({
+        courseDay: { $gte: dayStart, $lte: dayEnd },
+        visibleToStudents: true,
+        isActive: true
+      }).select('_id title courseDay').lean()
+    ]);
+
+    const exerciseIds = weekExercises.map((e) => e._id);
+    const moduleIds = weekModules.map((m) => m._id);
+    const dgModuleIds = weekDgModules.map((m) => m._id);
+    const classTotalForWeek = weekMeetings.length;
+    const exerciseTotalForWeek = weekExercises.length;
+    const dgBotTotalForWeek = weekDgModules.length;
+    const exerciseTitleById = {};
+    weekExercises.forEach((e) => { exerciseTitleById[String(e._id)] = e.title || 'Untitled'; });
+    const classTopicById = {};
+    weekMeetings.forEach((m) => { classTopicById[String(m._id)] = m.topic || 'Live class'; });
+    const dgTitleById = {};
+    weekDgModules.forEach((m) => { dgTitleById[String(m._id)] = m.title || 'DG Module'; });
+
+    const [exerciseAttempts, moduleProgressDocs, dgSessions] = await Promise.all([
+      exerciseIds.length
+        ? ExerciseAttempt.find({
+          studentId: { $in: studentIds },
+          exerciseId: { $in: exerciseIds },
+          status: 'completed'
+        }).select('studentId exerciseId scorePercentage').lean()
+        : [],
+      moduleIds.length
+        ? StudentProgress.find({
+          studentId: { $in: studentIds },
+          moduleId: { $in: moduleIds },
+          status: 'completed'
+        }).select('studentId moduleId').lean()
+        : [],
+      dgModuleIds.length
+        ? DGSession.find({
+          studentId: { $in: studentIds },
+          moduleId: { $in: dgModuleIds },
+          completed: true
+        }).select('studentId moduleId score').lean()
+        : []
+    ]);
+
+    const byStudent = {};
+    students.forEach((s) => {
+      byStudent[String(s._id)] = {
+        _id: s._id,
+        name: s.name,
+        regNo: s.regNo,
+        email: s.email,
+        level: s.level,
+        currentDay: s.currentCourseDay || 1,
+        classesAttended: 0,
+        classTopics: new Set(),
+        exercisesDone: 0,
+        exerciseScoreTotal: 0,
+        exerciseScoreCount: 0,
+        exerciseTitles: new Set(),
+        modulesCompleted: 0,
+        dgBotCompleted: 0,
+        dgBotScoreTotal: 0,
+        dgBotScoreCount: 0,
+        dgBotTitles: new Set()
+      };
+    });
+
+    weekMeetings.forEach((m) => {
+      (m.attendance || []).forEach((a) => {
+        const sid = String(a.studentId || a.userId || '');
+        if (!sid || !byStudent[sid] || !a.attended) return;
+        byStudent[sid].classesAttended += 1;
+        byStudent[sid].classTopics.add(classTopicById[String(m._id)] || 'Live class');
+      });
+    });
+
+    exerciseAttempts.forEach((a) => {
+      const sid = String(a.studentId || '');
+      if (!sid || !byStudent[sid]) return;
+      byStudent[sid].exercisesDone += 1;
+      byStudent[sid].exerciseTitles.add(exerciseTitleById[String(a.exerciseId)] || 'Exercise');
+      if (a.scorePercentage !== null && a.scorePercentage !== undefined) {
+        byStudent[sid].exerciseScoreTotal += a.scorePercentage;
+        byStudent[sid].exerciseScoreCount += 1;
+      }
+    });
+
+    moduleProgressDocs.forEach((m) => {
+      const sid = String(m.studentId || '');
+      if (!sid || !byStudent[sid]) return;
+      byStudent[sid].modulesCompleted += 1;
+    });
+
+    dgSessions.forEach((s) => {
+      const sid = String(s.studentId || '');
+      if (!sid || !byStudent[sid]) return;
+      byStudent[sid].dgBotCompleted += 1;
+      byStudent[sid].dgBotTitles.add(dgTitleById[String(s.moduleId)] || 'DG Module');
+      if (s.score !== null && s.score !== undefined) {
+        byStudent[sid].dgBotScoreTotal += s.score;
+        byStudent[sid].dgBotScoreCount += 1;
+      }
+    });
+
+    const rows = students.map((s) => {
+      const row = byStudent[String(s._id)];
+      const attemptedSet = new Set(row.exerciseTitles || []);
+      const attemptedExerciseTitles = Array.from(attemptedSet);
+      const notAttemptedExerciseTitles = weekExercises
+        .map((ex) => ex.title || 'Untitled')
+        .filter((title) => !attemptedSet.has(title));
+      return {
+        _id: row._id,
+        name: row.name,
+        regNo: row.regNo,
+        email: row.email,
+        level: row.level || '—',
+        currentDay: row.currentDay,
+        classesAttended: row.classesAttended,
+        classesTotal: classTotalForWeek,
+        classTopics: Array.from(row.classTopics),
+        exercisesDone: attemptedExerciseTitles.length,
+        exercisesTotal: exerciseTotalForWeek,
+        exerciseAvgScore: row.exerciseScoreCount ? Math.round(row.exerciseScoreTotal / row.exerciseScoreCount) : 0,
+        attemptedExerciseTitles,
+        notAttemptedExerciseTitles,
+        modulesCompleted: row.modulesCompleted,
+        dgBotCompleted: row.dgBotCompleted,
+        dgBotTotal: dgBotTotalForWeek,
+        dgBotAvgScore: row.dgBotScoreCount ? Math.round(row.dgBotScoreTotal / row.dgBotScoreCount) : 0,
+        dgBotTitles: Array.from(row.dgBotTitles)
+      };
+    });
+
+    res.json({ week, dayStart, dayEnd, rows });
+  } catch (err) {
+    console.error('batch-journey GET /:batchName/progress/week/:week/students', err);
+    res.status(500).json({ message: 'Failed to fetch weekly student details', error: err.message });
   }
 });
 

@@ -1217,6 +1217,7 @@ interface TimelineDay {
                     <th>Avg score</th>
                     <th>Exercises done</th>
                     <th>Class check-ins</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1231,9 +1232,14 @@ interface TimelineDay {
                     </td>
                     <td>{{ w.exercisesDone }}</td>
                     <td>{{ w.classesAttended }}</td>
+                    <td>
+                      <button type="button" class="j-btn j-btn-sm j-btn-outline" (click)="openWeeklyStudentDetails(w.week)">
+                        <i class="fas fa-external-link-alt"></i> View more
+                      </button>
+                    </td>
                   </tr>
                   <tr *ngIf="progressDetailLoaded && progressWeekly.length === 0">
-                    <td colspan="5" class="j-empty-inline">No weekly data yet.</td>
+                    <td colspan="6" class="j-empty-inline">No weekly data yet.</td>
                   </tr>
                 </tbody>
               </table>
@@ -4387,6 +4393,17 @@ export class JourneyManagementComponent implements OnInit {
 
   openAllStudentsPage(): void {
     this.router.navigate(['/admin/journey/all-students']);
+  }
+
+  openWeeklyStudentDetails(week: number): void {
+    const batchName = String(this.selectedBatch?.batchName || '').trim();
+    if (!batchName || !Number.isFinite(week) || week < 1) return;
+    this.router.navigate(['/admin/journey/weekly-students'], {
+      queryParams: {
+        batch: batchName,
+        week
+      }
+    });
   }
 
   startJourneyForSelected(): void {
