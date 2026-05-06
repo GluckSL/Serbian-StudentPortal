@@ -122,10 +122,72 @@
 </div>
 
 <ng-template #loadingTpl>
-  <div class="vs" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
-    <div style="text-align:center;">
-      <div class="vs-spinner"></div>
-      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading visa status...</p>
+  <div class="vs">
+    <!-- Header Skeleton -->
+    <div class="vs-header">
+      <div>
+        <div class="vs-skeleton-block" style="height:18px;width:220px;margin-bottom:6px;background:#e2e8f0;border-radius:6px;"></div>
+        <div class="vs-skeleton-block" style="height:12px;width:160px;background:#e2e8f0;border-radius:6px;"></div>
+      </div>
+      <div class="vs-skeleton-block" style="height:20px;width:130px;background:#e2e8f0;border-radius:6px;"></div>
+    </div>
+
+    <!-- Stepper + Progress Card -->
+    <div class="vs-card">
+      <div class="vs-stepper" style="display:flex;align-items:flex-start;padding:8px 0 14px;">
+        <div style="display:flex;align-items:center;gap:20px;">
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="vs-skeleton-block" style="width:16px;height:16px;border-radius:50%;background:#e2e8f0;"></div>
+            <div class="vs-skeleton-block" style="height:10px;width:50px;margin-top:5px;background:#e2e8f0;border-radius:4px;"></div>
+          </div>
+          <div class="vs-skeleton-block" style="height:2px;width:30px;background:#e2e8f0;margin-top:7px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="vs-skeleton-block" style="width:16px;height:16px;border-radius:50%;background:#e2e8f0;"></div>
+            <div class="vs-skeleton-block" style="height:10px;width:50px;margin-top:5px;background:#e2e8f0;border-radius:4px;"></div>
+          </div>
+          <div class="vs-skeleton-block" style="height:2px;width:30px;background:#e2e8f0;margin-top:7px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="vs-skeleton-block" style="width:16px;height:16px;border-radius:50%;background:#e2e8f0;"></div>
+            <div class="vs-skeleton-block" style="height:10px;width:50px;margin-top:5px;background:#e2e8f0;border-radius:4px;"></div>
+          </div>
+          <div class="vs-skeleton-block" style="height:2px;width:30px;background:#e2e8f0;margin-top:7px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="vs-skeleton-block" style="width:16px;height:16px;border-radius:50%;background:#e2e8f0;"></div>
+            <div class="vs-skeleton-block" style="height:10px;width:50px;margin-top:5px;background:#e2e8f0;border-radius:4px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="vs-progress">
+        <div class="vs-skeleton-block" style="height:14px;width:150px;margin-bottom:8px;background:#e2e8f0;border-radius:4px;"></div>
+        <div class="vs-skeleton-block" style="height:7px;width:100%;background:#e2e8f0;border-radius:4px;"></div>
+      </div>
+    </div>
+
+    <!-- Two-column Skeleton -->
+    <div class="vs-columns">
+      <!-- Left: Stages -->
+      <div class="vs-col-left">
+        <div class="vs-card" style="padding:16px 18px;">
+          <div class="vs-skeleton-block" style="height:16px;width:60px;margin-bottom:10px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:14px;width:100%;margin-bottom:6px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:12px;width:80%;background:#e2e8f0;border-radius:4px;"></div>
+        </div>
+        <div class="vs-card" style="padding:16px 18px;">
+          <div class="vs-skeleton-block" style="height:16px;width:60px;margin-bottom:10px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:14px;width:100%;margin-bottom:6px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:12px;width:70%;background:#e2e8f0;border-radius:4px;"></div>
+        </div>
+      </div>
+
+      <!-- Right: History -->
+      <div class="vs-col-right">
+        <div class="vs-card vs-history-card" style="padding:16px 18px;">
+          <div class="vs-skeleton-block" style="height:14px;width:160px;margin-bottom:12px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:40px;width:100%;margin-bottom:8px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:40px;width:100%;margin-bottom:8px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="vs-skeleton-block" style="height:40px;width:100%;background:#e2e8f0;border-radius:4px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 </ng-template>
