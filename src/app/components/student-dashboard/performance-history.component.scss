@@ -52,7 +52,7 @@
 
 .ph-switch button.on {
   background: #4f46e5;
-  color: #000;
+  color: #fff;
 }
 
 .ph-link-btn {
@@ -75,7 +75,7 @@
 
 .ph-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
 }
 
@@ -488,11 +488,18 @@ td {
 
   .ph-pagination {
     flex-direction: column;
-    align-items: flex-start;
+    /* align-items: flex-start; */
   }
 
   .ph-class-cell__sub,
   .ph-date-cell span {
     display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .ph-day-table-head {
+    flex-direction: column;
+    align-items: start;
   }
 }
