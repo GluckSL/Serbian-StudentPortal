@@ -1070,6 +1070,25 @@ textarea.field-input.field-input--desc {
   flex-shrink: 0;
 }
 
+.q-seq-input {
+  width: 54px;
+  height: 28px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #3730a3;
+  background: #eef2ff;
+  box-sizing: border-box;
+}
+
+.q-seq-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.14);
+}
+
 .q-type-badge {
   display: flex;
   align-items: center;

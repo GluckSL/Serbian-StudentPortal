@@ -1317,6 +1317,23 @@
 
 /* Question / Answer body */
 .qa-body { display: flex; flex-direction: column; gap: 16px; }
+.qa-tf-inline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+.qa-tf-inline-row .qa-prompt {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tf-answers-inline {
+  margin-left: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .qa-prompt { font-size: 1.05rem; font-weight: 500; color: #111827; line-height: 1.6; }
 .qa-input-label { font-size: 0.82rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.04em; }
 .qa-textarea {
@@ -1399,20 +1416,20 @@
 }
 .tf-btn {
   flex: 0 0 auto;
-  padding: 8px 18px;
+  padding: 10px 20px;
   border-radius: 8px;
   border: 1px solid #c7d2fe;
   background: #ffffff;
   color: #1e293b;
   font: inherit;
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 0.96rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-  min-height: 38px;
+  min-height: 42px;
   line-height: 1.2;
   box-sizing: border-box;
 }

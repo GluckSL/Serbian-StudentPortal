@@ -443,8 +443,36 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   moveQuestion(index: number, direction: -1 | 1): void {
     const target = index + direction;
     if (target < 0 || target >= this.questions.length) return;
-    [this.questions[index], this.questions[target]] = [this.questions[target], this.questions[index]];
-    this.expandedQuestion = target;
+    this.moveQuestionToIndex(index, target);
+  }
+
+  applyQuestionSequence(currentIndex: number, rawValue: string | number): void {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return;
+    const desiredIndex = Math.max(0, Math.min(this.questions.length - 1, Math.floor(parsed) - 1));
+    if (desiredIndex === currentIndex) return;
+    this.moveQuestionToIndex(currentIndex, desiredIndex);
+  }
+
+  private moveQuestionToIndex(fromIndex: number, toIndex: number): void {
+    if (fromIndex === toIndex) return;
+    const moved = this.questions[fromIndex];
+    if (!moved) return;
+
+    this.questions.splice(fromIndex, 1);
+    this.questions.splice(toIndex, 0, moved);
+
+    if (this.expandedQuestion === fromIndex) {
+      this.expandedQuestion = toIndex;
+      return;
+    }
+    if (fromIndex < this.expandedQuestion && this.expandedQuestion <= toIndex) {
+      this.expandedQuestion -= 1;
+      return;
+    }
+    if (toIndex <= this.expandedQuestion && this.expandedQuestion < fromIndex) {
+      this.expandedQuestion += 1;
+    }
   }
 
   toggleExpanded(index: number): void {

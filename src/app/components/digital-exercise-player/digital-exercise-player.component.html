@@ -913,21 +913,6 @@
       <!-- MIDDLE: Question + Answer area -->
       <div class="question-area">
 
-      <!-- Per-question attachment (image / audio / video / PDF) -->
-      <div class="q-attachment-box" *ngIf="currentQuestion.data.attachmentUrl">
-        <ng-container [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)">
-          <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" alt="Question attachment" class="q-attachment-img" />
-          <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
-          <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-video"></video>
-          <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
-            <span class="material-icons">picture_as_pdf</span> Open PDF
-          </a>
-          <a *ngSwitchDefault [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
-            <span class="material-icons">insert_drive_file</span> Open file
-          </a>
-        </ng-container>
-      </div>
-
       <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
 
         <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
@@ -955,10 +940,6 @@
             currentQuestion.data.example
           "
         >
-          <div class="q-context-box" *ngIf="currentQuestion.data.context">
-            <div class="q-context-text" [innerHTML]="currentQuestion.data.context | safeHtml"></div>
-          </div>
-
           <!-- Instruction banner (matching uses instruction as its main prompt inside q-body) -->
           <div class="q-instruction-banner"
                *ngIf="worksheetInstructionDisplay(currentQuestion.data) && currentQuestion.data.type !== 'matching'">
@@ -969,6 +950,10 @@
           <div class="q-example-banner" *ngIf="currentQuestion.data.example">
             <span class="q-example-label">Example</span>
             <span class="q-example-text" [innerHTML]="currentQuestion.data.example | safeHtml"></span>
+          </div>
+
+          <div class="q-context-box" *ngIf="currentQuestion.data.context">
+            <div class="q-context-text" [innerHTML]="currentQuestion.data.context | safeHtml"></div>
           </div>
         </div>
 
@@ -1753,10 +1738,31 @@
           <div class="q-question-box">
             <div class="q-question-label">Question</div>
             <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else normalPrompt">
-              <div class="tf-story-paragraph" *ngIf="currentQuestion.data.storyParagraph"
-                   [innerHTML]="currentQuestion.data.storyParagraph | safeHtml">
+              <div class="qa-tf-inline-row">
+                <div class="qa-prompt" [innerHTML]="currentQuestion.data.prompt | safeHtml"></div>
+                <div class="tf-answers tf-answers-inline" role="group" aria-label="Richtig oder Falsch">
+                  <button
+                    type="button"
+                    class="tf-btn"
+                    [class.active]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                    [disabled]="hasCurrentSubmitted"
+                    [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === true"
+                    (click)="selectTrueFalse(currentQuestion, true)"
+                  >
+                    Richtig
+                  </button>
+                  <button
+                    type="button"
+                    class="tf-btn"
+                    [class.active]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                    [disabled]="hasCurrentSubmitted"
+                    [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === false"
+                    (click)="selectTrueFalse(currentQuestion, false)"
+                  >
+                    Falsch
+                  </button>
+                </div>
               </div>
-              <div class="qa-prompt" [innerHTML]="currentQuestion.data.prompt | safeHtml"></div>
             </ng-container>
             <ng-template #normalPrompt>
               <div class="qa-prompt" [innerHTML]="currentQuestion.data.prompt | safeHtml"></div>
@@ -1764,28 +1770,7 @@
           </div>
 
           <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
-            <div class="tf-answers" role="group" aria-label="Richtig oder Falsch">
-              <button
-                type="button"
-                class="tf-btn"
-                [class.active]="parseTrueFalse(currentQuestion.qaResponse) === true"
-                [disabled]="hasCurrentSubmitted"
-                [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === true"
-                (click)="selectTrueFalse(currentQuestion, true)"
-              >
-                Richtig
-              </button>
-              <button
-                type="button"
-                class="tf-btn"
-                [class.active]="parseTrueFalse(currentQuestion.qaResponse) === false"
-                [disabled]="hasCurrentSubmitted"
-                [attr.aria-pressed]="parseTrueFalse(currentQuestion.qaResponse) === false"
-                (click)="selectTrueFalse(currentQuestion, false)"
-              >
-                Falsch
-              </button>
-            </div>
+            <ng-container></ng-container>
           </ng-container>
 
           <ng-template #qaTextInput>
@@ -1814,6 +1799,27 @@
               </div>
             </div>
           </ng-template>
+
+          <div
+            class="tf-story-paragraph"
+            *ngIf="isTrueFalseQuestion(currentQuestion.data) && currentQuestion.data.storyParagraph"
+            [innerHTML]="currentQuestion.data.storyParagraph | safeHtml"
+          ></div>
+
+          <!-- Per-question attachment shown last -->
+          <div class="q-attachment-box" *ngIf="currentQuestion.data.attachmentUrl">
+            <ng-container [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)">
+              <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" alt="Question attachment" class="q-attachment-img" />
+              <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
+              <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-video"></video>
+              <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
+                <span class="material-icons">picture_as_pdf</span> Open PDF
+              </a>
+              <a *ngSwitchDefault [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
+                <span class="material-icons">insert_drive_file</span> Open file
+              </a>
+            </ng-container>
+          </div>
 
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
             <strong>Sample answers:</strong>

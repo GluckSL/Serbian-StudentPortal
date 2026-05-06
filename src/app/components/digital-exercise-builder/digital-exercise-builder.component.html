@@ -272,6 +272,18 @@
         <div class="question-header" (click)="toggleExpanded(i)">
           <div class="question-header-left">
             <span class="q-number">Q{{ i + 1 }}</span>
+            <input
+              type="number"
+              class="q-seq-input"
+              min="1"
+              [max]="questions.length"
+              [ngModel]="i + 1"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="applyQuestionSequence(i, $any($event.target).value); $event.preventDefault()"
+              (blur)="applyQuestionSequence(i, $any($event.target).value)"
+              aria-label="Question sequence"
+              title="Set sequence number and press Enter"
+            />
             <span class="q-type-badge" [class]="'badge-' + q.type">
               <span class="material-icons">
                 {{ getTypeIcon(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
