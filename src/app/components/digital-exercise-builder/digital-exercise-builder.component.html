@@ -493,6 +493,14 @@
                 <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Prompt ' + (ii + 1)" />
                 <span class="pair-arrow">→</span>
                 <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Answer ' + (ii + 1)" />
+                <input
+                  type="text"
+                  class="field-input word-bank-accepted-input"
+                  [ngModel]="(item.acceptedAnswers || []).join(', ')"
+                  (ngModelChange)="setWordBankItemAccepted($event, item)"
+                  placeholder="Also accept (optional)"
+                  title="Comma-separated alternate correct answers for this blank"
+                />
                 <button class="btn-remove-opt" (click)="removeWordBankItem(q, ii)" *ngIf="(q.items?.length || 0) > 1">
                   <span class="material-icons">close</span>
                 </button>
@@ -1288,7 +1296,12 @@
               <div *ngFor="let item of q.items; let ii = index" class="pq-pair">
                 <span class="pair-item left">{{ ii + 1 }}. {{ item.prompt }}</span>
                 <span class="pair-arrow">→</span>
-                <span class="pair-item right">{{ item.answer }}</span>
+                <span class="pair-item right">
+                  {{ item.answer }}
+                  <ng-container *ngIf="item.acceptedAnswers?.length">
+                    (also: {{ item.acceptedAnswers!.join(', ') }})
+                  </ng-container>
+                </span>
               </div>
             </div>
           </div>

@@ -71,7 +71,7 @@ export interface WordBankFillQuestion extends QuestionCommonFields {
   type: 'word_bank_fill';
   _id?: string;
   wordBank: string[];
-  items: Array<{ prompt: string; answer?: string }>;
+  items: Array<{ prompt: string; answer?: string; acceptedAnswers?: string[] }>;
   reusableWords?: boolean;
   points: number;
 }

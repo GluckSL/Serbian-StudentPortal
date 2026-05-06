@@ -109,7 +109,8 @@ const DigitalExerciseSchema = new mongoose.Schema({
     wordBank: [String],
     items: [{
       prompt: String,
-      answer: String
+      answer: String,
+      acceptedAnswers: [{ type: String }]
     }],
     reusableWords: { type: Boolean, default: true },
     // Pronunciation fields

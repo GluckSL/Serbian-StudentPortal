@@ -131,12 +131,7 @@ function normalizeQuestionContexts(rawQuestions) {
       out.wordBank = (Array.isArray(q.wordBank) ? q.wordBank : [])
         .map((x) => sanitizeQuestionPlainText(x))
         .filter(Boolean);
-      out.items = (Array.isArray(q.items) ? q.items : [])
-        .map((item) => ({
-          prompt: sanitizeQuestionPlainText(item?.prompt || ''),
-          answer: sanitizeQuestionPlainText(item?.answer || '')
-        }))
-        .filter((item) => item.prompt && item.answer);
+      out.items = sanitizeWordBankFillItems(q.items);
       out.reusableWords = q.reusableWords !== false;
     }
     if (q?.type === 'image_pin_match') {
@@ -276,6 +271,48 @@ function normalizeWordBankValue(raw) {
     .toLowerCase()
     .normalize('NFC')
     .replace(/\s+/g, ' ');
+}
+
+/** Normalize word-bank-fill rows (prompt, answer, optional acceptedAnswers). */
+function sanitizeWordBankFillItems(rawItems) {
+  return (Array.isArray(rawItems) ? rawItems : [])
+    .map((item) => {
+      const prompt = sanitizeQuestionPlainText(item?.prompt || '');
+      const answer = sanitizeQuestionPlainText(item?.answer || '');
+      const primaryNorm = normalizeWordBankValue(answer);
+      const rawAlts = Array.isArray(item?.acceptedAnswers) ? item.acceptedAnswers : [];
+      const acceptedAnswers = [];
+      const seen = new Set();
+      if (primaryNorm) seen.add(primaryNorm);
+      for (const a of rawAlts) {
+        const s = sanitizeQuestionPlainText(String(a ?? '')).trim();
+        if (!s) continue;
+        const n = normalizeWordBankValue(s);
+        if (!n || seen.has(n)) continue;
+        seen.add(n);
+        acceptedAnswers.push(s);
+      }
+      const out = { prompt, answer };
+      if (acceptedAnswers.length) out.acceptedAnswers = acceptedAnswers;
+      return out;
+    })
+    .filter((item) => item.prompt && item.answer);
+}
+
+function wordBankRowAcceptsGiven(givenNorm, row) {
+  if (!givenNorm) return false;
+  const primary = normalizeWordBankValue(row?.answer);
+  if (primary && givenNorm === primary) return true;
+  const alts = Array.isArray(row?.acceptedAnswers) ? row.acceptedAnswers : [];
+  for (const a of alts) {
+    if (normalizeWordBankValue(a) === givenNorm) return true;
+  }
+  return false;
+}
+
+function mapWordBankCorrectAnswerPayload(rows) {
+  const cleaned = sanitizeWordBankFillItems(rows);
+  return cleaned.map((item, index) => ({ index, ...item }));
 }
 
 function normalizeRearrangeToken(raw) {
@@ -423,7 +460,14 @@ function formatCorrectAnswerForReview(q) {
     const rows = Array.isArray(q.items) ? q.items : [];
     return rows.length
       ? rows
-          .map((item, idx) => `${sanitizeQuestionPlainText(item?.prompt || `Item ${idx + 1}`)} → ${sanitizeQuestionPlainText(item?.answer || '—')}`)
+          .map((item, idx) => {
+            const alts = Array.isArray(item?.acceptedAnswers) ? item.acceptedAnswers.filter(Boolean) : [];
+            const ans = sanitizeQuestionPlainText(item?.answer || '—');
+            const altStr = alts.length
+              ? ` (also: ${alts.map((a) => sanitizeQuestionPlainText(a)).join(', ')})`
+              : '';
+            return `${sanitizeQuestionPlainText(item?.prompt || `Item ${idx + 1}`)} → ${ans}${altStr}`;
+          })
           .join(' · ')
       : '—';
   }
@@ -1589,8 +1633,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         let correctCount = 0;
         for (let i = 0; i < total; i++) {
           const given = normalizeWordBankValue(byIndex[i]);
-          const expected = normalizeWordBankValue(rows[i]?.answer);
-          if (given && expected && given === expected) correctCount += 1;
+          if (wordBankRowAcceptsGiven(given, rows[i])) correctCount += 1;
         }
         rawScore = useAdvancedGrading
           ? Math.round((correctCount / total) * 100)
@@ -1599,11 +1642,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = {
         wordBank: (Array.isArray(q.wordBank) ? q.wordBank : []).map((w) => sanitizeQuestionPlainText(w)),
         reusableWords: q.reusableWords !== false,
-        items: rows.map((item, index) => ({
-          index,
-          prompt: sanitizeQuestionPlainText(item?.prompt || ''),
-          answer: sanitizeQuestionPlainText(item?.answer || '')
-        }))
+        items: mapWordBankCorrectAnswerPayload(rows)
       };
     } else if (q.type === 'singular_plural') {
       const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
@@ -1924,8 +1963,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
           let correctCount = 0;
           for (let idx = 0; idx < total; idx++) {
             const given = normalizeWordBankValue(byIndex[idx]);
-            const expected = normalizeWordBankValue(rows[idx]?.answer);
-            if (given && expected && given === expected) correctCount += 1;
+            if (wordBankRowAcceptsGiven(given, rows[idx])) correctCount += 1;
           }
           rawScore = useAdvancedGrading
             ? Math.round((correctCount / total) * 100)
@@ -1934,11 +1972,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         correctAnswer = {
           wordBank: (Array.isArray(q.wordBank) ? q.wordBank : []).map((w) => sanitizeQuestionPlainText(w)),
           reusableWords: q.reusableWords !== false,
-          items: rows.map((item, index) => ({
-            index,
-            prompt: sanitizeQuestionPlainText(item?.prompt || ''),
-            answer: sanitizeQuestionPlainText(item?.answer || '')
-          }))
+          items: mapWordBankCorrectAnswerPayload(rows)
         };
       } else if (q.type === 'singular_plural') {
         const rows = (q.pairs || []).filter((p) => p.singular && p.plural);

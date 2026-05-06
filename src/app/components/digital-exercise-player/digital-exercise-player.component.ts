@@ -2470,7 +2470,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return 'Correct answers: ' + correctAnswer.answers.join(', ');
     }
     if ((q.type as string) === 'word_bank_fill' && Array.isArray(correctAnswer.items)) {
-      return 'Correct answers: ' + correctAnswer.items.map((x: any) => x?.answer).filter(Boolean).join(', ');
+      const parts = correctAnswer.items.map((x: any) => {
+        const alts = Array.isArray(x?.acceptedAnswers) ? x.acceptedAnswers.filter(Boolean) : [];
+        if (!x?.answer) return '';
+        return alts.length ? `${x.answer} (${alts.join(' / ')})` : x.answer;
+      }).filter(Boolean);
+      return parts.length ? 'Correct answers: ' + parts.join(', ') : '';
     }
     if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
       return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
@@ -2590,7 +2595,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return 'Correct answers: ' + correctAnswer.answers.join(', ');
     }
     if ((q.type as string) === 'word_bank_fill' && Array.isArray(correctAnswer.items)) {
-      return 'Correct answers: ' + correctAnswer.items.map((x: any) => x?.answer).filter(Boolean).join(', ');
+      const parts = correctAnswer.items.map((x: any) => {
+        const alts = Array.isArray(x?.acceptedAnswers) ? x.acceptedAnswers.filter(Boolean) : [];
+        if (!x?.answer) return '';
+        return alts.length ? `${x.answer} (${alts.join(' / ')})` : x.answer;
+      }).filter(Boolean);
+      return parts.length ? 'Correct answers: ' + parts.join(', ') : '';
     }
     if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
       return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
@@ -2757,7 +2767,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if ((pq.data.type as string) === 'word_bank_fill') {
       const rows = Array.isArray(pq.data._wordBankCorrectItems) ? pq.data._wordBankCorrectItems : [];
       return rows.length
-        ? rows.map((x: any, i: number) => `${x?.prompt || `Item ${i + 1}`} -> ${x?.answer || '—'}`).join('; ')
+        ? rows
+            .map((x: any, i: number) => {
+              const alts = Array.isArray(x?.acceptedAnswers) ? x.acceptedAnswers.filter(Boolean) : [];
+              const altStr = alts.length ? ` (also: ${alts.join(', ')})` : '';
+              return `${x?.prompt || `Item ${i + 1}`} -> ${x?.answer || '—'}${altStr}`;
+            })
+            .join('; ')
         : '—';
     }
     if (pq.data.type === 'singular_plural') {
@@ -3924,15 +3940,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   isWordBankItemCorrect(pq: PlayerQuestion, itemIndex: number): boolean {
     const items = Array.isArray(pq.data._wordBankCorrectItems) ? pq.data._wordBankCorrectItems : [];
-    const expected = items[itemIndex]?.answer;
+    const row = items[itemIndex];
     const given = (pq.wordBankAnswers || [])[itemIndex]?.value;
-    if (expected === undefined || given === undefined) return false;
-    return this.normExercisePlainText(given).toLowerCase() === this.normExercisePlainText(expected).toLowerCase();
+    if (row === undefined || given === undefined) return false;
+    const g = this.normExercisePlainText(given).toLowerCase();
+    const primary = this.normExercisePlainText(row?.answer ?? '').toLowerCase();
+    if (g && primary && g === primary) return true;
+    const alts = Array.isArray(row?.acceptedAnswers) ? row.acceptedAnswers : [];
+    return alts.some((a: unknown) => g && this.normExercisePlainText(String(a)).toLowerCase() === g);
   }
 
   getWordBankCorrectAnswer(pq: PlayerQuestion, itemIndex: number): string {
     const items = Array.isArray(pq.data._wordBankCorrectItems) ? pq.data._wordBankCorrectItems : [];
-    return items[itemIndex]?.answer || '';
+    const row = items[itemIndex];
+    const ans = row?.answer || '';
+    const alts = Array.isArray(row?.acceptedAnswers) ? row.acceptedAnswers.filter(Boolean) : [];
+    if (!ans) return '';
+    return alts.length ? `${ans} (also: ${alts.join(', ')})` : ans;
   }
 
   isSpRowCorrect(pq: PlayerQuestion, rowIndex: number): boolean {

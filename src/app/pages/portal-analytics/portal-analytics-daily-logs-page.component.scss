@@ -1,4 +1,4 @@
-@import './portal-analytics.component.scss';
+@use './portal-analytics.component.scss' as *;
 
 .pa-back {
   display: inline-block;

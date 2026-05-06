@@ -247,7 +247,7 @@ import { MaterialModule } from '../../../shared/material.module';
             <span *ngIf="ex.courseDay != null" class="day-pill">Day {{ ex.courseDay }}</span>
             <span *ngIf="ex.courseDay == null" class="text-muted">—</span>
           </td>
-          <td class="center">{{ ex.questionCount ?? ex.questions?.length ?? 0 }}</td>
+          <td class="center">{{ displayQuestionCount(ex) }}</td>
           <td class="center">{{ ex.stats != null ? ex.stats.completions : 0 }}</td>
           <td class="center">
             <span *ngIf="ex.stats != null && ex.stats.avgScore" class="score-badge" [class.good]="ex.stats.avgScore >= 70">
@@ -899,6 +899,14 @@ export class DigitalExerciseManagementComponent implements OnInit {
       }
     });
     this.loadExercises();
+  }
+
+  /** Admin list may send `questionCount` without embedding full `questions`. */
+  displayQuestionCount(ex: DigitalExercise): number {
+    if (typeof ex.questionCount === 'number') {
+      return ex.questionCount;
+    }
+    return Array.isArray(ex.questions) ? ex.questions.length : 0;
   }
 
   loadExercises(): void {

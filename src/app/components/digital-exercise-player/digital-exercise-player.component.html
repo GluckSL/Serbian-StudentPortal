@@ -621,319 +621,106 @@
     >
       <div class="player-vp-chat-layout">
         <aside class="vp-details-cards">
-            <div
-              class="vp-detail-card vp-detail-card--info vp-detail-card--rich"
-            >
-              <div class="vp-detail-header">
-                <span class="vp-detail-card-label">Exercise</span>
-                <button
-                  class="btn-icon-back btn-back-nav"
-                  (click)="goBack()"
-                  title="Go back"
-                >
-                  <span class="material-icons">arrow_back</span>
-                  <span class="btn-back-label">Back</span>
-                </button>
+          <div
+            class="vp-detail-card vp-detail-card--info vp-detail-card--rich"
+          >
+            <div class="vp-detail-header">
+              <span class="vp-detail-card-label">Exercise</span>
+              <button
+                class="btn-icon-back btn-back-nav"
+                (click)="goBack()"
+                title="Go back"
+              >
+                <span class="material-icons">arrow_back</span>
+                <span class="btn-back-label">Back</span>
+              </button>
+            </div>
+            <div>
+              <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
+              <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
+                {{ exercise?.description }}
+              </p>
+            </div>
+            <div class="vp-detail-specs-row">
+              <div class="vp-detail-spec-item">Journey to Germany</div>
+              <div class="vp-detail-spec-item" *ngIf="exercise?.category">
+                {{ exercise?.category }}
               </div>
-                <button
-                  class="btn-icon-back btn-back-nav"
-                  (click)="goBack()"
-                  title="Go back"
-                >
-                  <span class="material-icons">arrow_back</span>
-                  <span class="btn-back-label">Back</span>
-                </button>
-              </div>
-<div>
-  <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
-  <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
-    {{ exercise?.description }}
-  </p>
-</div>
-<div class="vp-detail-specs-row">
-  <div class="vp-detail-spec-item">Journey to Germany</div>
-  <div class="vp-detail-spec-item" *ngIf="exercise?.category">
-    {{ exercise?.category }}
-  </div>
-  <div class="vp-detail-spec-item">
-    <span
-      class="vp-detail-pill level vp-detail-pill--inline"
-      [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')"
-      >{{ exercise?.level }}</span
-    >
-  </div>
-  <div class="vp-detail-spec-item">
-    ~{{ exercise?.estimatedDuration || 15 }} min
-  </div>
-</div>
-<div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
-  <span
-    class="vp-detail-tag"
-    *ngFor="let t of exercise?.tags || []"
-    >{{ t }}</span
-  >
-</div>
+              <div class="vp-detail-spec-item">
                 <span
-                  class="vp-detail-tag"
-                  *ngFor="let t of exercise?.tags || []"
-                  >{{ t }}</span
+                  class="vp-detail-pill level vp-detail-pill--inline"
+                  [style.background]="
+                    exerciseService.getLevelColor(exercise?.level || 'A1')
+                  "
+                  >{{ exercise?.level }}</span
                 >
+              </div>
+              <div class="vp-detail-spec-item">
+                ~{{ exercise?.estimatedDuration || 15 }} min
               </div>
             </div>
-            <div class="vp-detail-card vp-detail-card--clips">
-              <span class="vp-detail-card-label"
-                >Clips · {{ playerQuestions.length }} total</span
+            <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
+              <span
+                class="vp-detail-tag"
+                *ngFor="let t of exercise?.tags || []"
+                >{{ t }}</span
               >
-              <div class="vp-clip-cells">
-                <button
-                  *ngFor="let _ of playerQuestions; let i = index"
-                  class="{{ vpClipCellClass(i) }}"
-                  [class.vp-clip-cell--jumpable]="
-                    !(
-                      finishingAll ||
-                      submitting ||
-                      currentQuestion.isRecording ||
-                      currentQuestion.pronUiState === 'processing'
-                    )
-                  "
-                  [attr.title]="'Clip ' + (i + 1)"
-                  [disabled]="
+            </div>
+            <div class="vp-ring-wrap">
+              <svg class="vp-ring-svg" viewBox="0 0 36 36">
+                <circle
+                  class="vp-ring-track"
+                  cx="18"
+                  cy="18"
+                  [attr.r]="vpRingR"
+                  fill="none"
+                  stroke-width="3"
+                />
+                <circle
+                  class="vp-ring-bar"
+                  cx="18"
+                  cy="18"
+                  [attr.r]="vpRingR"
+                  fill="none"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  transform="rotate(-90 18 18)"
+                  [attr.stroke-dasharray]="vpRingCircumference"
+                  [attr.stroke-dashoffset]="vpRingOffset"
+                />
+              </svg>
+              <span class="vp-ring-label">{{ vpRingPercent }}%</span>
+            </div>
+          </div>
+          <div class="vp-detail-card vp-detail-card--clips">
+            <span class="vp-detail-card-label"
+              >Clips · {{ playerQuestions.length }} total</span
+            >
+            <div class="vp-clip-cells">
+              <button
+                *ngFor="let _ of playerQuestions; let i = index"
+                class="{{ vpClipCellClass(i) }}"
+                [class.vp-clip-cell--jumpable]="
+                  !(
                     finishingAll ||
                     submitting ||
                     currentQuestion.isRecording ||
                     currentQuestion.pronUiState === 'processing'
-                  "
-                  (click)="goToQuestion(i)"
-                >
-                  {{ i + 1 }}
-                </button>
-              </div>
+                  )
+                "
+                [attr.title]="'Clip ' + (i + 1)"
+                [disabled]="
+                  finishingAll ||
+                  submitting ||
+                  currentQuestion.isRecording ||
+                  currentQuestion.pronUiState === 'processing'
+                "
+                (click)="goToQuestion(i)"
+              >
+                {{ i + 1 }}
+              </button>
             </div>
-<!-- Retry row (shown for both incorrect and almost-correct) -->
-<div class="pronunciation-retry-row"
-     *ngIf="currentQuestion.hasRecorded && !hasCurrentSubmitted && (currentQuestion.pronAlmostCorrect || (currentQuestion.pronunciationScore || 0) < 60)">
-  <span class="pronunciation-retry-nudge" *ngIf="!currentQuestion.pronAlmostCorrect">
-    ❌ Not quite — 👉 try again clearly.
-  </span>
-  <span class="pronunciation-retry-nudge pronunciation-retry-nudge--almost" *ngIf="currentQuestion.pronAlmostCorrect">
-    🔶 So close! Give it one more try.
-  </span>
-  <button type="button" class="btn-record btn-record--subtle"
-          (click)="replayReferenceForRetry(currentQuestion)"
-          title="Replay the reference word">
-    <span class="material-icons">replay</span>
-    <span>Replay word</span>
-  </button>
-</div>
-<div class="pron-help-wrap" *ngIf="shouldShowNeedHelp(currentQuestion)">
-  <button type="button" class="btn-record btn-record--subtle" (click)="togglePronHelp(currentQuestion)">
-    <span class="material-icons">help_outline</span>
-    Need help?
-  </button>
-  <div class="pron-help-chunks" *ngIf="currentQuestion.pronHelpOpen">
-    <span class="pron-help-chip" *ngFor="let c of expectedChunks(currentQuestion.pronExpectedText || '')">{{ c }}</span>
-  </div>
-</div>
-<button
-  type="button"
-  class="btn-record btn-record--subtle pron-mark-correct-btn"
-  *ngIf="shouldShowMarkAsCorrect(currentQuestion)"
-  (click)="markCurrentAsCorrect(currentQuestion)"
->
-  <span class="material-icons">check_circle</span>
-  Mark as correct
-</button>
-</div>
-
-<div class="speech-not-supported" *ngIf="!speechSupported && !audioRecorderSupported">
-  <span class="material-icons">warning</span>
-  Speech recognition is not supported in this browser.
-  Please use Chrome or Edge for pronunciation exercises.
-</div>
-</div>
-
-<!-- Listening body -->
-<div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
-  <div class="q-question-box">
-    <div class="q-question-label">Question</div>
-    <div class="qa-prompt" [innerHTML]="(currentQuestion.data.prompt || 'Listen and answer the question.') | safeHtml"></div>
-  </div>
-  <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
-  <div class="listening-audio-wrap" *ngIf="getListeningSupplementalAudioUrl(currentQuestion.data)">
-    <audio [src]="getMediaFullUrl(getListeningSupplementalAudioUrl(currentQuestion.data))" controls></audio>
-  </div>
-  <label class="qa-input-label">Your Answer</label>
-  <div class="listening-input-row">
-    <textarea
-      class="qa-textarea"
-      rows="4"
-      placeholder="Type what you hear..."
-      [(ngModel)]="currentQuestion.listeningText"
-      (ngModelChange)="markAttempted(currentQuestion)"
-      (focus)="setActiveSpecialInputTarget({ type: 'listening' })"
-      [disabled]="hasCurrentSubmitted"
-    ></textarea>
-    <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
-      <button
-        type="button"
-        class="btn-record"
-        [class.recording]="currentQuestion.isRecording"
-        [disabled]="hasCurrentSubmitted"
-        (click)="currentQuestion.isRecording ? stopListeningSpeech(currentQuestion) : startListeningSpeech(currentQuestion)"
-      >
-        <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
-        {{ currentQuestion.isRecording ? 'Stop' : 'Speak' }}
-      </button>
-    </div>
-  </div>
-  <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
-    <div class="special-char-label">Special letters</div>
-    <div class="special-char-list" role="group" aria-label="German special letters">
-      <button
-        type="button"
-        class="special-char-btn"
-        *ngFor="let char of specialCharacters"
-        (mousedown)="$event.preventDefault()"
-        (click)="insertSpecialCharacter(char)"
-      >
-        {{ char }}
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- Jumble Word body -->
-<div class="q-body jumble-body" *ngIf="currentQuestion.data.type === 'jumble-word'">
-  <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
-  <div class="jumble-category-tip" *ngIf="currentQuestion.data.categoryTip">
-    {{ currentQuestion.data.categoryTip }}
-  </div>
-  <div class="jumble-scramble">
-    <ng-container *ngFor="let token of getJumbleTokens(currentQuestion.data); let ti = index">
-      <button
-        *ngIf="token !== ' '"
-        type="button"
-        class="jumble-letter jumble-letter-btn"
-        [class.jumble-letter--bold]="token === currentQuestion.data.boldLetter && ti === getFirstBoldIndex(currentQuestion.data)"
-        (mousedown)="$event.preventDefault()"
-        (click)="insertJumbleToken(token)"
-        [disabled]="hasCurrentSubmitted"
-        [attr.aria-label]="'Insert ' + token"
-      >{{ token }}</button>
-      <span *ngIf="token === ' '" class="jumble-space"> </span>
-    </ng-container>
-  </div>
-  <label class="qa-input-label">Form the word:</label>
-  <input
-    type="text"
-    class="jumble-input"
-    placeholder="Type the word..."
-    #jumbleInput
-    [(ngModel)]="currentQuestion.jumbleWordResponse"
-    (ngModelChange)="markAttempted(currentQuestion)"
-    (focus)="setActiveSpecialInputTarget({ type: 'jumble-word' })"
-    [disabled]="hasCurrentSubmitted"
-    (keydown.enter)="$event.preventDefault()"
-  />
-
-  <div class="special-char-pad" *ngIf="showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted">
-    <div class="special-char-label">Special letters</div>
-    <div class="special-char-list" role="group" aria-label="German special letters">
-      <button
-        type="button"
-        class="special-char-btn"
-        *ngFor="let char of specialCharacters"
-        (mousedown)="$event.preventDefault()"
-        (click)="insertSpecialCharacter(char)"
-      >
-        {{ char }}
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- Rearrange body -->
-<div class="q-body rearrange-body" *ngIf="currentQuestion.data.type === 'rearrange'">
-  <div class="q-question-box">
-    <div class="q-question-label">Question</div>
-    <div class="qa-prompt" [innerHTML]="(currentQuestion.data.rearrangePrompt || '') | safeHtml"></div>
-  </div>
-  <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
-
-  <div class="rearrange-tokens-wrap" *ngIf="currentQuestion.rearrangeTokens?.length">
-    <div class="rearrange-label">Drag to rearrange:</div>
-    <div
-      cdkDropList
-      class="rearrange-drop"
-      cdkDropListOrientation="horizontal"
-      [cdkDropListSortingDisabled]="false"
-      [cdkDropListData]="currentQuestion.rearrangeTokens"
-      [class.disabled]="hasCurrentSubmitted"
-      (cdkDropListDropped)="onRearrangeDrop(currentQuestion, $event)"
-    >
-      <div
-        class="rearrange-token"
-        *ngFor="let t of currentQuestion.rearrangeTokens; let ti = index; trackBy: trackByIndex"
-        cdkDrag
-        [cdkDragDisabled]="hasCurrentSubmitted"
-        (cdkDragStarted)="onRearrangeDragStarted(currentQuestion, $event)"
-        (cdkDragEnded)="onRearrangeDragEnded(currentQuestion, $event)"
-        (mousedown)="$event.preventDefault()"
-      >
-        {{ t }}
-      </div>
-    </div>
-
-    <div class="rearrange-answer-box" *ngIf="currentQuestion.isAnswered">
-      <div class="rearrange-answer-label">Your answer is</div>
-      <div class="rearrange-answer-text">{{ getRearrangePreviewText(currentQuestion) || '—' }}</div>
-    </div>
-  </div>
-</div>
-
-<!-- Video Pronunciation (mixed exercises only — video-only uses split layout above) -->
-<div class="q-body vp-body" *ngIf="currentQuestion.data.type === 'video-pronunciation' && !isVideoOnlyExercise">
-  <div class="vp-mobile-outer">
-    <div class="vp-mobile-shell">
-      <div class="vp-mobile-notch" aria-hidden="true"></div>
-
-      <div class="vp-mobile-top">
-        <span class="vp-mobile-kicker">Say this phrase</span>
-        <div class="vp-variants-hint vp-variants-hint--top" *ngIf="currentQuestion.data.context">
-          {{ currentQuestion.data.context }}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-                </div>
-                <div class="vp-ring-wrap">
-                  <svg class="vp-ring-svg" viewBox="0 0 36 36">
-                    <circle
-                      class="vp-ring-track"
-                      cx="18"
-                      cy="18"
-                      [attr.r]="vpRingR"
-                      fill="none"
-                      stroke-width="3"
-                    />
-                    <circle
-                      class="vp-ring-bar"
-                      cx="18"
-                      cy="18"
-                      [attr.r]="vpRingR"
-                      fill="none"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      transform="rotate(-90 18 18)"
-                      [attr.stroke-dasharray]="vpRingCircumference"
-                      [attr.stroke-dashoffset]="vpRingOffset"
-                    />
-                  </svg>
-                  <span class="vp-ring-label">{{ vpRingPercent }}%</span>
-                </div>
-              </div>
-            </div>
+          </div>
         </aside>
 
         <div class="vp-video-col" *ngIf="currentQuestion.data.videoUrl">
@@ -1783,8 +1570,6 @@
             <span class="q-section-icon material-icons">layers</span>
             <span class="q-section-text">{{ sec }}</span>
           </div>
-          </div>
-          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
 
           <!-- Question Header -->
           <div class="q-header">
@@ -2096,28 +1881,34 @@
                 </button>
               </div>
             </div>
-</ng-template>
-
-<div
-  class="tf-story-paragraph"
-  *ngIf="isTrueFalseQuestion(currentQuestion.data) && currentQuestion.data.storyParagraph"
-  [innerHTML]="currentQuestion.data.storyParagraph | safeHtml"
-></div>
-
-<div
-  class="fill-feedback"
-  *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
->
-  <span class="material-icons">lightbulb</span>
-  {{ currentQuestion.feedback }}
-</div>
-
-<div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
-  <strong>Sample answers:</strong>
-  <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
-    {{ sa }}<span *ngIf="si < currentQuestion.data.sampleAnswers.length - 1">; </span>
-  </span>
-</div>
+            <div
+              class="fill-feedback"
+              *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
+            >
+              <span class="material-icons">lightbulb</span>
+              {{ currentQuestion.feedback }}
+            </div>
+            <div
+              class="qa-hint"
+              *ngIf="
+                hasCurrentSubmitted &&
+                currentQuestion.data.sampleAnswers?.length
+              "
+            >
+              <strong>Sample answers:</strong>
+              <span
+                *ngFor="
+                  let sa of currentQuestion.data.sampleAnswers;
+                  let si = index
+                "
+              >
+                {{ sa
+                }}<span
+                  *ngIf="si < currentQuestion.data.sampleAnswers.length - 1"
+                  >;
+                </span>
+              </span>
+            </div>
           </div>
 
           <!-- ── SINGULAR / PLURAL ── -->
@@ -3449,7 +3240,7 @@
         <p>Please wait, do not close this page.</p>
       </div>
     </div>
-  </div>
+  </div>  
 </div>
 
 <!-- ────────────────────────────────────────────────────────────────────── -->

@@ -35,7 +35,7 @@ interface BuilderQuestion {
   caseSensitive?: boolean;
   // Word bank fill
   wordBank?: string[];
-  items?: Array<{ prompt: string; answer: string }>;
+  items?: Array<{ prompt: string; answer: string; acceptedAnswers?: string[] }>;
   reusableWords?: boolean;
   // Pronunciation
   word?: string;
@@ -277,10 +277,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     } else if ((q.type as any) === 'word_bank_fill') {
       Object.assign(base, {
         wordBank: Array.isArray(q.wordBank) ? q.wordBank.map((w: any) => String(w || '').trim()) : [],
-        items: Array.isArray(q.items) ? q.items.map((it: any) => ({
-          prompt: String(it?.prompt || ''),
-          answer: String(it?.answer || '')
-        })) : [{ prompt: '', answer: '' }],
+        items: Array.isArray(q.items) ? q.items.map((it: any) => {
+          const prompt = String(it?.prompt || '');
+          const answer = String(it?.answer || '');
+          const base: { prompt: string; answer: string; acceptedAnswers?: string[] } = { prompt, answer };
+          const alts = Array.isArray(it?.acceptedAnswers)
+            ? it.acceptedAnswers.map((a: any) => String(a || '').trim()).filter(Boolean)
+            : [];
+          if (alts.length) base.acceptedAnswers = alts;
+          return base;
+        }) : [{ prompt: '', answer: '' }],
         reusableWords: q.reusableWords !== false
       });
     } else if (q.type === 'pronunciation') {
@@ -551,6 +557,15 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     q.items.splice(i, 1);
   }
 
+  setWordBankItemAccepted(raw: string, item: { acceptedAnswers?: string[] }): void {
+    const parts = String(raw || '')
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parts.length) delete item.acceptedAnswers;
+    else item.acceptedAnswers = parts;
+  }
+
   // Fill-blank helpers
   onSentenceChange(q: BuilderQuestion): void {
     const count = countFillBlankRuns(q.sentence || '');
@@ -780,7 +795,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if ((q.type as any) === 'word_bank_fill' && q.items?.length) {
       return q.items
         .filter((it) => String(it?.prompt || '').trim() && String(it?.answer || '').trim())
-        .map((it) => `${it.prompt} → ${it.answer}`)
+        .map((it) => {
+          const alts = (it as any).acceptedAnswers as string[] | undefined;
+          const altStr =
+            Array.isArray(alts) && alts.length ? ` [${alts.join(', ')}]` : '';
+          return `${it.prompt} → ${it.answer}${altStr}`;
+        })
         .join(' | ');
     }
     if (q.type === 'singular_plural' && q.pairs?.length) {
@@ -1108,10 +1128,19 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       if ((q.type as any) === 'word_bank_fill') {
         row.wordBank = (q.wordBank || []).map((w) => String(w || '').trim()).filter(Boolean);
         row.items = (q.items || [])
-          .map((item) => ({
-            prompt: String(item?.prompt || '').trim(),
-            answer: String(item?.answer || '').trim()
-          }))
+          .map((item) => {
+            const prompt = String(item?.prompt || '').trim();
+            const answer = String(item?.answer || '').trim();
+            const rawAlts = Array.isArray((item as any)?.acceptedAnswers)
+              ? (item as any).acceptedAnswers
+              : [];
+            const acceptedAnswers = rawAlts
+              .map((a: unknown) => String(a || '').trim())
+              .filter(Boolean);
+            const out: { prompt: string; answer: string; acceptedAnswers?: string[] } = { prompt, answer };
+            if (acceptedAnswers.length) out.acceptedAnswers = acceptedAnswers;
+            return out;
+          })
           .filter((item) => item.prompt && item.answer);
         row.reusableWords = q.reusableWords !== false;
       }
