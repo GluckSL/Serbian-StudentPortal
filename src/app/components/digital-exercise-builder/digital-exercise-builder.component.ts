@@ -1,6 +1,6 @@
 // src/app/components/digital-exercise-builder/digital-exercise-builder.component.ts
 
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -12,7 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'word_bank_fill' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word' | 'rearrange';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'word_bank_fill' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word' | 'rearrange' | 'image_pin_match';
   worksheetKind?: string | null;
   context?: string;
   // MCQ
@@ -64,6 +64,8 @@ interface BuilderQuestion {
   videoUploading?: boolean;
   // Common
   points: number;
+  imagePinImageUploading?: boolean;
+  imagePinImageLoadError?: boolean;
   // Per-question attachment (any file type)
   attachmentUrl?: string;
   attachmentUploading?: boolean;
@@ -80,6 +82,10 @@ interface BuilderQuestion {
   rearrangeAnswer?: string;
   /** Newline-separated correct token order (stored to API as string[]) */
   rearrangeTokens?: string;
+  // Image pin match
+  labels?: Array<{ id: string; text: string; correctPinId: string }>;
+  pins?: Array<{ id: string; x: number; y: number }>;
+  settings?: { randomizeLabels?: boolean; allowRetry?: boolean };
 }
 
 interface VideoFeedbackAudioRow {
@@ -130,12 +136,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   @ViewChild('attachmentFileInput') attachmentFileInput!: ElementRef<HTMLInputElement>;
   currentAttachmentQ: BuilderQuestion | null = null;
+  @ViewChild('imagePinFileInput') imagePinFileInput!: ElementRef<HTMLInputElement>;
+  currentImagePinQ: BuilderQuestion | null = null;
 
   readonly maxVideoFeedbackClips = 4;
   videoSuccessFeedbackRows: VideoFeedbackAudioRow[] = [];
   videoRetryFeedbackRows: VideoFeedbackAudioRow[] = [];
   @ViewChild('videoFeedbackFileInput') videoFeedbackFileInput!: ElementRef<HTMLInputElement>;
   private videoFeedbackUploadTarget: { kind: 'success' | 'retry'; index: number } | null = null;
+  private draggingPinQuestionIndex: number | null = null;
+  private draggingPinId: string | null = null;
 
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -159,7 +169,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'free-writing-profile', label: 'Free Writing – profile', icon: 'badge', description: 'Write a short profile (Steckbrief).' },
     { value: 'error-correction', label: 'Error Correction', icon: 'error', description: 'Correct mistakes and write the right sentence.' },
     { value: 'jumble-word', label: 'Jumble Word', icon: 'shuffle', description: 'Scrambled letters → student forms the correct word.' },
-    { value: 'rearrange', label: 'Rearrange', icon: 'reorder', description: 'Student rearranges words into the correct order (drag-drop or typing).' }
+    { value: 'rearrange', label: 'Rearrange', icon: 'reorder', description: 'Student rearranges words into the correct order (drag-drop or typing).' },
+    { value: 'image_pin_match', label: 'Image Pin Match', icon: 'place', description: 'Map labels to pins on an image.' }
   ];
 
   constructor(
@@ -319,6 +330,26 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         aiGradingEnabled: false,
         scoringMode: 'full'
       });
+    } else if ((q.type as any) === 'image_pin_match') {
+      Object.assign(base, {
+        imageUrl: q.imageUrl || '',
+        labels: (Array.isArray(q.labels) ? q.labels : []).map((l: any) => ({
+          id: String(l?.id || ''),
+          text: String(l?.text || ''),
+          correctPinId: String(l?.correctPinId || '')
+        })),
+        pins: (Array.isArray(q.pins) ? q.pins : []).map((p: any) => ({
+          id: String(p?.id || ''),
+          x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+          y: Math.max(0, Math.min(100, Number(p?.y) || 0))
+        })),
+        settings: {
+          randomizeLabels: q?.settings?.randomizeLabels !== false,
+          allowRetry: q?.settings?.allowRetry !== false
+        },
+        aiGradingEnabled: true,
+        scoringMode: 'proportional'
+      });
     }
     return base;
   }
@@ -427,6 +458,17 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       (q as any).rearrangeTokens = '';
       q.aiGradingEnabled = false;
       q.scoringMode = 'full';
+    } else if (type === 'image_pin_match') {
+      q.imageUrl = '';
+      q.labels = [
+        { id: this.newLabelId(), text: '', correctPinId: '' },
+        { id: this.newLabelId(), text: '', correctPinId: '' }
+      ];
+      q.pins = [];
+      q.settings = { randomizeLabels: true, allowRetry: true };
+      q.aiGradingEnabled = true;
+      q.scoringMode = 'proportional';
+      q.similarityThreshold = 100;
     }
     this.questions.push(q);
     this.expandedQuestion = this.questions.length - 1;
@@ -620,14 +662,63 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     q.attachmentUrl = '';
   }
 
+  triggerImagePinImageFile(q: BuilderQuestion): void {
+    this.currentImagePinQ = q;
+    this.imagePinFileInput?.nativeElement?.click();
+  }
+
+  onImagePinImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = this.currentImagePinQ;
+    this.currentImagePinQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+      this.showError('Please select an image file');
+      return;
+    }
+    q.imagePinImageUploading = true;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        const uploadedUrl = String(res?.url || '').trim();
+        if (this.getAttachmentType(uploadedUrl) !== 'image') {
+          q.imagePinImageUploading = false;
+          this.showError('Uploaded file is not a valid image. Please upload JPG/PNG/WebP/SVG.');
+          return;
+        }
+        q.imageUrl = uploadedUrl;
+        q.imagePinImageLoadError = false;
+        q.imagePinImageUploading = false;
+        this.showSuccess('Image uploaded');
+      },
+      error: (err) => {
+        q.imagePinImageUploading = false;
+        this.showError(err.error?.error || 'Image upload failed');
+      }
+    });
+  }
+
   getAttachmentType(url: string): 'image' | 'audio' | 'video' | 'pdf' | 'other' {
     if (!url) return 'other';
     const lower = url.toLowerCase().split('?')[0];
-    if (/\.(jpe?g|png|gif|webp|svg)$/.test(lower)) return 'image';
+    if (/\.(jpe?g|jpg|jfif|png|gif|webp|svg|avif|bmp)$/.test(lower)) return 'image';
     if (/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(lower)) return 'audio';
     if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
     if (/\.pdf$/.test(lower)) return 'pdf';
     return 'other';
+  }
+
+  onImagePinImageUrlChanged(q: BuilderQuestion): void {
+    q.imagePinImageLoadError = false;
+  }
+
+  onImagePinImageLoad(q: BuilderQuestion): void {
+    q.imagePinImageLoadError = false;
+  }
+
+  onImagePinImageError(q: BuilderQuestion): void {
+    q.imagePinImageLoadError = true;
   }
 
   /** Listening audio may live on attachment (preferred) or legacy mediaUrl. */
@@ -949,6 +1040,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       const toksOk = !!String((q as any).rearrangeTokens || '').trim();
       return promptOk && (ansOk || toksOk);
     }
+    if ((q.type as any) === 'image_pin_match') {
+      const imageUrl = String(q.imageUrl || '').trim();
+      const imageOk = !!imageUrl && this.getAttachmentType(imageUrl) === 'image';
+      const pins = Array.isArray(q.pins) ? q.pins : [];
+      const labels = Array.isArray(q.labels) ? q.labels : [];
+      if (!imageOk || pins.length < 1 || labels.length < 1) return false;
+      return labels.every((l) => String(l.text || '').trim() && String(l.correctPinId || '').trim());
+    }
     return false;
   }
 
@@ -1035,6 +1134,27 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         // Remove any bare "/" tokens if present
         tokens = (tokens || []).map((t: string) => String(t).trim()).filter((t: string) => t && t !== '/');
         row.rearrangeTokens = tokens;
+      }
+      if ((q.type as any) === 'image_pin_match') {
+        row.imageUrl = String(q.imageUrl || '').trim();
+        row.pins = (Array.isArray(q.pins) ? q.pins : [])
+          .map((p) => ({
+            id: String(p?.id || '').trim(),
+            x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+            y: Math.max(0, Math.min(100, Number(p?.y) || 0))
+          }))
+          .filter((p) => p.id);
+        row.labels = (Array.isArray(q.labels) ? q.labels : [])
+          .map((l) => ({
+            id: String(l?.id || '').trim(),
+            text: String(l?.text || '').trim(),
+            correctPinId: String(l?.correctPinId || '').trim()
+          }))
+          .filter((l) => l.id && l.text);
+        row.settings = {
+          randomizeLabels: q.settings?.randomizeLabels !== false,
+          allowRetry: q.settings?.allowRetry !== false
+        };
       }
       return row;
     });
@@ -1132,6 +1252,75 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   getLevelColor(level: string): string {
     return this.exerciseService.getLevelColor(level);
+  }
+
+  private newPinId(): string {
+    return `pin${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
+  }
+
+  private newLabelId(): string {
+    return `lbl${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
+  }
+
+  addImagePinMatchLabel(q: BuilderQuestion): void {
+    if (!Array.isArray(q.labels)) q.labels = [];
+    q.labels.push({ id: this.newLabelId(), text: '', correctPinId: '' });
+  }
+
+  removeImagePinMatchLabel(q: BuilderQuestion, index: number): void {
+    if (!Array.isArray(q.labels)) return;
+    q.labels.splice(index, 1);
+  }
+
+  addImagePinByClick(q: BuilderQuestion, event: MouseEvent): void {
+    const host = event.currentTarget as HTMLElement;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    if (!Array.isArray(q.pins)) q.pins = [];
+    q.pins.push({
+      id: this.newPinId(),
+      x: Math.max(0, Math.min(100, Number(x.toFixed(2)))),
+      y: Math.max(0, Math.min(100, Number(y.toFixed(2))))
+    });
+  }
+
+  removeImagePin(q: BuilderQuestion, pinIndex: number): void {
+    if (!Array.isArray(q.pins)) return;
+    const pin = q.pins[pinIndex];
+    q.pins.splice(pinIndex, 1);
+    if (pin?.id && Array.isArray(q.labels)) {
+      q.labels = q.labels.map((l) => (l.correctPinId === pin.id ? { ...l, correctPinId: '' } : l));
+    }
+  }
+
+  startImagePinDrag(questionIndex: number, pinId: string, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.draggingPinQuestionIndex = questionIndex;
+    this.draggingPinId = pinId;
+  }
+
+  onImagePinEditorMouseMove(q: BuilderQuestion, questionIndex: number, event: MouseEvent): void {
+    if (this.draggingPinQuestionIndex !== questionIndex || !this.draggingPinId) return;
+    const host = event.currentTarget as HTMLElement;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    const pin = (q.pins || []).find((p) => p.id === this.draggingPinId);
+    if (!pin) return;
+    pin.x = Math.max(0, Math.min(100, Number(x.toFixed(2))));
+    pin.y = Math.max(0, Math.min(100, Number(y.toFixed(2))));
+  }
+
+  @HostListener('window:mouseup')
+  stopImagePinDrag(): void {
+    this.draggingPinQuestionIndex = null;
+    this.draggingPinId = null;
   }
 
   private showSuccess(msg: string): void {

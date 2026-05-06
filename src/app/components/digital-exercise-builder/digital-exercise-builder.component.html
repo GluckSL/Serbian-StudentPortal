@@ -4,6 +4,7 @@
   <input type="file" #videoFileInput accept="video/*" (change)="onVideoFileSelected($event)" class="file-input-hidden" />
   <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
   <input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #imagePinFileInput accept="image/*" (change)="onImagePinImageSelected($event)" class="file-input-hidden" />
 
   <!-- DISABLED: AI PDF generator banner (route admin/digital-exercises/generate-ai off)
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
@@ -303,6 +304,9 @@
                 <span *ngSwitchCase="'video-pronunciation'">
                   {{ q.caption || 'No caption' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})
                 </span>
+                <span *ngSwitchCase="'image_pin_match'">
+                  {{ (q.labels?.length || 0) }} labels · {{ (q.pins?.length || 0) }} pins
+                </span>
               </ng-container>
             </span>
           </div>
@@ -443,7 +447,7 @@
               <label class="field-label">Image URL (optional)</label>
               <input type="text" [(ngModel)]="q.imageUrl" class="field-input" placeholder="https://..." />
               <div class="image-preview" *ngIf="q.imageUrl">
-                <img [src]="q.imageUrl" alt="Question image" class="preview-img" (error)="q.imageUrl = ''" />
+                <img [src]="getMediaFullUrl(q.imageUrl)" alt="Question image" class="preview-img" (error)="q.imageUrl = ''" />
               </div>
             </div>
             <div class="options-section">
@@ -637,6 +641,100 @@
                 placeholder="One token per line, in correct order&#10;Ich&#10;gehe&#10;heute&#10;nach&#10;Hause."
               ></textarea>
               <p class="hint-text">Tip: include punctuation in the token (e.g. <code>Hause.</code>) if you want it attached.</p>
+            </div>
+          </ng-container>
+
+          <!-- Image Pin Match Editor -->
+          <ng-container *ngIf="q.type === 'image_pin_match'">
+            <div class="info-banner">
+              <span class="material-icons">place</span>
+              Click on the image to create pins. Drag pins to reposition. Map each label to a pin.
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Image</label>
+              <div class="listening-upload-row">
+                <button type="button" class="btn-upload-audio" (click)="triggerImagePinImageFile(q)" [disabled]="q.imagePinImageUploading">
+                  <span class="material-icons">{{ q.imagePinImageUploading ? 'hourglass_empty' : (q.imageUrl ? 'image' : 'upload_file') }}</span>
+                  {{ q.imagePinImageUploading ? 'Uploading...' : (q.imageUrl ? 'Replace image' : 'Upload image') }}
+                </button>
+              </div>
+              <input type="text" [(ngModel)]="q.imageUrl" (ngModelChange)="onImagePinImageUrlChanged(q)" class="field-input" placeholder="Or paste image URL..." />
+              <p class="hint-text" *ngIf="q.imageUrl && getAttachmentType(q.imageUrl) !== 'image'" style="color:#b91c1c;">
+                This URL is not an image file. Please upload/select a valid image.
+              </p>
+              <p class="hint-text" *ngIf="q.imageUrl && q.imagePinImageLoadError" style="color:#b91c1c;">
+                Image failed to load. Please use a valid public image URL or re-upload.
+              </p>
+            </div>
+
+            <div class="ipm-editor" *ngIf="q.imageUrl && getAttachmentType(q.imageUrl) === 'image' && !q.imagePinImageLoadError">
+              <div
+                class="ipm-image-stage"
+                (click)="addImagePinByClick(q, $event)"
+                (mousemove)="onImagePinEditorMouseMove(q, i, $event)"
+              >
+                <img
+                  [src]="getMediaFullUrl(q.imageUrl)"
+                  alt="Pin editor image"
+                  class="ipm-stage-image"
+                  (load)="onImagePinImageLoad(q)"
+                  (error)="onImagePinImageError(q)"
+                />
+                <button
+                  type="button"
+                  class="ipm-pin"
+                  *ngFor="let pin of q.pins; let pi = index"
+                  [style.left.%]="pin.x"
+                  [style.top.%]="pin.y"
+                  [attr.aria-label]="'Pin ' + pin.id"
+                  (click)="$event.stopPropagation()"
+                  (mousedown)="startImagePinDrag(i, pin.id, $event)"
+                >
+                  {{ pi + 1 }}
+                </button>
+              </div>
+              <p class="hint-text">Tip: click image to add pins, drag pin badges to move.</p>
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Labels & Correct Pin</label>
+              <div class="pair-row" *ngFor="let label of q.labels; let li = index">
+                <input type="text" [(ngModel)]="label.text" class="field-input" [placeholder]="'Label ' + (li + 1)" />
+                <select [(ngModel)]="label.correctPinId" class="field-input">
+                  <option value="">Select pin</option>
+                  <option *ngFor="let pin of q.pins" [value]="pin.id">{{ pin.id }}</option>
+                </select>
+                <button class="btn-remove-opt" type="button" (click)="removeImagePinMatchLabel(q, li)" *ngIf="(q.labels?.length || 0) > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" type="button" (click)="addImagePinMatchLabel(q)">
+                <span class="material-icons">add</span> Add Label
+              </button>
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Pins</label>
+              <div class="pair-row" *ngFor="let pin of q.pins; let pi = index">
+                <input type="text" [ngModel]="pin.id" class="field-input" readonly />
+                <input type="number" [(ngModel)]="pin.x" min="0" max="100" step="0.1" class="field-input" placeholder="x %" />
+                <input type="number" [(ngModel)]="pin.y" min="0" max="100" step="0.1" class="field-input" placeholder="y %" />
+                <button class="btn-remove-opt" type="button" (click)="removeImagePin(q, pi)">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="field-group full">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.settings!.randomizeLabels" />
+                Randomize labels for students
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.settings!.allowRetry" />
+                Allow retries
+              </label>
             </div>
           </ng-container>
 
@@ -1145,7 +1243,7 @@
           <div *ngIf="q.type === 'mcq'" class="pq-body">
             <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.question }}</p>
-            <img *ngIf="q.imageUrl" [src]="q.imageUrl" class="pq-image" />
+            <img *ngIf="q.imageUrl" [src]="getMediaFullUrl(q.imageUrl)" class="pq-image" />
             <div class="pq-options">
               <div *ngFor="let opt of q.options; let oi = index" class="pq-option" [class.correct]="oi === q.correctAnswerIndex">
                 <span class="opt-letter">{{ 'ABCD'[oi] }}</span> {{ opt }}
@@ -1239,6 +1337,17 @@
             </div>
             <div *ngIf="q.acceptedVariants && q.acceptedVariants.length > 0" class="pq-variants">
               Also accepted: {{ q.acceptedVariants.join(', ') }}
+            </div>
+          </div>
+
+          <!-- Image Pin Match Preview -->
+          <div *ngIf="q.type === 'image_pin_match'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
+            <img *ngIf="q.imageUrl" [src]="getMediaFullUrl(q.imageUrl)" class="pq-image" />
+            <div class="pq-answers">
+              <span *ngFor="let l of q.labels" class="pq-answer">
+                {{ l.text }} → <strong>{{ l.correctPinId }}</strong>
+              </span>
             </div>
           </div>
         </div>

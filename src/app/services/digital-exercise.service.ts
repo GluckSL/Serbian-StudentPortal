@@ -17,7 +17,8 @@ export type QuestionType =
   | 'video-pronunciation'
   | 'singular_plural'
   | 'jumble-word'
-  | 'rearrange';
+  | 'rearrange'
+  | 'image_pin_match';
 
 export interface QuestionCommonFields {
   /** Optional context shown above a question in the player. */
@@ -164,6 +165,19 @@ export interface RearrangeQuestion extends QuestionCommonFields {
   points: number;
 }
 
+export interface ImagePinMatchQuestion extends QuestionCommonFields {
+  type: 'image_pin_match';
+  _id?: string;
+  imageUrl: string;
+  labels: Array<{ id: string; text: string; correctPinId: string }>;
+  pins: Array<{ id: string; x: number; y: number }>;
+  settings?: {
+    randomizeLabels?: boolean;
+    allowRetry?: boolean;
+  };
+  points: number;
+}
+
 export type ExerciseQuestion = (
   | MCQQuestion
   | MatchingQuestion
@@ -176,6 +190,7 @@ export type ExerciseQuestion = (
   | VideoPronunciationQuestion
   | JumbleWordQuestion
   | RearrangeQuestion
+  | ImagePinMatchQuestion
 ) & WorksheetQuestionMeta;
 
 /** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
@@ -219,6 +234,10 @@ export interface DigitalExercise {
   sequenceLocked?: boolean;
   previousSequenceLetter?: string | null;
   stats?: { completions: number; avgScore: number; uniqueStudents: number };
+  /** Admin list optimization: count sent without full questions payload. */
+  questionCount?: number;
+  /** Admin list optimization: { [type]: count } summary sent by backend. */
+  questionTypeSummary?: Record<string, number>;
   studentAttempt?: ExerciseAttempt | null;
 }
 
@@ -304,6 +323,7 @@ export interface QuestionResponse {
   jumbleWordResponse?: string;
   rearrangeTextResponse?: string;
   rearrangeTokensResponse?: string[];
+  imagePinAnswers?: Array<{ labelId: string; pinId: string }>;
 }
 
 
@@ -685,7 +705,8 @@ export class DigitalExerciseService {
       listening: 'Listening',
       'video-pronunciation': 'Video Pronunciation',
       'jumble-word': 'Jumble Word',
-      rearrange: 'Rearrange'
+      rearrange: 'Rearrange',
+      image_pin_match: 'Image Pin Match'
     };
     return labels[type] || type;
   }
@@ -702,7 +723,8 @@ export class DigitalExerciseService {
       listening: 'headphones',
       'video-pronunciation': 'videocam',
       'jumble-word': 'shuffle',
-      rearrange: 'reorder'
+      rearrange: 'reorder',
+      image_pin_match: 'place'
     };
     return icons[type] || 'help';
   }

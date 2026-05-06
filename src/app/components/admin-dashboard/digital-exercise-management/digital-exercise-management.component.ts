@@ -169,9 +169,30 @@ import { MaterialModule } from '../../../shared/material.module';
   </div>
 
   <!-- Loading State -->
-  <div class="loading-state" *ngIf="loading">
-    <div class="spinner"></div>
-    <p>Loading exercises...</p>
+  <div class="loading-state loading-skeleton" *ngIf="loading">
+    <div class="skeleton-stats">
+      <div class="skeleton-stat-card" *ngFor="let _ of [1,2,3]">
+        <span class="skeleton-line skeleton-line--title"></span>
+        <span class="skeleton-line skeleton-line--meta"></span>
+      </div>
+    </div>
+
+    <div class="skeleton-table-wrap">
+      <div class="skeleton-table-head">
+        <span class="skeleton-line" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></span>
+      </div>
+
+      <div class="skeleton-table-row" *ngFor="let _ of [1,2,3,4,5,6]">
+        <span class="skeleton-line skeleton-cell--checkbox"></span>
+        <span class="skeleton-line skeleton-cell--title"></span>
+        <span class="skeleton-line skeleton-cell--type"></span>
+        <span class="skeleton-line skeleton-cell--chip"></span>
+        <span class="skeleton-line skeleton-cell--chip"></span>
+        <span class="skeleton-line skeleton-cell--number"></span>
+        <span class="skeleton-line skeleton-cell--number"></span>
+        <span class="skeleton-line skeleton-cell--actions"></span>
+      </div>
+    </div>
   </div>
 
   <!-- Exercise Table -->
@@ -226,7 +247,7 @@ import { MaterialModule } from '../../../shared/material.module';
             <span *ngIf="ex.courseDay != null" class="day-pill">Day {{ ex.courseDay }}</span>
             <span *ngIf="ex.courseDay == null" class="text-muted">—</span>
           </td>
-          <td class="center">{{ ex.questions.length || 0 }}</td>
+          <td class="center">{{ ex.questionCount ?? ex.questions?.length ?? 0 }}</td>
           <td class="center">{{ ex.stats != null ? ex.stats.completions : 0 }}</td>
           <td class="center">
             <span *ngIf="ex.stats != null && ex.stats.avgScore" class="score-badge" [class.good]="ex.stats.avgScore >= 70">
@@ -581,9 +602,99 @@ import { MaterialModule } from '../../../shared/material.module';
 
     /* ── Loading ── */
     .loading-state { text-align: center; padding: 40px; color: #64748b; font-size: 12px; }
+    .loading-skeleton {
+      text-align: left;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .skeleton-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .skeleton-stat-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .skeleton-table-wrap {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+      border: 1px solid #e8ecf4;
+      overflow: hidden;
+    }
+    .skeleton-table-head,
+    .skeleton-table-row {
+      display: grid;
+      grid-template-columns: 32px 2fr 1.4fr 0.9fr 0.9fr 0.8fr 0.9fr 1fr;
+      gap: 10px;
+      padding: 10px;
+      align-items: center;
+    }
+    .skeleton-table-head {
+      background: #eff4fa;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .skeleton-table-row {
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .skeleton-table-row:last-child {
+      border-bottom: none;
+    }
+    .skeleton-line {
+      display: block;
+      height: 10px;
+      width: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #edf2f7 20%, #e2e8f0 50%, #edf2f7 80%);
+      background-size: 200% 100%;
+      animation: shimmer 1.25s ease-in-out infinite;
+    }
+    .skeleton-line--title {
+      width: 42%;
+      height: 16px;
+      border-radius: 8px;
+    }
+    .skeleton-line--meta {
+      width: 68%;
+      height: 10px;
+    }
+    .skeleton-cell--checkbox {
+      width: 16px;
+      justify-self: center;
+    }
+    .skeleton-cell--title {
+      width: 85%;
+    }
+    .skeleton-cell--type {
+      width: 80%;
+    }
+    .skeleton-cell--chip {
+      width: 60%;
+    }
+    .skeleton-cell--number {
+      width: 45%;
+      justify-self: center;
+    }
+    .skeleton-cell--actions {
+      width: 74%;
+      justify-self: end;
+    }
     .spinner { width: 28px; height: 28px; border: 3px solid #e2e8f0; border-top-color: #005b96; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
     .spinner.small { width: 16px; height: 16px; border-width: 2px; display: inline-block; vertical-align: middle; margin: 0 6px 0 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
 
     /* ── Table ── */
     .table-container {
@@ -721,6 +832,14 @@ import { MaterialModule } from '../../../shared/material.module';
       .header-actions { justify-content: flex-start; }
       .exercise-table { display: block; overflow-x: auto; }
       .stats-bar { grid-template-columns: 1fr; }
+      .skeleton-stats { grid-template-columns: 1fr; }
+      .skeleton-table-wrap {
+        overflow-x: auto;
+      }
+      .skeleton-table-head,
+      .skeleton-table-row {
+        min-width: 760px;
+      }
     }
 
     @media (max-width: 576px) {
@@ -1039,9 +1158,17 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   getQuestionTypeSummary(exercise: DigitalExercise): Array<{ type: string; count: number; icon: string }> {
     const counts: Record<string, number> = {};
-    (exercise.questions || []).forEach(q => {
-      counts[q.type] = (counts[q.type] || 0) + 1;
-    });
+    const serverSummary = exercise.questionTypeSummary;
+    if (serverSummary && typeof serverSummary === 'object') {
+      Object.entries(serverSummary).forEach(([type, count]) => {
+        const n = Number(count) || 0;
+        if (n > 0) counts[type] = n;
+      });
+    } else {
+      (exercise.questions || []).forEach(q => {
+        counts[q.type] = (counts[q.type] || 0) + 1;
+      });
+    }
     const icons: Record<string, string> = { mcq: '❓', matching: '🔗', 'fill-blank': '📝', pronunciation: '🎤' };
     return Object.entries(counts).map(([type, count]) => ({ type, count, icon: icons[type] || '•' }));
   }

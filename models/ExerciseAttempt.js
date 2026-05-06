@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 
 const QuestionResponseSchema = new mongoose.Schema({
   questionIndex: { type: Number, required: true },
-  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'] },
+  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange', 'image_pin_match'] },
   // MCQ response
   selectedOptionIndex: Number,
   // Matching response: array of { leftIndex, rightIndex }
@@ -35,6 +35,11 @@ const QuestionResponseSchema = new mongoose.Schema({
   // Rearrange response
   rearrangeTextResponse: String,
   rearrangeTokensResponse: [String],
+  // Image pin match response
+  imagePinAnswers: [{
+    labelId: String,
+    pinId: String
+  }],
   // Common
   isCorrect: { type: Boolean, default: false },
   pointsEarned: { type: Number, default: 0 }

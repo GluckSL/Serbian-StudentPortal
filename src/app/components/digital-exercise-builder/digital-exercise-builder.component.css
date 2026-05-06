@@ -1168,6 +1168,47 @@ textarea.field-input.field-input--desc {
 .btn-move:hover:not(:disabled) { color: #4f46e5; }
 .btn-move:disabled { opacity: 0.3; cursor: not-allowed; }
 
+.ipm-editor {
+  margin-top: 10px;
+}
+
+.ipm-image-stage {
+  position: relative;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
+  max-width: 720px;
+  min-height: 220px;
+  cursor: crosshair;
+}
+
+.ipm-stage-image {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  max-height: 520px;
+  object-fit: contain;
+}
+
+.ipm-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 10px rgba(79, 70, 229, 0.35);
+  cursor: grab;
+}
+
 .btn-remove {
   background: none;
   border: none;

@@ -1,6 +1,6 @@
 // src/app/components/digital-exercise-player/digital-exercise-player.component.ts
 
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -116,6 +116,10 @@ interface PlayerQuestion {
   // Rearrange state
   rearrangeTokens?: string[];
   rearrangeDragActive?: boolean;
+  // Image pin match state
+  selectedLabelId?: string | null;
+  imagePinLabels?: Array<{ id: string; text: string; color: string }>;
+  imagePinConnections?: Array<{ labelId: string; pinId: string }>;
   // Video Pronunciation state
   vpSpokenText?: string;
   vpResult?: 'idle' | 'correct' | 'almostCorrect' | 'incorrect';
@@ -174,8 +178,33 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   submitting = false;
   showFinishSummary = false;
   finishingAll = false;
+  private imagePinDrag: {
+    active: boolean;
+    questionIndex: number;
+    labelId: string;
+    color: string;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    hoverPinId: string | null;
+  } = {
+    active: false,
+    questionIndex: -1,
+    labelId: '',
+    color: '#4f46e5',
+    x1: 0,
+    y1: 0,
+    x2: 0,
+    y2: 0,
+    hoverPinId: null,
+  };
   /** Remap broken /uploads links to R2 public URLs when objects still exist. */
   mediaRefetchInProgress = false;
+  /** Cache resolved media URLs to avoid recomputing on every change detection cycle. */
+  private mediaUrlCache = new Map<string, string>();
+  /** Keep track of already preloaded image URLs so we don't fetch them repeatedly. */
+  private preloadedImageUrls = new Set<string>();
 
   startTime = 0;
   elapsedSeconds = 0;
@@ -586,6 +615,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.exerciseService.getExercise(this.exerciseId, { asStudent }).subscribe({
         next: (exercise) => {
           this.exercise = exercise;
+          this.mediaUrlCache.clear();
+          this.preloadedImageUrls.clear();
+          // Student payloads may still contain legacy storage paths; resolve silently so media (including images)
+          // remains visible without requiring manual "Refetch media".
+          if (asStudent) this.recoverMediaLinksSilently();
           this.initPlayerQuestions();
           // Start immediately when user clicks "Start" from the list page.
           this.startExercise();
@@ -673,6 +707,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           : [];
         pq.rearrangeTokens = tokens;
         pq.rearrangeDragActive = false;
+      } else if ((q.type as string) === 'image_pin_match') {
+        const labelsRaw = Array.isArray(q.labels) ? q.labels : [];
+        const palette = ['#4f46e5', '#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#8b5cf6'];
+        pq.imagePinLabels = labelsRaw.map((l: any, idx: number) => ({
+          id: String(l?.id || ''),
+          text: String(l?.text || ''),
+          color: palette[idx % palette.length]
+        })).filter((l: { id: string; text: string }) => l.id && l.text);
+        if (q?.settings?.randomizeLabels !== false && (pq.imagePinLabels?.length || 0) > 1) {
+          this.shuffleInPlace(pq.imagePinLabels!);
+        }
+        pq.imagePinConnections = [];
+        pq.selectedLabelId = null;
       } else if (q.type === 'video-pronunciation') {
         pq.vpSpokenText = '';
         pq.vpResult = 'idle';
@@ -1154,6 +1201,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.vpTimeUpHandled = false;
         this.startTimer();
         this.state = 'playing';
+        this.preloadImagesAroundCurrentQuestion();
         if (this.isVideoOnlyExercise) {
           this.resetVpChat();
           const title = this.exercise?.title || 'this lesson';
@@ -1382,6 +1430,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       resp.jumbleWordResponse = pq.jumbleWordResponse || '';
     } else if ((pq.data.type as string) === 'rearrange') {
       resp.rearrangeTokensResponse = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
+    } else if ((pq.data.type as string) === 'image_pin_match') {
+      resp.imagePinAnswers = Array.isArray(pq.imagePinConnections)
+        ? pq.imagePinConnections.map((x) => ({ labelId: x.labelId, pinId: x.pinId }))
+        : [];
     } else if (pq.data.type === 'video-pronunciation') {
       resp.spokenText = pq.vpSpokenText || '';
       resp.pronunciationScore = pq.pronunciationScore || 0;
@@ -1412,6 +1464,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         ? res.correctAnswer.rearrangeTokens
         : [];
       pq.data._correctRearrangeAnswer = res.correctAnswer?.rearrangeAnswer || '';
+    }
+    if ((pq.data.type as string) === 'image_pin_match') {
+      pq.data._imagePinCorrectLabels = Array.isArray(res.correctAnswer?.labels)
+        ? res.correctAnswer.labels
+        : [];
+      pq.data._imagePinCorrectPins = Array.isArray(res.correctAnswer?.pins)
+        ? res.correctAnswer.pins
+        : [];
     }
     if (res.allSubmitted) {
       this.vpOptimisticCompletion = false;
@@ -1487,6 +1547,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
       const maxIx = this.playerQuestions.length - 1;
       this.currentIndex = Math.min(Math.max(0, draft.currentIndex), maxIx);
+      this.preloadImagesAroundCurrentQuestion();
       if (!this.isVideoOnlyExercise) {
         const cap = Math.min(Math.max(0, draft.elapsedSeconds), 86400);
         this.startTime = Date.now() - cap * 1000;
@@ -1553,6 +1614,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   prevQuestion(): void {
     if (this.currentIndex > 0) {
       this.currentIndex--;
+      this.preloadImagesAroundCurrentQuestion();
       this.afterVideoOnlyNavigation();
       this.scheduleDraftSave();
     }
@@ -1561,6 +1623,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   nextQuestion(): void {
     if (this.currentIndex < this.playerQuestions.length - 1) {
       this.currentIndex++;
+      this.preloadImagesAroundCurrentQuestion();
       this.afterVideoOnlyNavigation();
       this.scheduleDraftSave();
     }
@@ -1568,6 +1631,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   goToQuestion(index: number): void {
     this.currentIndex = index;
+    this.preloadImagesAroundCurrentQuestion();
     this.afterVideoOnlyNavigation();
     this.scheduleDraftSave();
   }
@@ -1598,6 +1662,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       // tokens always exist; count as answered only after the learner moves at least one tile
       return pq.isAnswered === true;
     }
+    if ((q.type as string) === 'image_pin_match') {
+      const labels = Array.isArray(q.labels) ? q.labels : [];
+      const conns = Array.isArray(pq.imagePinConnections) ? pq.imagePinConnections : [];
+      if (!labels.length) return false;
+      return labels.every((l: any) => conns.some((c) => c.labelId === l.id && !!c.pinId));
+    }
     if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
     return false;
   }
@@ -1626,6 +1696,181 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.state === 'submitted') return;
     pq.qaResponse = value ? 'true' : 'false';
     this.markAttempted(pq);
+  }
+
+  selectImagePinLabel(pq: PlayerQuestion, labelId: string): void {
+    if (this.state === 'submitted' || pq?.isCorrect === true || pq?.isCorrect === false) return;
+    pq.selectedLabelId = labelId;
+  }
+
+  connectImagePin(pq: PlayerQuestion, pinId: string): void {
+    if (this.state === 'submitted' || pq?.isCorrect === true || pq?.isCorrect === false) return;
+    const labelId = String(pq.selectedLabelId || '');
+    if (!labelId) return;
+    if (!Array.isArray(pq.imagePinConnections)) pq.imagePinConnections = [];
+    pq.imagePinConnections = [
+      ...pq.imagePinConnections.filter((c) => c.labelId !== labelId),
+      { labelId, pinId }
+    ];
+    pq.selectedLabelId = null;
+    this.markAttempted(pq);
+  }
+
+  getImagePinConnection(pq: PlayerQuestion, labelId: string): string {
+    const found = (pq.imagePinConnections || []).find((c) => c.labelId === labelId);
+    return found?.pinId || '';
+  }
+
+  getImagePinLabelColor(pq: PlayerQuestion, labelId: string): string {
+    return (pq.imagePinLabels || []).find((l) => l.id === labelId)?.color || '#4f46e5';
+  }
+
+  getImagePinLabelsLeft(pq: PlayerQuestion): Array<{ id: string; text: string; color: string }> {
+    const labels = Array.isArray(pq.imagePinLabels) ? pq.imagePinLabels : [];
+    return labels.filter((_, idx) => idx % 2 === 0);
+  }
+
+  getImagePinLabelsRight(pq: PlayerQuestion): Array<{ id: string; text: string; color: string }> {
+    const labels = Array.isArray(pq.imagePinLabels) ? pq.imagePinLabels : [];
+    return labels.filter((_, idx) => idx % 2 === 1);
+  }
+
+  isImagePinDragActive(pq: PlayerQuestion): boolean {
+    return this.imagePinDrag.active && this.imagePinDrag.questionIndex === pq.index;
+  }
+
+  imagePinTempLine(pq: PlayerQuestion): { color: string; x1: number; y1: number; x2: number; y2: number } | null {
+    if (!this.isImagePinDragActive(pq)) return null;
+    return {
+      color: this.imagePinDrag.color,
+      x1: this.imagePinDrag.x1,
+      y1: this.imagePinDrag.y1,
+      x2: this.imagePinDrag.x2,
+      y2: this.imagePinDrag.y2
+    };
+  }
+
+  imagePinIsPinNearDrag(pq: PlayerQuestion, pinId: string): boolean {
+    return this.isImagePinDragActive(pq) && this.imagePinDrag.hoverPinId === pinId;
+  }
+
+  startImagePinDrag(pq: PlayerQuestion, labelId: string, event: PointerEvent): void {
+    if (this.state === 'submitted' || !pq || pq.isCorrect === true || pq.isCorrect === false) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const wrap = this.getImagePinWrapEl(pq.index);
+    const handle = this.getImagePinHandleEl(pq.index, labelId);
+    if (!wrap || !handle) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const hRect = handle.getBoundingClientRect();
+    const startX = hRect.left + hRect.width / 2 - wrapRect.left;
+    const startY = hRect.top + hRect.height / 2 - wrapRect.top;
+    this.imagePinDrag = {
+      active: true,
+      questionIndex: pq.index,
+      labelId,
+      color: this.getImagePinLabelColor(pq, labelId),
+      x1: startX,
+      y1: startY,
+      x2: event.clientX - wrapRect.left,
+      y2: event.clientY - wrapRect.top,
+      hoverPinId: null
+    };
+    try { (event.target as HTMLElement)?.setPointerCapture(event.pointerId); } catch {}
+  }
+
+  @HostListener('window:pointermove', ['$event'])
+  onImagePinPointerMove(event: PointerEvent): void {
+    if (!this.imagePinDrag.active) return;
+    const wrap = this.getImagePinWrapEl(this.imagePinDrag.questionIndex);
+    if (!wrap) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    this.imagePinDrag.x2 = event.clientX - wrapRect.left;
+    this.imagePinDrag.y2 = event.clientY - wrapRect.top;
+    this.imagePinDrag.hoverPinId = this.findClosestPinId(this.imagePinDrag.questionIndex, event.clientX, event.clientY, 34);
+  }
+
+  @HostListener('window:pointerup', ['$event'])
+  onImagePinPointerUp(_event: PointerEvent): void {
+    if (!this.imagePinDrag.active) return;
+    const pq = this.playerQuestions[this.imagePinDrag.questionIndex];
+    const pinId = this.imagePinDrag.hoverPinId;
+    const labelId = this.imagePinDrag.labelId;
+    if (pq && pinId && labelId) {
+      if (!Array.isArray(pq.imagePinConnections)) pq.imagePinConnections = [];
+      pq.imagePinConnections = [
+        ...pq.imagePinConnections.filter((c) => c.labelId !== labelId),
+        { labelId, pinId }
+      ];
+      pq.selectedLabelId = null;
+      this.markAttempted(pq);
+    }
+    this.resetImagePinDrag();
+  }
+
+  @HostListener('window:resize')
+  onImagePinResize(): void {
+    // Trigger change detection so SVG coordinates are recomputed.
+    if (this.imagePinDrag.active) {
+      this.imagePinDrag = { ...this.imagePinDrag };
+    }
+  }
+
+  private resetImagePinDrag(): void {
+    this.imagePinDrag.active = false;
+    this.imagePinDrag.questionIndex = -1;
+    this.imagePinDrag.labelId = '';
+    this.imagePinDrag.hoverPinId = null;
+  }
+
+  private getImagePinWrapEl(questionIndex: number): HTMLElement | null {
+    return document.getElementById(`ipm-wrap-${questionIndex}`) as HTMLElement | null;
+  }
+
+  private getImagePinHandleEl(questionIndex: number, labelId: string): HTMLElement | null {
+    return document.getElementById(`ipm-handle-${questionIndex}-${labelId}`) as HTMLElement | null;
+  }
+
+  private findClosestPinId(questionIndex: number, clientX: number, clientY: number, maxDistancePx: number): string | null {
+    const pq = this.playerQuestions[questionIndex];
+    if (!pq) return null;
+    const pins = Array.isArray(pq.data?.pins) ? pq.data.pins : [];
+    let best: { id: string; d: number } | null = null;
+    for (const p of pins) {
+      const pinEl = document.getElementById(`ipm-pin-${questionIndex}-${p.id}`);
+      if (!pinEl) continue;
+      const r = pinEl.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const d = Math.hypot(clientX - cx, clientY - cy);
+      if (d <= maxDistancePx && (!best || d < best.d)) {
+        best = { id: String(p.id), d };
+      }
+    }
+    return best?.id || null;
+  }
+
+  imagePinSvgLines(pq: PlayerQuestion): Array<{ color: string; x1: number; y1: number; x2: number; y2: number }> {
+    const wrap = this.getImagePinWrapEl(pq.index);
+    if (!wrap) return [];
+    const wrapRect = wrap.getBoundingClientRect();
+    if (!wrapRect.width || !wrapRect.height) return [];
+    const lines: Array<{ color: string; x1: number; y1: number; x2: number; y2: number }> = [];
+    (pq.imagePinConnections || []).forEach((conn) => {
+      const handle = document.getElementById(`ipm-handle-${pq.index}-${conn.labelId}`);
+      const pin = document.getElementById(`ipm-pin-${pq.index}-${conn.pinId}`);
+      if (!handle || !pin) return;
+      const a = handle.getBoundingClientRect();
+      const b = pin.getBoundingClientRect();
+      lines.push({
+        color: this.getImagePinLabelColor(pq, conn.labelId),
+        x1: (a.left + a.width / 2 - wrapRect.left),
+        y1: (a.top + a.height / 2 - wrapRect.top),
+        x2: (b.left + b.width / 2 - wrapRect.left),
+        y2: (b.top + b.height / 2 - wrapRect.top),
+      });
+    });
+    return lines;
   }
 
   selectRight(pq: PlayerQuestion, rightIndex: number): void {
@@ -2200,6 +2445,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       else if ((pq.data.type as string) === 'rearrange') {
         resp.rearrangeTokensResponse = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
         resp.rearrangeTextResponse = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens.join(' ') : '';
+      } else if ((pq.data.type as string) === 'image_pin_match') {
+        resp.imagePinAnswers = Array.isArray(pq.imagePinConnections)
+          ? pq.imagePinConnections.map((x) => ({ labelId: x.labelId, pinId: x.pinId }))
+          : [];
       }
       else if (pq.data.type === 'video-pronunciation') {
         resp.spokenText = pq.vpSpokenText || '';
@@ -2260,6 +2509,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       else if ((pq.data.type as string) === 'rearrange') {
         resp.rearrangeTokensResponse = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
         resp.rearrangeTextResponse = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens.join(' ') : '';
+      } else if ((pq.data.type as string) === 'image_pin_match') {
+        resp.imagePinAnswers = Array.isArray(pq.imagePinConnections)
+          ? pq.imagePinConnections.map((x) => ({ labelId: x.labelId, pinId: x.pinId }))
+          : [];
       }
       else if (pq.data.type === 'video-pronunciation') {
         resp.spokenText = pq.vpSpokenText || '';
@@ -2312,6 +2565,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
             ? detail.correctAnswer.rearrangeTokens
             : [];
           pq.data._correctRearrangeAnswer = detail.correctAnswer?.rearrangeAnswer || '';
+        }
+        if ((pq.data.type as string) === 'image_pin_match') {
+          pq.data._imagePinCorrectLabels = Array.isArray(detail.correctAnswer?.labels)
+            ? detail.correctAnswer.labels
+            : [];
+          pq.data._imagePinCorrectPins = Array.isArray(detail.correctAnswer?.pins)
+            ? detail.correctAnswer.pins
+            : [];
         }
       }
     });
@@ -2448,6 +2709,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const toks = Array.isArray(pq.rearrangeTokens) ? pq.rearrangeTokens : [];
       return toks.length ? toks.join(' ') : '—';
     }
+    if ((pq.data.type as string) === 'image_pin_match') {
+      const labels = Array.isArray(pq.data.labels) ? pq.data.labels : [];
+      const byLabel: Record<string, string> = {};
+      (pq.imagePinConnections || []).forEach((c) => { byLabel[c.labelId] = c.pinId; });
+      const pins = Array.isArray(pq.data.pins) ? pq.data.pins : [];
+      const pinNum = (id: string) => {
+        const idx = pins.findIndex((p: any) => String(p?.id || '') === String(id || ''));
+        return idx >= 0 ? `Pin ${idx + 1}` : '—';
+      };
+      return labels
+        .map((l: any) => `${l?.text || l?.id || 'label'} -> ${pinNum(byLabel[String(l?.id || '')] || '')}`)
+        .join('; ');
+    }
     if (pq.data.type === 'video-pronunciation') return (pq.vpSpokenText || '—').trim();
     return '—';
   }
@@ -2506,6 +2780,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         : [];
       if (toks.length) return toks.join(' ');
       return (pq.data as any)._correctRearrangeAnswer || '—';
+    }
+    if ((pq.data.type as string) === 'image_pin_match') {
+      const labels = Array.isArray((pq.data as any)._imagePinCorrectLabels)
+        ? (pq.data as any)._imagePinCorrectLabels
+        : (Array.isArray((pq.data as any).labels) ? (pq.data as any).labels : []);
+      const pins = Array.isArray((pq.data as any)._imagePinCorrectPins)
+        ? (pq.data as any)._imagePinCorrectPins
+        : (Array.isArray((pq.data as any).pins) ? (pq.data as any).pins : []);
+      const pinNum = (id: string) => {
+        const idx = pins.findIndex((p: any) => String(p?.id || '') === String(id || ''));
+        return idx >= 0 ? `Pin ${idx + 1}` : '—';
+      };
+      return labels.map((l: any) => `${l?.text || l?.id || 'label'} -> ${pinNum(l?.correctPinId || '')}`).join('; ');
     }
     if (pq.data.type === 'pronunciation') return pq.data.word || '—';
     if (pq.data.type === 'video-pronunciation') {
@@ -2692,7 +2979,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       'question-answer': 'Question / Answer',
       listening: 'Listening',
       'video-pronunciation': 'Video Pronunciation',
-      'jumble-word': 'Jumble Word'
+      'jumble-word': 'Jumble Word',
+      image_pin_match: 'Image Pin Match'
     };
     const icons: Record<string, string> = {
       mcq: 'quiz',
@@ -2704,7 +2992,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       'question-answer': 'short_text',
       listening: 'headphones',
       'video-pronunciation': 'videocam',
-      'jumble-word': 'shuffle'
+      'jumble-word': 'shuffle',
+      image_pin_match: 'place'
     };
     this.playerQuestions.forEach((pq, i) => {
       const t = pq.data.type;
@@ -2886,7 +3175,37 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getMediaFullUrl(relative?: string | null): string {
-    return resolveMediaUrl(relative);
+    const key = String(relative || '').trim();
+    if (!key) return '';
+    const cached = this.mediaUrlCache.get(key);
+    if (cached) return cached;
+    const resolved = resolveMediaUrl(key);
+    this.mediaUrlCache.set(key, resolved);
+    return resolved;
+  }
+
+  private preloadImagesAroundCurrentQuestion(): void {
+    const current = this.playerQuestions[this.currentIndex];
+    const next = this.playerQuestions[this.currentIndex + 1];
+    this.preloadQuestionImages(current);
+    this.preloadQuestionImages(next);
+  }
+
+  private preloadQuestionImages(pq?: PlayerQuestion): void {
+    if (!pq || typeof Image === 'undefined') return;
+    this.preloadImageUrl(pq.data?.imageUrl);
+    if (this.getAttachmentType(String(pq.data?.attachmentUrl || '')) === 'image') {
+      this.preloadImageUrl(pq.data?.attachmentUrl);
+    }
+  }
+
+  private preloadImageUrl(rawUrl?: string | null): void {
+    const src = this.getMediaFullUrl(rawUrl);
+    if (!src || this.preloadedImageUrls.has(src)) return;
+    this.preloadedImageUrls.add(src);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = src;
   }
 
   getAttachmentType(url: string): 'image' | 'audio' | 'video' | 'pdf' | 'other' {
@@ -2930,11 +3249,62 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     for (const row of ex.videoRetryFeedback || []) add(row.audioUrl);
     const rawQuestions = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
     for (const q of rawQuestions) {
+      add(q['imageUrl'] as string | undefined);
       add(q['attachmentUrl'] as string | undefined);
       add(q['mediaUrl'] as string | undefined);
       add(q['audioUrl'] as string | undefined);
+      add(q['videoUrl'] as string | undefined);
     }
     return [...new Set(urls)];
+  }
+
+  private recoverMediaLinksSilently(): void {
+    if (!this.exercise || this.mediaRefetchInProgress) return;
+    const urls = this.collectExerciseMediaUrlsForRecovery();
+    if (urls.length === 0) return;
+    this.mediaRefetchInProgress = true;
+    this.exerciseService.resolveMediaFromR2(urls).subscribe({
+      next: ({ resolutions }) => {
+        this.mediaRefetchInProgress = false;
+        const mapFound = new Map(
+          resolutions.filter((r) => r.found).map((r) => [r.original, r.url])
+        );
+        if (mapFound.size === 0 || !this.exercise) return;
+        const patchVal = (before: string | undefined | null): string | undefined | null => {
+          const s = String(before || '').trim();
+          if (!s) return before;
+          const r = mapFound.get(s);
+          return r !== undefined ? r : before;
+        };
+        const ex = this.exercise;
+        const nextShared = patchVal(ex.sharedAudioUrl);
+        if (nextShared !== ex.sharedAudioUrl) ex.sharedAudioUrl = nextShared ?? undefined;
+        for (const row of ex.videoSuccessFeedback || []) {
+          const n = patchVal(row.audioUrl);
+          if (n !== row.audioUrl) row.audioUrl = (n as string) || '';
+        }
+        for (const row of ex.videoRetryFeedback || []) {
+          const n = patchVal(row.audioUrl);
+          if (n !== row.audioUrl) row.audioUrl = (n as string) || '';
+        }
+        const qs = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
+        for (const q of qs) {
+          const ni = patchVal(q['imageUrl'] as string | undefined);
+          if (ni !== q['imageUrl']) q['imageUrl'] = ni ?? undefined;
+          const na = patchVal(q['attachmentUrl'] as string | undefined);
+          if (na !== q['attachmentUrl']) q['attachmentUrl'] = na ?? undefined;
+          const nm = patchVal(q['mediaUrl'] as string | undefined);
+          if (nm !== q['mediaUrl']) q['mediaUrl'] = nm;
+          const nau = patchVal(q['audioUrl'] as string | undefined);
+          if (nau !== q['audioUrl']) q['audioUrl'] = nau;
+          const nv = patchVal(q['videoUrl'] as string | undefined);
+          if (nv !== q['videoUrl']) q['videoUrl'] = nv;
+        }
+      },
+      error: () => {
+        this.mediaRefetchInProgress = false;
+      },
+    });
   }
 
   refetchMediaFromR2(): void {
@@ -2987,6 +3357,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         }
         const qs = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
         for (const q of qs) {
+          const ni = patchVal(q['imageUrl'] as string | undefined);
+          if (ni !== q['imageUrl']) {
+            q['imageUrl'] = ni ?? undefined;
+            updated++;
+          }
           const na = patchVal(q['attachmentUrl'] as string | undefined);
           if (na !== q['attachmentUrl']) {
             q['attachmentUrl'] = na ?? undefined;
@@ -3000,6 +3375,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           const nau = patchVal(q['audioUrl'] as string | undefined);
           if (nau !== q['audioUrl']) {
             q['audioUrl'] = nau;
+            updated++;
+          }
+          const nv = patchVal(q['videoUrl'] as string | undefined);
+          if (nv !== q['videoUrl']) {
+            q['videoUrl'] = nv;
             updated++;
           }
         }

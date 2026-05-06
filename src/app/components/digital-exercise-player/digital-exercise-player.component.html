@@ -143,7 +143,7 @@
           <!-- Attachment in review -->
           <div class="q-attachment-box" *ngIf="pq.data.attachmentUrl">
             <ng-container [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)">
-              <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" alt="Attachment" class="q-attachment-img" />
+              <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" alt="Attachment" class="q-attachment-img" loading="lazy" decoding="async" />
               <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
               <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(pq.data.attachmentUrl)" controls class="q-attachment-video"></video>
               <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(pq.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
@@ -957,15 +957,32 @@
           </div>
         </div>
 
+        <ng-template #questionMediaBlock>
+          <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
+            <img [src]="getMediaFullUrl(currentQuestion.data.imageUrl)" alt="Question image" class="q-image" loading="eager" fetchpriority="high" decoding="async" />
+          </div>
+          <div class="q-attachment-box" *ngIf="currentQuestion.data.attachmentUrl">
+            <ng-container [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)">
+              <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" alt="Question attachment" class="q-attachment-img" loading="lazy" decoding="async" />
+              <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
+              <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-video"></video>
+              <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
+                <span class="material-icons">picture_as_pdf</span> Open PDF
+              </a>
+              <a *ngSwitchDefault [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
+                <span class="material-icons">insert_drive_file</span> Open file
+              </a>
+            </ng-container>
+          </div>
+        </ng-template>
+
         <!-- ── MCQ ── -->
         <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
           <div class="q-question-box">
             <div class="q-question-label">Question</div>
             <p class="q-text" [innerHTML]="currentQuestion.data.question | safeHtml"></p>
           </div>
-          <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
-            <img [src]="currentQuestion.data.imageUrl" alt="Question image" class="q-image" />
-          </div>
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="mcq-options">
             <button
               *ngFor="let opt of currentQuestion.data.options; let oi = index"
@@ -1043,6 +1060,7 @@
               </button>
             </div>
           </div>
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="matching-hint" *ngIf="currentQuestion.selectedLeftIndex !== null">
             <span class="material-icons">info</span>
             Now click the matching item on the right →
@@ -1080,6 +1098,7 @@
               </ng-container>
             </div>
           </div>
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="hint-label" *ngIf="currentQuestion.data.hint">
             <span class="material-icons">lightbulb</span>
             Hint: {{ currentQuestion.data.hint }}
@@ -1105,6 +1124,7 @@
 
         <!-- ── WORD BANK FILL ── -->
         <div class="q-body word-bank-fill-body" *ngIf="currentQuestion.data.type === 'word_bank_fill'">
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="word-bank-box">
             <div class="q-question-label">Word Bank</div>
             <div class="word-bank-pills">
@@ -1167,8 +1187,103 @@
           </div>
         </div>
 
+        <!-- ── IMAGE PIN MATCH ── -->
+        <div class="q-body ipm-body" *ngIf="currentQuestion.data.type === 'image_pin_match'">
+          <div class="ipm-instruction">Drag from a label handle and drop on a pin.</div>
+          <div class="ipm-play-wrap" [id]="'ipm-wrap-' + currentQuestion.index">
+            <svg class="ipm-lines" *ngIf="imagePinSvgLines(currentQuestion).length || isImagePinDragActive(currentQuestion)">
+              <line
+                *ngFor="let ln of imagePinSvgLines(currentQuestion)"
+                [attr.x1]="ln.x1" [attr.y1]="ln.y1"
+                [attr.x2]="ln.x2" [attr.y2]="ln.y2"
+                [attr.stroke]="ln.color"
+                stroke-width="4"
+                stroke-linecap="round"
+              ></line>
+              <line
+                *ngIf="imagePinTempLine(currentQuestion) as tmp"
+                [attr.x1]="tmp.x1" [attr.y1]="tmp.y1"
+                [attr.x2]="tmp.x2" [attr.y2]="tmp.y2"
+                [attr.stroke]="tmp.color"
+                class="ipm-line-temp"
+                stroke-width="4"
+                stroke-linecap="round"
+              ></line>
+            </svg>
+            <div class="ipm-label-col ipm-label-col--left">
+              <button
+                type="button"
+                class="ipm-label-pill"
+                *ngFor="let label of getImagePinLabelsLeft(currentQuestion); let li = index"
+                [id]="'ipm-label-' + currentIndex + '-' + label.id"
+                [class.active]="currentQuestion.selectedLabelId === label.id"
+                [class.connected]="!!getImagePinConnection(currentQuestion, label.id)"
+                [style.--ipm-color]="label.color"
+                (click)="selectImagePinLabel(currentQuestion, label.id)"
+                [attr.aria-label]="'Label ' + label.text"
+                [disabled]="hasCurrentSubmitted"
+              >
+                <span class="ipm-label-card">{{ label.text }}</span>
+                <span class="ipm-label-stem"></span>
+                <span
+                  class="ipm-handle"
+                  [id]="'ipm-handle-' + currentQuestion.index + '-' + label.id"
+                  (pointerdown)="startImagePinDrag(currentQuestion, label.id, $event)"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="'Drag connector for ' + label.text"
+                ></span>
+              </button>
+            </div>
+            <div class="ipm-image-wrap">
+              <img [src]="getMediaFullUrl(currentQuestion.data.imageUrl)" alt="Image pin match" class="ipm-image" loading="eager" fetchpriority="high" decoding="async" />
+              <button
+                type="button"
+                class="ipm-pin"
+                *ngFor="let pin of currentQuestion.data.pins; let pi = index"
+                [id]="'ipm-pin-' + currentIndex + '-' + pin.id"
+                [style.left.%]="pin.x"
+                [style.top.%]="pin.y"
+                [class.active]="currentQuestion.selectedLabelId"
+                [class.near]="imagePinIsPinNearDrag(currentQuestion, pin.id)"
+                (click)="connectImagePin(currentQuestion, pin.id)"
+                [attr.aria-label]="'Pin ' + (pi + 1)"
+                [disabled]="hasCurrentSubmitted"
+              >
+                {{ pi + 1 }}
+              </button>
+            </div>
+            <div class="ipm-label-col ipm-label-col--right">
+              <button
+                type="button"
+                class="ipm-label-pill ipm-label-pill--right"
+                *ngFor="let label of getImagePinLabelsRight(currentQuestion); let li = index"
+                [id]="'ipm-label-' + currentIndex + '-' + label.id"
+                [class.active]="currentQuestion.selectedLabelId === label.id"
+                [class.connected]="!!getImagePinConnection(currentQuestion, label.id)"
+                [style.--ipm-color]="label.color"
+                (click)="selectImagePinLabel(currentQuestion, label.id)"
+                [attr.aria-label]="'Label ' + label.text"
+                [disabled]="hasCurrentSubmitted"
+              >
+                <span
+                  class="ipm-handle ipm-handle--left"
+                  [id]="'ipm-handle-' + currentQuestion.index + '-' + label.id"
+                  (pointerdown)="startImagePinDrag(currentQuestion, label.id, $event)"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="'Drag connector for ' + label.text"
+                ></span>
+                <span class="ipm-label-stem ipm-label-stem--right"></span>
+                <span class="ipm-label-card ipm-label-card--right">{{ label.text }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- ── SINGULAR / PLURAL ── -->
         <div class="q-body singular-plural-body" *ngIf="currentQuestion.data.type === 'singular_plural'">
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="sp-table-wrap">
             <table class="sp-pairs-table" *ngIf="singularPluralDisplayRows(currentQuestion).length">
               <thead>
@@ -1218,6 +1333,7 @@
 
         <!-- ── PRONUNCIATION ── -->
         <div class="q-body pronunciation-body" *ngIf="currentQuestion.data.type === 'pronunciation'">
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="pronunciation-word-card">
             <div class="big-word">{{ currentQuestion.data.word }}</div>
             <div class="word-phonetic" *ngIf="currentQuestion.data.phonetic">{{ currentQuestion.data.phonetic }}</div>
@@ -1406,6 +1522,7 @@
             <div class="q-question-label">Question</div>
             <div class="qa-prompt" [innerHTML]="(currentQuestion.data.prompt || 'Listen and answer the question.') | safeHtml"></div>
           </div>
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="listening-audio-wrap" *ngIf="getListeningSupplementalAudioUrl(currentQuestion.data)">
             <audio [src]="getMediaFullUrl(getListeningSupplementalAudioUrl(currentQuestion.data))" controls></audio>
           </div>
@@ -1451,6 +1568,7 @@
 
         <!-- Jumble Word body -->
         <div class="q-body jumble-body" *ngIf="currentQuestion.data.type === 'jumble-word'">
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
           <div class="jumble-category-tip" *ngIf="currentQuestion.data.categoryTip">
             {{ currentQuestion.data.categoryTip }}
           </div>
@@ -1504,6 +1622,7 @@
             <div class="q-question-label">Question</div>
             <div class="qa-prompt" [innerHTML]="(currentQuestion.data.rearrangePrompt || '') | safeHtml"></div>
           </div>
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
 
           <div class="rearrange-tokens-wrap" *ngIf="currentQuestion.rearrangeTokens?.length">
             <div class="rearrange-label">Drag to rearrange:</div>
@@ -1768,6 +1887,7 @@
               <div class="qa-prompt" [innerHTML]="currentQuestion.data.prompt | safeHtml"></div>
             </ng-template>
           </div>
+          <ng-container *ngTemplateOutlet="questionMediaBlock"></ng-container>
 
           <ng-container *ngIf="isTrueFalseQuestion(currentQuestion.data); else qaTextInput">
             <ng-container></ng-container>
@@ -1805,21 +1925,6 @@
             *ngIf="isTrueFalseQuestion(currentQuestion.data) && currentQuestion.data.storyParagraph"
             [innerHTML]="currentQuestion.data.storyParagraph | safeHtml"
           ></div>
-
-          <!-- Per-question attachment shown last -->
-          <div class="q-attachment-box" *ngIf="currentQuestion.data.attachmentUrl">
-            <ng-container [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)">
-              <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" alt="Question attachment" class="q-attachment-img" />
-              <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-audio"></audio>
-              <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" controls class="q-attachment-video"></video>
-              <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
-                <span class="material-icons">picture_as_pdf</span> Open PDF
-              </a>
-              <a *ngSwitchDefault [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)" target="_blank" class="q-attachment-file-link">
-                <span class="material-icons">insert_drive_file</span> Open file
-              </a>
-            </ng-container>
-          </div>
 
           <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
             <strong>Sample answers:</strong>

@@ -139,6 +139,27 @@ function normalizeQuestionContexts(rawQuestions) {
         .filter((item) => item.prompt && item.answer);
       out.reusableWords = q.reusableWords !== false;
     }
+    if (q?.type === 'image_pin_match') {
+      out.imageUrl = String(q?.imageUrl || '').trim();
+      out.pins = (Array.isArray(q?.pins) ? q.pins : [])
+        .map((p) => ({
+          id: String(p?.id || '').trim(),
+          x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+          y: Math.max(0, Math.min(100, Number(p?.y) || 0)),
+        }))
+        .filter((p) => p.id);
+      out.labels = (Array.isArray(q?.labels) ? q.labels : [])
+        .map((l) => ({
+          id: String(l?.id || '').trim(),
+          text: sanitizeQuestionPlainText(l?.text || ''),
+          correctPinId: String(l?.correctPinId || '').trim()
+        }))
+        .filter((l) => l.id && l.text);
+      out.settings = {
+        randomizeLabels: q?.settings?.randomizeLabels !== false,
+        allowRetry: q?.settings?.allowRetry !== false
+      };
+    }
     return out;
   });
 }
@@ -363,6 +384,20 @@ function formatStudentAnswerForReview(q, r) {
     const text = String(r.rearrangeTextResponse || '').trim();
     return text || '—';
   }
+  if (q.type === 'image_pin_match') {
+    const pairs = Array.isArray(r.imagePinAnswers) ? r.imagePinAnswers : [];
+    if (!pairs.length) return '—';
+    const labels = Array.isArray(q.labels) ? q.labels : [];
+    const pins = Array.isArray(q.pins) ? q.pins : [];
+    const byLabel = {};
+    pairs.forEach((p) => { byLabel[String(p?.labelId || '')] = String(p?.pinId || ''); });
+    return labels.map((l) => {
+      const givenPin = byLabel[String(l.id)] || '—';
+      const pinObj = pins.find((p) => String(p.id) === givenPin);
+      const pinText = pinObj ? `${pinObj.id} (${Number(pinObj.x).toFixed(1)}%,${Number(pinObj.y).toFixed(1)}%)` : givenPin;
+      return `${sanitizeQuestionPlainText(l.text || l.id)} → ${pinText}`;
+    }).join(' · ');
+  }
   return '—';
 }
 
@@ -421,6 +456,12 @@ function formatCorrectAnswerForReview(q) {
     if (toks.length) return toks.map((t) => sanitizeQuestionPlainText(t)).join(' ');
     return q.rearrangeAnswer ? String(q.rearrangeAnswer) : '—';
   }
+  if (q.type === 'image_pin_match') {
+    const labels = Array.isArray(q.labels) ? q.labels : [];
+    return labels.length
+      ? labels.map((l) => `${sanitizeQuestionPlainText(l.text || l.id)} → ${String(l.correctPinId || '—')}`).join(' · ')
+      : '—';
+  }
   return '—';
 }
 
@@ -429,7 +470,8 @@ function questionPromptSnippet(q, idx) {
   const sp0 = q.type === 'singular_plural' && Array.isArray(q.pairs) ? q.pairs[0]?.singular : '';
   const wb0 = q.type === 'word_bank_fill' && Array.isArray(q.items) ? q.items[0]?.prompt : '';
   const text =
-    q.question || q.prompt || q.rearrangePrompt || wb0 || sp0 || q.instruction || q.sentence || q.word || q.caption || '';
+    q.question || q.prompt || q.rearrangePrompt || wb0 || sp0 || q.instruction || q.sentence || q.word || q.caption ||
+    (q.type === 'image_pin_match' ? `Image pin match (${Array.isArray(q.labels) ? q.labels.length : 0} labels)` : '');
   return clipText(sanitizeQuestionPlainText(text), 100) || `Question ${idx + 1}`;
 }
 
@@ -1050,6 +1092,25 @@ router.get('/:id', verifyToken, async (req, res) => {
           delete stripped.rearrangeTokens;
           delete stripped.rearrangeAnswer;
         }
+        if (q.type === 'image_pin_match') {
+          stripped.imageUrl = q.imageUrl || '';
+          stripped.pins = (Array.isArray(q.pins) ? q.pins : [])
+            .map((p) => ({
+              id: String(p?.id || ''),
+              x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+              y: Math.max(0, Math.min(100, Number(p?.y) || 0)),
+            }))
+            .filter((p) => p.id);
+          const baseLabels = (Array.isArray(q.labels) ? q.labels : [])
+            .map((l) => ({ id: String(l?.id || ''), text: sanitizeQuestionPlainText(l?.text || '') }))
+            .filter((l) => l.id && l.text);
+          const randomize = q?.settings?.randomizeLabels !== false;
+          stripped.labels = randomize ? shuffleArray(baseLabels) : baseLabels;
+          stripped.settings = {
+            randomizeLabels: randomize,
+            allowRetry: q?.settings?.allowRetry !== false
+          };
+        }
         return stripped;
       });
     }
@@ -1074,7 +1135,7 @@ router.get('/:id', verifyToken, async (req, res) => {
 
 // ─── TEACHER/ADMIN MANAGEMENT ROUTES ─────────────────────────────────────────
 
-// GET /api/digital-exercises/admin/all  — Admin list with full details
+// GET /api/digital-exercises/admin/all  — Admin list (lightweight metadata only)
 router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { page = 1, limit = 20, status, level, category, search, courseDay } = req.query;
@@ -1111,6 +1172,9 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
 
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
+      .select(
+        'title description targetLanguage difficulty level category courseDay visibleToStudents isActive createdBy createdAt updatedAt questions.type'
+      )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
@@ -1135,6 +1199,18 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
 
     exercises.forEach(ex => {
       ex.stats = statsMap[ex._id.toString()] || { completions: 0, avgScore: 0, uniqueStudents: 0 };
+
+      const typeCounts = {};
+      const qArr = Array.isArray(ex.questions) ? ex.questions : [];
+      qArr.forEach((q) => {
+        const t = String(q?.type || '').trim();
+        if (!t) return;
+        typeCounts[t] = (typeCounts[t] || 0) + 1;
+      });
+
+      ex.questionCount = qArr.length;
+      ex.questionTypeSummary = typeCounts;
+      delete ex.questions;
     });
 
     await resignExercises(exercises);
@@ -1610,6 +1686,25 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
         rearrangeAnswer: q.rearrangeAnswer || ''
       };
+    } else if (q.type === 'image_pin_match') {
+      const labels = Array.isArray(q.labels) ? q.labels : [];
+      const submitted = Array.isArray(resp.imagePinAnswers) ? resp.imagePinAnswers : [];
+      const byLabel = {};
+      submitted.forEach((entry) => {
+        const lid = String(entry?.labelId || '');
+        const pid = String(entry?.pinId || '');
+        if (lid && pid) byLabel[lid] = pid;
+      });
+      let correctCount = 0;
+      const total = labels.length;
+      for (const l of labels) {
+        if (String(byLabel[String(l.id)] || '') === String(l.correctPinId || '')) correctCount += 1;
+      }
+      rawScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+      correctAnswer = {
+        labels: labels.map((l) => ({ id: l.id, text: l.text, correctPinId: l.correctPinId })),
+        pins: Array.isArray(q.pins) ? q.pins : []
+      };
     }
 
     if (useAdvancedGrading) {
@@ -1655,6 +1750,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       jumbleWordResponse: resp.jumbleWordResponse,
       rearrangeTextResponse: resp.rearrangeTextResponse,
       rearrangeTokensResponse: resp.rearrangeTokensResponse,
+      imagePinAnswers: resp.imagePinAnswers,
       isCorrect,
       pointsEarned
     };
@@ -1916,6 +2012,25 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
           rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
           rearrangeAnswer: q.rearrangeAnswer || ''
         };
+      } else if (q.type === 'image_pin_match') {
+        const labels = Array.isArray(q.labels) ? q.labels : [];
+        const submitted = Array.isArray(resp.imagePinAnswers) ? resp.imagePinAnswers : [];
+        const byLabel = {};
+        submitted.forEach((entry) => {
+          const lid = String(entry?.labelId || '');
+          const pid = String(entry?.pinId || '');
+          if (lid && pid) byLabel[lid] = pid;
+        });
+        let correctCount = 0;
+        const total = labels.length;
+        for (const l of labels) {
+          if (String(byLabel[String(l.id)] || '') === String(l.correctPinId || '')) correctCount += 1;
+        }
+        rawScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+        correctAnswer = {
+          labels: labels.map((l) => ({ id: l.id, text: l.text, correctPinId: l.correctPinId })),
+          pins: Array.isArray(q.pins) ? q.pins : []
+        };
       }
 
       if (useAdvancedGrading) {
@@ -1962,6 +2077,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         jumbleWordResponse: resp.jumbleWordResponse,
         rearrangeTextResponse: resp.rearrangeTextResponse,
         rearrangeTokensResponse: resp.rearrangeTokensResponse,
+        imagePinAnswers: resp.imagePinAnswers,
         isCorrect,
         pointsEarned
       });

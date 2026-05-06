@@ -80,7 +80,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   // Array of mixed question types using discriminator-like approach
   questions: [{
-    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange'], required: true },
+    type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange', 'image_pin_match'], required: true },
     // Common optional context shown above the question to students.
     context: { type: String, default: '' },
     // Instruction and example shown in a highlighted banner above the question body.
@@ -156,7 +156,22 @@ const DigitalExerciseSchema = new mongoose.Schema({
     // Rearrange fields (word / sentence ordering)
     rearrangePrompt: { type: String, default: '' },  // question text shown to students
     rearrangeAnswer: { type: String, default: '' },  // correct ordered sentence (for typing compare)
-    rearrangeTokens: [{ type: String }]              // correct ordered tokens (for drag/drop compare)
+    rearrangeTokens: [{ type: String }],              // correct ordered tokens (for drag/drop compare)
+    // Image Pin Match fields
+    labels: [{
+      id: { type: String, required: true },
+      text: { type: String, required: true },
+      correctPinId: { type: String, required: true }
+    }],
+    pins: [{
+      id: { type: String, required: true },
+      x: { type: Number, min: 0, max: 100, required: true },
+      y: { type: Number, min: 0, max: 100, required: true }
+    }],
+    settings: {
+      randomizeLabels: { type: Boolean, default: true },
+      allowRetry: { type: Boolean, default: true }
+    }
   }],
 
   // Optional shared audio for manual listening worksheets.
@@ -230,5 +245,6 @@ DigitalExerciseSchema.index({ createdBy: 1 });
 DigitalExerciseSchema.index({ visibleToStudents: 1, isActive: 1, isDeleted: 1 });
 DigitalExerciseSchema.index({ courseDay: 1, visibleToStudents: 1, isDeleted: 1 });
 DigitalExerciseSchema.index({ courseDay: 1, sequenceLetter: 1 });
+DigitalExerciseSchema.index({ isDeleted: 1, createdAt: -1 });
 
 module.exports = mongoose.model('DigitalExercise', DigitalExerciseSchema);
