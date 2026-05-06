@@ -93,3 +93,9 @@
   .vs-columns { grid-template-columns: 1fr; }
   .vs-col-right { position: static; }
 }
+
+/* Skeleton Loading */
+@keyframes vs-skeleton {
+  0% { background-position: 400% 0; }
+  100% { background-position: -400% 0; }
+}

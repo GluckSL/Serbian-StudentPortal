@@ -347,6 +347,10 @@
 
 @media (max-width: 600px) {
   .sp-invoice-actions { flex-direction: column; }
-  .sp-btn { width: 100%; justify-content: center; }
-  .sp-modal { padding: 18px; }
+}
+
+/* Skeleton Loading */
+@keyframes sp-skeleton {
+  0% { background-position: 400% 0; }
+  100% { background-position: -400% 0; }
 }

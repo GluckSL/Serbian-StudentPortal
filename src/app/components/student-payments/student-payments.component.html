@@ -198,10 +198,121 @@
 
 <!-- Loading -->
 <ng-template #loadingTpl>
-  <div class="sp" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
-    <div style="text-align:center;">
-      <div class="sp-spinner"></div>
-      <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading payment details...</p>
+  <div class="sp">
+    <!-- Payment Summary Card -->
+    <div class="sp-card">
+      <div class="sp-card__head">
+        <div class="sp-skeleton-block" style="height:14px;width:140px;background:#e2e8f0;border-radius:4px;"></div>
+        <div class="sp-skeleton-block" style="height:16px;width:40px;background:#e2e8f0;border-radius:999px;"></div>
+      </div>
+      <div class="sp-summary-grid">
+        <div class="sp-summary-box">
+          <div class="sp-skeleton-block" style="height:10px;width:80px;margin:0 auto 8px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="sp-skeleton-block" style="height:20px;width:60px;margin:0 auto;background:#e2e8f0;border-radius:4px;"></div>
+        </div>
+        <div class="sp-summary-box">
+          <div class="sp-skeleton-block" style="height:10px;width:80px;margin:0 auto 8px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="sp-skeleton-block" style="height:20px;width:60px;margin:0 auto;background:#e2e8f0;border-radius:4px;"></div>
+        </div>
+        <div class="sp-summary-box">
+          <div class="sp-skeleton-block" style="height:10px;width:80px;margin:0 auto 8px;background:#e2e8f0;border-radius:4px;"></div>
+          <div class="sp-skeleton-block" style="height:20px;width:60px;margin:0 auto;background:#e2e8f0;border-radius:4px;"></div>
+        </div>
+      </div>
+      <div class="sp-skeleton-block" style="height:9px;width:100%;margin-top:14px;background:#e2e8f0;border-radius:4px;"></div>
+      <div class="sp-skeleton-block" style="height:10px;width:60px;margin-top:8px;background:#e2e8f0;border-radius:4px;"></div>
+    </div>
+
+    <!-- Invoices Card -->
+    <div class="sp-card">
+      <div class="sp-card__head">
+        <div class="sp-skeleton-block" style="height:14px;width:80px;background:#e2e8f0;border-radius:4px;"></div>
+        <div class="sp-skeleton-block" style="height:11px;width:70px;background:#e2e8f0;border-radius:4px;"></div>
+      </div>
+      <div class="sp-invoice-list">
+        <div class="sp-invoice-item">
+          <div class="sp-invoice-info">
+            <div class="sp-invoice-left">
+              <div class="sp-skeleton-block" style="height:14px;width:100px;background:#e2e8f0;border-radius:4px;margin-bottom:6px;"></div>
+              <div class="sp-skeleton-block" style="height:12px;width:180px;background:#e2e8f0;border-radius:4px;margin-bottom:6px;"></div>
+              <div class="sp-skeleton-block" style="height:10px;width:140px;background:#e2e8f0;border-radius:4px;"></div>
+            </div>
+            <div class="sp-invoice-right">
+              <div class="sp-skeleton-block" style="height:14px;width:60px;background:#e2e8f0;border-radius:4px;margin-bottom:6px;"></div>
+              <div class="sp-skeleton-block" style="height:16px;width:50px;background:#e2e8f0;border-radius:999px;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="sp-invoice-item">
+          <div class="sp-invoice-info">
+            <div class="sp-invoice-left">
+              <div class="sp-skeleton-block" style="height:14px;width:100px;background:#e2e8f0;border-radius:4px;margin-bottom:6px;"></div>
+              <div class="sp-skeleton-block" style="height:12px;width:160px;background:#e2e8f0;border-radius:4px;margin-bottom:6px;"></div>
+              <div class="sp-skeleton-block" style="height:10px;width:120px;background:#e2e8f0;border-radius:4px;"></div>
+            </div>
+            <div class="sp-invoice-right">
+              <div class="sp-skeleton-block" style="height:14px;width:60px;background:#e2e8f0;border-radius:4px;margin-bottom:6px;"></div>
+              <div class="sp-skeleton-block" style="height:16px;width:50px;background:#e2e8f0;border-radius:999px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submissions Card -->
+    <div class="sp-card">
+      <div class="sp-card__head">
+        <div class="sp-skeleton-block" style="height:14px;width:160px;background:#e2e8f0;border-radius:4px;"></div>
+        <div class="sp-skeleton-block" style="height:11px;width:60px;background:#e2e8f0;border-radius:4px;"></div>
+      </div>
+      <table class="sp-table-full">
+        <thead>
+          <tr>
+            <th><div class="sp-skeleton-block" style="height:10px;width:60px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:50px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:50px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:60px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:60px;background:#e2e8f0;border-radius:4px;"></div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="sp-skeleton-block" style="height:12px;width:70px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:50px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:60px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:70px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:60px;background:#e2e8f0;border-radius:4px;"></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Payment History Card -->
+    <div class="sp-card">
+      <div class="sp-card__head">
+        <div class="sp-skeleton-block" style="height:14px;width:120px;background:#e2e8f0;border-radius:4px;"></div>
+        <div class="sp-skeleton-block" style="height:11px;width:50px;background:#e2e8f0;border-radius:4px;"></div>
+      </div>
+      <table class="sp-table-full">
+        <thead>
+          <tr>
+            <th><div class="sp-skeleton-block" style="height:10px;width:50px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:60px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:50px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:80px;background:#e2e8f0;border-radius:4px;"></div></th>
+            <th><div class="sp-skeleton-block" style="height:10px;width:70px;background:#e2e8f0;border-radius:4px;"></div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="sp-skeleton-block" style="height:12px;width:60px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:50px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:40px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:90px;background:#e2e8f0;border-radius:4px;"></div></td>
+            <td><div class="sp-skeleton-block" style="height:12px;width:80px;background:#e2e8f0;border-radius:4px;"></div></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </ng-template>
