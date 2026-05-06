@@ -4,7 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { environment } from '../../../../environments/environment';
@@ -437,22 +437,24 @@ interface TimelineDay {
   <!-- ══ BATCH DETAIL (level 2) ══════════════════════════════════════════ -->
   <div *ngIf="!loading && selectedBatch && planTab === 'platinum'" class="j-content">
 
-    <!-- Back -->
-    <button class="j-btn j-btn-outline j-back-btn" (click)="closeBatch()">
-      <i class="fas fa-arrow-left"></i> Back to all batches
-    </button>
+    <!-- Back + header + config are hidden in progress-only mode -->
+    <ng-container *ngIf="!progressOnlyMode">
+      <!-- Back -->
+      <button class="j-btn j-btn-outline j-back-btn" (click)="closeBatch()">
+        <i class="fas fa-arrow-left"></i> Back to all batches
+      </button>
 
-    <div class="j-detail-header">
-      <h2>{{ selectedBatch.batchName }}</h2>
-      <span class="j-batch-meta">{{ batchStudents.length }} students</span>
-      <span class="j-day-pill" style="margin-left:8px">Day {{ selectedBatch.batchCurrentDay }}</span>
-      <span class="j-auto-badge" *ngIf="selectedBatch.autoDay">
-        <i class="fas fa-magic"></i> Auto
-      </span>
-    </div>
+      <div class="j-detail-header">
+        <h2>{{ selectedBatch.batchName }}</h2>
+        <span class="j-batch-meta">{{ batchStudents.length }} students</span>
+        <span class="j-day-pill" style="margin-left:8px">Day {{ selectedBatch.batchCurrentDay }}</span>
+        <span class="j-auto-badge" *ngIf="selectedBatch.autoDay">
+          <i class="fas fa-magic"></i> Auto
+        </span>
+      </div>
 
-    <!-- ── Config row ─────────────────────────────── -->
-    <div class="j-config-card">
+      <!-- ── Config row ─────────────────────────────── -->
+      <div class="j-config-card">
       <h4 class="j-card-title">
         Batch Settings
         <span *ngIf="isJourneyReadOnly" class="j-ro-pill">View only</span>
@@ -629,10 +631,11 @@ interface TimelineDay {
           <i class="fas fa-times"></i>
         </button>
       </div>
-    </div>
+      </div>
+    </ng-container>
 
     <!-- ── Tabs ────────────────────────────────────── -->
-    <div class="j-tabs">
+    <div class="j-tabs" *ngIf="!progressOnlyMode">
       <button class="j-tab" [class.active]="activeTab === 'students'" (click)="openStudentsTab()">
         <i class="fas fa-users"></i> Students
       </button>
@@ -645,7 +648,7 @@ interface TimelineDay {
     </div>
 
     <!-- ── Students tab ───────────────────────────── -->
-    <div *ngIf="activeTab === 'students'" class="j-table-card">
+    <div *ngIf="activeTab === 'students' && !progressOnlyMode" class="j-table-card">
       <div *ngIf="loadingStudents" class="j-sk-table-wrap" aria-busy="true" aria-label="Loading students">
         <div class="j-sk-row j-sk-row--head">
           <div class="j-sk j-sk-cell" *ngFor="let _ of skStudentCols"></div>
@@ -790,7 +793,7 @@ interface TimelineDay {
     </div>
 
     <!-- ── Timeline tab ───────────────────────────── -->
-    <div *ngIf="activeTab === 'timeline'" class="j-timeline-section">
+    <div *ngIf="activeTab === 'timeline' && !progressOnlyMode" class="j-timeline-section">
       <div *ngIf="loadingTimeline" class="j-sk-timeline" aria-busy="true" aria-label="Loading timeline">
         <div class="j-sk-timeline-filter">
           <div class="j-sk j-sk-pill"></div>
@@ -1214,6 +1217,7 @@ interface TimelineDay {
                     <th>Avg score</th>
                     <th>Exercises done</th>
                     <th>Class check-ins</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1228,9 +1232,14 @@ interface TimelineDay {
                     </td>
                     <td>{{ w.exercisesDone }}</td>
                     <td>{{ w.classesAttended }}</td>
+                    <td>
+                      <button type="button" class="j-btn j-btn-sm j-btn-outline" (click)="openWeeklyStudentDetails(w.week)">
+                        <i class="fas fa-external-link-alt"></i> View more
+                      </button>
+                    </td>
                   </tr>
                   <tr *ngIf="progressDetailLoaded && progressWeekly.length === 0">
-                    <td colspan="5" class="j-empty-inline">No weekly data yet.</td>
+                    <td colspan="6" class="j-empty-inline">No weekly data yet.</td>
                   </tr>
                 </tbody>
               </table>
@@ -3756,6 +3765,8 @@ export class JourneyManagementComponent implements OnInit {
 
   /** True when logged in as TEACHER (journey tab is view-only). */
   isJourneyReadOnly = false;
+  /** Used when deep-linked from Performance: show only Progress section. */
+  progressOnlyMode = false;
 
   // ── Plan tabs (Platinum / Silver) ──────────────────────────────────────────
   planTab: 'platinum' | 'silver' = 'platinum';
@@ -3785,7 +3796,8 @@ export class JourneyManagementComponent implements OnInit {
     private http: HttpClient,
     private notify: NotificationService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {
     this.isJourneyReadOnly = this.authService.getSnapshotUser()?.role === 'TEACHER';
   }
@@ -4352,6 +4364,7 @@ export class JourneyManagementComponent implements OnInit {
           this.batches = r.batches || [];
           this.upcomingBatches = r.upcomingBatches || [];
           this.loading = false;
+          this.tryOpenBatchFromQuery();
         },
         error: (e) => {
           console.error(e);
@@ -4360,8 +4373,37 @@ export class JourneyManagementComponent implements OnInit {
       });
   }
 
+  /** Deep-link from Performance or bookmarks: /admin/journey?batch=BatchName */
+  private tryOpenBatchFromQuery(): void {
+    const raw = this.route.snapshot.queryParamMap.get('batch');
+    const tab = (this.route.snapshot.queryParamMap.get('tab') || '').trim().toLowerCase();
+    this.progressOnlyMode = this.route.snapshot.queryParamMap.get('progressOnly') === '1';
+    if (!raw) return;
+    const q = raw.trim();
+    if (!q) return;
+    const lower = q.toLowerCase();
+    const match = this.batches.find((b) => String(b.batchName || '').toLowerCase() === lower);
+    if (match) {
+      this.openBatch(match);
+      if (this.progressOnlyMode || tab === 'progress') {
+        setTimeout(() => this.openProgress(), 0);
+      }
+    }
+  }
+
   openAllStudentsPage(): void {
     this.router.navigate(['/admin/journey/all-students']);
+  }
+
+  openWeeklyStudentDetails(week: number): void {
+    const batchName = String(this.selectedBatch?.batchName || '').trim();
+    if (!batchName || !Number.isFinite(week) || week < 1) return;
+    this.router.navigate(['/admin/journey/weekly-students'], {
+      queryParams: {
+        batch: batchName,
+        week
+      }
+    });
   }
 
   startJourneyForSelected(): void {

@@ -89,10 +89,17 @@ import { MaterialModule } from '../../../shared/material.module';
       min="1"
       max="200"
       [(ngModel)]="filters.scheduleDay"
-      (change)="loadExercises()"
       class="filter-input day-filter-input"
       placeholder="Day 1–200"
     />
+    <button
+      *ngIf="filters.scheduleFilter === 'by_day'"
+      type="button"
+      class="btn-day-apply"
+      (click)="applyScheduleDayFilter()"
+    >
+      Apply
+    </button>
   </div>
 
   <!-- Bulk selection -->
@@ -545,6 +552,23 @@ import { MaterialModule } from '../../../shared/material.module';
       font-family: inherit;
     }
 
+    .btn-day-apply {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-day-apply:hover {
+      border-color: #005b96;
+      color: #005b96;
+      background: #f8fafc;
+    }
+
     .day-pill {
       display: inline-block;
       font-size: 11px;
@@ -800,6 +824,21 @@ export class DigitalExerciseManagementComponent implements OnInit {
   onScheduleFilterChange(): void {
     if (this.filters.scheduleFilter !== 'by_day') {
       this.filters.scheduleDay = null;
+      this.loadExercises();
+      return;
+    }
+    // For specific day mode, wait for explicit Apply click.
+  }
+
+  applyScheduleDayFilter(): void {
+    if (this.filters.scheduleFilter !== 'by_day') {
+      this.loadExercises();
+      return;
+    }
+    const d = parseInt(String(this.filters.scheduleDay), 10);
+    if (!Number.isFinite(d) || d < 1 || d > 200) {
+      this.showError('Enter a valid schedule day between 1 and 200');
+      return;
     }
     this.loadExercises();
   }

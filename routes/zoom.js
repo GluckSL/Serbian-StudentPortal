@@ -17,6 +17,50 @@ const { getJoinLogDataForMeeting } = require('../services/joinLogHelpers');
 const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
 const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 
+function buildManualAttendanceRecord({ attendee, existingRow, meetingDuration, joinLogPresent, mode, participant }) {
+  const safeDuration = Number.isFinite(Number(meetingDuration)) ? Number(meetingDuration) : 0;
+  const fallbackName = attendee?.name || existingRow?.name || '';
+  const fallbackEmail = attendee?.email || existingRow?.email || '';
+  const normalizedDurationMinutes = safeDuration > 0
+    ? safeDuration
+    : (Number.isFinite(Number(participant?.durationMinutes)) ? Math.max(0, Number(participant.durationMinutes)) : 0);
+  const normalizedDurationSeconds = normalizedDurationMinutes > 0
+    ? Math.round(normalizedDurationMinutes * 60)
+    : (Number.isFinite(Number(participant?.duration)) ? Math.max(0, Number(participant.duration)) : 0);
+  const attendancePercent = safeDuration > 0
+    ? Math.min(100, Math.round((normalizedDurationMinutes / safeDuration) * 100))
+    : 100;
+
+  return {
+    studentId: attendee.studentId,
+    name: fallbackName,
+    email: fallbackEmail,
+    attended: true,
+    confidence: 100,
+    finalConfidence: 100,
+    confidenceLevel: 'high',
+    matchMethod: mode === 'all' ? 'manual_mark_all' : 'manual_mark',
+    zoomName: participant?.name || existingRow?.zoomName || null,
+    zoomEmail: participant?.email || existingRow?.zoomEmail || null,
+    joinTime: participant?.joinTime || existingRow?.joinTime || null,
+    leaveTime: participant?.leaveTime || existingRow?.leaveTime || null,
+    duration: normalizedDurationSeconds,
+    durationMinutes: normalizedDurationMinutes,
+    attendancePercent,
+    status: 'attended',
+    needsReview: false,
+    clickedJoin: !!joinLogPresent,
+    appearedInZoom: !!(participant?.name || participant?.joinTime || existingRow?.appearedInZoom),
+    mismatchReason: null,
+    debugSummary: mode === 'all' ? 'Manually marked attended (mark all)' : 'Manually marked attended',
+    debug: {
+      portalName: fallbackName,
+      zoomName: participant?.name || existingRow?.zoomName || null,
+      matchMethod: mode === 'all' ? 'manual_mark_all' : 'manual_mark',
+    },
+  };
+}
+
 /**
  * Create a Zoom meeting with selected students
  * POST /api/zoom/create-meeting
@@ -1530,6 +1574,7 @@ router.get('/meeting/:meetingId/report', verifyToken, async (req, res) => {
  */
 router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     const { id } = req.params;
 
     const meeting = await MeetingLink.findById(id);
@@ -1557,7 +1602,8 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     try {
       console.log('🔍 Fetching Zoom report for meeting:', meeting.zoomMeetingId);
       zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
-        meetingUuid: meeting.zoomMeetingUuid
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
       });
       console.log('✅ Zoom report received:', {
         success: zoomReport.success,
@@ -1603,7 +1649,11 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     // Preserve teacher/admin manual Zoom↔student links across reloads (GET used to overwrite these every time)
     const manualByStudentId = new Map();
     for (const row of meeting.attendance || []) {
-      if (row && row.studentId && row.matchMethod === 'manual_map') {
+      if (
+        row &&
+        row.studentId &&
+        ['manual_map', 'manual_mark', 'manual_mark_all'].includes(row.matchMethod)
+      ) {
         manualByStudentId.set(row.studentId.toString(), row);
       }
     }
@@ -1794,7 +1844,10 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
 
     let zoomReport;
     try {
-      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
     } catch (error) {
       return res.status(400).json({ success: false, message: 'Could not fetch Zoom data' });
     }
@@ -1882,6 +1935,183 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
   } catch (error) {
     console.error('Error mapping participant:', error);
     res.status(500).json({ success: false, message: 'Failed to map participant' });
+  }
+});
+
+/**
+ * Manually mark one student as attended (fallback when Zoom report is incomplete)
+ * POST /api/zoom/meeting/:id/attendance/manual-mark
+ */
+router.post('/meeting/:id/attendance/manual-mark', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId, studentEmail } = req.body || {};
+
+    if (!studentId && !studentEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'studentId or studentEmail is required'
+      });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const normalizedEmail = String(studentEmail || '').trim().toLowerCase();
+    const attendee = meeting.attendees.find((a) =>
+      (studentId && a.studentId && a.studentId.toString() === String(studentId)) ||
+      (normalizedEmail && String(a.email || '').trim().toLowerCase() === normalizedEmail)
+    );
+
+    if (!attendee) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found in this meeting'
+      });
+    }
+
+    const existingIdx = (meeting.attendance || []).findIndex(
+      (a) => a.studentId && a.studentId.toString() === attendee.studentId.toString()
+    );
+    const existingRow = existingIdx >= 0 ? meeting.attendance[existingIdx] : null;
+
+    const joinLogRow = await JoinLog.findOne({
+      meetingId: meeting._id,
+      studentId: attendee.studentId,
+    })
+      .select('_id')
+      .lean();
+
+    let participant = null;
+    try {
+      const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
+      const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+      participant = (zoomReport.participants || []).find((p) =>
+        (p.email && attendee.email && norm(p.email) === norm(attendee.email)) ||
+        (p.name && attendee.name && norm(p.name) === norm(attendee.name))
+      ) || null;
+    } catch (error) {
+      participant = null;
+    }
+
+    const markedRecord = buildManualAttendanceRecord({
+      attendee,
+      existingRow: existingRow ? (existingRow.toObject ? existingRow.toObject() : existingRow) : null,
+      meetingDuration: meeting.duration || 60,
+      joinLogPresent: !!joinLogRow,
+      mode: 'single',
+      participant
+    });
+
+    if (existingIdx >= 0) {
+      meeting.attendance[existingIdx] = markedRecord;
+    } else {
+      meeting.attendance.push(markedRecord);
+    }
+
+    meeting.attendanceRecorded = true;
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual-mark):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${attendee.name} marked as attended`,
+      data: markedRecord
+    });
+  } catch (error) {
+    console.error('Error manually marking attendance:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark attendance' });
+  }
+});
+
+/**
+ * Manually mark all students as attended
+ * POST /api/zoom/meeting/:id/attendance/manual-mark-all
+ */
+router.post('/meeting/:id/attendance/manual-mark-all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const meeting = await MeetingLink.findById(id);
+
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const existingByStudent = new Map();
+    for (const row of meeting.attendance || []) {
+      if (row && row.studentId) {
+        existingByStudent.set(row.studentId.toString(), row.toObject ? row.toObject() : row);
+      }
+    }
+
+    const joinLogs = await JoinLog.find({ meetingId: meeting._id })
+      .select('studentId')
+      .lean();
+    const joinLogStudentIds = new Set(joinLogs.map((j) => String(j.studentId)));
+
+    let participants = [];
+    try {
+      const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
+      participants = Array.isArray(zoomReport.participants) ? zoomReport.participants : [];
+    } catch (error) {
+      participants = [];
+    }
+
+    const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+    const attendanceRows = meeting.attendees.map((attendee) => {
+      const existingRow = existingByStudent.get(attendee.studentId.toString()) || null;
+      const participant = participants.find((p) =>
+        (p.email && attendee.email && norm(p.email) === norm(attendee.email)) ||
+        (p.name && attendee.name && norm(p.name) === norm(attendee.name))
+      ) || null;
+
+      return buildManualAttendanceRecord({
+        attendee,
+        existingRow,
+        meetingDuration: meeting.duration || 60,
+        joinLogPresent: joinLogStudentIds.has(String(attendee.studentId)),
+        mode: 'all',
+        participant
+      });
+    });
+
+    meeting.attendance = attendanceRows;
+    meeting.attendanceRecorded = true;
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual-mark-all):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Marked all ${attendanceRows.length} students as attended`,
+      data: {
+        totalMarked: attendanceRows.length
+      }
+    });
+  } catch (error) {
+    console.error('Error marking all attendance:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark all attendance' });
   }
 });
 

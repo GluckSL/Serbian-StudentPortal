@@ -199,20 +199,68 @@ class ZoomService {
     }
   }
 
+  async getPastMeetingInstances(token, meetingId) {
+    try {
+      const response = await axios.get(
+        `${zoomConfig.apiBaseUrl}/past_meetings/${meetingId}/instances`,
+        { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 30 } }
+      );
+      const meetings = Array.isArray(response.data?.meetings) ? response.data.meetings : [];
+      return meetings
+        .filter((m) => m && m.uuid)
+        .map((m) => ({
+          uuid: String(m.uuid),
+          startTime: m.start_time ? new Date(m.start_time) : null,
+          endTime: m.end_time ? new Date(m.end_time) : null,
+          participantsCount: Number(m.participants_count || 0),
+        }));
+    } catch (error) {
+      return [];
+    }
+  }
+
   async getMeetingParticipants(meetingId, options = {}) {
     try {
       const token = await this.getAccessToken();
       const rawUuid = options.meetingUuid ? String(options.meetingUuid).trim() : '';
       const encodedUuid = rawUuid ? this.encodeUuidForZoom(rawUuid) : '';
+      const expectedStartMs = options.expectedStartTime
+        ? new Date(options.expectedStartTime).getTime()
+        : null;
+      const hasExpectedStart = Number.isFinite(expectedStartMs);
 
       const refsToTry = [];
       if (encodedUuid) refsToTry.push(encodedUuid);
-      refsToTry.push(String(meetingId).trim());
+      const meetingIdRef = String(meetingId).trim();
 
       let participants = [];
       let lastError = null;
+      const instances = await this.getPastMeetingInstances(token, meetingIdRef);
 
-      for (const ref of refsToTry) {
+      if (instances.length > 0) {
+        const sortedInstances = [...instances].sort((a, b) => {
+          if (hasExpectedStart) {
+            const aMs = a.startTime ? new Date(a.startTime).getTime() : null;
+            const bMs = b.startTime ? new Date(b.startTime).getTime() : null;
+            const aDiff = Number.isFinite(aMs) ? Math.abs(aMs - expectedStartMs) : Number.MAX_SAFE_INTEGER;
+            const bDiff = Number.isFinite(bMs) ? Math.abs(bMs - expectedStartMs) : Number.MAX_SAFE_INTEGER;
+            if (aDiff !== bDiff) return aDiff - bDiff;
+          }
+          const aCount = Number(a.participantsCount || 0);
+          const bCount = Number(b.participantsCount || 0);
+          return bCount - aCount;
+        });
+
+        for (const instance of sortedInstances) {
+          if (!instance.uuid) continue;
+          refsToTry.push(this.encodeUuidForZoom(instance.uuid));
+        }
+      }
+
+      refsToTry.push(meetingIdRef);
+      const uniqueRefs = [...new Set(refsToTry.filter(Boolean))];
+
+      for (const ref of uniqueRefs) {
         if (!ref) continue;
         try {
           participants = await this.fetchPastMeetingParticipants(token, ref);
@@ -234,6 +282,57 @@ class ZoomService {
           } catch (error) {
             lastError = error;
           }
+        }
+      }
+
+      // Zoom sometimes returns an incomplete participant list for a meeting ID/instance.
+      // If we got 0-1 participants, probe all past instances and select the richest dataset.
+      if (participants.length <= 1) {
+        if (instances.length > 0) {
+          let bestParticipants = participants;
+          let bestScore = participants.length * 100000 + participants.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
+          let bestWithinWindowParticipants = null;
+          let bestWithinWindowScore = -1;
+
+          for (const instance of instances) {
+            if (!instance.uuid) continue;
+            try {
+              const instanceParticipants = await this.fetchPastMeetingParticipants(
+                token,
+                this.encodeUuidForZoom(instance.uuid)
+              );
+              const countScore = instanceParticipants.length * 100000;
+              const durationScore = instanceParticipants.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
+              const combinedScore = countScore + durationScore;
+
+              if (hasExpectedStart) {
+                const instanceStartMs = instance.startTime ? new Date(instance.startTime).getTime() : null;
+                const withinWindow =
+                  Number.isFinite(instanceStartMs) &&
+                  Math.abs(instanceStartMs - expectedStartMs) <= 24 * 60 * 60 * 1000;
+                if (withinWindow && instanceParticipants.length > 0) {
+                  if (combinedScore > bestWithinWindowScore) {
+                    bestWithinWindowScore = combinedScore;
+                    bestWithinWindowParticipants = instanceParticipants;
+                  }
+                }
+              }
+
+              if (combinedScore > bestScore) {
+                bestScore = combinedScore;
+                bestParticipants = instanceParticipants;
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+
+          if (bestWithinWindowParticipants && bestWithinWindowParticipants.length > 0) {
+            participants = bestWithinWindowParticipants;
+          } else {
+            participants = bestParticipants;
+          }
+
         }
       }
 

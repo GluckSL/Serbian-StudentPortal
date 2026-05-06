@@ -12,7 +12,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
 interface BuilderQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word' | 'rearrange';
+  type: 'mcq' | 'matching' | 'fill-blank' | 'word_bank_fill' | 'pronunciation' | 'question-answer' | 'listening' | 'video-pronunciation' | 'singular_plural' | 'jumble-word' | 'rearrange';
   worksheetKind?: string | null;
   context?: string;
   // MCQ
@@ -33,6 +33,10 @@ interface BuilderQuestion {
   answers?: string[];
   hint?: string;
   caseSensitive?: boolean;
+  // Word bank fill
+  wordBank?: string[];
+  items?: Array<{ prompt: string; answer: string }>;
+  reusableWords?: boolean;
   // Pronunciation
   word?: string;
   phonetic?: string;
@@ -143,6 +147,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     { value: 'mcq',             label: 'Multiple Choice',   icon: 'quiz',              description: 'Options with one correct answer. Supports images.' },
     { value: 'matching',        label: 'Matching Exercise',  icon: 'compare_arrows',    description: 'Match left items with right items.' },
     { value: 'fill-blank',      label: 'Fill in the Blanks', icon: 'text_fields',       description: 'Sentences with _ or ___ blanks to fill in.' },
+    { value: 'word_bank_fill',  label: 'Word Bank Fill',      icon: 'format_list_bulleted', description: 'Shared word bank with multiple blank prompts.' },
     { value: 'pronunciation',   label: 'Pronunciation Check',icon: 'record_voice_over', description: 'Student speaks a word/phrase; system checks pronunciation.' },
     { value: 'question-answer', label: 'Question / Answer',  icon: 'short_text',        description: 'Student reads the question and types a free-text answer.' },
     { value: 'listening',       label: 'Listening',          icon: 'headphones',         description: 'Student listens to audio and types the correct answer.' },
@@ -258,6 +263,15 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         hint: q.hint || '',
         caseSensitive: q.caseSensitive || false
       });
+    } else if ((q.type as any) === 'word_bank_fill') {
+      Object.assign(base, {
+        wordBank: Array.isArray(q.wordBank) ? q.wordBank.map((w: any) => String(w || '').trim()) : [],
+        items: Array.isArray(q.items) ? q.items.map((it: any) => ({
+          prompt: String(it?.prompt || ''),
+          answer: String(it?.answer || '')
+        })) : [{ prompt: '', answer: '' }],
+        reusableWords: q.reusableWords !== false
+      });
     } else if (q.type === 'pronunciation') {
       Object.assign(base, {
         word: q.word || '',
@@ -368,6 +382,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.answers = [''];
       q.hint = '';
       q.caseSensitive = false;
+    } else if ((qType as any) === 'word_bank_fill') {
+      q.wordBank = ['', '', '', ''];
+      q.items = [{ prompt: '', answer: '' }, { prompt: '', answer: '' }];
+      q.reusableWords = true;
     } else if (qType === 'pronunciation') {
       q.word = '';
       q.phonetic = '';
@@ -446,6 +464,22 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     else q.pairs!.push({ left: '', right: '' });
   }
   removePair(q: BuilderQuestion, i: number): void { q.pairs!.splice(i, 1); }
+  addWordBankWord(q: BuilderQuestion): void {
+    if (!Array.isArray(q.wordBank)) q.wordBank = [];
+    q.wordBank.push('');
+  }
+  removeWordBankWord(q: BuilderQuestion, i: number): void {
+    if (!Array.isArray(q.wordBank)) return;
+    q.wordBank.splice(i, 1);
+  }
+  addWordBankItem(q: BuilderQuestion): void {
+    if (!Array.isArray(q.items)) q.items = [];
+    q.items.push({ prompt: '', answer: '' });
+  }
+  removeWordBankItem(q: BuilderQuestion, i: number): void {
+    if (!Array.isArray(q.items)) return;
+    q.items.splice(i, 1);
+  }
 
   // Fill-blank helpers
   onSentenceChange(q: BuilderQuestion): void {
@@ -623,6 +657,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
     if (q.type === 'fill-blank' && q.answers?.length) {
       return q.answers.join(', ');
+    }
+    if ((q.type as any) === 'word_bank_fill' && q.items?.length) {
+      return q.items
+        .filter((it) => String(it?.prompt || '').trim() && String(it?.answer || '').trim())
+        .map((it) => `${it.prompt} → ${it.answer}`)
+        .join(' | ');
     }
     if (q.type === 'singular_plural' && q.pairs?.length) {
       return q.pairs
@@ -865,6 +905,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       return rows.length >= 1;
     }
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
+    if ((q.type as any) === 'word_bank_fill') {
+      const words = (q.wordBank || []).map((w) => String(w || '').trim()).filter(Boolean);
+      const rows = (q.items || []).filter((it) => String(it?.prompt || '').trim() && String(it?.answer || '').trim());
+      return words.length >= 2 && rows.length >= 1;
+    }
     if (q.type === 'pronunciation') return !!(q.word?.trim());
     if (q.type === 'question-answer') return !!(q.prompt?.trim());
     if (q.type === 'listening') return this.hasListeningAudio(q) && !!(q.expectedTranscript?.trim());
@@ -932,6 +977,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           left: String(p.left || '').trim(),
           right: String(p.right || '').trim()
         }));
+      }
+      if ((q.type as any) === 'word_bank_fill') {
+        row.wordBank = (q.wordBank || []).map((w) => String(w || '').trim()).filter(Boolean);
+        row.items = (q.items || [])
+          .map((item) => ({
+            prompt: String(item?.prompt || '').trim(),
+            answer: String(item?.answer || '').trim()
+          }))
+          .filter((item) => item.prompt && item.answer);
+        row.reusableWords = q.reusableWords !== false;
       }
       if ((q.type as any) === 'rearrange') {
         const tokensRaw = String((q as any).rearrangeTokens || '');

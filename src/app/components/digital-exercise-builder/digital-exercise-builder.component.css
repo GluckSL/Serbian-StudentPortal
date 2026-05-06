@@ -1084,6 +1084,7 @@ textarea.field-input.field-input--desc {
 .badge-mcq { background: #e8f4fd; color: #1976d2; }
 .badge-matching { background: #f3e5f5; color: #7b1fa2; }
 .badge-fill-blank { background: #e8f5e9; color: #388e3c; }
+.badge-word_bank_fill { background: #e0f2fe; color: #0369a1; }
 .badge-pronunciation { background: #fff3e0; color: #e65100; }
 .badge-question-answer { background: #e0f2f1; color: #0f766e; }
 .badge-listening { background: #fef3c7; color: #b45309; }
@@ -1278,6 +1279,9 @@ textarea.field-input.field-input--desc {
   grid-template-columns: 1fr 24px 1fr auto;
   gap: 8px;
   align-items: center;
+}
+.word-bank-item-row {
+  margin-bottom: 8px;
 }
 .pair-input {
   padding: 8px 12px;

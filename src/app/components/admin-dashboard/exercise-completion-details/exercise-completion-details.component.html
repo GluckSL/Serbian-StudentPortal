@@ -41,8 +41,24 @@
 
     <!-- Student Details -->
     <section class="section">
-      <h2><span class="material-icons">people</span> Students & Attempts</h2>
-      <p class="section-desc">Who took this exercise and how many times</p>
+      <div class="section-head-row">
+        <div>
+          <h2><span class="material-icons">people</span> Students & Attempts</h2>
+          <p class="section-desc">Who took this exercise and how many times</p>
+        </div>
+        <div class="section-actions">
+          <label class="batch-filter">
+            <span>Batch</span>
+            <select [(ngModel)]="selectedBatch" (ngModelChange)="onBatchChange()">
+              <option value="all">All batches</option>
+              <option *ngFor="let b of batchOptions" [value]="b">{{ b }}</option>
+            </select>
+          </label>
+          <button type="button" class="btn-export" (click)="exportStudentSummaryCsv()">
+            <span class="material-icons">download</span> Export
+          </button>
+        </div>
+      </div>
       <div class="table-wrap" *ngIf="hasStudentSummaries">
         <table class="data-table">
           <thead>

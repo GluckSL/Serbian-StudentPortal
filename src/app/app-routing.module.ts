@@ -248,6 +248,8 @@ export const routes: Routes = [
 
   // Admin Student Progress Overview
   { path: 'admin/student-progress', loadComponent: () => import('./components/admin-dashboard/admin-progress/admin-progress.component').then(m => m.AdminProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/performance', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/performance/student/:studentId', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
@@ -266,6 +268,7 @@ export const routes: Routes = [
   // Journey Management
   { path: 'admin/journey/go/:studentId', loadComponent: () => import('./components/admin-dashboard/go-student-journey-detail/go-student-journey-detail.component').then(m => m.GoStudentJourneyDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/journey/all-students', loadComponent: () => import('./components/admin-dashboard/journey-all-students/journey-all-students.component').then(m => m.JourneyAllStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/journey/weekly-students', loadComponent: () => import('./components/admin-dashboard/journey-weekly-students/journey-weekly-students.component').then(m => m.JourneyWeeklyStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/journey', loadComponent: () => import('./components/admin-dashboard/journey-management/journey-management.component').then(m => m.JourneyManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/go-students', loadComponent: () => import('./components/admin-dashboard/go-students/go-students-journey.component').then(m => m.GoStudentsJourneyComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 

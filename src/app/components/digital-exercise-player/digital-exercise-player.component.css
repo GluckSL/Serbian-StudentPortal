@@ -1438,6 +1438,105 @@
   font-weight: 600;
 }
 
+.word-bank-fill-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.word-bank-box {
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.word-bank-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.word-bank-pill {
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.word-bank-pill:hover { background: #dbeafe; }
+.word-bank-pill.used {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.word-bank-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.word-bank-item-row {
+  border: 1px solid #eef2ff;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.word-bank-prompt {
+  margin-bottom: 8px;
+  color: #1f2937;
+}
+
+.word-bank-answer-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.word-bank-clear-btn {
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.word-bank-clear-btn .material-icons {
+  font-size: 16px;
+}
+
+.word-bank-clear-btn:hover {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
+}
+.word-bank-dropzone {
+  border: 1px dashed #dbeafe;
+  border-radius: 10px;
+  padding: 8px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.word-bank-dropzone.cdk-drop-list-dragging {
+  border-color: #60a5fa;
+  background: #f0f9ff;
+}
+
+.word-bank-answer-input.active {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.word-bank-pill.cdk-drag-preview {
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(30, 64, 175, 0.25);
+}
+
 .hint-label {
   display: flex;
   align-items: center;

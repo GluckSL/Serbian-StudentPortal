@@ -10,6 +10,7 @@ export type QuestionType =
   | 'mcq'
   | 'matching'
   | 'fill-blank'
+  | 'word_bank_fill'
   | 'pronunciation'
   | 'question-answer'
   | 'listening'
@@ -62,6 +63,15 @@ export interface FillBlankQuestion extends QuestionCommonFields {
   answers?: string[]; // hidden from students during play
   hint?: string;
   caseSensitive?: boolean;
+  points: number;
+}
+
+export interface WordBankFillQuestion extends QuestionCommonFields {
+  type: 'word_bank_fill';
+  _id?: string;
+  wordBank: string[];
+  items: Array<{ prompt: string; answer?: string }>;
+  reusableWords?: boolean;
   points: number;
 }
 
@@ -158,6 +168,7 @@ export type ExerciseQuestion = (
   | MCQQuestion
   | MatchingQuestion
   | FillBlankQuestion
+  | WordBankFillQuestion
   | PronunciationQuestion
   | QuestionAnswerQuestion
   | SingularPluralQuestion
@@ -284,6 +295,7 @@ export interface QuestionResponse {
   selectedOptionIndex?: number;
   matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
   fillBlankResponses?: string[];
+  wordBankAnswers?: Array<{ index: number; value: string }>;
   singularPluralResponses?: string[];
   spokenText?: string;
   pronunciationScore?: number;
@@ -666,6 +678,7 @@ export class DigitalExerciseService {
       mcq: 'Multiple Choice',
       matching: 'Matching Exercise',
       'fill-blank': 'Fill in the Blanks',
+      word_bank_fill: 'Word Bank Fill',
       pronunciation: 'Pronunciation Check',
       'question-answer': 'Question / Answer',
       singular_plural: 'Singular / Plural',
@@ -682,6 +695,7 @@ export class DigitalExerciseService {
       mcq: 'quiz',
       matching: 'compare_arrows',
       'fill-blank': 'text_fields',
+      word_bank_fill: 'format_list_bulleted',
       pronunciation: 'record_voice_over',
       'question-answer': 'short_text',
       singular_plural: 'swap_horiz',

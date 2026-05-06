@@ -81,7 +81,7 @@ const meetingLinkSchema = new mongoose.Schema({
     debugSummary: { type: String },
     matchMethod: { 
       type: String, 
-      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map', 'initials_name', 'join_log_time', 'ambiguous'], 
+      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map', 'manual_mark', 'manual_mark_all', 'initials_name', 'join_log_time', 'ambiguous'], 
       default: 'no_match' 
     },
     zoomName: String, // Name displayed in Zoom

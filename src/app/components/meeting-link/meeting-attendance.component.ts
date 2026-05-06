@@ -58,7 +58,13 @@ import { ZoomService } from '../../services/zoom.service';
       <div *ngIf="attendanceData && !loading && !error">
         <!-- Meeting Info -->
         <mat-card class="meeting-info-card">
-          <h3>{{ attendanceData.topic }}</h3>
+          <div class="meeting-info-header">
+            <h3>{{ attendanceData.topic }}</h3>
+            <button mat-stroked-button color="primary" (click)="refetchAttendance()" [disabled]="refetching || loading">
+              <mat-icon>{{ refetching ? 'hourglass_empty' : 'refresh' }}</mat-icon>
+              {{ refetching ? 'Re-fetching...' : 'Re-fetch from Zoom' }}
+            </button>
+          </div>
           <div class="meeting-details">
             <div class="detail-item">
               <mat-icon>event</mat-icon>
@@ -102,6 +108,12 @@ import { ZoomService } from '../../services/zoom.service';
           </mat-card>
         </div>
 
+        <div *ngIf="mapMessage" class="map-message" [class.map-success]="mapSuccess" [class.map-error]="!mapSuccess">
+          <mat-icon>{{ mapSuccess ? 'check_circle' : 'error' }}</mat-icon>
+          <span>{{ mapMessage }}</span>
+          <button mat-icon-button (click)="mapMessage = ''"><mat-icon>close</mat-icon></button>
+        </div>
+
         <!-- Tabs: Matched Students / All Zoom Participants -->
         <mat-tab-group class="attendance-tabs" [(selectedIndex)]="selectedTab" animationDuration="200ms">
 
@@ -137,7 +149,17 @@ import { ZoomService } from '../../services/zoom.service';
 
             <!-- Attendance Table -->
             <mat-card class="table-card">
-              <h3>Detailed Attendance</h3>
+              <div class="attendance-header-row">
+                <h3>Detailed Attendance</h3>
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  (click)="markAllStudentsAttended()"
+                  [disabled]="manualMarkingAll || !hasAbsentStudents()">
+                  <mat-icon>{{ manualMarkingAll ? 'hourglass_empty' : 'done_all' }}</mat-icon>
+                  {{ manualMarkingAll ? 'Marking...' : 'Mark All' }}
+                </button>
+              </div>
               <table mat-table [dataSource]="attendanceData.attendance" class="attendance-table">
                 <ng-container matColumnDef="name">
                   <th mat-header-cell *matHeaderCellDef>Student Name</th>
@@ -219,6 +241,20 @@ import { ZoomService } from '../../services/zoom.service';
                   </td>
                 </ng-container>
 
+                <ng-container matColumnDef="manualMark">
+                  <th mat-header-cell *matHeaderCellDef>Manual Mark</th>
+                  <td mat-cell *matCellDef="let record">
+                    <button
+                      mat-stroked-button
+                      color="primary"
+                      (click)="markStudentAttended(record)"
+                      [disabled]="isMarkingStudent(record) || isAttendedByDuration(record)">
+                      <mat-icon>{{ isMarkingStudent(record) ? 'hourglass_empty' : 'check_circle' }}</mat-icon>
+                      {{ isAttendedByDuration(record) ? 'Marked' : (isMarkingStudent(record) ? 'Marking...' : 'Mark') }}
+                    </button>
+                  </td>
+                </ng-container>
+
                 <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
                 <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
               </table>
@@ -236,13 +272,6 @@ import { ZoomService } from '../../services/zoom.service';
               <div class="all-participants-header">
                 <h3>All Zoom Participants</h3>
                 <p class="subtitle">Everyone who joined this Zoom meeting, including unmatched participants. Use the "Mark Student" button to manually link a participant to a batch student.</p>
-              </div>
-
-              <!-- Success/Error message -->
-              <div *ngIf="mapMessage" class="map-message" [class.map-success]="mapSuccess" [class.map-error]="!mapSuccess">
-                <mat-icon>{{ mapSuccess ? 'check_circle' : 'error' }}</mat-icon>
-                <span>{{ mapMessage }}</span>
-                <button mat-icon-button (click)="mapMessage = ''"><mat-icon>close</mat-icon></button>
               </div>
 
               <table mat-table [dataSource]="attendanceData.allParticipants" class="attendance-table">
@@ -417,6 +446,14 @@ import { ZoomService } from '../../services/zoom.service';
       color: #1976d2;
     }
 
+    .meeting-info-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .meeting-details {
       display: flex;
       gap: 30px;
@@ -484,6 +521,14 @@ import { ZoomService } from '../../services/zoom.service';
 
     .table-card h3 {
       margin: 0 0 20px 0;
+    }
+
+    .attendance-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
     }
 
     .attendance-table {
@@ -702,7 +747,7 @@ export class MeetingAttendanceComponent implements OnInit {
   error: string = '';
   selectedTab: number = 0;
   
-  displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration'];
+  displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration', 'manualMark'];
   participantColumns: string[] = ['pName', 'pEmail', 'pJoinTime', 'pLeaveTime', 'pDuration', 'pMapped', 'pAction'];
 
   // Mapping state
@@ -711,6 +756,9 @@ export class MeetingAttendanceComponent implements OnInit {
   mappingLoading: boolean = false;
   mapMessage: string = '';
   mapSuccess: boolean = false;
+  manualMarkingStudentId: string = '';
+  manualMarkingAll: boolean = false;
+  refetching: boolean = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -743,6 +791,31 @@ export class MeetingAttendanceComponent implements OnInit {
         console.error('Error loading attendance:', err);
         this.error = err.error?.message || 'Failed to load attendance data';
         this.loading = false;
+      }
+    });
+  }
+
+  refetchAttendance(): void {
+    if (!this.meetingId || this.refetching || this.loading) return;
+    this.refetching = true;
+    this.mapMessage = '';
+
+    this.zoomService.refetchAttendance(this.meetingId).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.attendanceData = response.data;
+          this.mapSuccess = true;
+          this.mapMessage = 'Attendance re-fetched from Zoom and remapped successfully.';
+        } else {
+          this.mapSuccess = false;
+          this.mapMessage = response.message || 'Failed to re-fetch attendance from Zoom.';
+        }
+        this.refetching = false;
+      },
+      error: (err) => {
+        this.mapSuccess = false;
+        this.mapMessage = err.error?.message || 'Failed to re-fetch attendance from Zoom.';
+        this.refetching = false;
       }
     });
   }
@@ -793,6 +866,58 @@ export class MeetingAttendanceComponent implements OnInit {
     const pMinutes = Number(p?.durationMinutes || 0);
     if (totalMinutes <= 0) return 0;
     return Math.max(0, Math.min(100, Math.round((pMinutes / totalMinutes) * 100)));
+  }
+
+  markStudentAttended(record: any): void {
+    if (!record || this.isAttendedByDuration(record) || !this.meetingId) return;
+    const sid = String(record.studentId || '');
+    this.manualMarkingStudentId = sid;
+    this.mapMessage = '';
+
+    this.zoomService.manualMarkAttendance(this.meetingId, {
+      studentId: sid || undefined,
+      studentEmail: record.email
+    }).subscribe({
+      next: (res) => {
+        this.mapSuccess = true;
+        this.mapMessage = res.message || `${record.name} marked as attended`;
+        this.manualMarkingStudentId = '';
+        this.loadAttendance();
+      },
+      error: (err) => {
+        this.mapSuccess = false;
+        this.mapMessage = err.error?.message || 'Failed to manually mark student attendance';
+        this.manualMarkingStudentId = '';
+      }
+    });
+  }
+
+  markAllStudentsAttended(): void {
+    if (!this.meetingId || this.manualMarkingAll || !this.hasAbsentStudents()) return;
+    this.manualMarkingAll = true;
+    this.mapMessage = '';
+
+    this.zoomService.manualMarkAllAttendance(this.meetingId).subscribe({
+      next: (res) => {
+        this.mapSuccess = true;
+        this.mapMessage = res.message || 'All students marked as attended';
+        this.manualMarkingAll = false;
+        this.loadAttendance();
+      },
+      error: (err) => {
+        this.mapSuccess = false;
+        this.mapMessage = err.error?.message || 'Failed to mark all students as attended';
+        this.manualMarkingAll = false;
+      }
+    });
+  }
+
+  hasAbsentStudents(): boolean {
+    return (this.attendanceData?.attendance || []).some((r: any) => !this.isAttendedByDuration(r));
+  }
+
+  isMarkingStudent(record: any): boolean {
+    return this.manualMarkingStudentId !== '' && String(record?.studentId || '') === this.manualMarkingStudentId;
   }
 
   // --- Existing methods ---

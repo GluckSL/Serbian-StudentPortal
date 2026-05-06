@@ -162,10 +162,15 @@ export class ZoomService {
    * Get meeting attendance report
    * @param meetingId - Database meeting ID
    */
-  getAttendance(meetingId: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/meeting/${meetingId}/attendance`, {
+  getAttendance(meetingId: string, forceRefresh: boolean = false): Observable<any> {
+    const refreshParam = forceRefresh ? `?refreshTs=${Date.now()}` : '';
+    return this.http.get(`${this.apiUrl}/meeting/${meetingId}/attendance${refreshParam}`, {
       withCredentials: true
     });
+  }
+
+  refetchAttendance(meetingId: string): Observable<any> {
+    return this.getAttendance(meetingId, true);
   }
 
   /**
@@ -284,6 +289,18 @@ export class ZoomService {
    */
   mapParticipantToStudent(meetingId: string, data: { participantName: string; participantEmail: string; studentEmail: string }): Observable<any> {
     return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/map-participant`, data, {
+      withCredentials: true
+    });
+  }
+
+  manualMarkAttendance(meetingId: string, data: { studentId?: string; studentEmail?: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/manual-mark`, data, {
+      withCredentials: true
+    });
+  }
+
+  manualMarkAllAttendance(meetingId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/manual-mark-all`, {}, {
       withCredentials: true
     });
   }
