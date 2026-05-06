@@ -21,12 +21,12 @@ function buildManualAttendanceRecord({ attendee, existingRow, meetingDuration, j
   const safeDuration = Number.isFinite(Number(meetingDuration)) ? Number(meetingDuration) : 0;
   const fallbackName = attendee?.name || existingRow?.name || '';
   const fallbackEmail = attendee?.email || existingRow?.email || '';
-  const participantDurationMinutes = participant?.durationMinutes != null
-    ? Number(participant.durationMinutes)
-    : safeDuration;
-  const normalizedDurationMinutes = Number.isFinite(participantDurationMinutes)
-    ? Math.max(0, participantDurationMinutes)
-    : safeDuration;
+  const normalizedDurationMinutes = safeDuration > 0
+    ? safeDuration
+    : (Number.isFinite(Number(participant?.durationMinutes)) ? Math.max(0, Number(participant.durationMinutes)) : 0);
+  const normalizedDurationSeconds = normalizedDurationMinutes > 0
+    ? Math.round(normalizedDurationMinutes * 60)
+    : (Number.isFinite(Number(participant?.duration)) ? Math.max(0, Number(participant.duration)) : 0);
   const attendancePercent = safeDuration > 0
     ? Math.min(100, Math.round((normalizedDurationMinutes / safeDuration) * 100))
     : 100;
@@ -44,7 +44,7 @@ function buildManualAttendanceRecord({ attendee, existingRow, meetingDuration, j
     zoomEmail: participant?.email || existingRow?.zoomEmail || null,
     joinTime: participant?.joinTime || existingRow?.joinTime || null,
     leaveTime: participant?.leaveTime || existingRow?.leaveTime || null,
-    duration: participant?.duration != null ? participant.duration : (existingRow?.duration ?? 0),
+    duration: normalizedDurationSeconds,
     durationMinutes: normalizedDurationMinutes,
     attendancePercent,
     status: 'attended',
@@ -1602,7 +1602,8 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     try {
       console.log('🔍 Fetching Zoom report for meeting:', meeting.zoomMeetingId);
       zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
-        meetingUuid: meeting.zoomMeetingUuid
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
       });
       console.log('✅ Zoom report received:', {
         success: zoomReport.success,
@@ -1843,7 +1844,10 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
 
     let zoomReport;
     try {
-      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
     } catch (error) {
       return res.status(400).json({ success: false, message: 'Could not fetch Zoom data' });
     }
@@ -1983,7 +1987,8 @@ router.post('/meeting/:id/attendance/manual-mark', verifyToken, checkRole(['ADMI
     let participant = null;
     try {
       const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
-        meetingUuid: meeting.zoomMeetingUuid
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
       });
       const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
       participant = (zoomReport.participants || []).find((p) =>
@@ -2059,7 +2064,8 @@ router.post('/meeting/:id/attendance/manual-mark-all', verifyToken, checkRole(['
     let participants = [];
     try {
       const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
-        meetingUuid: meeting.zoomMeetingUuid
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
       });
       participants = Array.isArray(zoomReport.participants) ? zoomReport.participants : [];
     } catch (error) {

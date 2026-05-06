@@ -108,6 +108,12 @@ import { ZoomService } from '../../services/zoom.service';
           </mat-card>
         </div>
 
+        <div *ngIf="mapMessage" class="map-message" [class.map-success]="mapSuccess" [class.map-error]="!mapSuccess">
+          <mat-icon>{{ mapSuccess ? 'check_circle' : 'error' }}</mat-icon>
+          <span>{{ mapMessage }}</span>
+          <button mat-icon-button (click)="mapMessage = ''"><mat-icon>close</mat-icon></button>
+        </div>
+
         <!-- Tabs: Matched Students / All Zoom Participants -->
         <mat-tab-group class="attendance-tabs" [(selectedIndex)]="selectedTab" animationDuration="200ms">
 
@@ -266,13 +272,6 @@ import { ZoomService } from '../../services/zoom.service';
               <div class="all-participants-header">
                 <h3>All Zoom Participants</h3>
                 <p class="subtitle">Everyone who joined this Zoom meeting, including unmatched participants. Use the "Mark Student" button to manually link a participant to a batch student.</p>
-              </div>
-
-              <!-- Success/Error message -->
-              <div *ngIf="mapMessage" class="map-message" [class.map-success]="mapSuccess" [class.map-error]="!mapSuccess">
-                <mat-icon>{{ mapSuccess ? 'check_circle' : 'error' }}</mat-icon>
-                <span>{{ mapMessage }}</span>
-                <button mat-icon-button (click)="mapMessage = ''"><mat-icon>close</mat-icon></button>
               </div>
 
               <table mat-table [dataSource]="attendanceData.allParticipants" class="attendance-table">
