@@ -60,11 +60,11 @@
       </div>
 
       <div class="form-field form-field--wide">
-        <label>File</label>
+        <label>Files <span class="required">*</span> <span class="hint-inline">(audio, video, PDF, images, docs — any type, max 50 MB each, up to 20 files)</span></label>
         <div class="file-picker">
-          <input id="resource-file" type="file" (change)="onFileSelected($event)" />
-          <label class="file-btn" for="resource-file">Choose file</label>
-          <span class="file-name">{{ selectedFileName }}</span>
+          <input id="resource-file" type="file" multiple (change)="onFileSelected($event)" />
+          <label class="file-btn" for="resource-file">Choose files</label>
+          <span class="file-name">{{ selectedFileNames }}</span>
         </div>
       </div>
     </div>
@@ -248,7 +248,24 @@
         <button class="close-btn" type="button" (click)="closePreview()">Close</button>
       </div>
     </div>
+
+    <div *ngIf="activePreviewIsAudio" class="preview-audio-wrap">
+      <audio controls [src]="activePreviewRawUrl" style="width:100%;max-width:600px;">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+
+    <video
+      *ngIf="activePreviewIsVideo"
+      controls
+      [src]="activePreviewRawUrl"
+      style="max-width:100%;max-height:calc(100vh - 60px);"
+    >
+      Your browser does not support the video element.
+    </video>
+
     <iframe
+      *ngIf="!activePreviewIsAudio && !activePreviewIsVideo"
       [src]="activePreviewUrl"
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
       title="Resource preview"

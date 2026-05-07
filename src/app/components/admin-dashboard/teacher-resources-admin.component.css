@@ -293,6 +293,35 @@ textarea:focus {
   border-radius: 10px;
 }
 
+.preview-audio-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 20px;
+}
+
+.preview-audio-wrap audio {
+  width: 100%;
+  max-width: 640px;
+  border-radius: 8px;
+}
+
+.preview-overlay video {
+  flex: 1;
+  width: 100%;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #000;
+}
+
+.hint-inline {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
 @media (max-width: 900px) {
   .form-grid {
     grid-template-columns: 1fr;

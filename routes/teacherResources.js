@@ -5,7 +5,7 @@ const { DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const s3Client = require('../config/s3');
 const TeacherResource = require('../models/TeacherResource');
 const User = require('../models/User');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const { presignStoredS3Url, presignS3InlineUrl } = require('../config/presign');
 
 const router = express.Router();
@@ -25,6 +25,7 @@ const upload = multer({
 });
 
 const uploadSingle = upload.single('file');
+const uploadMultiple = upload.array('files', 20);
 
 function toSortedUniqueStringList(values) {
   return Array.from(
@@ -41,14 +42,14 @@ router.post(
   verifyToken,
   checkRole(['ADMIN', 'TEACHER_ADMIN']),
   (req, res, next) => {
-    uploadSingle(req, res, (err) => {
+    uploadMultiple(req, res, (err) => {
       if (!err) return next();
       const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
       return res.status(status).json({ success: false, message: err.message || 'Upload failed' });
     });
   },
   async (req, res) => {
-    let uploadedKey = null;
+    const uploadedKeys = [];
     try {
       const {
         teacherId,
@@ -64,8 +65,10 @@ router.post(
       if (!teacherId || !title || !day) {
         return res.status(400).json({ success: false, message: 'teacherId, title and day are required' });
       }
-      if (!req.file) {
-        return res.status(400).json({ success: false, message: 'File is required' });
+
+      const files = req.files && req.files.length > 0 ? req.files : req.file ? [req.file] : [];
+      if (files.length === 0) {
+        return res.status(400).json({ success: false, message: 'At least one file is required' });
       }
 
       const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).lean();
@@ -73,35 +76,48 @@ router.post(
         return res.status(404).json({ success: false, message: 'Teacher not found' });
       }
 
-      uploadedKey = req.file.key || null;
-      const doc = await TeacherResource.create({
-        teacherId,
-        title: String(title).trim(),
-        day: String(day).trim(),
-        batch: String(batch || '').trim(),
-        level: String(level || '').trim(),
-        plan: String(plan || '').trim(),
-        resourceType: String(resourceType || '').trim(),
-        topic: String(topic || '').trim(),
-        description: String(description || '').trim(),
-        fileName: req.file.key || req.file.filename,
-        originalName: req.file.originalname,
-        fileUrl: req.file.location || req.file.path,
-        mimeType: req.file.mimetype,
-        fileSize: req.file.size,
-        uploadedBy: req.user.id
-      });
+      for (const f of files) {
+        if (f.key) uploadedKeys.push(f.key);
+      }
 
-      const out = doc.toObject();
-      out.fileUrl = await presignStoredS3Url(out.fileName, out.fileUrl);
+      const docs = await Promise.all(
+        files.map((f) =>
+          TeacherResource.create({
+            teacherId,
+            title: String(title).trim(),
+            day: String(day).trim(),
+            batch: String(batch || '').trim(),
+            level: String(level || '').trim(),
+            plan: String(plan || '').trim(),
+            resourceType: String(resourceType || '').trim(),
+            topic: String(topic || '').trim(),
+            description: String(description || '').trim(),
+            fileName: f.key || f.filename,
+            originalName: f.originalname,
+            fileUrl: f.location || f.path,
+            mimeType: f.mimetype,
+            fileSize: f.size,
+            uploadedBy: req.user.id
+          })
+        )
+      );
+
+      const out = await Promise.all(
+        docs.map(async (doc) => {
+          const o = doc.toObject();
+          o.fileUrl = await presignStoredS3Url(o.fileName, o.fileUrl);
+          return o;
+        })
+      );
+
       res.status(201).json({ success: true, data: out });
     } catch (err) {
-      if (uploadedKey && process.env.S3_BUCKET) {
-        try {
-          await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: uploadedKey }));
-        } catch (_) {
-          // best effort rollback
-        }
+      if (uploadedKeys.length && process.env.S3_BUCKET) {
+        await Promise.allSettled(
+          uploadedKeys.map((key) =>
+            s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }))
+          )
+        );
       }
       console.error('teacherResources upload error:', err);
       res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
@@ -182,7 +198,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
   }
 });
 
-router.get('/:id/preview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+router.get('/:id/preview', verifyMediaToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const row = await TeacherResource.findById(req.params.id).lean();
     if (!row) return res.status(404).json({ success: false, message: 'Resource not found' });

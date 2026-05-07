@@ -23,7 +23,10 @@ export class TeacherResourcesComponent implements OnInit {
   filterLevels: string[] = [];
   filterPlans: string[] = [];
   activePreviewUrl: SafeResourceUrl | null = null;
+  activePreviewRawUrl = '';
   activePreviewTitle = '';
+  activePreviewIsAudio = false;
+  activePreviewIsVideo = false;
 
   constructor(
     private teacherResourcesService: TeacherResourcesService,
@@ -113,16 +116,29 @@ export class TeacherResourcesComponent implements OnInit {
 
     this.activePreviewTitle = item.title;
     this.activePreviewUrl = null;
+    this.activePreviewRawUrl = '';
+    this.activePreviewIsAudio = this.teacherResourcesService.isAudioFile(item.originalName);
+    this.activePreviewIsVideo = this.teacherResourcesService.isVideoFile(item.originalName);
 
-    const url = useOfficeViewer
-      ? this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl)
-      : this.teacherResourcesService.getSecurePreviewUrl(item._id);
+    let url: string;
+    if (useOfficeViewer) {
+      url = this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl);
+    } else if (basePreviewUrl) {
+      url = basePreviewUrl;
+    } else {
+      url = this.teacherResourcesService.getSecurePreviewUrl(item._id);
+    }
+
+    this.activePreviewRawUrl = url;
     this.activePreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
   closePreview(): void {
     this.activePreviewUrl = null;
+    this.activePreviewRawUrl = '';
     this.activePreviewTitle = '';
+    this.activePreviewIsAudio = false;
+    this.activePreviewIsVideo = false;
   }
 
   async toggleFullscreen(container: HTMLElement): Promise<void> {

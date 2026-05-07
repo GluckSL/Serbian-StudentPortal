@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { getAuthToken } from './auth.service';
 
 export interface TeacherResource {
   _id: string;
@@ -60,7 +61,7 @@ export class TeacherResourcesService {
     resourceType?: string;
     topic?: string;
     description?: string;
-    file: File;
+    files: File[];
   }): Observable<any> {
     const fd = new FormData();
     fd.append('teacherId', payload.teacherId);
@@ -72,7 +73,9 @@ export class TeacherResourcesService {
     fd.append('resourceType', payload.resourceType || '');
     fd.append('topic', payload.topic || '');
     fd.append('description', payload.description || '');
-    fd.append('file', payload.file);
+    for (const f of payload.files) {
+      fd.append('files', f);
+    }
     return this.http.post(`${this.baseUrl}/upload`, fd, { withCredentials: true });
   }
 
@@ -110,7 +113,9 @@ export class TeacherResourcesService {
   }
 
   getSecurePreviewUrl(resourceId: string): string {
-    return `${this.baseUrl}/${resourceId}/preview`;
+    const token = getAuthToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${this.baseUrl}/${resourceId}/preview${tokenParam}`;
   }
 
   getOfficeViewerUrl(fileUrl: string): string {
@@ -138,13 +143,42 @@ export class TeacherResourcesService {
       name.endsWith('.jpeg') ||
       name.endsWith('.gif') ||
       name.endsWith('.webp') ||
+      name.endsWith('.svg') ||
       name.endsWith('.mp4') ||
       name.endsWith('.webm') ||
+      name.endsWith('.mov') ||
       name.endsWith('.mp3') ||
       name.endsWith('.wav') ||
       name.endsWith('.ogg') ||
+      name.endsWith('.aac') ||
+      name.endsWith('.m4a') ||
+      name.endsWith('.flac') ||
+      name.endsWith('.opus') ||
       name.endsWith('.txt') ||
-      name.endsWith('.html')
+      name.endsWith('.html') ||
+      name.endsWith('.htm')
+    );
+  }
+
+  isAudioFile(fileName: string): boolean {
+    const name = (fileName || '').toLowerCase();
+    return (
+      name.endsWith('.mp3') ||
+      name.endsWith('.wav') ||
+      name.endsWith('.ogg') ||
+      name.endsWith('.aac') ||
+      name.endsWith('.m4a') ||
+      name.endsWith('.flac') ||
+      name.endsWith('.opus')
+    );
+  }
+
+  isVideoFile(fileName: string): boolean {
+    const name = (fileName || '').toLowerCase();
+    return (
+      name.endsWith('.mp4') ||
+      name.endsWith('.webm') ||
+      name.endsWith('.mov')
     );
   }
 }

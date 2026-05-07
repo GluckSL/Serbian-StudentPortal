@@ -25,8 +25,8 @@ export class TeacherResourcesAdminComponent implements OnInit {
   resourceType = '';
   topic = '';
   description = '';
-  file: File | null = null;
-  selectedFileName = 'No file chosen';
+  files: File[] = [];
+  selectedFileNames = 'No files chosen';
   uploading = false;
   loading = false;
   searchTerm = '';
@@ -35,7 +35,10 @@ export class TeacherResourcesAdminComponent implements OnInit {
   filterLevel = '';
   filterPlan = '';
   activePreviewUrl: SafeResourceUrl | null = null;
+  activePreviewRawUrl = '';
   activePreviewTitle = '';
+  activePreviewIsAudio = false;
+  activePreviewIsVideo = false;
   editingResourceId = '';
   editTeacherId = '';
   editTitle = '';
@@ -136,14 +139,20 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const picked = input.files?.[0] || null;
-    this.file = picked;
-    this.selectedFileName = picked ? picked.name : 'No file chosen';
+    const picked = Array.from(input.files || []);
+    this.files = picked;
+    if (picked.length === 0) {
+      this.selectedFileNames = 'No files chosen';
+    } else if (picked.length === 1) {
+      this.selectedFileNames = picked[0].name;
+    } else {
+      this.selectedFileNames = `${picked.length} files selected`;
+    }
   }
 
   upload(): void {
-    if (!this.selectedTeacherId || !this.title.trim() || !this.day.trim() || !this.file) {
-      this.notify.warning('Please select teacher, title, day and file');
+    if (!this.selectedTeacherId || !this.title.trim() || !this.day.trim() || this.files.length === 0) {
+      this.notify.warning('Please select teacher, title, day and at least one file');
       return;
     }
 
@@ -159,12 +168,13 @@ export class TeacherResourcesAdminComponent implements OnInit {
         resourceType: this.resourceType.trim(),
         topic: this.topic.trim(),
         description: this.description.trim(),
-        file: this.file
+        files: this.files
       })
       .subscribe({
-        next: () => {
+        next: (res) => {
           this.uploading = false;
-          this.notify.success('Resource uploaded');
+          const count = Array.isArray(res?.data) ? res.data.length : 1;
+          this.notify.success(`${count} resource${count !== 1 ? 's' : ''} uploaded`);
           this.title = '';
           this.day = '';
           this.batch = '';
@@ -173,8 +183,8 @@ export class TeacherResourcesAdminComponent implements OnInit {
           this.resourceType = '';
           this.topic = '';
           this.description = '';
-          this.file = null;
-          this.selectedFileName = 'No file chosen';
+          this.files = [];
+          this.selectedFileNames = 'No files chosen';
           this.loadResources();
         },
         error: (err) => {
@@ -196,16 +206,29 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
     this.activePreviewTitle = item.title;
     this.activePreviewUrl = null;
+    this.activePreviewRawUrl = '';
+    this.activePreviewIsAudio = this.teacherResourcesService.isAudioFile(item.originalName);
+    this.activePreviewIsVideo = this.teacherResourcesService.isVideoFile(item.originalName);
 
-    const url = useOfficeViewer
-      ? this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl)
-      : this.teacherResourcesService.getSecurePreviewUrl(item._id);
+    let url: string;
+    if (useOfficeViewer) {
+      url = this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl);
+    } else if (basePreviewUrl) {
+      url = basePreviewUrl;
+    } else {
+      url = this.teacherResourcesService.getSecurePreviewUrl(item._id);
+    }
+
+    this.activePreviewRawUrl = url;
     this.activePreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
   closePreview(): void {
     this.activePreviewUrl = null;
+    this.activePreviewRawUrl = '';
     this.activePreviewTitle = '';
+    this.activePreviewIsAudio = false;
+    this.activePreviewIsVideo = false;
   }
 
   async toggleFullscreen(container: HTMLElement): Promise<void> {
@@ -264,7 +287,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   onEditFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const picked = input.files?.[0] || null;
+    const picked = input.files?.[0] ?? null;
     this.editFile = picked;
     this.editSelectedFileName = picked ? picked.name : '';
   }
