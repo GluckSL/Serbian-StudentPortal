@@ -226,6 +226,10 @@
   background: #e8f5e9;
   color: #388e3c;
 }
+.pill-word_bank_fill {
+  background: #e0f2fe;
+  color: #0369a1;
+}
 .pill-pronunciation {
   background: #fff3e0;
   color: #e65100;
@@ -461,6 +465,10 @@
 .spec-pill.pill-fill-blank {
   background: #e8f5e9;
   color: #388e3c;
+}
+.spec-pill.pill-word_bank_fill {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 .spec-pill.pill-pronunciation {
   background: #fff3e0;
@@ -947,6 +955,9 @@
 }
 .label-fill-blank {
   color: #15803d;
+}
+.label-word_bank_fill {
+  color: #0369a1;
 }
 .label-pronunciation {
   color: #c2410c;
@@ -1635,6 +1646,13 @@
   padding: 12px;
 }
 
+.word-bank-box-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
 .word-bank-pills {
   display: flex;
   flex-wrap: wrap;
@@ -1719,6 +1737,36 @@
 .word-bank-pill.cdk-drag-preview {
   border-radius: 999px;
   box-shadow: 0 8px 20px rgba(30, 64, 175, 0.25);
+}
+
+.word-bank-answer-input {
+  min-width: 140px;
+  flex: 1;
+}
+
+.review-word-bank-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.review-word-bank-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.review-word-bank-prompt + .review-word-bank-prompt {
+  margin-top: 6px;
 }
 
 .hint-label {
@@ -3187,6 +3235,10 @@
 .review-q-type-pill.pill-fill-blank {
   background: #e8f5e9;
   color: #388e3c;
+}
+.review-q-type-pill.pill-word_bank_fill {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 .review-q-type-pill.pill-pronunciation {
   background: #fff3e0;

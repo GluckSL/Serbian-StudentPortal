@@ -266,6 +266,27 @@
               *ngIf="pq.data.type === 'fill-blank'"
               [innerHTML]="pq.data.sentence | safeHtml"
             ></div>
+            <ng-container *ngIf="pq.data.type === 'word_bank_fill'">
+              <div
+                class="review-word-bank-line"
+                *ngIf="pq.data.wordBank?.length"
+              >
+                <strong>Word bank:</strong>
+                <span
+                  class="review-word-bank-chip"
+                  *ngFor="let w of pq.data.wordBank"
+                  >{{ w }}</span>
+              </div>
+              <div
+                class="review-q-text review-word-bank-prompt"
+                *ngFor="
+                  let wbItem of getWordBankItems(pq);
+                  let wbi = index;
+                  trackBy: trackByIndex
+                "
+                [innerHTML]="displayWordBankPrompt(wbItem, wbi) | safeHtml"
+              ></div>
+            </ng-container>
             <div
               class="review-q-text"
               *ngIf="
@@ -1908,6 +1929,134 @@
                   >;
                 </span>
               </span>
+            </div>
+          </div>
+
+          <!-- ── WORD BANK FILL ── -->
+          <div
+            class="q-body word-bank-fill-body"
+            *ngIf="currentQuestion.data.type === 'word_bank_fill'"
+          >
+            <div
+              class="word-bank-box"
+              *ngIf="currentQuestion.data.wordBank?.length"
+            >
+              <div class="word-bank-box-label">
+                Word bank — select a blank, then tap a word (or type your answer)
+              </div>
+              <div class="word-bank-pills">
+                <button
+                  type="button"
+                  class="word-bank-pill"
+                  *ngFor="
+                    let word of currentQuestion.data.wordBank;
+                    trackBy: trackByIndex
+                  "
+                  [class.used]="
+                    !isWordBankReusable(currentQuestion) &&
+                    isWordAlreadyUsed(currentQuestion, word, null)
+                  "
+                  [disabled]="
+                    hasCurrentSubmitted ||
+                    (!isWordBankReusable(currentQuestion) &&
+                      isWordAlreadyUsed(currentQuestion, word, null))
+                  "
+                  (click)="fillActiveWordBankBlank(currentQuestion, word)"
+                >
+                  {{ word }}
+                </button>
+              </div>
+            </div>
+
+            <div class="word-bank-items">
+              <div
+                class="word-bank-item-row"
+                *ngFor="
+                  let item of getWordBankItems(currentQuestion);
+                  let ii = index;
+                  trackBy: trackByIndex
+                "
+              >
+                <div
+                  class="word-bank-prompt q-text"
+                  [innerHTML]="displayWordBankPrompt(item, ii) | safeHtml"
+                ></div>
+                <div class="word-bank-answer-wrap word-bank-dropzone">
+                  <input
+                    type="text"
+                    class="blank-input word-bank-answer-input"
+                    [ngModel]="currentQuestion.wordBankAnswers![ii]?.value"
+                    (ngModelChange)="
+                      onWordBankAnswerChange(currentQuestion, ii, $event)
+                    "
+                    (focus)="onWordBankBlankFocus(currentQuestion, ii)"
+                    [class.active]="currentQuestion.activeBlankIndex === ii"
+                    [class.correct]="
+                      hasCurrentSubmitted &&
+                      isWordBankItemCorrect(currentQuestion, ii)
+                    "
+                    [class.wrong]="
+                      hasCurrentSubmitted &&
+                      !isWordBankItemCorrect(currentQuestion, ii)
+                    "
+                    [disabled]="hasCurrentSubmitted"
+                    [placeholder]="'Blank ' + (ii + 1)"
+                    autocomplete="off"
+                  />
+                  <button
+                    type="button"
+                    class="word-bank-clear-btn"
+                    *ngIf="
+                      !hasCurrentSubmitted &&
+                      (currentQuestion.wordBankAnswers![ii]?.value || '').trim()
+                    "
+                    (click)="clearWordBankAnswer(currentQuestion, ii)"
+                    aria-label="Clear answer"
+                  >
+                    <span class="material-icons">close</span>
+                  </button>
+                  <span
+                    class="blank-correct-val"
+                    *ngIf="
+                      hasCurrentSubmitted &&
+                      !isWordBankItemCorrect(currentQuestion, ii)
+                    "
+                  >
+                    → {{ getWordBankCorrectAnswer(currentQuestion, ii) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="special-char-pad"
+              *ngIf="
+                showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
+              "
+            >
+              <div class="special-char-label">Special letters</div>
+              <div
+                class="special-char-list"
+                role="group"
+                aria-label="German special letters"
+              >
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
+            <div
+              class="fill-feedback"
+              *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
+            >
+              <span class="material-icons">lightbulb</span>
+              {{ currentQuestion.feedback }}
             </div>
           </div>
 
