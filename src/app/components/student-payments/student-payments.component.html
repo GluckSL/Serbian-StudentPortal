@@ -8,7 +8,10 @@
   <!-- Payment Summary Card -->
   <div class="sp-card" *ngIf="ledger">
     <div class="sp-card__head">
-      <span class="sp-card__title">💳 Payment Summary</span>
+      <span class="sp-card__title">
+        <span class="material-icons sp-card__icon">payments</span>
+        Payment Summary
+      </span>
       <span class="sp-badge sp-badge--blue">{{ currency }}</span>
     </div>
 
@@ -42,10 +45,15 @@
   <!-- No ledger data -->
   <div class="sp-card" *ngIf="!ledger && !invoices.length">
     <div class="sp-card__head">
-      <span class="sp-card__title">💳 Payments</span>
+      <span class="sp-card__title">
+        <span class="material-icons sp-card__icon">payments</span>
+        Payments
+      </span>
     </div>
     <div class="sp-empty-state">
-      <div class="sp-empty-state__icon">📭</div>
+      <div class="sp-empty-state__icon">
+        <span class="material-icons">inbox</span>
+      </div>
       <div class="sp-empty-state__text">No payment records found yet.</div>
       <div class="sp-empty-state__sub">Contact the admin team if you believe this is an error.</div>
     </div>
@@ -54,7 +62,10 @@
   <!-- Invoices -->
   <div class="sp-card">
     <div class="sp-card__head">
-      <span class="sp-card__title">📄 Invoices</span>
+      <span class="sp-card__title">
+        <span class="material-icons sp-card__icon">description</span>
+        Invoices
+      </span>
       <span class="sp-card__meta">{{ invoices.length }} invoice(s)</span>
     </div>
 
@@ -80,7 +91,8 @@
                 [class.sp-status-badge--paid]="inv.payment_status === 'paid'"
                 [class.sp-status-badge--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)"
                 [class.sp-status-badge--unpaid]="inv.payment_status !== 'paid' && !isOverdue(inv.due_date)">
-                {{ inv.payment_status === 'paid' ? '✓ Paid' : (isOverdue(inv.due_date) ? 'Overdue' : 'Unpaid') }}
+                <span class="material-icons sp-status-badge__icon" *ngIf="inv.payment_status === 'paid'">check</span>
+                {{ inv.payment_status === 'paid' ? 'Paid' : (isOverdue(inv.due_date) ? 'Overdue' : 'Unpaid') }}
               </span>
             </div>
           </div>
@@ -99,14 +111,18 @@
               class="sp-btn sp-btn--pay"
               [disabled]="payActionLoading[inv._id]"
               (click)="payWithRazorpay(inv)">
-              <span *ngIf="!payActionLoading[inv._id]">💳 Pay via Razorpay</span>
+              <ng-container *ngIf="!payActionLoading[inv._id]">
+                <span class="material-icons">credit_card</span>
+                <span>Pay via Razorpay</span>
+              </ng-container>
               <span *ngIf="payActionLoading[inv._id]">Loading payment...</span>
             </button>
             <button
               class="sp-btn sp-btn--manual"
               [disabled]="payActionLoading[inv._id]"
               (click)="openManualModal(inv)">
-              📤 Submit Payment Proof
+              <span class="material-icons">file_upload</span>
+              <span>Submit Payment Proof</span>
             </button>
           </div>
 
@@ -132,7 +148,10 @@
   <!-- My Payment Submissions -->
   <div class="sp-card" *ngIf="submissions.length">
     <div class="sp-card__head">
-      <span class="sp-card__title">📬 My Payment Submissions</span>
+      <span class="sp-card__title">
+        <span class="material-icons sp-card__icon">outbox</span>
+        My Payment Submissions
+      </span>
       <span class="sp-card__meta">{{ submissions.length }} submission(s)</span>
     </div>
     <table class="sp-table-full">
@@ -151,7 +170,8 @@
           <td class="sp-bold">₹ {{ formatCurrency(sub.amount) }}</td>
           <td>
             <span class="sp-type-pill" [class.sp-type-pill--rzp]="sub.paymentType === 'razorpay'">
-              {{ sub.paymentType === 'razorpay' ? '💳 Razorpay' : '📤 Manual' }}
+              <span class="material-icons sp-type-pill__icon">{{ sub.paymentType === 'razorpay' ? 'credit_card' : 'file_upload' }}</span>
+              {{ sub.paymentType === 'razorpay' ? 'Razorpay' : 'Manual' }}
             </span>
           </td>
           <td>{{ formatDate(sub.createdAt) }}</td>
@@ -169,7 +189,10 @@
   <!-- Payment History (from ledger) -->
   <div class="sp-card" *ngIf="paymentHistory.length">
     <div class="sp-card__head">
-      <span class="sp-card__title">🕐 Payment History</span>
+      <span class="sp-card__title">
+        <span class="material-icons sp-card__icon">history</span>
+        Payment History
+      </span>
       <span class="sp-card__meta">{{ paymentHistory.length }} payment(s)</span>
     </div>
     <table class="sp-table-full">
@@ -321,8 +344,13 @@
 <div class="sp-modal-overlay" *ngIf="showManualModal" (click)="closeManualModal()">
   <div class="sp-modal" (click)="$event.stopPropagation()">
     <div class="sp-modal__head">
-      <h3 class="sp-modal__title">📤 Submit Payment Proof</h3>
-      <button class="sp-modal__close" (click)="closeManualModal()">✕</button>
+      <h3 class="sp-modal__title">
+        <span class="material-icons sp-modal-title__icon">file_upload</span>
+        Submit Payment Proof
+      </h3>
+      <button class="sp-modal__close" (click)="closeManualModal()">
+        <span class="material-icons">close</span>
+      </button>
     </div>
 
     <div class="sp-modal__invoice-info" *ngIf="selectedInvoice">
@@ -356,8 +384,14 @@
         <label class="sp-label">Payment Screenshot <span class="sp-hint-text">(JPG, PNG, PDF — max 5MB)</span></label>
         <div class="sp-file-upload" (click)="fileInput.click()">
           <input #fileInput type="file" accept="image/*,.pdf" style="display:none" (change)="onProofFileChange($event)">
-          <span *ngIf="!manualForm.proofFile">📎 Click to upload screenshot</span>
-          <span *ngIf="manualForm.proofFile" class="sp-file-name">✓ {{ manualForm.proofFile.name }}</span>
+          <ng-container *ngIf="!manualForm.proofFile">
+            <span class="material-icons sp-file-upload__icon">attach_file</span>
+            <span>Click to upload screenshot</span>
+          </ng-container>
+          <span *ngIf="manualForm.proofFile" class="sp-file-name">
+            <span class="material-icons">check</span>
+            {{ manualForm.proofFile.name }}
+          </span>
         </div>
       </div>
 

@@ -2,10 +2,16 @@
 
   <div class="vs-header">
     <div>
-      <h2 class="vs-title">✈️ Visa Application Status</h2>
+      <h2 class="vs-title">
+        <span class="material-icons vs-title__icon">flight_takeoff</span>
+        Visa Application Status
+      </h2>
       <p class="vs-subtitle">{{ profile.name }} — {{ visa.route || 'Not set' }}</p>
     </div>
-    <a routerLink="/student-progress" class="vs-back">← Back to Progress</a>
+    <a routerLink="/student-progress" class="vs-back">
+      <span class="material-icons">arrow_back</span>
+      <span>Back to Progress</span>
+    </a>
   </div>
 
   <div *ngIf="visa.steps.length; else noVisa">
@@ -33,7 +39,10 @@
       </div>
       <div class="vs-dates" *ngIf="visaStageDates.length">
         <div class="vs-date" *ngFor="let sd of visaStageDates">
-          <span class="vs-date__label">📅 {{ sd.label }}</span>
+          <span class="vs-date__label">
+            <span class="material-icons vs-date__icon">calendar_today</span>
+            {{ sd.label }}
+          </span>
           <span class="vs-date__val">{{ formatDate(sd.date) }}</span>
         </div>
       </div>
@@ -58,20 +67,28 @@
                     [class.vs-stage__outcome--completed]="stg.outcome === 'completed'"
                     [class.vs-stage__outcome--rejected]="stg.outcome === 'rejected'"
                     [class.vs-stage__outcome--progress]="stg.outcome === 'in_progress'">
-                {{ stg.outcome === 'completed' ? '✓ Completed' : (stg.outcome === 'rejected' ? '✕ Rejected' : '◌ In Progress') }}
+                <span class="material-icons vs-outcome-icon" *ngIf="stg.outcome === 'completed'">check</span>
+                <span class="material-icons vs-outcome-icon" *ngIf="stg.outcome === 'rejected'">close</span>
+                <span class="material-icons vs-outcome-icon vs-outcome-icon--spin" *ngIf="stg.outcome === 'in_progress'">sync</span>
+                {{ stg.outcome === 'completed' ? 'Completed' : (stg.outcome === 'rejected' ? 'Rejected' : 'In Progress') }}
               </span>
               <span class="vs-stage__date" *ngIf="stg.outcomeDate">{{ formatDate(stg.outcomeDate) }}</span>
             </div>
             <div class="vs-stage__body" *ngIf="stg.message || stg.actionRequired || stg.handledBy || (stg.stageDate && stg.stageDateLabel)">
-              <div class="vs-stage__msg" *ngIf="stg.message">💬 {{ stg.message }}</div>
+              <div class="vs-stage__msg" *ngIf="stg.message">
+                <span class="material-icons vs-stage__icon-inline">chat_bubble</span>
+                {{ stg.message }}
+              </div>
               <div class="vs-stage__action" *ngIf="stg.actionRequired">
-                ⚠️ Action required: {{ stg.actionNote || 'Please check with the team.' }}
+                <span class="material-icons vs-stage__icon-inline">warning</span>
+                Action required: {{ stg.actionNote || 'Please check with the team.' }}
               </div>
               <div class="vs-stage__handled" *ngIf="stg.handledBy">
                 Handled by: {{ stg.handledBy === 'team' ? 'Glück Global Team' : (stg.handledBy === 'embassy' ? 'Embassy' : 'Student') }}
               </div>
               <div class="vs-stage__stage-date" *ngIf="stg.stageDate && stg.stageDateLabel">
-                📅 {{ stg.stageDateLabel }}: {{ formatDate(stg.stageDate) }}
+                <span class="material-icons vs-stage__icon-inline">event</span>
+                {{ stg.stageDateLabel }}: {{ formatDate(stg.stageDate) }}
               </div>
             </div>
           </div>
@@ -80,21 +97,30 @@
         <!-- Final outcome -->
         <div class="vs-card vs-final" *ngIf="visa.finalOutcome">
           <div class="vs-final__row">
-            <span class="vs-final__label">🏁 Final Visa Outcome</span>
+            <span class="vs-final__label">
+              <span class="material-icons vs-final__icon">task_alt</span>
+              Final Visa Outcome
+            </span>
             <span class="vs-final__val"
                   [class.vs-final__val--approved]="visa.finalOutcome === 'approved'"
                   [class.vs-final__val--rejected]="visa.finalOutcome === 'rejected'">
               {{ visa.finalOutcome | titlecase }}
             </span>
           </div>
-          <div class="vs-final__note" *ngIf="visa.finalOutcomeNote">📝 {{ visa.finalOutcomeNote }}</div>
+          <div class="vs-final__note" *ngIf="visa.finalOutcomeNote">
+            <span class="material-icons vs-final__note-icon">description</span>
+            {{ visa.finalOutcomeNote }}
+          </div>
         </div>
       </div>
 
       <!-- RIGHT: History -->
       <div class="vs-col-right">
         <div class="vs-card vs-history-card">
-          <h3 class="vs-section-title">📜 Complete Update History</h3>
+          <h3 class="vs-section-title">
+            <span class="material-icons vs-section-icon">history</span>
+            Complete Update History
+          </h3>
           <div class="vs-history" *ngIf="visa.history?.length; else noHistory">
             <div class="vs-history__item" *ngFor="let h of visa.history">
               <div class="vs-history__dot"></div>
