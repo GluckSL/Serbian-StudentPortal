@@ -1985,7 +1985,7 @@
                   <input
                     type="text"
                     class="blank-input word-bank-answer-input"
-                    [ngModel]="currentQuestion.wordBankAnswers![ii]?.value"
+                    [ngModel]="currentQuestion.wordBankAnswers![ii].value"
                     (ngModelChange)="
                       onWordBankAnswerChange(currentQuestion, ii, $event)
                     "
@@ -2008,7 +2008,7 @@
                     class="word-bank-clear-btn"
                     *ngIf="
                       !hasCurrentSubmitted &&
-                      (currentQuestion.wordBankAnswers![ii]?.value || '').trim()
+                      (currentQuestion.wordBankAnswers![ii].value || '').trim()
                     "
                     (click)="clearWordBankAnswer(currentQuestion, ii)"
                     aria-label="Clear answer"
