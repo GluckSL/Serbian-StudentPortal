@@ -205,7 +205,6 @@
 
   .mc-hero__badges {
     justify-content: center;
-    flex-wrap: nowrap;
     gap: 6px;
     margin-top: 0;
     min-width: 0;
@@ -278,7 +277,6 @@
     align-items: stretch;
     text-align: center;
     gap: 6px;
-    overflow: visible;
   }
 
   .mc-tab-profile__name,
@@ -485,7 +483,7 @@
   gap: 20px 24px;
   width: 100%;
   min-height: calc(var(--mc-hero-visual-height) * 0.6);
-  padding: 10px 20px 10px 22px;
+  padding: 14px 20px;
   box-sizing: border-box;
   background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 35%, #f0f4ff 70%, #f8fafc 100%);
   border: 1px solid #c7d2fe;
@@ -504,8 +502,6 @@
 }
 
 .mc-tab-profile__main {
-  flex: 1 1 auto;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -524,6 +520,12 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
+}
+
+mc-tab-profile__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .mc-tab-profile__quote {
@@ -2489,4 +2491,28 @@
     text-align: right;
     max-width: 100%;
   }
+}
+
+/* ── Reuse profile chip styles for subscription plan ────────────────── */
+.pf-chip {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pf-chip--gold {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pf-chip--silver {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.pf-chip--blue {
+  background: #dbeafe;
+  color: #1d4ed8;
 }

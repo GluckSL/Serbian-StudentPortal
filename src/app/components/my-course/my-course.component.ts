@@ -88,6 +88,9 @@ export class MyCourseComponent implements OnInit {
   announcementLoadError = false;
   private lastAnnouncementId: string | null = null;
 
+  /** Full user profile from AuthService (contains subscription, role, etc.) */
+  userProfile: any = null;
+
   private readonly motivateLines = [
     'You’re going strong — keep showing up!',
     'Small steps every day add up. Proud of you!',
@@ -148,9 +151,20 @@ export class MyCourseComponent implements OnInit {
     this.setAuthProfilePicFromUser(this.authService.getSnapshotUser());
     this.authService.currentUser$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((u) => this.setAuthProfilePicFromUser(u));
+      .subscribe((u) => {
+        this.setAuthProfilePicFromUser(u);
+        if (u) {
+          this.authService.getUserProfile().subscribe({
+            next: (fullU) => this.userProfile = fullU,
+            error: () => {}
+          });
+        }
+      });
     this.authService.getUserProfile().subscribe({
-      next: (u) => this.setAuthProfilePicFromUser(u),
+      next: (u) => {
+        this.setAuthProfilePicFromUser(u);
+        this.userProfile = u;
+      },
       error: () => {}
     });
 

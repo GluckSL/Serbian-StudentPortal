@@ -19,6 +19,9 @@
           <span class="mc-hero__pill-icon" aria-hidden="true">📈</span>
           {{ learningPct }}% of levels completed
         </span>
+        <span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'" *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
+          Subscription: <span>{{ userProfile.subscription }}</span>
+        </span>
       </div>
     </div>
     <div class="mc-hero__photo">
@@ -51,9 +54,14 @@
       <div class="mc-tab-profile__main">
         <p class="mc-tab-profile__name">{{ studentDisplayName }}</p>
         <p class="mc-tab-profile__quote">{{ tabHeaderQuote }}</p>
-        <p class="mc-tab-profile__level">
-          Level <strong>{{ levelShortLabel }}</strong>
-        </p>
+        <div class="mc-tab-profile__row">
+          <p class="mc-tab-profile__level">
+            Level <strong>{{ levelShortLabel }}</strong>
+          </p>
+          <p class="mc-tab-profile__level" *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
+            Subscription: <span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span>
+          </p>
+        </div>
       </div>
       <div class="mc-tab-profile__photo">
         <img
@@ -121,7 +129,7 @@
 
   <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
     <div class="mc-classes-layout__main">
-      <section class="mc-classes-card mc-classes-card--live" aria-label="Live and scheduled classes">
+      <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile.subscription === 'PLATINUM'" aria-label="Live and scheduled classes">
         <app-student-meetings [embedded]="true"></app-student-meetings>
       </section>
       <section class="mc-classes-card mc-classes-card--recordings" aria-label="Recorded classes">
