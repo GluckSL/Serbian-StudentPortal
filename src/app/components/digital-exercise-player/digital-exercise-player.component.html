@@ -3170,10 +3170,46 @@
                   else normalPrompt
                 "
               >
-                <div
-                  class="qa-prompt"
-                  [innerHTML]="currentQuestion.data.prompt | safeHtml"
-                ></div>
+                <div class="qa-tf-inline-row">
+                  <div
+                    class="qa-prompt"
+                    [innerHTML]="currentQuestion.data.prompt | safeHtml"
+                  ></div>
+                  <div
+                    class="tf-answers tf-answers-inline"
+                    role="group"
+                    aria-label="Richtig oder Falsch"
+                  >
+                    <button
+                      type="button"
+                      class="tf-btn"
+                      [class.active]="
+                        parseTrueFalse(currentQuestion.qaResponse) === true
+                      "
+                      [disabled]="hasCurrentSubmitted"
+                      [attr.aria-pressed]="
+                        parseTrueFalse(currentQuestion.qaResponse) === true
+                      "
+                      (click)="selectTrueFalse(currentQuestion, true)"
+                    >
+                      Richtig
+                    </button>
+                    <button
+                      type="button"
+                      class="tf-btn"
+                      [class.active]="
+                        parseTrueFalse(currentQuestion.qaResponse) === false
+                      "
+                      [disabled]="hasCurrentSubmitted"
+                      [attr.aria-pressed]="
+                        parseTrueFalse(currentQuestion.qaResponse) === false
+                      "
+                      (click)="selectTrueFalse(currentQuestion, false)"
+                    >
+                      Falsch
+                    </button>
+                  </div>
+                </div>
               </ng-container>
               <ng-template #normalPrompt>
                 <div
@@ -3186,49 +3222,7 @@
               *ngTemplateOutlet="playerQuestionAttachment"
             ></ng-container>
 
-            <ng-container
-              *ngIf="
-                isTrueFalseQuestion(currentQuestion.data);
-                else qaTextInput
-              "
-            >
-              <div
-                class="tf-answers"
-                role="group"
-                aria-label="Richtig oder Falsch"
-              >
-                <button
-                  type="button"
-                  class="tf-btn"
-                  [class.active]="
-                    parseTrueFalse(currentQuestion.qaResponse) === true
-                  "
-                  [disabled]="hasCurrentSubmitted"
-                  [attr.aria-pressed]="
-                    parseTrueFalse(currentQuestion.qaResponse) === true
-                  "
-                  (click)="selectTrueFalse(currentQuestion, true)"
-                >
-                  Richtig
-                </button>
-                <button
-                  type="button"
-                  class="tf-btn"
-                  [class.active]="
-                    parseTrueFalse(currentQuestion.qaResponse) === false
-                  "
-                  [disabled]="hasCurrentSubmitted"
-                  [attr.aria-pressed]="
-                    parseTrueFalse(currentQuestion.qaResponse) === false
-                  "
-                  (click)="selectTrueFalse(currentQuestion, false)"
-                >
-                  Falsch
-                </button>
-              </div>
-            </ng-container>
-
-            <ng-template #qaTextInput>
+            <ng-container *ngIf="!isTrueFalseQuestion(currentQuestion.data)">
               <label class="qa-input-label">Your Answer</label>
               <textarea
                 class="qa-textarea"
@@ -3265,7 +3259,7 @@
                   </button>
                 </div>
               </div>
-            </ng-template>
+            </ng-container>
 
             <div
               class="qa-hint"
