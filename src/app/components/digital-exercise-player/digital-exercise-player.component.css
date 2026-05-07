@@ -3281,6 +3281,11 @@
   font-size: 0.92rem;
 }
 
+.review-q-guidance.q-guidance-stack {
+  padding: 0 0 8px;
+  margin-bottom: 4px;
+}
+
 .review-q-text {
   color: #1a1a2e;
   margin-bottom: 10px;

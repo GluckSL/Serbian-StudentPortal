@@ -204,62 +204,56 @@
           </div>
           <div class="review-q-body">
             <div
-              class="review-q-text"
-              *ngIf="pq.data.context"
-              [innerHTML]="pq.data.context | safeHtml"
-            ></div>
-
-<!-- Attachment in review -->
-<div class="q-attachment-box" *ngIf="pq.data.attachmentUrl">
-  <ng-container [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)">
-    <img
-      *ngSwitchCase="'image'"
-      [src]="getMediaFullUrl(pq.data.attachmentUrl)"
-      alt="Attachment"
-      class="q-attachment-img"
-      loading="lazy"
-      decoding="async"
-    />
-    <audio
-      *ngSwitchCase="'audio'"
-      [src]="getMediaFullUrl(pq.data.attachmentUrl)"
-      controls
-      class="q-attachment-audio"
-    ></audio>
-    <video
-      *ngSwitchCase="'video'"
-      [src]="getMediaFullUrl(pq.data.attachmentUrl)"
-      controls
-      class="q-attachment-video"
-    ></video>
-    <a
-      *ngSwitchCase="'pdf'"
-      [href]="getMediaFullUrl(pq.data.attachmentUrl)"
-      target="_blank"
-      class="q-attachment-file-link"
-    >
-      <span class="material-icons">picture_as_pdf</span> Open PDF
-    </a>
-    <a
-      *ngSwitchDefault
-      [href]="getMediaFullUrl(pq.data.attachmentUrl)"
-      target="_blank"
-      class="q-attachment-file-link"
-    >
-      <span class="material-icons">insert_drive_file</span> Open file
-    </a>
-  </ng-container>
-</div>
+              class="q-guidance-stack review-q-guidance"
+              *ngIf="
+                worksheetInstructionDisplay(pq.data) ||
+                pq.data.example ||
+                pq.data.context ||
+                (pq.data.type === 'question-answer' &&
+                  isTrueFalseQuestion(pq.data) &&
+                  pq.data.storyParagraph)
+              "
+            >
+              <div
+                class="q-instruction-banner"
+                *ngIf="worksheetInstructionDisplay(pq.data)"
+              >
+                <span class="q-instruction-label">Instruction</span>
+                <span
+                  class="q-instruction-text"
+                  [innerHTML]="
+                    worksheetInstructionDisplay(pq.data) | safeHtml
+                  "
+                ></span>
+              </div>
+              <div class="q-example-banner" *ngIf="pq.data.example">
+                <span class="q-example-label">Example</span>
+                <span
+                  class="q-example-text"
+                  [innerHTML]="pq.data.example | safeHtml"
+                ></span>
+              </div>
+              <div class="q-context-box" *ngIf="pq.data.context">
+                <div
+                  class="q-context-text"
+                  [innerHTML]="pq.data.context | safeHtml"
+                ></div>
+              </div>
+              <div
+                class="tf-story-paragraph"
+                *ngIf="
+                  pq.data.type === 'question-answer' &&
+                  isTrueFalseQuestion(pq.data) &&
+                  pq.data.storyParagraph
+                "
+                [innerHTML]="pq.data.storyParagraph | safeHtml"
+              ></div>
+            </div>
 
             <div
               class="review-q-text"
               *ngIf="pq.data.type === 'mcq'"
               [innerHTML]="pq.data.question | safeHtml"
-            ></div>
-            <div
-              class="review-q-text"
-              *ngIf="pq.data.type === 'matching'"
-              [innerHTML]="worksheetInstructionDisplay(pq.data) | safeHtml"
             ></div>
             <div
               class="review-q-text"
@@ -287,26 +281,9 @@
                 [innerHTML]="displayWordBankPrompt(wbItem, wbi) | safeHtml"
               ></div>
             </ng-container>
-            <div
-              class="review-q-text"
-              *ngIf="
-                pq.data.type === 'singular_plural' &&
-                worksheetInstructionDisplay(pq.data)
-              "
-              [innerHTML]="worksheetInstructionDisplay(pq.data) | safeHtml"
-            ></div>
             <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">
               Say: {{ pq.data.word }}
             </div>
-            <div
-              class="review-q-text"
-              *ngIf="
-                pq.data.type === 'question-answer' &&
-                isTrueFalseQuestion(pq.data) &&
-                pq.data.storyParagraph
-              "
-              [innerHTML]="pq.data.storyParagraph | safeHtml"
-            ></div>
             <div
               class="review-q-text"
               *ngIf="pq.data.type === 'question-answer'"
@@ -347,6 +324,52 @@
               >
               Say: <strong [innerHTML]="pq.data.caption | safeHtml"></strong>
             </div>
+
+            <!-- Attachment after question stem (same order as play view) -->
+            <div class="q-attachment-box" *ngIf="pq.data.attachmentUrl">
+              <ng-container
+                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  alt="Attachment"
+                  class="q-attachment-img"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <audio
+                  *ngSwitchCase="'audio'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
+
             <div class="review-answer-row">
               <span class="review-label">Your answer:</span>
               <span class="review-value" [class.wrong]="!pq.isCorrect">{{
@@ -1534,51 +1557,6 @@
 
       <!-- MIDDLE: Question + Answer area -->
       <div class="question-area">
-        <!-- Per-question attachment (image / audio / video / PDF) -->
-        <div
-          class="q-attachment-box"
-          *ngIf="currentQuestion.data.attachmentUrl"
-        >
-          <ng-container
-            [ngSwitch]="getAttachmentType(currentQuestion.data.attachmentUrl)"
-          >
-            <img
-              *ngSwitchCase="'image'"
-              [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-              alt="Question attachment"
-              class="q-attachment-img"
-            />
-            <audio
-              *ngSwitchCase="'audio'"
-              [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-              controls
-              class="q-attachment-audio"
-            ></audio>
-            <video
-              *ngSwitchCase="'video'"
-              [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-              controls
-              class="q-attachment-video"
-            ></video>
-            <a
-              *ngSwitchCase="'pdf'"
-              [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-              target="_blank"
-              class="q-attachment-file-link"
-            >
-              <span class="material-icons">picture_as_pdf</span> Open PDF
-            </a>
-            <a
-              *ngSwitchDefault
-              [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-              target="_blank"
-              class="q-attachment-file-link"
-            >
-              <span class="material-icons">insert_drive_file</span> Open file
-            </a>
-          </ng-container>
-        </div>
-
         <div
           class="question-card"
           [class]="'q-type-' + currentQuestion.data.type"
@@ -1611,30 +1589,21 @@
             >
           </div>
 
-          <!-- Context + instruction + example: inside the card, directly under the question header -->
+          <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question → 5. Image -->
           <div
             class="q-guidance-stack"
             *ngIf="
+              worksheetInstructionDisplay(currentQuestion.data) ||
+              currentQuestion.data.example ||
               currentQuestion.data.context ||
-              (worksheetInstructionDisplay(currentQuestion.data) &&
-                currentQuestion.data.type !== 'matching') ||
-              currentQuestion.data.example
+              (currentQuestion.data.type === 'question-answer' &&
+                isTrueFalseQuestion(currentQuestion.data) &&
+                currentQuestion.data.storyParagraph)
             "
           >
-            <div class="q-context-box" *ngIf="currentQuestion.data.context">
-              <div
-                class="q-context-text"
-                [innerHTML]="currentQuestion.data.context | safeHtml"
-              ></div>
-            </div>
-
-            <!-- Instruction banner (matching uses instruction as its main prompt inside q-body) -->
             <div
               class="q-instruction-banner"
-              *ngIf="
-                worksheetInstructionDisplay(currentQuestion.data) &&
-                currentQuestion.data.type !== 'matching'
-              "
+              *ngIf="worksheetInstructionDisplay(currentQuestion.data)"
             >
               <span class="q-instruction-label">Instruction</span>
               <span
@@ -1652,7 +1621,74 @@
                 [innerHTML]="currentQuestion.data.example | safeHtml"
               ></span>
             </div>
+
+            <div class="q-context-box" *ngIf="currentQuestion.data.context">
+              <div
+                class="q-context-text"
+                [innerHTML]="currentQuestion.data.context | safeHtml"
+              ></div>
+            </div>
+
+            <div
+              class="tf-story-paragraph"
+              *ngIf="
+                currentQuestion.data.type === 'question-answer' &&
+                isTrueFalseQuestion(currentQuestion.data) &&
+                currentQuestion.data.storyParagraph
+              "
+              [innerHTML]="currentQuestion.data.storyParagraph | safeHtml"
+            ></div>
           </div>
+
+          <!-- Shared: per-question attachment (rendered after prompt via *ngTemplateOutlet in each q-body) -->
+          <ng-template #playerQuestionAttachment>
+            <div
+              class="q-attachment-box"
+              *ngIf="currentQuestion.data.attachmentUrl"
+            >
+              <ng-container
+                [ngSwitch]="
+                  getAttachmentType(currentQuestion.data.attachmentUrl)
+                "
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  alt="Question attachment"
+                  class="q-attachment-img"
+                />
+                <audio
+                  *ngSwitchCase="'audio'"
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
+          </ng-template>
 
           <!-- ── MCQ ── -->
           <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
@@ -1662,6 +1698,9 @@
                 [innerHTML]="currentQuestion.data.question | safeHtml"
               ></p>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
               <img
                 [src]="currentQuestion.data.imageUrl"
@@ -1720,16 +1759,8 @@
             </div>
           </div>
 
-          <!-- ── MATCHING ── -->
+          <!-- ── MATCHING ── (instruction lives in guidance banner) -->
           <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
-            <div class="q-question-box">
-              <p
-                class="q-text"
-                [innerHTML]="
-                  worksheetInstructionDisplay(currentQuestion.data) | safeHtml
-                "
-              ></p>
-            </div>
             <div class="matching-container">
               <!-- Labels Row -->
               <div class="matching-row labels-row">
@@ -1799,6 +1830,9 @@
                 ></div>
               </div>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <div
               class="matching-hint"
               *ngIf="currentQuestion.selectedLeftIndex !== null"
@@ -1875,6 +1909,9 @@
                 </ng-container>
               </div>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <div class="hint-label" *ngIf="currentQuestion.data.hint">
               <span class="material-icons">lightbulb</span>
               Hint: {{ currentQuestion.data.hint }}
@@ -1937,6 +1974,9 @@
             class="q-body word-bank-fill-body"
             *ngIf="currentQuestion.data.type === 'word_bank_fill'"
           >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <div
               class="word-bank-box"
               *ngIf="currentQuestion.data.wordBank?.length"
@@ -2065,6 +2105,9 @@
             class="q-body singular-plural-body"
             *ngIf="currentQuestion.data.type === 'singular_plural'"
           >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <div class="sp-table-wrap">
               <table
                 class="sp-pairs-table"
@@ -2180,6 +2223,9 @@
                 </button>
               </div>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
 
             <div class="pronunciation-controls">
               <div class="pronunciation-controls-btns">
@@ -2517,6 +2563,9 @@
                 "
               ></div>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <div
               class="listening-audio-wrap"
               *ngIf="getListeningSupplementalAudioUrl(currentQuestion.data)"
@@ -2627,6 +2676,9 @@
                 <span *ngIf="token === ' '" class="jumble-space"> </span>
               </ng-container>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
             <label class="qa-input-label">Form the word:</label>
             <input
               type="text"
@@ -2678,6 +2730,9 @@
                 "
               ></div>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
 
             <div
               class="rearrange-tokens-wrap"
@@ -2755,6 +2810,10 @@
                     {{ currentQuestion.data.acceptedVariants.join(", ") }}
                   </div>
                 </div>
+
+                <ng-container
+                  *ngTemplateOutlet="playerQuestionAttachment"
+                ></ng-container>
 
                 <div
                   class="vp-video-stage vp-video-stage--mobile"
@@ -3112,11 +3171,6 @@
                 "
               >
                 <div
-                  class="tf-story-paragraph"
-                  *ngIf="currentQuestion.data.storyParagraph"
-                  [innerHTML]="currentQuestion.data.storyParagraph | safeHtml"
-                ></div>
-                <div
                   class="qa-prompt"
                   [innerHTML]="currentQuestion.data.prompt | safeHtml"
                 ></div>
@@ -3128,6 +3182,9 @@
                 ></div>
               </ng-template>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
 
             <ng-container
               *ngIf="
