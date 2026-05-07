@@ -12,11 +12,11 @@
       </p>
       <div class="mc-hero__badges">
         <span class="mc-hero__pill">
-          <span class="mc-hero__pill-icon" aria-hidden="true">🎓</span>
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">school</span>
           Current level <strong>{{ levelShortLabel }}</strong>
         </span>
         <span class="mc-hero__pill" *ngIf="levelProgression.length">
-          <span class="mc-hero__pill-icon" aria-hidden="true">📈</span>
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">trending_up</span>
           {{ learningPct }}% of levels completed
         </span>
         <span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'" *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">

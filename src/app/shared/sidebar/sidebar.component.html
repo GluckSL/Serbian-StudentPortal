@@ -21,7 +21,7 @@
           [routerLink]="getRoute(group.items[0])"
           routerLinkActive="active"
           (click)="closeSidebar.emit()">
-          <span class="nav-icon">{{ group.items[0].icon }}</span>
+          <span class="nav-icon" [class.material-icons]="isMaterialIcon(group.items[0].icon)">{{ group.items[0].icon }}</span>
           <span class="nav-label">{{ group.items[0].label }}</span>
         </a>
       </ng-container>
@@ -30,7 +30,7 @@
       <ng-container *ngIf="group.items.length > 1">
         <div class="group-header" (click)="toggle(group.group)">
           <span>{{ group.group }}</span>
-          <span class="chevron">{{ collapsed[group.group] ? '▸' : '▾' }}</span>
+          <span class="chevron material-icons">{{ collapsed[group.group] ? 'chevron_right' : 'expand_more' }}</span>
         </div>
         <div class="group-items" [class.collapsed]="collapsed[group.group]">
           <ng-container *ngFor="let item of group.items; let i = index">
@@ -44,7 +44,7 @@
               [routerLink]="getRoute(item)"
               routerLinkActive="active"
               (click)="closeSidebar.emit()">
-              <span class="nav-icon">{{ item.icon }}</span>
+              <span class="nav-icon" [class.material-icons]="isMaterialIcon(item.icon)">{{ item.icon }}</span>
               <span class="nav-label">{{ item.label }}</span>
             </a>
           </ng-container>
@@ -73,7 +73,13 @@
         <div class="profile-role">{{ userRole }}</div>
       </div>
     </a>
-    <button *ngIf="isStudent || isTeacher" class="tour-btn" (click)="restartTour()">🎓 Take a Tour</button>
-    <button class="logout-btn" (click)="logout()">🔴 Logout</button>
+    <button *ngIf="isStudent || isTeacher" class="tour-btn" (click)="restartTour()">
+      <span class="material-icons">school</span>
+      Take a Tour
+    </button>
+    <button class="logout-btn" (click)="logout()">
+      <span class="material-icons">logout</span>
+      Logout
+    </button>
   </div>
 </nav>

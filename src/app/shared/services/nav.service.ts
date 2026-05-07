@@ -222,50 +222,50 @@ export class NavService {
     {
       group: 'Dashboard',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '🏠', route: '/student-progress', subGroup: null }
+        { id: 'dashboard', label: 'Dashboard', icon: 'home', route: '/student-progress', subGroup: null }
       ]
     },
     {
       group: 'My Course',
       items: [
-        { id: 'my-course', label: 'My Course', icon: '📖', route: '/student/my-course', subGroup: null },
-        { id: 'student-announcements', label: 'Announcements', icon: '📢', route: '/student/announcements', subGroup: null }
+        { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
+        { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null }
       ]
     },
     {
       group: 'Performance History',
       items: [
-        { id: 'performance', label: 'Performance History', icon: '📊', route: '/performance-history', subGroup: null }
+        { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },
     {
       group: 'Documents',
       items: [
-        { id: 'documents', label: 'Documents', icon: '📁', route: '/student-documents', subGroup: null }
+        { id: 'documents', label: 'Documents', icon: 'folder', route: '/student-documents', subGroup: null }
       ]
     },
     {
       group: 'Payments',
       items: [
-        { id: 'payments', label: 'Payments', icon: '💳', route: '/student-payments', subGroup: null }
+        { id: 'payments', label: 'Payments', icon: 'payments', route: '/student-payments', subGroup: null }
       ]
     },
     {
       group: 'Visa Status',
       items: [
-        { id: 'visa-status', label: 'Visa Status', icon: '✈️', route: '/visa-status', subGroup: null }
+        { id: 'visa-status', label: 'Visa Status', icon: 'flight', route: '/visa-status', subGroup: null }
       ]
     },
     {
       group: 'Timetable',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: '📅', route: '/time-table-view-student', subGroup: null }
+        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-student', subGroup: null }
       ]
     },
     {
       group: 'Help',
       items: [
-        { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
+        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
       ]
     }
   ];

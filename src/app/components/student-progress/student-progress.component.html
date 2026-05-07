@@ -2,7 +2,7 @@
 
   <!-- Alerts bar -->
   <div class="sp-alert" *ngIf="alerts.length">
-    <span class="sp-alert__icon">⚠️</span>
+    <span class="sp-alert__icon material-icons" aria-hidden="true">warning</span>
     <div class="sp-alert__body">
       <div *ngFor="let a of alerts" class="sp-alert__msg">{{ a }}</div>
     </div>
@@ -12,7 +12,10 @@
   <div class="sp-section">
     <div class="sp-card sp-card--profile">
       <div class="sp-card__head">
-        <span class="sp-card__title">👤 Student Profile</span>
+        <span class="sp-card__title">
+          <span class="material-icons" aria-hidden="true">person</span>
+          Student Profile
+        </span>
         <span class="sp-badge" [class.sp-badge--green]="profile.studentStatus === 'ONGOING'"
               [class.sp-badge--gray]="profile.studentStatus !== 'ONGOING'">
           {{ profile.studentStatus === 'ONGOING' ? 'Active' : profile.studentStatus }}
@@ -35,7 +38,10 @@
 
   <!-- ═══ GROUP 2: Learning — Language Progress, Attendance, AI Bot, Exercises ═══ -->
   <div class="sp-section" *ngIf="showLearning">
-    <div class="sp-section__title">📚 Learning</div>
+    <div class="sp-section__title">
+      <span class="material-icons" aria-hidden="true">school</span>
+      Learning
+    </div>
 
     <!-- Quick stats row -->
     <div class="sp-status-grid sp-status-grid--learning-stats">
@@ -58,7 +64,10 @@
       <!-- Language Progress -->
       <div class="sp-card sp-card--wide">
         <div class="sp-card__head">
-          <span class="sp-card__title">📚 Language Progress</span>
+          <span class="sp-card__title">
+            <span class="material-icons" aria-hidden="true">school</span>
+            Language Progress
+          </span>
           <span class="sp-card__meta">{{ currentLevelLabel }}</span>
         </div>
         <div class="sp-levels">
@@ -100,7 +109,10 @@
       <!-- Attendance -->
       <div class="sp-card">
         <div class="sp-card__head">
-          <span class="sp-card__title">📋 Attendance</span>
+          <span class="sp-card__title">
+            <span class="material-icons" aria-hidden="true">assignment</span>
+            Attendance
+          </span>
           <span class="sp-card__meta">{{ attendance.attended }}/{{ attendance.total }}</span>
         </div>
         <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="attendanceRate"></div></div>
@@ -115,7 +127,10 @@
       <!-- AI Bot -->
       <div class="sp-card">
         <div class="sp-card__head">
-          <span class="sp-card__title">🤖 AI Bot Usage</span>
+          <span class="sp-card__title">
+            <span class="material-icons" aria-hidden="true">smart_toy</span>
+            AI Bot Usage
+          </span>
           <span class="sp-card__meta">{{ botUsage.weekMinutes }}/{{ botUsage.targetMinutesPerWeek }} min</span>
         </div>
         <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="botWeekPercent"></div></div>
@@ -130,7 +145,10 @@
       <!-- Digital Exercises -->
       <div class="sp-card" *ngIf="showLearningContent">
         <div class="sp-card__head">
-          <span class="sp-card__title">🎯 Digital Exercises</span>
+          <span class="sp-card__title">
+            <span class="material-icons" aria-hidden="true">ads_click</span>
+            Digital Exercises
+          </span>
           <span class="sp-card__meta">{{ exercisesThisWeek }} this week</span>
         </div>
         <div class="sp-kv-row">
@@ -149,21 +167,39 @@
 
   <!-- ═══ GROUP 3: Documents & Visa ═══ -->
   <div class="sp-section" *ngIf="showDocsVisa">
-    <div class="sp-section__title">📁 Documents & Visa</div>
+    <div class="sp-section__title">
+      <span class="material-icons" aria-hidden="true">folder</span>
+      Documents & Visa
+    </div>
     <div class="sp-section__grid sp-section__grid--two">
 
       <!-- Documents -->
       <div class="sp-card">
         <div class="sp-card__head">
-          <span class="sp-card__title">📁 Documents</span>
+          <span class="sp-card__title">
+            <span class="material-icons" aria-hidden="true">folder</span>
+            Documents
+          </span>
           <span class="sp-card__meta">{{ docsSummary.verified }} verified / {{ docsSummary.total }}</span>
         </div>
         <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="docsPercent"></div></div>
         <div class="sp-doc-summary" *ngIf="docsSummary.total > 0">
-          <span class="sp-doc-chip sp-doc-chip--verified">✓ {{ docsSummary.verified }} Verified</span>
-          <span class="sp-doc-chip sp-doc-chip--pending">⏳ {{ docsSummary.pending }} Pending</span>
-          <span class="sp-doc-chip sp-doc-chip--rejected" *ngIf="docsSummary.rejected > 0">✕ {{ docsSummary.rejected }} Rejected</span>
-          <span class="sp-doc-chip sp-doc-chip--not-uploaded">○ {{ docsSummary.notUploaded }} Not Uploaded</span>
+          <span class="sp-doc-chip sp-doc-chip--verified">
+            <span class="material-icons" aria-hidden="true">check</span>
+            {{ docsSummary.verified }} Verified
+          </span>
+          <span class="sp-doc-chip sp-doc-chip--pending">
+            <span class="material-icons" aria-hidden="true">hourglass_empty</span>
+            {{ docsSummary.pending }} Pending
+          </span>
+          <span class="sp-doc-chip sp-doc-chip--rejected" *ngIf="docsSummary.rejected > 0">
+            <span class="material-icons" aria-hidden="true">close</span>
+            {{ docsSummary.rejected }} Rejected
+          </span>
+          <span class="sp-doc-chip sp-doc-chip--not-uploaded">
+            <span class="material-icons" aria-hidden="true">radio_button_unchecked</span>
+            {{ docsSummary.notUploaded }} Not Uploaded
+          </span>
         </div>
         <table class="sp-doc-table">
           <thead><tr><th>Document</th><th>Status</th></tr></thead>
@@ -176,7 +212,10 @@
                       [class.sp-doc-badge--pending]="doc.status === 'pending'"
                       [class.sp-doc-badge--rejected]="doc.status === 'rejected'"
                       [class.sp-doc-badge--not-uploaded]="doc.status === 'not_uploaded'">
-                  {{ doc.status === 'verified' ? '✓ Verified' : doc.status === 'pending' ? '⏳ Pending' : doc.status === 'rejected' ? '✕ Rejected' : '○ Not Uploaded' }}
+                  <span class="material-icons" aria-hidden="true">
+                    {{ doc.status === 'verified' ? 'check' : doc.status === 'pending' ? 'hourglass_empty' : doc.status === 'rejected' ? 'close' : 'radio_button_unchecked' }}
+                  </span>
+                  {{ doc.status === 'verified' ? 'Verified' : doc.status === 'pending' ? 'Pending' : doc.status === 'rejected' ? 'Rejected' : 'Not Uploaded' }}
                 </span>
               </td>
             </tr>
@@ -190,7 +229,10 @@
       <!-- Visa Stage -->
       <div class="sp-card">
         <div class="sp-card__head">
-          <span class="sp-card__title">✈️ Visa Stage</span>
+          <span class="sp-card__title">
+            <span class="material-icons" aria-hidden="true">flight</span>
+            Visa Stage
+          </span>
           <span class="sp-card__meta">{{ visa.route || 'Not set' }}</span>
         </div>
         <div *ngIf="visa.steps.length; else noVisa">
@@ -217,7 +259,10 @@
             </div>
             <div class="sp-visa-progress__dates" *ngIf="visaStageDates.length">
               <div class="sp-visa-progress__date" *ngFor="let sd of visaStageDates">
-                <span class="sp-visa-progress__date-label">📅 {{ sd.label }}</span>
+                <span class="sp-visa-progress__date-label">
+                  <span class="material-icons" aria-hidden="true">calendar_today</span>
+                  {{ sd.label }}
+                </span>
                 <span class="sp-visa-progress__date-val">{{ formatDate(sd.date) }}</span>
               </div>
             </div>
@@ -246,10 +291,16 @@
 
   <!-- ═══ GROUP 4: Payments ═══ -->
   <div class="sp-section">
-    <div class="sp-section__title">💳 Payments</div>
+    <div class="sp-section__title">
+      <span class="material-icons" aria-hidden="true">payments</span>
+      Payments
+    </div>
     <div class="sp-card">
       <div class="sp-card__head">
-        <span class="sp-card__title">💳 Payment Summary</span>
+        <span class="sp-card__title">
+          <span class="material-icons" aria-hidden="true">payments</span>
+          Payment Summary
+        </span>
         <span class="sp-card__meta">{{ payments.currency }}</span>
       </div>
 
@@ -297,7 +348,8 @@
                       [class.sp-pay-badge--paid]="inv.paymentStatus === 'paid'"
                       [class.sp-pay-badge--overdue]="inv.paymentStatus === 'unpaid' && inv.dueDate && isOverdue(inv.dueDate)"
                       [class.sp-pay-badge--pending]="inv.paymentStatus === 'unpaid' && (!inv.dueDate || !isOverdue(inv.dueDate))">
-                  {{ inv.paymentStatus === 'paid' ? '✓ Paid' : (inv.dueDate && isOverdue(inv.dueDate) ? 'Overdue' : 'Unpaid') }}
+                  <span class="material-icons" aria-hidden="true" *ngIf="inv.paymentStatus === 'paid'" style="font-size:12px;vertical-align:middle;margin-right:2px;">check</span>
+                  {{ inv.paymentStatus === 'paid' ? 'Paid' : (inv.dueDate && isOverdue(inv.dueDate) ? 'Overdue' : 'Unpaid') }}
                 </span>
               </td>
             </tr>
@@ -318,7 +370,10 @@
 
   <!-- ═══ GROUP 5: History ═══ -->
   <div class="sp-section">
-    <div class="sp-section__title">🕐 History</div>
+    <div class="sp-section__title">
+      <span class="material-icons" aria-hidden="true">history</span>
+      History
+    </div>
     <div class="sp-card">
       <div class="sp-timeline">
         <div class="sp-timeline__item" *ngFor="let h of history">

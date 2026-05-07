@@ -56,7 +56,8 @@
   padding: 10px 14px;
 }
 
-.sp-alert__icon { font-size: 16px; flex-shrink: 0; }
+.sp-alert__icon { flex-shrink: 0; }
+.sp-alert__icon.material-icons { font-size: 20px; }
 .sp-alert__msg { font-size: 12px; color: #991b1b; line-height: 1.5; }
 
 /* ── Badge ── */
@@ -69,6 +70,27 @@
 
 .sp-badge--green { background: #dcfce7; color: #166534; }
 .sp-badge--gray  { background: #f1f5f9; color: #64748b; }
+
+/* ── Icons General ── */
+.sp .material-icons {
+  font-size: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.sp-card__title .material-icons {
+  font-size: 16px;
+  color: #64748b;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+
+.sp-section__title .material-icons {
+  font-size: 18px;
+  color: #3b82f6;
+  margin-right: 6px;
+  vertical-align: -4px;
+}
 
 /* ═══ SECTIONS ═══ */
 .sp-section {
@@ -439,12 +461,24 @@
 .sp-doc-badge--rejected { background: #fef2f2; color: #dc2626; }
 .sp-doc-badge--not-uploaded { background: #f9fafb; color: #6b7280; border: 1px dashed #d1d5db; }
 
+.sp-doc-badge .material-icons {
+  font-size: 12px;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
 .sp-doc-more { text-align: center; font-size: 11px; color: #6497b1; font-weight: 600; padding: 8px; }
 
 /* Document summary chips */
 .sp-doc-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
 .sp-doc-chip {
   padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+.sp-doc-chip .material-icons {
+  font-size: 14px;
+  margin-right: 4px;
 }
 .sp-doc-chip--verified { background: #dcfce7; color: #166534; }
 .sp-doc-chip--pending { background: #fef3c7; color: #92400e; }

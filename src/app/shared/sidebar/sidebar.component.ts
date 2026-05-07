@@ -102,6 +102,10 @@ export class SidebarComponent implements OnInit {
     return this.userName?.slice(0, 2).toUpperCase() || '??';
   }
 
+  isMaterialIcon(icon: string): boolean {
+    return /^[a-z0-9_]+$/.test(icon);
+  }
+
   /** First word / rest on two lines — used only in mobile sidebar CSS. */
   splitProfileName(name: string | null | undefined): { first: string; second: string | null } {
     const raw = (name ?? '').trim();
