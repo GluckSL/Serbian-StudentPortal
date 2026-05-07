@@ -6,7 +6,9 @@ import { getAuthToken } from './auth.service';
 
 export interface TeacherResource {
   _id: string;
-  teacherId: { _id: string; name: string; email?: string } | string;
+  teacherId?: { _id: string; name: string; email?: string } | string;
+  /** Assigned teachers (resource visible only to these). */
+  teacherIds?: ({ _id: string; name: string; email?: string } | string)[];
   title: string;
   day: string;
   batch?: string;
@@ -23,6 +25,22 @@ export interface TeacherResource {
   fileSize?: number;
   uploadedAt: string;
   uploadedBy?: { _id: string; name: string };
+}
+
+/** Grouped teacher resources (same upload: title + day + teacher). */
+export interface ResourceGroup {
+  groupKey: string;
+  title: string;
+  day: string;
+  batch: string;
+  level: string;
+  plan: string;
+  resourceType: string;
+  topic: string;
+  description: string;
+  uploadedAt: string;
+  files: TeacherResource[];
+  activeFileIndex: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -52,7 +70,7 @@ export class TeacherResourcesService {
   }
 
   upload(payload: {
-    teacherId: string;
+    teacherIds: string[];
     title: string;
     day: string;
     batch?: string;
@@ -64,7 +82,7 @@ export class TeacherResourcesService {
     files: File[];
   }): Observable<any> {
     const fd = new FormData();
-    fd.append('teacherId', payload.teacherId);
+    fd.append('teacherIds', JSON.stringify(payload.teacherIds));
     fd.append('title', payload.title);
     fd.append('day', payload.day);
     fd.append('batch', payload.batch || '');
@@ -82,6 +100,7 @@ export class TeacherResourcesService {
   update(
     id: string,
     payload: {
+      teacherIds?: string[];
       teacherId?: string;
       title?: string;
       day?: string;
@@ -95,7 +114,8 @@ export class TeacherResourcesService {
     }
   ): Observable<any> {
     const fd = new FormData();
-    if (payload.teacherId !== undefined) fd.append('teacherId', payload.teacherId);
+    if (payload.teacherIds !== undefined) fd.append('teacherIds', JSON.stringify(payload.teacherIds));
+    else if (payload.teacherId !== undefined) fd.append('teacherId', payload.teacherId);
     if (payload.title !== undefined) fd.append('title', payload.title);
     if (payload.day !== undefined) fd.append('day', payload.day);
     if (payload.batch !== undefined) fd.append('batch', payload.batch);
@@ -147,6 +167,12 @@ export class TeacherResourcesService {
       name.endsWith('.mp4') ||
       name.endsWith('.webm') ||
       name.endsWith('.mov') ||
+      name.endsWith('.mkv') ||
+      name.endsWith('.m4v') ||
+      name.endsWith('.ogv') ||
+      name.endsWith('.avi') ||
+      name.endsWith('.mpeg') ||
+      name.endsWith('.mpg') ||
       name.endsWith('.mp3') ||
       name.endsWith('.wav') ||
       name.endsWith('.ogg') ||
@@ -158,6 +184,12 @@ export class TeacherResourcesService {
       name.endsWith('.html') ||
       name.endsWith('.htm')
     );
+  }
+
+  /** Files that must be served via the API proxy to get correct Content-Type / security headers. */
+  requiresApiProxy(fileName: string): boolean {
+    const name = (fileName || '').toLowerCase();
+    return name.endsWith('.html') || name.endsWith('.htm');
   }
 
   isAudioFile(fileName: string): boolean {
@@ -178,7 +210,13 @@ export class TeacherResourcesService {
     return (
       name.endsWith('.mp4') ||
       name.endsWith('.webm') ||
-      name.endsWith('.mov')
+      name.endsWith('.mov') ||
+      name.endsWith('.mkv') ||
+      name.endsWith('.m4v') ||
+      name.endsWith('.ogv') ||
+      name.endsWith('.avi') ||
+      name.endsWith('.mpeg') ||
+      name.endsWith('.mpg')
     );
   }
 }

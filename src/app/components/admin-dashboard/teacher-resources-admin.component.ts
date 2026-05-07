@@ -16,7 +16,7 @@ import { NotificationService } from '../../services/notification.service';
 export class TeacherResourcesAdminComponent implements OnInit {
   teachers: any[] = [];
   resources: TeacherResource[] = [];
-  selectedTeacherId = '';
+  selectedTeacherIds: string[] = [];
   title = '';
   day = '';
   batch = '';
@@ -40,7 +40,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
   activePreviewIsAudio = false;
   activePreviewIsVideo = false;
   editingResourceId = '';
-  editTeacherId = '';
+  editTeacherIds: string[] = [];
   editTitle = '';
   editDay = '';
   editBatch = '';
@@ -69,7 +69,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
     const term = this.searchTerm.trim().toLowerCase();
     if (!term) return this.resources;
     return this.resources.filter((item) => {
-      const teacher = this.teacherName(item).toLowerCase();
+      const teacher = this.teachersLabel(item).toLowerCase();
       const haystack = [
         item.title,
         item.day,
@@ -140,26 +140,33 @@ export class TeacherResourcesAdminComponent implements OnInit {
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const picked = Array.from(input.files || []);
-    this.files = picked;
-    if (picked.length === 0) {
-      this.selectedFileNames = 'No files chosen';
-    } else if (picked.length === 1) {
-      this.selectedFileNames = picked[0].name;
-    } else {
-      this.selectedFileNames = `${picked.length} files selected`;
-    }
+    this.files = [...this.files, ...picked];
+    this.selectedFileNames = this.files.length > 0 ? `${this.files.length} file(s) selected` : 'No files chosen';
+    input.value = '';
+  }
+
+  removeFile(index: number): void {
+    this.files = this.files.filter((_, i) => i !== index);
+    this.selectedFileNames = this.files.length > 0 ? `${this.files.length} file(s) selected` : 'No files chosen';
+  }
+
+  formatBytes(bytes: number): string {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   upload(): void {
-    if (!this.selectedTeacherId || !this.title.trim() || !this.day.trim() || this.files.length === 0) {
-      this.notify.warning('Please select teacher, title, day and at least one file');
+    if (this.selectedTeacherIds.length === 0 || !this.title.trim() || !this.day.trim() || this.files.length === 0) {
+      this.notify.warning('Please select at least one teacher, title, day and at least one file');
       return;
     }
 
     this.uploading = true;
     this.teacherResourcesService
       .upload({
-        teacherId: this.selectedTeacherId,
+        teacherIds: this.selectedTeacherIds,
         title: this.title.trim(),
         day: this.day.trim(),
         batch: this.batch.trim(),
@@ -185,6 +192,9 @@ export class TeacherResourcesAdminComponent implements OnInit {
           this.description = '';
           this.files = [];
           this.selectedFileNames = 'No files chosen';
+          this.selectedTeacherIds = [];
+          const fi = document.getElementById('resource-file') as HTMLInputElement | null;
+          if (fi) fi.value = '';
           this.loadResources();
         },
         error: (err) => {
@@ -213,6 +223,8 @@ export class TeacherResourcesAdminComponent implements OnInit {
     let url: string;
     if (useOfficeViewer) {
       url = this.teacherResourcesService.getOfficeViewerUrl(basePreviewUrl);
+    } else if (this.teacherResourcesService.requiresApiProxy(item.originalName)) {
+      url = this.teacherResourcesService.getSecurePreviewUrl(item._id);
     } else if (basePreviewUrl) {
       url = basePreviewUrl;
     } else {
@@ -256,7 +268,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   startEdit(item: TeacherResource): void {
     this.editingResourceId = item._id;
-    this.editTeacherId = this.teacherIdValue(item.teacherId);
+    this.editTeacherIds = this.assignedTeacherIdStrings(item);
     this.editTitle = item.title || '';
     this.editDay = item.day || '';
     this.editBatch = item.batch || '';
@@ -271,7 +283,7 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   cancelEdit(): void {
     this.editingResourceId = '';
-    this.editTeacherId = '';
+    this.editTeacherIds = [];
     this.editTitle = '';
     this.editDay = '';
     this.editBatch = '';
@@ -294,14 +306,14 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   saveEdit(): void {
     if (!this.editingResourceId) return;
-    if (!this.editTeacherId || !this.editTitle.trim() || !this.editDay.trim()) {
-      this.notify.warning('Teacher, title and day are required');
+    if (this.editTeacherIds.length === 0 || !this.editTitle.trim() || !this.editDay.trim()) {
+      this.notify.warning('At least one teacher, title and day are required');
       return;
     }
     this.savingEdit = true;
     this.teacherResourcesService
       .update(this.editingResourceId, {
-        teacherId: this.editTeacherId.trim(),
+        teacherIds: this.editTeacherIds,
         title: this.editTitle.trim(),
         day: this.editDay.trim(),
         batch: this.editBatch.trim(),
@@ -328,7 +340,32 @@ export class TeacherResourcesAdminComponent implements OnInit {
 
   teacherName(item: TeacherResource): string {
     const t = item.teacherId as any;
-    return typeof t === 'object' ? t.name : 'Teacher';
+    return typeof t === 'object' && t?.name ? t.name : 'Teacher';
+  }
+
+  /** Comma-separated names for all assigned teachers. */
+  teachersLabel(item: TeacherResource): string {
+    const list = item.teacherIds;
+    if (Array.isArray(list) && list.length > 0) {
+      const names = list
+        .map((t) => (typeof t === 'object' && t && 'name' in t ? (t as { name: string }).name : ''))
+        .filter(Boolean);
+      if (names.length > 0) return names.join(', ');
+    }
+    return this.teacherName(item);
+  }
+
+  assignedTeacherIdStrings(item: TeacherResource): string[] {
+    const ids: string[] = [];
+    const raw = item.teacherIds;
+    if (Array.isArray(raw) && raw.length > 0) {
+      for (const t of raw) {
+        if (typeof t === 'object' && t && '_id' in t) ids.push(String((t as { _id: string })._id));
+        else if (t) ids.push(String(t));
+      }
+      return [...new Set(ids)];
+    }
+    return this.teacherIdValue(item.teacherId) ? [this.teacherIdValue(item.teacherId)] : [];
   }
 
   teacherIdValue(value: TeacherResource['teacherId']): string {

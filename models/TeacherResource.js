@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 
 const teacherResourceSchema = new mongoose.Schema({
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  /** @deprecated use teacherIds; kept for legacy queries / first assignee */
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  /** All teachers who may see this resource (upload assigns one or many). */
+  teacherIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }],
   title: { type: String, required: true, trim: true },
   day: { type: String, required: true, trim: true },
   batch: { type: String, default: '', trim: true, index: true },

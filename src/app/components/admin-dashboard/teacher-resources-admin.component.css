@@ -67,6 +67,18 @@
   color: #dc2626;
 }
 
+.select-multi {
+  width: 100%;
+  min-height: 140px;
+  padding: 6px 8px;
+}
+
+.teacher-col {
+  max-width: 220px;
+  white-space: normal;
+  word-break: break-word;
+}
+
 select,
 input,
 textarea {
@@ -320,6 +332,72 @@ textarea:focus {
   font-size: 0.78rem;
   font-weight: 400;
   margin-left: 4px;
+}
+
+.file-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+
+.file-list-icon {
+  background: #2f4f7f;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 5px;
+  min-width: 36px;
+  text-align: center;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.file-list-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1e293b;
+}
+
+.file-list-size {
+  color: #64748b;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-list-remove {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  min-height: unset;
+  width: auto;
+}
+
+.file-list-remove:hover {
+  background: #fee2e2;
 }
 
 @media (max-width: 900px) {

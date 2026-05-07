@@ -37,6 +37,33 @@ function toSortedUniqueStringList(values) {
   ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 }
 
+/** Parse teacher id list from multipart / JSON body (teacherIds JSON array or comma-separated). */
+function parseTeacherIdsFromBody(body) {
+  const raw = body && body.teacherIds;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return [...new Set(parsed.map((x) => String(x || '').trim()).filter(Boolean))];
+      }
+    } catch {
+      return [...new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))];
+    }
+  }
+  if (body && body.teacherId) {
+    const one = String(body.teacherId).trim();
+    return one ? [one] : [];
+  }
+  return [];
+}
+
+function resourceVisibleToUser(row, userId) {
+  const uid = String(userId || '');
+  const ids = Array.isArray(row.teacherIds) ? row.teacherIds.map((x) => String(typeof x === 'object' && x ? x._id || x : x)) : [];
+  if (ids.length > 0) return ids.includes(uid);
+  return String(row.teacherId || '') === uid;
+}
+
 router.post(
   '/upload',
   verifyToken,
@@ -52,7 +79,6 @@ router.post(
     const uploadedKeys = [];
     try {
       const {
-        teacherId,
         title,
         day,
         batch = '',
@@ -62,8 +88,9 @@ router.post(
         topic = '',
         description = ''
       } = req.body;
-      if (!teacherId || !title || !day) {
-        return res.status(400).json({ success: false, message: 'teacherId, title and day are required' });
+      const teacherIds = parseTeacherIdsFromBody(req.body);
+      if (!title || !day || teacherIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'At least one teacher, title and day are required' });
       }
 
       const files = req.files && req.files.length > 0 ? req.files : req.file ? [req.file] : [];
@@ -71,19 +98,27 @@ router.post(
         return res.status(400).json({ success: false, message: 'At least one file is required' });
       }
 
-      const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).lean();
-      if (!teacher) {
-        return res.status(404).json({ success: false, message: 'Teacher not found' });
+      const teachers = await User.find({
+        _id: { $in: teacherIds },
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
+      })
+        .select('_id')
+        .lean();
+      if (teachers.length !== teacherIds.length) {
+        return res.status(400).json({ success: false, message: 'One or more teacher ids are invalid' });
       }
 
       for (const f of files) {
         if (f.key) uploadedKeys.push(f.key);
       }
 
+      const primaryTeacherId = teacherIds[0];
+
       const docs = await Promise.all(
         files.map((f) =>
           TeacherResource.create({
-            teacherId,
+            teacherId: primaryTeacherId,
+            teacherIds,
             title: String(title).trim(),
             day: String(day).trim(),
             batch: String(batch || '').trim(),
@@ -132,11 +167,13 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     let scopedTeacherId = null;
 
     if (role === 'TEACHER') {
-      query.teacherId = req.user.id;
-      scopedTeacherId = req.user.id;
+      const uid = req.user.id;
+      query.$or = [{ teacherIds: uid }, { teacherId: uid }];
+      scopedTeacherId = uid;
     } else if (req.query.teacherId) {
-      query.teacherId = req.query.teacherId;
-      scopedTeacherId = req.query.teacherId;
+      const tid = String(req.query.teacherId).trim();
+      query.$or = [{ teacherIds: tid }, { teacherId: tid }];
+      scopedTeacherId = tid;
     }
     if (req.query.batch) query.batch = String(req.query.batch).trim();
     if (req.query.level) query.level = String(req.query.level).trim();
@@ -144,6 +181,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
 
     const rows = await TeacherResource.find(query)
       .populate('teacherId', 'name email')
+      .populate('teacherIds', 'name email')
       .populate('uploadedBy', 'name')
       .sort({ uploadedAt: -1 })
       .lean();
@@ -203,8 +241,7 @@ router.get('/:id/preview', verifyMediaToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
     const row = await TeacherResource.findById(req.params.id).lean();
     if (!row) return res.status(404).json({ success: false, message: 'Resource not found' });
 
-    // Teachers can only preview resources assigned to themselves.
-    if (req.user?.role === 'TEACHER' && String(row.teacherId) !== String(req.user.id)) {
+    if (req.user?.role === 'TEACHER' && !resourceVisibleToUser(row, req.user.id)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -260,12 +297,20 @@ router.patch(
 
       const has = (k) => Object.prototype.hasOwnProperty.call(req.body || {}, k);
 
-      if (has('teacherId')) {
-        const teacherId = String(req.body.teacherId || '').trim();
-        if (!teacherId) return res.status(400).json({ success: false, message: 'teacherId cannot be empty' });
-        const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).lean();
-        if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
-        row.teacherId = teacherId;
+      if (has('teacherIds') || has('teacherId')) {
+        const nextIds = has('teacherIds') ? parseTeacherIdsFromBody(req.body) : [String(req.body.teacherId || '').trim()].filter(Boolean);
+        if (nextIds.length === 0) return res.status(400).json({ success: false, message: 'At least one teacher is required' });
+        const teachers = await User.find({
+          _id: { $in: nextIds },
+          role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
+        })
+          .select('_id')
+          .lean();
+        if (teachers.length !== nextIds.length) {
+          return res.status(400).json({ success: false, message: 'One or more teacher ids are invalid' });
+        }
+        row.teacherIds = nextIds;
+        row.teacherId = nextIds[0];
       }
 
       if (has('title')) {

@@ -7,16 +7,16 @@
   <section class="upload-card">
     <div class="card-head">
       <h3>Upload Resource</h3>
-      <span class="hint">All file types supported (max 50 MB)</span>
+      <span class="hint">Select multiple files per upload (audio, video, PDF, docs, images)</span>
     </div>
 
     <div class="form-grid form-grid--upload">
-      <div class="form-field">
-        <label>Teacher <span class="required">*</span></label>
-        <select [(ngModel)]="selectedTeacherId">
-          <option value="">Select teacher</option>
+      <div class="form-field form-field--wide">
+        <label>Teachers <span class="required">*</span></label>
+        <select class="select-multi" multiple size="6" [(ngModel)]="selectedTeacherIds">
           <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
         </select>
+        <span class="hint-inline">Hold Ctrl (Windows) or ⌘ (Mac) to select multiple. Only these teachers will see the resource.</span>
       </div>
 
       <div class="form-field">
@@ -60,12 +60,20 @@
       </div>
 
       <div class="form-field form-field--wide">
-        <label>Files <span class="required">*</span> <span class="hint-inline">(audio, video, PDF, images, docs — any type, max 50 MB each, up to 20 files)</span></label>
+        <label>Files <span class="required">*</span> <span class="hint-inline">(audio, video MP4/MKV/WebM/MOV, PDF, images, HTML, docs — max 50 MB each, up to 20 files)</span></label>
         <div class="file-picker">
           <input id="resource-file" type="file" multiple (change)="onFileSelected($event)" />
-          <label class="file-btn" for="resource-file">Choose files</label>
-          <span class="file-name">{{ selectedFileNames }}</span>
+          <label class="file-btn" for="resource-file">+ Add files</label>
+          <span class="file-name" *ngIf="files.length === 0">No files chosen</span>
         </div>
+        <ul class="file-list" *ngIf="files.length > 0">
+          <li *ngFor="let f of files; let i = index" class="file-list-item">
+            <span class="file-list-icon">{{ f.name.split('.').pop()?.toUpperCase() }}</span>
+            <span class="file-list-name">{{ f.name }}</span>
+            <span class="file-list-size">{{ formatBytes(f.size) }}</span>
+            <button type="button" class="file-list-remove" (click)="removeFile(i)" title="Remove">×</button>
+          </li>
+        </ul>
       </div>
     </div>
 
@@ -144,7 +152,7 @@
         </thead>
         <tbody>
           <tr *ngFor="let item of filteredResources">
-            <td>{{ teacherName(item) }}</td>
+            <td class="teacher-col">{{ teachersLabel(item) }}</td>
             <td>{{ item.title }}</td>
             <td>{{ item.day }}</td>
             <td>{{ item.batch || '-' }}</td>
@@ -174,12 +182,12 @@
     </div>
 
     <div class="form-grid form-grid--upload">
-      <div class="form-field">
-        <label>Teacher <span class="required">*</span></label>
-        <select [(ngModel)]="editTeacherId">
-          <option value="">Select teacher</option>
+      <div class="form-field form-field--wide">
+        <label>Teachers <span class="required">*</span></label>
+        <select class="select-multi" multiple size="6" [(ngModel)]="editTeacherIds">
           <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
         </select>
+        <span class="hint-inline">Only selected teachers can open this resource in their portal.</span>
       </div>
 
       <div class="form-field">

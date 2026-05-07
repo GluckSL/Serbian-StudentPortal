@@ -39,51 +39,65 @@
       </div>
     </div>
 
-    <div *ngIf="filteredResources.length === 0" class="empty-state">No resources match your current filters.</div>
+    <div *ngIf="groupedResources.length === 0" class="empty-state">No resources match your current filters.</div>
 
-    <div class="table-wrap" *ngIf="filteredResources.length > 0">
-      <table class="resource-table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Day</th>
-            <th>Batch</th>
-            <th>Level</th>
-            <th>Plan</th>
-            <th>Type</th>
-            <th>Topic</th>
-            <th>Description</th>
-            <th>File</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let item of filteredResources">
-            <td data-label="Title">{{ item.title }}</td>
-            <td data-label="Day">{{ item.day }}</td>
-            <td data-label="Batch">{{ item.batch || '-' }}</td>
-            <td data-label="Level">{{ item.level || '-' }}</td>
-            <td data-label="Plan">{{ item.plan || '-' }}</td>
-            <td data-label="Type">{{ item.resourceType || getExtension(item.originalName) }}</td>
-            <td data-label="Topic">{{ item.topic || '-' }}</td>
-            <td data-label="Description" class="description-col">{{ item.description || '-' }}</td>
-            <td data-label="File" class="file-col">{{ item.originalName }}</td>
-            <td data-label="Action">
-              <button type="button" class="btn-play" (click)="play(item)">Open</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="resource-cards" *ngIf="groupedResources.length > 0">
+      <div class="resource-card" *ngFor="let group of groupedResources">
+
+        <div class="card-meta">
+          <div class="card-title">{{ group.title }}</div>
+          <div class="card-tags">
+            <span class="tag tag--day">Day {{ group.day }}</span>
+            <span class="tag tag--batch" *ngIf="group.batch">{{ group.batch }}</span>
+            <span class="tag tag--level" *ngIf="group.level">{{ group.level }}</span>
+            <span class="tag tag--plan" *ngIf="group.plan">{{ group.plan }}</span>
+            <span class="tag tag--type" *ngIf="group.resourceType">{{ group.resourceType }}</span>
+          </div>
+          <div class="card-sub" *ngIf="group.topic">Topic: <strong>{{ group.topic }}</strong></div>
+          <div class="card-sub card-desc" *ngIf="group.description">{{ group.description }}</div>
+        </div>
+
+        <div class="card-files">
+          <button
+            *ngFor="let f of group.files; let i = index"
+            type="button"
+            class="file-btn-chip"
+            [class.chip--audio]="teacherResourcesService.isAudioFile(f.originalName)"
+            [class.chip--video]="teacherResourcesService.isVideoFile(f.originalName)"
+            [class.chip--doc]="!teacherResourcesService.isAudioFile(f.originalName) && !teacherResourcesService.isVideoFile(f.originalName)"
+            (click)="play(group, i)"
+          >
+            <span class="chip-ext">{{ getExtension(f.originalName) }}</span>
+            <span class="chip-name">{{ f.originalName }}</span>
+          </button>
+        </div>
+
+      </div>
     </div>
   </section>
 
-  <div class="preview-overlay" *ngIf="activePreviewUrl" #previewContainer>
+  <!-- Preview overlay -->
+  <div class="preview-overlay" *ngIf="activePreviewUrl || (activePreviewGroupFiles.length > 0)" #previewContainer>
     <div class="preview-topbar">
       <strong>{{ activePreviewTitle }}</strong>
       <div class="topbar-actions">
         <button class="fullscreen-btn" type="button" (click)="toggleFullscreen(previewContainer)">Fullscreen</button>
         <button class="close-btn" type="button" (click)="closePreview()">Close</button>
       </div>
+    </div>
+
+    <!-- File switch tabs -->
+    <div class="preview-file-tabs" *ngIf="activePreviewGroupFiles.length > 1">
+      <button
+        *ngFor="let f of activePreviewGroupFiles; let i = index"
+        type="button"
+        class="preview-tab"
+        [class.preview-tab--active]="i === activePreviewFileIndex"
+        (click)="switchFile(i)"
+      >
+        <span class="chip-ext">{{ getExtension(f.originalName) }}</span>
+        {{ f.originalName }}
+      </button>
     </div>
 
     <div *ngIf="activePreviewIsAudio" class="preview-audio-wrap">
@@ -96,7 +110,7 @@
       *ngIf="activePreviewIsVideo"
       controls
       [src]="activePreviewRawUrl"
-      style="max-width:100%;max-height:calc(100vh - 60px);"
+      style="max-width:100%;max-height:calc(100vh - 110px);"
     >
       Your browser does not support the video element.
     </video>
