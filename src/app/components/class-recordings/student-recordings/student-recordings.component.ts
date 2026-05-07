@@ -55,6 +55,8 @@ export interface DisplayRecording {
   manualErrorMessage?: string | null;
   /** Set when recording is tagged to a journey day (GO / batch). */
   courseDay?: number | null;
+  /** Student watch time for this class recording (minutes), when backend provides it. */
+  watchedSeconds?: number | null;
 }
 
 @Component({
@@ -78,6 +80,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   /** Filter / sort mode for the recordings list (see filter menu in template). */
   recordingFilter: RecordingListFilter = 'all';
   currentUserBatch = '';
+  isSilverStudent = false;
 
   // ── Player modal state ────────────────────────────────────────────────────
   showPlayerModal  = false;
@@ -110,6 +113,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private activeZoomViewId: string | null = null;
   private zoomWatchStartTime = 0;
   private zoomDurationInterval: any = null;
+  private currentPlayingRecording: DisplayRecording | null = null;
 
   // Signed-URL cache: meetingLinkId → { url, expiresAt }
   // Stores either the HLS playlist URL (if hlsMode) or MP4 URL (legacy).
@@ -140,6 +144,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   ngOnInit(): void {
     this.loading = true;
     this.currentUserBatch = String(this.serviceUserBatch() || '');
+    this.isSilverStudent = this.resolveIsSilverStudent();
 
     forkJoin({
       manual: this.service.getRecordings().pipe(catchError(() => of({ success: false, recordings: [] as ClassRecording[] }))),
@@ -151,7 +156,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         title: r.title,
         description: r.description || '',
         date: r.createdAt,
-        duration: null,
+        duration: Number.isFinite(Number(r.duration)) ? Number(r.duration) : null,
         batch: (r.batches || []).join(', '),
         teacherName: r.uploadedBy?.name || 'Teacher',
         attempted: null,
@@ -164,6 +169,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         manualStatus: r.status || 'ready',
         manualErrorMessage: r.errorMessage || null,
         courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
+        watchedSeconds: Number.isFinite(Number((r as any).watchedSeconds)) ? Number((r as any).watchedSeconds) : 0,
       }));
 
       const zoomItems: DisplayRecording[] = (zoom.recordings || []).map((r: BatchZoomRecording) => ({
@@ -172,13 +178,17 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         title: r.topic,
         description: '',
         date: r.classDate,
-        duration: r.duration,
+        // Prefer recording runtime (seconds); fallback to scheduled meeting duration (minutes → seconds)
+        duration: Number.isFinite(Number(r.duration))
+          ? Number(r.duration)
+          : (Number.isFinite(Number(r.meetingDuration)) ? Number(r.meetingDuration) * 60 : null),
         batch: r.batch,
         teacherName: r.teacherName || 'Teacher',
         attempted: typeof r.attempted === 'boolean' ? r.attempted : null,
         attendanceStatus: r.attendanceStatus || 'Pending',
         meetingLinkId: r.meetingLinkId,
         courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
+        watchedSeconds: this.extractWatchedSeconds(r),
       }));
 
       // Batch visibility is already enforced by backend endpoints for students.
@@ -313,6 +323,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     this.playerIframeUrl = null;
     this.videoBuffering  = false;
     this.showPlayerModal = true;
+    this.currentPlayingRecording = recording;
 
     if (recording.type === 'manual') {
       this.startWatching(recording.id);
@@ -385,6 +396,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     this.pendingHlsInit  = false;
     this.hlsRefreshContext = null;
     this.hlsFatalRecoveryAttempts = 0;
+    this.currentPlayingRecording = null;
   }
 
   // ── HLS player ────────────────────────────────────────────────────────────
@@ -516,6 +528,21 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   onVideoCanPlay(): void {
     this.videoBuffering = false;
+    const video = this.srVideoEl?.nativeElement;
+    if (video && this.currentPlayingRecording) {
+      const sec = Number(video.duration || 0);
+      if (Number.isFinite(sec) && sec > 0) {
+        const rounded = Math.round(sec);
+        this.currentPlayingRecording.duration = rounded;
+        if (this.currentPlayingRecording.type === 'manual' && this.currentPlayingRecording.id) {
+          const recId = this.currentPlayingRecording.id;
+          this.service.updateManualDuration(recId, rounded).subscribe({
+            next: () => {},
+            error: () => {},
+          });
+        }
+      }
+    }
     this.srVideoEl?.nativeElement.play().catch(() => {});
   }
 
@@ -689,7 +716,11 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   getAttendanceLabel(r: DisplayRecording): string {
-    return r.attendanceStatus || 'Pending';
+    const watchedSec = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
+    const watched = Math.floor(watchedSec / 60);
+    const totalSec = Number(r.duration ?? 0);
+    const totalMin = totalSec > 0 ? Math.max(1, Math.round(totalSec / 60)) : 0;
+    return `${watched} / ${totalMin} min`;
   }
 
   getAttendanceClass(r: DisplayRecording): string {
@@ -722,6 +753,27 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   private serviceUserBatch(): string {
     return String(this.authService.getSnapshotUser()?.batch || '');
+  }
+
+  private resolveIsSilverStudent(): boolean {
+    const user = this.authService.getSnapshotUser();
+    return String(user?.subscription || '').toUpperCase() === 'SILVER';
+  }
+
+  private extractWatchedSeconds(r: BatchZoomRecording): number | null {
+    const raw = r as any;
+    const candidates = [
+      raw?.watchedSeconds,
+      Number.isFinite(Number(raw?.attendedDurationMinutes)) ? Number(raw?.attendedDurationMinutes) * 60 : null,
+      Number.isFinite(Number(raw?.durationMinutes)) ? Number(raw?.durationMinutes) * 60 : null,
+      Number.isFinite(Number(raw?.watchedMinutes)) ? Number(raw?.watchedMinutes) * 60 : null,
+      Number.isFinite(Number(raw?.watchDurationMinutes)) ? Number(raw?.watchDurationMinutes) * 60 : null
+    ];
+    for (const value of candidates) {
+      const n = Number(value);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    return null;
   }
 
   private normalizeBatch(value: string): string {

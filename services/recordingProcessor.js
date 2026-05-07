@@ -530,14 +530,23 @@ async function processManualRecordingUpload(recordingId, localFilePath) {
 
   const hlsPrefix = `manual/${recordingId}/hls`;
   let tmpDir = null;
+  let durationSec = null;
 
   try {
+    durationSec = await new Promise((resolve) => {
+      ffmpeg.ffprobe(localFilePath, (err, metadata) => {
+        if (err) return resolve(null);
+        const d = Number(metadata?.format?.duration || 0);
+        if (!Number.isFinite(d) || d <= 0) return resolve(null);
+        resolve(Math.round(d));
+      });
+    });
     const inputStream = fs.createReadStream(localFilePath);
     const result = await convertToHLS(inputStream, `manual-${recordingId}`);
     tmpDir = result.tmpDir;
 
     const hlsKey = await uploadHlsToR2(tmpDir, result.files, hlsPrefix);
-    return { success: true, hlsKey };
+    return { success: true, hlsKey, duration: durationSec };
   } catch (err) {
     return { success: false, error: err.message || 'Manual upload processing failed' };
   } finally {

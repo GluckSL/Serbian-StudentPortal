@@ -7,6 +7,11 @@ const portalSessionSchema = new mongoose.Schema(
     startTime: { type: Date, required: true },
     endTime: { type: Date, default: null },
     totalActiveSeconds: { type: Number, default: 0 },
+    deviceType: { type: String, default: 'Unknown' },
+    deviceLabel: { type: String, default: 'Unknown device' },
+    browser: { type: String, default: '' },
+    os: { type: String, default: '' },
+    userAgent: { type: String, default: '' },
     lastHeartbeatAt: { type: Date, required: true },
     isActive: { type: Boolean, default: true, index: true }
   },

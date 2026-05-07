@@ -16,7 +16,7 @@ const MAX_CREDIT_PER_HEARTBEAT_SEC = 30;
 const HEARTBEAT_GAP_STALE_SEC = 120;
 /** Cron / auto-close: silence longer than this ends the session. */
 const STALE_SILENCE_MS = 2 * 60 * 1000;
-const PORTAL_ANALYTICS_DEBUG = /^(1|true|yes)$/i.test(String(process.env.PORTAL_ANALYTICS_DEBUG || '0'));
+const PORTAL_ANALYTICS_DEBUG = /^(1|true|yes)$/i.test(String(process.env.PORTAL_ANALYTICS_DEBUG || '1'));
 
 function logPortalDebug(message, payload = null) {
   if (!PORTAL_ANALYTICS_DEBUG) return;
@@ -30,6 +30,40 @@ function logPortalDebug(message, payload = null) {
 function parseObjectId(id) {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
   return new mongoose.Types.ObjectId(id);
+}
+
+function parseDeviceMeta(rawUserAgent) {
+  const ua = String(rawUserAgent || '').trim().slice(0, 512);
+  const lower = ua.toLowerCase();
+
+  let deviceType = 'Desktop';
+  if (/ipad|tablet|playbook|silk|kindle/.test(lower)) {
+    deviceType = 'Tablet';
+  } else if (/mobile|android|iphone|ipod|blackberry|windows phone/.test(lower)) {
+    deviceType = 'Mobile';
+  }
+
+  let os = 'Unknown OS';
+  if (/windows nt/i.test(ua)) os = 'Windows';
+  else if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/mac os x|macintosh/i.test(ua)) os = 'macOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  let browser = 'Unknown browser';
+  if (/edg\//i.test(ua)) browser = 'Edge';
+  else if (/opr\//i.test(ua) || /opera/i.test(ua)) browser = 'Opera';
+  else if (/chrome\//i.test(ua) && !/edg\//i.test(ua)) browser = 'Chrome';
+  else if (/firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/safari\//i.test(ua) && !/chrome\//i.test(ua)) browser = 'Safari';
+
+  return {
+    userAgent: ua,
+    deviceType,
+    os,
+    browser,
+    deviceLabel: `${deviceType} • ${os} • ${browser}`
+  };
 }
 
 function parseDateRange(query) {
@@ -160,12 +194,13 @@ async function closeOtherActiveSessions(studentId, exceptSessionId) {
   }
 }
 
-async function startSession(studentId) {
+async function startSession(studentId, rawUserAgent = '') {
   const sid = parseObjectId(studentId);
   if (!sid) throw new Error('INVALID_STUDENT');
 
   const sessionId = randomUUID();
   const now = new Date();
+  const deviceMeta = parseDeviceMeta(rawUserAgent);
 
   await closeOtherActiveSessions(sid, sessionId);
 
@@ -175,6 +210,11 @@ async function startSession(studentId) {
     startTime: now,
     endTime: null,
     totalActiveSeconds: 0,
+    deviceType: deviceMeta.deviceType,
+    deviceLabel: deviceMeta.deviceLabel,
+    browser: deviceMeta.browser,
+    os: deviceMeta.os,
+    userAgent: deviceMeta.userAgent,
     lastHeartbeatAt: now,
     isActive: true
   });
@@ -1136,6 +1176,55 @@ async function getSessionWise(from, to, limit = 200, cohortIds = null) {
   }));
 }
 
+async function getDeviceWise(from, to, limit = 250, cohortIds = null) {
+  const match = { ...sessionTimeRangeMatch(from, to) };
+  if (cohortIds) match.studentId = { $in: cohortIds };
+  const cap = Math.min(Math.max(parseInt(String(limit), 10) || 250, 1), 1000);
+
+  const rows = await PortalSession.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: {
+          studentId: '$studentId',
+          deviceLabel: { $ifNull: ['$deviceLabel', 'Unknown device'] },
+          deviceType: { $ifNull: ['$deviceType', 'Unknown'] },
+          os: { $ifNull: ['$os', 'Unknown OS'] },
+          browser: { $ifNull: ['$browser', 'Unknown browser'] }
+        },
+        totalSeconds: { $sum: '$totalActiveSeconds' },
+        sessionsCount: { $sum: 1 },
+        lastSeenAt: { $max: '$lastHeartbeatAt' }
+      }
+    },
+    { $sort: { totalSeconds: -1, sessionsCount: -1 } },
+    { $limit: cap }
+  ]);
+
+  const studentIds = rows.map((r) => r?._id?.studentId).filter(Boolean);
+  const users = studentIds.length
+    ? await User.find({ _id: { $in: studentIds } }).select('_id name email').lean()
+    : [];
+  const userMap = new Map(users.map((u) => [String(u._id), u]));
+
+  return rows.map((r) => {
+    const sid = String(r?._id?.studentId || '');
+    const u = userMap.get(sid);
+    return {
+      studentId: sid,
+      studentName: u?.name || 'Unknown',
+      email: u?.email || '',
+      deviceType: String(r?._id?.deviceType || 'Unknown'),
+      os: String(r?._id?.os || 'Unknown OS'),
+      browser: String(r?._id?.browser || 'Unknown browser'),
+      deviceLabel: String(r?._id?.deviceLabel || 'Unknown device'),
+      totalSeconds: Math.max(0, Math.floor(Number(r?.totalSeconds) || 0)),
+      sessionsCount: Math.max(0, Number(r?.sessionsCount) || 0),
+      lastSeenAt: r?.lastSeenAt || null
+    };
+  });
+}
+
 async function attachStudentNames(rowsByStudentId) {
   const ids = Object.keys(rowsByStudentId).filter((id) => mongoose.Types.ObjectId.isValid(id));
   if (!ids.length) return [];
@@ -1682,6 +1771,7 @@ module.exports = {
   getPageWise,
   getTimeline,
   getSessionWise,
+  getDeviceWise,
   getDashboard,
   getDailyPortalLogs,
   getLearningAnalytics

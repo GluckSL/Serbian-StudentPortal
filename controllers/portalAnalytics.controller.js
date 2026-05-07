@@ -10,7 +10,7 @@ function requireStudent(req, res, next) {
 exports.startSession = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const result = await portalAnalytics.startSession(studentId);
+    const result = await portalAnalytics.startSession(studentId, req.headers['user-agent']);
     res.status(201).json(result);
   } catch (err) {
     if (err.message === 'INVALID_STUDENT') return res.status(400).json({ message: 'Invalid user' });
@@ -139,6 +139,19 @@ exports.sessionWise = async (req, res) => {
   } catch (err) {
     console.error('[portal-analytics] sessionWise', err);
     res.status(500).json({ message: 'Failed to load sessions' });
+  }
+};
+
+exports.deviceWise = async (req, res) => {
+  try {
+    const { from, to } = portalAnalytics.parseDateRange(req.query);
+    const cohort = req.query.cohort === 'platinum' || req.query.cohort === 'go' ? req.query.cohort : null;
+    const cohortIds = cohort ? await portalAnalytics.getCohortStudentIds(cohort) : null;
+    const data = await portalAnalytics.getDeviceWise(from, to, req.query.limit, cohortIds);
+    res.json({ items: data, range: { from, to } });
+  } catch (err) {
+    console.error('[portal-analytics] deviceWise', err);
+    res.status(500).json({ message: 'Failed to load device analytics' });
   }
 };
 

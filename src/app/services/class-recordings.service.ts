@@ -22,6 +22,8 @@ export interface ClassRecording {
   isPublished?: boolean;
   publishedAt?: string | null;
   createdAt: string;
+  duration?: number | null;
+  watchedSeconds?: number | null;
   /** Journey day tag (GO / batch journey); used to group recordings per day. */
   courseDay?: number | null;
 }
@@ -112,7 +114,8 @@ export class ClassRecordingsService {
   constructor(private http: HttpClient) {}
 
   getRecordings(): Observable<{ success: boolean; recordings: ClassRecording[] }> {
-    return this.http.get<any>(this.url);
+    const sep = this.url.includes('?') ? '&' : '?';
+    return this.http.get<any>(`${this.url}${sep}_=${Date.now()}`);
   }
 
   getAdminAllRecordings(): Observable<{ success: boolean; recordings: AdminClassRecording[] }> {
@@ -213,6 +216,10 @@ export class ClassRecordingsService {
     return this.http.put<any>(`${this.url}/view/${viewId}`, { watchDuration });
   }
 
+  updateManualDuration(recordingId: string, durationSeconds: number): Observable<{ success: boolean; duration: number }> {
+    return this.http.put<any>(`${this.url}/${recordingId}/duration`, { duration: durationSeconds });
+  }
+
   getViews(recordingId: string): Observable<{ success: boolean; views: any[] }> {
     return this.http.get<any>(`${this.url}/${recordingId}/views`);
   }
@@ -295,7 +302,10 @@ export class ClassRecordingsService {
    * Admins/Teachers may pass an optional batch query param.
    */
   getMyBatchZoomRecordings(batch?: string): Observable<{ success: boolean; recordings: BatchZoomRecording[] }> {
-    const params = batch ? `?batch=${encodeURIComponent(batch)}` : '';
+    const parts: string[] = [];
+    if (batch) parts.push(`batch=${encodeURIComponent(batch)}`);
+    parts.push(`_=${Date.now()}`);
+    const params = parts.length ? `?${parts.join('&')}` : '';
     return this.http.get<any>(
       `${this.url}/zoom/my-batch${params}`
     );

@@ -25,6 +25,11 @@ function normalizeCourseDay(d) {
   return Math.min(200, Math.max(1, n));
 }
 
+function isSilverGoStudent(student) {
+  return String(student?.goStatus || '').toUpperCase() === 'GO' &&
+    String(student?.subscription || '').toUpperCase() === 'SILVER';
+}
+
 /**
  * After attendance is saved on a meeting, mark students who are on that journey day and attended.
  */
@@ -119,7 +124,7 @@ async function recomputePendingForStudent(studentId) {
  */
 async function applyJourneyDayRollovers() {
   const students = await User.find({ role: 'STUDENT' })
-    .select('batch goStatus subscription currentCourseDay pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay')
+    .select('batch goStatus subscription level currentCourseDay pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay')
     .lean();
 
   const configCache = new Map();
@@ -171,13 +176,24 @@ async function applyJourneyDayRollovers() {
       clearedPending++;
     }
 
+    const silverGoStrict = isSilverGoStudent(s);
+    const strictForStudent = !!cfg.strictJourneyRule || silverGoStrict;
     let shouldAdvance = false;
-    if (!cfg.strictJourneyRule) {
+    if (!strictForStudent) {
       shouldAdvance = true;
     } else {
       const keys = allStudentBatchStringsForContent(s);
-      const completion = await computeJourneyDayCompletion(s._id, keys, cur);
-      shouldAdvance = meetsStrictThreshold(completion, cfg);
+      const completion = await computeJourneyDayCompletion(s._id, keys, cur, {
+        includeRecordings: isSilverGoStudent(s),
+        includeDg: isSilverGoStudent(s),
+        studentLevel: s.level,
+        studentPlan: s.subscription,
+        goStatus: s.goStatus,
+        subscription: s.subscription
+      });
+      shouldAdvance = silverGoStrict
+        ? !!completion.complete
+        : meetsStrictThreshold(completion, cfg);
     }
 
     if (!shouldAdvance) {

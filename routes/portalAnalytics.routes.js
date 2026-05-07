@@ -17,6 +17,7 @@ analyticsRouter.get('/student-wise', verifyToken, isAdmin, ctrl.studentWise);
 analyticsRouter.get('/page-wise', verifyToken, isAdmin, ctrl.pageWise);
 analyticsRouter.get('/timeline', verifyToken, isAdmin, ctrl.timeline);
 analyticsRouter.get('/session-wise', verifyToken, isAdmin, ctrl.sessionWise);
+analyticsRouter.get('/device-wise', verifyToken, isAdmin, ctrl.deviceWise);
 analyticsRouter.get('/learning/:kind', verifyToken, isAdmin, ctrl.learning);
 
 module.exports = { portalRouter, analyticsRouter };

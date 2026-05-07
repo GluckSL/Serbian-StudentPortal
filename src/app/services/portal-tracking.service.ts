@@ -308,6 +308,7 @@ export class PortalTrackingService implements OnDestroy {
         { withCredentials: true }
       )
       .subscribe({
+        next: () => {},
         error: (err) => {
           if (err?.status === 410 || err?.status === 404) {
             void this.ensureSession();

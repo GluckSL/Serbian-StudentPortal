@@ -1,0 +1,94 @@
+.pa-table-wrap {
+  padding: 0.5rem 0;
+}
+
+.sw-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 0.8rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 800;
+    color: #122243;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    margin: 0.15rem 0 0;
+    font-size: 0.8rem;
+    color: #6782a7;
+  }
+}
+
+.pa-center {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.pa-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.pa-pager-nav {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.device-summary {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.summary-chip {
+  font-size: 0.78rem;
+  color: #0f3e73;
+  background: rgba(214, 236, 255, 0.9);
+  border: 1px solid rgba(125, 176, 225, 0.7);
+  border-radius: 999px;
+  padding: 0.18rem 0.56rem;
+  font-weight: 600;
+}
+
+.pa-table-card {
+  border-radius: 16px;
+  border: 1px solid rgba(156, 193, 236, 0.45);
+  box-shadow: 0 14px 32px rgba(30, 79, 156, 0.12);
+  overflow: hidden;
+  background: linear-gradient(170deg, #ffffff, #f4faff);
+}
+
+.pa-table-card th {
+  background: linear-gradient(170deg, #f8fcff, #eef7ff);
+  border-bottom: 1px solid rgba(156, 193, 236, 0.42);
+  color: #4a6286;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pa-table-card td {
+  border-color: rgba(189, 214, 245, 0.45);
+}
+
+.device-chip {
+  font-size: 0.8rem;
+  color: #1e3a5f;
+  background: rgba(224, 242, 254, 0.9);
+  border: 1px solid rgba(125, 211, 252, 0.55);
+  border-radius: 999px;
+  padding: 0.16rem 0.52rem;
+  display: inline-flex;
+  line-height: 1.2;
+  max-width: 100%;
+}
