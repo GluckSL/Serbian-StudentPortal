@@ -91,9 +91,9 @@
 
         <div class="form-group">
           <label class="required">Document Name</label>
-          <input 
-            type="text" 
-            class="form-control" 
+          <input
+            type="text"
+            class="form-control"
             [(ngModel)]="documentName"
             placeholder="e.g., O Level Certificate 2020"
             [disabled]="isUploading">
@@ -104,8 +104,8 @@
 
         <div class="form-group">
           <label>Description (Optional)</label>
-          <textarea 
-            class="form-control" 
+          <textarea
+            class="form-control"
             [(ngModel)]="documentDescription"
             placeholder="Add any additional notes about this document..."
             rows="3"
@@ -115,8 +115,8 @@
         <div class="form-group">
           <label class="required">Select File</label>
           <div class="file-input-wrapper">
-            <input 
-              type="file" 
+            <input
+              type="file"
               id="fileInput"
               class="file-input"
               (change)="onFileSelected($event)"
@@ -134,14 +134,14 @@
         </div>
 
         <div class="form-actions">
-          <button 
-            class="btn btn-secondary" 
+          <button
+            class="btn btn-secondary"
             (click)="toggleUploadForm()"
             [disabled]="isUploading">
             Cancel
           </button>
-          <button 
-            class="btn btn-primary" 
+          <button
+            class="btn btn-primary"
             (click)="uploadDocument()"
             [disabled]="isUploading || !selectedFile || !selectedDocumentType || !documentName">
             <span *ngIf="!isUploading">
@@ -163,69 +163,6 @@
       <i class="fas fa-check-circle" style="font-size: 48px; color: #4caf50; margin-bottom: 12px; display: block;"></i>
       <p style="font-size: 16px; margin: 0;">No document requirements for your program.</p>
     </div>
-
-    <!-- Desktop: Table view -->
-    <div class="requirements-table-wrap req-view--desktop" *ngIf="requirements.length > 0">
-      <table class="requirements-table">
-        <thead>
-          <tr>
-            <th>Document Type</th>
-            <th>Requirement</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let req of requirements" [class.required-row]="req.required">
-            <td>
-              <div class="doc-title">{{ req.label }}</div>
-              <div class="doc-desc">{{ req.description }}</div>
-            </td>
-            <td>
-              <span class="badge" [class.bg-danger]="req.required" [class.bg-secondary]="!req.required">
-                {{ req.required ? 'Required' : 'Optional' }}
-              </span>
-              <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
-            </td>
-            <td>
-              <span class="badge" [ngClass]="getRequirementStatusBadgeClass(req.type)">
-                {{ getRequirementStatusText(req.type) }}
-              </span>
-              <small class="reupload-reason" *ngIf="getRequirementReuploadReason(req.type)">
-                Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
-              </small>
-            </td>
-            <td>
-              <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyAction">
-                <div class="action-btn-group">
-                  <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentDetails(latestDoc)">
-                    <i class="fas fa-eye"></i> View
-                  </button>
-                  <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(latestDoc)">
-                    <i class="fas fa-download"></i> Download
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger"
-                          (click)="uploadFromRequirementRow(req, true)"
-                          [disabled]="uploadingRequirementType === req.type">
-                    <i class="fas fa-sync-alt"></i> Replace
-                  </button>
-                </div>
-              </ng-container>
-              <ng-template #uploadOnlyAction>
-                <button class="btn btn-sm btn-outline-primary"
-                        (click)="uploadFromRequirementRow(req)"
-                        [disabled]="uploadingRequirementType === req.type">
-                  <i class="fas fa-upload"></i>
-                  {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
-                </button>
-              </ng-template>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Mobile: Card view -->
     <div class="requirements-cards req-view--mobile" *ngIf="requirements.length > 0">
       <div class="req-card" *ngFor="let req of requirements" [class.req-card--required]="req.required">
         <div class="req-card-header">
@@ -303,9 +240,9 @@
         <label>Search</label>
         <div class="search-input-wrapper">
           <i class="fas fa-search"></i>
-          <input 
-            type="text" 
-            class="form-control" 
+          <input
+            type="text"
+            class="form-control"
             [(ngModel)]="searchQuery"
             placeholder="Search documents...">
         </div>
@@ -316,7 +253,7 @@
   <!-- Documents List -->
   <div class="documents-section">
     <h3>
-      <i class="fas fa-folder-open"></i> 
+      <i class="fas fa-folder-open"></i>
       Uploaded Documents ({{ filteredDocuments.length }})
     </h3>
 
@@ -372,8 +309,8 @@
           <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(doc)">
             <i class="fas fa-download"></i> Download
           </button>
-          <button 
-            class="btn btn-sm btn-outline-danger" 
+          <button
+            class="btn btn-sm btn-outline-danger"
             (click)="deleteDocument(doc._id)"
             [disabled]="doc.status === 'VERIFIED'"
             [title]="doc.status === 'VERIFIED' ? 'Cannot delete verified documents. Contact admin if you need to update.' : 'Delete document'">
