@@ -328,7 +328,7 @@
 /* Three-column layout: Left info | Middle answer | Right nav */
 .player-three-col {
   display: grid;
-  grid-template-columns: 1fr 3fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
   align-items: start;
   margin-top: 16px;
@@ -3456,16 +3456,6 @@
     width: 100%;
     justify-content: center;
   }
-  .player-skeleton {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
-  }
-  .sk-sidebar-left {
-    grid-column: 1;
-  }
-  .sk-sidebar-right {
-    order: -1;
-  }
   .btn-nav,
   .match-item {
     padding: 0px 8px;
@@ -3492,7 +3482,7 @@
 
 .player-vp-chat-layout {
   display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr;
   gap: 16px;
   align-items: stretch;
@@ -6371,11 +6361,19 @@
 /* Skeleton loader styles */
 .player-skeleton {
   display: grid;
-  grid-template-columns: 1fr 3fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
-  padding: 60px 24px;
-  height: 100vh;
+  padding: 40px 24px;
+  width: 100%;
+  box-sizing: border-box;
 }
+
+/* Adjust skeleton padding when inside player-layout */
+.player-layout .player-skeleton {
+  padding: 0;
+  margin-top: 16px;
+}
+
 .sk-sidebar-left,
 .sk-sidebar-right {
   width: 100%;
@@ -6385,11 +6383,21 @@
 }
 .sk-box {
   background: #f3f3f3;
-  border-radius: 8px;
+  border-radius: 16px;
   animation: shimmer 1.5s infinite linear;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
+  margin-bottom: 20px;
 }
+
+.sk-sidebar-left .sk-box:nth-child(1) { height: 240px; }
+.sk-sidebar-left .sk-box:nth-child(2) { height: 180px; }
+
+.sk-main .sk-box:nth-child(1) { height: 520px; }
+.sk-main .sk-box:nth-child(2) { height: 120px; }
+
+.sk-sidebar-right .sk-box:nth-child(1) { height: 340px; }
+.sk-sidebar-right .sk-box:nth-child(2) { height: 140px; }
 
 @keyframes shimmer {
   0% {
@@ -6412,5 +6420,19 @@
     flex-direction: row;
     justify-content: space-between;
     gap: 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .player-skeleton {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+  .sk-sidebar-left {
+    order: -1;
+    grid-column: auto;
+  }
+  .sk-sidebar-right {
+    order: 0;
   }
 }
