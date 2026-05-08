@@ -13,7 +13,11 @@ const supportTicketSchema = new mongoose.Schema(
     status: { type: String, enum: ['open', 'in-progress', 'resolved', 'closed'], default: 'open' },
     replies: [
       {
-        authorRole: { type: String, enum: ['ADMIN', 'TEACHER_ADMIN', 'SYSTEM'], default: 'ADMIN' },
+        authorRole: {
+          type: String,
+          enum: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN', 'SYSTEM'],
+          default: 'ADMIN'
+        },
         message: { type: String, required: true, trim: true, maxlength: 2000 },
         createdAt: { type: Date, default: Date.now }
       }

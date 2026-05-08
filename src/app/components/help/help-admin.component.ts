@@ -25,6 +25,7 @@ export class HelpAdminComponent implements OnInit {
   selectedTicket: SupportTicket | null = null;
   replyDraft: Record<string, string> = {};
   replyingId: string | null = null;
+  replyError: string | null = null;
 
   readonly statuses = ['open', 'in-progress', 'resolved', 'closed'];
 
@@ -110,6 +111,7 @@ export class HelpAdminComponent implements OnInit {
   }
 
   viewTicket(ticket: SupportTicket): void {
+    this.replyError = null;
     this.selectedTicket = this.selectedTicket?._id === ticket._id ? null : ticket;
   }
 
@@ -119,6 +121,7 @@ export class HelpAdminComponent implements OnInit {
     if (!msg) return;
 
     this.replyingId = ticket._id;
+    this.replyError = null;
     this.http
       .post<{ success: boolean; data: SupportTicket; message?: string }>(
         `${environment.apiUrl}/support/tickets/${ticket._id}/reply`,
@@ -141,7 +144,12 @@ export class HelpAdminComponent implements OnInit {
           }
           this.replyingId = null;
         },
-        error: () => {
+        error: (err) => {
+          this.replyError =
+            err?.error?.message ||
+            err?.error?.msg ||
+            err?.message ||
+            'Could not send reply. Check your connection or permissions.';
           this.replyingId = null;
         }
       });
