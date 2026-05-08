@@ -3888,12 +3888,17 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   get silverBatchOptions(): string[] {
-    if (this.silverBatchList.length > 0) return this.silverBatchList;
+    if (this.silverBatchList.length > 0) {
+      const set = new Set(this.silverBatchList);
+      set.add('GO-SILVER');
+      return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    }
     const set = new Set<string>();
     (this.silverStudents || []).forEach((s) => {
       const batch = String(s.batch || '').trim();
       if (batch) set.add(batch);
     });
+    set.add('GO-SILVER');
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }
 
@@ -3919,6 +3924,7 @@ export class JourneyManagementComponent implements OnInit {
       const batch = String(s?.batch || '').trim();
       if (batch) set.add(batch);
     });
+    set.add('GO-SILVER');
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }
 
