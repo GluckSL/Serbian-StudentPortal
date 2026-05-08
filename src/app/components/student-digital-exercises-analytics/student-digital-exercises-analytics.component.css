@@ -10,21 +10,31 @@
 
 .page-head {
   margin-bottom: 22px;
+  background: #fff;
+  border: 1px solid #e0e7ff;
+  border-radius: 16px;
+}
+
+.page-head-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
 }
 
 .btn-back {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  height: 32px !important;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 8px 14px;
+  padding: 0px 8px;
   font-size: 0.88rem;
   font-weight: 600;
   color: #475569;
   cursor: pointer;
-  margin-bottom: 12px;
 }
 
 .btn-back:hover {
@@ -33,17 +43,17 @@
   background: #eef2ff;
 }
 
-.page-head h1 {
+.page-head-top-row h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 8px;
   font-size: 1.5rem;
   font-weight: 700;
   color: #0f172a;
+  margin: 0;
 }
 
-.page-head h1 .material-icons {
+.page-head-top-row h1 .material-icons {
   color: #6366f1;
   font-size: 28px;
 }
@@ -159,9 +169,8 @@
 
 .overall-inner {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 24px 32px;
+  gap: 32px;
 }
 
 .donut-wrap {
@@ -379,9 +388,97 @@
   border-color: #a5b4fc;
 }
 
+.card-grid {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.exercise-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.exercise-card:active {
+  transform: scale(0.98);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.card-title-group {
+  flex: 1;
+}
+
+.card-header .ex-title {
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.card-header .ex-cat {
+  font-size: 0.75rem;
+}
+
+.card-body {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.card-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-stat:last-child {
+  grid-column: span 2;
+}
+
+.card-stat .label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.card-stat .value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.card-footer {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 12px;
+}
+
+.card-footer .btn-detail {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .table-wrap {
+    display: none;
+  }
+  .card-grid {
+    display: flex;
+  }
+}
+
 @media (max-width: 640px) {
   .overall-inner {
-    flex-direction: column;
-    align-items: flex-start;
+    gap: 24px;
   }
 }
