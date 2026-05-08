@@ -134,7 +134,7 @@ router.get('/tickets/my', verifyToken, async (req, res) => {
 });
 
 // GET /api/support/tickets (admin)
-router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN']), async (req, res) => {
   try {
     const tickets = await SupportTicket.find()
       .sort({ createdAt: -1 })
@@ -186,7 +186,7 @@ router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async
 });
 
 // PATCH /api/support/tickets/:id/status (admin)
-router.patch('/tickets/:id/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.patch('/tickets/:id/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN']), async (req, res) => {
   try {
     const { status } = req.body;
     const allowed = ['open', 'in-progress', 'resolved', 'closed'];
@@ -208,7 +208,7 @@ router.patch('/tickets/:id/status', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
 });
 
 // POST /api/support/tickets/:id/reply (admin)
-router.post('/tickets/:id/reply', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/tickets/:id/reply', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN']), async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || String(message).trim().length < 1) {
