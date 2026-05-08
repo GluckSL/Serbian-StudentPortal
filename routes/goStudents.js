@@ -228,6 +228,43 @@ router.post('/bulk-set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']),
   }
 });
 
+// ─── POST /api/go-students/bulk-set-batch ────────────────────────────────────
+// Assign batch value for selected GO students.
+router.post('/bulk-set-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const studentIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!studentIds.length) {
+      return res.status(400).json({ message: 'studentIds is required.' });
+    }
+
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ message: 'batch is required.' });
+    }
+
+    const result = await User.updateMany(
+      {
+        _id: { $in: studentIds },
+        role: 'STUDENT',
+        subscription: 'SILVER',
+        goStatus: 'GO'
+      },
+      { $set: { batch } }
+    );
+
+    res.json({
+      message: `Batch set to "${batch}" for ${result.modifiedCount || 0} GO student(s).`,
+      batch,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (err) {
+    console.error('go-students POST /bulk-set-batch', err);
+    res.status(500).json({ message: 'Failed to set batch for selected GO students.', error: err.message });
+  }
+});
+
 // ─── POST /api/go-students/silver/bulk-remove-batch ──────────────────────────
 // Clear wrongly assigned batch values for selected Silver students (non-GO only).
 router.post('/silver/bulk-remove-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
@@ -303,6 +340,44 @@ router.post('/silver/bulk-set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
   } catch (err) {
     console.error('go-students POST /silver/bulk-set-day', err);
     res.status(500).json({ message: 'Failed to set journey day for selected students.', error: err.message });
+  }
+});
+
+// ─── POST /api/go-students/silver/bulk-set-batch ─────────────────────────────
+// Assign batch value for selected Silver students (non-GO only).
+router.post('/silver/bulk-set-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const studentIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!studentIds.length) {
+      return res.status(400).json({ message: 'studentIds is required.' });
+    }
+
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ message: 'batch is required.' });
+    }
+
+    const query = {
+      _id: { $in: studentIds },
+      role: 'STUDENT',
+      subscription: 'SILVER',
+      $or: [{ goStatus: { $exists: false } }, { goStatus: { $ne: 'GO' } }]
+    };
+
+    const result = await User.updateMany(query, {
+      $set: { batch }
+    });
+
+    res.json({
+      message: `Batch set to "${batch}" for ${result.modifiedCount || 0} student(s).`,
+      batch,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (err) {
+    console.error('go-students POST /silver/bulk-set-batch', err);
+    res.status(500).json({ message: 'Failed to set batch for selected students.', error: err.message });
   }
 });
 
