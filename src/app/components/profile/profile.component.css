@@ -9,9 +9,9 @@
 /* Photo Card */
 .pf-photo-card {
   background: #fff; border-radius: 16px; padding: 28px 24px; text-align: center;
-  border: 1px solid #e8ecf4; box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+  border: 1px solid #e8ecf4; box-shadow: 0 2px 12px rgba(15,23,42,0.06); width: 100%;
 }
-.pf-photo-wrap { margin-bottom: 16px; }
+.pf-photo-wrap { margin-bottom: 16px; display: flex; justify-content: center; align-items: center; }
 .pf-photo {
   width: 130px; height: 130px; border-radius: 50%; object-fit: cover;
   border: 4px solid #03396c; box-shadow: 0 4px 16px rgba(3,57,108,0.15);
@@ -119,6 +119,7 @@
 @media (max-width: 480px) {
   .pf { padding: 8px; }
   .pf-page-title { font-size: 17px; }
+  .pf-photo-card { max-width: 100%; margin: 0 auto; }
   .pf-photo { width: 100px; height: 100px; }
   .pf-photo--initials { font-size: 30px; }
   .pf-name { font-size: 17px; }
