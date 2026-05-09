@@ -1,0 +1,256 @@
+/* Role-Play Module Form — matches DG Bot admin form aesthetic */
+
+:host {
+  display: block;
+  min-height: calc(100vh - 80px);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.rp-form-page {
+  min-height: calc(100vh - 80px);
+}
+
+/* ── Card shell ─────────────────────────────────────────────────── */
+.rp-card.card {
+  border: 1px solid #e8ecf4;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+  overflow: hidden;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.rp-card.card:hover {
+  transform: none;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+}
+
+/* ── Card header ────────────────────────────────────────────────── */
+.rp-card .card-header {
+  background: #b3cde0;
+  border-bottom: none;
+  padding: 14px 18px;
+}
+
+.rp-card .card-header h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #011f4b;
+  margin: 0;
+}
+
+.rp-back-btn {
+  background: #6497b1;
+  border-color: #6497b1;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+
+.rp-back-btn:hover {
+  background: #005b96;
+  border-color: #005b96;
+  color: #fff;
+}
+
+/* ── Card body ──────────────────────────────────────────────────── */
+.rp-card .card-body {
+  padding: 18px;
+}
+
+/* ── Section headings ───────────────────────────────────────────── */
+.section-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: #011f4b;
+}
+
+.rp-card .border-bottom {
+  border-color: #f1f5f9 !important;
+}
+
+/* ── Labels ─────────────────────────────────────────────────────── */
+.rp-card .form-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+/* ── Form controls ──────────────────────────────────────────────── */
+.rp-card .form-control,
+.rp-card .form-select {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #1e293b;
+  transition: border 0.15s;
+}
+
+.rp-card .form-control:focus,
+.rp-card .form-select:focus {
+  border-color: #005b96;
+  box-shadow: 0 0 0 2px rgba(0, 91, 150, 0.08);
+  background: #fff;
+}
+
+.rp-card textarea.form-control {
+  font-size: 13px;
+}
+
+.rp-card .form-control.is-invalid,
+.rp-card .form-select.is-invalid {
+  border-color: #dc3545;
+  background-image: none;
+}
+
+.rp-card .invalid-feedback {
+  font-size: 11px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────── */
+.rp-card .btn {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 7px 14px;
+}
+
+.rp-card .btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.rp-card .btn-primary {
+  background: #005b96;
+  border-color: #005b96;
+}
+
+.rp-card .btn-primary:hover {
+  background: #03396c;
+  border-color: #03396c;
+}
+
+.rp-card .btn-primary:disabled {
+  background: #6497b1;
+  border-color: #6497b1;
+  opacity: 0.7;
+}
+
+.rp-card .btn-secondary {
+  background: #6497b1;
+  border-color: #6497b1;
+  color: #fff;
+}
+
+.rp-card .btn-secondary:hover {
+  background: #005b96;
+  border-color: #005b96;
+}
+
+.rp-card .btn-outline-primary {
+  color: #005b96;
+  border-color: #005b96;
+}
+
+.rp-card .btn-outline-primary:hover {
+  background: #005b96;
+  color: #fff;
+}
+
+.rp-card .btn-outline-danger {
+  color: #e11d48;
+  border-color: #e11d48;
+}
+
+.rp-card .btn-outline-danger:hover {
+  background: #ffe0e6;
+  color: #e11d48;
+  border-color: #e11d48;
+}
+
+.rp-card .btn-outline-success {
+  color: #166534;
+  border-color: #22c55e;
+}
+
+.rp-card .btn-outline-success:hover {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #22c55e;
+}
+
+.rp-card .btn-outline-info {
+  color: #0369a1;
+  border-color: #0ea5e9;
+}
+
+.rp-card .btn-outline-info:hover {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.rp-card .btn-outline-secondary {
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.rp-card .btn-outline-secondary:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* ── Scrollable lists ───────────────────────────────────────────── */
+.rp-card .vocab-list,
+.rp-card .grammar-list,
+.rp-card .flow-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ── AI vocab box ───────────────────────────────────────────────── */
+.rp-card .ai-vocab-box {
+  background-color: #f8f9fa;
+}
+
+/* ── List item borders ──────────────────────────────────────────── */
+.rp-card .border {
+  border-color: #e8ecf4 !important;
+}
+
+.rp-card .rounded {
+  border-radius: 10px !important;
+}
+
+/* ── Typography helpers ─────────────────────────────────────────── */
+.rp-card .text-muted {
+  color: #94a3b8 !important;
+  font-size: 11px;
+}
+
+.rp-card h6 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #011f4b;
+}
+
+.rp-card small {
+  font-size: 11px;
+}
+
+/* ── Footer actions ─────────────────────────────────────────────── */
+.rp-footer-actions {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #e8ecf4;
+}
+
+.rp-save-btn {
+  font-weight: 700;
+}

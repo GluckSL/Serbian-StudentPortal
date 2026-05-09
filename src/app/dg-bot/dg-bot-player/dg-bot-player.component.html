@@ -327,27 +327,42 @@
   <!-- ── Completion overlay ── -->
   <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
     <div class="dg-completion-card">
-      <mat-icon class="dg-completion-icon">check_circle</mat-icon>
-      <h2 class="dg-completion-title">You've completed the exercise!</h2>
+      <mat-icon class="dg-completion-icon">emoji_events</mat-icon>
+      <h2 class="dg-completion-title">Congratulations!</h2>
       <p class="dg-completion-sub">
-        All vocabulary has been covered and the minimum practice time is done.
-        Would you like to keep practising?
+        You've completed this DG module. If you're enjoying it and want to
+        keep learning more, click <strong>Continue</strong>. Otherwise, click
+        <strong>End</strong> to finish.
       </p>
+
+      <ul class="dg-completion-rules" aria-label="Completion checklist">
+        <li>
+          <mat-icon>check_circle</mat-icon>
+          All vocabulary covered
+        </li>
+        <li>
+          <mat-icon>check_circle</mat-icon>
+          Minimum practice time reached
+        </li>
+      </ul>
+
       <div class="dg-completion-actions">
         <button
           mat-flat-button
           color="primary"
+          class="dg-completion-btn dg-completion-btn--continue"
           [disabled]="isAiThinking || isTransitioning"
           (click)="continueAfterCompletion()"
         >
-          Yes, keep going
+          Continue
         </button>
         <button
           mat-stroked-button
+          class="dg-completion-btn dg-completion-btn--end"
           [disabled]="isAiThinking || isTransitioning"
-          (click)="postConversationClientAction('complete')"
+          (click)="endAfterCompletion()"
         >
-          No, finish
+          End
         </button>
       </div>
     </div>
