@@ -659,7 +659,11 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   private updateDuration(): void {
     if (!this.activeViewId) return;
-    const seconds = Math.round((Date.now() - this.watchStartTime) / 1000);
+    let seconds = Math.round((Date.now() - this.watchStartTime) / 1000);
+    const recDuration = this.currentPlayingRecording?.duration;
+    if (recDuration && recDuration > 0) {
+      seconds = Math.min(seconds, recDuration);
+    }
     this.service.updateViewDuration(this.activeViewId, seconds).subscribe({ error: () => {} });
   }
 
@@ -716,16 +720,21 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   getAttendanceLabel(r: DisplayRecording): string {
-    const watchedSec = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
-    const watched = Math.floor(watchedSec / 60);
     const totalSec = Number(r.duration ?? 0);
+    const rawWatchedSec = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
+    // Cap to total duration so wall-clock over-runs never inflate the display
+    const watchedSec = totalSec > 0 ? Math.min(rawWatchedSec, totalSec) : rawWatchedSec;
+    if (totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75)) {
+      return 'Watched';
+    }
+    const watched = Math.floor(watchedSec / 60);
     const totalMin = totalSec > 0 ? Math.max(1, Math.round(totalSec / 60)) : 0;
     return `${watched} / ${totalMin} min`;
   }
 
   getAttendanceClass(r: DisplayRecording): string {
     const s = this.getAttendanceLabel(r).toLowerCase();
-    if (s === 'attended') return 'sr-attendance sr-attendance--ok';
+    if (s === 'attended' || s === 'watched') return 'sr-attendance sr-attendance--ok';
     if (s === 'not attended' || s === 'not attempted') return 'sr-attendance sr-attendance--warn';
     if (s === 'pending') return 'sr-attendance sr-attendance--pending';
     return 'sr-attendance';

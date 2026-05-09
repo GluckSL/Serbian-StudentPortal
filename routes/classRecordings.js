@@ -253,18 +253,17 @@ router.get('/', verifyToken, async (req, res) => {
               watchDuration: { $gt: 0 }
             }
           },
-          { $sort: { lastUpdatedAt: -1, updatedAt: -1, createdAt: -1 } },
           {
             $group: {
               _id: '$recording',
-              latestWatchSeconds: { $first: '$watchDuration' }
+              maxWatchSeconds: { $max: '$watchDuration' }
             }
           }
         ]);
         watchedSecondsByRecording = new Map(
           watchAgg.map((row) => [
             String(row._id),
-            Math.max(0, Math.round(Number(row?.latestWatchSeconds || 0)))
+            Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0)))
           ])
         );
       }

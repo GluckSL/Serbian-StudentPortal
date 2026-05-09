@@ -16,8 +16,11 @@ import { DigitalExercisesComponent } from '../digital-exercises/digital-exercise
 // Digital learning modules (Modules tab) removed from student My Course — use Gluck Buddy for DG speaking practice.
 // import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
 import { DgBotHubComponent } from '../../dg-bot/dg-bot-hub/dg-bot-hub.component';
+import { DgApiService } from '../../dg-bot/dg-api.service';
+import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
+import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
 import {
@@ -81,6 +84,13 @@ export class MyCourseComponent implements OnInit {
   /** Quick access: newest unlocked + not-started exercise. */
   nextNewDigitalExercise: DigitalExercise | null = null;
 
+  /** DG Bot modules tagged to the current journey day (for completion badge). */
+  private currentDayDgModules: DgModuleSummary[] = [];
+  /** Manual recordings tagged to the current journey day (for completion badge). */
+  private currentDayManualRecs: ClassRecording[] = [];
+  /** Whether the day-completion modal is open. */
+  showDayCompletionModal = false;
+
   latestAnnouncement: AnnouncementItem | null = null;
   announcementDismissed = false;
   announcementExpanded = false;
@@ -143,7 +153,9 @@ export class MyCourseComponent implements OnInit {
     private dialog: MatDialog,
     private announcementService: AnnouncementService,
     private joinClassFlow: JoinClassFlowService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private dgApiService: DgApiService,
+    private recordingsService: ClassRecordingsService
   ) {}
 
   ngOnInit(): void {
@@ -284,6 +296,33 @@ export class MyCourseComponent implements OnInit {
     } else {
       this.journeyDayModules = [];
     }
+
+    // Fetch DG modules for the current journey day (completion badge)
+    this.dgApiService
+      .listStudentModules()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const all = Array.isArray(res?.modules) ? res.modules : [];
+          this.currentDayDgModules = all.filter(
+            (m) => Number(m.courseDay) === courseDay
+          );
+        },
+        error: () => { this.currentDayDgModules = []; }
+      });
+
+    // Fetch manual recordings for the current journey day (completion badge)
+    this.recordingsService
+      .getRecordings()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.currentDayManualRecs = (Array.isArray(res?.recordings) ? res.recordings : []).filter(
+            (r) => Number(r.courseDay) === courseDay
+          );
+        },
+        error: () => { this.currentDayManualRecs = []; }
+      });
   }
 
   private loadLatestAnnouncement(): void {
@@ -596,6 +635,61 @@ export class MyCourseComponent implements OnInit {
 
   get selectedDayTotalCount(): number {
     return this.selectedDayExercises.length + this.selectedDayModules.length;
+  }
+
+  // ── Day completion badge ────────────────────────────────────────────────────
+
+  private recordingWatched(r: ClassRecording): boolean {
+    const totalSec = Number(r.duration ?? 0);
+    const rawWatched = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
+    const watchedSec = totalSec > 0 ? Math.min(rawWatched, totalSec) : rawWatched;
+    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75);
+  }
+
+  /** Exercises tagged to the current journey day. */
+  get currentDayExercisesForBadge(): DigitalExercise[] {
+    return this.journeyDayExercises.filter(
+      (ex) => Number(ex.courseDay) === this.journeyCourseDay
+    );
+  }
+
+  get currentDayIncompleteExercises(): DigitalExercise[] {
+    return this.currentDayExercisesForBadge.filter((ex) => !this.exerciseDone(ex));
+  }
+
+  get currentDayIncompleteDg(): DgModuleSummary[] {
+    return this.currentDayDgModules.filter((m) => !m.studentProgress?.completed);
+  }
+
+  get currentDayIncompleteRecs(): ClassRecording[] {
+    return this.currentDayManualRecs.filter((r) => !this.recordingWatched(r));
+  }
+
+  /** True when at least one content item is tagged to the current day. */
+  get dayHasTrackableContent(): boolean {
+    return (
+      this.currentDayExercisesForBadge.length > 0 ||
+      this.currentDayDgModules.length > 0 ||
+      this.currentDayManualRecs.length > 0
+    );
+  }
+
+  /** True when all content for the current journey day is completed. */
+  get isDayComplete(): boolean {
+    if (!this.dayHasTrackableContent) return false;
+    return (
+      this.currentDayIncompleteExercises.length === 0 &&
+      this.currentDayIncompleteDg.length === 0 &&
+      this.currentDayIncompleteRecs.length === 0
+    );
+  }
+
+  openDayCompletionModal(): void {
+    this.showDayCompletionModal = true;
+  }
+
+  closeDayCompletionModal(): void {
+    this.showDayCompletionModal = false;
   }
 
   openExercise(ex: DigitalExercise): void {
