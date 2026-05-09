@@ -1307,19 +1307,28 @@
 
 @media (max-width: 860px) {
   .ipm-play-wrap {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     align-items: stretch;
   }
-  .ipm-image-wrap {
-    order: 1;
-    max-width: 100%;
-  }
   .ipm-label-col {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 8px;
-    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  .ipm-image-wrap {
+    order: 0;
+    max-width: 100%;
+    align-self: center;
+    width: 100%;
+  }
+  .ipm-label-col:nth-child(1) {
+    order: -1;
+  }
+  .ipm-label-col:nth-child(3) {
+    order: 1;
   }
 }
 
