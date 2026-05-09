@@ -1740,6 +1740,25 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return labels.filter((_, idx) => idx % 2 === 1);
   }
 
+  getImagePinImageUrl(data: any): string {
+    const direct = String(data?.imageUrl || '').trim();
+    if (direct) return direct;
+    const fallback = String(data?.attachmentUrl || '').trim();
+    if (fallback && this.getAttachmentType(fallback) === 'image') return fallback;
+    return '';
+  }
+
+  getImagePinPins(data: any): Array<{ id: string; x: number; y: number }> {
+    const raw = Array.isArray(data?.pins) ? data.pins : [];
+    return raw
+      .map((p: any, idx: number) => ({
+        id: String(p?.id || `pin-${idx + 1}`),
+        x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+        y: Math.max(0, Math.min(100, Number(p?.y) || 0)),
+      }))
+      .filter((p: { id: string }) => !!p.id);
+  }
+
   isImagePinDragActive(pq: PlayerQuestion): boolean {
     return this.imagePinDrag.active && this.imagePinDrag.questionIndex === pq.index;
   }
@@ -1839,7 +1858,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private findClosestPinId(questionIndex: number, clientX: number, clientY: number, maxDistancePx: number): string | null {
     const pq = this.playerQuestions[questionIndex];
     if (!pq) return null;
-    const pins = Array.isArray(pq.data?.pins) ? pq.data.pins : [];
+    const pins = this.getImagePinPins(pq.data);
     let best: { id: string; d: number } | null = null;
     for (const p of pins) {
       const pinEl = document.getElementById(`ipm-pin-${questionIndex}-${p.id}`);
@@ -2728,7 +2747,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const labels = Array.isArray(pq.data.labels) ? pq.data.labels : [];
       const byLabel: Record<string, string> = {};
       (pq.imagePinConnections || []).forEach((c) => { byLabel[c.labelId] = c.pinId; });
-      const pins = Array.isArray(pq.data.pins) ? pq.data.pins : [];
+      const pins = this.getImagePinPins(pq.data);
       const pinNum = (id: string) => {
         const idx = pins.findIndex((p: any) => String(p?.id || '') === String(id || ''));
         return idx >= 0 ? `Pin ${idx + 1}` : '—';
