@@ -281,30 +281,7 @@
           </div>
         </div>
 
-        <div class="dg-conv__milestone-row" *ngIf="showMilestoneActions">
-          <span class="dg-conv__milestone-label">Session goal reached — choose next step:</span>
-          <div class="dg-conv__milestone-btns">
-            <button
-              mat-stroked-button
-              type="button"
-              class="dg-conv__milestone-btn"
-              color="primary"
-              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
-              (click)="postConversationClientAction('continue')"
-            >
-              Continue
-            </button>
-            <button
-              mat-stroked-button
-              type="button"
-              class="dg-conv__milestone-btn"
-              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
-              (click)="postConversationClientAction('complete')"
-            >
-              Complete
-            </button>
-          </div>
-        </div>
+        <!-- Milestone row hidden; completion is handled by the overlay below -->
 
         <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
         <div class="dg-conv__mic-area" *ngIf="!isMobile">
@@ -346,6 +323,35 @@
         </div>
       </main>
     </div>
+
+  <!-- ── Completion overlay ── -->
+  <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
+    <div class="dg-completion-card">
+      <mat-icon class="dg-completion-icon">check_circle</mat-icon>
+      <h2 class="dg-completion-title">You've completed the exercise!</h2>
+      <p class="dg-completion-sub">
+        All vocabulary has been covered and the minimum practice time is done.
+        Would you like to keep practising?
+      </p>
+      <div class="dg-completion-actions">
+        <button
+          mat-flat-button
+          color="primary"
+          [disabled]="isAiThinking || isTransitioning"
+          (click)="continueAfterCompletion()"
+        >
+          Yes, keep going
+        </button>
+        <button
+          mat-stroked-button
+          [disabled]="isAiThinking || isTransitioning"
+          (click)="postConversationClientAction('complete')"
+        >
+          No, finish
+        </button>
+      </div>
+    </div>
+  </div>
 
   </div><!-- /stage-wrap -->
 </div><!-- /dg-player -->
