@@ -62,13 +62,7 @@
       </div>
       <div class="profile-info">
         <div class="profile-name">
-          <span class="profile-name-desktop">{{ userName }}</span>
-          <span class="profile-name-mobile">
-            <ng-container *ngIf="splitProfileName(userName) as pn">
-              <span class="profile-name-first">{{ pn.first }}</span>
-              <span class="profile-name-rest" *ngIf="pn.second">{{ pn.second }}</span>
-            </ng-container>
-          </span>
+          <span class="profile-name">{{ userName }}</span>
         </div>
         <div class="profile-role">{{ userRole }}</div>
       </div>

@@ -115,6 +115,30 @@
   font-weight: 800;
 }
 
+.mc-hero__pill--gold {
+  background: #ffffff;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+.mc-hero__pill--gold strong {
+  color: #78350f;
+}
+.mc-hero__pill--gold .mc-hero__pill-icon {
+  color: #b45309;
+}
+
+.mc-hero__pill--silver {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+.mc-hero__pill--silver strong {
+  color: #1e293b;
+}
+.mc-hero__pill--silver .mc-hero__pill-icon {
+  color: #475569;
+}
+
 .mc-hero__pill-icon {
   font-size: 16px;
   line-height: 1;
@@ -1232,6 +1256,11 @@ mc-tab-profile__row {
 
 .mc-side-card__link .material-icons {
   font-size: 18px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .mc-announcement-modal {
@@ -1336,7 +1365,7 @@ mc-tab-profile__row {
   letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8xpx;
   cursor: pointer;
   box-shadow: 0 2px 10px rgba(79, 70, 229, 0.35);
   transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
@@ -1346,7 +1375,11 @@ mc-tab-profile__row {
   box-shadow: 0 4px 16px rgba(79, 70, 229, 0.42);
   filter: brightness(1.03);
 }
-.mc-progress-btn .material-icons { font-size: 18px; }
+.mc-progress-btn .material-icons {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
 /* Collapse / secondary when report is open */
 .mc-progress-btn.mc-progress-btn--muted {
   background: #fff;
@@ -1873,6 +1906,11 @@ mc-tab-profile__row {
 }
 .mc-day-item__btn .material-icons {
   font-size: 16px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .mc-day-item__btn:hover {
   transform: translateY(-1px);
@@ -2137,6 +2175,7 @@ mc-tab-profile__row {
     padding: 10px 16px;
     font-size: 0.85rem;
     box-sizing: border-box;
+    gap: 8px;
   }
 
   .mc-journey-meta {

@@ -663,6 +663,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  width: fit-content;
 }
 
 .document-status .badge.bg-success   { background: #dcfce7 !important; color: #166534 !important; }

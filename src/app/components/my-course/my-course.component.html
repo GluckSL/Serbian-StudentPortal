@@ -19,8 +19,14 @@
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">trending_up</span>
           {{ learningPct }}% of levels completed
         </span>
-        <span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'" *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
-          Subscription: <span>{{ userProfile.subscription }}</span>
+        <span
+          class="mc-hero__pill"
+          [class.mc-hero__pill--gold]="userProfile.subscription === 'PLATINUM'"
+          [class.mc-hero__pill--silver]="userProfile.subscription === 'SILVER'"
+          *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription"
+        >
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
+          Subscription <strong>{{ userProfile.subscription }}</strong>
         </span>
       </div>
     </div>
@@ -232,8 +238,7 @@
           class="mc-side-card__link"
           (click)="setTab(updatesPrimaryTab)"
         >
-          {{ updatesLinkText }}
-          <span class="material-icons">arrow_forward</span>
+          {{ updatesLinkText }}<span class="material-icons">arrow_forward</span>
         </button>
       </div>
     </aside>
@@ -262,16 +267,14 @@
           [class.mc-progress-btn--muted]="showProgressReport"
           (click)="toggleProgressReport()"
         >
-          <span class="material-icons">{{ showProgressReport ? 'expand_less' : 'insights' }}</span>
-          {{ showProgressReport ? 'Hide report' : 'Progress report' }}
+          <span class="material-icons">{{ showProgressReport ? 'expand_less' : 'insights' }}</span>{{ showProgressReport ? 'Hide report' : 'Progress report' }}
         </button>
         <button
           type="button"
           class="mc-progress-btn mc-progress-btn--muted"
           (click)="openPerformanceHistory()"
         >
-          <span class="material-icons">monitoring</span>
-          Full performance history
+          <span class="material-icons">monitoring</span>Full performance history
         </button>
         <div class="mc-journey-meta">Day <strong>{{ journeyCourseDay }}</strong> / 200</div>
       </div>
@@ -472,8 +475,7 @@
             [class.mc-day-item__btn--retry]="!!ex.studentAttempt"
             (click)="openExercise(ex)"
           >
-            <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>
-            {{ ex.studentAttempt ? 'Re-attempt' : 'Start' }}
+            <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>{{ ex.studentAttempt ? 'Re-attempt' : 'Start' }}
           </button>
         </div>
       </div>
