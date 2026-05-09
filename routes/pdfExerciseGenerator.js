@@ -82,9 +82,9 @@ const upload = multer({
 // ─── OpenAI init ──────────────────────────────────────────────────────────────
 
 let openai = null;
-if (process.env.OPENAI_API_KEY) {
+if (process.env.EXERCISES_OPENAI_API_KEY) {
   openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.EXERCISES_OPENAI_API_KEY,
     timeout: Math.min(parseInt(process.env.OPENAI_TIMEOUT_MS || '180000', 10) || 180000, 600000)
   });
 }
@@ -1695,7 +1695,7 @@ router.post('/detect-structure-ai',
       return res.status(400).json({ error: 'uploadId is required' });
     }
     if (!openai) {
-      return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY.' });
+      return res.status(503).json({ error: 'AI service is not configured. Please set EXERCISES_OPENAI_API_KEY.' });
     }
 
     const filePath = path.join(__dirname, '..', 'uploads', 'pdf-exercises', uploadId);
@@ -1763,7 +1763,7 @@ router.post('/generate',
     }
 
     if (!openai) {
-      return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY.' });
+      return res.status(503).json({ error: 'AI service is not configured. Please set EXERCISES_OPENAI_API_KEY.' });
     }
 
     const filePath = path.join(__dirname, '..', 'uploads', 'pdf-exercises', uploadId);
@@ -1964,7 +1964,7 @@ router.post('/text-generate',
     }
 
     if (!openai) {
-      return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY.' });
+      return res.status(503).json({ error: 'AI service is not configured. Please set EXERCISES_OPENAI_API_KEY.' });
     }
 
     const cleanedText = text.trim();
@@ -3078,7 +3078,7 @@ router.post('/extract-single-exercise',
       return res.status(400).json({ error: 'content is required' });
     }
     if (!openai) {
-      return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY.' });
+      return res.status(503).json({ error: 'AI service is not configured. Please set EXERCISES_OPENAI_API_KEY.' });
     }
 
     try {

@@ -13,7 +13,7 @@ const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
-const { resignExercise, resignExercises } = require('../config/presign');
+const { resignExercise, resignExercises, presignS3Url } = require('../config/presign');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
@@ -164,13 +164,13 @@ function normalizeQuestionContexts(rawQuestions) {
 async function aiGradeAnswer(question, sampleAnswers, studentAnswer) {
   if (!studentAnswer || !studentAnswer.trim()) return { score: 0 };
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.EXERCISES_OPENAI_API_KEY) {
     // Fallback: rough word-overlap heuristic
     const words = studentAnswer.trim().toLowerCase().split(/\s+/).filter(w => w.length > 1);
     return { score: words.length >= 4 ? 75 : words.length >= 2 ? 50 : 20 };
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
 
   const context = sampleAnswers && sampleAnswers.length > 0
     ? `Question: "${question}"\nCorrect answer(s): ${sampleAnswers.map(s => `"${s}"`).join(' | ')}\n\nJudge whether the student's answer matches the correct meaning, even if it is shorter or uses different wording.`
@@ -2511,8 +2511,11 @@ router.post(
       }
 
       // S3 (image/video): .location; PDF/docs: disk relative path
-      const url = req.file.location || `/uploads/exercise-attachments/${req.file.filename}`;
-      return res.json({ success: true, url });
+      const rawUrl = req.file.location || `/uploads/exercise-attachments/${req.file.filename}`;
+      // When the bucket is private (S3_USE_SIGNED_URLS=true), presign the URL so the
+      // builder can display the image immediately without a 403 from S3.
+      const url = req.file.location ? (await presignS3Url(rawUrl)) : rawUrl;
+      return res.json({ success: true, url, canonicalUrl: rawUrl });
     } catch (err) {
       console.error('POST /digital-exercises/upload-attachment error:', err);
       return res.status(500).json({ error: err.message });
@@ -2554,11 +2557,11 @@ router.post(
         });
       }
 
-      if (!process.env.OPENAI_API_KEY) {
+      if (!process.env.EXERCISES_OPENAI_API_KEY) {
         return res.status(503).json({ error: 'OpenAI not configured' });
       }
 
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
 
       const langNote = targetLanguage ? ` Exercise language: ${targetLanguage}.` : '';
       const typeNote = questionType ? ` Question type: ${questionType}.` : '';
@@ -2605,11 +2608,11 @@ router.post(
       if (!Array.isArray(questions) || questions.length === 0) {
         return res.status(400).json({ error: 'questions array is required' });
       }
-      if (!process.env.OPENAI_API_KEY) {
+      if (!process.env.EXERCISES_OPENAI_API_KEY) {
         return res.status(503).json({ error: 'OpenAI not configured' });
       }
 
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
 
       // Build a compact JSON description of each incomplete question for the AI
       const questionDescriptions = questions.map((q) => {

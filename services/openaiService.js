@@ -24,9 +24,10 @@ async function speechResponseToNodeReadable(response) {
 }
 
 class OpenAIService {
-  constructor() {
+  constructor(apiKey) {
+    this._apiKey = apiKey || process.env.OPENAI_API_KEY;
     this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: this._apiKey
     });
     
     this.model = process.env.OPENAI_MODEL || 'gpt-4o';
@@ -835,7 +836,7 @@ Translation:`;
    * Check if OpenAI is properly configured
    */
   isConfigured() {
-    return !!process.env.OPENAI_API_KEY;
+    return !!this._apiKey;
   }
 
   /**

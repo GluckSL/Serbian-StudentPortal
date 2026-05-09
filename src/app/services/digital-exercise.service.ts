@@ -789,7 +789,7 @@ export class DigitalExerciseService {
   }
 
   /** Per-question attachment: audio goes to R2 only; other types use multipart (disk/S3). */
-  uploadQuestionAttachment(file: File): Observable<{ success: boolean; url: string }> {
+  uploadQuestionAttachment(file: File): Observable<{ success: boolean; url: string; canonicalUrl?: string }> {
     const mt = (file.type || '').toLowerCase();
     if (mt.startsWith('audio/')) {
       return this.uploadBlobToR2(file, 'exercise-attachments');

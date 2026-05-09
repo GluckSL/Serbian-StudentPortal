@@ -8,10 +8,9 @@ const OpenAI = require('openai');
 
 let openai = null;
 
-if (process.env.OPENAI_API_KEY) {
-  const OpenAI = require("openai");
+if (process.env.EXERCISES_OPENAI_API_KEY) {
   openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.EXERCISES_OPENAI_API_KEY
   });
 }
 

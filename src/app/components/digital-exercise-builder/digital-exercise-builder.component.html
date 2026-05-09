@@ -683,7 +683,7 @@
                 (mousemove)="onImagePinEditorMouseMove(q, i, $event)"
               >
                 <img
-                  [src]="getMediaFullUrl(q.imageUrl)"
+                  [src]="getMediaFullUrl(q.imagePinDisplayUrl || q.imageUrl)"
                   alt="Pin editor image"
                   class="ipm-stage-image"
                   (load)="onImagePinImageLoad(q)"

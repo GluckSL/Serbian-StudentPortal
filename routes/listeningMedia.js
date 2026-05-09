@@ -168,7 +168,7 @@ router.post(
       return res.status(400).json({ error: 'mediaUrl is required' });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.EXERCISES_OPENAI_API_KEY) {
       return res.status(503).json({ error: 'AI transcription is not configured' });
     }
 
@@ -199,7 +199,7 @@ router.post(
       }
 
       const OpenAI = require('openai');
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
 
       const ext = path.extname(mediaUrl.split('?')[0]) || '.mp3';
       const blob = new Blob([audioBuffer]);

@@ -259,8 +259,8 @@ router.post('/generate', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     return res.status(400).json({ error: 'uploadId is required' });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(503).json({ error: 'AI service is not configured. Please set OPENAI_API_KEY.' });
+  if (!process.env.EXERCISES_OPENAI_API_KEY) {
+    return res.status(503).json({ error: 'AI service is not configured. Please set EXERCISES_OPENAI_API_KEY.' });
   }
 
   const filePath = path.join(__dirname, '..', 'uploads', 'pdf-exercises', uploadId);
@@ -276,7 +276,7 @@ router.post('/generate', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
     const prompt = buildWorksheetPrompt(pdfData.text, {
       targetLanguage: targetLanguage || 'German',
       nativeLanguage: nativeLanguage || 'English',
