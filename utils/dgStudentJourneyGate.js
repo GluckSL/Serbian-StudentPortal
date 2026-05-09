@@ -23,7 +23,7 @@ async function getStudentDgJourneyAccess(userId) {
   };
 }
 
-/** Unassigned journey day = visible once published; otherwise requires student day >= module day. */
+/** Unassigned journey day = always visible once published; otherwise unlocked up to current day. */
 function dgModuleUnlockedForStudentDay(moduleCourseDay, studentCourseDay) {
   const cd = moduleCourseDay;
   if (cd == null || cd === undefined) return true;

@@ -5,8 +5,7 @@ const {
   getStudentDgJourneyAccess,
   dgModuleUnlockedForStudentDay,
 } = require('../utils/dgStudentJourneyGate');
-const User = require('../models/User');
-const { studentTargetBatchKeys, moduleTargetingQuery, normalizeBatchKeys } = require('../utils/batchTargeting');
+const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const {
   buildDgModulePayloadFromLearning,
   resolveDefaultCharacterId,
@@ -208,21 +207,13 @@ exports.listStudent = async (req, res) => {
     if (!access.enabled || access.learningEnabled === false) {
       return res.json({ modules: [] });
     }
-    const studentDay = access.courseDay;
-    const student = await User.findById(req.user.id)
-      .select('batch goStatus subscription role')
-      .lean();
-    const studentKeys = studentTargetBatchKeys(student);
+    const studentDay = Number.isFinite(Number(access.courseDay))
+      ? Math.min(200, Math.max(1, Math.floor(Number(access.courseDay))))
+      : 1;
 
     const modules = await DGModule.find({
       isActive: true,
       visibleToStudents: true,
-      ...moduleTargetingQuery(studentKeys),
-      $or: [
-        { courseDay: null },
-        { courseDay: { $exists: false } },
-        { courseDay: { $lte: studentDay } },
-      ],
     })
       .populate('characterId')
       .select(
@@ -230,7 +221,10 @@ exports.listStudent = async (req, res) => {
       )
       .sort({ title: 1 })
       .lean();
-    const sanitized = modules.map((m) => ({
+    const unlockedForDay = (modules || []).filter((m) =>
+      dgModuleUnlockedForStudentDay(m?.courseDay, studentDay)
+    );
+    const sanitized = unlockedForDay.map((m) => ({
       ...m,
       scenes: (m.scenes || []).map((s) => ({
         _id: s._id,
@@ -284,21 +278,6 @@ exports.getPlay = async (req, res) => {
           message: 'DG modules are not available for your batch.',
           code: 'LEARNING_CONTENT_DISABLED',
         });
-      }
-      const student = await User.findById(req.user.id)
-        .select('batch goStatus subscription role')
-        .lean();
-      const keys = studentTargetBatchKeys(student);
-      const modKeys = Array.isArray(mod.targetBatchKeys) ? mod.targetBatchKeys : [];
-      if (modKeys.length) {
-        const keySet = new Set(keys);
-        const ok = modKeys.some((k) => keySet.has(String(k)));
-        if (!ok) {
-          return res.status(403).json({
-            message: 'This module is not assigned to your batch.',
-            code: 'BATCH_NOT_ASSIGNED',
-          });
-        }
       }
       if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
         return res.status(403).json({

@@ -19,7 +19,7 @@
     <div class="dg-hub__header-main">
       <h1 class="dg-hub__title dg-hub__title--embedded">
         <mat-icon>forum</mat-icon>
-        Talk Buddy
+        Gluck Buddy
       </h1>
       <p class="dg-hub__lead">Guided speaking practice — same lessons as DG Bot, organized by your journey day.</p>
     </div>
@@ -106,7 +106,7 @@
       </div>
     </div>
 
-    <!-- My Course → Talk Buddy tab: optional title search only -->
+    <!-- My Course → Gluck Buddy tab: optional title search only -->
     <div class="dg-hub__filters dg-hub__filters--search-only" *ngIf="showEmbeddedSearchOnly()">
       <div class="dg-hub__search-wrap">
         <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
@@ -123,7 +123,7 @@
       </div>
     </div>
 
-    <div class="mc-tabs-wrap" *ngIf="modules.length > 0">
+    <div class="mc-tabs-wrap">
       <div class="mc-tabs">
         <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
           Completed
@@ -199,14 +199,14 @@
 
     <section *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">
       <div class="dg-hub__empty-icon">🦊</div>
-      <h3>No Talk Buddy for this day</h3>
+      <h3>No Gluck Buddy for this day</h3>
       <p>There are no speaking lessons assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
     </section>
 
     <section *ngIf="modules.length === 0 && rawModuleCount === 0" class="dg-hub__empty">
       <div class="dg-hub__empty-icon">🦊</div>
-      <h3>No published DG modules yet</h3>
-      <p>Ask your teacher to publish Talk Buddy lessons.</p>
+      <h3>No Gluck Buddy assigned for your current day</h3>
+      <p>Only modules matching your journey day are shown. Ask your teacher to assign/publish a lesson for Day {{ studentCourseDay }}.</p>
     </section>
   </ng-container>
 </div>

@@ -172,18 +172,9 @@
                         </div>
                       </td>
                       <td>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                          <span class="badge bg-light text-dark border">{{ batchSummaryLabel(m) }}</span>
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-outline-secondary"
-                            (click)="openAssignBatches(m)"
-                            [disabled]="!m._id"
-                            title="Assign batches"
-                          >
-                            Assign
-                          </button>
-                        </div>
+                        <span class="badge bg-light text-dark border" title="Visible to all batches with active journey + GO Students">
+                          All active batches
+                        </span>
                       </td>
                       <td>
                         <span class="text-muted small">{{ m.language || 'German' }}</span>
@@ -253,67 +244,6 @@
                     </tr>
                   </tbody>
                 </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Batch assignment modal -->
-        <div
-          class="modal fade show"
-          *ngIf="assignModalOpen"
-          style="display: block; background: rgba(0,0,0,.45);"
-          (click)="closeAssignModal()"
-        >
-          <div class="modal-dialog modal-lg" (click)="$event.stopPropagation()">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Assign batches</h5>
-                <button type="button" class="btn-close" aria-label="Close" (click)="closeAssignModal()"></button>
-              </div>
-              <div class="modal-body">
-                <p class="text-muted small mb-2">
-                  Selected batches can see this module (still gated by <strong>Live</strong> + journey day).
-                  If you select <strong>none</strong>, the module is visible to <strong>all</strong> batches.
-                </p>
-
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <div class="text-muted small">
-                    Module: <strong>{{ assignModule?.title }}</strong>
-                  </div>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearAssignBatches()" [disabled]="assignSelectedBatches.length === 0 || assigning">
-                    Clear selection
-                  </button>
-                </div>
-
-                <div class="row g-2" *ngIf="batches.length; else noBatches">
-                  <div class="col-md-4" *ngFor="let b of batches">
-                    <label class="d-flex align-items-center gap-2 border rounded p-2 bg-white">
-                      <input
-                        type="checkbox"
-                        [checked]="isAssignBatchSelected(b.batchName)"
-                        (change)="toggleAssignBatch(b.batchName)"
-                        [disabled]="assigning"
-                      />
-                      <span class="small">{{ b.batchName }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <ng-template #noBatches>
-                  <div class="alert alert-warning mb-0">
-                    No batches found. Please create/activate batches in Journey first.
-                  </div>
-                </ng-template>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" (click)="closeAssignModal()" [disabled]="assigning">
-                  Cancel
-                </button>
-                <button type="button" class="btn btn-primary" (click)="saveAssignedBatches()" [disabled]="assigning || !assignModule?._id">
-                  <span *ngIf="assigning" class="spinner-border spinner-border-sm me-2" role="status"></span>
-                  Save
-                </button>
               </div>
             </div>
           </div>

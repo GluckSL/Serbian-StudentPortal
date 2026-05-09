@@ -4,7 +4,7 @@
       <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
       <p class="mc-hero__sub">
         <ng-container *ngIf="allowsLearningContent; else classesOnlyHero">
-          Join live classes, practice with exercises, and open Talk Buddy for speaking practice—all in one place.
+          Join live classes, practice with exercises, and open Gluck Buddy for speaking practice—all in one place.
         </ng-container>
         <ng-template #classesOnlyHero>
           Join live classes and watch your class recordings in one place.
@@ -114,7 +114,7 @@
         class="mc-tab"
         [class.mc-tab--on]="activeTab === 'talk-buddy'"
         (click)="setTab('talk-buddy')">
-        Talk Buddy
+        Gluck Buddy
       </button>
       <button
         type="button"
@@ -224,7 +224,7 @@
           *ngIf="allowsLearningContent && !nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise"
         >
           <span class="material-icons" aria-hidden="true">notifications_none</span>
-          <p>No new class or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Talk Buddy</strong> anytime.</p>
+          <p>No new class or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Gluck Buddy</strong> anytime.</p>
         </div>
 
         <button
@@ -513,7 +513,7 @@
 
       <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy">
         <div class="mc-day-section__head">
-          <h4>Talk Buddy</h4>
+          <h4>Gluck Buddy</h4>
           <span class="mc-day-section__count mc-day-section__count--muted">Day {{ selectedJourneyDay }}</span>
         </div>
         <p class="mc-day-section__intro">Speaking role-play for this journey day (Completed / Pending / New).</p>

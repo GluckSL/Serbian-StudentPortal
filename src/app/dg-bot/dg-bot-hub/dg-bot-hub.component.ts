@@ -22,7 +22,7 @@ type HubTab = 'completed' | 'pending' | 'new';
   styleUrl: './dg-bot-hub.component.scss',
 })
 export class DgBotHubComponent implements OnInit, OnChanges {
-  /** When true, rendered inside My Course (Talk Buddy tab): compact chrome + no redirect. */
+  /** When true, rendered inside My Course (Gluck Buddy tab): compact chrome + no redirect. */
   @Input() embedded = false;
 
   /**
@@ -31,7 +31,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
    */
   @Input() journeyFixedDay: number | null = null;
 
-  /** Hide the Talk Buddy title strip (parent supplies a section heading, e.g. Journey day). */
+  /** Hide the Gluck Buddy title strip (parent supplies a section heading, e.g. Journey day). */
   @Input() hideEmbeddedHeader = false;
 
   /** Raw list from API before optional `journeyFixedDay` filter. */
@@ -150,7 +150,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     return this.modules.length > 0 && !this.embedded && this.journeyFixedDay == null;
   }
 
-  /** Talk Buddy tab: title search only (no level / language row). */
+  /** Gluck Buddy tab: title search only (no level / language row). */
   showEmbeddedSearchOnly(): boolean {
     return this.modules.length > 0 && this.embedded && this.journeyFixedDay == null;
   }

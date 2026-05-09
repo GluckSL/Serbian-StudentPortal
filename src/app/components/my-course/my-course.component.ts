@@ -13,7 +13,7 @@ import { NotificationService } from '../../services/notification.service';
 import { StudentMeetingsComponent } from '../meeting-link/student-meetings.component';
 import { StudentRecordingsComponent } from '../class-recordings/student-recordings/student-recordings.component';
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
-// Digital learning modules (Modules tab) removed from student My Course — use Talk Buddy for DG speaking practice.
+// Digital learning modules (Modules tab) removed from student My Course — use Gluck Buddy for DG speaking practice.
 // import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
 import { DgBotHubComponent } from '../../dg-bot/dg-bot-hub/dg-bot-hub.component';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
@@ -47,7 +47,7 @@ type ProgressRange = 'weekly' | 'overall';
 export class MyCourseComponent implements OnInit {
   /**
    * When false, digital learning modules are hidden everywhere in My Course
-   * (journey day lists, progress donuts). Talk Buddy (DG) remains available.
+   * (journey day lists, progress donuts). Gluck Buddy (DG) remains available.
    */
   readonly showLearningModulesInJourney = false;
 
