@@ -1313,3 +1313,66 @@
     line-clamp: 5;
   }
 }
+
+// ── Completion overlay ────────────────────────────────────────────────────────
+
+.dg-completion-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  border-radius: inherit;
+  animation: dg-overlay-in 260ms ease;
+}
+
+@keyframes dg-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dg-completion-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem 2.5rem;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  animation: dg-card-in 300ms cubic-bezier(0.34, 1.2, 0.64, 1);
+
+  .dg-completion-icon {
+    font-size: 3.5rem;
+    width: 3.5rem;
+    height: 3.5rem;
+    color: #4caf50;
+  }
+
+  .dg-completion-title {
+    margin: 0.75rem 0 0.5rem;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .dg-completion-sub {
+    color: #555;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+  }
+
+  .dg-completion-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+@keyframes dg-card-in {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}

@@ -237,12 +237,19 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return this.status !== 'speaking';
   }
 
-  /** Show Continue / Complete when all admin vocab is covered OR min practice time reached. */
+  /** Both vocab fully covered AND minimum practice time elapsed. */
   get showMilestoneActions(): boolean {
     if (!this.conversationStarted || this.conversationComplete) return false;
     const minMet = this.sessionElapsedSec >= this.conversationMinTargetSeconds;
     const vocabDone = this.studentVocabCoverage >= 100 && this.aiVocabCoverage >= 100;
-    return vocabDone || minMet;
+    return vocabDone && minMet;
+  }
+
+  /** Completion overlay: shown once when the exercise goal is first reached. */
+  completionDialogDismissed = false;
+
+  get showCompletionOverlay(): boolean {
+    return this.showMilestoneActions && !this.completionDialogDismissed && !this.conversationComplete;
   }
 
   get studentDisplayName(): string {
@@ -648,6 +655,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.conversationMode = true;
     this.conversationStarted = false;
     this.conversationComplete = false;
+    this.completionDialogDismissed = false;
     this.chatHistory = [];
     this.vocabCoverage = 0;
     this.studentVocabCoverage = 0;
@@ -894,7 +902,13 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Continue or Complete after milestone (vocab done or min time reached). */
+  /** Student chose "Yes, keep going" from the completion overlay. */
+  async continueAfterCompletion(): Promise<void> {
+    this.completionDialogDismissed = true;
+    this.openMicForUserTurn();
+  }
+
+  /** Continue or Complete after milestone (both vocab done and min time reached). */
   async postConversationClientAction(action: 'continue' | 'complete'): Promise<void> {
     if (!this.sessionId || !this.payload || this.conversationComplete) return;
     this.waitingForUser = false;
