@@ -1,0 +1,334 @@
+<mat-tab-group animationDuration="200ms">
+
+  <!-- ══════════════════════════════════════════════════════ SEND REQUEST TAB -->
+  <mat-tab label="Send Request">
+    <div class="tab-content">
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <mat-form-field appearance="outline" class="filter-field filter-search">
+          <mat-label>Search name or email</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput [(ngModel)]="filterSearch" placeholder="e.g. Amal" (keyup.enter)="applyFilters()" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Batch</mat-label>
+          <input matInput [(ngModel)]="filterBatch" placeholder="e.g. A1-2024" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Level</mat-label>
+          <mat-select [(ngModel)]="filterLevel">
+            <mat-option value="">All Levels</mat-option>
+            <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Plan</mat-label>
+          <mat-select [(ngModel)]="filterPlan">
+            <mat-option value="">All Plans</mat-option>
+            <mat-option *ngFor="let p of planOptions" [value]="p.value">{{ p.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="filter-actions">
+          <button mat-flat-button color="primary" (click)="applyFilters()">
+            <mat-icon>filter_list</mat-icon> Apply
+          </button>
+          <button mat-stroked-button (click)="resetFilters()">
+            <mat-icon>clear</mat-icon> Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Selection Summary + Send Form (shown when students selected) -->
+      <div class="selection-bar" *ngIf="selectedIds.size > 0">
+        <span class="selection-count">
+          <mat-icon>check_circle</mat-icon>
+          {{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected
+        </span>
+        <button mat-stroked-button color="warn" (click)="deselectAll()">
+          <mat-icon>deselect</mat-icon> Clear Selection
+        </button>
+      </div>
+
+      <!-- Student Table -->
+      <div class="students-section">
+        <div class="section-header">
+          <h3>
+            Students
+            <span class="total-badge" *ngIf="studentTotal > 0">{{ studentTotal }}</span>
+          </h3>
+          <div class="header-actions" *ngIf="studentList.length > 0">
+            <button mat-stroked-button (click)="toggleSelectAll()">
+              {{ allPageSelected ? 'Deselect All' : 'Select All' }}
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="loadingStudents" class="loading-center">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <div *ngIf="!loadingStudents && studentList.length === 0" class="empty-state">
+          <mat-icon>people_outline</mat-icon>
+          <p>No students found. Try adjusting your filters.</p>
+        </div>
+
+        <div *ngIf="!loadingStudents && studentList.length > 0" class="students-table-wrap">
+          <table class="students-table">
+            <thead>
+              <tr>
+                <th class="col-check"></th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Level</th>
+                <th>Plan</th>
+                <th class="col-num">Total Paid</th>
+                <th class="col-num">Balance</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of studentList"
+                  [class.selected-row]="isSelected(row)"
+                  (click)="toggleStudent(row)">
+                <td class="col-check">
+                  <mat-checkbox [checked]="isSelected(row)" (click)="$event.stopPropagation()" (change)="toggleStudent(row)"></mat-checkbox>
+                </td>
+                <td class="col-name">
+                  <div class="student-name">{{ row.name }}</div>
+                  <div class="student-batch" *ngIf="row.batch">{{ row.batch }}</div>
+                </td>
+                <td class="col-email">{{ row.email }}</td>
+                <td><span class="pill pill-grey">{{ row.level || '—' }}</span></td>
+                <td>{{ planLabel(row.subscription) }}</td>
+                <td class="col-num">{{ fmt(row.totalPaid) }}</td>
+                <td class="col-num" [class.overdue-text]="row.balanceDue > 0">{{ fmt(row.balanceDue) }}</td>
+                <td><span class="pill" [ngClass]="overallStatusClass(row.overallStatus)">{{ row.overallStatus }}</span></td>
+                <td>
+                  <button mat-icon-button color="primary" matTooltip="View full history"
+                    (click)="$event.stopPropagation(); viewMore(row)">
+                    <mat-icon>open_in_new</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Pagination -->
+          <div class="pagination-row">
+            <button mat-icon-button [disabled]="studentPage === 1" (click)="prevStudentPage()">
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+            <span class="page-label">{{ studentPaginationLabel }}</span>
+            <button mat-icon-button [disabled]="studentPage * studentPageSize >= studentTotal" (click)="nextStudentPage()">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Request Form -->
+      <div class="request-form-card" *ngIf="selectedIds.size > 0">
+        <h3>
+          <mat-icon>send</mat-icon>
+          Send Payment Request to {{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }}
+        </h3>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Amount</mat-label>
+            <input matInput type="number" [(ngModel)]="amount" placeholder="35000" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Currency</mat-label>
+            <mat-select [(ngModel)]="currency">
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Payment Type</mat-label>
+            <mat-select [(ngModel)]="paymentType">
+              <mat-option *ngFor="let t of paymentTypes" [value]="t">{{ t }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="paymentType === 'Custom'">
+            <mat-label>Custom Label</mat-label>
+            <input matInput [(ngModel)]="customType" placeholder="e.g. Book Deposit" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Due Date</mat-label>
+            <input matInput [matDatepicker]="duePicker" [(ngModel)]="dueDate" placeholder="Select date" />
+            <mat-datepicker-toggle matSuffix [for]="duePicker"></mat-datepicker-toggle>
+            <mat-datepicker #duePicker></mat-datepicker>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Description / Purpose</mat-label>
+          <textarea matInput rows="3" [(ngModel)]="remarks" placeholder="What is this payment for? This will be shown to the student in bold."></textarea>
+        </mat-form-field>
+
+        <div class="form-toggles">
+          <mat-slide-toggle [(ngModel)]="installmentAllowed">Allow Installments</mat-slide-toggle>
+          <mat-slide-toggle [(ngModel)]="notificationToggle" color="accent">Send Email Notification</mat-slide-toggle>
+        </div>
+
+        <div class="form-actions">
+          <button mat-flat-button color="primary" (click)="sendRequest()" [disabled]="sendingRequest">
+            <mat-spinner *ngIf="sendingRequest" diameter="16" class="btn-spinner"></mat-spinner>
+            <mat-icon *ngIf="!sendingRequest">send</mat-icon>
+            {{ sendingRequest ? 'Sending…' : 'Send Request' }}
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </mat-tab>
+
+  <!-- ══════════════════════════════════════════════════════ APPROVALS TAB -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      Pending Approvals
+      <span class="badge-count" *ngIf="approvalTotal > 0">{{ approvalTotal }}</span>
+    </ng-template>
+
+    <div class="tab-content">
+
+      <!-- Filter row -->
+      <div class="approval-filter-row">
+        <mat-form-field appearance="outline" class="approval-status-field">
+          <mat-label>Status</mat-label>
+          <mat-select [(ngModel)]="approvalStatusFilter" (ngModelChange)="onStatusFilterChange()">
+            <mat-option *ngFor="let s of approvalStatuses" [value]="s.value">{{ s.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <button mat-icon-button (click)="loadApprovals()" matTooltip="Refresh">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
+
+      <div *ngIf="loadingApprovals" class="loading-center">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+
+      <div *ngIf="!loadingApprovals && approvalRows.length === 0" class="empty-state">
+        <mat-icon>inbox</mat-icon>
+        <p>No submissions in this category.</p>
+      </div>
+
+      <div *ngIf="!loadingApprovals && approvalRows.length > 0">
+        <div *ngFor="let sub of approvalRows" class="approval-card">
+          <div class="approval-header" (click)="toggleActionPanel(sub._id)">
+            <div class="approval-info">
+              <span class="student-name-lg">{{ sub.studentId?.name }}</span>
+              <span class="student-meta">{{ sub.studentId?.email }} · {{ sub.studentId?.batch }}</span>
+              <div class="approval-amounts">
+                <strong>{{ sub.currency }} {{ fmt(sub.paidAmount) }}</strong>
+                <span class="req-type"> — {{ sub.paymentRequestId?.paymentType }}</span>
+                <span *ngIf="sub.paymentRequestId?.remarks" class="req-remarks">"{{ sub.paymentRequestId?.remarks }}"</span>
+              </div>
+            </div>
+            <div class="approval-right">
+              <span class="pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span>
+              <span class="submitted-date">{{ sub.submittedAt | date:'dd MMM y, HH:mm' }}</span>
+              <mat-icon>{{ activeActionId === sub._id ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </div>
+          </div>
+
+          <!-- Action panel -->
+          <div *ngIf="activeActionId === sub._id" class="action-panel" (click)="$event.stopPropagation()">
+            <div class="ap-toolbar">
+              <button mat-flat-button color="primary" type="button" (click)="viewScreenshot(sub)">
+                <mat-icon>open_in_new</mat-icon>
+                View proof
+              </button>
+              <span class="ap-toolbar-hint">Opens the student’s screenshot or PDF in a new tab.</span>
+            </div>
+
+            <mat-form-field appearance="outline" class="ap-admin-remarks" subscriptSizing="dynamic">
+              <mat-label>Admin remarks (optional)</mat-label>
+              <input matInput [(ngModel)]="adminRemarks" placeholder="Internal note — kept on approval" />
+            </mat-form-field>
+
+            <div class="ap-decisions">
+              <div class="ap-card ap-card-approve">
+                <div class="ap-card-head">
+                  <mat-icon class="ap-card-icon ap-icon-approve">task_alt</mat-icon>
+                  <div>
+                    <div class="ap-card-title">Approve</div>
+                    <p class="ap-card-desc">Payment matches proof — marks this submission as approved.</p>
+                  </div>
+                </div>
+                <button mat-flat-button color="primary" class="ap-card-btn" type="button" (click)="approve(sub)"
+                  [disabled]="loadingActionId === sub._id">
+                  <mat-spinner *ngIf="loadingActionId === sub._id" diameter="16" class="btn-spinner"></mat-spinner>
+                  <mat-icon *ngIf="loadingActionId !== sub._id">check_circle</mat-icon>
+                  Approve payment
+                </button>
+              </div>
+
+              <div class="ap-card ap-card-reject">
+                <div class="ap-card-head">
+                  <mat-icon class="ap-card-icon ap-icon-reject">cancel</mat-icon>
+                  <div>
+                    <div class="ap-card-title">Reject</div>
+                    <p class="ap-card-desc">Student sees your reason and can submit again if allowed.</p>
+                  </div>
+                </div>
+                <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
+                  <mat-label>Rejection reason</mat-label>
+                  <input matInput [(ngModel)]="rejectReason" placeholder="Required" />
+                </mat-form-field>
+                <button mat-stroked-button color="warn" class="ap-card-btn" type="button" (click)="reject(sub)"
+                  [disabled]="loadingActionId === sub._id">
+                  <mat-icon>block</mat-icon>
+                  Reject
+                </button>
+              </div>
+
+              <div class="ap-card ap-card-reupload">
+                <div class="ap-card-head">
+                  <mat-icon class="ap-card-icon ap-icon-reupload">upload</mat-icon>
+                  <div>
+                    <div class="ap-card-title">Request re-upload</div>
+                    <p class="ap-card-desc">Keeps the request open; ask for a clearer proof or correction.</p>
+                  </div>
+                </div>
+                <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
+                  <mat-label>Note for student</mat-label>
+                  <input matInput [(ngModel)]="reuploadNote" placeholder="What should they fix?" />
+                </mat-form-field>
+                <button mat-stroked-button class="ap-card-btn btn-amber-outline" type="button" (click)="reupload(sub)"
+                  [disabled]="loadingActionId === sub._id">
+                  <mat-icon>refresh</mat-icon>
+                  Request re-upload
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-row">
+          <button mat-icon-button [disabled]="approvalPage === 1" (click)="prevApproval()">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <span class="page-label">{{ approvalPaginationLabel }}</span>
+          <button mat-icon-button [disabled]="approvalPage * approvalPageSize >= approvalTotal" (click)="nextApproval()">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </mat-tab>
+
+</mat-tab-group>

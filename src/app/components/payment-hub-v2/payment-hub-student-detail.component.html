@@ -1,0 +1,175 @@
+<div class="sd-root">
+
+  <!-- Header -->
+  <div class="sd-page-header">
+    <button mat-button type="button" class="sd-back-btn" (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon> Back to Payment Hub
+    </button>
+    <h1 class="sd-page-title">Student Payment History</h1>
+  </div>
+
+  <div *ngIf="loading" class="sd-spinner-wrap">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+
+  <div *ngIf="!loading && history">
+
+    <!-- Student Header Card -->
+    <mat-card class="sd-student-card">
+      <div class="sd-student-header">
+        <div class="sd-avatar">
+          <mat-icon>account_circle</mat-icon>
+        </div>
+        <div class="sd-student-info">
+          <h2 class="sd-student-name">{{ history.student.name }}</h2>
+          <div class="sd-student-meta">
+            <span><mat-icon>email</mat-icon> {{ history.student.email }}</span>
+            <span *ngIf="history.student.batch"><mat-icon>group</mat-icon> Batch: {{ history.student.batch }}</span>
+            <span *ngIf="history.student.level"><mat-icon>school</mat-icon> Level: {{ history.student.level }}</span>
+            <span><mat-icon>calendar_today</mat-icon> Joined: {{ dateJoined() }}</span>
+          </div>
+        </div>
+        <div class="sd-overall-status">
+          <span class="sd-pill" [ngClass]="overallStatusClass(history.profile?.overallStatus || '')">
+            {{ history.profile?.overallStatus || 'Unknown' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="sd-summary-row">
+        <div class="sd-summary-item">
+          <span class="sd-summary-label">Total Paid</span>
+          <span class="sd-summary-val sd-val-green">{{ fmt(history.profile?.totalPaid) }}</span>
+        </div>
+        <div class="sd-summary-div"></div>
+        <div class="sd-summary-item">
+          <span class="sd-summary-label">Pending Approval</span>
+          <span class="sd-summary-val sd-val-amber">{{ fmt(history.profile?.pendingApprovalAmount) }}</span>
+        </div>
+        <div class="sd-summary-div"></div>
+        <div class="sd-summary-item">
+          <span class="sd-summary-label">Overdue</span>
+          <span class="sd-summary-val sd-val-red">{{ fmt(history.profile?.overdueAmount) }}</span>
+        </div>
+        <div class="sd-summary-div"></div>
+        <div class="sd-summary-item">
+          <span class="sd-summary-label">Total Requests</span>
+          <span class="sd-summary-val">{{ history.total }}</span>
+        </div>
+      </div>
+    </mat-card>
+
+    <!-- Payment History Table -->
+    <mat-card class="sd-history-card">
+      <div class="sd-card-title">
+        <mat-icon>receipt_long</mat-icon> Payment History
+      </div>
+
+      <div *ngIf="history.requests.length === 0" class="sd-empty">
+        No payment requests found for this student.
+      </div>
+
+      <div class="sd-table-wrap" *ngIf="history.requests.length > 0">
+        <table class="sd-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Payment Type</th>
+              <th class="sd-num">Amount Requested</th>
+              <th class="sd-num">Amount Paid</th>
+              <th>Currency</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              <th>Created</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let req of history.requests; let i = index">
+              <td class="sd-num">{{ i + 1 }}</td>
+              <td>
+                <strong>{{ req.paymentType }}</strong>
+                <span *ngIf="req.customType" class="sd-custom-type"> ({{ req.customType }})</span>
+              </td>
+              <td class="sd-num">{{ fmt(req.amount) }}</td>
+              <td class="sd-num sd-val-green">{{ fmt(req.amount - req.amountRemaining) }}</td>
+              <td>{{ req.currency }}</td>
+              <td><span class="sd-pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
+              <td>{{ fmtDate(req.dueDate) }}</td>
+              <td>{{ fmtDate(req.createdAt) }}</td>
+              <td class="sd-remarks">{{ req.remarks || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-card>
+
+    <!-- Submissions Detail -->
+    <mat-card class="sd-submissions-card" *ngIf="history.requests.length > 0">
+      <div class="sd-card-title">
+        <mat-icon>upload_file</mat-icon> Submission Details
+      </div>
+
+      <div *ngFor="let req of history.requests">
+        <div *ngIf="hasSubmissions(req)" class="sd-req-block">
+          <div class="sd-req-label">
+            {{ req.paymentType }}<span *ngIf="req.customType"> — {{ req.customType }}</span>
+            &bull; {{ req.currency }} {{ fmt(req.amount) }}
+            &bull; Due {{ fmtDate(req.dueDate) }}
+          </div>
+          <div *ngFor="let sub of getSubmissions(req); let j = index" class="sd-submission-row">
+            <div class="sd-sub-index">#{{ j + 1 }}</div>
+            <div class="sd-sub-details">
+              <div class="sd-sub-item">
+                <span class="sd-sub-label">Submitted</span>
+                <span>{{ fmtDateTime(sub.submittedAt) }}</span>
+              </div>
+              <div class="sd-sub-item">
+                <span class="sd-sub-label">Paid</span>
+                <span class="sd-val-green">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</span>
+              </div>
+              <div class="sd-sub-item">
+                <span class="sd-sub-label">Method</span>
+                <span>{{ sub.paymentMethod }}</span>
+              </div>
+              <div class="sd-sub-item" *ngIf="sub.transactionId">
+                <span class="sd-sub-label">Txn ID</span>
+                <span>{{ sub.transactionId }}</span>
+              </div>
+              <div class="sd-sub-item">
+                <span class="sd-sub-label">Status</span>
+                <span class="sd-pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span>
+              </div>
+              <div class="sd-sub-item" *ngIf="sub.adminRemarks">
+                <span class="sd-sub-label">Admin Note</span>
+                <span>{{ sub.adminRemarks }}</span>
+              </div>
+              <div class="sd-sub-item" *ngIf="sub.rejectionReason">
+                <span class="sd-sub-label">Rejected</span>
+                <span class="sd-val-red">{{ sub.rejectionReason }}</span>
+              </div>
+            </div>
+            <div class="sd-sub-actions">
+              <button mat-stroked-button type="button" (click)="viewScreenshot(sub)">
+                <mat-icon>image</mat-icon> Screenshot
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="noSubmissionsYet()" class="sd-empty">
+        No submissions recorded yet.
+      </div>
+    </mat-card>
+
+  </div>
+
+  <div *ngIf="!loading && !history" class="sd-error">
+    <mat-icon>error_outline</mat-icon>
+    <p>Could not load student history. Please try again.</p>
+    <button mat-flat-button color="primary" type="button" (click)="load()">Retry</button>
+  </div>
+
+</div>

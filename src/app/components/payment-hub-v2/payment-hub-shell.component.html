@@ -1,0 +1,18 @@
+<div class="ph-shell">
+  <header class="ph-header">
+    <div class="ph-header-inner">
+      <div class="ph-header-text">
+        <h1 class="ph-title">Payment Hub</h1>
+        <p class="ph-subtitle">Track all payments, filters, and student payment history</p>
+      </div>
+      <a mat-icon-button routerLink="/admin/payment-hub/settings" class="ph-settings-btn"
+        matTooltip="Pricing &amp; schedule settings">
+        <mat-icon>settings</mat-icon>
+      </a>
+    </div>
+  </header>
+
+  <div class="ph-body">
+    <app-payment-hub-all-payments />
+  </div>
+</div>

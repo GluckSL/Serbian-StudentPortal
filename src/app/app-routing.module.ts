@@ -246,6 +246,14 @@ export const routes: Routes = [
   // Payment Approvals (student payment submissions)
   { path: 'admin/payment-approvals', loadComponent: () => import('./components/admin-dashboard/payment-approvals/payment-approvals.component').then(m => m.PaymentApprovalsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
+  // Payment Hub v2 (under components/ so lazy paths match the rest of the app)
+  { path: 'admin/payment-hub', loadComponent: () => import('./components/payment-hub-v2/payment-hub-shell.component').then(m => m.PaymentHubShellComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/payment-hub/settings', loadComponent: () => import('./components/payment-hub-v2/payment-hub-settings.component').then(m => m.PaymentHubSettingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/payment-hub/student/:studentId', loadComponent: () => import('./components/payment-hub-v2/payment-hub-student-detail.component').then(m => m.PaymentHubStudentDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/payment-request', loadComponent: () => import('./components/payment-hub-v2/payment-hub-request-shell.component').then(m => m.PaymentHubRequestShellComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/payment-request/student/:studentId', loadComponent: () => import('./components/payment-hub-v2/payment-hub-request-student-page.component').then(m => m.PaymentHubRequestStudentPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'my-payments', loadComponent: () => import('./components/payment-hub-v2/payment-hub-student-portal.component').then(m => m.PaymentHubStudentPortalComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT'] } },
+
   // Admin Student Progress Overview
   { path: 'admin/student-progress', loadComponent: () => import('./components/admin-dashboard/admin-progress/admin-progress.component').then(m => m.AdminProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/performance', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },

@@ -1,0 +1,535 @@
+:host {
+  display: block;
+}
+
+.tab-content {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+// ── Filter bar ─────────────────────────────────────────────────────────────
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  background: #f8f9ff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.filter-field {
+  min-width: 160px;
+  flex: 1;
+  margin: 0;
+
+  &.filter-search {
+    min-width: 220px;
+    flex: 2;
+  }
+
+  ::ng-deep .mat-mdc-text-field-wrapper {
+    background: white;
+  }
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+
+  button {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+// ── Selection bar ──────────────────────────────────────────────────────────
+
+.selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #e8f0fe;
+  border: 1px solid #4285f4;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+
+  .selection-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: #1a73e8;
+
+    mat-icon { font-size: 18px; width: 18px; height: 18px; }
+  }
+}
+
+// ── Students section ───────────────────────────────────────────────────────
+
+.students-section {
+  margin-bottom: 24px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a237e;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.total-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a237e;
+  color: white;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.students-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  background: white;
+}
+
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+
+  thead tr {
+    background: #f5f5f5;
+  }
+
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: #424242;
+    white-space: nowrap;
+    border-bottom: 2px solid #e0e0e0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+    color: #212121;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:hover td {
+    background: #f5f7ff;
+    cursor: pointer;
+  }
+
+  .selected-row td {
+    background: #e8f0fe;
+  }
+
+  .col-check {
+    width: 40px;
+    padding-left: 12px;
+    padding-right: 4px;
+  }
+
+  .col-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .col-name {
+    min-width: 140px;
+  }
+
+  .col-email {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.student-name {
+  font-weight: 600;
+  color: #1a237e;
+}
+
+.student-batch {
+  font-size: 12px;
+  color: #757575;
+}
+
+.overdue-text {
+  color: #c62828;
+  font-weight: 600;
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+
+.page-label {
+  font-size: 13px;
+  color: #616161;
+  min-width: 100px;
+  text-align: center;
+}
+
+// ── Request form ───────────────────────────────────────────────────────────
+
+.request-form-card {
+  background: white;
+  border: 2px solid #1a237e;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 8px;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a237e;
+    margin: 0 0 20px;
+  }
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.form-toggles {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+
+  button {
+    min-width: 140px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.btn-spinner {
+  display: inline-flex;
+}
+
+// ── Approval queue ─────────────────────────────────────────────────────────
+
+.approval-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.approval-status-field {
+  width: 220px;
+}
+
+.approval-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.approval-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  cursor: pointer;
+  gap: 12px;
+
+  &:hover {
+    background: #f8f9ff;
+  }
+}
+
+.approval-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.student-name-lg {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a237e;
+}
+
+.student-meta {
+  font-size: 12px;
+  color: #757575;
+}
+
+.approval-amounts {
+  font-size: 14px;
+  color: #212121;
+  margin-top: 2px;
+
+  strong { color: #1a237e; }
+  .req-type { color: #616161; }
+  .req-remarks {
+    display: block;
+    font-size: 12px;
+    font-style: italic;
+    color: #e65100;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+}
+
+.approval-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.submitted-date {
+  font-size: 12px;
+  color: #9e9e9e;
+}
+
+.action-panel {
+  padding: 18px 18px 20px;
+  border-top: 1px solid #e8eaf6;
+  background: linear-gradient(180deg, #fafbff 0%, #f5f7fb 100%);
+}
+
+.ap-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 16px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.ap-toolbar-hint {
+  font-size: 12px;
+  color: #78909c;
+  line-height: 1.35;
+  max-width: 420px;
+}
+
+.ap-admin-remarks {
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.ap-decisions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ap-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 14px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ap-card-approve {
+  border-color: #c5cae9;
+}
+
+.ap-card-reject {
+  border-color: #ffcdd2;
+}
+
+.ap-card-reupload {
+  border-color: #ffe0b2;
+}
+
+.ap-card-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ap-card-icon {
+  flex-shrink: 0;
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+}
+
+.ap-icon-approve { color: #1565c0; }
+.ap-icon-reject { color: #c62828; }
+.ap-icon-reupload { color: #e65100; }
+
+.ap-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #263238;
+  margin: 0 0 4px;
+}
+
+.ap-card-desc {
+  font-size: 12px;
+  color: #78909c;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.ap-stack-field {
+  width: 100%;
+  margin: 0;
+}
+
+.ap-card-btn {
+  margin-top: auto;
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+}
+
+.btn-amber-outline {
+  border-color: #f59e0b !important;
+  color: #b45309 !important;
+}
+
+.btn-amber {
+  background: #f59e0b;
+  color: white;
+}
+
+// ── Status pills ───────────────────────────────────────────────────────────
+
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e53935;
+  color: white;
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pill-blue   { background: #e3f2fd; color: #1565c0; }
+.pill-green  { background: #e8f5e9; color: #2e7d32; }
+.pill-amber  { background: #fff8e1; color: #e65100; }
+.pill-red    { background: #fce4ec; color: #c62828; }
+.pill-orange { background: #fff3e0; color: #bf360c; }
+.pill-grey   { background: #f5f5f5; color: #616161; }
+
+// ── Misc ───────────────────────────────────────────────────────────────────
+
+.loading-center {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 0;
+  color: #9e9e9e;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    opacity: 0.4;
+    display: block;
+    margin: 0 auto 12px;
+  }
+
+  p { font-size: 15px; margin: 0; }
+}
