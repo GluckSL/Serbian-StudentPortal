@@ -558,7 +558,6 @@ export class DgAdminModuleFormComponent implements OnInit {
         ];
       }
       this.renumber();
-      this.missingFields.delete('scenes');
       this.messageType = 'success';
       this.message = `Generated ${generated.length} scene${generated.length === 1 ? '' : 's'} from your role-play context.`;
     } catch (e: any) {
@@ -622,6 +621,9 @@ export class DgAdminModuleFormComponent implements OnInit {
   }
 
   async save(navigateAfterSave = true): Promise<boolean> {
+    // #region agent log
+    fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:save-entry',message:'save() called',data:{title:this.editTitle,minPractice:this.editMinPracticeMinutes,maxPractice:this.editMaxPracticeMinutes,charId:this.editCharacterId,level:this.editLevel,saving:this.saving},timestamp:Date.now(),hypothesisId:'H-B,H-C'})}).catch(()=>{});
+    // #endregion
     this.message = null;
     this.missingFields = new Set<string>();
     this.missingFieldLabels = [];
@@ -657,10 +659,6 @@ export class DgAdminModuleFormComponent implements OnInit {
     if (!this.editRolePlay.studentRole?.trim()) fail('rpsSr', 'Student role');
     if (!this.editRolePlay.aiRole?.trim()) fail('rpsAr', 'AI role');
     if (!this.editCharacterId) fail('char', 'Character');
-    const hasPracticeScene = this.editScenes.some((s) => s.type === 'practice');
-    if (!hasPracticeScene) {
-      fail('scenes', 'At least one Practice scene (for student speaking)');
-    }
     const cdRaw = (this.editCourseDay || '').trim();
     if (cdRaw !== '') {
       const cd = Number(cdRaw);
@@ -669,12 +667,18 @@ export class DgAdminModuleFormComponent implements OnInit {
       }
     }
     if (this.missingFieldLabels.length) {
+      // #region agent log
+      fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:validation-blocked',message:'validation blocked save',data:{missingFields:Array.from(this.missingFields),missingLabels:this.missingFieldLabels},timestamp:Date.now(),hypothesisId:'H-A,H-C'})}).catch(()=>{});
+      // #endregion
       this.messageType = 'error';
       this.message = 'Please fill in the required fields highlighted below before saving.';
       this.scrollToFirstMissingField();
       return false;
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:validation-passed',message:'validation passed, proceeding to API call',data:{},timestamp:Date.now(),hypothesisId:'H-D'})}).catch(()=>{});
+    // #endregion
     this.saving = true;
     this.renumber();
     const body = this.buildModulePayload();
@@ -699,6 +703,9 @@ export class DgAdminModuleFormComponent implements OnInit {
       }
       return true;
     } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:api-error',message:'API call threw error',data:{status:e?.status,errMsg:e?.error?.message,rawMsg:e?.message},timestamp:Date.now(),hypothesisId:'H-D'})}).catch(()=>{});
+      // #endregion
       this.messageType = 'error';
       this.message = e?.error?.message || 'Save failed';
       return false;
