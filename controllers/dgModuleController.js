@@ -10,6 +10,7 @@ const {
   buildDgModulePayloadFromLearning,
   resolveDefaultCharacterId,
 } = require('../services/mapLearningToDgPayload');
+const { generateScenesWithAi } = require('../services/dgSceneGeneratorService');
 
 const MAX_LEARNING_IMPORT_BATCH = 20;
 
@@ -413,5 +414,55 @@ exports.remove = async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ message: e.message || 'Delete failed' });
+  }
+};
+
+/**
+ * POST /dg/modules/scenes/generate
+ * Body: {
+ *   count, level, language, nativeLanguage,
+ *   rolePlayScenario, allowedVocabulary, aiTutorVocabulary, allowedGrammar
+ * }
+ * Returns: { scenes: DGScene[] }  (NOT persisted — caller decides what to do)
+ */
+exports.generateScenes = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const count = Math.max(2, Math.min(30, Number(body.count) || 8));
+
+    const rps = body.rolePlayScenario || {};
+    if (!rps.situation || !rps.studentRole || !rps.aiRole) {
+      return res.status(400).json({
+        message:
+          'Please fill Situation, Student role, and AI role before generating scenes.',
+      });
+    }
+
+    const totalVocab =
+      (Array.isArray(body.allowedVocabulary) ? body.allowedVocabulary.length : 0) +
+      (Array.isArray(body.aiTutorVocabulary) ? body.aiTutorVocabulary.length : 0);
+    if (totalVocab === 0) {
+      return res.status(400).json({
+        message:
+          'Add at least one vocabulary word (student or AI) before generating scenes.',
+      });
+    }
+
+    const scenes = await generateScenesWithAi({
+      count,
+      level: body.level,
+      language: body.language,
+      nativeLanguage: body.nativeLanguage,
+      rolePlayScenario: rps,
+      allowedVocabulary: body.allowedVocabulary,
+      aiTutorVocabulary: body.aiTutorVocabulary,
+      allowedGrammar: body.allowedGrammar,
+    });
+
+    res.json({ scenes });
+  } catch (e) {
+    const msg = e?.message || 'AI scene generation failed';
+    const status = /OPENAI_API_KEY|api key/i.test(msg) ? 500 : 400;
+    res.status(status).json({ message: msg });
   }
 };

@@ -1,6 +1,37 @@
 <div class="dg-form-page">
   <div class="container-fluid px-3 py-3">
-    <p class="dg-adm__msg mb-2" *ngIf="message">{{ message }}</p>
+    <div
+      id="dg-form-alert"
+      *ngIf="message"
+      class="alert d-flex align-items-start gap-2 mb-3"
+      [ngClass]="{
+        'alert-danger': messageType === 'error',
+        'alert-success': messageType === 'success',
+        'alert-info': messageType === 'info'
+      }"
+      role="alert"
+    >
+      <i
+        class="fas mt-1"
+        [ngClass]="{
+          'fa-exclamation-triangle': messageType === 'error',
+          'fa-check-circle': messageType === 'success',
+          'fa-info-circle': messageType === 'info'
+        }"
+      ></i>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">{{ message }}</div>
+        <ul *ngIf="missingFieldLabels.length" class="mb-0 mt-1 ps-3 small">
+          <li *ngFor="let label of missingFieldLabels">{{ label }}</li>
+        </ul>
+      </div>
+      <button
+        type="button"
+        class="btn-close"
+        aria-label="Close"
+        (click)="message = null"
+      ></button>
+    </div>
 
     <div class="loading-state text-center py-5" *ngIf="loading">
       <div class="spinner-border text-primary" role="status">
@@ -29,20 +60,30 @@
                 <input
                   type="text"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('title')"
                   [(ngModel)]="editTitle"
+                  (ngModelChange)="onFieldInput('title')"
                   name="title"
                   placeholder="e.g., Restaurant Conversation"
                 />
+                <div class="invalid-feedback" *ngIf="isInvalid('title')">
+                  Module title is required.
+                </div>
               </div>
               <div class="col-12 mb-3">
                 <label class="form-label">Description *</label>
                 <textarea
                   class="form-control"
+                  [class.is-invalid]="isInvalid('description')"
                   rows="2"
                   [(ngModel)]="editDescription"
-                  name="desc"
+                  (ngModelChange)="onFieldInput('description')"
+                  name="description"
                   placeholder="Brief description of the role-play scenario"
                 ></textarea>
+                <div class="invalid-feedback" *ngIf="isInvalid('description')">
+                  Description is required.
+                </div>
               </div>
             </div>
 
@@ -52,24 +93,51 @@
               </div>
               <div class="col-md-4 mb-3">
                 <label class="form-label">Target Language *</label>
-                <select class="form-select" [(ngModel)]="editLanguage" name="targetLang">
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('targetLang')"
+                  [(ngModel)]="editLanguage"
+                  (ngModelChange)="onFieldInput('targetLang')"
+                  name="targetLang"
+                >
                   <option *ngFor="let lang of targetLanguages" [value]="lang">{{ lang }}</option>
                 </select>
+                <div class="invalid-feedback" *ngIf="isInvalid('targetLang')">
+                  Target language is required.
+                </div>
               </div>
               <div class="col-md-4 mb-3">
                 <label class="form-label">Native Language *</label>
-                <select class="form-select" [(ngModel)]="editNativeLanguage" name="nativeLang">
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('nativeLang')"
+                  [(ngModel)]="editNativeLanguage"
+                  (ngModelChange)="onFieldInput('nativeLang')"
+                  name="nativeLang"
+                >
                   <option value="">Select language</option>
                   <option *ngFor="let lang of nativeLanguages" [value]="lang">{{ lang }}</option>
                 </select>
+                <div class="invalid-feedback" *ngIf="isInvalid('nativeLang')">
+                  Native language is required.
+                </div>
               </div>
               <div class="col-md-4 mb-3">
                 <label class="form-label">Level *</label>
-                <select class="form-select" [(ngModel)]="editLevel" name="cefrLevel">
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('cefrLevel')"
+                  [(ngModel)]="editLevel"
+                  (ngModelChange)="onFieldInput('cefrLevel')"
+                  name="cefrLevel"
+                >
                   <option value="">Select Level</option>
                   <option *ngFor="let lv of cefrLevels" [value]="lv">{{ lv }}</option>
                 </select>
-                <small class="form-text text-muted">
+                <div class="invalid-feedback" *ngIf="isInvalid('cefrLevel')">
+                  Please select a CEFR level.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('cefrLevel')">
                   CEFR proficiency level — determines content complexity and student access
                 </small>
               </div>
@@ -78,13 +146,18 @@
                 <input
                   type="number"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('minComplete')"
                   [(ngModel)]="editMinimumCompletionTime"
+                  (ngModelChange)="onFieldInput('minComplete')"
                   name="minComplete"
                   min="5"
                   max="60"
                   placeholder="10"
                 />
-                <small class="form-text text-muted">
+                <div class="invalid-feedback" *ngIf="isInvalid('minComplete')">
+                  Enter a value between 5 and 60 minutes.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('minComplete')">
                   ⏱️ Minimum time required to complete this module (5–60 min)<br />
                   <strong>Suggestions:</strong> Quick (5–8 min) | Standard (10–15 min) | Complex (15–20 min)
                 </small>
@@ -94,48 +167,74 @@
                 <input
                   type="number"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('minPracticeMins')"
                   [(ngModel)]="editMinPracticeMinutes"
+                  (ngModelChange)="onFieldInput('minPracticeMins')"
                   name="minPracticeMins"
                   min="5"
                   max="120"
                   placeholder="10"
                 />
-                <small class="form-text text-muted">Default student practice floor (5–120).</small>
+                <div class="invalid-feedback" *ngIf="isInvalid('minPracticeMins')">
+                  Enter a value between 5 and 120 minutes.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('minPracticeMins')">Default student practice floor (5–120).</small>
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label">Max Practice Time (minutes)</label>
                 <input
                   type="number"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('maxPracticeMins')"
                   [(ngModel)]="editMaxPracticeMinutes"
+                  (ngModelChange)="onFieldInput('maxPracticeMins')"
                   name="maxPracticeMins"
                   min="5"
                   max="180"
                   placeholder="Optional"
                 />
-                <small class="form-text text-muted">Optional soft cap, must be >= min practice.</small>
+                <div class="invalid-feedback" *ngIf="isInvalid('maxPracticeMins')">
+                  Must be between 5–180 and ≥ min practice time, or leave empty.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('maxPracticeMins')">Optional soft cap, must be >= min practice.</small>
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">Course Day (Optional)</label>
                 <input
                   type="text"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('courseDay')"
                   [(ngModel)]="editCourseDay"
+                  (ngModelChange)="onFieldInput('courseDay')"
                   name="courseDay"
                   inputmode="numeric"
                   autocomplete="off"
                   placeholder="e.g., 45"
                 />
-                <small class="form-text text-muted">
+                <div class="invalid-feedback" *ngIf="isInvalid('courseDay')">
+                  Enter a number between 1 and 200, or leave empty.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('courseDay')">
                   📅 Day in the 200-day course journey (1–200). Leave empty for general pool.
                 </small>
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">Character *</label>
-                <select class="form-select" [(ngModel)]="editCharacterId" name="char" required>
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('char')"
+                  [(ngModel)]="editCharacterId"
+                  (ngModelChange)="onFieldInput('char')"
+                  name="char"
+                  required
+                >
+                  <option value="">Select character…</option>
                   <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}</option>
                 </select>
-                <small class="form-text text-muted">Digital guide persona for this DG module.</small>
+                <div class="invalid-feedback" *ngIf="isInvalid('char')">
+                  Please select a character (or create one below).
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('char')">Digital guide persona for this DG module.</small>
               </div>
               <div class="col-md-6 mb-3 d-flex align-items-end">
                 <div class="w-100">
@@ -200,11 +299,16 @@
                 <input
                   type="text"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('rpsSit')"
                   [(ngModel)]="editRolePlay.situation"
+                  (ngModelChange)="onFieldInput('rpsSit')"
                   name="rpsSit"
                   placeholder="e.g., At a restaurant, Job interview, Shopping"
                 />
-                <small class="form-text text-muted">The context/location of the role-play</small>
+                <div class="invalid-feedback" *ngIf="isInvalid('rpsSit')">
+                  Situation is required.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSit')">The context/location of the role-play</small>
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">Setting</label>
@@ -222,22 +326,32 @@
                 <input
                   type="text"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('rpsSr')"
                   [(ngModel)]="editRolePlay.studentRole"
+                  (ngModelChange)="onFieldInput('rpsSr')"
                   name="rpsSr"
                   placeholder="e.g., Customer, Tourist, Job applicant"
                 />
-                <small class="form-text text-muted">What role the student plays</small>
+                <div class="invalid-feedback" *ngIf="isInvalid('rpsSr')">
+                  Student role is required.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSr')">What role the student plays</small>
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">AI Role *</label>
                 <input
                   type="text"
                   class="form-control"
+                  [class.is-invalid]="isInvalid('rpsAr')"
                   [(ngModel)]="editRolePlay.aiRole"
+                  (ngModelChange)="onFieldInput('rpsAr')"
                   name="rpsAr"
                   placeholder="e.g., Waiter, Shop assistant, Interviewer"
                 />
-                <small class="form-text text-muted">What role the AI plays</small>
+                <div class="invalid-feedback" *ngIf="isInvalid('rpsAr')">
+                  AI role is required.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsAr')">What role the AI plays</small>
               </div>
               <div class="col-12 mb-3">
                 <label class="form-label">Objective</label>
@@ -461,10 +575,37 @@
                     </button>
                   </div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-info mb-2" (click)="copyStudentVocabToAi()">
-                  <i class="fas fa-copy me-1"></i> Copy Student Vocabulary to AI
-                </button>
-                <small class="text-muted d-block mb-2">Quick start: Copy all student words, then add AI support words</small>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                  <button type="button" class="btn btn-sm btn-outline-info" (click)="copyStudentVocabToAi()">
+                    <i class="fas fa-copy me-1"></i> Copy Student Vocabulary to AI
+                  </button>
+                  <input
+                    #aiVocabDocFile
+                    type="file"
+                    class="d-none"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    (change)="onAiVocabDocumentSelected($event)"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="triggerAiVocabDocumentPicker(aiVocabDocFile)"
+                    [disabled]="aiVocabDocImporting"
+                    title="Upload a PDF or Word (.docx) list; AI reads it and adds words to this section"
+                  >
+                    <span
+                      *ngIf="aiVocabDocImporting"
+                      class="spinner-border spinner-border-sm me-1"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    <i class="fas fa-file-import me-1" *ngIf="!aiVocabDocImporting"></i>
+                    {{ aiVocabDocImporting ? 'Reading…' : 'Import from PDF or Word' }}
+                  </button>
+                </div>
+                <small class="text-muted d-block mb-2"
+                  >Quick start: Copy student words, import a teacher word list from a document, or add words manually</small
+                >
                 <small class="text-muted d-block mb-2">
                   Format: word, translation (optional), category, usage — translations auto-generated if missing
                 </small>
@@ -654,6 +795,63 @@
               <div class="col-12">
                 <h5 class="border-bottom pb-2">🎬 Scenes <span class="fw-normal text-muted">(drag to reorder)</span></h5>
               </div>
+              <div class="col-12" *ngIf="isInvalid('scenes')">
+                <div class="alert alert-warning d-flex align-items-center gap-2 py-2 px-3 mb-3">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <span>You need at least one <strong>Practice</strong> scene so the student can speak. Use the AI generator below or add a scene manually and set its type to <em>practice</em>.</span>
+                </div>
+              </div>
+
+              <div class="col-12 mb-3">
+                <div class="dg-adm__ai-scenes border rounded p-3 bg-light">
+                  <div class="d-flex flex-wrap align-items-end gap-3">
+                    <div>
+                      <div class="fw-semibold mb-1">
+                        <i class="fas fa-magic text-primary me-1"></i>
+                        AI scene generator
+                      </div>
+                      <small class="text-muted d-block">
+                        Uses your role-play, vocabulary, and grammar above to draft scenes automatically.
+                      </small>
+                    </div>
+                    <div style="min-width: 130px;">
+                      <label class="form-label small mb-1">How many scenes?</label>
+                      <input
+                        type="number"
+                        class="form-control form-control-sm"
+                        [(ngModel)]="aiSceneCount"
+                        name="aiSceneCount"
+                        min="2"
+                        max="30"
+                        [disabled]="aiGenerating"
+                      />
+                    </div>
+                    <div class="form-check form-switch align-self-center mt-3">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="aiSceneReplace"
+                        [(ngModel)]="aiSceneReplace"
+                        name="aiSceneReplace"
+                        [disabled]="aiGenerating"
+                      />
+                      <label class="form-check-label small" for="aiSceneReplace">
+                        Replace existing scenes
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm ms-auto"
+                      (click)="generateScenesWithAi()"
+                      [disabled]="aiGenerating"
+                    >
+                      <span *ngIf="aiGenerating" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                      <i class="fas fa-magic me-1" *ngIf="!aiGenerating"></i>
+                      {{ aiGenerating ? 'Generating…' : 'Create scenes with AI' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div class="col-12">
                 <div cdkDropList class="dg-adm__scenes" (cdkDropListDropped)="drop($event)">
                   <div class="dg-adm__scene" *ngFor="let s of editScenes; let i = index" cdkDrag>
@@ -721,7 +919,7 @@
                     class="btn btn-primary btn-sm dg-adm__save-btn ms-auto"
                     type="button"
                     (click)="save()"
-                    [disabled]="saving || !editCharacterId"
+                    [disabled]="saving"
                   >
                     <span *ngIf="saving" class="spinner-border spinner-border-sm me-2" role="status"></span>
                     <i class="fas fa-save" *ngIf="!saving"></i> {{ saving ? 'Saving…' : 'Save' }}

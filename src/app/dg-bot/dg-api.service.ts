@@ -11,6 +11,7 @@ import type {
   DgModuleSummary,
   DgPlayPayload,
   DgSessionStartResponse,
+  DgVocabEntry,
 } from './dg-bot.types';
 
 export interface DgImportFromLearningResponse {
@@ -99,6 +100,40 @@ export class DgApiService {
 
   createModule(body: Partial<DgModuleSummary> & { scenes?: unknown[] }): Observable<DgModuleSummary> {
     return this.http.post<DgModuleSummary>(`${this.base}/modules`, body);
+  }
+
+  /** AI-generate scenes (intro/teach/practice/feedback) for the role-play context. */
+  generateScenes(body: {
+    count: number;
+    level?: string;
+    language?: string;
+    nativeLanguage?: string;
+    rolePlayScenario?: unknown;
+    allowedVocabulary?: unknown[];
+    aiTutorVocabulary?: unknown[];
+    allowedGrammar?: unknown[];
+  }): Observable<{ scenes: Array<{ type: string; text: string; expectedAnswer: string; translation: string; hint: string; order: number }> }> {
+    return this.http.post<{ scenes: Array<{ type: string; text: string; expectedAnswer: string; translation: string; hint: string; order: number }> }>(
+      `${this.base}/modules/scenes/generate`,
+      body,
+    );
+  }
+
+  /** Staff: upload PDF or .docx; server extracts text and returns vocabulary rows for AI tutor list. */
+  importAiTutorVocabularyFromDocument(
+    file: File,
+    targetLanguage: string,
+    nativeLanguage: string,
+  ): Observable<{ vocabulary: DgVocabEntry[] }> {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    fd.append('targetLanguage', (targetLanguage || 'German').trim());
+    fd.append('nativeLanguage', (nativeLanguage || 'English').trim());
+    return this.http.post<{ vocabulary: DgVocabEntry[] }>(
+      `${this.base}/modules/ai-vocab/from-document`,
+      fd,
+      { withCredentials: true },
+    );
   }
 
   /** Bulk-create DG modules from Learning module IDs (admin). */
