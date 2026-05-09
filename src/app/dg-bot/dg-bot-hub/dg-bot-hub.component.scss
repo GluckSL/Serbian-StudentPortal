@@ -1,16 +1,11 @@
 .dg-hub {
-  padding: 14px;
   min-height: calc(100vh - 80px);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .dg-hub--embedded {
-  padding: 8px 0 16px;
+  padding: 0px;
   min-height: auto;
-}
-
-.dg-hub--journey-day {
-  padding-top: 0;
 }
 
 .dg-hub__filters--search-only {
@@ -617,10 +612,6 @@
 }
 
 @media (max-width: 768px) {
-  .dg-hub {
-    padding: 10px;
-  }
-
   .dg-hub__header {
     display: none;
   }
