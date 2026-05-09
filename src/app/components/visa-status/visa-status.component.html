@@ -8,10 +8,6 @@
       </h2>
       <p class="vs-subtitle">{{ profile.name }} — {{ visa.route || 'Not set' }}</p>
     </div>
-    <a routerLink="/student-progress" class="vs-back">
-      <span class="material-icons">arrow_back</span>
-      <span>Back to Progress</span>
-    </a>
   </div>
 
   <div *ngIf="visa.steps.length; else noVisa">

@@ -1,12 +1,14 @@
 <div class="analytics-page">
   <header class="page-head">
-    <button type="button" class="btn-back" (click)="back()">
-      <span class="material-icons">arrow_back</span> Back
-    </button>
-    <h1>
-      <span class="material-icons">analytics</span>
-      Exercise analytics
-    </h1>
+    <div class="page-head-top-row">
+      <h1>
+        <span class="material-icons">analytics</span>
+        Exercise analytics
+      </h1>
+      <button type="button" class="btn-back" (click)="back()">
+        <span class="material-icons">arrow_back</span> Back
+      </button>
+    </div>
     <p class="sub">
       Overall results from your best scored attempt on each exercise, plus a per-exercise breakdown. Open any row for question-by-question detail.
     </p>
@@ -109,6 +111,42 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="card-grid">
+          <div class="exercise-card" *ngFor="let ex of sortedCompleted">
+            <div class="card-header">
+              <div class="card-title-group">
+                <span class="ex-title">{{ ex.title }}</span>
+                <span class="ex-cat">{{ ex.category }}</span>
+              </div>
+              <span class="level-pill" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
+            </div>
+            <div class="card-body">
+              <div class="card-stat">
+                <span class="label">Score</span>
+                <span class="value">{{ ex.studentAttempt?.scorePercentage ?? '—' }}%</span>
+              </div>
+              <div class="card-stat">
+                <span class="label">Results</span>
+                <span class="value">
+                  <span class="r-ok">{{ ex.studentAttempt?.correctCount ?? '—' }} ok</span>
+                  <span class="r-sep">·</span>
+                  <span class="r-bad">{{ ex.studentAttempt?.wrongCount ?? '—' }} bad</span>
+                </span>
+              </div>
+              <div class="card-stat">
+                <span class="label">Last completed</span>
+                <span class="value">{{ formatDate(ex.studentAttempt?.completedAt) }}</span>
+              </div>
+            </div>
+            <div class="card-footer">
+              <button type="button" class="btn-detail" (click)="openExerciseReview(ex)">
+                Full detail
+                <span class="material-icons">chevron_right</span>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
     </ng-container>
