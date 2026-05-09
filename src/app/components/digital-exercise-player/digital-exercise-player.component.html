@@ -2907,17 +2907,16 @@
                   alt="Pin match image"
                   draggable="false"
                 />
-                <button
-                  *ngFor="let pin of getImagePinPins(currentQuestion.data); let pi = index"
-                  class="ipm-pin"
-                  [class.active]="currentQuestion.selectedLabelId !== null"
-                  [class.near]="imagePinIsPinNearDrag(currentQuestion, pin.id)"
-                  [style.left.%]="pin.x"
-                  [style.top.%]="pin.y"
-                  [id]="'ipm-pin-' + currentQuestion.index + '-' + pin.id"
-                  [disabled]="hasCurrentSubmitted"
-                  (click)="connectImagePin(currentQuestion, pin.id)"
-                >{{ pi + 1 }}</button>
+<span
+                    *ngFor="let pin of getImagePinPins(currentQuestion.data); let pi = index"
+                    class="ipm-pin"
+                    [class.active]="currentQuestion.selectedLabelId !== null"
+                    [class.near]="imagePinIsPinNearDrag(currentQuestion, pin.id)"
+                    [style.left.%]="pin.x"
+                    [style.top.%]="pin.y"
+                    [id]="'ipm-pin-' + currentQuestion.index + '-' + pin.id"
+                    (click)="connectImagePin(currentQuestion, pin.id)"
+                  >{{ pi + 1 }}</span>
               </div>
 
               <!-- Right labels (odd indices) -->
