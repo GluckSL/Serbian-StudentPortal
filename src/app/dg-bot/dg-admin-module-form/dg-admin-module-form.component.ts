@@ -50,6 +50,13 @@ export class DgAdminModuleFormComponent implements OnInit {
   loading = true;
   saving = false;
   message: string | null = null;
+  messageType: 'error' | 'success' | 'info' = 'info';
+  missingFields = new Set<string>();
+  missingFieldLabels: string[] = [];
+
+  aiSceneCount = 8;
+  aiSceneReplace = true;
+  aiGenerating = false;
 
   selected: DgModuleSummary | null = null;
   editTitle = '';
@@ -99,6 +106,9 @@ export class DgAdminModuleFormComponent implements OnInit {
   newAiOpeningLine = '';
   newStudentResponse = '';
 
+  /** True while PDF/DOCX → AI vocabulary import is running */
+  aiVocabDocImporting = false;
+
   sceneTypes: DgSceneType[] = ['intro', 'teach', 'practice', 'feedback'];
 
   get isCreateMode(): boolean {
@@ -134,10 +144,12 @@ export class DgAdminModuleFormComponent implements OnInit {
         const mod = await firstValueFrom(this.dgApi.getAdminModule(id));
         this.hydrateFromModule(mod);
       } else {
+        this.messageType = 'error';
         this.message = 'Missing module id.';
         this.selected = null;
       }
     } catch (e: any) {
+      this.messageType = 'error';
       this.message = e?.error?.message || 'Load failed';
       this.selected = null;
     } finally {
@@ -190,6 +202,44 @@ export class DgAdminModuleFormComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/admin/dg-modules']);
+  }
+
+  isInvalid(key: string): boolean {
+    return this.missingFields.has(key);
+  }
+
+  private clearMissingField(key: string): void {
+    if (this.missingFields.has(key)) {
+      this.missingFields.delete(key);
+      if (this.missingFields.size === 0) {
+        this.message = null;
+        this.missingFieldLabels = [];
+      }
+    }
+  }
+
+  onFieldInput(key: string): void {
+    this.clearMissingField(key);
+  }
+
+  private scrollToFirstMissingField(): void {
+    const first = this.missingFields.values().next().value as string | undefined;
+    if (!first) return;
+    setTimeout(() => {
+      const el =
+        (document.querySelector(`[name="${first}"]`) as HTMLElement | null) ||
+        (document.getElementById('dg-form-alert') as HTMLElement | null);
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof (el as HTMLInputElement).focus === 'function') {
+          try {
+            (el as HTMLInputElement).focus({ preventScroll: true });
+          } catch {
+            (el as HTMLInputElement).focus();
+          }
+        }
+      }
+    }, 0);
   }
 
   private hydrateFromModule(row: DgModuleSummary): void {
@@ -304,6 +354,55 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.aiTutorVocabulary.splice(i, 1);
   }
 
+  triggerAiVocabDocumentPicker(input: HTMLInputElement): void {
+    if (this.aiVocabDocImporting) return;
+    input.click();
+  }
+
+  async onAiVocabDocumentSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    this.aiVocabDocImporting = true;
+    this.message = null;
+    try {
+      const res = await firstValueFrom(
+        this.dgApi.importAiTutorVocabularyFromDocument(file, this.editLanguage, this.editNativeLanguage),
+      );
+      const rows = res?.vocabulary || [];
+      let added = 0;
+      for (const v of rows) {
+        const word = String(v?.word || '').trim();
+        const translation = String(v?.translation || '').trim();
+        if (!word || !translation) continue;
+        const exists = this.aiTutorVocabulary.some((a) => a.word.toLowerCase() === word.toLowerCase());
+        if (exists) continue;
+        const category = String(v?.category || '').trim() || 'general';
+        const usageRaw = v?.usage != null ? String(v.usage).trim() : '';
+        this.aiTutorVocabulary.push({
+          word,
+          translation,
+          category,
+          ...(usageRaw ? { usage: usageRaw } : {}),
+        });
+        added++;
+      }
+      this.messageType = added ? 'success' : 'info';
+      this.message = added
+        ? `Imported ${added} new word(s) from your document (${rows.length} extracted). Review the list below, then save.`
+        : rows.length
+          ? 'All words from the document were already in the AI vocabulary list.'
+          : 'No vocabulary rows returned. Try a file with a clearer word list or glossary.';
+    } catch (e: any) {
+      this.messageType = 'error';
+      this.message = e?.error?.message || e?.message || 'Document import failed';
+    } finally {
+      this.aiVocabDocImporting = false;
+    }
+  }
+
   copyStudentVocabToAi(): void {
     let n = 0;
     for (const v of this.allowedVocabulary) {
@@ -319,6 +418,7 @@ export class DgAdminModuleFormComponent implements OnInit {
         n++;
       }
     }
+    this.messageType = n ? 'success' : 'info';
     this.message = n ? `Copied ${n} word(s) to AI vocabulary.` : 'Nothing to copy (empty or all already present).';
   }
 
@@ -398,6 +498,77 @@ export class DgAdminModuleFormComponent implements OnInit {
     });
   }
 
+  async generateScenesWithAi(): Promise<void> {
+    const count = Math.max(2, Math.min(30, Number(this.aiSceneCount) || 8));
+    this.aiSceneCount = count;
+
+    const blockingErrors: string[] = [];
+    if (!this.editRolePlay.situation?.trim()) blockingErrors.push('Situation');
+    if (!this.editRolePlay.studentRole?.trim()) blockingErrors.push('Student role');
+    if (!this.editRolePlay.aiRole?.trim()) blockingErrors.push('AI role');
+    if (
+      this.allowedVocabulary.length === 0 &&
+      this.aiTutorVocabulary.length === 0
+    ) {
+      blockingErrors.push('At least one vocabulary word (Student or AI Tutor)');
+    }
+    if (blockingErrors.length) {
+      this.messageType = 'error';
+      this.message =
+        'Before AI can build scenes, please fill: ' + blockingErrors.join(', ') + '.';
+      return;
+    }
+
+    this.aiGenerating = true;
+    this.messageType = 'info';
+    this.message = `Generating ${count} scene${count === 1 ? '' : 's'} with AI…`;
+
+    try {
+      const res = await firstValueFrom(
+        this.dgApi.generateScenes({
+          count,
+          level: this.editLevel,
+          language: this.editLanguage,
+          nativeLanguage: this.editNativeLanguage,
+          rolePlayScenario: this.editRolePlay,
+          allowedVocabulary: this.allowedVocabulary,
+          aiTutorVocabulary: this.aiTutorVocabulary,
+          allowedGrammar: this.allowedGrammar,
+        }),
+      );
+      const generated: DgScene[] = (res?.scenes || []).map((s, i) => ({
+        type: (s.type || 'teach') as DgSceneType,
+        text: s.text || '',
+        expectedAnswer: s.expectedAnswer || '',
+        translation: s.translation || '',
+        hint: s.hint || '',
+        order: i,
+      }));
+      if (!generated.length) {
+        throw new Error('AI returned no scenes.');
+      }
+
+      if (this.aiSceneReplace) {
+        this.editScenes = generated;
+      } else {
+        const startOrder = this.editScenes.length;
+        this.editScenes = [
+          ...this.editScenes,
+          ...generated.map((g, i) => ({ ...g, order: startOrder + i })),
+        ];
+      }
+      this.renumber();
+      this.missingFields.delete('scenes');
+      this.messageType = 'success';
+      this.message = `Generated ${generated.length} scene${generated.length === 1 ? '' : 's'} from your role-play context.`;
+    } catch (e: any) {
+      this.messageType = 'error';
+      this.message = e?.error?.message || e?.message || 'AI scene generation failed.';
+    } finally {
+      this.aiGenerating = false;
+    }
+  }
+
   removeScene(i: number): void {
     this.editScenes.splice(i, 1);
     this.renumber();
@@ -452,46 +623,55 @@ export class DgAdminModuleFormComponent implements OnInit {
 
   async save(navigateAfterSave = true): Promise<boolean> {
     this.message = null;
-    const missing: string[] = [];
-    if (!this.editTitle?.trim()) missing.push('Module title');
-    if (!this.editDescription?.trim()) missing.push('Description');
-    if (!this.editLanguage?.trim()) missing.push('Target language');
-    if (!this.editNativeLanguage?.trim()) missing.push('Native language');
-    if (!this.editLevel?.trim()) missing.push('Level');
+    this.missingFields = new Set<string>();
+    this.missingFieldLabels = [];
+
+    const fail = (key: string, label: string) => {
+      this.missingFields.add(key);
+      this.missingFieldLabels.push(label);
+    };
+
+    if (!this.editTitle?.trim()) fail('title', 'Module title');
+    if (!this.editDescription?.trim()) fail('description', 'Description');
+    if (!this.editLanguage?.trim()) fail('targetLang', 'Target language');
+    if (!this.editNativeLanguage?.trim()) fail('nativeLang', 'Native language');
+    if (!this.editLevel?.trim()) fail('cefrLevel', 'Level');
     const mct = Number(this.editMinimumCompletionTime);
     if (Number.isNaN(mct) || mct < 5 || mct > 60) {
-      missing.push('Minimum completion time (5–60 minutes)');
+      fail('minComplete', 'Minimum completion time (5–60 min)');
     }
     const minPractice = Number(this.editMinPracticeMinutes);
     if (Number.isNaN(minPractice) || minPractice < 5 || minPractice > 120) {
-      missing.push('Min practice time (5–120 minutes)');
+      fail('minPracticeMins', 'Min practice time (5–120 min)');
     }
     const maxPracticeRaw = (this.editMaxPracticeMinutes || '').trim();
     if (maxPracticeRaw !== '') {
       const maxPractice = Number(maxPracticeRaw);
       if (Number.isNaN(maxPractice) || maxPractice < 5 || maxPractice > 180) {
-        missing.push('Max practice time (5–180 minutes or empty)');
+        fail('maxPracticeMins', 'Max practice time (5–180 min or empty)');
       } else if (!Number.isNaN(minPractice) && maxPractice < minPractice) {
-        missing.push('Max practice time must be >= min practice time');
+        fail('maxPracticeMins', 'Max practice time must be ≥ min practice time');
       }
     }
-    if (!this.editRolePlay.situation?.trim()) missing.push('Situation');
-    if (!this.editRolePlay.studentRole?.trim()) missing.push('Student role');
-    if (!this.editRolePlay.aiRole?.trim()) missing.push('AI role');
-    if (!this.editCharacterId) missing.push('Character');
+    if (!this.editRolePlay.situation?.trim()) fail('rpsSit', 'Situation');
+    if (!this.editRolePlay.studentRole?.trim()) fail('rpsSr', 'Student role');
+    if (!this.editRolePlay.aiRole?.trim()) fail('rpsAr', 'AI role');
+    if (!this.editCharacterId) fail('char', 'Character');
     const hasPracticeScene = this.editScenes.some((s) => s.type === 'practice');
     if (!hasPracticeScene) {
-      missing.push('At least one Practice scene (for student speaking)');
+      fail('scenes', 'At least one Practice scene (for student speaking)');
     }
     const cdRaw = (this.editCourseDay || '').trim();
     if (cdRaw !== '') {
       const cd = Number(cdRaw);
       if (Number.isNaN(cd) || cd < 1 || cd > 200) {
-        missing.push('Course day (1–200 or leave empty)');
+        fail('courseDay', 'Course day (1–200 or leave empty)');
       }
     }
-    if (missing.length) {
-      this.message = `Please fix: ${missing.join('; ')}.`;
+    if (this.missingFieldLabels.length) {
+      this.messageType = 'error';
+      this.message = 'Please fill in the required fields highlighted below before saving.';
+      this.scrollToFirstMissingField();
       return false;
     }
 
@@ -514,10 +694,12 @@ export class DgAdminModuleFormComponent implements OnInit {
           },
         });
       } else {
+        this.messageType = 'success';
         this.message = 'Saved draft for preview.';
       }
       return true;
     } catch (e: any) {
+      this.messageType = 'error';
       this.message = e?.error?.message || 'Save failed';
       return false;
     } finally {
@@ -530,8 +712,10 @@ export class DgAdminModuleFormComponent implements OnInit {
     try {
       await firstValueFrom(this.dgApi.patchModuleVisibility(this.selected._id, visible));
       this.editVisible = visible;
+      this.messageType = 'success';
       this.message = visible ? 'Published.' : 'Unpublished.';
     } catch (e: any) {
+      this.messageType = 'error';
       this.message = e?.error?.message || 'Update failed';
     }
   }
@@ -605,12 +789,14 @@ export class DgAdminModuleFormComponent implements OnInit {
       await firstValueFrom(this.dgApi.deleteModule(this.selected._id));
       this.router.navigate(['/admin/dg-modules']);
     } catch (e: any) {
+      this.messageType = 'error';
       this.message = e?.error?.message || 'Delete failed';
     }
   }
 
   async createCharacterQuick(): Promise<void> {
     if (!this.newCharName.trim()) {
+      this.messageType = 'error';
       this.message = 'Character name required';
       return;
     }
@@ -626,10 +812,13 @@ export class DgAdminModuleFormComponent implements OnInit {
       );
       this.characters = [...this.characters, doc].sort((a, b) => a.name.localeCompare(b.name));
       this.editCharacterId = doc._id;
+      this.missingFields.delete('char');
       this.newCharName = '';
       this.newCharAvatar = '';
+      this.messageType = 'success';
       this.message = 'Character created.';
     } catch (e: any) {
+      this.messageType = 'error';
       this.message = e?.error?.message || 'Character create failed';
     }
   }

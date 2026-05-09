@@ -7,6 +7,7 @@ const dgModuleController = require('../controllers/dgModuleController');
 const dgSessionController = require('../controllers/dgSessionController');
 const dgTtsController = require('../controllers/dgTtsController');
 const dgConversationController = require('../controllers/dgConversationController');
+const dgVocabImportController = require('../controllers/dgVocabImportController');
 
 const staffRoles = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
 
@@ -24,7 +25,26 @@ router.post(
   checkRole(['ADMIN', 'TEACHER_ADMIN']),
   dgModuleController.createFromLearning,
 );
+router.post(
+  '/modules/scenes/generate',
+  verifyToken,
+  checkRole(staffRoles),
+  dgModuleController.generateScenes,
+);
 router.get('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.getAdminById);
+router.post(
+  '/modules/ai-vocab/from-document',
+  verifyToken,
+  checkRole(staffRoles),
+  (req, res, next) => {
+    dgVocabImportController.uploadMiddleware(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ message: err.message || 'Upload failed' });
+      }
+      dgVocabImportController.importFromDocument(req, res).catch(next);
+    });
+  },
+);
 router.post('/modules', verifyToken, checkRole(staffRoles), dgModuleController.create);
 router.put('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.update);
 router.patch('/modules/:id/visibility', verifyToken, checkRole(staffRoles), dgModuleController.patchVisibility);
