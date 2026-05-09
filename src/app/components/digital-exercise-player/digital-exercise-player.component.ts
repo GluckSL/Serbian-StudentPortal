@@ -1,6 +1,6 @@
 // src/app/components/digital-exercise-player/digital-exercise-player.component.ts
 
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener, NgZone } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -407,6 +407,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     private exerciseDraft: DigitalExercisePlayerDraftService,
     private pronunciation: PronunciationService,
     private pronAnalytics: PronunciationAnalyticsService,
+    private zone: NgZone,
   ) {}
 
   ngOnInit(): void {
@@ -1800,7 +1801,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       y2: event.clientY - wrapRect.top,
       hoverPinId: null
     };
-    try { (event.target as HTMLElement)?.setPointerCapture(event.pointerId); } catch {}
+    try {
+      (event.target as HTMLElement)?.setPointerCapture(event.pointerId);
+    } catch {
+      // Ignore capture errors (some browsers/environments don't support this)
+    }
+    this.zone.run(() => {});
   }
 
   @HostListener('window:pointermove', ['$event'])
@@ -1812,6 +1818,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.imagePinDrag.x2 = event.clientX - wrapRect.left;
     this.imagePinDrag.y2 = event.clientY - wrapRect.top;
     this.imagePinDrag.hoverPinId = this.findClosestPinId(this.imagePinDrag.questionIndex, event.clientX, event.clientY, 34);
+    this.zone.run(() => {});
   }
 
   @HostListener('window:pointerup', ['$event'])
@@ -1830,6 +1837,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.markAttempted(pq);
     }
     this.resetImagePinDrag();
+    this.zone.run(() => {});
   }
 
   @HostListener('window:resize')
@@ -1888,10 +1896,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const b = pin.getBoundingClientRect();
       lines.push({
         color: this.getImagePinLabelColor(pq, conn.labelId),
-        x1: (a.left + a.width / 2 - wrapRect.left),
-        y1: (a.top + a.height / 2 - wrapRect.top),
-        x2: (b.left + b.width / 2 - wrapRect.left),
-        y2: (b.top + b.height / 2 - wrapRect.top),
+        x1: Math.round(a.left + a.width / 2 - wrapRect.left),
+        y1: Math.round(a.top + a.height / 2 - wrapRect.top),
+        x2: Math.round(b.left + b.width / 2 - wrapRect.left),
+        y2: Math.round(b.top + b.height / 2 - wrapRect.top),
       });
     });
     return lines;

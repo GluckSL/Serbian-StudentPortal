@@ -2,15 +2,17 @@
 <div class="player-page">
   <!-- Skeleton loader for 3-col layout -->
   <div class="player-skeleton" *ngIf="state === 'loading'">
-    <div class="sk-sidebar-left">
-      <div class="sk-box"></div>
-      <div class="sk-box"></div>
+    <div class="sk-side-col">
+      <div class="sk-sidebar-left">
+        <div class="sk-box"></div>
+        <div class="sk-box"></div>
+      </div>
+      <div class="sk-sidebar-right">
+        <div class="sk-box"></div>
+        <div class="sk-box"></div>
+      </div>
     </div>
     <div class="sk-main">
-      <div class="sk-box"></div>
-      <div class="sk-box"></div>
-    </div>
-    <div class="sk-sidebar-right">
       <div class="sk-box"></div>
       <div class="sk-box"></div>
     </div>
@@ -498,15 +500,17 @@
   >
     <!-- Skeleton loader for 3-col layout -->
     <div class="player-skeleton" *ngIf="!exercise">
-      <div class="sk-sidebar-left">
-        <div class="sk-box"></div>
-        <div class="sk-box"></div>
+      <div class="sk-side-col">
+        <div class="sk-sidebar-left">
+          <div class="sk-box"></div>
+          <div class="sk-box"></div>
+        </div>
+        <div class="sk-sidebar-right">
+          <div class="sk-box"></div>
+          <div class="sk-box"></div>
+        </div>
       </div>
       <div class="sk-main">
-        <div class="sk-box"></div>
-        <div class="sk-box"></div>
-      </div>
-      <div class="sk-sidebar-right">
         <div class="sk-box"></div>
         <div class="sk-box"></div>
       </div>
@@ -1516,58 +1520,129 @@
       class="player-three-col"
       *ngIf="playerQuestions.length > 0 && !isVideoOnlyExercise"
     >
-      <!-- LEFT: Exercise info -->
-      <aside class="info-sidebar">
-        <div class="info-badges">
-          <span
-            class="level-badge"
-            [style.background]="
-              exerciseService.getLevelColor(exercise?.level || 'A1')
-            "
-            >{{ exercise?.level }}</span
-          >
-          <span class="cat-badge">{{ exercise?.category }}</span>
-          <span class="diff-badge">{{ exercise?.difficulty }}</span>
-        </div>
-        <h2 class="info-title">{{ exercise?.title }}</h2>
-        <p class="info-desc">{{ exercise?.description }}</p>
-        <div class="info-summary">
-          <div class="info-stat">
-            <span class="material-icons info-stat-icon">quiz</span>
-            <div>
-              <strong>{{ playerQuestions.length }}</strong> Questions
-            </div>
-          </div>
-          <div class="info-stat">
-            <span class="material-icons info-stat-icon">schedule</span>
-            <div>
-              <strong>~{{ exercise?.estimatedDuration || 15 }} min</strong>
-              Estimated
-            </div>
-          </div>
-          <div class="info-stat">
-            <span class="material-icons info-stat-icon">stars</span>
-            <div>
-              <strong>{{ totalPoints }}</strong> Total Points
-            </div>
-          </div>
-        </div>
-        <div class="info-specs desktop-only">
-          <div class="spec-label">Question types</div>
-          <div class="spec-pills">
+      <div class="player-side-col">
+        <!-- LEFT: Exercise info -->
+        <aside class="info-sidebar">
+          <div class="info-badges">
             <span
-              *ngFor="let qt of getQuestionTypes()"
-              class="spec-pill"
-              [ngClass]="'pill-' + qt.type"
+              class="level-badge"
+              [style.background]="
+                exerciseService.getLevelColor(exercise?.level || 'A1')
+              "
+              >{{ exercise?.level }}</span
             >
-              <span class="material-icons">{{ qt.icon }}</span>
-              {{ qt.label }}: {{ qt.indices.join(", ") }}
+            <span class="cat-badge">{{ exercise?.category }}</span>
+            <span class="diff-badge">{{ exercise?.difficulty }}</span>
+          </div>
+          <h2 class="info-title">{{ exercise?.title }}</h2>
+          <p class="info-desc">{{ exercise?.description }}</p>
+          <div class="info-summary">
+            <div class="info-stat">
+              <span class="material-icons info-stat-icon">quiz</span>
+              <div>
+                <strong>{{ playerQuestions.length }}</strong> Questions
+              </div>
+            </div>
+            <div class="info-stat">
+              <span class="material-icons info-stat-icon">schedule</span>
+              <div>
+                <strong>~{{ exercise?.estimatedDuration || 15 }} min</strong>
+                Estimated
+              </div>
+            </div>
+            <div class="info-stat">
+              <span class="material-icons info-stat-icon">stars</span>
+              <div>
+                <strong>{{ totalPoints }}</strong> Total Points
+              </div>
+            </div>
+          </div>
+          <div class="info-specs desktop-only">
+            <div class="spec-label">Question types</div>
+            <div class="spec-pills">
+              <span
+                *ngFor="let qt of getQuestionTypes()"
+                class="spec-pill"
+                [ngClass]="'pill-' + qt.type"
+              >
+                <span class="material-icons">{{ qt.icon }}</span>
+                {{ qt.label }}: {{ qt.indices.join(", ") }}
+              </span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- RIGHT (now below LEFT): Question Navigator + Status -->
+        <aside class="question-sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
+            <button
+              type="button"
+              class="sidebar-refetch-media"
+              (click)="refetchMediaFromR2()"
+              [disabled]="mediaRefetchInProgress"
+              title="Reload audio from cloud storage if files are missing"
+            >
+              <span class="material-icons">{{
+                mediaRefetchInProgress ? "hourglass_empty" : "cloud_download"
+              }}</span>
+              {{ mediaRefetchInProgress ? "Checking…" : "Refetch media" }}
+            </button>
+          </div>
+          <div class="question-nav-grid">
+            <button
+              *ngFor="let pq of playerQuestions; let i = index"
+              class="q-dot"
+              [ngClass]="getQuestionTypeClass(pq)"
+              [class.current]="i === currentIndex"
+              [class.answered]="pq.isAnswered"
+              [class.correct]="pq.isCorrect === true"
+              [class.wrong]="pq.isCorrect === false"
+              (click)="goToQuestion(i)"
+              [title]="
+                'Question ' +
+                (i + 1) +
+                ' - ' +
+                getQuestionTypeLabelForDisplay(pq.data)
+              "
+            >
+              {{ i + 1 }}
+            </button>
+          </div>
+
+          <!-- Mobile: Question types -->
+          <div class="info-specs mobile-only">
+            <div class="spec-label">Question types</div>
+            <div class="spec-pills">
+              <span
+                *ngFor="let qt of getQuestionTypes()"
+                class="spec-pill"
+                [ngClass]="'pill-' + qt.type"
+              >
+                <span class="material-icons">{{ qt.icon }}</span>
+                {{ qt.label }}: {{ qt.indices.join(", ") }}
+              </span>
+            </div>
+          </div>
+
+          <div class="status-legend">
+            <span class="status-item correct">
+              <span class="status-icon correct"></span>
+              {{ correctCount }} Correct
+            </span>
+            <span class="status-item wrong">
+              <span class="status-icon wrong"></span>
+              {{ wrongCount }} Wrong
+            </span>
+            <span class="status-item unanswered">
+              <span class="status-icon unanswered"></span>
+              {{ unattemptedCount }} Unanswered
             </span>
           </div>
-        </div>
-      </aside>
+        </aside>
+      </div>
 
-      <!-- MIDDLE: Question + Answer area -->
+      <!-- MIDDLE (now 70%): Question + Answer area -->
       <div class="question-area">
         <div
           class="question-card"
@@ -2843,35 +2918,6 @@
                   [disabled]="hasCurrentSubmitted"
                   (click)="connectImagePin(currentQuestion, pin.id)"
                 >{{ pi + 1 }}</button>
-                <!-- SVG connection lines overlay -->
-                <svg
-                  class="ipm-lines"
-                  xmlns="http://www.w3.org/2000/svg"
-                  *ngIf="imagePinSvgLines(currentQuestion).length || imagePinTempLine(currentQuestion)"
-                >
-                  <line
-                    *ngFor="let ln of imagePinSvgLines(currentQuestion)"
-                    [attr.x1]="ln.x1"
-                    [attr.y1]="ln.y1"
-                    [attr.x2]="ln.x2"
-                    [attr.y2]="ln.y2"
-                    [attr.stroke]="ln.color"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                  />
-                  <line
-                    *ngIf="imagePinTempLine(currentQuestion) as tl"
-                    class="ipm-line-temp"
-                    [attr.x1]="tl.x1"
-                    [attr.y1]="tl.y1"
-                    [attr.x2]="tl.x2"
-                    [attr.y2]="tl.y2"
-                    [attr.stroke]="tl.color"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-dasharray="6 4"
-                  />
-                </svg>
               </div>
 
               <!-- Right labels (odd indices) -->
@@ -2894,6 +2940,36 @@
                   <div class="ipm-label-card ipm-label-card--right">{{ label.text }}</div>
                 </button>
               </div>
+
+              <!-- SVG connection lines overlay (spans all columns) -->
+              <svg
+                class="ipm-lines"
+                xmlns="http://www.w3.org/2000/svg"
+                *ngIf="imagePinSvgLines(currentQuestion).length || imagePinTempLine(currentQuestion)"
+              >
+                <line
+                  *ngFor="let ln of imagePinSvgLines(currentQuestion)"
+                  [attr.x1]="ln.x1"
+                  [attr.y1]="ln.y1"
+                  [attr.x2]="ln.x2"
+                  [attr.y2]="ln.y2"
+                  [attr.stroke]="ln.color"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <line
+                  *ngIf="imagePinTempLine(currentQuestion) as tl"
+                  class="ipm-line-temp"
+                  [attr.x1]="tl.x1"
+                  [attr.y1]="tl.y1"
+                  [attr.x2]="tl.x2"
+                  [attr.y2]="tl.y2"
+                  [attr.stroke]="tl.color"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-dasharray="6 4"
+                />
+              </svg>
             </div>
           </div>
 
@@ -3449,75 +3525,6 @@
           </div>
         </div>
       </div>
-
-      <!-- RIGHT: Question Navigator + Status -->
-      <aside class="question-sidebar">
-        <div class="sidebar-header">
-          <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
-          <button
-            type="button"
-            class="sidebar-refetch-media"
-            (click)="refetchMediaFromR2()"
-            [disabled]="mediaRefetchInProgress"
-            title="Reload audio from cloud storage if files are missing"
-          >
-            <span class="material-icons">{{
-              mediaRefetchInProgress ? "hourglass_empty" : "cloud_download"
-            }}</span>
-            {{ mediaRefetchInProgress ? "Checking…" : "Refetch media" }}
-          </button>
-        </div>
-        <div class="question-nav-grid">
-          <button
-            *ngFor="let pq of playerQuestions; let i = index"
-            class="q-dot"
-            [ngClass]="getQuestionTypeClass(pq)"
-            [class.current]="i === currentIndex"
-            [class.answered]="pq.isAnswered"
-            [class.correct]="pq.isCorrect === true"
-            [class.wrong]="pq.isCorrect === false"
-            (click)="goToQuestion(i)"
-            [title]="
-              'Question ' +
-              (i + 1) +
-              ' - ' +
-              getQuestionTypeLabelForDisplay(pq.data)
-            "
-          >
-            {{ i + 1 }}
-          </button>
-        </div>
-
-        <!-- Mobile: Question types -->
-        <div class="info-specs mobile-only">
-          <div class="spec-label">Question types</div>
-          <div class="spec-pills">
-            <span
-              *ngFor="let qt of getQuestionTypes()"
-              class="spec-pill"
-              [ngClass]="'pill-' + qt.type"
-            >
-              <span class="material-icons">{{ qt.icon }}</span>
-              {{ qt.label }}: {{ qt.indices.join(", ") }}
-            </span>
-          </div>
-        </div>
-
-        <div class="status-legend">
-          <span class="status-item correct">
-            <span class="status-icon correct"></span>
-            {{ correctCount }} Correct
-          </span>
-          <span class="status-item wrong">
-            <span class="status-icon wrong"></span>
-            {{ wrongCount }} Wrong
-          </span>
-          <span class="status-item unanswered">
-            <span class="status-icon unanswered"></span>
-            {{ unattemptedCount }} Unanswered
-          </span>
-        </div>
-      </aside>
     </div>
 
     <!-- Finish Summary Modal -->
