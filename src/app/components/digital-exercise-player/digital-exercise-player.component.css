@@ -1089,9 +1089,9 @@
 .ipm-play-wrap {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(170px, 220px) 1fr minmax(170px, 220px);
+  grid-template-columns: minmax(120px, 180px) minmax(240px, 1fr) minmax(120px, 180px);
   gap: 14px;
-  align-items: start;
+  align-items: center;
 }
 
 .ipm-label-col {
@@ -1099,6 +1099,7 @@
   flex-direction: column;
   gap: 10px;
   z-index: 4;
+  align-self: center;
 }
 
 .q-body.ipm-body .ipm-label-pill {
@@ -1199,6 +1200,10 @@
 
 .ipm-image-wrap {
   position: relative;
+  width: 100%;
+  max-width: 380px;
+  justify-self: center;
+  min-height: 220px;
   border: 1px solid #dbeafe;
   border-radius: 14px;
   overflow: hidden;
@@ -1209,6 +1214,7 @@
 .ipm-image {
   display: block;
   width: 100%;
+  min-height: 220px;
   max-height: 460px;
   object-fit: contain;
 }
@@ -1256,6 +1262,39 @@
 @keyframes ipmPulse {
   0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ipm-color, #4f46e5) 32%, transparent); }
   50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ipm-color, #4f46e5) 16%, transparent); }
+}
+
+/* Image pin match in narrow question cards (like 3-column player layout) */
+@media (max-width: 1280px) {
+  .ipm-play-wrap {
+    grid-template-columns: minmax(100px, 1fr) minmax(220px, 1.6fr) minmax(100px, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+  .ipm-image-wrap {
+    max-width: 320px;
+  }
+  .ipm-label-col {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 860px) {
+  .ipm-play-wrap {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .ipm-image-wrap {
+    order: 1;
+    max-width: 100%;
+  }
+  .ipm-label-col {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
+    align-self: stretch;
+  }
 }
 
 /* MCQ */

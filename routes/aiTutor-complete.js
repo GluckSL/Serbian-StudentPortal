@@ -10,8 +10,8 @@ const { requirePlatinum } = require('../middleware/subscriptionCheck');
 const { v4: uuidv4 } = require('uuid');
 const OpenAIService = require('../services/openaiService');
 
-// Initialize OpenAI service
-const openaiService = new OpenAIService();
+// Initialize OpenAI service with DG bot key
+const openaiService = new OpenAIService(process.env.DG_OPENAI_API_KEY);
 
 // Enhanced AI Tutor Service using ChatGPT-4o
 class AiTutorService {

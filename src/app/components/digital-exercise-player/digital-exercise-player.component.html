@@ -302,6 +302,18 @@
               *ngIf="pq.data.type === 'rearrange'"
               [innerHTML]="pq.data.rearrangePrompt | safeHtml"
             ></div>
+            <!-- Image Pin Match: show the image for context in review -->
+            <div
+              *ngIf="pq.data.type === 'image_pin_match' && getImagePinImageUrl(pq.data)"
+              class="q-attachment-box"
+            >
+              <img
+                [src]="getMediaFullUrl(getImagePinImageUrl(pq.data))"
+                alt="Pin match image"
+                class="q-attachment-img"
+                loading="lazy"
+              />
+            </div>
             <div
               class="listening-audio-wrap review-listening-audio"
               *ngIf="getListeningSupplementalAudioUrl(pq.data)"
@@ -2775,6 +2787,112 @@
                 <div class="rearrange-answer-text">
                   {{ getRearrangePreviewText(currentQuestion) || "—" }}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Image Pin Match body -->
+          <div
+            class="q-body ipm-body"
+            *ngIf="currentQuestion.data.type === 'image_pin_match'"
+          >
+            <p class="ipm-instruction">
+              Drag the handle from a label to the correct numbered pin on the image.
+            </p>
+            <div
+              class="ipm-play-wrap"
+              [id]="'ipm-wrap-' + currentQuestion.index"
+            >
+              <!-- Left labels (even indices) -->
+              <div class="ipm-label-col">
+                <button
+                  *ngFor="let label of getImagePinLabelsLeft(currentQuestion)"
+                  class="ipm-label-pill"
+                  [class.active]="currentQuestion.selectedLabelId === label.id"
+                  [class.connected]="!!getImagePinConnection(currentQuestion, label.id)"
+                  [style.--ipm-color]="label.color"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="selectImagePinLabel(currentQuestion, label.id)"
+                >
+                  <div class="ipm-label-card">{{ label.text }}</div>
+                  <div class="ipm-label-stem"></div>
+                  <div
+                    class="ipm-handle ipm-handle--left"
+                    [id]="'ipm-handle-' + currentQuestion.index + '-' + label.id"
+                    (pointerdown)="startImagePinDrag(currentQuestion, label.id, $event)"
+                  ></div>
+                </button>
+              </div>
+
+              <!-- Image + pins in the centre -->
+              <div class="ipm-image-wrap">
+                <img
+                  class="ipm-image"
+                  [src]="getMediaFullUrl(getImagePinImageUrl(currentQuestion.data))"
+                  alt="Pin match image"
+                  draggable="false"
+                />
+                <button
+                  *ngFor="let pin of getImagePinPins(currentQuestion.data); let pi = index"
+                  class="ipm-pin"
+                  [class.active]="currentQuestion.selectedLabelId !== null"
+                  [class.near]="imagePinIsPinNearDrag(currentQuestion, pin.id)"
+                  [style.left.%]="pin.x"
+                  [style.top.%]="pin.y"
+                  [id]="'ipm-pin-' + currentQuestion.index + '-' + pin.id"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="connectImagePin(currentQuestion, pin.id)"
+                >{{ pi + 1 }}</button>
+                <!-- SVG connection lines overlay -->
+                <svg
+                  class="ipm-lines"
+                  xmlns="http://www.w3.org/2000/svg"
+                  *ngIf="imagePinSvgLines(currentQuestion).length || imagePinTempLine(currentQuestion)"
+                >
+                  <line
+                    *ngFor="let ln of imagePinSvgLines(currentQuestion)"
+                    [attr.x1]="ln.x1"
+                    [attr.y1]="ln.y1"
+                    [attr.x2]="ln.x2"
+                    [attr.y2]="ln.y2"
+                    [attr.stroke]="ln.color"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                  />
+                  <line
+                    *ngIf="imagePinTempLine(currentQuestion) as tl"
+                    class="ipm-line-temp"
+                    [attr.x1]="tl.x1"
+                    [attr.y1]="tl.y1"
+                    [attr.x2]="tl.x2"
+                    [attr.y2]="tl.y2"
+                    [attr.stroke]="tl.color"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-dasharray="6 4"
+                  />
+                </svg>
+              </div>
+
+              <!-- Right labels (odd indices) -->
+              <div class="ipm-label-col">
+                <button
+                  *ngFor="let label of getImagePinLabelsRight(currentQuestion)"
+                  class="ipm-label-pill ipm-label-pill--right"
+                  [class.active]="currentQuestion.selectedLabelId === label.id"
+                  [class.connected]="!!getImagePinConnection(currentQuestion, label.id)"
+                  [style.--ipm-color]="label.color"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="selectImagePinLabel(currentQuestion, label.id)"
+                >
+                  <div
+                    class="ipm-handle"
+                    [id]="'ipm-handle-' + currentQuestion.index + '-' + label.id"
+                    (pointerdown)="startImagePinDrag(currentQuestion, label.id, $event)"
+                  ></div>
+                  <div class="ipm-label-stem ipm-label-stem--right"></div>
+                  <div class="ipm-label-card ipm-label-card--right">{{ label.text }}</div>
+                </button>
               </div>
             </div>
           </div>

@@ -185,11 +185,11 @@ function parseClientMeta(raw) {
  * configured or the request fails.
  */
 async function transcribeAudio(filePath, whisperLang, hintText = '') {
-  if (!process.env.OPENAI_API_KEY) {
-    return { text: '', engine: 'fallback', error: 'OPENAI_API_KEY not configured' };
+  if (!process.env.DG_OPENAI_API_KEY) {
+    return { text: '', engine: 'fallback', error: 'DG_OPENAI_API_KEY not configured' };
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.DG_OPENAI_API_KEY });
   const model = process.env.OPENAI_SPEECH_MODEL || 'whisper-1';
 
   try {
@@ -671,7 +671,7 @@ router.get(
 router.get('/health', verifyToken, (_req, res) => {
   res.json({
     ok: true,
-    openaiConfigured: !!process.env.OPENAI_API_KEY,
+    openaiConfigured: !!process.env.DG_OPENAI_API_KEY,
     speechModel: process.env.OPENAI_SPEECH_MODEL || 'whisper-1',
     defaultThreshold: DEFAULT_THRESHOLD,
     normalizeSample: normalizeText('Hällo, Welt!'),

@@ -38,7 +38,7 @@ function shouldRequestGermanHint(userText, moduleLanguage) {
 }
 
 function _openai() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new OpenAI({ apiKey: process.env.DG_OPENAI_API_KEY });
 }
 
 function _timeout(ms, msg) {
@@ -52,7 +52,7 @@ async function suggestGermanLine(lastAiText, studentEnglishText) {
   const lastAi = String(lastAiText || '').trim();
   const said = String(studentEnglishText || '').trim();
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.DG_OPENAI_API_KEY) {
     return _fallbackGermanLine(said, lastAi);
   }
 

@@ -66,6 +66,8 @@ interface BuilderQuestion {
   points: number;
   imagePinImageUploading?: boolean;
   imagePinImageLoadError?: boolean;
+  /** Presigned URL for immediate display after upload; falls back to imageUrl on load. */
+  imagePinDisplayUrl?: string;
   // Per-question attachment (any file type)
   attachmentUrl?: string;
   attachmentUploading?: boolean;
@@ -696,13 +698,18 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     q.imagePinImageUploading = true;
     this.exerciseService.uploadQuestionAttachment(file).subscribe({
       next: (res) => {
-        const uploadedUrl = String(res?.url || '').trim();
-        if (this.getAttachmentType(uploadedUrl) !== 'image') {
+        // presignedUrl is used for immediate display; canonicalUrl (raw S3 path) is
+        // stored in imageUrl so the database always holds a stable, non-expiring reference.
+        const presignedUrl = String(res?.url || '').trim();
+        const canonicalUrl = String(res?.canonicalUrl || presignedUrl).trim();
+        const checkUrl = canonicalUrl || presignedUrl;
+        if (this.getAttachmentType(checkUrl) !== 'image') {
           q.imagePinImageUploading = false;
           this.showError('Uploaded file is not a valid image. Please upload JPG/PNG/WebP/SVG.');
           return;
         }
-        q.imageUrl = uploadedUrl;
+        q.imageUrl = canonicalUrl;
+        q.imagePinDisplayUrl = presignedUrl;
         q.imagePinImageLoadError = false;
         q.imagePinImageUploading = false;
         this.showSuccess('Image uploaded');
@@ -726,6 +733,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   onImagePinImageUrlChanged(q: BuilderQuestion): void {
     q.imagePinImageLoadError = false;
+    q.imagePinDisplayUrl = undefined;
   }
 
   onImagePinImageLoad(q: BuilderQuestion): void {

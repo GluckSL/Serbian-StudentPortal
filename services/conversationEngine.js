@@ -392,7 +392,7 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
 function _openai() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new OpenAI({ apiKey: process.env.DG_OPENAI_API_KEY });
 }
 
 function _timeout(ms, msg) {

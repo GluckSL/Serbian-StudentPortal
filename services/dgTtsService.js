@@ -3,7 +3,7 @@ const OpenAIService = require('./openaiService');
 let singleton;
 function getOpenAI() {
   if (!singleton) {
-    singleton = new OpenAIService();
+    singleton = new OpenAIService(process.env.DG_OPENAI_API_KEY);
   }
   return singleton;
 }

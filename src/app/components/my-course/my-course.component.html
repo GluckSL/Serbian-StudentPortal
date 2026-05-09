@@ -159,6 +159,23 @@
             <span class="mc-side-card__foot-hint">(set by your teacher)</span></span
           >
         </div>
+
+        <!-- Day completion badge -->
+        <div class="mc-day-badge-wrap" *ngIf="dayHasTrackableContent">
+          <span class="mc-day-badge mc-day-badge--complete" *ngIf="isDayComplete">
+            <span class="material-icons">check_circle</span>
+            Day {{ journeyCourseDay }} Completed
+          </span>
+          <button
+            type="button"
+            class="mc-day-badge mc-day-badge--incomplete"
+            *ngIf="!isDayComplete"
+            (click)="openDayCompletionModal()"
+          >
+            <span class="material-icons">pending</span>
+            Day {{ journeyCourseDay }} Incomplete
+          </button>
+        </div>
       </div>
 
       <div class="mc-side-card mc-side-card--updates">
@@ -665,3 +682,100 @@
     <p class="mc-sk-hint">Loading your course…</p>
   </div>
 </ng-template>
+
+<!-- ── Day Completion Modal ─────────────────────────────────────────────── -->
+<div
+  class="mc-completion-overlay"
+  *ngIf="showDayCompletionModal"
+  (click)="closeDayCompletionModal()"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'Day ' + journeyCourseDay + ' incomplete tasks'"
+>
+  <div class="mc-completion-modal" (click)="$event.stopPropagation()">
+    <div class="mc-completion-modal__head">
+      <div class="mc-completion-modal__title-wrap">
+        <span class="material-icons mc-completion-modal__title-icon">assignment_late</span>
+        <h3 class="mc-completion-modal__title">Day {{ journeyCourseDay }} — Still to do</h3>
+      </div>
+      <button
+        type="button"
+        class="mc-completion-modal__close"
+        (click)="closeDayCompletionModal()"
+        aria-label="Close"
+      >&#10005;</button>
+    </div>
+
+    <div class="mc-completion-modal__body">
+
+      <!-- Exercises -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteExercises.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">quiz</span> Exercises
+        </p>
+        <div class="mc-completion-item" *ngFor="let ex of currentDayIncompleteExercises">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ ex.title }}</span>
+            <span class="mc-completion-item__sub" *ngIf="ex.level || ex.category">
+              {{ ex.level }}{{ ex.level && ex.category ? ' · ' : '' }}{{ ex.category }}
+            </span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="openExercise(ex); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Start
+          </button>
+        </div>
+      </div>
+
+      <!-- Gluck Buddy (DG) -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteDg.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">record_voice_over</span> Gluck Buddy
+        </p>
+        <div class="mc-completion-item" *ngFor="let m of currentDayIncompleteDg">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ m.title }}</span>
+            <span class="mc-completion-item__sub" *ngIf="m.level">{{ m.level }}</span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="setTab('talk-buddy'); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Start
+          </button>
+        </div>
+      </div>
+
+      <!-- Recorded Classes -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteRecs.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">videocam</span> Recorded Classes
+        </p>
+        <div class="mc-completion-item" *ngFor="let r of currentDayIncompleteRecs">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ r.title }}</span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_circle</span> Play
+          </button>
+        </div>
+      </div>
+
+      <!-- Nothing left (edge-case: modal opened but actually done) -->
+      <p
+        class="mc-completion-modal__empty"
+        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteRecs.length"
+      >
+        All tasks for Day {{ journeyCourseDay }} are completed!
+      </p>
+    </div>
+  </div>
+</div>

@@ -192,7 +192,7 @@ function checkVocabulary(text, allowedSet) {
 // ─────────────────────────────────────────────────────────────
 
 function _makeOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new OpenAI({ apiKey: process.env.DG_OPENAI_API_KEY });
 }
 
 /**
@@ -237,7 +237,7 @@ async function getAIResponse(systemPrompt, userText, history) {
  * Returns empty string on failure (non-blocking).
  */
 async function translateToTamil(text, fromLang) {
-  if (!text || !process.env.OPENAI_API_KEY) return '';
+  if (!text || !process.env.DG_OPENAI_API_KEY) return '';
   try {
     const openai = _makeOpenAI();
     const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o';
@@ -276,7 +276,7 @@ async function translateToTamil(text, fromLang) {
  * Returns empty string on failure (non-blocking).
  */
 async function translateText(text, fromLang, toLang) {
-  if (!text || !process.env.OPENAI_API_KEY) return '';
+  if (!text || !process.env.DG_OPENAI_API_KEY) return '';
   try {
     const openai = _makeOpenAI();
     const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o';
