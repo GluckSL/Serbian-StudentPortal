@@ -1323,6 +1323,10 @@
     max-width: 100%;
     align-self: center;
     width: 100%;
+    min-height: 240px;
+  }
+  .ipm-image {
+    max-height: 350px;
   }
   .ipm-label-col:nth-child(1) {
     order: -1;
