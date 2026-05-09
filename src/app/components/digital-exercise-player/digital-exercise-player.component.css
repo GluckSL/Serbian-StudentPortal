@@ -1330,6 +1330,27 @@
   .ipm-label-col:nth-child(3) {
     order: 1;
   }
+
+  .ipm-label-col:nth-child(1) .ipm-handle,
+  .ipm-label-col:nth-child(1) .ipm-label-stem {
+    align-self: flex-end;
+    margin-top: 0;
+    margin-bottom: 4px;
+  }
+  .ipm-label-col:nth-child(1) .ipm-label-pill {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+  }
+  .ipm-label-col:nth-child(3) .ipm-handle,
+  .ipm-label-col:nth-child(3) .ipm-label-stem {
+    align-self: flex-start;
+    margin-top: 4px;
+    margin-bottom: 0;
+  }
+  .ipm-label-col:nth-child(3) .ipm-label-pill {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* MCQ */
