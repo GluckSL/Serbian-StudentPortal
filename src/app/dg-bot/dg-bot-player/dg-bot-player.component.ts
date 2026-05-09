@@ -902,10 +902,26 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Student chose "Yes, keep going" from the completion overlay. */
+  /** Student chose "Continue" from the completion overlay — keep chatting. */
   async continueAfterCompletion(): Promise<void> {
     this.completionDialogDismissed = true;
     this.openMicForUserTurn();
+  }
+
+  /**
+   * Student chose "End" from the completion overlay.
+   * Marks the session as completed (so it appears done in the DG module list)
+   * and returns to the previous screen.
+   */
+  async endAfterCompletion(): Promise<void> {
+    if (this.conversationComplete) return;
+    this.completionDialogDismissed = true;
+    this.conversationComplete = true;
+    this.waitingForUser = false;
+    this.isAiThinking = false;
+    this.stopAudio();
+    this.charState.forceIdle();
+    await this.finishModule();
   }
 
   /** Continue or Complete after milestone (both vocab done and min time reached). */
