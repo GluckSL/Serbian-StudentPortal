@@ -1,5 +1,6 @@
 <!-- pdf-exercise-generator.component.html -->
 <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
+<input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
 <div class="generator-page" [class.generator-page--wide]="currentStep === 5 && aiStageExercises.length > 0">
 
   <!-- ── Top Bar ── -->
@@ -592,27 +593,99 @@
             <input type="number" [(ngModel)]="q.points" min="1" max="10" class="pts-input" />
           </div>
 
-          <!-- Common fields: Context, Instruction, Example (all question types) -->
-          <div class="ed-section-label">General</div>
           <div class="ed-field">
             <label>Context <span class="opt-label">(optional — background text shown above question)</span></label>
             <textarea [(ngModel)]="q.context" class="ed-input" rows="2" placeholder="Optional reading passage or context..."></textarea>
           </div>
+
           <div class="ed-field">
-            <label>Instruction <span class="opt-label">(shown in blue banner to students)</span></label>
-            <input type="text" [(ngModel)]="q.instruction" class="ed-input" placeholder="e.g. Choose the correct option. / Fill in the blank." />
+            <label class="ed-label-with-icon">
+              <span class="material-icons ed-label-icon">attach_file</span>
+              Attachment
+              <span *ngIf="q.type !== 'listening'" class="opt-label">(optional — image, audio, PDF, video)</span>
+              <span *ngIf="q.type === 'listening'" class="opt-label">(optional — or use Audio below)</span>
+            </label>
+            <div *ngIf="!q.attachmentUrl && !q.attachmentUploading" class="attachment-upload-zone">
+              <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
+                <span class="material-icons">upload_file</span> Upload file
+              </button>
+            </div>
+            <div *ngIf="q.attachmentUploading" class="attachment-uploading">
+              <span class="material-icons spin">sync</span> Uploading…
+            </div>
+            <div *ngIf="q.attachmentUrl && !q.attachmentUploading" class="attachment-preview">
+              <ng-container [ngSwitch]="getAttachmentType(q.attachmentUrl)">
+                <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(q.attachmentUrl)" alt="Attachment" class="attachment-img-preview" />
+                <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-audio-preview"></audio>
+                <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-video-preview"></video>
+                <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" rel="noopener" class="attachment-file-link">
+                  <span class="material-icons">picture_as_pdf</span> View PDF
+                </a>
+                <a *ngSwitchDefault [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" rel="noopener" class="attachment-file-link">
+                  <span class="material-icons">insert_drive_file</span> View file
+                </a>
+              </ng-container>
+              <button type="button" class="btn-remove-attachment" (click)="removeAttachment(q)" matTooltip="Remove attachment">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="ed-field">
+            <label class="ed-label-with-icon">
+              <span class="material-icons ed-label-icon">lightbulb</span>
+              Answer explanation <span class="opt-label">(shown to students in review)</span>
+            </label>
+            <div class="explanation-field-wrap">
+              <app-rich-text-input
+                [(ngModel)]="q.answerExplanation"
+                [rows]="3"
+                placeholder="Explain why the correct answer is right…"
+              ></app-rich-text-input>
+              <button
+                type="button"
+                class="btn-use-ai"
+                (click)="useAiExplanation(q)"
+                [disabled]="q.generatingExplanation"
+                matTooltip="Generate explanation with AI"
+              >
+                <span class="material-icons">{{ q.generatingExplanation ? 'sync' : 'auto_awesome' }}</span>
+                {{ q.generatingExplanation ? 'Generating…' : 'Use AI' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="ed-section-label">Instruction &amp; example</div>
+          <div class="ed-field">
+            <label class="ed-label-with-icon">
+              <span class="material-icons ed-label-icon">info</span>
+              Instruction <span class="opt-label">(blue banner above the question)</span>
+            </label>
+            <app-rich-text-input
+              [(ngModel)]="q.instruction"
+              [rows]="2"
+              placeholder="e.g. Choose the correct option. / Fill in the blank with the right word."
+            ></app-rich-text-input>
           </div>
           <div class="ed-field">
-            <label>Example <span class="opt-label">(optional worked sample shown below instruction)</span></label>
-            <input type="text" [(ngModel)]="q.example" class="ed-input" placeholder="e.g. The sky is ___ → blue" />
+            <label class="ed-label-with-icon">
+              <span class="material-icons ed-label-icon">lightbulb_outline</span>
+              Example <span class="opt-label">(optional worked sample below instruction)</span>
+            </label>
+            <app-rich-text-input
+              [(ngModel)]="q.example"
+              [rows]="2"
+              placeholder="e.g. Question: 'The sky is ___.' → Answer: blue"
+            ></app-rich-text-input>
           </div>
+
           <div class="ed-section-label">Question details</div>
 
           <!-- MCQ Editor -->
           <ng-container *ngIf="q.type === 'mcq'">
             <div class="ed-field">
               <label>Question</label>
-              <textarea [(ngModel)]="q.question" class="ed-input" rows="2"></textarea>
+              <app-rich-text-input [(ngModel)]="q.question" [rows]="2" placeholder="Type your question…"></app-rich-text-input>
             </div>
             <div class="ed-field">
               <label>Image URL <span class="opt-label">(optional)</span></label>
@@ -620,11 +693,15 @@
             </div>
             <div class="ed-field">
               <label>Options <span class="hint-label">(click radio to set correct)</span></label>
-              <div class="opt-row" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
+              <div class="opt-row opt-row--rte" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
                 <label class="radio-wrap">
                   <input type="radio" [name]="'correct-'+i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
                 </label>
-                <input type="text" [(ngModel)]="q.options![oi]" class="opt-input" [placeholder]="'Option '+(oi+1)" (keydown)="$event.stopPropagation()" />
+                <app-rich-text-input
+                  class="option-rte"
+                  [(ngModel)]="q.options![oi]"
+                  [placeholder]="'Option ' + (oi + 1)"
+                ></app-rich-text-input>
                 <button class="btn-rm-sm" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2">
                   <span class="material-icons">close</span>
                 </button>
@@ -643,10 +720,10 @@
           <ng-container *ngIf="q.type === 'matching'">
             <div class="ed-field">
               <label>Pairs</label>
-              <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index; trackBy: trackByIndex">
-                <input type="text" [(ngModel)]="pair.left" class="pair-input" [placeholder]="'Left '+(pi+1)" (keydown)="$event.stopPropagation()" />
+              <div class="pair-row pair-row--rte" *ngFor="let pair of q.pairs; let pi = index; trackBy: trackByIndex">
+                <app-rich-text-input class="pair-rte" [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi + 1)"></app-rich-text-input>
                 <span class="pair-sep">↔</span>
-                <input type="text" [(ngModel)]="pair.right" class="pair-input" placeholder="" (keydown)="$event.stopPropagation()" />
+                <app-rich-text-input class="pair-rte" [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi + 1)"></app-rich-text-input>
                 <button class="btn-rm-sm" (click)="removePair(q, pi)"><span class="material-icons">close</span></button>
               </div>
               <button class="btn-add-sm" (click)="addPair(q)"><span class="material-icons">add</span> Add pair</button>
@@ -661,8 +738,8 @@
                 <thead><tr><th>Singular</th><th>Plural (answer)</th><th></th></tr></thead>
                 <tbody>
                   <tr *ngFor="let pair of q.pairs; let pi = index; trackBy: trackByIndex">
-                    <td><input type="text" [(ngModel)]="pair.singular" class="pair-input" [placeholder]="'Singular ' + (pi + 1)" (keydown)="$event.stopPropagation()" /></td>
-                    <td><input type="text" [(ngModel)]="pair.plural" class="pair-input" [placeholder]="'Plural ' + (pi + 1)" (keydown)="$event.stopPropagation()" /></td>
+                    <td><app-rich-text-input [(ngModel)]="pair.singular" [placeholder]="'Singular ' + (pi + 1)"></app-rich-text-input></td>
+                    <td><app-rich-text-input [(ngModel)]="pair.plural" [placeholder]="'Plural ' + (pi + 1)"></app-rich-text-input></td>
                     <td><button class="btn-rm-sm" type="button" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 1"><span class="material-icons">close</span></button></td>
                   </tr>
                 </tbody>
@@ -728,9 +805,13 @@
           <!-- Question / Answer Editor -->
           <!-- Listening Editor -->
           <ng-container *ngIf="q.type === 'listening'">
+            <div class="info-banner info-banner--rq">
+              <span class="material-icons">headphones</span>
+              Add audio below (or use <strong>Attachment</strong> for a file). Students listen and type what they hear.
+            </div>
             <div class="ed-field">
-              <label>Instruction</label>
-              <input type="text" [(ngModel)]="q.prompt" class="ed-input" placeholder="Listen and type what you hear." />
+              <label>Question</label>
+              <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="e.g. Listen and type what you hear."></app-rich-text-input>
             </div>
             <div class="ed-field">
               <label>Audio</label>
@@ -789,7 +870,7 @@
           <ng-container *ngIf="q.type === 'question-answer'">
             <div class="ed-field">
               <label>Question <span class="required">*</span></label>
-              <textarea [(ngModel)]="q.prompt" class="ed-input" rows="2" placeholder="Type the question here..."></textarea>
+              <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="Type the question here..."></app-rich-text-input>
             </div>
             <div class="ed-field">
               <label>

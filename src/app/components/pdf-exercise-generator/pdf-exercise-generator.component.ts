@@ -11,6 +11,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
+import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-structure-preview.component';
 
 type WizardStep = 1 | 2 | 3 | 4 | 5;
@@ -58,6 +59,12 @@ interface ReviewQuestion {
   points: number;
   /** Optional context/passage shown above the question */
   context?: string;
+  /** Per-question file (image, audio, PDF, video) */
+  attachmentUrl?: string;
+  attachmentUploading?: boolean;
+  /** Teacher explanation in student review (HTML) */
+  answerExplanation?: string;
+  generatingExplanation?: boolean;
   // Editor state
   expanded?: boolean;
   aiGenerated?: boolean;
@@ -75,13 +82,17 @@ const PROGRESS_MESSAGES = [
 @Component({
   selector: 'app-pdf-exercise-generator',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, ExerciseStructurePreviewComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, RichTextInputComponent, ExerciseStructurePreviewComponent],
   templateUrl: './pdf-exercise-generator.component.html',
   styleUrls: ['./pdf-exercise-generator.component.css']
 })
 export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('attachmentFileInput') attachmentFileInput!: ElementRef<HTMLInputElement>;
+
+  /** Target question for per-question attachment upload */
+  currentAttachmentQ: ReviewQuestion | null = null;
 
   currentStep: WizardStep = 1;
 
@@ -1162,7 +1173,19 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   addBlankQuestion(type: string): void {
     // These worksheet categories are represented using the existing question-answer
     // engine, with an extra `worksheetKind` label for UI rendering.
-    const q: ReviewQuestion = { type: type as any, points: 1, expanded: true, aiGenerated: false };
+    const q: ReviewQuestion = {
+      type: type as any,
+      points: 1,
+      expanded: true,
+      aiGenerated: false,
+      context: '',
+      instruction: '',
+      example: '',
+      attachmentUrl: '',
+      attachmentUploading: false,
+      answerExplanation: '',
+      generatingExplanation: false
+    };
 
     if (type === 'mcq') Object.assign(q, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0, explanation: '' });
     else if (type === 'matching') Object.assign(q, { instruction: 'Match the items.', pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
@@ -1214,7 +1237,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       });
     }
     else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
-    else if (type === 'jumble-word') Object.assign(q, { scrambledText: '', boldLetter: '', expectedWord: '', categoryTip: '', instruction: '' });
+    else if (type === 'jumble-word') Object.assign(q, { scrambledText: '', boldLetter: '', expectedWord: '', categoryTip: '' });
 
     this.reviewQuestions.push(q);
     this.addingType = '';
@@ -1340,17 +1363,143 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     return resolveMediaUrl(relative);
   }
 
+  /** True if string has visible text (supports sanitized HTML from rich text). */
+  htmlFieldHasContent(s: string | undefined): boolean {
+    if (!s) return false;
+    const t = s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+    return t.length > 0;
+  }
+
+  getAttachmentType(url: string | undefined): 'image' | 'audio' | 'video' | 'pdf' | 'other' {
+    if (!url) return 'other';
+    const lower = url.toLowerCase().split('?')[0];
+    if (/\.(jpe?g|jpg|jfif|png|gif|webp|svg|avif|bmp)$/.test(lower)) return 'image';
+    if (/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(lower)) return 'audio';
+    if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
+    if (/\.pdf$/.test(lower)) return 'pdf';
+    return 'other';
+  }
+
+  triggerAttachmentFile(q: ReviewQuestion): void {
+    this.currentAttachmentQ = q;
+    this.attachmentFileInput?.nativeElement?.click();
+  }
+
+  onAttachmentFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const q = this.currentAttachmentQ;
+    this.currentAttachmentQ = null;
+    input.value = '';
+    if (!file || !q) return;
+    q.attachmentUploading = true;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        q.attachmentUrl = res.url;
+        q.attachmentUploading = false;
+        this.showSuccess('File uploaded');
+      },
+      error: (err: { error?: { error?: string } }) => {
+        q.attachmentUploading = false;
+        this.showError(err.error?.error || 'Upload failed');
+      }
+    });
+  }
+
+  removeAttachment(q: ReviewQuestion): void {
+    q.attachmentUrl = '';
+  }
+
+  private stripHtmlPlain(s: string): string {
+    return s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private getCorrectAnswerTextForReview(q: ReviewQuestion): string {
+    if (q.type === 'mcq' && q.options && q.correctAnswerIndex !== undefined) {
+      return this.stripHtmlPlain(q.options[q.correctAnswerIndex] || '');
+    }
+    if (q.type === 'fill-blank' && q.answers?.length) {
+      return q.answers.join(', ');
+    }
+    if (q.type === 'singular_plural' && q.pairs?.length) {
+      return q.pairs
+        .filter((p) => this.htmlFieldHasContent(p.singular) && this.htmlFieldHasContent(p.plural))
+        .map((p) => `${this.stripHtmlPlain(p.singular || '')} → ${this.stripHtmlPlain(p.plural || '')}`)
+        .join(' | ');
+    }
+    if (q.type === 'matching' && q.pairs?.length) {
+      return q.pairs
+        .filter((p) => this.htmlFieldHasContent(p.left) && this.htmlFieldHasContent(p.right))
+        .map((p) => `${this.stripHtmlPlain(p.left || '')} ↔ ${this.stripHtmlPlain(p.right || '')}`)
+        .join(' | ');
+    }
+    if (q.type === 'question-answer' && q.sampleAnswers?.length) {
+      return q.sampleAnswers.join(' | ');
+    }
+    if (q.type === 'listening' && q.expectedTranscript) {
+      return q.expectedTranscript;
+    }
+    if (q.type === 'pronunciation' && q.word) {
+      return q.word;
+    }
+    if ((q.type as string) === 'jumble-word' && (q as { expectedWord?: string }).expectedWord) {
+      return String((q as { expectedWord?: string }).expectedWord || '');
+    }
+    return '';
+  }
+
+  useAiExplanation(q: ReviewQuestion): void {
+    const questionText =
+      this.stripHtmlPlain(q.question || '') ||
+      this.stripHtmlPlain(q.prompt || '') ||
+      (q.word || '').trim() ||
+      (q.sentence || '').trim() ||
+      this.stripHtmlPlain(q.instruction || '');
+    const contextText = (q.context || '').trim();
+    const correctAnswer = this.getCorrectAnswerTextForReview(q);
+    const sampleAnswers = (q.sampleAnswers || []).map((x) => String(x || '').trim()).filter(Boolean);
+    if (!questionText && !contextText && !correctAnswer && sampleAnswers.length === 0) {
+      this.showError('Please fill in the question details first');
+      return;
+    }
+    q.generatingExplanation = true;
+    this.exerciseService
+      .generateExplanation({
+        questionType: (q as { worksheetKind?: string }).worksheetKind || q.type,
+        questionText: questionText || this.stripHtmlPlain(q.instruction || ''),
+        storyParagraph: '',
+        contextText,
+        correctAnswer,
+        sampleAnswers,
+        targetLanguage: this.targetLanguage
+      })
+      .subscribe({
+        next: (res) => {
+          q.answerExplanation = res.explanation;
+          q.generatingExplanation = false;
+        },
+        error: (err: { error?: { error?: string } }) => {
+          q.generatingExplanation = false;
+          this.showError(err.error?.error || 'AI generation failed');
+        }
+      });
+  }
+
   // Validation
   isQuestionValid(q: ReviewQuestion): boolean {
-    if (q.type === 'mcq') return !!(q.question?.trim()) && (q.options?.filter(o => o.trim()).length ?? 0) >= 2;
-    if (q.type === 'matching') return (q.pairs?.filter(p => (p.left || '').trim() && (p.right || '').trim()).length ?? 0) >= 2;
+    if (q.type === 'mcq') {
+      return this.htmlFieldHasContent(q.question) && (q.options?.filter((o) => this.htmlFieldHasContent(o)).length ?? 0) >= 2;
+    }
+    if (q.type === 'matching') {
+      return (q.pairs?.filter((p) => this.htmlFieldHasContent(p.left) && this.htmlFieldHasContent(p.right)).length ?? 0) >= 2;
+    }
     if (q.type === 'singular_plural') {
-      const rows = q.pairs?.filter(p => (p.singular || '').trim() && (p.plural || '').trim()) ?? [];
+      const rows = q.pairs?.filter((p) => this.htmlFieldHasContent(p.singular) && this.htmlFieldHasContent(p.plural)) ?? [];
       return rows.length >= 1;
     }
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
-    if (q.type === 'question-answer') return !!(q.prompt?.trim());
+    if (q.type === 'question-answer') return this.htmlFieldHasContent(q.prompt);
     if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     if ((q.type as any) === 'jumble-word') return !!(q as any).scrambledText?.trim() && !!(q as any).expectedWord?.trim();
     return false;
@@ -1363,14 +1512,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const parts: string[] = [];
 
     if (q.type === 'mcq') {
-      if (!q.question?.trim()) parts.push('Add the question text.');
-      const filled = q.options?.filter(o => o?.trim()).length ?? 0;
+      if (!this.htmlFieldHasContent(q.question)) parts.push('Add the question text.');
+      const filled = q.options?.filter((o) => this.htmlFieldHasContent(o)).length ?? 0;
       if (filled < 2) parts.push(`Need at least 2 filled answer options (currently ${filled}).`);
     } else if (q.type === 'matching') {
-      const good = q.pairs?.filter(p => (p.left || '').trim() && (p.right || '').trim()).length ?? 0;
+      const good = q.pairs?.filter((p) => this.htmlFieldHasContent(p.left) && this.htmlFieldHasContent(p.right)).length ?? 0;
       if (good < 2) parts.push(`Need at least 2 complete pairs with left and right text (currently ${good}).`);
     } else if (q.type === 'singular_plural') {
-      const good = q.pairs?.filter(p => (p.singular || '').trim() && (p.plural || '').trim()).length ?? 0;
+      const good = q.pairs?.filter((p) => this.htmlFieldHasContent(p.singular) && this.htmlFieldHasContent(p.plural)).length ?? 0;
       if (good < 1) parts.push('Add at least one row with both singular and plural (expected answer).');
     } else if (q.type === 'fill-blank') {
       if (!q.sentence?.trim()) {
@@ -1393,7 +1542,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     } else if (q.type === 'pronunciation') {
       if (!q.word?.trim()) parts.push('Add the word or phrase to pronounce.');
     } else if (q.type === 'question-answer') {
-      if (!q.prompt?.trim()) parts.push('Add the question or instruction text.');
+      if (!this.htmlFieldHasContent(q.prompt)) parts.push('Add the question or instruction text.');
     } else if (q.type === 'listening') {
       if (!q.mediaUrl?.trim()) parts.push('Add audio (upload or URL).');
       if (!q.expectedTranscript?.trim()) parts.push('Add the expected transcript.');
@@ -1568,7 +1717,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       courseDay,
       visibleToStudents: publish,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
-        const { expanded, aiGenerated, ...rest } = q;
+        const { expanded, aiGenerated, attachmentUploading, generatingExplanation, ...rest } = q;
         return rest;
       }) as ExerciseQuestion[],
       tags: ['ai-generated', 'pdf-import', ...extraTags]
