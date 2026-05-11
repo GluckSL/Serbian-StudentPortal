@@ -460,7 +460,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   installmentStatusClass(status: string): string {
     const map: Record<string, string> = {
       APPROVED: 'pill-green',
-      PENDING: 'pill-grey',
+      PENDING: 'pill-amber',
       SUBMITTED: 'pill-blue',
       OVERDUE: 'pill-red',
       REJECTED: 'pill-red',
@@ -505,9 +505,9 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     due.setHours(0, 0, 0, 0);
     const diffDays = Math.round((due.getTime() - start.getTime()) / 86400000);
     if (diffDays < 0) return `${Math.abs(diffDays)} day(s) overdue`;
-    if (diffDays === 0) return 'Due today';
-    if (diffDays === 1) return 'Due tomorrow';
-    return `Due in ${diffDays} days`;
+    if (diffDays === 0) return 'today';
+    if (diffDays === 1) return 'tomorrow';
+    return `in ${diffDays} days`;
   }
 
   getReuploadNote(req: PaymentRequest): string {
