@@ -36,7 +36,7 @@
   </div>
 
   <div class="sa-list" *ngIf="!loading && filteredAnnouncements.length > 0">
-    <article class="sa-card" *ngFor="let item of filteredAnnouncements">
+    <article class="sa-card" *ngFor="let item of filteredAnnouncements" (click)="openAnnouncement(item)" tabindex="0">
       <div class="sa-card__stripe" [class.sa-card__stripe--email]="item.deliveryType === 'website_email'" aria-hidden="true"></div>
 
       <div class="sa-card__inner">
@@ -46,7 +46,7 @@
         </div>
 
         <h2 class="sa-card__title">{{ item.title }}</h2>
-        <p class="sa-card__body">{{ item.body }}</p>
+        <div class="sa-card__preview">Tap to read more</div>
 
         <div class="sa-card__files" *ngIf="item.attachments?.length">
           <div class="sa-card__filesTitle">Attachments</div>
@@ -57,6 +57,7 @@
               [href]="file.fileUrl"
               target="_blank"
               rel="noreferrer"
+              (click)="$event.stopPropagation()"
             >
               <span class="material-icons sa-chip__icon" aria-hidden="true">attach_file</span>
               {{ file.fileName }}
