@@ -369,12 +369,6 @@
   color: #78909c;
 }
 
-.sp-due-hint {
-  color: #7e57c2;
-  font-weight: 600;
-  font-size: 12px;
-}
-
 .sp-req-amount-block {
   text-align: right;
   min-width: 140px;
@@ -387,14 +381,15 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #90a4ae;
-  margin-bottom: 2px;
 }
 
 .sp-amount-value {
   font-size: 1.05rem;
-  font-weight: 800;
-  color: #1a237e;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+
+  @media (min-width: 900px) {
+    font-size: 24px;
+  }
 }
 
 .sp-amount-remaining {
@@ -409,6 +404,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
   margin: 8px 14px 8px;
   background: #f5f5f5;
@@ -507,12 +503,12 @@
   letter-spacing: 0.05em;
 }
 
-.pill-blue   { background: #e3f2fd; color: #1565c0; }
-.pill-amber  { background: #fff8e1; color: #f57f17; }
-.pill-green  { background: #e8f5e9; color: #2e7d32; }
-.pill-red    { background: #ffebee; color: #c62828; }
-.pill-orange { background: #fff3e0; color: #e65100; }
-.pill-grey   { background: #eceff1; color: #546e7a; }
+.pill-blue   { background: #e3f2fd; color: #000; }
+.pill-amber  { background: #fff9c4; color: #f57f17; }
+.pill-green  { background: #e8f5e9; color: #000; }
+.pill-red    { background: #ffebee; color: #000; }
+.pill-orange { background: #fff3e0; color: #000; }
+.pill-grey   { background: #f5f5f5; color: #000; }
 
 // ── Pagination ──────────────────────────────────────────────────────────────
 .sp-pager {
@@ -843,14 +839,12 @@
   background: #e3f2fd;
   border-radius: 12px;
   padding: 2px 8px;
-  margin: 4px 0;
   mat-icon { font-size: 13px; height: 13px; width: 13px; }
 }
 
 .sp-inst-hint-row {
   align-items: flex-start;
   margin-top: 4px;
-  .sp-due-hint { font-size: 11.5px; color: #78909c; }
 }
 
 .sp-req-plan-head {
@@ -874,7 +868,7 @@
   }
 }
 
-.sp-plan-remaining .sp-amount-value {
+.sp-plan-remaining {
   font-size: 0.95rem;
 }
 
@@ -886,19 +880,56 @@
 
 .sp-inst-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-  padding: 0px 14px 14px 14px;
-  background: #fafbff;
+  grid-template-columns: 1fr;
+  margin-bottom: 10px;
+  background: transparent;
+
+  @media (min-width: 900px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .sp-inst-tile {
-  border-radius: 10px;
-  padding: 10px 12px 12px;
+  padding: 12px 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  background: transparent;
+  border-top: 1px solid #e0e0e0 !important;
+  margin-top: 8px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+  &:nth-child(1) {
+    border-top: none !important;
+    margin-top: 0;
+  }
+
+  @media (min-width: 900px) {
+    border-top: none !important;
+    margin-top: 0;
+    border-left: 1px solid #e0e0e0 !important;
+    border-right: none !important;
+    border-bottom: none !important;
+  }
+
+  &:nth-child(3n+1) {
+    @media (min-width: 900px) {
+      border-left: none !important;
+    }
+  }
+
+  &:nth-child(n+4) {
+    @media (min-width: 900px) {
+      border-top: 1px solid #e0e0e0 !important;
+      margin-top: 8px;
+    }
+  }
+
+  &:nth-child(3n+1):nth-child(n+4) {
+    @media (min-width: 900px) {
+      border-left: none !important;
+    }
+  }
 
   .sp-inst-num,
   .sp-inst-tile-body,
@@ -908,7 +939,7 @@
   }
 
   .sp-inst-amts strong {
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .sp-req-due-icon {
@@ -917,15 +948,10 @@
 
   /* Status pills on coloured tiles */
   .sp-pill {
-    background: rgba(0, 0, 0, 0.12);
-    color: #000;
-    border: 1px solid rgba(0, 0, 0, 0.22);
+    border: none;
   }
 
   &--upcoming {
-    background: #fff176;
-    border: 1px solid #f9a825;
-
     .sp-inst-num,
     .sp-inst-tile-body,
     .sp-inst-amts,
@@ -934,17 +960,10 @@
     }
     .sp-req-due-icon {
       color: #212121 !important;
-    }
-    .sp-due-hint {
-      color: #000;
-      font-weight: 700;
     }
   }
 
   &--overdue {
-    background: #ffccbc;
-    border: 1px solid #d32f2f;
-
     .sp-inst-num,
     .sp-inst-tile-body,
     .sp-inst-amts,
@@ -954,43 +973,33 @@
     .sp-req-due-icon {
       color: #212121 !important;
     }
-    .sp-due-hint {
-      color: #000;
-      font-weight: 800;
-    }
   }
 
   &--paid {
-    background: #2e7d32;
-    border: 1px solid #1b5e20;
-
     .sp-inst-num,
     .sp-inst-tile-body,
     .sp-inst-amts,
     .sp-inst-due-line {
-      color: #ffffff;
+      color: #000;
     }
     .sp-req-due-icon {
-      color: #ffffff !important;
-    }
-    .sp-due-hint {
-      color: #e8f5e9;
+      color: #212121 !important;
     }
     .sp-pill {
-      background: rgba(255, 255, 255, 0.25);
-      color: #ffffff;
-      border-color: rgba(255, 255, 255, 0.4);
+      background: #e8f5e9;
+      color: #2e7d32;
+      border-color: #2e7d32;
     }
 
     .sp-inst-review,
     .sp-inst-review mat-icon {
-      color: #ffffff;
+      color: #2e7d32;
     }
   }
 
   &--active {
-    border: 2px solid #1565c0;
-    box-shadow: 0 4px 12px rgba(21, 101, 192, 0.25);
+    border: none;
+    box-shadow: none;
   }
 }
 
@@ -998,12 +1007,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
 
 .sp-inst-num {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #1a1a1a;
@@ -1012,8 +1021,8 @@
 .sp-inst-tile-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
+  gap: 2px;
+  font-size: 11px;
   color: #0d0d0d;
 }
 
@@ -1021,18 +1030,28 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .sp-inst-amts {
-  font-size: 11.5px;
-  line-height: 1.45;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1.4;
   color: #1a1a1a;
+
+  @media (min-width: 900px) and (max-width: 1199px) {
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+  }
 }
 
-.sp-inst-tile-foot {
-  margin-top: auto;
-  padding-top: 4px;
+.sp-inst-amts-right {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
 }
 
 .sp-inst-review {
