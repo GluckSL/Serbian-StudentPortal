@@ -166,6 +166,9 @@
             <div class="dg-conv__brand-text">
               <h3>Conversation Session</h3>
               <p>Practicing {{ payload.module.title }}</p>
+              <p class="dg-conv__info-note">
+                Complete when 80% vocabulary covered + min time reached, or wait for max time limit.
+              </p>
 
               <div class="dg-conv__actions-row">
                 <button
@@ -338,13 +341,17 @@
       <ul class="dg-completion-rules" aria-label="Completion checklist">
         <li>
           <mat-icon>check_circle</mat-icon>
-          All vocabulary covered
+          80% vocabulary covered
         </li>
         <li>
           <mat-icon>check_circle</mat-icon>
           Minimum practice time reached
         </li>
       </ul>
+      <p class="dg-completion-note">
+        You can end the session now, or continue until the maximum time limit is reached.
+        The session will automatically end when max time is reached, even if vocabulary is not fully covered.
+      </p>
 
       <div class="dg-completion-actions">
         <button
