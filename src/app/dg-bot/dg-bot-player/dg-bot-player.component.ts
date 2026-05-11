@@ -130,6 +130,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   earlyEndRequested = false;
   /** Motivation text displayed in the completion overlay. */
   currentMotivationText = '';
+  /** True once the student clicked Continue past the goal time. */
+  overtimeMode = false;
 
   isAiThinking = false;
   aiResponseText = '';
@@ -448,6 +450,22 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.conversationPracticeStartedAt = 0;
   }
 
+  /** Seconds beyond the goal (only meaningful when overtimeMode = true). */
+  get overtimeElapsedSec(): number {
+    return Math.max(0, this.sessionElapsedSec - this.conversationMinTargetSeconds);
+  }
+
+  /**
+   * Re-anchor the timer so it keeps counting up past the goal.
+   * Because timerExpired is already true, tickSessionElapsed won't re-fire the overlay.
+   */
+  private resumeTimerForOvertime(): void {
+    if (this.sessionTimerHandle) return;
+    // Re-anchor so elapsed continues from conversationMinTargetSeconds onward
+    this.conversationPracticeStartedAt = Date.now() - (this.conversationMinTargetSeconds * 1000);
+    this.sessionTimerHandle = setInterval(() => this.tickSessionElapsed(), 1000);
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
@@ -741,6 +759,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.completionDialogDismissed = false;
     this.earlyEndRequested = false;
     this.currentMotivationText = '';
+    this.overtimeMode = false;
     this.chatHistory = [];
     this.vocabCoverage = 0;
     this.studentVocabCoverage = 0;
@@ -794,7 +813,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.displaySub = 'Say "Bereit!" or "Ready!" when you are ready to begin.';
     this.mascotSpeechText = readyMsg;
     this.charState.setState('idle');
-    await this.logTts();
+    this.logTts();
     await this.playTtsBlob(readyMsg);
     this.openMicForUserTurn();
   }
@@ -839,6 +858,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.aiTyping = false;
       this.currentMotivationText = this.pickMotivationText();
       this.earlyEndRequested = true;
+      // In overtime the overlay was already dismissed once — re-open it
+      if (this.overtimeMode) {
+        this.completionDialogDismissed = false;
+      }
       return;
     }
 
@@ -956,7 +979,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         // Pin the phrase so the mic banner can show it
         this.awaitingGermanRepeat = true;
         this.pendingGermanHint = response.hintDe;
-        await dgDelay(220);
         this.openMicForUserTurn();
         return;
       }
@@ -1002,19 +1024,18 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.dialogueVariant = 'default';
       this.charState.setState('speaking');
 
-      await this.logTts();
+      this.logTts();
       await this.playTtsBlob(response.text);
 
       const phase = response.phase || (response.complete ? 'complete' : 'active');
 
       if (phase === 'complete' || response.complete) {
         this.conversationComplete = true;
-        await dgDelay(1500);
+        await dgDelay(800);
         await this.finishModule();
         return;
       }
 
-      await dgDelay(220);
       this.charState.setState('idle');
       this.openMicForUserTurn();
 
@@ -1038,11 +1059,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   /** Student chose "Continue" from the completion overlay — keep chatting. */
   async continueAfterCompletion(): Promise<void> {
     const wasEarlyEnd = this.earlyEndRequested && !this.timerExpired;
+    const wasTimerExpired = this.timerExpired;
     this.earlyEndRequested = false;
     this.completionDialogDismissed = true;
     if (wasEarlyEnd) {
       // Reset so the timer-expired overlay can still appear later
       this.completionDialogDismissed = false;
+    }
+    if (wasTimerExpired) {
+      // Re-start timer so it counts upward past the goal (overtime)
+      this.overtimeMode = true;
+      this.resumeTimerForOvertime();
     }
     this.openMicForUserTurn();
   }
@@ -1133,16 +1160,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.displaySub = response.translatedTamil || '';
         this.mascotSpeechText = text;
         this.charState.setState('speaking');
-        await this.logTts();
+        this.logTts();
         await this.playTtsBlob(text);
       }
       if (response.complete) {
         this.conversationComplete = true;
-        await dgDelay(1200);
+        await dgDelay(800);
         await this.finishModule();
         return;
       }
-      await dgDelay(200);
       this.charState.setState('idle');
       this.openMicForUserTurn();
     } catch (e) {
@@ -1177,10 +1203,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     const preGen = s.audioUrl?.trim();
     if (preGen) {
-      await this.logTts();
+      this.logTts();
       await this.playExternal(preGen, undefined, s.text);
     } else if (s.text) {
-      await this.logTts();
+      this.logTts();
       await this.playTtsBlob(s.text);
     }
 
@@ -1306,7 +1332,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   private async playFeedbackTts(line: string, holdEmotion: DgCharacterAnimState): Promise<void> {
-    try { await this.logTts(); await this.playTtsBlob(line, holdEmotion); } catch { /* ignore */ }
+    try { this.logTts(); await this.playTtsBlob(line, holdEmotion); } catch { /* ignore */ }
   }
 
   private async speakCurrent(): Promise<void> {
@@ -1316,11 +1342,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     else if (s.text) await this.playTtsBlob(s.text);
   }
 
-  private async logTts(): Promise<void> {
+  private logTts(): void {
     if (!this.sessionId) return;
-    await firstValueFrom(this.dgApi.updateSession({
+    firstValueFrom(this.dgApi.updateSession({
       sessionId: this.sessionId, event: 'tts_play', sceneIndex: this.index,
-    }));
+    })).catch(() => {});
   }
 
   // ── Misc ──────────────────────────────────────────────────────────────────────

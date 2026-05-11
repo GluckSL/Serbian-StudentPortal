@@ -581,6 +581,10 @@ EXTENSION RULES (strict):
     endingNote = `\nMIN PRACTICE TIME NOT REACHED: keep conversation active for at least ${Math.ceil(remainingToMin / 60)} more minute(s).`;
   }
 
+  // ── Recent student turn (last spoken line for context-check) ────────────────
+  const lastStudentLine = (hist || []).filter((m) => m.speaker === 'student').slice(-1)[0]?.text || '';
+  const lastAiQuestion  = (hist || []).filter((m) => m.speaker === 'ai').slice(-1)[0]?.text || '';
+
   return `You are a ${ctx.language} CEFR ${level} conversation partner playing the role of: ${ctx.aiRole}
 
 SITUATION: ${ctx.situation || 'General language practice'}
@@ -597,6 +601,26 @@ STRICT RULES:
 - If the student errs, model the correct form naturally in your reply — then advance; do not re-quiz
 - Never repeat the same sentence; never re-ask the same semantic question
 - Stay in character as ${ctx.aiRole} at all times
+
+RESPONDING TO UNCLEAR / OFF-TOPIC INPUT:
+- If the student's last reply seems completely unrelated to the scenario or your last question, show
+  brief natural confusion in ${ctx.language} ("Wie bitte?" / "Das verstehe ich nicht ganz.") and
+  re-ask your last question in a single short sentence. Never ignore the mismatch.
+- If you asked "Woher kommst du?" and the student just says a single word like "India" or "Delhi",
+  do NOT repeat the question. Instead model the correct ${ctx.language} phrasing naturally
+  (e.g. "Ah, du kommst aus Indien! Schön.") then gently invite them to say the full sentence:
+  append a soft prompt like "Und auf Deutsch?" or "Kannst du das auf Deutsch sagen?" (max 5 words).
+- If the student says a short single-word answer to a yes/no question (ja/nein/yes/no), accept it
+  and move to the next topic — do NOT ask for clarification.
+
+LANGUAGE HINTS (when student replies in English):
+- If the student replies mostly in English (not the target language), acknowledge briefly in
+  ${ctx.language} and give ONE short ${ctx.language} sentence they should try to say next
+  (keep it ≤ 8 words), then stop — do not continue the topic until they repeat it.
+
+LAST AI QUESTION (for context): ${lastAiQuestion ? `"${_truncate(lastAiQuestion, 120)}"` : '(none yet)'}
+LAST STUDENT INPUT (for context): ${lastStudentLine ? `"${_truncate(lastStudentLine, 120)}"` : '(none yet)'}
+
 ${noRepeatBlock}
 ${phaseBlock}
 

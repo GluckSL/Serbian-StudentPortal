@@ -118,11 +118,6 @@
         <!-- Mobile: mic/practice area in char header (big screens: hidden) -->
         <div class="dg-conv__char-header" *ngIf="isMobile">
           <div class="dg-conv__mic-area">
-            <!-- End-session note (mobile) -->
-            <div class="dg-conv__end-note" *ngIf="conversationStarted && !conversationComplete">
-              <span class="dg-conv__end-note-icon">💬</span>
-              Say <strong>"end"</strong> or <strong>"beenden"</strong> to end the conversation
-            </div>
             <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
             <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
               🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
@@ -225,31 +220,50 @@
         <!-- Countdown timer (hidden while completion modal is open; interval stops at 0) -->
         <div class="dg-conv__session-timer"
              *ngIf="!showCompletionOverlay"
-             [class.dg-conv__session-timer--waiting]="!conversationStarted">
+             [class.dg-conv__session-timer--waiting]="!conversationStarted"
+             [class.dg-conv__session-timer--overtime]="overtimeMode">
           <div class="dg-conv__session-timer__top">
             <span class="dg-conv__timer-label">
-              {{ conversationStarted ? 'Time remaining' : 'Duration' }}
+              <ng-container *ngIf="!conversationStarted">Duration</ng-container>
+              <ng-container *ngIf="conversationStarted && !overtimeMode">Time remaining</ng-container>
+              <ng-container *ngIf="overtimeMode">Bonus time</ng-container>
             </span>
             <span class="dg-conv__timer-caption dg-conv__timer-caption--muted" *ngIf="!conversationStarted">
               Target length
             </span>
+            <span class="dg-conv__timer-overtime-badge" *ngIf="overtimeMode">
+              +{{ formatMmSs(conversationMinTargetSeconds) }} goal reached ✓
+            </span>
+            <!-- End-session hint -->
+            <span class="dg-conv__timer-end-hint" *ngIf="conversationStarted && !conversationComplete && !overtimeMode">
+              Say <strong>"end"</strong> or <strong>"beenden"</strong> to stop
+            </span>
           </div>
           <div class="dg-conv__timer-main">
-            <span class="dg-conv__timer-elapsed"
-                  [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
-              {{ formatMmSs(countdownRemainSec) }}
-            </span>
-            <span class="dg-conv__timer-of" *ngIf="conversationStarted">
-              <span class="dg-conv__timer-of__sep">/</span>
-              <span class="dg-conv__timer-of__total">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
-            </span>
+            <!-- Normal countdown -->
+            <ng-container *ngIf="!overtimeMode">
+              <span class="dg-conv__timer-elapsed"
+                    [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
+                {{ formatMmSs(countdownRemainSec) }}
+              </span>
+              <span class="dg-conv__timer-of" *ngIf="conversationStarted">
+                <span class="dg-conv__timer-of__sep">/</span>
+                <span class="dg-conv__timer-of__total">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
+              </span>
+            </ng-container>
+            <!-- Overtime count-up -->
+            <ng-container *ngIf="overtimeMode">
+              <span class="dg-conv__timer-elapsed dg-conv__timer-elapsed--overtime">
+                +{{ formatMmSs(overtimeElapsedSec) }}
+              </span>
+            </ng-container>
           </div>
           <div class="dg-conv__timer-track" aria-hidden="true">
             <div class="dg-conv__timer-fill"
-                 [style.width.%]="conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100"
+                 [style.width.%]="overtimeMode ? 100 : (conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100)"
                  [class.dg-conv__timer-fill--waiting]="!conversationStarted"
-                 [class.dg-conv__timer-fill--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30"
-                 [class.dg-conv__timer-fill--goal]="conversationStarted && countdownRemainSec === 0">
+                 [class.dg-conv__timer-fill--urgent]="conversationStarted && !overtimeMode && countdownRemainSec > 0 && countdownRemainSec <= 30"
+                 [class.dg-conv__timer-fill--overtime]="overtimeMode">
             </div>
           </div>
         </div>
@@ -343,14 +357,7 @@
 
         <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
         <div class="dg-conv__mic-area" *ngIf="!isMobile">
-          <!-- End-session note -->
-          <div class="dg-conv__end-note" *ngIf="conversationStarted && !conversationComplete">
-            <span class="dg-conv__end-note-icon">💬</span>
-            Say <strong>"end"</strong> or <strong>"beenden"</strong> to end the conversation
-          </div>
-          <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete && !awaitingGermanRepeat">
-            💬 Respond in <strong>English</strong> — Ooly will translate it to German for you to repeat.
-          </p>
+         
           <p class="dg-conv__mic-hint dg-conv__mic-hint--repeat" *ngIf="conversationStarted && !conversationComplete && awaitingGermanRepeat">
             🎤 Speak the German phrase shown above — then Ooly will continue the conversation.
           </p>

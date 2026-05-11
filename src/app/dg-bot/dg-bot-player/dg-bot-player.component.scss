@@ -1753,31 +1753,60 @@
   40%           { transform: translateY(-6px); opacity: 1;   }
 }
 
-// ── End-session note box ──────────────────────────────────────────────────────
-.dg-conv__end-note {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 1.5px solid #c7d2fe;
-  border-radius: 10px;
-  background: #eef2ff;
-  color: #3730a3;
-  font-size: 0.78rem;
+// ── Overtime timer state ──────────────────────────────────────────────────────
+.dg-conv__session-timer--overtime {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: linear-gradient(165deg, #f0fdf4 0%, #dcfce7 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 14px rgba(34, 197, 94, 0.1);
+
+  .dg-conv__timer-label {
+    color: #15803d;
+  }
+}
+
+.dg-conv__timer-elapsed--overtime {
+  color: #15803d;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dg-conv__timer-fill--overtime {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+  animation: dg-overtime-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dg-overtime-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
+.dg-conv__timer-overtime-badge {
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: #15803d;
+  white-space: nowrap;
+  margin-left: auto;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+// ── End-session hint inside the timer row ────────────────────────────────────
+.dg-conv__timer-end-hint {
+  font-size: 0.67rem;
   font-weight: 500;
-  padding: 0.45rem 0.75rem;
-  width: 100%;
-  box-sizing: border-box;
-  line-height: 1.4;
+  color: #64748b;
+  white-space: nowrap;
+  margin-left: auto;
 
   strong {
     color: #4338ca;
     font-weight: 700;
   }
-}
-
-.dg-conv__end-note-icon {
-  flex-shrink: 0;
-  font-size: 1rem;
 }
 
 // ── Completion overlay: module name + percentage ──────────────────────────────
