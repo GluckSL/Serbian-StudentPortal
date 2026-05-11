@@ -211,7 +211,7 @@
           {{ statusLabel }}
         </div>
         <div class="dg-conv__status" *ngIf="waitingForUser && !isAiThinking && !awaitingGermanRepeat" aria-live="polite">
-          💬 What do you want to say? (speak in English or German)
+          your turn to speak 
         </div>
         <div class="dg-conv__status dg-conv__status--repeat" *ngIf="waitingForUser && !isAiThinking && awaitingGermanRepeat" aria-live="polite">
           🎤 Now say this in German
@@ -220,25 +220,50 @@
         <!-- Countdown timer (hidden while completion modal is open; interval stops at 0) -->
         <div class="dg-conv__session-timer"
              *ngIf="!showCompletionOverlay"
-             [class.dg-conv__session-timer--waiting]="!conversationStarted">
-          <span class="dg-conv__timer-label">
-            {{ conversationStarted ? 'Time Remaining' : 'Duration' }}
-          </span>
+             [class.dg-conv__session-timer--waiting]="!conversationStarted"
+             [class.dg-conv__session-timer--overtime]="overtimeMode">
+          <div class="dg-conv__session-timer__top">
+            <span class="dg-conv__timer-label">
+              <ng-container *ngIf="!conversationStarted">Duration</ng-container>
+              <ng-container *ngIf="conversationStarted && !overtimeMode">Time remaining</ng-container>
+              <ng-container *ngIf="overtimeMode">Bonus time</ng-container>
+            </span>
+            <span class="dg-conv__timer-caption dg-conv__timer-caption--muted" *ngIf="!conversationStarted">
+              Target length
+            </span>
+            <span class="dg-conv__timer-overtime-badge" *ngIf="overtimeMode">
+              +{{ formatMmSs(conversationMinTargetSeconds) }} goal reached ✓
+            </span>
+            <!-- End-session hint -->
+            <span class="dg-conv__timer-end-hint" *ngIf="conversationStarted && !conversationComplete && !overtimeMode">
+              Say <strong>"end"</strong> or <strong>"beenden"</strong> to stop
+            </span>
+          </div>
           <div class="dg-conv__timer-main">
-            <span class="dg-conv__timer-elapsed"
-                  [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
-              {{ formatMmSs(countdownRemainSec) }}
-            </span>
-            <span class="dg-conv__timer-waiting-badge" *ngIf="!conversationStarted">
-              ⏸ Press Start
-            </span>
+            <!-- Normal countdown -->
+            <ng-container *ngIf="!overtimeMode">
+              <span class="dg-conv__timer-elapsed"
+                    [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
+                {{ formatMmSs(countdownRemainSec) }}
+              </span>
+              <span class="dg-conv__timer-of" *ngIf="conversationStarted">
+                <span class="dg-conv__timer-of__sep">/</span>
+                <span class="dg-conv__timer-of__total">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
+              </span>
+            </ng-container>
+            <!-- Overtime count-up -->
+            <ng-container *ngIf="overtimeMode">
+              <span class="dg-conv__timer-elapsed dg-conv__timer-elapsed--overtime">
+                +{{ formatMmSs(overtimeElapsedSec) }}
+              </span>
+            </ng-container>
           </div>
           <div class="dg-conv__timer-track" aria-hidden="true">
             <div class="dg-conv__timer-fill"
-                 [style.width.%]="conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100"
+                 [style.width.%]="overtimeMode ? 100 : (conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100)"
                  [class.dg-conv__timer-fill--waiting]="!conversationStarted"
-                 [class.dg-conv__timer-fill--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30"
-                 [class.dg-conv__timer-fill--goal]="conversationStarted && countdownRemainSec === 0">
+                 [class.dg-conv__timer-fill--urgent]="conversationStarted && !overtimeMode && countdownRemainSec > 0 && countdownRemainSec <= 30"
+                 [class.dg-conv__timer-fill--overtime]="overtimeMode">
             </div>
           </div>
         </div>
@@ -332,9 +357,7 @@
 
         <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
         <div class="dg-conv__mic-area" *ngIf="!isMobile">
-          <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete && !awaitingGermanRepeat">
-            💬 Respond in <strong>English</strong> — Ooly will translate it to German for you to repeat.
-          </p>
+         
           <p class="dg-conv__mic-hint dg-conv__mic-hint--repeat" *ngIf="conversationStarted && !conversationComplete && awaitingGermanRepeat">
             🎤 Speak the German phrase shown above — then Ooly will continue the conversation.
           </p>
@@ -399,10 +422,28 @@
   <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
     <div class="dg-completion-card">
       <mat-icon class="dg-completion-icon">emoji_events</mat-icon>
-      <h2 class="dg-completion-title">Time's Up — Great Work!</h2>
-      <p class="dg-completion-sub">
-        You've practiced for the full session. Keep going or wrap up below.
-      </p>
+      <h2 class="dg-completion-title">Congratulations!</h2>
+      <p class="dg-completion-module-name">You completed "{{ payload?.module?.title }}"</p>
+
+      <!-- Completion percentage block -->
+      <div class="dg-completion-pct-block">
+        <div class="dg-completion-pct-ring"
+             [class.dg-completion-pct-ring--full]="completionPercentage >= 75">
+          <span class="dg-completion-pct-value">{{ completionPercentage }}%</span>
+          <span class="dg-completion-pct-label">Completed</span>
+        </div>
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--success" *ngIf="completionPercentage >= 75">
+          <mat-icon>check_circle</mat-icon>
+          Full completion achieved!
+        </p>
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--partial" *ngIf="completionPercentage < 75">
+          Reach <strong>75%</strong> or more to fully complete this module.
+        </p>
+      </div>
+
+      <!-- Motivation text -->
+      <p class="dg-completion-motivation">{{ currentMotivationText }}</p>
+
       <p class="dg-completion-tip">
         You can click <strong>Continue</strong> to practice more, or <strong>End Session</strong> when you are done.
       </p>

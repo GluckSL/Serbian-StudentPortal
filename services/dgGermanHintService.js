@@ -10,6 +10,13 @@ const GERMAN_MARKERS =
 const ENGLISH_MARKERS =
   /\b(my name is|my first name|my last name|first name is|last name is|surname|family name|given name|i am|i'm|i\s+am|the |hello|hi |thank you|thanks|good morning|good afternoon|nice to meet|from |please|sorry|yes\b|no\b|okay\b|sure|i think|maybe|i live|i come|i speak|mobile number|phone number|email address)\b/i;
 
+/**
+ * English country/city names that are common single-word answers to "Woher kommst du?"
+ * These need a German hint even though they're only one word.
+ */
+const ENGLISH_LOCATIONS =
+  /^(india|delhi|mumbai|bangalore|bengaluru|chennai|kolkata|hyderabad|pune|jaipur|ahmedabad|surat|lucknow|kanpur|nagpur|visakhapatnam|bhopal|patna|vadodara|ghaziabad|ludhiana|agra|nashik|faridabad|meerut|rajkot|kalyan|vasai|virar|varanasi|srinagar|aurangabad|dhanbad|amritsar|allahabad|ranchi|howrah|coimbatore|jabalpur|gwalior|vijayawada|jodhpur|madurai|raipur|kota|chandigarh|guwahati|solapur|hubballi|tiruchirappalli|thiruvananthapuram|mysore|kochi|indore|bhubaneswar|noida|gurgaon|gurugram|navi mumbai|thane|pimpri|chinchwad|pakistan|bangladesh|nepal|sri lanka|china|japan|france|germany|usa|america|united states|uk|england|canada|australia|russia|italy|spain|brazil|mexico|turkey|iran|egypt|nigeria|kenya|south africa|ghana|ethiopia|indonesia|philippines|vietnam|thailand|malaysia|singapore)$/i;
+
 function _normLang(lang) {
   return String(lang || '').toLowerCase().replace(/\s+/g, '');
 }
@@ -29,6 +36,8 @@ function shouldRequestGermanHint(userText, moduleLanguage) {
   if (/^[\d\s.\-+]+$/.test(t)) return false;
   if (/^[a-z](-[a-z])+$/i.test(t.replace(/\s+/g, ''))) return false;
   if (ENGLISH_MARKERS.test(t)) return true;
+  // Single-word English location name (country/city) — needs German hint
+  if (ENGLISH_LOCATIONS.test(t)) return true;
   // Long Latin sentence without umlauts / common German words — likely English
   if (t.length > 24 && !/[äöüßÄÖÜ]/.test(t) && !GERMAN_MARKERS.test(t)) {
     const words = t.split(/\s+/).length;
@@ -109,6 +118,23 @@ function _fallbackGermanLine(said, lastAi) {
   }
   if (/wie heißen|wie heisst|ihr name|wie ist ihr name|nachname|vorname/i.test(lastAi)) {
     return 'Guten Tag, mein Name ist …';
+  }
+  // Location/origin answer
+  if (ENGLISH_LOCATIONS.test(said.trim())) {
+    const cityMap = {
+      india: 'Indien', delhi: 'Delhi', mumbai: 'Mumbai', bangalore: 'Bangalore',
+      bengaluru: 'Bangalore', chennai: 'Chennai', kolkata: 'Kolkata', hyderabad: 'Hyderabad',
+      pune: 'Pune', pakistan: 'Pakistan', bangladesh: 'Bangladesch', nepal: 'Nepal',
+      'sri lanka': 'Sri Lanka', china: 'China', japan: 'Japan', france: 'Frankreich',
+      germany: 'Deutschland', usa: 'den USA', america: 'Amerika',
+      'united states': 'den USA', uk: 'Großbritannien', england: 'England',
+      canada: 'Kanada', australia: 'Australien', russia: 'Russland', italy: 'Italien',
+      spain: 'Spanien', brazil: 'Brasilien', mexico: 'Mexiko', turkey: 'der Türkei',
+    };
+    const key = said.trim().toLowerCase();
+    const dePlace = cityMap[key] || said.trim();
+    const prep = dePlace.startsWith('den ') || dePlace.startsWith('der ') ? 'aus' : 'aus';
+    return `Ich komme aus ${dePlace}.`;
   }
   return 'Bitte antworten Sie auf Deutsch.';
 }
