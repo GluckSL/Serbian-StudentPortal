@@ -319,6 +319,10 @@ app.use('/api/class-submissions', classSubmissionRoutes);
 const teacherResourceRoutes = require('./routes/teacherResources');
 app.use('/api/teacher-resources', teacherResourceRoutes);
 
+// Payment Hub v2
+const registerPaymentModule = require('./modules/payments-v2/backend/register');
+registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: true });
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
   try {

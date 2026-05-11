@@ -1,0 +1,253 @@
+<div class="sp-root">
+
+  <!-- Reupload banners -->
+  <div class="sp-reupload-banner" *ngFor="let req of reuploadRequests">
+    <mat-icon>warning_amber</mat-icon>
+    <div class="sp-banner-text">
+      <strong>Please re-upload your payment proof</strong>
+      for <em>{{ req.paymentType }}<span *ngIf="req.customType"> — {{ req.customType }}</span></em>.
+      <span class="sp-banner-note">{{ getReuploadNote(req) }}</span>
+    </div>
+    <button mat-flat-button color="warn" type="button" (click)="openUpload(req)">Re-upload</button>
+  </div>
+
+  <!-- Hero -->
+  <div class="sp-hero">
+    <div class="sp-hero-icon-wrap">
+      <mat-icon class="sp-hero-icon">account_balance_wallet</mat-icon>
+    </div>
+    <div class="sp-hero-text">
+      <h1 class="sp-title">My Payments</h1>
+      <p class="sp-subtitle">See what you owe, upload proof, and track approval — all in one place.</p>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="sp-spinner-wrap">
+    <mat-spinner diameter="44"></mat-spinner>
+  </div>
+
+  <div *ngIf="!loading">
+
+    <!-- Summary: 4 compact cards -->
+    <div class="sp-summary-cards">
+      <!-- 1: Program total for your level (from catalog) -->
+      <mat-card class="sp-mini-stat sp-mini-indigo">
+        <div class="sp-mini-icon"><mat-icon>savings</mat-icon></div>
+        <div class="sp-mini-body">
+          <span class="sp-mini-label">Program total</span>
+          <span class="sp-mini-level" *ngIf="catalog?.studentLevel">Level {{ catalog?.studentLevel }}</span>
+          <span class="sp-mini-level sp-mini-muted" *ngIf="!catalog?.studentLevel && !loadingCatalog">Level —</span>
+          <ng-container *ngIf="!loadingCatalog && catalogCefrRows.length > 0">
+            <span class="sp-mini-value sp-mini-dual">LKR {{ fmt(cefrTotalLkr()) }}</span>
+            <span class="sp-mini-subnum">INR {{ fmt(cefrTotalInr()) }}</span>
+          </ng-container>
+          <span class="sp-mini-hint" *ngIf="loadingCatalog">Loading…</span>
+          <span class="sp-mini-hint" *ngIf="!loadingCatalog && !catalogCefrRows.length">Pricing not available</span>
+        </div>
+      </mat-card>
+
+      <!-- 2: Paid (approved) -->
+      <mat-card class="sp-mini-stat sp-mini-green">
+        <div class="sp-mini-icon"><mat-icon>paid</mat-icon></div>
+        <div class="sp-mini-body">
+          <span class="sp-mini-label">Paid (approved)</span>
+          <ng-container *ngIf="paidPerCurrency.length; else noPaid">
+            <div class="sp-mini-value" *ngFor="let p of paidPerCurrency">{{ p.currency }} {{ fmt(p.amount) }}</div>
+          </ng-container>
+          <ng-template #noPaid>
+            <span class="sp-mini-value sp-mini-muted">—</span>
+          </ng-template>
+        </div>
+      </mat-card>
+
+      <!-- 3: Next payment -->
+      <mat-card class="sp-mini-stat sp-mini-amber">
+        <div class="sp-mini-icon"><mat-icon>event</mat-icon></div>
+        <div class="sp-mini-body">
+          <span class="sp-mini-label">Next payment</span>
+          <ng-container *ngIf="nextPaymentBlock as np">
+            <span class="sp-mini-date">{{ fmtDate(np.dueDate) }}</span>
+            <span class="sp-mini-value">{{ np.currency }} {{ fmt(np.amount) }}</span>
+            <span class="sp-mini-hint sp-mini-hint-ellipsis" [matTooltip]="np.title">{{ np.title }}</span>
+          </ng-container>
+          <ng-container *ngIf="!nextPaymentBlock">
+            <span class="sp-mini-value sp-mini-muted">—</span>
+            <span class="sp-mini-hint">No open amount due</span>
+          </ng-container>
+        </div>
+      </mat-card>
+
+      <!-- 4: Due -->
+      <mat-card class="sp-mini-stat sp-mini-red">
+        <div class="sp-mini-icon"><mat-icon>account_balance_wallet</mat-icon></div>
+        <div class="sp-mini-body">
+          <span class="sp-mini-label">Amount due</span>
+          <ng-container *ngIf="duePerCurrency.length; else noDue">
+            <div class="sp-mini-value" *ngFor="let d of duePerCurrency">{{ d.currency }} {{ fmt(d.amount) }}</div>
+          </ng-container>
+          <ng-template #noDue>
+            <span class="sp-mini-value sp-mini-muted">—</span>
+            <span class="sp-mini-hint">Nothing outstanding</span>
+          </ng-template>
+        </div>
+      </mat-card>
+    </div>
+
+    <!-- Program pricing card -->
+    <section class="sp-catalog-card" *ngIf="!loadingCatalog && catalogCefrRows.length > 0">
+      <div class="sp-catalog-head">
+        <mat-icon class="sp-catalog-icon">table_chart</mat-icon>
+        <div>
+          <h2 class="sp-catalog-title">Program pricing — your level</h2>
+          <p class="sp-catalog-sub">
+            All levels completed so far
+            <span *ngIf="catalog?.studentLevel"> · You are on <strong>{{ catalog?.studentLevel }}</strong></span>
+          </p>
+        </div>
+      </div>
+
+      <div class="sp-catalog-table-wrap">
+        <table class="sp-catalog-table">
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th class="sp-num-col">SL (LKR)</th>
+              <th class="sp-num-col">INR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of catalogCefrRows" [class.sp-catalog-own-level]="row.code === catalog?.studentLevel">
+              <td>
+                <span class="sp-catalog-code">{{ row.code }}</span>
+                <span class="sp-catalog-own-badge" *ngIf="row.code === catalog?.studentLevel">current</span>
+              </td>
+              <td class="sp-num-col">LKR {{ fmt(row.lkr) }}</td>
+              <td class="sp-num-col">INR {{ fmt(row.inr) }}</td>
+            </tr>
+          </tbody>
+          <tfoot *ngIf="catalogCefrRows.length > 1">
+            <tr class="sp-catalog-total-row">
+              <td><strong>Total</strong></td>
+              <td class="sp-num-col"><strong>LKR {{ fmt(cefrTotalLkr()) }}</strong></td>
+              <td class="sp-num-col"><strong>INR {{ fmt(cefrTotalInr()) }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Default schedule -->
+      <ng-container *ngIf="scheduleSteps.length > 0">
+        <div class="sp-schedule-divider" role="presentation"></div>
+        <div class="sp-schedule-head">
+          <mat-icon class="sp-schedule-icon">calendar_month</mat-icon>
+          <span class="sp-schedule-title">{{ scheduleTitle }}</span>
+        </div>
+        <ol class="sp-schedule-steps">
+          <li *ngFor="let step of scheduleSteps; let si = index; trackBy: trackStep" class="sp-schedule-step">
+            <div class="sp-step-dot"></div>
+            <div class="sp-step-body">
+              <span class="sp-step-label">{{ step.label || ('Step ' + (si + 1)) }}</span>
+              <span class="sp-step-meta" *ngIf="step.daysFromEnrollment != null">
+                Within {{ step.daysFromEnrollment }} day(s) from enrolment
+              </span>
+              <span class="sp-step-amount" *ngIf="step.amountLkr != null || step.amountInr != null">
+                <ng-container *ngIf="step.amountLkr != null">LKR {{ fmt(step.amountLkr) }}</ng-container>
+                <ng-container *ngIf="step.amountLkr != null && step.amountInr != null"> / </ng-container>
+                <ng-container *ngIf="step.amountInr != null">INR {{ fmt(step.amountInr) }}</ng-container>
+              </span>
+            </div>
+          </li>
+        </ol>
+        <p class="sp-schedule-notes" *ngIf="scheduleNotes">{{ scheduleNotes }}</p>
+      </ng-container>
+    </section>
+
+    <!-- Requests -->
+    <section class="sp-panel">
+      <div class="sp-panel-head">
+        <h2 class="sp-section-title">Your payment requests</h2>
+        <span class="sp-panel-badge" *ngIf="total > 0">{{ total }} total</span>
+      </div>
+
+      <div class="sp-panel-divider" role="presentation"></div>
+
+      <div *ngIf="requests.length === 0" class="sp-empty">
+        <div class="sp-empty-icon">
+          <mat-icon>sentiment_satisfied_alt</mat-icon>
+        </div>
+        <h3 class="sp-empty-title">You’re all set</h3>
+        <p class="sp-empty-text">There are no payment requests for your account right now.</p>
+      </div>
+
+      <div class="sp-request-list" *ngIf="requests.length > 0">
+        <mat-card *ngFor="let req of requests" class="sp-request-card" [ngClass]="{
+          'sp-request-overdue': isUrgent(req),
+          'sp-request-review': req.status === 'SUBMITTED' || req.status === 'UNDER_REVIEW',
+          'sp-request-done': req.status === 'APPROVED' || req.status === 'FULLY_PAID'
+        }">
+          <div class="sp-req-top">
+            <div class="sp-req-main">
+              <div class="sp-req-type-row">
+                <span class="sp-req-type">{{ req.paymentType }}<span *ngIf="req.customType" class="sp-req-custom"> — {{ req.customType }}</span></span>
+                <span class="sp-pill" [ngClass]="statusClass(req)">{{ displayStatus(req) }}</span>
+              </div>
+              <div class="sp-req-due-row">
+                <mat-icon class="sp-req-due-icon">event</mat-icon>
+                <span>Due {{ fmtDate(req.dueDate) }}</span>
+                <span class="sp-due-hint" *ngIf="dueHint(req)">{{ dueHint(req) }}</span>
+              </div>
+            </div>
+            <div class="sp-req-amount-block">
+              <span class="sp-amount-label">Amount</span>
+              <span class="sp-amount-value">{{ req.currency }} {{ fmt(req.amount) }}</span>
+              <span class="sp-amount-remaining" *ngIf="req.amountRemaining != null && req.amountRemaining < req.amount && req.status !== 'FULLY_PAID'">
+                Remaining: {{ req.currency }} {{ fmt(req.amountRemaining) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="sp-purpose-block"
+               *ngIf="req.remarks && req.status !== 'APPROVED' && req.status !== 'FULLY_PAID'">
+            <div class="sp-purpose-label">
+              <mat-icon>flag</mat-icon>
+              What this payment is for
+            </div>
+            <div class="sp-purpose-text">{{ req.remarks }}</div>
+          </div>
+
+          <div class="sp-req-footer" *ngIf="canUpload(req)">
+            <button mat-flat-button
+              [color]="isUrgent(req) ? 'warn' : 'primary'"
+              [class.sp-btn-urgent]="isUrgent(req)"
+              type="button"
+              (click)="openUpload(req)">
+              <mat-icon>cloud_upload</mat-icon>
+              {{ actionLabel(req) }}
+            </button>
+          </div>
+
+          <div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
+            <mat-icon>verified</mat-icon>
+            <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this request is fully paid.' : '.' }}</span>
+          </div>
+
+          <div class="sp-review-row" *ngIf="req.status === 'SUBMITTED' || req.status === 'UNDER_REVIEW'">
+            <mat-icon>hourglass_top</mat-icon>
+            <span>We received your proof. Our team is reviewing it.</span>
+          </div>
+        </mat-card>
+      </div>
+
+      <div class="sp-pager" *ngIf="total > pageSize">
+        <button mat-stroked-button type="button" (click)="prevPage()" [disabled]="page <= 1">
+          <mat-icon>chevron_left</mat-icon> Previous
+        </button>
+        <span class="sp-pager-info">Page {{ page }} of {{ totalPages }}</span>
+        <button mat-stroked-button type="button" (click)="nextPage()" [disabled]="page * pageSize >= total">
+          Next <mat-icon>chevron_right</mat-icon>
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>

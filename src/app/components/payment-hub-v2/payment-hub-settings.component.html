@@ -1,0 +1,182 @@
+<div class="ps-root">
+  <header class="ps-header">
+    <div class="ps-header-inner">
+      <a mat-icon-button routerLink="/admin/payment-hub" class="ps-back-btn" matTooltip="Back to Payment Hub">
+        <mat-icon>arrow_back</mat-icon>
+      </a>
+      <div class="ps-header-text">
+        <h1 class="ps-title">Payment Settings</h1>
+        <p class="ps-subtitle">Program pricing catalog and default payment schedule</p>
+      </div>
+    </div>
+    <div class="ps-last-updated" *ngIf="lastUpdated">
+      Last saved: {{ fmtDate(lastUpdated) }}
+    </div>
+  </header>
+
+  <div class="ps-body" *ngIf="loading">
+    <div class="ps-spinner-wrap"><mat-spinner diameter="44"></mat-spinner></div>
+  </div>
+
+  <div class="ps-body" *ngIf="!loading">
+
+    <!-- ── CEFR pricing ───────────────────────────────────────────────────── -->
+    <section class="ps-card">
+      <div class="ps-section-head">
+        <mat-icon class="ps-section-icon">school</mat-icon>
+        <div>
+          <h2 class="ps-section-title">CEFR level pricing</h2>
+          <p class="ps-section-sub">Per-level costs visible to students cumulatively (A2 student sees A1 + A2, etc.)</p>
+        </div>
+      </div>
+
+      <div class="ps-cefr-table-wrap">
+        <table class="ps-table">
+          <thead>
+            <tr>
+              <th class="ps-col-level">Level</th>
+              <th class="ps-col-currency">LKR</th>
+              <th class="ps-col-currency">INR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of cefrRows">
+              <td class="ps-level-badge-cell">
+                <span class="ps-level-badge">{{ row.code }}</span>
+              </td>
+              <td>
+                <mat-form-field appearance="outline" class="ps-num-field">
+                  <input matInput type="number" min="0" [(ngModel)]="row.lkr" />
+                </mat-form-field>
+              </td>
+              <td>
+                <mat-form-field appearance="outline" class="ps-num-field">
+                  <input matInput type="number" min="0" [(ngModel)]="row.inr" />
+                </mat-form-field>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Reference / package rows ──────────────────────────────────────── -->
+    <section class="ps-card">
+      <div class="ps-section-head">
+        <mat-icon class="ps-section-icon">receipt_long</mat-icon>
+        <div>
+          <h2 class="ps-section-title">Reference rows (admin only)</h2>
+          <p class="ps-section-sub">Doc, Visa, Relocation, package totals — not shown to students</p>
+        </div>
+        <button mat-flat-button color="primary" type="button" class="ps-add-btn" (click)="addReferenceRow()">
+          <mat-icon>add</mat-icon> Add row
+        </button>
+      </div>
+
+      <div class="ps-ref-table-wrap">
+        <table class="ps-table" *ngIf="referenceRows.length > 0; else noRefRows">
+          <thead>
+            <tr>
+              <th class="ps-col-label">Label</th>
+              <th class="ps-col-currency">LKR</th>
+              <th class="ps-col-currency">INR</th>
+              <th class="ps-col-action"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of referenceRows; let i = index">
+              <td>
+                <mat-form-field appearance="outline" class="ps-label-field">
+                  <input matInput [(ngModel)]="row.label" placeholder="e.g. Visa" />
+                </mat-form-field>
+              </td>
+              <td>
+                <mat-form-field appearance="outline" class="ps-num-field">
+                  <input matInput type="number" min="0" [(ngModel)]="row.lkr" />
+                </mat-form-field>
+              </td>
+              <td>
+                <mat-form-field appearance="outline" class="ps-num-field">
+                  <input matInput type="number" min="0" [(ngModel)]="row.inr" />
+                </mat-form-field>
+              </td>
+              <td class="ps-col-action">
+                <button mat-icon-button color="warn" type="button" (click)="removeReferenceRow(i)" matTooltip="Remove">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #noRefRows>
+          <p class="ps-empty-hint">No reference rows yet. Click "Add row" to add one.</p>
+        </ng-template>
+      </div>
+    </section>
+
+    <!-- ── Default installment schedule ──────────────────────────────────── -->
+    <section class="ps-card">
+      <div class="ps-section-head">
+        <mat-icon class="ps-section-icon">calendar_month</mat-icon>
+        <div>
+          <h2 class="ps-section-title">Default payment schedule</h2>
+          <p class="ps-section-sub">Shown to students as guidance — does not enforce any payment amount</p>
+        </div>
+        <button mat-flat-button color="primary" type="button" class="ps-add-btn" (click)="addStep()">
+          <mat-icon>add</mat-icon> Add step
+        </button>
+      </div>
+
+      <div class="ps-schedule-fields">
+        <mat-form-field appearance="outline" class="ps-full-field">
+          <mat-label>Schedule title</mat-label>
+          <input matInput [(ngModel)]="schedule.title" placeholder="e.g. Default payment schedule" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="ps-full-field">
+          <mat-label>Notes (visible to students)</mat-label>
+          <textarea matInput rows="2" [(ngModel)]="schedule.notes" placeholder="Additional guidance shown below the steps"></textarea>
+        </mat-form-field>
+      </div>
+
+      <div class="ps-steps-list" *ngIf="schedule.steps && schedule.steps.length > 0">
+        <div *ngFor="let step of schedule.steps; let i = index; trackBy: trackStep" class="ps-step-row">
+          <span class="ps-step-num">{{ i + 1 }}</span>
+          <mat-form-field appearance="outline" class="ps-step-label">
+            <mat-label>Step label</mat-label>
+            <input matInput [(ngModel)]="step.label" placeholder="e.g. First instalment" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="ps-step-days">
+            <mat-label>Days from enrolment</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="step.daysFromEnrollment" placeholder="—" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="ps-step-amount">
+            <mat-label>Amount (LKR)</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="step.amountLkr" placeholder="—" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="ps-step-amount">
+            <mat-label>Amount (INR)</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="step.amountInr" placeholder="—" />
+          </mat-form-field>
+          <button mat-icon-button color="warn" type="button" (click)="removeStep(i)" matTooltip="Remove step">
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      </div>
+      <p class="ps-empty-hint" *ngIf="!schedule.steps || schedule.steps.length === 0">
+        No steps yet. Click "Add step" to define the first instalment.
+      </p>
+    </section>
+
+    <!-- ── Save bar ───────────────────────────────────────────────────────── -->
+    <div class="ps-save-bar">
+      <a mat-stroked-button routerLink="/admin/payment-hub" class="ps-save-back">Back to hub</a>
+      <button mat-flat-button color="primary" type="button" class="ps-save-primary" (click)="save()" [disabled]="saving">
+        <mat-spinner *ngIf="saving" diameter="18" class="ps-save-spinner"></mat-spinner>
+        <mat-icon *ngIf="!saving">save</mat-icon>
+        {{ saving ? 'Saving…' : 'Save settings' }}
+      </button>
+    </div>
+
+  </div>
+</div>

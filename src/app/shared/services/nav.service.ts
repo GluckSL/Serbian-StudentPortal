@@ -116,7 +116,9 @@ export class NavService {
     {
       group: 'Payments',
       items: [
-        { id: 'payments', label: 'Payments', icon: '💳', route: '/admin/payments', subGroup: null },
+        { id: 'payment-hub', label: 'Payment Hub (New)', icon: '💳', route: '/admin/payment-hub', subGroup: null },
+        { id: 'payment-request', label: 'Req Payment', icon: '📤', route: '/admin/payment-request', subGroup: null },
+        { id: 'payments', label: 'Payments', icon: '💵', route: '/admin/payments', subGroup: null },
         { id: 'invoices', label: 'Invoices', icon: '🧾', route: '/admin/invoices', subGroup: null },
         { id: 'payment-approvals', label: 'Payment Approvals', icon: '✅', route: '/admin/payment-approvals', subGroup: null }
       ]
@@ -247,6 +249,7 @@ export class NavService {
     {
       group: 'Payments',
       items: [
+        { id: 'my-payments', label: 'My Payments (New)', icon: 'payments', route: '/my-payments', subGroup: null },
         { id: 'payments', label: 'Payments', icon: 'payments', route: '/student-payments', subGroup: null }
       ]
     },
