@@ -43,6 +43,8 @@ interface ReviewQuestion {
   // Question / Answer
   prompt?: string;
   sampleAnswers?: string[];
+  /** Shared reading text for multiple true/false items (optional). */
+  storyParagraph?: string;
   similarityThreshold?: number;
   scoringMode?: 'full' | 'proportional';
   // Listening
@@ -1301,6 +1303,19 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (q.sampleAnswers!.length > 1) q.sampleAnswers!.splice(i, 1);
   }
 
+  /** True/false worksheet: store correct side as one sample answer (matches player + builder). */
+  setTrueFalseAnswer(q: ReviewQuestion, value: boolean): void {
+    q.sampleAnswers = [value ? 'true' : 'false'];
+  }
+
+  parseTrueFalseAnswer(raw: unknown): boolean | null {
+    const s = String(raw ?? '').trim().toLowerCase();
+    if (!s) return null;
+    if (/\b(true|richtig|wahr|ja|yes|correct)\b/.test(s)) return true;
+    if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+    return null;
+  }
+
   setThreshold(q: ReviewQuestion, raw: any): void {
     let v = parseInt(String(raw), 10);
     if (isNaN(v)) return;
@@ -1499,7 +1514,13 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     }
     if (q.type === 'fill-blank') return !!(q.sentence?.trim()) && this.getBlankCount(q) > 0 && (q.answers?.every(a => a.trim()) ?? false);
     if (q.type === 'pronunciation') return !!(q.word?.trim());
-    if (q.type === 'question-answer') return this.htmlFieldHasContent(q.prompt);
+    if (q.type === 'question-answer') {
+      if (!this.htmlFieldHasContent(q.prompt)) return false;
+      if (q.worksheetKind === 'true-false') {
+        return this.parseTrueFalseAnswer(q.sampleAnswers?.[0]) !== null;
+      }
+      return true;
+    }
     if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
     if ((q.type as any) === 'jumble-word') return !!(q as any).scrambledText?.trim() && !!(q as any).expectedWord?.trim();
     return false;
@@ -1543,6 +1564,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       if (!q.word?.trim()) parts.push('Add the word or phrase to pronounce.');
     } else if (q.type === 'question-answer') {
       if (!this.htmlFieldHasContent(q.prompt)) parts.push('Add the question or instruction text.');
+      if (q.worksheetKind === 'true-false' && this.parseTrueFalseAnswer(q.sampleAnswers?.[0]) === null) {
+        parts.push('Choose whether the statement is Richtig or Falsch.');
+      }
     } else if (q.type === 'listening') {
       if (!q.mediaUrl?.trim()) parts.push('Add audio (upload or URL).');
       if (!q.expectedTranscript?.trim()) parts.push('Add the expected transcript.');

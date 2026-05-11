@@ -872,7 +872,38 @@
               <label>Question <span class="required">*</span></label>
               <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="Type the question here..."></app-rich-text-input>
             </div>
-            <div class="ed-field">
+            <div class="ed-field" *ngIf="q.worksheetKind === 'true-false'">
+              <label>Story paragraph <span class="opt-label">(optional)</span></label>
+              <textarea
+                [(ngModel)]="q.storyParagraph"
+                class="ed-input"
+                rows="4"
+                placeholder="Optional reading passage shown above this statement for students."
+              ></textarea>
+            </div>
+            <div class="ed-field" *ngIf="q.worksheetKind === 'true-false'">
+              <label>Answer <span class="required">*</span></label>
+              <div class="tf-answers-pdf" role="group" aria-label="Richtig oder Falsch">
+                <label class="tf-check-pdf">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === true"
+                    (click)="setTrueFalseAnswer(q, true)"
+                  />
+                  Richtig
+                </label>
+                <label class="tf-check-pdf">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === false"
+                    (click)="setTrueFalseAnswer(q, false)"
+                  />
+                  Falsch
+                </label>
+              </div>
+              <p class="field-hint">Wählen Sie die richtige Antwort.</p>
+            </div>
+            <div class="ed-field" *ngIf="q.worksheetKind !== 'true-false'">
               <label>
                 Sample Answers
                 <span class="opt-label">(optional — if none, AI grades automatically)</span>

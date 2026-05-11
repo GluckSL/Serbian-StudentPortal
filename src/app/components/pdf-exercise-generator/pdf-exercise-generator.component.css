@@ -2130,3 +2130,26 @@
   display: block;
   min-width: 140px;
 }
+
+/* True/false (worksheetKind true-false) in PDF review editor */
+.tf-answers-pdf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-top: 6px;
+}
+.tf-check-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  user-select: none;
+}
+.tf-check-pdf input {
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+}

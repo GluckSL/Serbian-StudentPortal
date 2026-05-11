@@ -2854,6 +2854,37 @@ Respond with ONLY the JSON object.`;
       if (meta.example && !converted.example) converted.example = meta.example;
       if (!converted.points) converted.points = meta.points;
 
+      // Builder + player expect explicit `worksheetKind` for worksheet-style Q&A; models often omit it.
+      if (targetType === 'true-false') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = 'true-false';
+        const samples = Array.isArray(converted.sampleAnswers) ? converted.sampleAnswers : [];
+        let tf = null;
+        for (const s of samples) {
+          tf = parseTrueFalse(s);
+          if (tf !== null) break;
+        }
+        if (tf === null) tf = true;
+        converted.sampleAnswers = tf ? ['Richtig'] : ['Falsch'];
+        if (converted.similarityThreshold == null) converted.similarityThreshold = 75;
+        if (!converted.scoringMode) converted.scoringMode = 'full';
+      } else if (targetType === 'sentence-transformation') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = 'sentence-transformation';
+      } else if (targetType === 'error-correction') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = 'error-correction';
+      } else if (targetType === 'free-writing-own-sentences') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = 'free-writing-own-sentences';
+      } else if (targetType === 'table-profile-fill') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = 'table-profile-fill';
+      } else if (targetType === 'question-answer') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = null;
+      }
+
       return res.json({ question: converted });
     } catch (err) {
       console.error('POST /digital-exercises/convert-question-type error:', err);
