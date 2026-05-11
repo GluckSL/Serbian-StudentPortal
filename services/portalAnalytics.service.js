@@ -16,7 +16,8 @@ const MAX_CREDIT_PER_HEARTBEAT_SEC = 30;
 const HEARTBEAT_GAP_STALE_SEC = 120;
 /** Cron / auto-close: silence longer than this ends the session. */
 const STALE_SILENCE_MS = 2 * 60 * 1000;
-const PORTAL_ANALYTICS_DEBUG = /^(1|true|yes)$/i.test(String(process.env.PORTAL_ANALYTICS_DEBUG || '1'));
+/** Set PORTAL_ANALYTICS_DEBUG=1 to log heartbeats / timer events (off by default). */
+const PORTAL_ANALYTICS_DEBUG = /^(1|true|yes)$/i.test(String(process.env.PORTAL_ANALYTICS_DEBUG || '0'));
 
 function logPortalDebug(message, payload = null) {
   if (!PORTAL_ANALYTICS_DEBUG) return;

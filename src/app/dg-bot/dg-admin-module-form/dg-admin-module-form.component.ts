@@ -64,9 +64,7 @@ export class DgAdminModuleFormComponent implements OnInit {
   editLevel = '';
   editLanguage = 'German';
   editNativeLanguage = 'English';
-  editMinimumCompletionTime = 10;
-  editMinPracticeMinutes = 10;
-  editMaxPracticeMinutes = '';
+  editMinimumCompletionTime = 5;
   editCourseDay = '';
   editCharacterId = '';
   editVisible = false;
@@ -250,11 +248,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editLanguage = row.language || 'German';
     this.editNativeLanguage = row.nativeLanguage || 'English';
     this.editMinimumCompletionTime =
-      row.minimumCompletionTime != null ? row.minimumCompletionTime : 10;
-    this.editMinPracticeMinutes =
-      row.minPracticeMinutes != null ? row.minPracticeMinutes : (row.minimumCompletionTime != null ? row.minimumCompletionTime : 10);
-    this.editMaxPracticeMinutes =
-      row.maxPracticeMinutes != null ? String(row.maxPracticeMinutes) : '';
+      row.minimumCompletionTime != null ? row.minimumCompletionTime : 5;
     this.editCourseDay =
       row.courseDay != null && row.courseDay > 0 ? String(row.courseDay) : '';
     this.editCharacterId =
@@ -277,9 +271,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editLevel = '';
     this.editLanguage = 'German';
     this.editNativeLanguage = 'English';
-    this.editMinimumCompletionTime = 10;
-    this.editMinPracticeMinutes = 10;
-    this.editMaxPracticeMinutes = '';
+    this.editMinimumCompletionTime = 5;
     this.editCourseDay = '';
     this.editCharacterId =
       this.characters.find((c) => c.isDefault)?._id || this.characters[0]?._id || '';
@@ -583,10 +575,7 @@ export class DgAdminModuleFormComponent implements OnInit {
   }
 
   private buildModulePayload() {
-    const mct = Number(this.editMinimumCompletionTime);
-    const minPractice = Number(this.editMinPracticeMinutes);
-    const maxPracticeRaw = (this.editMaxPracticeMinutes || '').trim();
-    const maxPractice = maxPracticeRaw === '' ? null : Number(maxPracticeRaw);
+    const duration = Number(this.editMinimumCompletionTime);
     const cdRaw = (this.editCourseDay || '').trim();
     const courseDayPayload = cdRaw === '' ? null : Number(cdRaw);
     return {
@@ -595,9 +584,9 @@ export class DgAdminModuleFormComponent implements OnInit {
       level: this.editLevel.trim(),
       language: this.editLanguage,
       nativeLanguage: this.editNativeLanguage,
-      minimumCompletionTime: mct,
-      minPracticeMinutes: minPractice,
-      maxPracticeMinutes: maxPractice,
+      minimumCompletionTime: duration,
+      minPracticeMinutes: duration,
+      maxPracticeMinutes: null,
       courseDay: courseDayPayload,
       characterId: this.editCharacterId,
       visibleToStudents: this.editVisible,
@@ -622,7 +611,7 @@ export class DgAdminModuleFormComponent implements OnInit {
 
   async save(navigateAfterSave = true): Promise<boolean> {
     // #region agent log
-    fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:save-entry',message:'save() called',data:{title:this.editTitle,minPractice:this.editMinPracticeMinutes,maxPractice:this.editMaxPracticeMinutes,charId:this.editCharacterId,level:this.editLevel,saving:this.saving},timestamp:Date.now(),hypothesisId:'H-B,H-C'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:save-entry',message:'save() called',data:{title:this.editTitle,duration:this.editMinimumCompletionTime,charId:this.editCharacterId,level:this.editLevel,saving:this.saving},timestamp:Date.now(),hypothesisId:'H-B,H-C'})}).catch(()=>{});
     // #endregion
     this.message = null;
     this.missingFields = new Set<string>();
@@ -638,22 +627,9 @@ export class DgAdminModuleFormComponent implements OnInit {
     if (!this.editLanguage?.trim()) fail('targetLang', 'Target language');
     if (!this.editNativeLanguage?.trim()) fail('nativeLang', 'Native language');
     if (!this.editLevel?.trim()) fail('cefrLevel', 'Level');
-    const mct = Number(this.editMinimumCompletionTime);
-    if (Number.isNaN(mct) || mct < 5 || mct > 60) {
-      fail('minComplete', 'Minimum completion time (5–60 min)');
-    }
-    const minPractice = Number(this.editMinPracticeMinutes);
-    if (Number.isNaN(minPractice) || minPractice < 5 || minPractice > 120) {
-      fail('minPracticeMins', 'Min practice time (5–120 min)');
-    }
-    const maxPracticeRaw = (this.editMaxPracticeMinutes || '').trim();
-    if (maxPracticeRaw !== '') {
-      const maxPractice = Number(maxPracticeRaw);
-      if (Number.isNaN(maxPractice) || maxPractice < 5 || maxPractice > 180) {
-        fail('maxPracticeMins', 'Max practice time (5–180 min or empty)');
-      } else if (!Number.isNaN(minPractice) && maxPractice < minPractice) {
-        fail('maxPracticeMins', 'Max practice time must be ≥ min practice time');
-      }
+    const duration = Number(this.editMinimumCompletionTime);
+    if (Number.isNaN(duration) || duration < 2) {
+      fail('duration', 'Duration must be at least 2 minutes');
     }
     if (!this.editRolePlay.situation?.trim()) fail('rpsSit', 'Situation');
     if (!this.editRolePlay.studentRole?.trim()) fail('rpsSr', 'Student role');
