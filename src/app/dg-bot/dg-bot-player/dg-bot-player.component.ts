@@ -450,9 +450,44 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.conversationPracticeStartedAt = 0;
   }
 
+  /**
+   * Snap elapsed time, clear the interval, and freeze (no wall-clock growth).
+   * Used while the completion overlay is open so % / minutes do not creep up in the background.
+   */
+  private pauseConversationPracticeTimerFreeze(): void {
+    if (this.conversationPracticeStartedAt) {
+      const next = Math.floor((Date.now() - this.conversationPracticeStartedAt) / 1000);
+      this.sessionElapsedSec = Math.max(0, next);
+    }
+    if (this.sessionTimerHandle) {
+      clearInterval(this.sessionTimerHandle);
+      this.sessionTimerHandle = null;
+    }
+    this.conversationPracticeStartedAt = 0;
+  }
+
   /** Seconds beyond the goal (only meaningful when overtimeMode = true). */
   get overtimeElapsedSec(): number {
     return Math.max(0, this.sessionElapsedSec - this.conversationMinTargetSeconds);
+  }
+
+  /** After Continue from an early end (before the goal), count up toward the goal again. */
+  private resumeTimerTowardGoal(): void {
+    if (this.sessionTimerHandle || this.conversationComplete) return;
+    if (!this.conversationMode || !this.conversationStarted) return;
+    const target = this.conversationMinTargetSeconds;
+    if (target <= 0) return;
+    const frozen = Math.min(this.sessionElapsedSec, target);
+    if (frozen >= target) {
+      this.timerExpired = true;
+      this.sessionElapsedSec = target;
+      if (!this.currentMotivationText) {
+        this.currentMotivationText = this.pickMotivationText();
+      }
+      return;
+    }
+    this.conversationPracticeStartedAt = Date.now() - frozen * 1000;
+    this.sessionTimerHandle = setInterval(() => this.tickSessionElapsed(), 1000);
   }
 
   /**
@@ -461,8 +496,9 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
    */
   private resumeTimerForOvertime(): void {
     if (this.sessionTimerHandle) return;
-    // Re-anchor so elapsed continues from conversationMinTargetSeconds onward
-    this.conversationPracticeStartedAt = Date.now() - (this.conversationMinTargetSeconds * 1000);
+    const target = this.conversationMinTargetSeconds;
+    const frozen = Math.max(this.sessionElapsedSec, target);
+    this.conversationPracticeStartedAt = Date.now() - frozen * 1000;
     this.sessionTimerHandle = setInterval(() => this.tickSessionElapsed(), 1000);
   }
 
@@ -858,6 +894,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.aiTyping = false;
       this.currentMotivationText = this.pickMotivationText();
       this.earlyEndRequested = true;
+      this.pauseConversationPracticeTimerFreeze();
       // In overtime the overlay was already dismissed once — re-open it
       if (this.overtimeMode) {
         this.completionDialogDismissed = false;
@@ -1032,7 +1069,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (phase === 'complete' || response.complete) {
         this.conversationComplete = true;
         await dgDelay(800);
-        await this.finishModule();
+        await this.finishModule({ naturalConversation: true });
         return;
       }
 
@@ -1058,16 +1095,18 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   /** Student chose "Continue" from the completion overlay — keep chatting. */
   async continueAfterCompletion(): Promise<void> {
-    const wasEarlyEnd = this.earlyEndRequested && !this.timerExpired;
+    const hadEarlyEndOverlay = this.earlyEndRequested;
     const wasTimerExpired = this.timerExpired;
     this.earlyEndRequested = false;
     this.completionDialogDismissed = true;
-    if (wasEarlyEnd) {
-      // Reset so the timer-expired overlay can still appear later
+    if (hadEarlyEndOverlay && !wasTimerExpired) {
+      // Pre-goal early end: resume counting toward the goal (timer was frozen on overlay)
       this.completionDialogDismissed = false;
-    }
-    if (wasTimerExpired) {
-      // Re-start timer so it counts upward past the goal (overtime)
+      this.resumeTimerTowardGoal();
+    } else if (hadEarlyEndOverlay && wasTimerExpired) {
+      // Early end during overtime: resume from frozen elapsed past the goal
+      this.resumeTimerForOvertime();
+    } else if (wasTimerExpired) {
       this.overtimeMode = true;
       this.resumeTimerForOvertime();
     }
@@ -1166,7 +1205,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (response.complete) {
         this.conversationComplete = true;
         await dgDelay(800);
-        await this.finishModule();
+        await this.finishModule({ naturalConversation: true });
         return;
       }
       this.charState.setState('idle');
@@ -1240,7 +1279,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (this.hasConversationContent) {
         await this.enterConversationMode();
       } else {
-        await this.finishModule();
+        await this.finishModule({ naturalConversation: true });
       }
       return;
     }
@@ -1251,11 +1290,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.isTransitioning = false;
   }
 
-  private async finishModule(): Promise<void> {
+  private async finishModule(opts?: { naturalConversation?: boolean }): Promise<void> {
     this.stopConversationPracticeTimer();
     if (this.sessionId) {
       const finalScore = this.score != null ? Math.min(100, this.score) : 0;
-      await firstValueFrom(this.dgApi.completeSession(this.sessionId, finalScore)).catch(() => {});
+      const natural = !!opts?.naturalConversation;
+      await firstValueFrom(
+        this.dgApi.completeSession(this.sessionId, finalScore, {
+          naturalConversationComplete: natural || undefined,
+          moduleCompletionPercent: natural ? undefined : this.completionPercentage,
+        }),
+      ).catch(() => {});
     }
     this.charState.forceIdle();
     this.exit();

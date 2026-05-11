@@ -154,9 +154,10 @@
               <span
                 class="dg-hub__status-badge"
                 [class.dg-hub__status-badge--done]="isModuleCompleted(m)"
-                [class.dg-hub__status-badge--live]="!isModuleCompleted(m) && m.visibleToStudents"
+                [class.dg-hub__status-badge--wip]="moduleHasPartialProgress(m)"
+                [class.dg-hub__status-badge--live]="!isModuleCompleted(m) && !moduleHasPartialProgress(m) && m.visibleToStudents"
               >
-                {{ isModuleCompleted(m) ? 'Completed' : m.visibleToStudents ? 'Available' : 'Draft' }}
+                {{ hubStatusLabel(m) }}
               </span>
             </div>
             <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']">

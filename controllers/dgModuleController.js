@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const LearningModule = require('../models/LearningModule');
@@ -238,15 +239,45 @@ exports.listStudent = async (req, res) => {
       })),
     }));
 
-    const completedModuleIds = await DGSession.distinct('moduleId', {
-      studentId: req.user.id,
-      completed: true,
-    });
+    const studentOid =
+      typeof req.user.id === 'string' && mongoose.Types.ObjectId.isValid(req.user.id)
+        ? new mongoose.Types.ObjectId(req.user.id)
+        : req.user.id;
+
+    const [completedModuleIds, bestProgressRows] = await Promise.all([
+      DGSession.distinct('moduleId', {
+        studentId: studentOid,
+        completed: true,
+        $or: [{ moduleFullyComplete: true }, { moduleFullyComplete: { $exists: false } }],
+      }),
+      DGSession.aggregate([
+        {
+          $match: {
+            studentId: studentOid,
+            completed: true,
+            moduleCompletionPercent: { $type: 'number' },
+          },
+        },
+        {
+          $group: {
+            _id: '$moduleId',
+            bestCompletionPercent: { $max: '$moduleCompletionPercent' },
+          },
+        },
+      ]),
+    ]);
+
     const completedSet = new Set((completedModuleIds || []).map((id) => String(id)));
+    const bestPctByModule = new Map(
+      (bestProgressRows || []).map((r) => [String(r._id), Math.min(100, Math.round(r.bestCompletionPercent))]),
+    );
 
     const out = sanitized.map((m) => ({
       ...m,
-      studentProgress: { completed: completedSet.has(String(m._id)) },
+      studentProgress: {
+        completed: completedSet.has(String(m._id)),
+        bestCompletionPercent: bestPctByModule.get(String(m._id)) ?? 0,
+      },
     }));
 
     res.json({ modules: out, studentCourseDay: studentDay });

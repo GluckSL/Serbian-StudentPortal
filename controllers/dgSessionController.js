@@ -205,7 +205,7 @@ exports.update = async (req, res) => {
 
 exports.complete = async (req, res) => {
   try {
-    const { sessionId, finalScore } = req.body;
+    const { sessionId, finalScore, moduleCompletionPercent, naturalConversationComplete } = req.body;
     if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
 
     const session = await DGSession.findById(sessionId);
@@ -219,6 +219,23 @@ exports.complete = async (req, res) => {
       session.score = Math.round(finalScore);
     }
 
+    const natural = naturalConversationComplete === true;
+    const pctRaw =
+      typeof moduleCompletionPercent === 'number' && Number.isFinite(moduleCompletionPercent)
+        ? Math.round(moduleCompletionPercent)
+        : null;
+    const pct = pctRaw != null ? Math.min(100, Math.max(0, pctRaw)) : null;
+    const hasNewProgressPayload = natural || pct != null;
+
+    if (!hasNewProgressPayload) {
+      // Older clients: keep previous behaviour (session counts as fully done in the hub).
+      session.moduleCompletionPercent = null;
+      session.moduleFullyComplete = true;
+    } else {
+      session.moduleFullyComplete = natural || (pct != null && pct >= 100);
+      session.moduleCompletionPercent = natural ? 100 : pct;
+    }
+
     const totalAttempts = session.successCount + session.failureCount;
     const successRate =
       totalAttempts > 0 ? Math.round((session.successCount / totalAttempts) * 100) : 0;
@@ -226,7 +243,13 @@ exports.complete = async (req, res) => {
     pushLog(session, {
       event: 'session_complete',
       sceneIndex: session.currentSceneIndex,
-      meta: { successRate, finalScore: session.score },
+      meta: {
+        successRate,
+        finalScore: session.score,
+        moduleCompletionPercent: session.moduleCompletionPercent,
+        moduleFullyComplete: session.moduleFullyComplete,
+        naturalConversationComplete: natural,
+      },
     });
 
     await session.save();
@@ -239,6 +262,8 @@ exports.complete = async (req, res) => {
         successRate,
         attempts: session.attempts,
         silenceFailureCount: session.silenceFailureCount,
+        moduleCompletionPercent: session.moduleCompletionPercent,
+        moduleFullyComplete: session.moduleFullyComplete,
       },
     });
   } catch (e) {

@@ -57,6 +57,10 @@ const DGSessionSchema = new mongoose.Schema(
     timePerSceneMs: { type: [Number], default: [] },
     completed: { type: Boolean, default: false },
     completedAt: { type: Date, default: null },
+    /** 0–100 time-goal progress when the student ended the session (Gluck Buddy hub). */
+    moduleCompletionPercent: { type: Number, default: null },
+    /** True when the module counts as finished in the student hub (100% goal or natural conversation wrap-up). */
+    moduleFullyComplete: { type: Boolean, default: false },
     logs: { type: [DGSessionLogSchema], default: [] },
   },
   { timestamps: true }

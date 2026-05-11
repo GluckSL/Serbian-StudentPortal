@@ -421,23 +421,37 @@
   <!-- ── Completion overlay ── -->
   <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
     <div class="dg-completion-card">
-      <mat-icon class="dg-completion-icon">emoji_events</mat-icon>
-      <h2 class="dg-completion-title">Congratulations!</h2>
-      <p class="dg-completion-module-name">You completed "{{ payload != null ? payload.module.title : '' }}"</p>
+      <mat-icon
+        class="dg-completion-icon"
+        [class.dg-completion-icon--progress]="completionPercentage < 100"
+      >{{ completionPercentage >= 100 ? 'emoji_events' : 'trending_up' }}</mat-icon>
+      <h2 class="dg-completion-title" *ngIf="completionPercentage >= 100">Congratulations!</h2>
+      <h2 class="dg-completion-title dg-completion-title--progress" *ngIf="completionPercentage < 100 && completionPercentage >= 75">
+        Good effort — almost there!
+      </h2>
+      <h2 class="dg-completion-title dg-completion-title--progress" *ngIf="completionPercentage < 75">
+        Good effort — try a bit more!
+      </h2>
+      <p class="dg-completion-module-name" *ngIf="completionPercentage >= 100">
+        You completed "{{ payload != null ? payload.module.title : '' }}"
+      </p>
+      <p class="dg-completion-module-name" *ngIf="completionPercentage < 100">
+        Session saved for "{{ payload != null ? payload.module.title : '' }}" — you're at {{ completionPercentage }}% of the practice goal.
+      </p>
 
       <!-- Completion percentage block -->
       <div class="dg-completion-pct-block">
         <div class="dg-completion-pct-ring"
-             [class.dg-completion-pct-ring--full]="completionPercentage >= 75">
+             [class.dg-completion-pct-ring--full]="completionPercentage >= 100">
           <span class="dg-completion-pct-value">{{ completionPercentage }}%</span>
           <span class="dg-completion-pct-label">Completed</span>
         </div>
-        <p class="dg-completion-pct-msg dg-completion-pct-msg--success" *ngIf="completionPercentage >= 75">
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--success" *ngIf="completionPercentage >= 100">
           <mat-icon>check_circle</mat-icon>
-          Full completion achieved!
+          Full completion — this module will show under Completed.
         </p>
-        <p class="dg-completion-pct-msg dg-completion-pct-msg--partial" *ngIf="completionPercentage < 75">
-          Reach <strong>75%</strong> or more to fully complete this module.
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--partial" *ngIf="completionPercentage < 100">
+          Reach <strong>100%</strong> of the practice goal (or finish the full conversation) to move this module to Completed.
         </p>
       </div>
 

@@ -91,7 +91,7 @@ export interface DgModuleSummary {
   scenes?: DgScene[];
   updatedAt?: string;
   /** Populated for GET /dg/modules/student (per-student completion). */
-  studentProgress?: { completed: boolean };
+  studentProgress?: { completed: boolean; bestCompletionPercent?: number };
   rolePlayScenario?: DgRolePlayScenario;
   allowedVocabulary?: DgVocabEntry[];
   aiTutorVocabulary?: DgVocabEntry[];

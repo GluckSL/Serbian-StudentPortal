@@ -189,10 +189,15 @@ export class DgApiService {
     return this.http.post<{ ok: boolean }>(`${this.base}/session/update`, body);
   }
 
-  completeSession(sessionId: string, finalScore?: number): Observable<{ ok: boolean }> {
+  completeSession(
+    sessionId: string,
+    finalScore?: number,
+    progress?: { moduleCompletionPercent?: number; naturalConversationComplete?: boolean },
+  ): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.base}/session/complete`, {
       sessionId,
       finalScore,
+      ...progress,
     });
   }
 

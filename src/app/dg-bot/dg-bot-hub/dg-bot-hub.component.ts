@@ -248,14 +248,34 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     return !!m.studentProgress?.completed;
   }
 
+  /** Best saved time-goal progress (0–100) from ended sessions; 0 if none recorded. */
+  moduleBestCompletionPercent(m: DgModuleSummary): number {
+    const n = Number(m.studentProgress?.bestCompletionPercent);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(100, Math.round(n));
+  }
+
+  /** Started Gluck Buddy for this module but not fully complete (100% / natural wrap-up). */
+  moduleHasPartialProgress(m: DgModuleSummary): boolean {
+    return !this.isModuleCompleted(m) && this.moduleBestCompletionPercent(m) > 0;
+  }
+
+  hubStatusLabel(m: DgModuleSummary): string {
+    if (this.isModuleCompleted(m)) return 'Completed';
+    const p = this.moduleBestCompletionPercent(m);
+    if (p > 0) return `${p}% completed`;
+    return m.visibleToStudents ? 'Available' : 'Draft';
+  }
+
   /**
    * Same flow as digital exercises (students):
-   * - New: assigned journey day === current day, not completed.
-   * - Pending: not completed, and not in “new” (past days or no fixed day).
-   * - Completed: at least one completed DG session for this module.
+   * - New: assigned journey day === current day, not fully complete, no saved partial progress yet.
+   * - Pending: partial progress, or past-day modules not finished, or (journey day scope) in-progress on “today”.
+   * - Completed: module reached full completion (100% practice goal or natural conversation wrap-up).
    */
   private matchesStudentTab(m: DgModuleSummary, tab: HubTab): boolean {
     const completed = this.isModuleCompleted(m);
+    const inProgress = this.moduleHasPartialProgress(m);
     const dayNum = this.moduleCourseDayNum(m);
     const cur = this.studentCourseDay;
 
@@ -268,9 +288,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
         return false;
       }
       if (tab === 'new') {
-        return dayNum != null && dayNum === cur && d === cur;
+        return dayNum != null && dayNum === cur && d === cur && !inProgress;
       }
-      return !(dayNum != null && dayNum === cur && d === cur);
+      return !(dayNum != null && dayNum === cur && d === cur && !inProgress);
     }
 
     if (tab === 'completed') {
@@ -280,12 +300,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
       return false;
     }
     if (tab === 'new') {
-      return dayNum != null && dayNum === cur;
+      return dayNum != null && dayNum === cur && !inProgress;
     }
-    if (dayNum != null && dayNum === cur) {
-      return false;
-    }
-    return true;
+    return inProgress || dayNum == null || dayNum !== cur;
   }
 
   journeyDayLabel(m: DgModuleSummary): string {

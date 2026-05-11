@@ -260,6 +260,12 @@
   border-color: #86efac;
 }
 
+.dg-hub__status-badge--wip {
+  background: #fff7ed;
+  color: #9a3412;
+  border-color: #fdba74;
+}
+
 .dg-hub__status-badge--draft {
   background: #fef3c7;
   color: #92400e;
@@ -488,6 +494,11 @@
 .dg-hub__status-badge--live {
   background: #dcfce7;
   color: #166534;
+}
+
+.dg-hub__status-badge--wip {
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .dg-hub__status-badge--draft {
