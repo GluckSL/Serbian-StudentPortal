@@ -22,7 +22,7 @@ const getApprovalQueue = async (req, res) => {
     const [submissions, total] = await Promise.all([
       PaymentFlowSubmission.find({ status: { $in: statusArr }, isArchived: false })
         .populate('studentId', 'name email batch level')
-        .populate('paymentRequestId', 'amount currency paymentType dueDate remarks installmentAllowed totalInstallments')
+        .populate('paymentRequestId', 'amount amountRemaining currency paymentType customType dueDate remarks installmentAllowed totalInstallments')
         .populate('reviewedBy', 'name')
         .populate('approvedBy', 'name')
         .sort(sort)

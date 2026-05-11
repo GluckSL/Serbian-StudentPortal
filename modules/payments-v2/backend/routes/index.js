@@ -27,6 +27,7 @@ router.get('/students/:studentId/history', ctrl.getStudentPaymentHistory);
 // ─── Admin: Payment Requests ─────────────────────────────────────────────────
 router.get('/requests', ctrl.getAllRequests);
 router.post('/requests', requireFinanceAdmin, ctrl.createRequests);
+router.put('/requests/:requestId/installments', requireFinanceAdmin, ctrl.updateInstallmentSchedule);
 router.delete('/requests/:requestId', requireFinanceAdmin, ctrl.archiveRequest);
 router.post('/requests/:requestId/notes', ctrl.addInternalNote);
 router.get('/requests/:requestId/timeline', ctrl.getRequestTimeline);

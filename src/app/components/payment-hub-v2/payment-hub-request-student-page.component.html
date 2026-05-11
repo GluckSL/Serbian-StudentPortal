@@ -108,42 +108,108 @@
               <th>Due Date</th>
               <th>Status</th>
               <th>Submissions &amp; proof</th>
+              <th class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let req of history.requests">
-              <td>{{ req.paymentType }}{{ req.customType ? ' — ' + req.customType : '' }}</td>
-              <td>
-                <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
-                  {{ req.remarks | slice:0:60 }}{{ req.remarks.length > 60 ? '…' : '' }}
-                </span>
-                <span *ngIf="!req.remarks" class="no-remarks">—</span>
-              </td>
-              <td class="col-num">{{ req.currency }} {{ fmt(req.amount) }}</td>
-              <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">{{ req.currency }} {{ fmt(req.amountRemaining) }}</td>
-              <td>{{ fmtDate(req.dueDate) }}</td>
-              <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
-              <td class="col-submissions">
-                <ng-container *ngIf="hasSubmissions(req)">
-                  <div *ngFor="let sub of req.submissions" class="submission-row">
-                    <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
-                      {{ sub.currency }} {{ fmt(sub.paidAmount) }}
+            <ng-container *ngFor="let req of history.requests">
+              <!-- Instalment plan: summary row + one row per scheduled part -->
+              <ng-container *ngIf="hasInstallmentBreakdown(req)">
+                <tr class="row-plan-summary">
+                  <td>
+                    {{ req.paymentType }}{{ req.customType ? ' — ' + req.customType : '' }}
+                    <span class="inst-badge">{{ sortedInst(req).length }} parts</span>
+                  </td>
+                  <td>
+                    <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
+                      {{ req.remarks | slice:0:60 }}{{ req.remarks.length > 60 ? '…' : '' }}
                     </span>
-                    <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
-                      (click)="viewSubmissionProof(sub)"
-                      [disabled]="proofLoadingId === sub._id"
-                      matTooltip="Open the payment screenshot or PDF the student uploaded">
-                      <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
-                      <ng-container *ngIf="proofLoadingId !== sub._id">
-                        <mat-icon>image</mat-icon>
-                        View proof
-                      </ng-container>
+                    <span *ngIf="!req.remarks" class="no-remarks">—</span>
+                  </td>
+                  <td class="col-num">{{ req.currency }} {{ fmt(req.amount) }}</td>
+                  <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">{{ req.currency }} {{ fmt(req.amountRemaining) }}</td>
+                  <td>{{ fmtDate(req.dueDate) }}</td>
+                  <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
+                  <td class="col-submissions">
+                    <span class="sub-hint">Proofs are listed per part below.</span>
+                  </td>
+                  <td class="col-actions">
+                    <button *ngIf="canEditInstallments(req)" mat-stroked-button type="button" color="primary"
+                      (click)="openEditInstallments(req)" matTooltip="Change amounts and due dates (no proofs in review)">
+                      <mat-icon>edit_calendar</mat-icon>
+                      Edit schedule
                     </button>
-                  </div>
-                </ng-container>
-                <span *ngIf="!hasSubmissions(req)" class="no-sub">—</span>
-              </td>
-            </tr>
+                    <span *ngIf="!canEditInstallments(req)" class="no-sub" matTooltip="Cannot edit while a proof is submitted or approved">—</span>
+                  </td>
+                </tr>
+                <tr *ngFor="let inst of sortedInst(req)" class="row-inst-part">
+                  <td class="cell-part">
+                    <span class="part-indent"></span>
+                    Part {{ inst.installmentNumber }}
+                  </td>
+                  <td><span class="no-remarks">—</span></td>
+                  <td class="col-num">{{ inst.currency }} {{ fmt(inst.requestedAmount) }}</td>
+                  <td class="col-num" [class.overdue-num]="inst.status === 'OVERDUE'">{{ inst.currency }} {{ fmt(inst.remainingAmount) }}</td>
+                  <td>{{ fmtDate(inst.dueDate) }}</td>
+                  <td><span class="pill pill-sm" [ngClass]="statusClass(inst.status)">{{ inst.status }}</span></td>
+                  <td class="col-submissions">
+                    <ng-container *ngIf="submissionsForInstallment(req, inst).length">
+                      <div *ngFor="let sub of submissionsForInstallment(req, inst)" class="submission-row">
+                        <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
+                          {{ sub.currency }} {{ fmt(sub.paidAmount) }}
+                        </span>
+                        <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
+                          (click)="viewSubmissionProof(sub)"
+                          [disabled]="proofLoadingId === sub._id"
+                          matTooltip="Open proof for this instalment">
+                          <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
+                          <ng-container *ngIf="proofLoadingId !== sub._id">
+                            <mat-icon>image</mat-icon>
+                            View proof
+                          </ng-container>
+                        </button>
+                      </div>
+                    </ng-container>
+                    <span *ngIf="!submissionsForInstallment(req, inst).length" class="no-sub">—</span>
+                  </td>
+                  <td class="col-actions"><span class="no-sub">—</span></td>
+                </tr>
+              </ng-container>
+              <tr *ngIf="!hasInstallmentBreakdown(req)">
+                <td>{{ req.paymentType }}{{ req.customType ? ' — ' + req.customType : '' }}</td>
+                <td>
+                  <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
+                    {{ req.remarks | slice:0:60 }}{{ req.remarks.length > 60 ? '…' : '' }}
+                  </span>
+                  <span *ngIf="!req.remarks" class="no-remarks">—</span>
+                </td>
+                <td class="col-num">{{ req.currency }} {{ fmt(req.amount) }}</td>
+                <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">{{ req.currency }} {{ fmt(req.amountRemaining) }}</td>
+                <td>{{ fmtDate(req.dueDate) }}</td>
+                <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
+                <td class="col-submissions">
+                  <ng-container *ngIf="hasSubmissions(req)">
+                    <div *ngFor="let sub of req.submissions" class="submission-row">
+                      <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
+                        {{ sub.currency }} {{ fmt(sub.paidAmount) }}
+                      </span>
+                      <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
+                        (click)="viewSubmissionProof(sub)"
+                        [disabled]="proofLoadingId === sub._id"
+                        matTooltip="Open the payment screenshot or PDF the student uploaded">
+                        <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
+                        <ng-container *ngIf="proofLoadingId !== sub._id">
+                          <mat-icon>image</mat-icon>
+                          View proof
+                        </ng-container>
+                      </button>
+                    </div>
+                  </ng-container>
+                  <span *ngIf="!hasSubmissions(req)" class="no-sub">—</span>
+                </td>
+                <td class="col-actions"><span class="no-sub">—</span></td>
+              </tr>
+            </ng-container>
           </tbody>
         </table>
 

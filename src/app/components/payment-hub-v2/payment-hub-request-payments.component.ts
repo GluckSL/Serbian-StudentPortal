@@ -70,6 +70,10 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   sendingRequest = false;
   amount: number | null = null;
   currency = 'LKR';
+  /** true when all selected students share the same inferred currency (currency is locked) */
+  currencyLocked = false;
+  /** shown when selected students have mixed inferred currencies */
+  currencyMixedWarning = false;
   paymentType = 'Monthly Fee';
   customType = '';
   dueDate: Date | null = null;
@@ -167,6 +171,27 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   toggleStudent(row: StudentBrowseRow): void {
     if (this.selectedIds.has(row._id)) this.selectedIds.delete(row._id);
     else this.selectedIds.add(row._id);
+    this.updateCurrencyFromSelection();
+  }
+
+  /** Derives the appropriate currency from the current selection and locks/unlocks the field. */
+  private updateCurrencyFromSelection(): void {
+    const selected = this.studentList.filter(r => this.selectedIds.has(r._id));
+    if (!selected.length) {
+      this.currencyLocked = false;
+      this.currencyMixedWarning = false;
+      return;
+    }
+    const currencies = [...new Set(selected.map(r => r.inferredCurrency || 'LKR'))];
+    if (currencies.length === 1) {
+      this.currency = currencies[0];
+      this.currencyLocked = true;
+      this.currencyMixedWarning = false;
+    } else {
+      // Mixed countries — unlock so admin can pick, but warn
+      this.currencyLocked = false;
+      this.currencyMixedWarning = true;
+    }
   }
 
   isSelected(row: StudentBrowseRow): boolean {
@@ -175,10 +200,12 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   selectAll(): void {
     this.studentList.forEach(r => this.selectedIds.add(r._id));
+    this.updateCurrencyFromSelection();
   }
 
   deselectAll(): void {
     this.selectedIds.clear();
+    this.updateCurrencyFromSelection();
   }
 
   get allPageSelected(): boolean {
@@ -244,6 +271,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     this.selectedIds.clear();
     this.amount = null;
     this.currency = 'LKR';
+    this.currencyLocked = false;
+    this.currencyMixedWarning = false;
     this.paymentType = 'Monthly Fee';
     this.customType = '';
     this.dueDate = null;
@@ -362,6 +391,11 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  initialLetter(name: string | undefined): string {
+    const s = (name || '').trim();
+    return s.length ? s.charAt(0).toUpperCase() : '?';
+  }
+
   planLabel(val: string | undefined): string {
     return this.planOptions.find(p => p.value === val)?.label || val || '—';
   }
@@ -397,5 +431,37 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     const from = (this.approvalPage - 1) * this.approvalPageSize + 1;
     const to = Math.min(this.approvalPage * this.approvalPageSize, this.approvalTotal);
     return `${from}–${to} of ${this.approvalTotal}`;
+  }
+
+  // ── Approval card context (readable payment + instalment summary) ─────────
+
+  requestTypeLine(sub: ApprovalQueueItem): string {
+    const pr = sub.paymentRequestId;
+    if (!pr) return 'Payment';
+    if (pr.paymentType === 'Custom' && pr.customType?.trim()) {
+      return `${pr.paymentType} — ${pr.customType.trim()}`;
+    }
+    return pr.paymentType;
+  }
+
+  /** Parent request is split into multiple scheduled parts */
+  isInstallmentRequest(sub: ApprovalQueueItem): boolean {
+    const pr = sub.paymentRequestId;
+    return Boolean(pr?.installmentAllowed && (pr.totalInstallments ?? 0) > 1);
+  }
+
+  /** Chip text for header / summary */
+  installmentBadge(sub: ApprovalQueueItem): string | null {
+    if (!this.isInstallmentRequest(sub)) return null;
+    const total = sub.paymentRequestId?.totalInstallments ?? '?';
+    if (sub.installmentNumber != null) return `Instalment ${sub.installmentNumber} of ${total}`;
+    return `${total} instalments`;
+  }
+
+  openStudentPaymentPage(sub: ApprovalQueueItem, ev?: Event): void {
+    ev?.stopPropagation();
+    const id = sub.studentId?._id;
+    if (!id) return;
+    window.open(`/admin/payment-request/student/${id}`, '_blank', 'noopener,noreferrer');
   }
 }

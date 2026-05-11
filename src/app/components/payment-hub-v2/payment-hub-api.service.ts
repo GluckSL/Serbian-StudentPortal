@@ -39,8 +39,9 @@ export interface PricingCatalog {
 
 export interface StudentCatalog {
   cefrRows: CefrRow[];
-  defaultInstallmentSchedule?: InstallmentSchedule;
   studentLevel?: string | null;
+  /** Currency inferred from the student's phone number (INR / LKR / USD) */
+  inferredCurrency?: string;
 }
 
 export interface DashboardStats {
@@ -72,6 +73,9 @@ export interface StudentBrowseRow {
   subscription?: string;
   enrollmentDate?: string;
   createdAt?: string;
+  phoneNumber?: string;
+  /** Currency inferred from phone prefix (INR / LKR / USD) */
+  inferredCurrency: string;
   totalPaid: number;
   pendingApprovalAmount: number;
   overdueAmount: number;
@@ -112,10 +116,14 @@ export interface ApprovalQueueItem {
   paymentRequestId: {
     _id: string;
     amount: number;
+    amountRemaining?: number;
     currency: string;
     paymentType: string;
+    customType?: string;
     dueDate: string;
     remarks?: string;
+    installmentAllowed?: boolean;
+    totalInstallments?: number;
   };
   studentId: {
     _id: string;
@@ -134,6 +142,29 @@ export interface ApprovalQueueItem {
   rejectionReason?: string;
   reuploadNote?: string;
   adminRemarks?: string;
+  installmentNumber?: number;
+}
+
+export interface InstallmentRow {
+  _id: string;
+  installmentNumber: number;
+  requestedAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  dueDate: string;
+  currency: string;
+  status: string;
+}
+
+export interface StudentInstallmentView {
+  activeInstallmentNumber: number | null;
+  displayAmount: number;
+  displayDueDate: string | null;
+  canUpload: boolean;
+  totalInstallments: number;
+  allPaid: boolean;
+  /** True when this slice is visible but calendar date has not arrived yet (no upload). */
+  scheduleLocked?: boolean;
 }
 
 export interface PaymentRequestItem {
@@ -151,11 +182,13 @@ export interface PaymentRequestItem {
   totalInstallments: number;
   createdAt: string;
   submissions?: ApprovalQueueItem[];
+  installments?: InstallmentRow[];
+  studentInstallmentView?: StudentInstallmentView | null;
 }
 
 export interface StudentHistory {
   student: { _id: string; name: string; email: string; batch?: string; level?: string; subscription?: string; enrollmentDate?: string; createdAt?: string; };
-  profile: { totalPaid: number; pendingApprovalAmount: number; overdueAmount: number; overdueCount: number; overallStatus: string; lastPaymentDate?: string; lastPaymentAmount?: number; lastPaymentCurrency?: string; } | null;
+  profile: { totalPaid: number; pendingApprovalAmount: number; overdueAmount: number; expectedAmount?: number; overdueCount: number; overallStatus: string; lastPaymentDate?: string; lastPaymentAmount?: number; lastPaymentCurrency?: string; } | null;
   requests: PaymentRequestItem[];
   total: number;
   page: number;
@@ -171,6 +204,7 @@ export interface CreateBulkRequestBody {
   dueDate: string;
   remarks?: string;
   installmentAllowed?: boolean;
+  scheduledInstallments?: { amount: number; dueDate: string }[];
   notificationToggle?: boolean;
 }
 
@@ -217,6 +251,16 @@ export class PaymentHubApiService {
 
   createBulkRequest(body: CreateBulkRequestBody): Observable<{ success: boolean; data: PaymentRequestItem[]; count: number }> {
     return this.http.post<{ success: boolean; data: PaymentRequestItem[]; count: number }>(`${this.base}/requests`, body);
+  }
+
+  updateInstallmentSchedule(
+    requestId: string,
+    body: { installments: Array<{ installmentNumber: number; requestedAmount: number; dueDate: string }> },
+  ): Observable<{ success: boolean; data: InstallmentRow[] }> {
+    return this.http.put<{ success: boolean; data: InstallmentRow[] }>(
+      `${this.base}/requests/${requestId}/installments`,
+      body,
+    );
   }
 
   getAllRequests(params: Record<string, string | number | boolean | undefined | null>): Observable<PagedResponse<PaymentRequestItem>> {

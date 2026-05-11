@@ -16,8 +16,10 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { PaymentHubApiService, StudentHistory, PaymentRequestItem, ApprovalQueueItem } from './payment-hub-api.service';
+import { PaymentHubApiService, StudentHistory, PaymentRequestItem, ApprovalQueueItem, InstallmentRow } from './payment-hub-api.service';
 import { ReqForPaymentDialogComponent } from './req-for-payment-dialog.component';
+import { InstallmentScheduleEditDialogComponent } from './installment-schedule-edit-dialog.component';
+import { buildStudentInstallmentView } from './installment-visibility.util';
 
 @Component({
   selector: 'app-payment-hub-request-student-page',
@@ -111,12 +113,26 @@ export class PaymentHubRequestStudentPageComponent implements OnInit {
   get balanceDue(): number {
     const p = this.history?.profile;
     if (!p) return 0;
-    return (p.overdueAmount ?? 0) + (p.pendingApprovalAmount ?? 0);
+    // expectedAmount = remaining on open requests (REQUESTED, SUBMITTED, …); overdue is tracked separately
+    return (p.overdueAmount ?? 0) + (p.expectedAmount ?? 0);
   }
 
   get nextPayment(): { amount: number; currency: string; dueDate: string } | null {
     if (!this.history?.requests?.length) return null;
+    const now = new Date();
+
+    // Try installment plans first — use the current unlocked slice
+    for (const r of this.history.requests) {
+      if (!r.installmentAllowed || r.status === 'FULLY_PAID') continue;
+      const view = buildStudentInstallmentView(r.installments, now);
+      if (view && !view.allPaid && view.displayDueDate && (view.displayAmount ?? 0) > 0) {
+        return { amount: view.displayAmount, currency: r.currency, dueDate: view.displayDueDate };
+      }
+    }
+
+    // Fall back to non-installment open requests
     const open = this.history.requests.filter(r =>
+      !r.installmentAllowed &&
       ['REQUESTED', 'OVERDUE', 'REUPLOAD_REQUIRED'].includes(r.status)
     );
     if (!open.length) return null;
@@ -141,6 +157,7 @@ export class PaymentHubRequestStudentPageComponent implements OnInit {
       REQUESTED: 'pill-blue', SUBMITTED: 'pill-blue', UNDER_REVIEW: 'pill-amber',
       APPROVED: 'pill-green', FULLY_PAID: 'pill-green', REJECTED: 'pill-red',
       OVERDUE: 'pill-red', REUPLOAD_REQUIRED: 'pill-orange',
+      PENDING: 'pill-grey',
     };
     return map[status] || 'pill-grey';
   }
@@ -186,5 +203,45 @@ export class PaymentHubRequestStudentPageComponent implements OnInit {
     const from = (this.historyPage - 1) * this.historyPageSize + 1;
     const to = Math.min(this.historyPage * this.historyPageSize, this.history.total);
     return `${from}–${to} of ${this.history.total}`;
+  }
+
+  hasInstallmentBreakdown(req: PaymentRequestItem): boolean {
+    return !!req.installmentAllowed && (req.installments?.length ?? 0) > 0;
+  }
+
+  sortedInst(req: PaymentRequestItem): InstallmentRow[] {
+    return [...(req.installments || [])].sort((a, b) => a.installmentNumber - b.installmentNumber);
+  }
+
+  submissionsForInstallment(req: PaymentRequestItem, inst: InstallmentRow): ApprovalQueueItem[] {
+    const subs = (req.submissions as Array<ApprovalQueueItem & { installmentNumber?: number }>) || [];
+    return subs.filter((s) => (s.installmentNumber ?? null) === inst.installmentNumber);
+  }
+
+  /** No live proofs (anything except REJECTED) — safe to edit schedule */
+  canEditInstallments(req: PaymentRequestItem): boolean {
+    if (!this.hasInstallmentBreakdown(req)) return false;
+    const subs = (req.submissions as ApprovalQueueItem[]) || [];
+    return !subs.some((s) => s.status !== 'REJECTED');
+  }
+
+  openEditInstallments(req: PaymentRequestItem): void {
+    if (!req.installments?.length) return;
+    const ref = this.dialog.open(InstallmentScheduleEditDialogComponent, {
+      width: '560px',
+      maxWidth: '96vw',
+      data: {
+        requestId: req._id,
+        currency: req.currency,
+        parentAmount: req.amount,
+        installments: this.sortedInst(req),
+      },
+    });
+    ref.afterClosed().subscribe((saved) => {
+      if (saved) {
+        this.snack.open('Instalment schedule updated.', 'OK', { duration: 4000 });
+        this.loadHistory();
+      }
+    });
   }
 }

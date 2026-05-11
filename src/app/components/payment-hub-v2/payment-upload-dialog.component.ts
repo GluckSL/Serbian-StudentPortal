@@ -11,6 +11,9 @@ import { PaymentRequestItem as PaymentRequest } from './payment-hub-api.service'
 
 export interface UploadDialogData {
   request: PaymentRequest;
+  installmentNumber?: number;
+  suggestedAmount?: number;
+  suggestedDueDate?: string;
 }
 
 @Component({
@@ -34,8 +37,11 @@ export interface UploadDialogData {
       </h2>
       <p class="ud-subtitle">
         {{ data.request.paymentType }}<span *ngIf="data.request.customType"> — {{ data.request.customType }}</span>
-        &bull; {{ data.request.currency }} {{ fmt(data.request.amount) }}
-        &bull; Due {{ fmtDate(data.request.dueDate) }}
+        &bull; {{ data.request.currency }} {{ fmt(data.installmentNumber ? (data.suggestedAmount ?? data.request.amount) : data.request.amount) }}
+        <ng-container *ngIf="data.installmentNumber">
+          &bull; Installment {{ data.installmentNumber }}<ng-container *ngIf="data.request.totalInstallments"> of {{ data.request.totalInstallments }}</ng-container>
+        </ng-container>
+        &bull; Due {{ fmtDate(data.installmentNumber && data.suggestedDueDate ? data.suggestedDueDate : data.request.dueDate) }}
       </p>
 
       <div class="ud-file-zone" [class.ud-file-selected]="selectedFile" (click)="filePicker.click()" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
@@ -196,7 +202,7 @@ export class PaymentUploadDialogComponent {
     private readonly dialogRef: MatDialogRef<PaymentUploadDialogComponent, FormData | null>,
     @Inject(MAT_DIALOG_DATA) readonly data: UploadDialogData,
   ) {
-    this.paidAmount = data.request.amount;
+    this.paidAmount = data.suggestedAmount ?? data.request.amount;
     this.currency = data.request.currency || 'LKR';
   }
 
@@ -222,6 +228,9 @@ export class PaymentUploadDialogComponent {
     fd.append('currency', this.currency);
     fd.append('paymentMethod', this.paymentMethod);
     if (this.transactionId) fd.append('transactionId', this.transactionId);
+    if (this.data.installmentNumber != null) {
+      fd.append('installmentNumber', String(this.data.installmentNumber));
+    }
     this.dialogRef.close(fd);
   }
 

@@ -6,7 +6,7 @@
       </a>
       <div class="ps-header-text">
         <h1 class="ps-title">Payment Settings</h1>
-        <p class="ps-subtitle">Program pricing catalog and default payment schedule</p>
+        <p class="ps-subtitle">Program pricing catalog and reference amounts</p>
       </div>
     </div>
     <div class="ps-last-updated" *ngIf="lastUpdated">
@@ -26,7 +26,7 @@
         <mat-icon class="ps-section-icon">school</mat-icon>
         <div>
           <h2 class="ps-section-title">CEFR level pricing</h2>
-          <p class="ps-section-sub">Per-level costs visible to students cumulatively (A2 student sees A1 + A2, etc.)</p>
+          <p class="ps-section-sub">Per-level costs — students see the row for their current level only (e.g. A1 sees the A1 amounts)</p>
         </div>
       </div>
 
@@ -112,60 +112,6 @@
           <p class="ps-empty-hint">No reference rows yet. Click "Add row" to add one.</p>
         </ng-template>
       </div>
-    </section>
-
-    <!-- ── Default installment schedule ──────────────────────────────────── -->
-    <section class="ps-card">
-      <div class="ps-section-head">
-        <mat-icon class="ps-section-icon">calendar_month</mat-icon>
-        <div>
-          <h2 class="ps-section-title">Default payment schedule</h2>
-          <p class="ps-section-sub">Shown to students as guidance — does not enforce any payment amount</p>
-        </div>
-        <button mat-flat-button color="primary" type="button" class="ps-add-btn" (click)="addStep()">
-          <mat-icon>add</mat-icon> Add step
-        </button>
-      </div>
-
-      <div class="ps-schedule-fields">
-        <mat-form-field appearance="outline" class="ps-full-field">
-          <mat-label>Schedule title</mat-label>
-          <input matInput [(ngModel)]="schedule.title" placeholder="e.g. Default payment schedule" />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="ps-full-field">
-          <mat-label>Notes (visible to students)</mat-label>
-          <textarea matInput rows="2" [(ngModel)]="schedule.notes" placeholder="Additional guidance shown below the steps"></textarea>
-        </mat-form-field>
-      </div>
-
-      <div class="ps-steps-list" *ngIf="schedule.steps && schedule.steps.length > 0">
-        <div *ngFor="let step of schedule.steps; let i = index; trackBy: trackStep" class="ps-step-row">
-          <span class="ps-step-num">{{ i + 1 }}</span>
-          <mat-form-field appearance="outline" class="ps-step-label">
-            <mat-label>Step label</mat-label>
-            <input matInput [(ngModel)]="step.label" placeholder="e.g. First instalment" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="ps-step-days">
-            <mat-label>Days from enrolment</mat-label>
-            <input matInput type="number" min="0" [(ngModel)]="step.daysFromEnrollment" placeholder="—" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="ps-step-amount">
-            <mat-label>Amount (LKR)</mat-label>
-            <input matInput type="number" min="0" [(ngModel)]="step.amountLkr" placeholder="—" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="ps-step-amount">
-            <mat-label>Amount (INR)</mat-label>
-            <input matInput type="number" min="0" [(ngModel)]="step.amountInr" placeholder="—" />
-          </mat-form-field>
-          <button mat-icon-button color="warn" type="button" (click)="removeStep(i)" matTooltip="Remove step">
-            <mat-icon>delete_outline</mat-icon>
-          </button>
-        </div>
-      </div>
-      <p class="ps-empty-hint" *ngIf="!schedule.steps || schedule.steps.length === 0">
-        No steps yet. Click "Add step" to define the first instalment.
-      </p>
     </section>
 
     <!-- ── Save bar ───────────────────────────────────────────────────────── -->

@@ -42,7 +42,21 @@ const applyPaymentToInstallments = async (requestId, submissionId, amount) => {
   const req = await PaymentRequest.findById(requestId);
   if (req) {
     req.amountRemaining = Math.max(0, (req.amountRemaining || req.amount) - amount);
-    if (req.amountRemaining <= 0) req.status = 'FULLY_PAID';
+    if (req.amountRemaining <= 0) {
+      req.status = 'FULLY_PAID';
+    } else {
+      // Partial payment — reset so the student can upload the next installment
+      req.status = 'REQUESTED';
+      // Advance parent dueDate to the next PENDING installment's due date so the
+      // overdue cron and admin dashboards remain accurate.
+      const nextPending = await PaymentInstallment.findOne({
+        paymentRequestId: requestId,
+        status: 'PENDING',
+      }).sort({ installmentNumber: 1 });
+      if (nextPending && nextPending.dueDate) {
+        req.dueDate = nextPending.dueDate;
+      }
+    }
     await req.save();
   }
 };

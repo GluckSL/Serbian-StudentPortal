@@ -355,8 +355,8 @@ async function runMondaySync() {
         const newUser = new User({ ...updateData, email, regNo, password: hashedPassword, role: "STUDENT", registeredAt: parseDate(enrollmentDateStr) || new Date(), createdAt: new Date() });
         await newUser.save();
         try {
-          await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
-            html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>GlÃ¼ck Global Pvt Ltd</strong></p></div>` });
+          await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject: "Welcome to Gluck Global Student Portal",
+            html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p></div>` });
           newUser.lastCredentialsEmailSent = new Date(); await newUser.save();
           console.log(`  ðŸ“§ Credentials email sent to ${email}`);
         } catch (emailErr) { console.error(`  âš ï¸ Failed to send email to ${email}:`, emailErr.message); }
@@ -855,12 +855,12 @@ router.post("/signup", async (req, res) => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: user.email,
-        subject: "Welcome to Gluck Global Student Portal ",
+        subject: "Welcome to Gluck Global Student Portal",
         html: `
           <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
             <p>Hello ${user.name},</p>
 
-            <p>You have successfully registered to the <strong>GlUck Global Student Portal</strong>. Here are your login credentials:</p>
+            <p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p>
 
             <ul>
               <li><strong>Web App ID:</strong> ${user.regNo}</li>
@@ -872,7 +872,7 @@ router.post("/signup", async (req, res) => {
             <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
             <p>Best regards,<br>
-            <strong>GlUck Global Pvt Ltd</strong></p>
+            <strong>Gluck Global Pvt Ltd</strong></p>
           </div>
         `
       };
@@ -1484,12 +1484,12 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸŽ‰",
+      subject: "Your Gluck Global Student Portal Credentials",
       html: `
         <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
           <p>Hello ${user.name},</p>
 
-          <p>As requested, here are your login credentials for the <strong>GlÃ¼ck Global Student Portal</strong>:</p>
+          <p>As requested, here are your login credentials for the <strong>Gluck Global Student Portal</strong>:</p>
 
           <ul>
             <li><strong>Web App ID:</strong> ${user.regNo}</li>
@@ -1501,7 +1501,7 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
           <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
           <p>Best regards,<br>
-          <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+          <strong>Gluck Global Pvt Ltd</strong></p>
         </div>
       `
     };
@@ -1656,12 +1656,12 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
               await transporter.sendMail({
                 from: process.env.EMAIL_USER,
                 to: existingUser.email,
-                subject: "Your GlÃ¼ck Global Student Portal Credentials ðŸ”‘",
+                subject: "Your Gluck Global Student Portal Credentials",
                 html: `
                   <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
                     <p>Hello ${existingUser.name},</p>
 
-                    <p>Your login credentials for the <strong>GlÃ¼ck Global Student Portal</strong> have been sent as requested:</p>
+                    <p>Your login credentials for the <strong>Gluck Global Student Portal</strong> have been sent as requested:</p>
 
                     <ul>
                       <li><strong>Web App ID:</strong> ${existingUser.regNo}</li>
@@ -1673,7 +1673,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
                     <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
                     <p>Best regards,<br>
-                    <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+                    <strong>Gluck Global Pvt Ltd</strong></p>
                   </div>
                 `
               });
@@ -1755,12 +1755,12 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
             await transporter.sendMail({
               from: process.env.EMAIL_USER,
               to: newUser.email,
-              subject: "Welcome to GlÃ¼ck Global Student Portal ðŸŽ‰",
+              subject: "Welcome to Gluck Global Student Portal",
               html: `
                 <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
                   <p>Hello ${newUser.name},</p>
 
-                  <p>You have successfully registered to the <strong>GlÃ¼ck Global Student Portal</strong>. Here are your login credentials:</p>
+                  <p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p>
 
                   <ul>
                     <li><strong>Web App ID:</strong> ${regNo}</li>
@@ -1772,7 +1772,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
                   <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
                   <p>Best regards,<br>
-                  <strong>GlÃ¼ck Global Pvt Ltd</strong></p>
+                  <strong>Gluck Global Pvt Ltd</strong></p>
                 </div>
               `
             });

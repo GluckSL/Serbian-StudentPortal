@@ -13,6 +13,7 @@ const installmentService = require('../services/installmentService');
 const timelineService = require('../services/timelineService');
 const { getAuthUserId } = require('../helpers/authUserId');
 const proofR2 = require('../services/paymentProofR2Service');
+const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
 
 // ─── Helper to get admin name from user model ──────────────────────────────
 const getAdminName = async (userId) => {
@@ -536,10 +537,10 @@ const browseStudents = async (req, res) => {
           subscription: 1,
           enrollmentDate: 1,
           createdAt: 1,
+          phoneNumber: 1,
           totalPaid: { $ifNull: ['$profile.totalPaid', 0] },
           pendingApprovalAmount: { $ifNull: ['$profile.pendingApprovalAmount', 0] },
           overdueAmount: { $ifNull: ['$profile.overdueAmount', 0] },
-          // balanceDue: sum of overdue + pending (amounts not yet fully approved)
           balanceDue: {
             $add: [
               { $ifNull: ['$profile.overdueAmount', 0] },
@@ -562,9 +563,15 @@ const browseStudents = async (req, res) => {
     const [result] = await mongoose.model('User').aggregate(pipeline);
     const total = result.total[0]?.count || 0;
 
+    // Attach inferred currency so the admin form can pre-select the right one
+    const rows = (result.rows || []).map((row) => ({
+      ...row,
+      inferredCurrency: inferCurrencyFromPhone(row.phoneNumber),
+    }));
+
     res.json({
       success: true,
-      data: result.rows,
+      data: rows,
       total,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
@@ -575,6 +582,101 @@ const browseStudents = async (req, res) => {
 };
 
 // ─── Student-facing: get own requests ────────────────────────────────────
+const { buildStudentInstallmentView } = require('../services/installmentVisibility');
+
+// ─── Admin: update installment amounts/dates (before proofs in progress) ───
+const updateInstallmentSchedule = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { requestId } = req.params;
+    const { installments: bodyRows } = req.body || {};
+    if (!Array.isArray(bodyRows) || bodyRows.length === 0) {
+      return res.status(400).json({ success: false, message: 'installments array is required' });
+    }
+
+    const paymentReq = await PaymentRequest.findById(requestId);
+    if (!paymentReq || paymentReq.isArchived) {
+      return res.status(404).json({ success: false, message: 'Payment request not found' });
+    }
+    if (!paymentReq.installmentAllowed) {
+      return res.status(400).json({ success: false, message: 'This request is not an installment plan' });
+    }
+
+    const PaymentFlowSubmission = require('../models/PaymentSubmission');
+    const obstructing = await PaymentFlowSubmission.countDocuments({
+      paymentRequestId: paymentReq._id,
+      isArchived: false,
+      status: { $nin: ['REJECTED'] },
+    });
+    if (obstructing > 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'You can only change instalments when there are no active payment proofs (submitted or approved). Reject or clear in-flight proofs first.',
+      });
+    }
+
+    const existing = await PaymentInstallment.find({ paymentRequestId: paymentReq._id }).sort({ installmentNumber: 1 });
+    if (existing.length !== bodyRows.length) {
+      return res.status(400).json({
+        success: false,
+        message: `This plan has ${existing.length} instalment row(s); send the same count.`,
+      });
+    }
+
+    const total = bodyRows.reduce((s, row) => s + Number(row.requestedAmount ?? row.amount ?? 0), 0);
+    if (Math.abs(total - Number(paymentReq.amount)) > 0.02) {
+      return res.status(400).json({
+        success: false,
+        message: `Instalment amounts must add up to ${paymentReq.amount} ${paymentReq.currency}`,
+      });
+    }
+
+    for (const row of bodyRows) {
+      const num = Number(row.installmentNumber);
+      const inst = existing.find((e) => e.installmentNumber === num);
+      if (!inst) {
+        return res.status(400).json({ success: false, message: `Unknown instalment number ${num}` });
+      }
+      if (!['PENDING', 'REJECTED', 'OVERDUE'].includes(inst.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot edit instalment ${num} while it is in status ${inst.status}`,
+        });
+      }
+      const reqAmt = Number(row.requestedAmount ?? row.amount);
+      const due = row.dueDate ? new Date(row.dueDate) : null;
+      if (!due || Number.isNaN(due.getTime())) {
+        return res.status(400).json({ success: false, message: `Invalid due date for instalment ${num}` });
+      }
+      if (!reqAmt || reqAmt <= 0) {
+        return res.status(400).json({ success: false, message: `Invalid amount for instalment ${num}` });
+      }
+      const paid = Number(inst.paidAmount) || 0;
+      inst.requestedAmount = reqAmt;
+      inst.dueDate = due;
+      inst.remainingAmount = Math.max(0, reqAmt - paid);
+      await inst.save();
+    }
+
+    const firstDue = await PaymentInstallment.findOne({ paymentRequestId: paymentReq._id }).sort({ installmentNumber: 1 });
+    if (firstDue?.dueDate) {
+      paymentReq.dueDate = firstDue.dueDate;
+      await paymentReq.save();
+    }
+
+    await paymentService.recalculateStudentProfile(paymentReq.studentId);
+    const updated = await installmentService.getInstallmentsForRequest(paymentReq._id);
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 const studentGetOwnRequests = async (req, res) => {
   try {
     const studentId = getAuthUserId(req);
@@ -593,7 +695,20 @@ const studentGetOwnRequests = async (req, res) => {
       PaymentRequest.countDocuments({ studentId, isArchived: false }),
     ]);
 
-    res.json({ success: true, data: requests, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
+    const now = new Date();
+    const enriched = await Promise.all(
+      requests.map(async (r) => {
+        const obj = r.toObject();
+        if (r.installmentAllowed) {
+          const installments = await installmentService.getInstallmentsForRequest(r._id);
+          obj.installments = installments;
+          obj.studentInstallmentView = buildStudentInstallmentView(installments, now);
+        }
+        return obj;
+      })
+    );
+
+    res.json({ success: true, data: enriched, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -613,4 +728,5 @@ module.exports = {
   getMonthlyAnalytics,
   studentSubmitPayment,
   studentGetOwnRequests,
+  updateInstallmentSchedule,
 };

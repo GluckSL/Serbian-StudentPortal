@@ -1,11 +1,12 @@
 /**
  * Payment Hub catalog settings controller.
  * Admin: GET/PUT /catalog/settings
- * Student: GET /my/catalog  (cumulative CEFR levels up to student's own level)
+ * Student: GET /my/catalog  (single CEFR row matching the student's current level)
  */
 const mongoose = require('mongoose');
 const PaymentHubCatalog = require('../models/PaymentHubCatalog');
 const { getAuthUserId } = require('../helpers/authUserId');
+const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -74,36 +75,33 @@ const updateCatalogSettings = async (req, res) => {
   }
 };
 
-// ─── Student: get visible catalog (cumulative CEFR up to own level) ────────
+// ─── Student: get visible catalog (current level row only) ────────────────
 const getMyCatalog = async (req, res) => {
   try {
     const catalog = await PaymentHubCatalog.getOrCreate();
 
     const studentId = getAuthUserId(req);
     let studentLevel = '';
+    let inferredCurrency = 'USD';
     if (studentId) {
       const User = mongoose.model('User');
-      const u = await User.findById(studentId).select('level').lean();
-      studentLevel = (u?.level || '').toUpperCase();
+      const u = await User.findById(studentId).select('level phoneNumber').lean();
+      studentLevel = String(u?.level || '').trim().toUpperCase();
+      inferredCurrency = inferCurrencyFromPhone(u?.phoneNumber);
     }
-    const levelIdx = CEFR_ORDER.indexOf(studentLevel);
 
-    let visibleRows;
-    if (levelIdx >= 0) {
-      const maxOrder = levelIdx + 1;
-      visibleRows = (catalog.cefrRows || [])
-        .filter(r => r.order <= maxOrder)
-        .sort((a, b) => a.order - b.order);
-    } else {
-      visibleRows = [];
+    let visibleRows = [];
+    if (studentLevel && CEFR_ORDER.includes(studentLevel)) {
+      const row = (catalog.cefrRows || []).find(r => r.code === studentLevel);
+      if (row) visibleRows = [row];
     }
 
     res.json({
       success: true,
       data: {
         cefrRows: visibleRows,
-        defaultInstallmentSchedule: catalog.defaultInstallmentSchedule || null,
         studentLevel: studentLevel || null,
+        inferredCurrency,
       },
     });
   } catch (e) {

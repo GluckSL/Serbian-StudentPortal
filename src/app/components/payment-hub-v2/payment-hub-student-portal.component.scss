@@ -3,9 +3,11 @@
 }
 
 .sp-root {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 14px 12px 40px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 14px clamp(12px, 2.5vw, 28px) 40px;
   min-height: 100vh;
   background: linear-gradient(180deg, #e8eaf6 0%, #f5f7fa 28%, #f5f7fa 100%);
 }
@@ -97,22 +99,40 @@
   color: #5c6bc0;
   margin: 0;
   line-height: 1.4;
-  max-width: 40em;
+  max-width: none;
 }
 
-// ── Summary: 4 compact cards ───────────────────────────────────────────────
+// ── Summary: compact stat cards ────────────────────────────────────────────
 .sp-summary-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 
+  &.sp-summary-cards--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  @media (max-width: 1100px) {
+    &.sp-summary-cards--four {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @media (max-width: 820px) {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    &.sp-summary-cards--four {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 400px) {
     grid-template-columns: 1fr;
+
+    &.sp-summary-cards--four {
+      grid-template-columns: 1fr;
+    }
   }
 }
 
@@ -130,6 +150,16 @@
   &.sp-mini-green .sp-mini-icon { background: #e8f5e9; color: #2e7d32; }
   &.sp-mini-amber .sp-mini-icon { background: #fff8e1; color: #f57c00; }
   &.sp-mini-red .sp-mini-icon { background: #ffebee; color: #c62828; }
+  &.sp-mini-balance {
+    border-color: #ffcc80 !important;
+    background: linear-gradient(180deg, #fffde7 0%, #fff 100%) !important;
+  }
+  &.sp-mini-balance .sp-mini-icon { background: #fff3e0; color: #e65100; }
+  &.sp-mini-balance .sp-mini-value { color: #e65100; }
+}
+
+.sp-mini-balance-inr {
+  color: #bf360c !important;
 }
 
 .sp-mini-icon {
@@ -551,6 +581,61 @@
   border: 1px solid #e8eaf6;
 }
 
+.sp-level-fee-card {
+  padding-bottom: 16px;
+}
+
+.sp-level-fee-head {
+  align-items: center;
+}
+
+.sp-level-fee-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.sp-level-fee-amounts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sp-level-fee-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sp-level-fee-cur {
+  font-size: 11px;
+  font-weight: 700;
+  color: #78909c;
+  letter-spacing: 0.06em;
+  min-width: 2.25rem;
+}
+
+.sp-level-fee-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1a237e;
+  font-variant-numeric: tabular-nums;
+}
+
+.sp-level-fee-upload mat-icon {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.sp-level-fee-missing {
+  margin: 8px 0 0;
+  color: #b71c1c;
+}
+
 .sp-catalog-head {
   display: flex;
   align-items: flex-start;
@@ -739,4 +824,185 @@
   font-style: italic;
   margin: 8px 0 0;
   line-height: 1.4;
+}
+
+// ── Installment hint badge ───────────────────────────────────────────────────
+.sp-inst-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1565c0;
+  background: #e3f2fd;
+  border-radius: 12px;
+  padding: 2px 8px;
+  margin: 4px 0;
+  mat-icon { font-size: 13px; height: 13px; width: 13px; }
+}
+
+.sp-inst-hint-row {
+  align-items: flex-start;
+  margin-top: 4px;
+  .sp-due-hint { font-size: 11.5px; color: #78909c; }
+}
+
+.sp-req-plan-head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eceff1;
+}
+
+.sp-plan-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5c6bc0;
+  margin-top: 4px;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.sp-plan-remaining .sp-amount-value {
+  font-size: 0.95rem;
+}
+
+.sp-inst-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  padding: 12px 14px 14px;
+  background: #fafbff;
+}
+
+.sp-inst-tile {
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+  .sp-inst-num,
+  .sp-inst-tile-body,
+  .sp-inst-amts,
+  .sp-inst-due-line {
+    color: #000;
+  }
+
+  .sp-inst-amts strong {
+    color: #000;
+  }
+
+  .sp-req-due-icon {
+    color: #212121 !important;
+  }
+
+  /* Status pills on coloured tiles */
+  .sp-pill {
+    background: rgba(0, 0, 0, 0.12);
+    color: #000;
+    border: 1px solid rgba(0, 0, 0, 0.22);
+  }
+
+  &--upcoming {
+    background: #fff176;
+    border: 1px solid #f9a825;
+
+    .sp-due-hint {
+      color: #1a237e;
+      font-weight: 700;
+    }
+  }
+
+  &--overdue {
+    background: #ff8a80;
+    border: 1px solid #c62828;
+
+    .sp-due-hint {
+      color: #000;
+      font-weight: 800;
+    }
+  }
+
+  &--paid {
+    background: #43a047;
+    border: 1px solid #1b5e20;
+
+    .sp-pill {
+      background: rgba(0, 0, 0, 0.2);
+      color: #000;
+      border-color: rgba(0, 0, 0, 0.35);
+    }
+
+    .sp-inst-review,
+    .sp-inst-review mat-icon {
+      color: #000;
+    }
+  }
+
+  &--active {
+    box-shadow: 0 0 0 2px #1a237e, 0 4px 14px rgba(26, 35, 126, 0.22);
+  }
+}
+
+.sp-inst-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sp-inst-num {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #455a64;
+}
+
+.sp-inst-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #37474f;
+}
+
+.sp-inst-due-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-inst-amts {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #546e7a;
+}
+
+.sp-inst-tile-foot {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.sp-inst-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1565c0;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
 }

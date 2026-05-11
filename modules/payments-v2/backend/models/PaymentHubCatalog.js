@@ -59,13 +59,9 @@ schema.statics.getOrCreate = async function () {
       cefrRows: DEFAULT_CEFR,
       referenceRows: DEFAULT_REFERENCE,
       defaultInstallmentSchedule: {
-        title: 'Default payment schedule',
-        notes: 'First instalment due within 2 weeks of enrolment. Remaining split as agreed with admin.',
-        steps: [
-          { label: 'First instalment (within 2 weeks)', daysFromEnrollment: 14, amountLkr: 5000, amountInr: 1500 },
-          { label: 'Second instalment (4 weeks)', daysFromEnrollment: 28, amountLkr: 10000, amountInr: 3000 },
-          { label: 'Remainder', daysFromEnrollment: null, amountLkr: null, amountInr: null },
-        ],
+        title: '',
+        notes: '',
+        steps: [],
       },
     });
   }

@@ -43,7 +43,9 @@ const recalculateStudentProfile = async (studentId) => {
 
   const totalPaid = approvedSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
   const totalRequested = requests.reduce((s, r) => s + r.amount, 0);
-  const pendingApprovalAmount = requests.filter((r) => ['SUBMITTED', 'UNDER_REVIEW'].includes(r.status)).reduce((s, r) => s + r.amount, 0);
+  const pendingApprovalAmount = requests
+    .filter((r) => ['SUBMITTED', 'UNDER_REVIEW'].includes(r.status))
+    .reduce((s, r) => s + (r.amountRemaining ?? r.amount), 0);
   const overdueAmount = requests.filter((r) => r.status === 'OVERDUE').reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
   const expectedAmount = requests.filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status)).reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
 
@@ -74,6 +76,18 @@ const recalculateStudentProfile = async (studentId) => {
 // ─── CREATE PAYMENT REQUEST(S) ───────────────────────────────────────────────
 
 const createPaymentRequests = async ({ studentIds, adminId, adminRole, adminName, amount, currency, paymentType, customType, dueDate, remarks, installmentAllowed, scheduledInstallments, notificationToggle, isDraft, batchId, targetType }) => {
+  // Validate installment plan when provided
+  if (installmentAllowed && scheduledInstallments?.length) {
+    for (let i = 0; i < scheduledInstallments.length; i++) {
+      const s = scheduledInstallments[i];
+      if (!s.amount || s.amount <= 0) throw new Error(`Installment ${i + 1}: amount must be a positive number`);
+      if (!s.dueDate) throw new Error(`Installment ${i + 1}: dueDate is required`);
+    }
+    const sum = scheduledInstallments.reduce((t, s) => t + Number(s.amount), 0);
+    if (Math.abs(sum - Number(amount)) > 0.01) {
+      throw new Error(`Installment amounts must add up to the total (${amount}). Got ${sum}.`);
+    }
+  }
   const operationId = new mongoose.Types.ObjectId();
   const bulkOp = await BulkPaymentOperation.create({ _id: operationId, createdBy: adminId, targetType: targetType || (studentIds.length === 1 ? 'INDIVIDUAL' : 'MULTIPLE'), targetBatch: batchId, amount, currency, paymentType, dueDate, remarks, installmentAllowed, totalStudents: studentIds.length, isDraft: isDraft || false, status: 'PROCESSING' });
 
@@ -83,7 +97,11 @@ const createPaymentRequests = async ({ studentIds, adminId, adminRole, adminName
 
   for (const studentId of studentIds) {
     try {
-      const request = await PaymentRequest.create({ studentId, requestedBy: adminId, amount, currency, paymentType, customType: paymentType === 'Custom' ? customType : undefined, dueDate, remarks, installmentAllowed: Boolean(installmentAllowed), totalInstallments: installmentAllowed ? (scheduledInstallments?.length || 1) : 1, amountRemaining: amount, isDraft: isDraft || false, batchId, bulkOperationId: operationId, status: 'REQUESTED' });
+      // When using installments, anchor the parent dueDate to the first slice's date
+      const effectiveDueDate = (installmentAllowed && scheduledInstallments?.length)
+        ? scheduledInstallments[0].dueDate
+        : dueDate;
+      const request = await PaymentRequest.create({ studentId, requestedBy: adminId, amount, currency, paymentType, customType: paymentType === 'Custom' ? customType : undefined, dueDate: effectiveDueDate, remarks, installmentAllowed: Boolean(installmentAllowed), totalInstallments: installmentAllowed ? (scheduledInstallments?.length || 1) : 1, amountRemaining: amount, isDraft: isDraft || false, batchId, bulkOperationId: operationId, status: 'REQUESTED' });
       await installmentService.initializeInstallments(request, scheduledInstallments || []);
       await logAudit({ entityType: 'PaymentRequest', entityId: request._id, action: 'CREATED', performedBy: adminId, performedByRole: adminRole, newState: { status: 'REQUESTED', amount, currency }, studentId });
       await timelineService.onRequestCreated(request, adminId, adminRole, adminName);

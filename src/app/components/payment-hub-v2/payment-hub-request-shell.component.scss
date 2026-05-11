@@ -6,12 +6,15 @@
 .ph-header {
   background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
   color: white;
-  padding: 24px 32px 20px;
+  padding: 22px 0 18px;
 }
 
 .ph-header-inner {
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-inline: clamp(12px, 2.5vw, 28px);
+  box-sizing: border-box;
 }
 
 .ph-title {
@@ -28,7 +31,9 @@
 }
 
 .ph-body {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px 16px 40px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px clamp(12px, 2.5vw, 28px) 48px;
+  box-sizing: border-box;
 }

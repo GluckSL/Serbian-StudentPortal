@@ -8,14 +8,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   PaymentHubApiService,
   CefrRow,
   ReferenceRow,
-  InstallmentSchedule,
-  ScheduleStep,
 } from './payment-hub-api.service';
 
 @Component({
@@ -31,7 +28,6 @@ import {
     MatFormFieldModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatDividerModule,
     MatTooltipModule,
   ],
   templateUrl: './payment-hub-settings.component.html',
@@ -43,7 +39,6 @@ export class PaymentHubSettingsComponent implements OnInit {
 
   cefrRows: CefrRow[] = [];
   referenceRows: ReferenceRow[] = [];
-  schedule: InstallmentSchedule = { title: '', notes: '', steps: [] };
 
   lastUpdated: string | null = null;
 
@@ -58,11 +53,6 @@ export class PaymentHubSettingsComponent implements OnInit {
         const d = res.data;
         this.cefrRows = (d.cefrRows || []).map(r => ({ ...r })).sort((a, b) => a.order - b.order);
         this.referenceRows = (d.referenceRows || []).map(r => ({ ...r }));
-        this.schedule = {
-          title: d.defaultInstallmentSchedule?.title ?? '',
-          notes: d.defaultInstallmentSchedule?.notes ?? '',
-          steps: (d.defaultInstallmentSchedule?.steps || []).map(s => ({ ...s })),
-        };
         this.lastUpdated = d.updatedAt ?? null;
         this.loading = false;
       },
@@ -81,20 +71,12 @@ export class PaymentHubSettingsComponent implements OnInit {
     this.referenceRows.splice(i, 1);
   }
 
-  addStep(): void {
-    (this.schedule.steps ??= []).push({ label: '', daysFromEnrollment: null, amountLkr: null, amountInr: null });
-  }
-
-  removeStep(i: number): void {
-    this.schedule.steps?.splice(i, 1);
-  }
-
   save(): void {
     this.saving = true;
     this.api.updateCatalogSettings({
       cefrRows: this.cefrRows,
       referenceRows: this.referenceRows.filter(r => r.label.trim()),
-      defaultInstallmentSchedule: this.schedule,
+      defaultInstallmentSchedule: { title: '', notes: '', steps: [] },
     }).subscribe({
       next: (res) => {
         this.saving = false;
@@ -113,5 +95,4 @@ export class PaymentHubSettingsComponent implements OnInit {
     return new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   }
 
-  trackStep(_i: number, s: ScheduleStep): unknown { return _i; }
 }

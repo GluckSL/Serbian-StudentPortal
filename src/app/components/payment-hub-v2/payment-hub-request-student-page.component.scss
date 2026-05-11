@@ -2,8 +2,9 @@
 
 .page-wrapper {
   padding: 28px;
-  max-width: 1100px;
-  margin: 0 auto;
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .loading-center {
@@ -238,6 +239,58 @@
   .col-submissions {
     min-width: 200px;
     vertical-align: top;
+  }
+
+  .col-actions {
+    white-space: nowrap;
+    vertical-align: middle;
+    min-width: 140px;
+  }
+
+  tr.row-plan-summary td {
+    background: #fafbff;
+    font-weight: 600;
+    border-bottom: 1px solid #e8eaf6;
+  }
+
+  tr.row-inst-part td {
+    background: #fff;
+    font-size: 13px;
+  }
+
+  tr.row-inst-part:hover td {
+    background: #f8f9ff;
+  }
+
+  .cell-part {
+    padding-left: 8px !important;
+  }
+
+  .part-indent {
+    display: inline-block;
+    width: 10px;
+    height: 1px;
+    border-left: 3px solid #5c6bc0;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .inst-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #e8eaf6;
+    color: #3949ab;
+    vertical-align: middle;
+  }
+
+  .sub-hint {
+    font-size: 12px;
+    color: #757575;
+    font-style: italic;
   }
 }
 
