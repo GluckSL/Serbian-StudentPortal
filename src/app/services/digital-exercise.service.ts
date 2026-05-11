@@ -29,6 +29,11 @@ export interface QuestionCommonFields {
   example?: string;
   /** Per-question attachment URL (image / audio / video / PDF). */
   attachmentUrl?: string;
+  /**
+   * When the attachment is audio: maximum times the student may start playback
+   * during one exercise attempt. Omit, null, or 0 = unlimited (default).
+   */
+  attachmentAudioMaxPlaysPerAttempt?: number | null;
   /** Teacher explanation shown in review. */
   answerExplanation?: string;
   /** Story paragraph for true-false reading passage. */
@@ -829,6 +834,18 @@ export class DigitalExerciseService {
   }): Observable<{ explanation: string }> {
     return this.http.post<{ explanation: string }>(
       `${environment.apiUrl}/digital-exercises/generate-explanation`,
+      data,
+      { withCredentials: true }
+    );
+  }
+
+  convertQuestionType(data: {
+    question: any;
+    targetType: string;
+    targetLanguage?: string;
+  }): Observable<{ question: any }> {
+    return this.http.post<{ question: any }>(
+      `${this.apiUrl}/convert-question-type`,
       data,
       { withCredentials: true }
     );

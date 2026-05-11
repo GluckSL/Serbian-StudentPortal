@@ -382,6 +382,27 @@
                 <span class="material-icons">delete</span>
               </button>
             </div>
+            <div
+              *ngIf="q.attachmentUrl && getAttachmentType(q.attachmentUrl) === 'audio'"
+              class="field-group full attachment-audio-limit-row"
+            >
+              <label class="field-label">
+                Max audio plays per attempt
+                <span class="label-optional">(leave empty for unlimited)</span>
+              </label>
+              <input
+                type="number"
+                class="field-input attachment-audio-limit-input"
+                [(ngModel)]="q.attachmentAudioMaxPlaysPerAttempt"
+                min="1"
+                max="99"
+                step="1"
+                placeholder="Unlimited"
+              />
+              <p class="field-hint">
+                While attempting the exercise, students see how many plays they have left. After the limit they see “Play limit reached” until they re-attempt the whole exercise.
+              </p>
+            </div>
           </div>
 
           <!-- Answer Explanation -->

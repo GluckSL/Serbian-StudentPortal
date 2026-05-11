@@ -70,6 +70,8 @@ interface BuilderQuestion {
   imagePinDisplayUrl?: string;
   // Per-question attachment (any file type)
   attachmentUrl?: string;
+  /** When attachment is audio: max play starts per student attempt (empty = unlimited). */
+  attachmentAudioMaxPlaysPerAttempt?: number | null;
   attachmentUploading?: boolean;
   // Teacher explanation shown to students in review
   answerExplanation?: string;
@@ -238,6 +240,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       instruction: q.instruction || '',
       workedExample: q.example || '',
       attachmentUrl: q.attachmentUrl || '',
+      attachmentAudioMaxPlaysPerAttempt: this.normalizeAttachmentAudioMaxPlays(
+        q.attachmentAudioMaxPlaysPerAttempt
+      ),
       answerExplanation: q.answerExplanation || '',
       worksheetKind: q.worksheetKind || null,
       similarityThreshold: (typeof q.similarityThreshold === 'number')
@@ -666,6 +671,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       next: (res) => {
         q.attachmentUrl = res.url;
         q.attachmentUploading = false;
+        if (this.getAttachmentType(res.url) !== 'audio') {
+          q.attachmentAudioMaxPlaysPerAttempt = undefined;
+        }
         this.showSuccess('File uploaded');
       },
       error: (err) => {
@@ -677,6 +685,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   removeAttachment(q: BuilderQuestion): void {
     q.attachmentUrl = '';
+    q.attachmentAudioMaxPlaysPerAttempt = undefined;
+  }
+
+  /** Valid cap 1–99, otherwise undefined (unlimited). */
+  normalizeAttachmentAudioMaxPlays(raw: unknown): number | undefined {
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '').trim(), 10);
+    if (!Number.isFinite(n) || n < 1) return undefined;
+    return Math.min(99, Math.floor(n));
   }
 
   triggerImagePinImageFile(q: BuilderQuestion): void {
@@ -1192,6 +1208,17 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           randomizeLabels: q.settings?.randomizeLabels !== false,
           allowRetry: q.settings?.allowRetry !== false
         };
+      }
+      const attUrl = String(row.attachmentUrl || '').trim();
+      if (attUrl && this.getAttachmentType(attUrl) === 'audio') {
+        const cap = this.normalizeAttachmentAudioMaxPlays(row.attachmentAudioMaxPlaysPerAttempt);
+        if (cap !== undefined) {
+          row.attachmentAudioMaxPlaysPerAttempt = cap;
+        } else {
+          delete row.attachmentAudioMaxPlaysPerAttempt;
+        }
+      } else {
+        delete row.attachmentAudioMaxPlaysPerAttempt;
       }
       return row;
     });

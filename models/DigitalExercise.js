@@ -140,6 +140,8 @@ const DigitalExerciseSchema = new mongoose.Schema({
     points: { type: Number, default: 1 },
     // Per-question attachment (image, audio, PDF, video) visible only for this question
     attachmentUrl: { type: String, default: '' },
+    // When attachment is audio: max play-button presses per exercise attempt (omit/null = unlimited)
+    attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
     // Teacher explanation of why the correct answer is right; shown to students in review
     answerExplanation: { type: String, default: '' },
     // Worksheet metadata: set by AI when generated from a structured worksheet

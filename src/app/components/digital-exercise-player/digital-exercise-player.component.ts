@@ -148,6 +148,8 @@ interface PlayerQuestion {
   isAnswered?: boolean;
   isCorrect?: boolean | null;
   feedback?: string;
+  /** Attachment audio: play starts used this exercise attempt (when teacher set a cap). */
+  attachmentAudioPlaysUsed?: number;
 }
 
 type SpecialInputTarget =
@@ -670,7 +672,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!this.exercise) return;
     this.vpOptimisticCompletion = false;
     this.playerQuestions = this.exercise.questions.map((q: any, i: number) => {
-      const pq: PlayerQuestion = { data: q, index: i, isAnswered: false };
+      const pq: PlayerQuestion = { data: q, index: i, isAnswered: false, attachmentAudioPlaysUsed: 0 };
 
       if (q.type === 'mcq') {
         pq.selectedOption = undefined;
@@ -3295,6 +3297,56 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
     if (/\.pdf$/.test(lower)) return 'pdf';
     return 'other';
+  }
+
+  /** Max attachment-audio play starts this attempt, or null if unlimited / not audio. */
+  getAttachmentAudioCap(pq: PlayerQuestion | null | undefined): number | null {
+    if (!pq?.data) return null;
+    const att = String(pq.data.attachmentUrl || '').trim();
+    if (!att || this.getAttachmentType(att) !== 'audio') return null;
+    const raw = pq.data.attachmentAudioMaxPlaysPerAttempt;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '').trim(), 10);
+    if (!Number.isFinite(n) || n < 1) return null;
+    return Math.min(99, Math.floor(n));
+  }
+
+  getAttachmentAudioPlaysUsed(pq: PlayerQuestion): number {
+    return pq.attachmentAudioPlaysUsed ?? 0;
+  }
+
+  /** Remaining play starts this attempt; null means unlimited. */
+  getAttachmentAudioPlaysRemaining(pq: PlayerQuestion): number | null {
+    const cap = this.getAttachmentAudioCap(pq);
+    if (cap == null) return null;
+    return Math.max(0, cap - this.getAttachmentAudioPlaysUsed(pq));
+  }
+
+  isAttachmentAudioLimitReached(pq: PlayerQuestion): boolean {
+    const cap = this.getAttachmentAudioCap(pq);
+    if (cap == null) return false;
+    return this.getAttachmentAudioPlaysUsed(pq) >= cap;
+  }
+
+  playQuestionAttachmentAudio(pq: PlayerQuestion): void {
+    const url = String(pq.data?.attachmentUrl || '').trim();
+    if (!url || this.getAttachmentType(url) !== 'audio') return;
+    const cap = this.getAttachmentAudioCap(pq);
+    const used = this.getAttachmentAudioPlaysUsed(pq);
+    if (cap != null && used >= cap) {
+      this.snackBar.open('Play limit reached for this attempt.', 'Close', { duration: 2800 });
+      return;
+    }
+    const fullUrl = this.getMediaFullUrl(url);
+    const audio = new Audio(fullUrl);
+    if (cap != null) {
+      pq.attachmentAudioPlaysUsed = used + 1;
+    }
+    audio.play().catch(() => {
+      if (cap != null) {
+        pq.attachmentAudioPlaysUsed = Math.max(0, used);
+      }
+      this.snackBar.open('Could not play audio.', 'Close', { duration: 2500 });
+    });
   }
 
   /**

@@ -2712,4 +2712,154 @@ Include one object in "results" for every input question, using the same "index"
   }
 );
 
+// POST /api/digital-exercises/convert-question-type
+// Body: { question: <ReviewQuestion object>, targetType: string, targetLanguage?: string }
+// Returns: { question: <converted question object> }
+router.post(
+  '/convert-question-type',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { question, targetType, targetLanguage } = req.body;
+
+      if (!question || typeof question !== 'object') {
+        return res.status(400).json({ error: 'question object is required' });
+      }
+      if (!targetType || typeof targetType !== 'string') {
+        return res.status(400).json({ error: 'targetType is required' });
+      }
+      if (!process.env.EXERCISES_OPENAI_API_KEY) {
+        return res.status(503).json({ error: 'OpenAI not configured' });
+      }
+
+      const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
+
+      const lang = targetLanguage || 'German';
+
+      // Extract the core content from the source question
+      const srcType = String(question.type || '');
+      const srcKind = String(question.worksheetKind || '');
+      const displayType = srcKind || srcType;
+
+      const questionText =
+        question.prompt ||
+        question.question ||
+        question.sentence ||
+        question.word ||
+        question.scrambledText ||
+        '';
+
+      // Shared meta fields to preserve
+      const meta = {
+        context: question.context || '',
+        instruction: question.instruction || '',
+        example: question.example || '',
+        points: Number(question.points) || 1
+      };
+
+      // Build source description for the AI
+      const srcDesc = {
+        type: displayType,
+        questionText: String(questionText).trim(),
+        pairs: question.pairs || undefined,
+        options: question.options || undefined,
+        sampleAnswers: question.sampleAnswers || undefined,
+        answers: question.answers || undefined
+      };
+
+      // Per-target type instructions + expected JSON shape
+      const targetInstructions = {
+        mcq: `Convert to a multiple-choice question (MCQ).
+Return JSON: { "type": "mcq", "question": "<question text>", "options": ["<A>","<B>","<C>","<D>"], "correctAnswerIndex": <0-3>, "explanation": "<brief why>", "points": ${meta.points} }
+- Derive 4 plausible options from the source content. One must be correct.`,
+
+        matching: `Convert to a matching exercise.
+Return JSON: { "type": "matching", "instruction": "<instruction>", "pairs": [{"left":"<term>","right":"<definition>"},...], "points": ${meta.points} }
+- Extract or generate at least 3 matching pairs from the source content.`,
+
+        'fill-blank': `Convert to a fill-in-the-blank sentence.
+Return JSON: { "type": "fill-blank", "sentence": "<sentence with _ for each blank>", "answers": ["<answer1>",...], "hint": "<optional grammar hint>", "points": ${meta.points} }
+- Use a single underscore _ for each blank.`,
+
+        'true-false': `Convert to a true/false (Richtig/Falsch) question.
+Return JSON: { "type": "question-answer", "worksheetKind": "true-false", "prompt": "<statement to judge>", "sampleAnswers": ["Richtig"] OR ["Falsch"], "similarityThreshold": 75, "scoringMode": "full", "points": ${meta.points} }
+- Write a clear declarative statement. The sampleAnswers should be either ["Richtig"] or ["Falsch"] depending on whether the statement is true.`,
+
+        'sentence-transformation': `Convert to a sentence transformation task.
+Return JSON: { "type": "question-answer", "worksheetKind": "sentence-transformation", "prompt": "<instruction + source sentence>", "sampleAnswers": ["<correct transformed sentence>"], "similarityThreshold": 70, "scoringMode": "full", "points": ${meta.points} }`,
+
+        'error-correction': `Convert to an error correction task.
+Return JSON: { "type": "question-answer", "worksheetKind": "error-correction", "prompt": "<sentence containing a grammatical error>", "sampleAnswers": ["<corrected sentence>"], "similarityThreshold": 70, "scoringMode": "full", "points": ${meta.points} }`,
+
+        'question-answer': `Convert to a plain question-answer question.
+Return JSON: { "type": "question-answer", "prompt": "<question>", "sampleAnswers": ["<acceptable answer>"], "similarityThreshold": 70, "scoringMode": "full", "points": ${meta.points} }`,
+
+        singular_plural: `Convert to a singular/plural exercise.
+Return JSON: { "type": "singular_plural", "instruction": "<instruction>", "pairs": [{"singular":"<word>","plural":"<plural>"},...], "points": ${meta.points} }
+- Extract or generate at least 2 singular→plural pairs from the source content.`,
+
+        pronunciation: `Convert to a pronunciation question.
+Return JSON: { "type": "pronunciation", "word": "<word or phrase>", "phonetic": "<IPA optional>", "translation": "<${lang === 'German' ? 'English' : 'German'} translation>", "acceptedVariants": [], "points": ${meta.points} }`,
+
+        'free-writing-own-sentences': `Convert to a free-writing task where students write their own sentences.
+Return JSON: { "type": "question-answer", "worksheetKind": "free-writing-own-sentences", "prompt": "<writing prompt>", "sampleAnswers": ["<example sentence>"], "similarityThreshold": 60, "scoringMode": "proportional", "points": ${meta.points} }`,
+
+        'table-profile-fill': `Convert to a table/profile fill-in task.
+Return JSON: { "type": "question-answer", "worksheetKind": "table-profile-fill", "prompt": "<fill-in prompt>", "sampleAnswers": ["<expected values>"], "similarityThreshold": 60, "scoringMode": "proportional", "points": ${meta.points} }`
+      };
+
+      const targetInstruction = targetInstructions[targetType];
+      if (!targetInstruction) {
+        return res.status(400).json({ error: `Unsupported targetType: ${targetType}` });
+      }
+
+      const systemPrompt = `You are an expert ${lang} language teacher creating digital exercise questions.
+You will receive a question in one format and must convert it to a different format.
+Respond with ONLY a single JSON object matching the exact shape described. No markdown, no prose, no extra keys.
+Preserve the educational content and difficulty level of the original question.
+Write all question content in ${lang} unless the original is in another language.`;
+
+      const userContent = `Source question (${displayType}):
+${JSON.stringify(srcDesc, null, 2)}
+
+Convert to: ${targetType}
+
+${targetInstruction}
+
+Respond with ONLY the JSON object.`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent }
+        ],
+        max_tokens: 600,
+        temperature: 0.4,
+        response_format: { type: 'json_object' }
+      });
+
+      const rawContent = completion.choices[0]?.message?.content?.trim() || '{}';
+      let converted;
+      try {
+        converted = JSON.parse(rawContent);
+      } catch {
+        return res.status(500).json({ error: 'AI returned invalid JSON', raw: rawContent });
+      }
+
+      // Merge preserved meta fields (keep originals unless AI explicitly populated them)
+      if (meta.context && !converted.context) converted.context = meta.context;
+      if (meta.instruction && !converted.instruction) converted.instruction = meta.instruction;
+      if (meta.example && !converted.example) converted.example = meta.example;
+      if (!converted.points) converted.points = meta.points;
+
+      return res.json({ question: converted });
+    } catch (err) {
+      console.error('POST /digital-exercises/convert-question-type error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 module.exports = router;

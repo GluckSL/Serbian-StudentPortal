@@ -1744,12 +1744,41 @@
                   alt="Question attachment"
                   class="q-attachment-img"
                 />
-                <audio
-                  *ngSwitchCase="'audio'"
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-                  controls
-                  class="q-attachment-audio"
-                ></audio>
+                <ng-container *ngSwitchCase="'audio'">
+                  <ng-container
+                    *ngIf="getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
+                  >
+                    <div class="q-attachment-audio-capped">
+                      <p class="q-attachment-audio-capped-hint" role="status">
+                        <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) > 0">
+                          You can start this audio
+                          <strong>{{ getAttachmentAudioPlaysRemaining(currentQuestion) }}</strong>
+                          more time<span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) !== 1">s</span>
+                          this attempt (each press of Play counts).
+                        </span>
+                        <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) === 0">
+                          Play limit reached for this attempt.
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        class="btn-q-attachment-audio-play"
+                        (click)="playQuestionAttachmentAudio(currentQuestion)"
+                        [disabled]="isAttachmentAudioLimitReached(currentQuestion)"
+                      >
+                        <span class="material-icons" aria-hidden="true">play_arrow</span>
+                        Play audio
+                      </button>
+                    </div>
+                  </ng-container>
+                  <ng-template #unlimitedPlayerAttachmentAudio>
+                    <audio
+                      [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                      controls
+                      class="q-attachment-audio"
+                    ></audio>
+                  </ng-template>
+                </ng-container>
                 <video
                   *ngSwitchCase="'video'"
                   [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"

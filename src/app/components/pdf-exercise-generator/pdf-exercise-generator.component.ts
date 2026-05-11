@@ -56,6 +56,8 @@ interface ReviewQuestion {
   categoryTip?: string;
   // Common
   points: number;
+  /** Optional context/passage shown above the question */
+  context?: string;
   // Editor state
   expanded?: boolean;
   aiGenerated?: boolean;
@@ -154,6 +156,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // Exercise metadata
   exerciseTitle = '';
   exerciseDescription = '';
+  category = 'Grammar';
+  estimatedDuration = 15;
+  customTags = '';
   /** Optional journey day 1–200; empty = general pool */
   courseDayStr = '';
   visibleToStudents = false;
@@ -161,6 +166,22 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   // Inline editor state
   addingType = '';
+
+  // ── Bulk Select / Edit ──────────────────────────────────────────────────────
+  selectedIndices = new Set<number>();
+  selectAllChecked = false;
+
+  /** Which field is being bulk-edited. */
+  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | '' = '';
+  bulkEditValue = '';
+  bulkAudioUploading = false;
+
+  /** Bulk type change panel */
+  bulkTypeChangeOpen = false;
+  bulkTargetType = '';
+  bulkConverting = false;
+  bulkConvertProgress = 0;
+  bulkConvertTotal = 0;
 
   readonly questionTypes = [
     { value: 'mcq',             label: 'Multiple Choice',  desc: '4 options, 1 correct answer',      icon: 'quiz',              color: '#1976d2', bg: '#e8f4fd' },
@@ -182,6 +203,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   readonly difficulties: Array<'Beginner' | 'Intermediate' | 'Advanced'> = ['Beginner', 'Intermediate', 'Advanced'];
   readonly languages = ['German', 'English'];
   readonly nativeLanguages = ['English', 'Tamil', 'Sinhala'];
+  readonly categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
 
   constructor(
     private exerciseService: DigitalExerciseService,
@@ -1025,6 +1047,14 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   removeQuestion(i: number): void {
     this.reviewQuestions.splice(i, 1);
+    // Rebuild selection: remove deleted index, shift higher indices down
+    const updated = new Set<number>();
+    for (const idx of this.selectedIndices) {
+      if (idx < i) updated.add(idx);
+      else if (idx > i) updated.add(idx - 1);
+    }
+    this.selectedIndices = updated;
+    this.selectAllChecked = this.selectedIndices.size === this.reviewQuestions.length && this.reviewQuestions.length > 0;
   }
 
   moveQuestion(i: number, dir: -1 | 1): void {
@@ -1264,10 +1294,18 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   onListeningFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    if ((this as any)._bulkAudioMode) {
+      (this as any)._bulkAudioMode = false;
+      this.onBulkAudioFileSelected(file);
+      return;
+    }
+
     const q = (this as any).currentListeningQ as ReviewQuestion | null;
     (this as any).currentListeningQ = null;
-    input.value = '';
-    if (!file || !q) return;
+    if (!q) return;
     this.exerciseService.uploadListeningMedia(file).subscribe({
       next: (res) => { q.mediaUrl = res.url; this.showSuccess('Audio uploaded'); },
       error: (err) => this.showError(err.error?.error || 'Upload failed')
@@ -1373,6 +1411,124 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     return `${invalid} question(s) need fixes. Hover the warning icon on each row for details.`;
   }
 
+  // ── Bulk Select helpers ──────────────────────────────────────────────────────
+
+  toggleSelectQuestion(i: number, event: Event): void {
+    event.stopPropagation();
+    if (this.selectedIndices.has(i)) {
+      this.selectedIndices.delete(i);
+    } else {
+      this.selectedIndices.add(i);
+    }
+    this.selectAllChecked = this.selectedIndices.size === this.reviewQuestions.length;
+  }
+
+  toggleSelectAll(event: Event): void {
+    event.stopPropagation();
+    if (this.selectAllChecked) {
+      this.selectedIndices.clear();
+      this.selectAllChecked = false;
+    } else {
+      this.reviewQuestions.forEach((_, i) => this.selectedIndices.add(i));
+      this.selectAllChecked = true;
+    }
+  }
+
+  clearSelection(): void {
+    this.selectedIndices.clear();
+    this.selectAllChecked = false;
+    this.bulkEditField = '';
+    this.bulkEditValue = '';
+    this.bulkTypeChangeOpen = false;
+    this.bulkTargetType = '';
+  }
+
+  isSelected(i: number): boolean {
+    return this.selectedIndices.has(i);
+  }
+
+  // ── Bulk Field Edit ──────────────────────────────────────────────────────────
+
+  applyBulkField(): void {
+    if (!this.bulkEditField || this.selectedIndices.size === 0) return;
+    for (const idx of this.selectedIndices) {
+      const q = this.reviewQuestions[idx] as any;
+      if (!q) continue;
+      if (this.bulkEditField === 'audio') {
+        q.mediaUrl = this.bulkEditValue;
+      } else if (this.bulkEditField === 'attachment') {
+        q.attachmentUrl = this.bulkEditValue;
+      } else {
+        q[this.bulkEditField] = this.bulkEditValue;
+      }
+    }
+    this.showSuccess(`Applied "${this.bulkEditField}" to ${this.selectedIndices.size} question(s).`);
+    this.bulkEditValue = '';
+  }
+
+  triggerBulkAudioFile(): void {
+    (this as any)._bulkAudioMode = true;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onBulkAudioFileSelected(file: File): void {
+    this.bulkAudioUploading = true;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => {
+        this.bulkAudioUploading = false;
+        this.bulkEditValue = res.url;
+        this.applyBulkField();
+      },
+      error: (err) => {
+        this.bulkAudioUploading = false;
+        this.showError(err.error?.error || 'Audio upload failed');
+      }
+    });
+  }
+
+  // ── Bulk Type Conversion ─────────────────────────────────────────────────────
+
+  convertSelectedTypes(): void {
+    if (!this.bulkTargetType || this.selectedIndices.size === 0 || this.bulkConverting) return;
+    const indices = Array.from(this.selectedIndices);
+    this.bulkConverting = true;
+    this.bulkConvertProgress = 0;
+    this.bulkConvertTotal = indices.length;
+
+    const convertNext = (pos: number): void => {
+      if (pos >= indices.length) {
+        this.bulkConverting = false;
+        this.showSuccess(`Converted ${indices.length} question(s) to "${this.bulkTargetType}".`);
+        this.bulkTypeChangeOpen = false;
+        this.bulkTargetType = '';
+        return;
+      }
+      const idx = indices[pos];
+      const q = this.reviewQuestions[idx] as any;
+      this.exerciseService.convertQuestionType({
+        question: q,
+        targetType: this.bulkTargetType,
+        targetLanguage: this.targetLanguage
+      }).subscribe({
+        next: (res) => {
+          if (res?.question) {
+            const converted = { ...res.question, expanded: false, aiGenerated: q.aiGenerated };
+            this.reviewQuestions[idx] = converted as ReviewQuestion;
+          }
+          this.bulkConvertProgress = pos + 1;
+          convertNext(pos + 1);
+        },
+        error: (err) => {
+          this.showError(err.error?.error || `Conversion failed for question ${idx + 1}.`);
+          this.bulkConvertProgress = pos + 1;
+          convertNext(pos + 1);
+        }
+      });
+    };
+
+    convertNext(0);
+  }
+
   get validCount(): number { return this.reviewQuestions.filter(q => this.isQuestionValid(q)).length; }
   get totalPoints(): number { return this.reviewQuestions.reduce((s, q) => s + (q.points || 1), 0); }
   get canSave(): boolean { return !!(this.exerciseTitle.trim()) && this.validCount > 0; }
@@ -1396,21 +1552,26 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     }
 
     this.saving = true;
+    const extraTags = this.customTags
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter((t: string) => !!t);
     const payload = {
       title: this.exerciseTitle.trim(),
       description: this.exerciseDescription.trim(),
       targetLanguage: this.targetLanguage as 'German' | 'English',
       nativeLanguage: this.nativeLanguage as 'English' | 'Tamil' | 'Sinhala',
       level: this.level as any,
-      category: 'Grammar' as any,
+      category: this.category as any,
       difficulty: this.difficulty,
+      estimatedDuration: this.estimatedDuration,
       courseDay,
       visibleToStudents: publish,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
         const { expanded, aiGenerated, ...rest } = q;
         return rest;
       }) as ExerciseQuestion[],
-      tags: ['ai-generated', 'pdf-import']
+      tags: ['ai-generated', 'pdf-import', ...extraTags]
     };
 
     this.exerciseService.createExercise(payload).subscribe({

@@ -309,10 +309,38 @@
           </div>
         </div>
         <div class="meta-field">
-          <label class="meta-label">Language</label>
+          <label class="meta-label">Difficulty</label>
+          <select [(ngModel)]="difficulty" class="meta-select">
+            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label class="meta-label">Category</label>
+          <select [(ngModel)]="category" class="meta-select">
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label class="meta-label">Target Language</label>
           <select [(ngModel)]="targetLanguage" class="meta-select">
             <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
           </select>
+        </div>
+        <div class="meta-field">
+          <label class="meta-label">Native Language</label>
+          <select [(ngModel)]="nativeLanguage" class="meta-select">
+            <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label class="meta-label">Duration (min)</label>
+          <input type="number" [(ngModel)]="estimatedDuration" class="meta-input" min="1" max="120" style="width:70px" />
+        </div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-field full">
+          <label class="meta-label">Tags <span class="opt-label">(optional, comma-separated)</span></label>
+          <input type="text" [(ngModel)]="customTags" class="meta-input" placeholder="e.g. verbs, grammar, present-tense" />
         </div>
         <div class="meta-field meta-field--journey">
           <label class="meta-label" for="pdf-step4-course-day">Course day (1–200)</label>
@@ -331,7 +359,7 @@
             />
             <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
           </div>
-          <p class="meta-hint">Same value as in Configure. Students see this exercise from this day onward; empty = general pool.</p>
+          <p class="meta-hint">Students see this exercise from this day onward; empty = general pool.</p>
         </div>
         <div class="meta-field">
           <label class="meta-label">
@@ -346,7 +374,13 @@
     <!-- Questions List -->
     <div class="review-questions">
       <div class="review-header">
-        <h3>Questions <span class="q-count">{{ reviewQuestions.length }}</span></h3>
+        <div class="review-header-left">
+          <label class="bulk-select-all" (click)="toggleSelectAll($event)" matTooltip="Select / deselect all questions">
+            <input type="checkbox" [checked]="selectAllChecked" (change)="toggleSelectAll($event)" (click)="$event.stopPropagation()" />
+            <span class="bulk-select-label">All</span>
+          </label>
+          <h3>Questions <span class="q-count">{{ reviewQuestions.length }}</span></h3>
+        </div>
         <div class="review-stats">
           <button class="btn-gen-answers" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI fills missing answers for fill-blank and Q&A questions">
             <span class="material-icons">{{ generatingAnswers ? 'hourglass_top' : 'auto_fix_high' }}</span>
@@ -366,11 +400,127 @@
         </div>
       </div>
 
+      <!-- ── Bulk Action Toolbar (visible when ≥1 question is selected) ── -->
+      <div class="bulk-toolbar" *ngIf="selectedIndices.size > 0">
+        <div class="bulk-toolbar-top">
+          <span class="bulk-count">
+            <span class="material-icons">check_box</span>
+            {{ selectedIndices.size }} selected
+          </span>
+          <button class="btn-bulk-clear" (click)="clearSelection()" matTooltip="Deselect all">
+            <span class="material-icons">close</span> Deselect all
+          </button>
+        </div>
+
+        <!-- Field Edit Panel -->
+        <div class="bulk-section">
+          <div class="bulk-section-title">
+            <span class="material-icons">edit</span> Bulk Edit Field
+          </div>
+          <div class="bulk-field-row">
+            <select [(ngModel)]="bulkEditField" class="bulk-field-select">
+              <option value="">— Choose field to edit —</option>
+              <option value="instruction">Instruction (blue banner)</option>
+              <option value="example">Example (worked sample)</option>
+              <option value="context">Context (background text)</option>
+              <option value="audio">Audio URL (listening)</option>
+              <option value="attachment">Attachment URL</option>
+            </select>
+          </div>
+
+          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio'">
+            <div class="bulk-input-row">
+              <textarea
+                *ngIf="bulkEditField === 'context'"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-textarea"
+                rows="3"
+                placeholder="Enter context text to apply to all selected questions…"
+              ></textarea>
+              <input
+                *ngIf="bulkEditField !== 'context'"
+                type="text"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-input"
+                [placeholder]="bulkEditField === 'instruction' ? 'e.g. Choose the correct option.' : bulkEditField === 'example' ? 'e.g. The sky is ___ → blue' : 'https://…'"
+              />
+            </div>
+            <button class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim()">
+              <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }} selected
+            </button>
+          </ng-container>
+
+          <!-- Audio upload for listening questions -->
+          <ng-container *ngIf="bulkEditField === 'audio'">
+            <div class="bulk-audio-row">
+              <button class="btn-upload-audio" type="button" (click)="triggerBulkAudioFile()" [disabled]="bulkAudioUploading">
+                <span class="material-icons">upload_file</span>
+                {{ bulkAudioUploading ? 'Uploading…' : 'Upload audio file' }}
+              </button>
+              <span class="upload-or">or paste URL</span>
+              <input
+                type="text"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-input"
+                placeholder="https://… audio URL"
+                style="flex:1"
+              />
+              <button class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim() || bulkAudioUploading">
+                <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }}
+              </button>
+            </div>
+          </ng-container>
+        </div>
+
+        <!-- Change Type Panel -->
+        <div class="bulk-section">
+          <div class="bulk-section-title">
+            <span class="material-icons">transform</span> Bulk Change Type (AI)
+            <button class="btn-toggle-type-panel" type="button" (click)="bulkTypeChangeOpen = !bulkTypeChangeOpen">
+              <span class="material-icons">{{ bulkTypeChangeOpen ? 'expand_less' : 'expand_more' }}</span>
+            </button>
+          </div>
+
+          <ng-container *ngIf="bulkTypeChangeOpen">
+            <p class="bulk-type-hint">AI will read each selected question and rewrite it in the chosen format. Original context, instruction, and example are preserved.</p>
+
+            <!-- Progress bar during conversion -->
+            <div class="bulk-convert-progress" *ngIf="bulkConverting">
+              <div class="bulk-progress-label">Converting {{ bulkConvertProgress }} / {{ bulkConvertTotal }}…</div>
+              <div class="bulk-progress-bar">
+                <div class="bulk-progress-fill" [style.width.%]="bulkConvertTotal > 0 ? (bulkConvertProgress / bulkConvertTotal) * 100 : 0"></div>
+              </div>
+            </div>
+
+            <ng-container *ngIf="!bulkConverting">
+              <div class="bulk-type-row">
+                <select [(ngModel)]="bulkTargetType" class="bulk-field-select">
+                  <option value="">— Select target type —</option>
+                  <option *ngFor="let t of questionTypes" [value]="t.value">{{ t.label }}</option>
+                </select>
+                <button
+                  class="btn-bulk-convert"
+                  (click)="convertSelectedTypes()"
+                  [disabled]="!bulkTargetType || bulkConverting"
+                >
+                  <span class="material-icons">auto_awesome</span>
+                  Convert {{ selectedIndices.size }} with AI
+                </button>
+              </div>
+            </ng-container>
+          </ng-container>
+        </div>
+      </div>
+      <!-- ── End Bulk Toolbar ── -->
+
       <div class="question-card review-q" *ngFor="let q of reviewQuestions; let i = index" [class.expanded]="q.expanded">
 
         <!-- Question row header -->
-        <div class="rq-header" (click)="toggleQuestion(i)">
+        <div class="rq-header" [class.rq-selected]="isSelected(i)" (click)="toggleQuestion(i)">
           <div class="rq-left">
+            <label class="rq-checkbox" (click)="$event.stopPropagation()">
+              <input type="checkbox" [checked]="isSelected(i)" (change)="toggleSelectQuestion(i, $event)" />
+            </label>
             <input
               type="number"
               class="q-num-input"
@@ -442,6 +592,22 @@
             <input type="number" [(ngModel)]="q.points" min="1" max="10" class="pts-input" />
           </div>
 
+          <!-- Common fields: Context, Instruction, Example (all question types) -->
+          <div class="ed-section-label">General</div>
+          <div class="ed-field">
+            <label>Context <span class="opt-label">(optional — background text shown above question)</span></label>
+            <textarea [(ngModel)]="q.context" class="ed-input" rows="2" placeholder="Optional reading passage or context..."></textarea>
+          </div>
+          <div class="ed-field">
+            <label>Instruction <span class="opt-label">(shown in blue banner to students)</span></label>
+            <input type="text" [(ngModel)]="q.instruction" class="ed-input" placeholder="e.g. Choose the correct option. / Fill in the blank." />
+          </div>
+          <div class="ed-field">
+            <label>Example <span class="opt-label">(optional worked sample shown below instruction)</span></label>
+            <input type="text" [(ngModel)]="q.example" class="ed-input" placeholder="e.g. The sky is ___ → blue" />
+          </div>
+          <div class="ed-section-label">Question details</div>
+
           <!-- MCQ Editor -->
           <ng-container *ngIf="q.type === 'mcq'">
             <div class="ed-field">
@@ -476,10 +642,6 @@
           <!-- Matching Editor -->
           <ng-container *ngIf="q.type === 'matching'">
             <div class="ed-field">
-              <label>Instruction</label>
-              <input type="text" [(ngModel)]="q.instruction" class="ed-input" />
-            </div>
-            <div class="ed-field">
               <label>Pairs</label>
               <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index; trackBy: trackByIndex">
                 <input type="text" [(ngModel)]="pair.left" class="pair-input" [placeholder]="'Left '+(pi+1)" (keydown)="$event.stopPropagation()" />
@@ -493,10 +655,6 @@
 
           <!-- Singular / Plural -->
           <ng-container *ngIf="q.type === 'singular_plural'">
-            <div class="ed-field">
-              <label>Instruction</label>
-              <input type="text" [(ngModel)]="q.instruction" class="ed-input" />
-            </div>
             <div class="ed-field">
               <label>Word pairs <span class="hint-label">(singular = prompt, plural = correct answer)</span></label>
               <table class="sp-pair-table" *ngIf="q.pairs?.length">
@@ -515,14 +673,6 @@
 
           <!-- Fill-blank Editor -->
           <ng-container *ngIf="q.type === 'fill-blank'">
-            <div class="ed-field">
-              <label>Instruction <span class="opt-label">(from worksheet heading)</span></label>
-              <input type="text" [(ngModel)]="q.instruction" class="ed-input" placeholder="What students should do (German / English)" />
-            </div>
-            <div class="ed-field">
-              <label>Example <span class="opt-label">(optional)</span></label>
-              <input type="text" [(ngModel)]="q.example" class="ed-input" placeholder="Worked example line (Beispiel …)" />
-            </div>
             <div class="ed-field">
               <div class="sentence-label-row">
                 <label>Sentence <span class="hint-label">(use _ or ___ for blanks)</span></label>
@@ -617,10 +767,6 @@
 
           <!-- Jumble Word Editor -->
           <ng-container *ngIf="q.type === 'jumble-word'">
-            <div class="ed-field">
-              <label>Instruction <span class="opt-label">(optional)</span></label>
-              <input type="text" [(ngModel)]="q.instruction" class="ed-input" placeholder="e.g. Unscramble the letters to form a word." />
-            </div>
             <div class="ed-field">
               <label>Category Tip <span class="opt-label">(optional)</span></label>
               <input type="text" [(ngModel)]="q.categoryTip" class="ed-input" placeholder="e.g. Rooms and furniture" />
