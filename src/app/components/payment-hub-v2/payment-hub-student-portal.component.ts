@@ -42,7 +42,9 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   catalog: StudentCatalog | null = null;
   loadingCatalog = true;
-  /** Currency inferred from the student's phone (INR / LKR / USD) — drives which amounts to show */
+  /** From catalog API (phone prefix). May disagree with payment-request currency — see reconcileInferredCurrency. */
+  private phoneInferredCurrency = 'LKR';
+  /** Effective currency for catalog + summary cards (requests win when all share one currency). */
   inferredCurrency = 'LKR';
 
   constructor(
@@ -60,7 +62,8 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     this.api.getMyCatalog().subscribe({
       next: (res) => {
         this.catalog = res.data;
-        this.inferredCurrency = res.data.inferredCurrency || 'LKR';
+        this.phoneInferredCurrency = this.normalizeCurrency(res.data.inferredCurrency);
+        this.reconcileInferredCurrency();
         this.loadingCatalog = false;
       },
       error: () => {
@@ -124,23 +127,62 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   /** The single catalog amount relevant to this student's currency */
   get catalogFeeDisplay(): { currency: string; amount: number } | null {
     if (!this.catalogCefrRows.length) return null;
-    if (this.inferredCurrency === 'INR') return { currency: 'INR', amount: this.cefrTotalInr() };
-    if (this.inferredCurrency === 'LKR') return { currency: 'LKR', amount: this.cefrTotalLkr() };
+    if (this.normalizeCurrency(this.inferredCurrency) === 'INR') return { currency: 'INR', amount: this.cefrTotalInr() };
+    if (this.normalizeCurrency(this.inferredCurrency) === 'LKR') return { currency: 'LKR', amount: this.cefrTotalLkr() };
     // USD: fall back to LKR as the base (USD pricing not in catalog yet)
     return { currency: 'LKR', amount: this.cefrTotalLkr() };
   }
 
-  /** Paid amounts filtered to only the student's currency */
-  get paidFiltered(): { currency: string; amount: number }[] {
-    return this.paidPerCurrency.filter(p => p.currency === this.inferredCurrency);
+  /**
+   * Paid per normalized request currency from (amount - amountRemaining).
+   */
+  private buildPaidByCurrency(): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const r of this.requests) {
+      const paid = Math.max(0, (r.amount ?? 0) - (r.amountRemaining ?? 0));
+      if (paid <= 0) continue;
+      const c = this.normalizeCurrency(r.currency);
+      map.set(c, (map.get(c) || 0) + paid);
+    }
+    return map;
   }
 
-  /** Balance (catalog - approved) for the inferred currency only */
+  /**
+   * Prefer effective inferred currency; if that bucket is empty but other paid amounts exist
+   * (edge case), show those so the card does not flash empty.
+   */
+  get paidFiltered(): { currency: string; amount: number }[] {
+    const map = this.buildPaidByCurrency();
+    const inferred = this.normalizeCurrency(this.inferredCurrency);
+    const amount = map.get(inferred) ?? 0;
+    if (amount > 0) return [{ currency: inferred, amount }];
+    const rest = [...map.entries()]
+      .filter(([, a]) => a > 0)
+      .map(([currency, amt]) => ({ currency, amount: amt }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
+    return rest;
+  }
+
+  /** Balance (catalog - approved) for the catalog fee currency only */
   get catalogBalanceDisplay(): { currency: string; amount: number } | null {
     const fee = this.catalogFeeDisplay;
     if (!fee) return null;
-    const paid = this.paidFiltered.find(p => p.currency === fee.currency)?.amount ?? 0;
+    const paid = this.buildPaidByCurrency().get(fee.currency) ?? 0;
     return { currency: fee.currency, amount: Math.max(0, fee.amount - paid) };
+  }
+
+  /**
+   * Large "Level X — full payment" + upload CTA: hide once the catalog level fee is fully
+   * covered by approved payments (normal uploads or admin-mapped legacy). Still show when
+   * pricing cannot be computed (no catalog row) so the empty-state copy remains.
+   */
+  get showDefaultLevelFeeUploadCard(): boolean {
+    if (this.loadingCatalog || !this.catalog?.studentLevel || this.hasActiveInstallmentPlan) {
+      return false;
+    }
+    const bal = this.catalogBalanceDisplay;
+    if (bal == null) return true;
+    return bal.amount > 0;
   }
 
   /**
@@ -181,6 +223,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
         this.requests = res.data || [];
         this.total = res.total || 0;
         this.loading = false;
+        this.reconcileInferredCurrency();
       },
       error: () => {
         this.loading = false;
@@ -196,15 +239,47 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     });
   }
 
-  /** Amounts already applied to the request (approved + partials still in REQUESTED), by currency */
+  /**
+   * How much has actually been paid (APPROVED), broken down by currency.
+   * For installment plans we walk each installment row directly so we don't
+   * depend on the top-level amountRemaining being perfectly in sync.
+   * For non-installment requests we fall back to (amount - amountRemaining).
+   */
   get paidPerCurrency(): { currency: string; amount: number }[] {
     const map = new Map<string, number>();
+
     for (const r of this.requests) {
-      const paid = (r.amount ?? 0) - (r.amountRemaining ?? 0);
-      if (paid <= 0) continue;
-      const c = r.currency || 'LKR';
-      map.set(c, (map.get(c) || 0) + paid);
+      const insts = r.installments;
+
+      if (insts?.length) {
+        // Preferred path: sum approved installment rows directly
+        let fromRows = 0;
+        for (const inst of insts) {
+          if (inst.status === 'APPROVED') {
+            // use paidAmount when set, else treat the full requestedAmount as paid
+            fromRows += inst.paidAmount > 0 ? inst.paidAmount : (inst.requestedAmount ?? 0);
+          } else {
+            // partial credit for in-progress installments
+            fromRows += inst.paidAmount ?? 0;
+          }
+        }
+        // Safety cross-check with request-level amountRemaining
+        const fromRequest = Math.max(0, (r.amount ?? 0) - (r.amountRemaining ?? 0));
+        const paid = Math.max(fromRows, fromRequest);
+        if (paid > 0) {
+          const c = this.normalizeCurrency(r.currency);
+          map.set(c, (map.get(c) || 0) + paid);
+        }
+      } else {
+        // Non-installment or no breakdown rows yet
+        const paid = Math.max(0, (r.amount ?? 0) - (r.amountRemaining ?? 0));
+        if (paid > 0) {
+          const c = this.normalizeCurrency(r.currency);
+          map.set(c, (map.get(c) || 0) + paid);
+        }
+      }
     }
+
     return Array.from(map.entries()).map(([currency, amount]) => ({ currency, amount }));
   }
 
@@ -237,6 +312,39 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       amount: pick.amountRemaining ?? 0,
       title,
     };
+  }
+
+  /**
+   * Catalog fee for the student's currency is fully covered by approved payments
+   * (same basis as the level-fee upload card hide rule).
+   */
+  get isCatalogLevelFeeCleared(): boolean {
+    const bal = this.catalogBalanceDisplay;
+    return bal != null && bal.amount === 0;
+  }
+
+  /** Main line on the Next payment card when there is no scheduled slice. */
+  get nextPaymentClearValue(): string {
+    if (this.isCatalogLevelFeeCleared) return '—';
+    return (this.catalog?.studentLevel || '').trim() ? 'Coming soon' : '—';
+  }
+
+  /**
+   * When there is no concrete next due slice: if the catalog level fee is already cleared,
+   * do not imply another A1 payment is coming.
+   */
+  get nextPaymentClearHint(): string {
+    if (this.isCatalogLevelFeeCleared) {
+      const level = (this.catalog?.studentLevel || '').trim();
+      return level
+        ? `Level ${level} fee is cleared — nothing due right now.`
+        : 'No open amount due';
+    }
+    const level = (this.catalog?.studentLevel || '').trim();
+    if (level) {
+      return `Next payment for Level ${level} — coming soon`;
+    }
+    return 'No open amount due';
   }
 
   get totalPages(): number {
@@ -317,6 +425,16 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   sortedInstallments(req: PaymentRequest): InstallmentRow[] {
     return [...(req.installments || [])].sort((a, b) => a.installmentNumber - b.installmentNumber);
+  }
+
+  /** Prefer schedule row count, highest part number, and server totals so labels stay consistent when data is partial */
+  installmentTotalParts(req: PaymentRequest): number {
+    const sorted = this.sortedInstallments(req);
+    const fromRows = sorted.length;
+    const fromNums = sorted.length ? Math.max(...sorted.map(i => i.installmentNumber)) : 0;
+    const fromView = req.studentInstallmentView?.totalInstallments ?? 0;
+    const fromReq = req.totalInstallments ?? 0;
+    return Math.max(fromRows, fromNums, fromView, fromReq) || fromRows;
   }
 
   /** Upload allowed only for the current server-marked payable slice */
@@ -466,5 +584,35 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   isPastDue(req: PaymentRequest): boolean {
     if (!req.dueDate) return false;
     return new Date(req.dueDate) < new Date();
+  }
+
+  private static readonly PAYMENT_TYPE_LABELS: Record<string, string> = {
+    LANGUAGE_FEE:   'Language Course Fee',
+    DOCS_PAYMENT:   'Documentation Payment',
+    VISA_PAYMENT:   'Visa Payment',
+    CUSTOM_PAYMENT: 'Custom Payment',
+  };
+
+  formatPaymentType(type: string, customType?: string): string {
+    const label = PaymentHubStudentPortalComponent.PAYMENT_TYPE_LABELS[type] || type;
+    return customType ? `${label} — ${customType}` : label;
+  }
+
+  private normalizeCurrency(currency: string | null | undefined): string {
+    const c = String(currency || '').trim().toUpperCase();
+    if (c === 'INR' || c === 'LKR' || c === 'USD') return c;
+    return 'LKR';
+  }
+
+  /** When every open request uses the same currency, use it for summaries so phone-based inference cannot override LKR payments with INR (etc.). */
+  private inferUniformRequestCurrency(): string | null {
+    if (!this.requests.length) return null;
+    const first = this.normalizeCurrency(this.requests[0].currency);
+    return this.requests.every(r => this.normalizeCurrency(r.currency) === first) ? first : null;
+  }
+
+  private reconcileInferredCurrency(): void {
+    const uniform = this.inferUniformRequestCurrency();
+    this.inferredCurrency = uniform ?? this.phoneInferredCurrency;
   }
 }

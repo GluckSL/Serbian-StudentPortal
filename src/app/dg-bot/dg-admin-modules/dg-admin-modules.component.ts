@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { firstValueFrom } from 'rxjs';
 import { DgApiService } from '../dg-api.service';
 import type { DgModuleSummary } from '../dg-bot.types';
@@ -9,7 +10,7 @@ import type { DgModuleSummary } from '../dg-bot.types';
 @Component({
   selector: 'app-dg-admin-modules',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatPaginatorModule],
   templateUrl: './dg-admin-modules.component.html',
   styleUrls: ['./dg-admin-modules.component.scss'],
 })
@@ -24,6 +25,11 @@ export class DgAdminModulesComponent implements OnInit {
   /** Row id while PATCH visibility is in flight */
   visibilityBusyId: string | null = null;
 
+  pageIndex = 0;
+  pageSize = 10;
+  readonly pageSizeOptions = [5, 10, 25, 50];
+  readonly skeletonRows = [0, 1, 2, 3, 4, 5, 6, 7];
+
   get filteredModules(): DgModuleSummary[] {
     let list = this.modules;
     if (this.statusFilter === 'live') {
@@ -34,6 +40,21 @@ export class DgAdminModulesComponent implements OnInit {
     const q = (this.listFilter || '').trim().toLowerCase();
     if (!q) return list;
     return list.filter((m) => (m.title || '').toLowerCase().includes(q));
+  }
+
+  get pagedFilteredModules(): DgModuleSummary[] {
+    const list = this.filteredModules;
+    const start = this.pageIndex * this.pageSize;
+    return list.slice(start, start + this.pageSize);
+  }
+
+  onPageChange(ev: PageEvent): void {
+    this.pageIndex = ev.pageIndex;
+    this.pageSize = ev.pageSize;
+  }
+
+  resetListPage(): void {
+    this.pageIndex = 0;
   }
 
   get dgStatTotal(): number {
@@ -54,12 +75,6 @@ export class DgAdminModulesComponent implements OnInit {
 
   get dgStatEnglish(): number {
     return this.modules.filter((m) => (m.language || '') === 'English').length;
-  }
-
-  previewDescription(text: string | undefined, max = 72): string {
-    const s = (text || '').trim();
-    if (!s) return 'No description';
-    return s.length > max ? `${s.slice(0, max)}…` : s;
   }
 
   trackModule(_: number, m: DgModuleSummary): string {
@@ -91,6 +106,7 @@ export class DgAdminModulesComponent implements OnInit {
     firstValueFrom(this.dgApi.listAdminModules())
       .then((m) => {
         this.modules = m.modules || [];
+        this.pageIndex = 0;
         this.loading = false;
       })
       .catch((e) => {

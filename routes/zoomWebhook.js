@@ -155,6 +155,7 @@ router.post('/', (req, res) => {
   // --- Recording completed ---
   if (event === 'recording.completed') {
     const obj = payload.payload?.object;
+    const downloadToken = payload.download_token || payload.payload?.download_token || null;
 
     if (!obj) {
       void createAudit({
@@ -235,6 +236,7 @@ router.post('/', (req, res) => {
         topic: obj.topic || null,
         recordingStatus: obj.recording_status || null,
         fileSize: targetFile.file_size || null,
+        downloadTokenPresent: Boolean(downloadToken),
       },
     }).then((auditDoc) => {
       // Fire-and-forget: process asynchronously so we don't block Zoom
@@ -242,7 +244,10 @@ router.post('/', (req, res) => {
         zoomMeetingId,
         downloadUrl,
         recordingStart,
-        { meetingUuid: obj.uuid || null }
+        {
+          meetingUuid: obj.uuid || null,
+          downloadToken,
+        }
       ).then((result) => {
         if (!auditDoc) return;
         auditDoc.status = result?.success ? 'processed' : 'failed';

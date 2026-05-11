@@ -236,6 +236,7 @@ const getStudentTable = async (req, res) => {
                 email: '$email',
                 batch: '$batch',
                 level: '$level',
+                phoneNumber: '$phoneNumber',
                 enrollmentDate: '$enrollmentDate',
                 dateJoined: '$enrollmentDate',
                 registeredAt: '$registeredAt',
@@ -254,7 +255,11 @@ const getStudentTable = async (req, res) => {
 
     const [result] = await mongoose.model('User').aggregate(pipeline);
     const total = result.total[0]?.count || 0;
-    const data = result.rows || [];
+    const rawRows = result.rows || [];
+    const data = rawRows.map((row) => ({
+      ...row,
+      inferredCurrency: inferCurrencyFromPhone(row?.studentId?.phoneNumber),
+    }));
 
     res.json({
       success: true,

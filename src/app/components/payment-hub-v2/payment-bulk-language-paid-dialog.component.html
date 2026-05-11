@@ -1,0 +1,87 @@
+<div class="bp-root">
+  <div class="bp-header">
+    <div>
+      <h2 class="bp-title">Set balance to zero (language fee)</h2>
+      <p class="bp-sub">Prefilled amounts use phone country (LKR / INR) and your pricing catalog when available. Edit any cell, preview, then apply.</p>
+    </div>
+    <button mat-icon-button type="button" (click)="close(false)" matTooltip="Close">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div *ngIf="loading" class="bp-loading">
+    <mat-spinner diameter="36"></mat-spinner>
+    <span>Loading pricing…</span>
+  </div>
+
+  <ng-container *ngIf="!loading">
+    <div class="bp-toolbar">
+      <mat-form-field appearance="outline" class="bp-field-date">
+        <mat-label>Payment date (all rows)</mat-label>
+        <input matInput [matDatepicker]="dp" [(ngModel)]="sharedPaymentDate" [disabled]="previewMode" />
+        <mat-datepicker-toggle matSuffix [for]="dp"></mat-datepicker-toggle>
+        <mat-datepicker #dp></mat-datepicker>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="bp-field-remarks">
+        <mat-label>Remarks (all rows)</mat-label>
+        <input matInput [(ngModel)]="sharedRemarks" placeholder="Optional — defaults to bulk language fee note" [disabled]="previewMode" />
+      </mat-form-field>
+    </div>
+
+    <div class="bp-table-wrap">
+      <table class="bp-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Level</th>
+            <th>Currency</th>
+            <th class="bp-num">Amount</th>
+            <th class="bp-num">Current paid (portal)</th>
+            <th class="bp-num">Gap (fee − paid)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of editRows">
+            <td class="bp-name">{{ r.name }}</td>
+            <td>{{ r.level }}</td>
+            <td>
+              <mat-form-field appearance="outline" class="bp-inline-cur" *ngIf="!previewMode">
+                <mat-select [(ngModel)]="r.currency">
+                  <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <span *ngIf="previewMode">{{ r.currency }}</span>
+            </td>
+            <td class="bp-num">
+              <mat-form-field appearance="outline" class="bp-inline-amt" *ngIf="!previewMode">
+                <input matInput type="number" min="1" [(ngModel)]="r.amount" />
+              </mat-form-field>
+              <span *ngIf="previewMode">{{ fmt(r.amount) }}</span>
+            </td>
+            <td class="bp-num bp-muted">{{ fmt(r.totalPaid) }}</td>
+            <td class="bp-num">{{ fmt(balanceHint(r)) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bp-footer">
+      <button mat-button type="button" (click)="close(false)">Cancel</button>
+      <button mat-stroked-button color="primary" type="button" (click)="togglePreview()">
+        <mat-icon>{{ previewMode ? 'edit' : 'visibility' }}</mat-icon>
+        {{ previewMode ? 'Back to edit' : 'Preview' }}
+      </button>
+      <button mat-flat-button color="primary" type="button" (click)="applyPayments()" [disabled]="saving || !previewMode">
+        <mat-spinner *ngIf="saving" diameter="18" class="bp-spin"></mat-spinner>
+        <mat-icon *ngIf="!saving">payments</mat-icon>
+        {{ saving ? 'Saving…' : 'Paid' }}
+      </button>
+    </div>
+    <p class="bp-hint" *ngIf="!previewMode">
+      <mat-icon class="bp-hint-ic">info</mat-icon>
+      Use Preview, then <strong>Paid</strong> to create approved legacy language payments for everyone in the table.
+    </p>
+  </ng-container>
+</div>

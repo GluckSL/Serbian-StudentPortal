@@ -89,8 +89,8 @@
             <tr *ngFor="let req of history.requests; let i = index">
               <td class="sd-num">{{ i + 1 }}</td>
               <td>
-                <strong>{{ req.paymentType }}</strong>
-                <span *ngIf="req.customType" class="sd-custom-type"> ({{ req.customType }})</span>
+                <strong>{{ formatPaymentType(req.paymentType, req.customType) }}</strong>
+                <span *ngIf="isLegacy(req)" class="sd-legacy-badge" title="Legacy imported record">Imported</span>
               </td>
               <td class="sd-num">{{ fmt(req.amount) }}</td>
               <td class="sd-num sd-val-green">{{ fmt(req.amount - req.amountRemaining) }}</td>
@@ -114,9 +114,10 @@
       <div *ngFor="let req of history.requests">
         <div *ngIf="hasSubmissions(req)" class="sd-req-block">
           <div class="sd-req-label">
-            {{ req.paymentType }}<span *ngIf="req.customType"> — {{ req.customType }}</span>
+            {{ formatPaymentType(req.paymentType, req.customType) }}
             &bull; {{ req.currency }} {{ fmt(req.amount) }}
             &bull; Due {{ fmtDate(req.dueDate) }}
+            <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
           </div>
           <div *ngFor="let sub of getSubmissions(req); let j = index" class="sd-submission-row">
             <div class="sd-sub-index">#{{ j + 1 }}</div>

@@ -1,4 +1,4 @@
-// routes/joinClass.js — authenticated student join → JoinLog + Zoom web client with portal display name
+// routes/joinClass.js — authenticated student join → JoinLog + Zoom app-first URL with web fallback
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -7,10 +7,10 @@ const MeetingLink = require('../models/MeetingLink');
 const User = require('../models/User');
 const JoinLog = require('../models/JoinLog');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { sanitizeDisplayName, DISPLAY_NAME_MAX } = require('../utils/studentDisplayName');
+const { buildZoomAppUrl, buildZoomUniversalUrl, buildZoomWebUrl } = require('../utils/zoomJoinUrls');
 
 const router = express.Router();
-
-const DISPLAY_NAME_MAX = 80;
 
 /** SPA sends Bearer token; return JSON so Angular can open Zoom (top-level navigation cannot send Authorization). */
 function wantsJoinClassJsonResponse(req) {
@@ -113,16 +113,33 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
       return res.status(403).json({ success: false, message: access.reason });
     }
 
-    let displayName = String(student.name || req.user.name || 'Student').trim();
-    if (displayName.length > DISPLAY_NAME_MAX) {
-      displayName = displayName.slice(0, DISPLAY_NAME_MAX);
-    }
+    const rawName = String(student.name || req.user.name || 'Student');
+    const displayName = sanitizeDisplayName(rawName, DISPLAY_NAME_MAX);
 
     const now = new Date();
+
+    // Structured join log — always emitted (one entry per click; not noisy).
+    const ua = req.get('user-agent') || '';
+    const isMobile = /Android|iPhone|iPad/i.test(ua);
+    const browser = /WhatsApp/i.test(ua) ? 'WhatsApp' :
+                    /Instagram/i.test(ua) ? 'Instagram' :
+                    /FBAN|FBAV/i.test(ua) ? 'Facebook' :
+                    /Telegram/i.test(ua) ? 'Telegram' :
+                    'other';
+    console.log('JOIN_CLICK', {
+      studentId: String(student._id),
+      meetingId: String(meeting._id),
+      displayName,
+      userAgent: ua,
+      deviceType: isMobile ? 'mobile' : 'desktop',
+      browser,
+      joinTime: now.toISOString(),
+    });
+    console.log('Joining Zoom as:', displayName);
     await JoinLog.findOneAndUpdate(
       { meetingId: meeting._id, studentId: student._id },
       {
-        $set: { lastJoinedAt: now },
+        $set: { lastJoinedAt: now, lastZoomDisplayName: displayName },
         $inc: { joinCount: 1 },
         $setOnInsert: {
           joinedAt: now,
@@ -133,15 +150,23 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
       { upsert: true, new: true }
     );
 
-    let zoomUrl = `https://zoom.us/wc/${zoomId}/join?uname=${encodeURIComponent(displayName)}`;
-    if (meeting.zoomPassword) {
-      zoomUrl += `&pwd=${encodeURIComponent(meeting.zoomPassword)}`;
-    }
+    const pwd = meeting.zoomPassword || '';
+    const zoomAppUrl = buildZoomAppUrl(zoomId, pwd);
+    const zoomUniversalUrl = buildZoomUniversalUrl(zoomId, pwd);
+    const zoomWebUrl = buildZoomWebUrl(zoomId, pwd, displayName);
 
     if (wantsJoinClassJsonResponse(req)) {
-      return res.json({ success: true, redirectUrl: zoomUrl });
+      // redirectUrl is kept for backward-compatible callers that only read this field.
+      return res.json({
+        success: true,
+        displayName,
+        zoomAppUrl,
+        zoomUniversalUrl,
+        zoomWebUrl,
+        redirectUrl: zoomWebUrl,
+      });
     }
-    return res.redirect(302, zoomUrl);
+    return res.redirect(302, zoomWebUrl);
   } catch (err) {
     console.error('join-class error:', err.message);
     return res.status(500).json({ success: false, message: 'Failed to start join' });

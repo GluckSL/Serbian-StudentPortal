@@ -5,7 +5,7 @@
     <mat-icon>warning_amber</mat-icon>
     <div class="sp-banner-text">
       <strong>Please re-upload your payment proof</strong>
-      for <em>{{ req.paymentType }}<span *ngIf="req.customType"> — {{ req.customType }}</span></em>.
+      for <em>{{ formatPaymentType(req.paymentType, req.customType) }}</em>.
       <span class="sp-banner-note">{{ getReuploadNote(req) }}</span>
     </div>
     <button mat-flat-button color="warn" type="button" (click)="openUpload(req)">Re-upload</button>
@@ -73,8 +73,8 @@
             <span class="sp-mini-hint sp-mini-hint-ellipsis" [matTooltip]="np.title">{{ np.title }}</span>
           </ng-container>
           <ng-container *ngIf="!nextPaymentBlock">
-            <span class="sp-mini-value sp-mini-muted">—</span>
-            <span class="sp-mini-hint">No open amount due</span>
+            <span class="sp-mini-value sp-mini-muted">{{ nextPaymentClearValue }}</span>
+            <span class="sp-mini-hint">{{ nextPaymentClearHint }}</span>
           </ng-container>
         </div>
       </mat-card>
@@ -91,8 +91,8 @@
       </mat-card>
     </div>
 
-    <!-- Level fee: full catalog amount for current level + upload (hidden when on an installment plan) -->
-    <section class="sp-catalog-card sp-level-fee-card" *ngIf="!loadingCatalog && catalog?.studentLevel && !hasActiveInstallmentPlan">
+    <!-- Level fee: full catalog amount + upload — only when not on instalments and catalog balance still due -->
+    <section class="sp-catalog-card sp-level-fee-card" *ngIf="showDefaultLevelFeeUploadCard">
       <div class="sp-catalog-head sp-level-fee-head">
         <mat-icon class="sp-catalog-icon">account_balance_wallet</mat-icon>
         <div>
@@ -149,7 +149,7 @@
             <div class="sp-req-top sp-req-plan-head">
               <div class="sp-req-main">
                 <div class="sp-req-type-row">
-                  <span class="sp-req-type">{{ req.paymentType }}<span *ngIf="req.customType" class="sp-req-custom"> — {{ req.customType }}</span></span>
+                  <span class="sp-req-type">{{ formatPaymentType(req.paymentType, req.customType) }}</span>
                   <span class="sp-pill" [ngClass]="statusClass(req)">{{ displayStatus(req) }}</span>
                 </div>
                 <div class="sp-inst-badge" *ngIf="installmentHint(req)">
@@ -158,7 +158,7 @@
                 </div>
                 <div class="sp-plan-meta">
                   <mat-icon>layers</mat-icon>
-                  <span>{{ sortedInstallments(req).length }} scheduled parts · Plan {{ req.currency }} {{ fmt(req.amount) }}</span>
+                  <span>{{ installmentTotalParts(req) }} scheduled parts · Plan {{ req.currency }} {{ fmt(req.amount) }}</span>
                 </div>
               </div>
               <div class="sp-req-amount-block sp-plan-remaining">
@@ -182,7 +182,7 @@
               <div *ngFor="let inst of sortedInstallments(req)" class="sp-inst-tile"
                    [ngClass]="installmentTileClasses(req, inst)">
                 <div class="sp-inst-tile-head">
-                  <span class="sp-inst-num">Part {{ inst.installmentNumber }} of {{ sortedInstallments(req).length }}</span>
+                  <span class="sp-inst-num">Part {{ inst.installmentNumber }} of {{ installmentTotalParts(req) }}</span>
                   <span class="sp-pill" [ngClass]="installmentStatusClass(inst.status)">{{ inst.status }}</span>
                 </div>
                 <div class="sp-inst-tile-body">
@@ -216,6 +216,10 @@
             <div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
               <mat-icon>verified</mat-icon>
               <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this plan is fully paid.' : '.' }}</span>
+              <span class="sp-pill sp-legacy-chip" *ngIf="req.isImported">
+                <mat-icon class="sp-legacy-chip-icon">history</mat-icon>
+                Imported record
+              </span>
             </div>
           </ng-container>
 
@@ -225,7 +229,7 @@
               <div class="sp-req-top">
                 <div class="sp-req-main">
                   <div class="sp-req-type-row">
-                    <span class="sp-req-type">{{ req.paymentType }}<span *ngIf="req.customType" class="sp-req-custom"> — {{ req.customType }}</span></span>
+                    <span class="sp-req-type">{{ formatPaymentType(req.paymentType, req.customType) }}</span>
                     <span class="sp-pill pill-grey">SCHEDULED</span>
                   </div>
                   <div class="sp-req-due-row sp-inst-hint-row">
@@ -245,7 +249,7 @@
               <div class="sp-req-top">
                 <div class="sp-req-main">
                   <div class="sp-req-type-row">
-                    <span class="sp-req-type">{{ req.paymentType }}<span *ngIf="req.customType" class="sp-req-custom"> — {{ req.customType }}</span></span>
+                    <span class="sp-req-type">{{ formatPaymentType(req.paymentType, req.customType) }}</span>
                     <span class="sp-pill" [ngClass]="statusClass(req)">{{ displayStatus(req) }}</span>
                   </div>
                   <div class="sp-inst-badge" *ngIf="installmentHint(req)">
@@ -296,6 +300,22 @@
               <div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
                 <mat-icon>verified</mat-icon>
                 <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this request is fully paid.' : '.' }}</span>
+                <span class="sp-pill sp-legacy-chip" *ngIf="req.isImported" matTooltip="This is a legacy imported record">
+                  <mat-icon class="sp-legacy-chip-icon">history</mat-icon>
+                  Imported record
+                </span>
+              </div>
+
+              <!-- Legacy imported record: show remarks + date when approved/fully paid -->
+              <div class="sp-legacy-detail" *ngIf="req.isImported && (req.status === 'APPROVED' || req.status === 'FULLY_PAID')">
+                <div class="sp-legacy-row" *ngIf="req.remarks">
+                  <mat-icon class="sp-legacy-icon">notes</mat-icon>
+                  <span>{{ req.remarks }}</span>
+                </div>
+                <div class="sp-legacy-row" *ngIf="req.dueDate">
+                  <mat-icon class="sp-legacy-icon">event</mat-icon>
+                  <span>Payment date: {{ fmtDate(req.dueDate) }}</span>
+                </div>
               </div>
 
               <div class="sp-review-row" *ngIf="req.status === 'SUBMITTED' || req.status === 'UNDER_REVIEW'">

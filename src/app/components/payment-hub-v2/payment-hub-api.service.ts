@@ -93,6 +93,7 @@ export interface StudentTableRow {
     email: string;
     batch?: string;
     level?: string;
+    phoneNumber?: string;
     dateJoined?: string;
     createdAt?: string;
   };
@@ -101,6 +102,22 @@ export interface StudentTableRow {
   overdueAmount: number;
   overallStatus: string;
   lastRebuiltAt?: string;
+  /** LKR / INR / USD from phone prefix (server-side). */
+  inferredCurrency?: string;
+}
+
+export interface BulkLegacyLanguageRow {
+  studentId: string;
+  totalCourseFee: number;
+  amountPaid: number;
+  currency: string;
+  paymentDate: string;
+  remarks?: string;
+}
+
+export interface BulkLegacyLanguageResult {
+  succeeded: { studentId: string }[];
+  failed: { studentId: string; message: string; code?: string }[];
 }
 
 export interface PagedResponse<T> {
@@ -181,9 +198,46 @@ export interface PaymentRequestItem {
   installmentAllowed: boolean;
   totalInstallments: number;
   createdAt: string;
+  source?: string;
+  isImported?: boolean;
   submissions?: ApprovalQueueItem[];
   installments?: InstallmentRow[];
   studentInstallmentView?: StudentInstallmentView | null;
+}
+
+export interface LegacyLanguagePayment {
+  totalCourseFee: number;
+  amountPaid: number;
+  currency: string;
+  paymentDate: string;
+  remarks?: string;
+  markFullyPaid?: boolean;
+}
+
+export interface LegacyLineItem {
+  amount: number;
+  currency: string;
+  paymentDate: string;
+  remarks?: string;
+}
+
+export interface LegacyCustomPayment extends LegacyLineItem {
+  paymentType: string;
+}
+
+export interface MapLegacyPaymentsBody {
+  studentId: string;
+  languagePayment?: LegacyLanguagePayment | null;
+  docsPayments?: LegacyLineItem[];
+  visaPayments?: LegacyLineItem[];
+  customPayments?: LegacyCustomPayment[];
+}
+
+export interface MapLegacyPaymentsResult {
+  language: { requestId: string; submissionId: string } | null;
+  docs: { requestId: string; submissionId: string }[];
+  visa: { requestId: string; submissionId: string }[];
+  custom: { requestId: string; submissionId: string }[];
 }
 
 export interface StudentHistory {
@@ -325,5 +379,22 @@ export class PaymentHubApiService {
 
   getMyCatalog(): Observable<{ success: boolean; data: StudentCatalog }> {
     return this.http.get<{ success: boolean; data: StudentCatalog }>(`${this.base}/my/catalog`);
+  }
+
+  // ── Legacy payment mapping (admin) ────────────────────────────────────────
+
+  mapLegacyPayments(body: MapLegacyPaymentsBody): Observable<{ success: boolean; message: string; data: MapLegacyPaymentsResult }> {
+    return this.http.post<{ success: boolean; message: string; data: MapLegacyPaymentsResult }>(`${this.base}/legacy/map-payment`, body);
+  }
+
+  mapLegacyBulkLanguagePaid(body: { rows: BulkLegacyLanguageRow[] }): Observable<{
+    success: boolean;
+    message: string;
+    data: BulkLegacyLanguageResult;
+  }> {
+    return this.http.post<{ success: boolean; message: string; data: BulkLegacyLanguageResult }>(
+      `${this.base}/legacy/bulk-language-paid`,
+      body,
+    );
   }
 }

@@ -92,6 +92,21 @@
   }
 }
 
+.ph-action-btn-map.mat-mdc-outlined-button,
+.ph-action-btn-bulk.mat-mdc-outlined-button {
+  border-width: 1.5px !important;
+  box-shadow: 0 2px 10px rgba(25, 118, 210, 0.10);
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 4px 14px rgba(25, 118, 210, 0.18);
+    background: #f0f7ff !important;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+  }
+}
+
 // ── Cards ───────────────────────────────────────────────────────────────────
 .ph-cards-section {
   margin-bottom: 24px;
@@ -229,6 +244,27 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.ph-table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ph-select-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1565c0;
+}
+
+.ph-col-check {
+  width: 44px;
+  text-align: center;
+  vertical-align: middle;
+  padding-left: 8px !important;
+  padding-right: 4px !important;
 }
 
 .ph-section-title {

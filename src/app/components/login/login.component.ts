@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { AuthService, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { isSafeReturnUrl } from '../../services/join-class-flow.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
@@ -32,6 +33,8 @@ export class LoginComponent implements OnInit {
   showSessionExpiredNotice = false;
   /** True while checking for an existing token session */
   checkingExistingSession = false;
+  /** Safe internal path to navigate to after successful login (from ?returnUrl query param). */
+  pendingReturnUrl = '';
 
   /** Pupil offset in px (translate) for each eye */
   leftPupil = { x: 0, y: 0 };
@@ -52,12 +55,19 @@ export class LoginComponent implements OnInit {
 
   ngOnInit(): void {
     const session = this.route.snapshot.queryParamMap.get('session');
+    // Read returnUrl before clearing query params so it can be used after login.
+    const rawReturnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || '';
+    if (rawReturnUrl && isSafeReturnUrl(rawReturnUrl)) {
+      this.pendingReturnUrl = rawReturnUrl;
+    }
+
     if (session === 'expired') {
       this.showSessionExpiredNotice = true;
+      // Strip query params from the URL bar but keep pendingReturnUrl in memory.
       this.router.navigate([], {
         relativeTo: this.route,
         queryParams: {},
-        replaceUrl: true
+        replaceUrl: true,
       });
       return;
     }
@@ -168,11 +178,16 @@ export class LoginComponent implements OnInit {
             this.loading = false;
 
             const merged = profile || response.user;
-            const path = this.authService.getPostLoginPath(merged);
-            if (path) {
-              this.router.navigateByUrl(path);
+            // If the student was redirected here mid-flow, send them back.
+            if (this.pendingReturnUrl) {
+              this.router.navigateByUrl(this.pendingReturnUrl);
             } else {
-              this.errorMessage = 'Unknown user role.';
+              const path = this.authService.getPostLoginPath(merged);
+              if (path) {
+                this.router.navigateByUrl(path);
+              } else {
+                this.errorMessage = 'Unknown user role.';
+              }
             }
           },
           error: () => {

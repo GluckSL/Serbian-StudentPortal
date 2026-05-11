@@ -241,12 +241,12 @@ export class NavService {
         { id: 'documents', label: 'Documents', icon: 'folder', route: '/student-documents', subGroup: null }
       ]
     },
-    // {
-    //   group: 'Payments',
-    //   items: [
-    //     { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
-    //   ]
-    // },
+    {
+      group: 'Payments',
+      items: [
+        { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
+      ]
+    },
     {
       group: 'Visa Status',
       items: [

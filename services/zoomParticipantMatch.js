@@ -7,6 +7,10 @@ const mongoose = require('mongoose');
 const MATCH_CONFIG = require('../config/matchConfig');
 const matchLogger = require('../utils/matchLogger');
 const { participantClaimKey } = require('../utils/participantClaimKey');
+const {
+  sanitizeDisplayName: sanitizePortalDisplayName,
+  DISPLAY_NAME_MAX,
+} = require('../utils/studentDisplayName');
 
 const MP = MATCH_CONFIG.MATCH_PRIORITY;
 
@@ -173,8 +177,12 @@ function priorityForMethod(method, baseConfidence) {
   switch (method) {
     case 'email':
       return MP.EMAIL;
+    case 'exact_trim_name':
+      return MP.EXACT_TRIM;
     case 'exact_name':
       return MP.EXACT;
+    case 'sanitized_name':
+      return MP.SANITIZED_NAME;
     case 'email_local':
       return baseConfidence >= 92 ? MP.EMAIL_LOCAL_STRONG : MP.EMAIL_LOCAL_WEAK;
     case 'initials_name':
@@ -383,7 +391,8 @@ function summaryForMethod(method, attendee, match, debug, weakIdentity) {
   const z = match?.name || debug?.zoomName || '';
   if (method === 'email') return 'Matched via email';
   if (method === 'email_local') return `Matched via email local ↔ Zoom name`;
-  if (method === 'exact_name') return 'Matched via exact name';
+  if (method === 'exact_trim_name') return 'Matched via exact name (trim)';
+  if (method === 'exact_name') return 'Matched via exact name (normalised)';
   if (method === 'initials_name') return `Matched via initials (${normalizeName(z).replace(/\s/g, '') || z})`;
   if (method === 'join_log_time') {
     const ms = debug?.timeDiffMs;
@@ -558,11 +567,21 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
   let bestMethod = 'no_match';
   let blockWeakFallbacks = false;
 
+  // Matching priority order (descending strength):
+  //   email → exact_trim_name → exact_name → sanitized_name → email_local → containment → initials
+  //   → join_log_time (when no prior match) → fuzzy_name → partial_name
+  //
+  // email is the only early-return; all other stages compete for bestMatch/bestConfidence
+  // so the full participant list is always scanned before committing.  This prevents an
+  // email_local hit on an earlier participant from blocking a stronger exact-name match
+  // on a later one.
+
   for (const participant of participants) {
     if (participant._matched || participant._reserved) continue;
 
     const pEmail = normalizeEmailForMatch(participant.email || '');
 
+    // Stage 1 — exact email (only stage that early-returns; strongest possible signal).
     if (pEmail && attendeeEmail && pEmail === attendeeEmail) {
       const use = canUseParticipant(participant, MP.EMAIL, matchContext);
       if (!use.ok) {
@@ -588,50 +607,36 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
       );
     }
 
-    const locConf = emailLocalPartVsZoomNameConfidence(attendee.email || '', participant.name || '');
-    if (locConf >= 92) {
-      const use = canUseParticipant(participant, priorityForMethod('email_local', locConf), matchContext);
-      if (!use.ok) {
-        if (use.reason === 'priority') {
-          matchLogger.warn('STRONG_MATCH_PRIORITY_BLOCKED', {
-            traceId: String(traceId),
-            method: 'email_local',
-            studentId: logCtx.studentId,
-          });
-        }
-        continue;
-      }
-      return finalizeAssignment(
-        attendee,
-        participant,
-        locConf,
-        'email_local',
-        joinLogJoinedAt,
-        meetingDurationSec,
-        {},
-        matchContext,
-        false
-      );
-    }
-    if (
-      !MATCH_CONFIG.STRICT_MATCH_MODE &&
-      !largeClassSafe &&
-      locConf > bestConfidence &&
-      locConf >= 75
-    ) {
+    // Stage 2 — exact_trim_name: raw case-insensitive trim match before aggressive normalisation.
+    // Catches names like "O'Brien" that normalizeName would convert differently.
+    const rawAtt = String(attendee.name || '').trim().toLowerCase();
+    const rawPart = String(participant.name || '').trim().toLowerCase();
+    if (rawAtt && rawPart && rawAtt === rawPart && 98 > bestConfidence) {
       bestMatch = participant;
-      bestConfidence = locConf;
-      bestMethod = 'email_local';
+      bestConfidence = 98;
+      bestMethod = 'exact_trim_name';
+      continue; // No point checking softer stages for this participant.
     }
 
+    // Stage 3 — exact_name: normalised (lowercased, punctuation stripped) equality.
     const nAtt = normalizeName(attendee.name || '');
     const nPart = normalizeName(participant.name || '');
-    if (nAtt && nPart && nAtt === nPart) {
-      if (90 > bestConfidence) {
-        bestMatch = participant;
-        bestConfidence = 90;
-        bestMethod = 'exact_name';
-      }
+    if (nAtt && nPart && nAtt === nPart && 95 > bestConfidence) {
+      bestMatch = participant;
+      bestConfidence = 95;
+      bestMethod = 'exact_name';
+      continue;
+    }
+
+    // Stage 3b — portal name after portal-side sanitizer vs normalised Zoom display name.
+    const nSanPortal = normalizeName(
+      sanitizePortalDisplayName(attendee.name || '', DISPLAY_NAME_MAX)
+    );
+    const nZoomName = normalizeName(participant.name || '');
+    if (nSanPortal && nZoomName && nSanPortal === nZoomName && 94 > bestConfidence) {
+      bestMatch = participant;
+      bestConfidence = 94;
+      bestMethod = 'sanitized_name';
       continue;
     }
 
@@ -639,7 +644,25 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
       continue;
     }
 
+    // Stage 4 — email_local (strong): local part of portal email closely matches Zoom display name.
+    // Positioned after name stages so an exact name match always wins over email_local inference.
+    const locConf = emailLocalPartVsZoomNameConfidence(attendee.email || '', participant.name || '');
+    if (locConf >= 92 && locConf > bestConfidence) {
+      bestMatch = participant;
+      bestConfidence = locConf;
+      bestMethod = 'email_local';
+      continue;
+    }
+
+    // Stage 5 — email_local (weak): moderate confidence email-local inference.
+    if (!largeClassSafe && locConf >= 75 && locConf > bestConfidence) {
+      bestMatch = participant;
+      bestConfidence = locConf;
+      bestMethod = 'email_local';
+    }
+
     if (!largeClassSafe) {
+      // Stage 6 — containment / extended name overlap.
       const ext = extendedNameConfidence(attendee.name || '', participant.name || '');
       if (ext > bestConfidence && ext >= 80) {
         bestMatch = participant;
@@ -647,51 +670,26 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
         bestMethod = 'containment';
       }
 
-      if (participant.name && attendee.name) {
-        const confidence = calculatePartialNameMatch(attendee.name, participant.name);
-        if (confidence > bestConfidence && confidence >= 55) {
-          bestMatch = participant;
-          bestConfidence = confidence;
-          bestMethod = 'partial_name';
-        }
-      }
-    }
-
-    if (
-      participant.name &&
-      attendee.name &&
-      bestConfidence < MATCH_CONFIG.STRONG_MATCH_MIN_CONFIDENCE
-    ) {
-      const initials = getInitials(attendee.name);
-      const zm = normalizeName(participant.name || '');
+      // Stage 7 — initials: only when we don't already have a strong candidate.
       if (
-        initials.length >= 2 &&
-        zm.length > 0 &&
-        zm.length <= MATCH_CONFIG.INITIALS_MAX_ZOOM_NAME_LEN &&
-        initials === zm
+        participant.name &&
+        attendee.name &&
+        bestConfidence < MATCH_CONFIG.STRONG_MATCH_MIN_CONFIDENCE
       ) {
-        if (85 > bestConfidence) {
+        const initials = getInitials(attendee.name);
+        const zm = normalizeName(participant.name || '');
+        if (
+          initials.length >= 2 &&
+          zm.length > 0 &&
+          zm.length <= MATCH_CONFIG.INITIALS_MAX_ZOOM_NAME_LEN &&
+          initials === zm &&
+          85 > bestConfidence
+        ) {
           bestMatch = participant;
           bestConfidence = 85;
           bestMethod = 'initials_name';
+          continue;
         }
-        continue;
-      }
-    }
-
-    if (
-      !MATCH_CONFIG.STRICT_MATCH_MODE &&
-      !skipFuzzyOnly &&
-      !largeClassSafe &&
-      participant.name &&
-      attendee.name
-    ) {
-      const similarity = calculateStringSimilarity(attendee.name, participant.name);
-      const confidence = Math.round(similarity * 70);
-      if (confidence > bestConfidence && confidence >= 35) {
-        bestMatch = participant;
-        bestConfidence = confidence;
-        bestMethod = 'fuzzy_name';
       }
     }
   }
@@ -823,6 +821,34 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
     }
   }
 
+  // Fuzzy then partial (after join_log correlation when still unmatched).
+  if (!bestMatch && !blockWeakFallbacks && !skipFuzzyOnly && !largeClassSafe && !MATCH_CONFIG.STRICT_MATCH_MODE) {
+    for (const participant of participants) {
+      if (participant._matched || participant._reserved) continue;
+      if (!participant.name || !attendee.name) continue;
+      const similarity = calculateStringSimilarity(attendee.name, participant.name);
+      const confidence = Math.round(similarity * 70);
+      if (confidence > bestConfidence && confidence >= 35) {
+        bestMatch = participant;
+        bestConfidence = confidence;
+        bestMethod = 'fuzzy_name';
+      }
+    }
+  }
+
+  if (!bestMatch && !blockWeakFallbacks && !largeClassSafe && !MATCH_CONFIG.STRICT_MATCH_MODE) {
+    for (const participant of participants) {
+      if (participant._matched || participant._reserved) continue;
+      if (!participant.name || !attendee.name) continue;
+      const confidence = calculatePartialNameMatch(attendee.name, participant.name);
+      if (confidence > bestConfidence && confidence >= 55) {
+        bestMatch = participant;
+        bestConfidence = confidence;
+        bestMethod = 'partial_name';
+      }
+    }
+  }
+
   if (!bestMatch && !blockWeakFallbacks && participants.length === 1) {
     const only = participants[0];
     if (only && !only._matched && !only._reserved) {
@@ -841,7 +867,10 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
   }
 
   if (bestMatch) {
-    const immune = bestMethod === 'exact_name';
+    const immune =
+      bestMethod === 'exact_trim_name' ||
+      bestMethod === 'exact_name' ||
+      bestMethod === 'sanitized_name';
     return finalizeAssignment(
       attendee,
       bestMatch,

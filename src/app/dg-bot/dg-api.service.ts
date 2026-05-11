@@ -75,6 +75,7 @@ export class DgApiService {
     );
   }
 
+  /** Admin grid: lightweight rows (title, level, flags, …). Full content via `getAdminModule` or `getPlay`. */
   listAdminModules(): Observable<{ modules: DgModuleSummary[] }> {
     return this.http.get<{ modules: DgModuleSummary[] }>(`${this.base}/modules`);
   }

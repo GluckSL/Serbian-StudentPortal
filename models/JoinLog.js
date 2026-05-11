@@ -18,6 +18,8 @@ const joinLogSchema = new mongoose.Schema(
     joinedAt: { type: Date, required: true },
     lastJoinedAt: { type: Date },
     joinCount: { type: Number, default: 0 },
+    /** Sanitized Zoom display name used on the most recent join (for attendance debugging) */
+    lastZoomDisplayName: { type: String, default: '' },
   },
   { timestamps: false }
 );

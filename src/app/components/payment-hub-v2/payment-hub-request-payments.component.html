@@ -250,14 +250,14 @@
         <div *ngFor="let sub of approvalRows" class="approval-card" [class.approval-card--open]="activeActionId === sub._id">
           <div class="approval-header" (click)="toggleActionPanel(sub._id)">
             <div class="approval-primary">
-              <div class="approval-avatar" aria-hidden="true">{{ initialLetter(sub.studentId?.name) }}</div>
+              <div class="approval-avatar" aria-hidden="true">{{ initialLetter(sub.studentId.name) }}</div>
               <div class="approval-info">
-                <span class="student-name-lg">{{ sub.studentId?.name }}</span>
-                <span class="student-meta">{{ sub.studentId?.email }}</span>
-                <span class="student-meta student-meta-row" *ngIf="sub.studentId?.batch || sub.studentId?.level">
-                  <span *ngIf="sub.studentId?.batch">Batch {{ sub.studentId?.batch }}</span>
-                  <span *ngIf="sub.studentId?.batch && sub.studentId?.level"> · </span>
-                  <span *ngIf="sub.studentId?.level">Level {{ sub.studentId?.level }}</span>
+                <span class="student-name-lg">{{ sub.studentId.name }}</span>
+                <span class="student-meta">{{ sub.studentId.email }}</span>
+                <span class="student-meta student-meta-row" *ngIf="sub.studentId.batch || sub.studentId.level">
+                  <span *ngIf="sub.studentId.batch">Batch {{ sub.studentId.batch }}</span>
+                  <span *ngIf="sub.studentId.batch && sub.studentId.level"> · </span>
+                  <span *ngIf="sub.studentId.level">Level {{ sub.studentId.level }}</span>
                 </span>
               </div>
             </div>
@@ -268,9 +268,9 @@
                 <span class="approval-amount-caption">in this upload</span>
               </div>
               <span *ngIf="installmentBadge(sub) as ib" class="inst-chip">{{ ib }}</span>
-              <div class="req-purpose" *ngIf="sub.paymentRequestId?.remarks">
+              <div class="req-purpose" *ngIf="sub.paymentRequestId.remarks">
                 <span class="req-purpose-label">Purpose</span>
-                <span class="req-purpose-text">{{ sub.paymentRequestId?.remarks }}</span>
+                <span class="req-purpose-text">{{ sub.paymentRequestId.remarks }}</span>
               </div>
             </div>
             <div class="approval-right">
@@ -294,11 +294,11 @@
               <div class="ap-summary-grid">
                 <div class="ap-sum-cell">
                   <span class="ap-sum-label">Total on request</span>
-                  <span class="ap-sum-value">{{ sub.paymentRequestId?.currency }} {{ fmt(sub.paymentRequestId?.amount) }}</span>
+                  <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amount) }}</span>
                 </div>
                 <div class="ap-sum-cell">
                   <span class="ap-sum-label">Still due (whole request)</span>
-                  <span class="ap-sum-value">{{ sub.paymentRequestId?.currency }} {{ fmt(sub.paymentRequestId?.amountRemaining ?? sub.paymentRequestId?.amount) }}</span>
+                  <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amountRemaining ?? sub.paymentRequestId.amount) }}</span>
                 </div>
                 <div class="ap-sum-cell">
                   <span class="ap-sum-label">This upload</span>
@@ -306,7 +306,7 @@
                 </div>
                 <div class="ap-sum-cell">
                   <span class="ap-sum-label">Due date</span>
-                  <span class="ap-sum-value">{{ sub.paymentRequestId?.dueDate | date:'dd MMM y' }}</span>
+                  <span class="ap-sum-value">{{ sub.paymentRequestId.dueDate | date:'dd MMM y' }}</span>
                 </div>
               </div>
               <p *ngIf="isInstallmentRequest(sub)" class="ap-summary-foot">

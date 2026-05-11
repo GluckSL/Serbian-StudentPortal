@@ -12,8 +12,12 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { PaymentHubApiService, DashboardStats, StudentTableRow } from './payment-hub-api.service';
 import { StudentLogService } from '../../services/student-log.service';
+import { PaymentLegacyMapperDialogComponent } from './payment-legacy-mapper-dialog.component';
+import { PaymentBulkLanguagePaidDialogComponent } from './payment-bulk-language-paid-dialog.component';
 
 @Component({
   selector: 'app-payment-hub-all-payments',
@@ -32,6 +36,8 @@ import { StudentLogService } from '../../services/student-log.service';
     MatNativeDateModule,
     MatIconModule,
     MatTooltipModule,
+    MatDialogModule,
+    MatCheckboxModule,
   ],
   templateUrl: './payment-hub-all-payments.component.html',
   styleUrls: ['./payment-hub-all-payments.component.scss'],
@@ -60,10 +66,14 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   /** Distinct student `batch` values from `/api/studentLog/batch-options` */
   batchOptions: string[] = [];
 
+  /** Student `_id`s selected for bulk language fee (may span pages). */
+  private selectedStudentIds = new Set<string>();
+
   constructor(
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
     private readonly studentLog: StudentLogService,
+    private readonly dialog: MatDialog,
   ) {}
 
   ngOnInit(): void {
@@ -162,6 +172,93 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   openStudentDetail(row: StudentTableRow): void {
     const studentId = row.studentId?._id || row._id;
     window.open(`/admin/payment-hub/student/${studentId}`, '_blank');
+  }
+
+  get selectedCount(): number {
+    return this.selectedStudentIds.size;
+  }
+
+  get allOnPageSelected(): boolean {
+    if (!this.rows.length) return false;
+    return this.rows.every((r) => this.selectedStudentIds.has(this.rowStudentId(r)));
+  }
+
+  get someOnPageSelected(): boolean {
+    if (!this.rows.length) return false;
+    const n = this.rows.filter((r) => this.selectedStudentIds.has(this.rowStudentId(r))).length;
+    return n > 0 && n < this.rows.length;
+  }
+
+  private rowStudentId(row: StudentTableRow): string {
+    return row.studentId?._id || row._id;
+  }
+
+  isRowSelected(row: StudentTableRow): boolean {
+    return this.selectedStudentIds.has(this.rowStudentId(row));
+  }
+
+  toggleRowSelection(row: StudentTableRow, checked: boolean): void {
+    const id = this.rowStudentId(row);
+    const next = new Set(this.selectedStudentIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    this.selectedStudentIds = next;
+  }
+
+  toggleSelectAllOnPage(checked: boolean): void {
+    const next = new Set(this.selectedStudentIds);
+    for (const r of this.rows) {
+      const id = this.rowStudentId(r);
+      if (checked) next.add(id);
+      else next.delete(id);
+    }
+    this.selectedStudentIds = next;
+  }
+
+  openBulkLanguagePaid(): void {
+    const picked = this.rows.filter((r) => this.isRowSelected(r));
+    if (this.selectedCount > picked.length) {
+      this.snack.open(
+        'Some checked students are on another page. Only rows on this page are opened — use Next/Previous and repeat, or narrow filters.',
+        'OK',
+        { duration: 8000 },
+      );
+    }
+    if (!picked.length) {
+      this.snack.open('Select at least one student on this page.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+    const ref = this.dialog.open(PaymentBulkLanguagePaidDialogComponent, {
+      width: '960px',
+      maxWidth: '100vw',
+      maxHeight: '92vh',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: false,
+      data: { rows: picked },
+    });
+    ref.afterClosed().subscribe((saved) => {
+      if (saved) {
+        this.selectedStudentIds = new Set();
+        this.loadStats();
+        this.loadTable();
+      }
+    });
+  }
+
+  openLegacyMapper(): void {
+    const ref = this.dialog.open(PaymentLegacyMapperDialogComponent, {
+      width: '1000px',
+      maxWidth: '100vw',
+      maxHeight: '92vh',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: false,
+    });
+    ref.afterClosed().subscribe((saved) => {
+      if (saved) {
+        this.loadStats();
+        this.loadTable();
+      }
+    });
   }
 
   runOverdue(): void {

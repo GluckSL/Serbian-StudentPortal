@@ -291,6 +291,15 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/teacher/meetings/create']);
   }
 
+  /** Same roles as POST /api/zoom/create-bulk-journey-meetings */
+  canBulkJourneyMeetings(): boolean {
+    return this.userRole === 'ADMIN' || this.userRole === 'TEACHER_ADMIN';
+  }
+
+  bulkJourneyMeetings(): void {
+    this.router.navigate(['/teacher/meetings/bulk-journey-create']);
+  }
+
   viewMeeting(meetingId: string): void {
     this.router.navigate(['/teacher/meetings', meetingId]);
   }

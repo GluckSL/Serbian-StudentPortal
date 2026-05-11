@@ -143,4 +143,20 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     if (!this.history?.requests?.length) return true;
     return !this.history.requests.some((r) => this.hasSubmissions(r));
   }
+
+  private static readonly PAYMENT_TYPE_LABELS: Record<string, string> = {
+    LANGUAGE_FEE:   'Language Course Fee',
+    DOCS_PAYMENT:   'Documentation Payment',
+    VISA_PAYMENT:   'Visa Payment',
+    CUSTOM_PAYMENT: 'Custom Payment',
+  };
+
+  formatPaymentType(type: string, customType?: string): string {
+    const label = PaymentHubStudentDetailComponent.PAYMENT_TYPE_LABELS[type] || type;
+    return customType ? `${label} — ${customType}` : label;
+  }
+
+  isLegacy(req: PaymentRequest): boolean {
+    return !!req.isImported;
+  }
 }

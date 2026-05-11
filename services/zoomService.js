@@ -3,6 +3,37 @@
 const axios = require('axios');
 const zoomConfig = require('../config/zoomConfig');
 
+/**
+ * Gmail-style normalisation for dedupe keys (dots removed in local part).
+ */
+function normalizeEmailForDedupe(email) {
+  if (!email || typeof email !== 'string') return '';
+  const t = email.trim().toLowerCase();
+  const at = t.indexOf('@');
+  if (at < 0) return t;
+  let local = t.slice(0, at);
+  const domain = t.slice(at + 1);
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    local = local.replace(/\./g, '');
+  }
+  return `${local}@${domain}`;
+}
+
+/**
+ * Name normaliser for participant deduplication (reconnect rows).
+ * Aligns loosely with portal display-name cleanup: Unicode letters, collapse space.
+ */
+function normalizeParticipantName(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{200B}-\u{200D}\u{FEFF}\u{00AD}]/gu, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 class ZoomService {
   constructor() {
     this.accessToken = null;
@@ -339,7 +370,18 @@ class ZoomService {
       const participantMap = new Map();
 
       participants.forEach(p => {
-        const key = p.user_email || p.name;
+        const rawEmailInput = (p.user_email || p.email || '').trim();
+        const dedupeEmail = normalizeEmailForDedupe(rawEmailInput);
+
+        // Deduplication key: normalised email (Gmail-aware) OR normalised display name.
+        let key;
+        if (dedupeEmail) {
+          key = `email:${dedupeEmail}`;
+        } else {
+          const normName = normalizeParticipantName(p.name || p.user_name || '');
+          key = normName ? `name:${normName}` : `raw:${String(p.name || p.user_name || p.id || Math.random())}`;
+        }
+
         if (participantMap.has(key)) {
           const existing = participantMap.get(key);
           existing.duration += p.duration;
@@ -352,7 +394,7 @@ class ZoomService {
             id: p.id,
             userId: p.user_id,
             name: p.name || p.user_name || '',
-            email: (p.user_email || p.email || '').trim(),
+            email: dedupeEmail || rawEmailInput.toLowerCase(),
             joinTime: p.join_time, leaveTime: p.leave_time,
             duration: p.duration, durationMinutes: Math.round(p.duration / 60),
             attentiveness_score: p.attentiveness_score, status: p.status,

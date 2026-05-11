@@ -78,6 +78,20 @@ export class ZoomService {
     });
   }
 
+  /** Server-side journey preview + conflict strings (no Zoom). */
+  previewBulkJourneyMeetings(body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/preview-bulk-journey-meetings`, body, {
+      withCredentials: true
+    });
+  }
+
+  /** One chunk of bulk journey creates (max 25 slots per request). */
+  createBulkJourneyMeetingsChunk(body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/create-bulk-journey-meetings`, body, {
+      withCredentials: true
+    });
+  }
+
   /**
    * Get all teachers for meeting creation
    */

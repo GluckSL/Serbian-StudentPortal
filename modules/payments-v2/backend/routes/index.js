@@ -4,6 +4,7 @@ const router = express.Router();
 const ctrl = require('../controllers/paymentRequestController');
 const approvalCtrl = require('../controllers/approvalController');
 const catalogCtrl = require('../controllers/catalogSettingsController');
+const legacyCtrl = require('../controllers/legacyMapController');
 const { attachFinanceRole, requireFinanceAdmin } = require('../middlewares/financeRoles');
 const { buildUploadMiddleware } = require('../middlewares/paymentScreenshotUpload');
 const uploadScreenshot = (req, res, next) => buildUploadMiddleware()(req, res, next);
@@ -42,6 +43,10 @@ router.patch('/approvals/:submissionId/approve', requireFinanceAdmin, approvalCt
 router.patch('/approvals/:submissionId/reject', requireFinanceAdmin, approvalCtrl.rejectPayment);
 router.patch('/approvals/:submissionId/reupload', requireFinanceAdmin, approvalCtrl.requestReupload);
 router.patch('/approvals/:submissionId/under-review', approvalCtrl.moveToUnderReview);
+
+// ─── Legacy manual payment mapping ───────────────────────────────────────────
+router.post('/legacy/map-payment', requireFinanceAdmin, legacyCtrl.mapLegacyPaymentsHandler);
+router.post('/legacy/bulk-language-paid', requireFinanceAdmin, legacyCtrl.bulkMapLegacyLanguageFeesHandler);
 
 // ─── Catalog / pricing settings ──────────────────────────────────────────────
 router.get('/catalog/settings', requireFinanceAdmin, catalogCtrl.getCatalogSettings);

@@ -423,7 +423,7 @@
     <div class="dg-completion-card">
       <mat-icon class="dg-completion-icon">emoji_events</mat-icon>
       <h2 class="dg-completion-title">Congratulations!</h2>
-      <p class="dg-completion-module-name">You completed "{{ payload?.module?.title }}"</p>
+      <p class="dg-completion-module-name">You completed "{{ payload != null ? payload.module.title : '' }}"</p>
 
       <!-- Completion percentage block -->
       <div class="dg-completion-pct-block">

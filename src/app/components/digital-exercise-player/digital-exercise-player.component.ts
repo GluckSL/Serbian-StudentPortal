@@ -618,12 +618,35 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           this.exercise = exercise;
           this.mediaUrlCache.clear();
           this.preloadedImageUrls.clear();
-          // Student payloads may still contain legacy storage paths; resolve silently so media (including images)
-          // remains visible without requiring manual "Refetch media".
-          if (asStudent) this.recoverMediaLinksSilently();
-          this.initPlayerQuestions();
-          // Start immediately when user clicks "Start" from the list page.
-          this.startExercise();
+          const beginPlay = () => {
+            this.initPlayerQuestions();
+            // Start immediately when user clicks "Start" from the list page.
+            this.startExercise();
+          };
+          // Legacy DB values often keep `/uploads/exercise-attachments/...` while the file lives only in R2.
+          // If we init the player before R2 remap finishes, `<audio>` can load a dead URL and stay at 0:00.
+          if (!asStudent) {
+            beginPlay();
+            return;
+          }
+          const urls = this.collectExerciseMediaUrlsForRecovery();
+          if (urls.length === 0) {
+            beginPlay();
+            return;
+          }
+          this.mediaRefetchInProgress = true;
+          this.exerciseService.resolveMediaFromR2(urls).subscribe({
+            next: ({ resolutions }) => {
+              this.mediaRefetchInProgress = false;
+              this.applyFoundMediaResolutions(resolutions);
+              this.mediaUrlCache.clear();
+              beginPlay();
+            },
+            error: () => {
+              this.mediaRefetchInProgress = false;
+              beginPlay();
+            },
+          });
         },
         error: (err) => {
           const code = err?.error?.code;
@@ -3314,53 +3337,74 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return [...new Set(urls)];
   }
 
-  private recoverMediaLinksSilently(): void {
-    if (!this.exercise || this.mediaRefetchInProgress) return;
-    const urls = this.collectExerciseMediaUrlsForRecovery();
-    if (urls.length === 0) return;
-    this.mediaRefetchInProgress = true;
-    this.exerciseService.resolveMediaFromR2(urls).subscribe({
-      next: ({ resolutions }) => {
-        this.mediaRefetchInProgress = false;
-        const mapFound = new Map(
-          resolutions.filter((r) => r.found).map((r) => [r.original, r.url])
-        );
-        if (mapFound.size === 0 || !this.exercise) return;
-        const patchVal = (before: string | undefined | null): string | undefined | null => {
-          const s = String(before || '').trim();
-          if (!s) return before;
-          const r = mapFound.get(s);
-          return r !== undefined ? r : before;
-        };
-        const ex = this.exercise;
-        const nextShared = patchVal(ex.sharedAudioUrl);
-        if (nextShared !== ex.sharedAudioUrl) ex.sharedAudioUrl = nextShared ?? undefined;
-        for (const row of ex.videoSuccessFeedback || []) {
-          const n = patchVal(row.audioUrl);
-          if (n !== row.audioUrl) row.audioUrl = (n as string) || '';
-        }
-        for (const row of ex.videoRetryFeedback || []) {
-          const n = patchVal(row.audioUrl);
-          if (n !== row.audioUrl) row.audioUrl = (n as string) || '';
-        }
-        const qs = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
-        for (const q of qs) {
-          const ni = patchVal(q['imageUrl'] as string | undefined);
-          if (ni !== q['imageUrl']) q['imageUrl'] = ni ?? undefined;
-          const na = patchVal(q['attachmentUrl'] as string | undefined);
-          if (na !== q['attachmentUrl']) q['attachmentUrl'] = na ?? undefined;
-          const nm = patchVal(q['mediaUrl'] as string | undefined);
-          if (nm !== q['mediaUrl']) q['mediaUrl'] = nm;
-          const nau = patchVal(q['audioUrl'] as string | undefined);
-          if (nau !== q['audioUrl']) q['audioUrl'] = nau;
-          const nv = patchVal(q['videoUrl'] as string | undefined);
-          if (nv !== q['videoUrl']) q['videoUrl'] = nv;
-        }
-      },
-      error: () => {
-        this.mediaRefetchInProgress = false;
-      },
-    });
+  /**
+   * Replace exercise media fields when R2 resolve reports `found` for the stored path.
+   * Returns how many fields were updated (for manual refetch feedback).
+   */
+  private applyFoundMediaResolutions(
+    resolutions: Array<{ original: string; url: string; found: boolean }>
+  ): number {
+    if (!this.exercise) return 0;
+    const mapFound = new Map(
+      resolutions.filter((r) => r.found).map((r) => [r.original, r.url])
+    );
+    if (mapFound.size === 0) return 0;
+    let updated = 0;
+    const patchVal = (before: string | undefined | null): string | undefined | null => {
+      const s = String(before || '').trim();
+      if (!s) return before;
+      const r = mapFound.get(s);
+      return r !== undefined ? r : before;
+    };
+    const ex = this.exercise;
+    const nextShared = patchVal(ex.sharedAudioUrl);
+    if (nextShared !== ex.sharedAudioUrl) {
+      ex.sharedAudioUrl = nextShared ?? undefined;
+      updated++;
+    }
+    for (const row of ex.videoSuccessFeedback || []) {
+      const n = patchVal(row.audioUrl);
+      if (n !== row.audioUrl) {
+        row.audioUrl = (n as string) || '';
+        updated++;
+      }
+    }
+    for (const row of ex.videoRetryFeedback || []) {
+      const n = patchVal(row.audioUrl);
+      if (n !== row.audioUrl) {
+        row.audioUrl = (n as string) || '';
+        updated++;
+      }
+    }
+    const qs = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
+    for (const q of qs) {
+      const ni = patchVal(q['imageUrl'] as string | undefined);
+      if (ni !== q['imageUrl']) {
+        q['imageUrl'] = ni ?? undefined;
+        updated++;
+      }
+      const na = patchVal(q['attachmentUrl'] as string | undefined);
+      if (na !== q['attachmentUrl']) {
+        q['attachmentUrl'] = na ?? undefined;
+        updated++;
+      }
+      const nm = patchVal(q['mediaUrl'] as string | undefined);
+      if (nm !== q['mediaUrl']) {
+        q['mediaUrl'] = nm;
+        updated++;
+      }
+      const nau = patchVal(q['audioUrl'] as string | undefined);
+      if (nau !== q['audioUrl']) {
+        q['audioUrl'] = nau;
+        updated++;
+      }
+      const nv = patchVal(q['videoUrl'] as string | undefined);
+      if (nv !== q['videoUrl']) {
+        q['videoUrl'] = nv;
+        updated++;
+      }
+    }
+    return updated;
   }
 
   refetchMediaFromR2(): void {
@@ -3374,72 +3418,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.exerciseService.resolveMediaFromR2(urls).subscribe({
       next: ({ resolutions }) => {
         this.mediaRefetchInProgress = false;
-        const mapFound = new Map(
-          resolutions.filter((r) => r.found).map((r) => [r.original, r.url])
-        );
-        if (mapFound.size === 0) {
+        const anyFound = resolutions.some((r) => r.found);
+        if (!anyFound) {
           this.snackBar.open('No matching files found in cloud storage.', 'Close', { duration: 4500 });
           return;
         }
-
-        let updated = 0;
-        const patchVal = (before: string | undefined | null): string | undefined | null => {
-          const s = String(before || '').trim();
-          if (!s) return before;
-          const r = mapFound.get(s);
-          return r !== undefined ? r : before;
-        };
-
-        const ex = this.exercise!;
-        const nextShared = patchVal(ex.sharedAudioUrl);
-        if (nextShared !== ex.sharedAudioUrl) {
-          ex.sharedAudioUrl = nextShared ?? undefined;
-          updated++;
-        }
-
-        for (const row of ex.videoSuccessFeedback || []) {
-          const n = patchVal(row.audioUrl);
-          if (n !== row.audioUrl) {
-            row.audioUrl = (n as string) || '';
-            updated++;
-          }
-        }
-        for (const row of ex.videoRetryFeedback || []) {
-          const n = patchVal(row.audioUrl);
-          if (n !== row.audioUrl) {
-            row.audioUrl = (n as string) || '';
-            updated++;
-          }
-        }
-        const qs = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
-        for (const q of qs) {
-          const ni = patchVal(q['imageUrl'] as string | undefined);
-          if (ni !== q['imageUrl']) {
-            q['imageUrl'] = ni ?? undefined;
-            updated++;
-          }
-          const na = patchVal(q['attachmentUrl'] as string | undefined);
-          if (na !== q['attachmentUrl']) {
-            q['attachmentUrl'] = na ?? undefined;
-            updated++;
-          }
-          const nm = patchVal(q['mediaUrl'] as string | undefined);
-          if (nm !== q['mediaUrl']) {
-            q['mediaUrl'] = nm;
-            updated++;
-          }
-          const nau = patchVal(q['audioUrl'] as string | undefined);
-          if (nau !== q['audioUrl']) {
-            q['audioUrl'] = nau;
-            updated++;
-          }
-          const nv = patchVal(q['videoUrl'] as string | undefined);
-          if (nv !== q['videoUrl']) {
-            q['videoUrl'] = nv;
-            updated++;
-          }
-        }
-
+        const updated = this.applyFoundMediaResolutions(resolutions);
+        this.mediaUrlCache.clear();
         this.snackBar.open(
           updated > 0 ? `Restored ${updated} media link(s) from cloud storage.` : 'Checked cloud storage; links already current.',
           'Close',

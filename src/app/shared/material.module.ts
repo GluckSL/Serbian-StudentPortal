@@ -27,6 +27,7 @@ import { MatSortModule } from '@angular/material/sort';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatStepperModule } from '@angular/material/stepper';
 
 const MATERIAL_MODULES = [
   MatToolbarModule,
@@ -54,6 +55,7 @@ const MATERIAL_MODULES = [
   MatDividerModule,
   MatSlideToggleModule,
   MatMenuModule,
+  MatStepperModule,
 ];
 
 @NgModule({

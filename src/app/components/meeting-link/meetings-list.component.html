@@ -4,10 +4,16 @@
   <!-- Header -->
   <div class="header">
     <h1>{{ isAdmin() ? 'All Meetings' : 'My Meetings' }}</h1>
-    <button mat-raised-button color="primary" (click)="createMeeting()">
-      <mat-icon>add</mat-icon>
-      Create Meeting
-    </button>
+    <div class="header-actions">
+      <button mat-stroked-button color="primary" *ngIf="canBulkJourneyMeetings()" (click)="bulkJourneyMeetings()">
+        <mat-icon>layers</mat-icon>
+        Bulk Journey Meetings
+      </button>
+      <button mat-raised-button color="primary" (click)="createMeeting()">
+        <mat-icon>add</mat-icon>
+        Create Meeting
+      </button>
+    </div>
   </div>
 
   <!-- Filters -->

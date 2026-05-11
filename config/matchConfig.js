@@ -26,9 +26,11 @@ module.exports = {
   /** Priority for weaker-match prevention (higher = stronger claim) */
   MATCH_PRIORITY: {
     EMAIL: 4,
-    EXACT: 3,
-    EMAIL_LOCAL_STRONG: 3,
-    EMAIL_LOCAL_WEAK: 2,
+    EXACT_TRIM: 3,         // raw (pre-normalisation) case-insensitive equality
+    EXACT: 3,              // normalizeName equality
+    SANITIZED_NAME: 3,     // portal sanitizeDisplayName + normalizeName vs Zoom display name
+    EMAIL_LOCAL_STRONG: 3, // email local-part ↔ Zoom name, confidence ≥92
+    EMAIL_LOCAL_WEAK: 2,   // email local-part ↔ Zoom name, 75–91
     INITIALS: 2,
     JOIN_LOG: 2,
     CONTAINMENT: 2,

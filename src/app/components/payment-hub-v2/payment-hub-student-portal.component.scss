@@ -496,6 +496,55 @@
   color: #0d47a1;
 }
 
+// ── Legacy imported record ─────────────────────────────────────────────────
+.sp-legacy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-left: 4px;
+}
+
+.sp-legacy-chip-icon {
+  font-size: 13px !important;
+  width: 13px !important;
+  height: 13px !important;
+}
+
+.sp-legacy-detail {
+  margin: 0 14px 10px;
+  padding: 8px 12px;
+  background: #fdf6ff;
+  border-left: 3px solid #ce93d8;
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+  color: #555;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sp-legacy-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-legacy-icon {
+  font-size: 15px !important;
+  width: 15px !important;
+  height: 15px !important;
+  color: #ab47bc;
+  flex-shrink: 0;
+}
+
 // ── Pills ─────────────────────────────────────────────────────────────────
 .sp-pill {
   display: inline-block;

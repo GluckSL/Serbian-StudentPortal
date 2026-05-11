@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
+import { isSafeReturnUrl } from '../services/join-class-flow.service';
 
 let redirectInProgress = false;
 
@@ -11,6 +12,9 @@ let redirectInProgress = false;
  * - Always handles 401.
  * - Handles 403 only when backend explicitly says token is invalid/expired.
  * Skips auth endpoints so wrong password on login still shows inline error.
+ *
+ * Includes the current SPA path as `returnUrl` so post-login navigation can
+ * return the student to where they were (e.g. mid-join flow).
  */
 export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
@@ -44,8 +48,16 @@ export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
       if (!redirectInProgress) {
         redirectInProgress = true;
         auth.clearClientSession();
+
+        // Preserve the current SPA route so login can redirect back after success.
+        const currentPath = router.url;
+        const queryParams: Record<string, string> = { session: 'expired' };
+        if (isSafeReturnUrl(currentPath)) {
+          queryParams['returnUrl'] = currentPath;
+        }
+
         router
-          .navigate(['/login'], { queryParams: { session: 'expired' } })
+          .navigate(['/login'], { queryParams })
           .finally(() => {
             setTimeout(() => {
               redirectInProgress = false;

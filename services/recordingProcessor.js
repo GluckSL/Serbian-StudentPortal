@@ -115,13 +115,16 @@ async function resolveMeetingLink(zoomMeetingId, options = {}) {
 
 // ── Zoom download ──────────────────────────────────────────────────────────────
 
-async function createZoomDownloadStream(downloadUrl, accessToken) {
+async function createZoomDownloadStream(downloadUrl, accessToken, options = {}) {
   const zoomOrigin = new URL(downloadUrl).origin;
+  const downloadToken = String(options.downloadToken || '').trim();
 
   const withToken = (absoluteUrl) => {
     const u = new URL(absoluteUrl);
     if (u.origin !== zoomOrigin) return absoluteUrl;
-    u.searchParams.set('access_token', accessToken);
+    // For recording.completed webhooks, Zoom provides a short-lived download token.
+    // This token is required for passcode-protected cloud recordings.
+    u.searchParams.set('access_token', downloadToken || accessToken);
     return u.toString();
   };
 
@@ -378,6 +381,7 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
  * @param {Object} options
  * @param {string} [options.meetingLinkId]
  * @param {string} [options.meetingUuid]
+ * @param {string} [options.downloadToken]
  */
 async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
   console.log(`🎬 Starting HLS pipeline for Zoom meeting ${zoomMeetingId}`);
@@ -426,7 +430,9 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
       console.log(`⬇️  Zoom download: ${u.origin}${u.pathname}`);
     } catch { console.log(`⬇️  Zoom download: ${downloadUrl}`); }
 
-    const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken);
+    const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken, {
+      downloadToken: options.downloadToken,
+    });
     tmpMp4 = path.join(os.tmpdir(), `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
     await pipeline(downloadStream, fs.createWriteStream(tmpMp4));
 

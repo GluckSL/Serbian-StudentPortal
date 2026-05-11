@@ -9,7 +9,10 @@ const paymentSubmissionSchema = new mongoose.Schema({
   paidAmount: { type: Number, required: true, min: 0 },
   currency: { type: String, enum: ['LKR', 'INR', 'USD'], required: true },
   transactionId: String,
-  paymentMethod: { type: String, enum: ['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other'], default: 'Bank Transfer' },
+  paymentMethod: { type: String, enum: ['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other', 'Legacy'], default: 'Bank Transfer' },
+  source: { type: String, default: null },
+  isImported: { type: Boolean, default: false },
+  legacyFingerprint: { type: String, sparse: true, default: null },
   screenshotKey: String,
   screenshotOriginalName: String,
   screenshotMimeType: String,
@@ -37,5 +40,7 @@ const paymentSubmissionSchema = new mongoose.Schema({
   archivedAt: Date,
   archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
+
+paymentSubmissionSchema.index({ legacyFingerprint: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.models[MODEL_NAME] || mongoose.model(MODEL_NAME, paymentSubmissionSchema, COLLECTION);

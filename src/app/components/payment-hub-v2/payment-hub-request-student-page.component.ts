@@ -225,6 +225,18 @@ export class PaymentHubRequestStudentPageComponent implements OnInit {
     return !subs.some((s) => s.status !== 'REJECTED');
   }
 
+  private static readonly PAYMENT_TYPE_LABELS: Record<string, string> = {
+    LANGUAGE_FEE:   'Language Course Fee',
+    DOCS_PAYMENT:   'Documentation Payment',
+    VISA_PAYMENT:   'Visa Payment',
+    CUSTOM_PAYMENT: 'Custom Payment',
+  };
+
+  formatPaymentType(type: string, customType?: string): string {
+    const label = PaymentHubRequestStudentPageComponent.PAYMENT_TYPE_LABELS[type] || type;
+    return customType ? `${label} — ${customType}` : label;
+  }
+
   openEditInstallments(req: PaymentRequestItem): void {
     if (!req.installments?.length) return;
     const ref = this.dialog.open(InstallmentScheduleEditDialogComponent, {

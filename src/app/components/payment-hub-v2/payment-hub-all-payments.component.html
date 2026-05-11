@@ -48,6 +48,17 @@
       <mat-icon>warning_amber</mat-icon>
       {{ runningOverdue ? 'Running…' : 'Run overdue check' }}
     </button>
+    <button mat-stroked-button color="primary" type="button" class="ph-action-btn ph-action-btn-map" (click)="openLegacyMapper()"
+      matTooltip="Manually map old Excel payment records into the portal">
+      <mat-icon>upload_file</mat-icon>
+      Map payment
+    </button>
+    <button mat-stroked-button color="primary" type="button" class="ph-action-btn ph-action-btn-bulk" (click)="openBulkLanguagePaid()"
+      [disabled]="selectedCount === 0"
+      matTooltip="Record full language fee for selected students (legacy approved rows)">
+      <mat-icon>account_balance_wallet</mat-icon>
+      Set balance to zero
+    </button>
   </div>
 </div>
 
@@ -170,7 +181,10 @@
 <!-- Student Table -->
 <div class="ph-table-section">
   <div class="ph-table-toolbar">
-    <h2 class="ph-section-title">Students</h2>
+    <div class="ph-table-toolbar-left">
+      <h2 class="ph-section-title">Students</h2>
+      <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} selected</span>
+    </div>
     <mat-form-field appearance="outline" class="ph-search-field">
       <mat-label>Search by name or email</mat-label>
       <mat-icon matPrefix>search</mat-icon>
@@ -182,6 +196,14 @@
     <table class="ph-table" *ngIf="rows.length > 0; else noData">
       <thead>
         <tr>
+          <th class="ph-col-check">
+            <mat-checkbox
+              [checked]="allOnPageSelected"
+              [indeterminate]="someOnPageSelected"
+              (change)="toggleSelectAllOnPage($event.checked)"
+              matTooltip="Select all on this page"
+            ></mat-checkbox>
+          </th>
           <th>Student</th>
           <th>Email</th>
           <th>Batch</th>
@@ -196,6 +218,12 @@
       </thead>
       <tbody>
         <tr *ngFor="let row of rows">
+          <td class="ph-col-check">
+            <mat-checkbox
+              [checked]="isRowSelected(row)"
+              (change)="toggleRowSelection(row, $event.checked)"
+            ></mat-checkbox>
+          </td>
           <td class="ph-name-cell">{{ studentName(row) }}</td>
           <td class="ph-email-cell">{{ studentEmail(row) }}</td>
           <td>{{ studentBatch(row) }}</td>

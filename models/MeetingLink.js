@@ -17,6 +17,16 @@ const meetingLinkSchema = new mongoose.Schema({
   
   // Optional: day in the 200-day course journey
   courseDay: { type: Number, default: null, min: 1, max: 200 },
+
+  /** Groups rows created in one bulk journey scheduling run (optional). */
+  bulkScheduleId: { type: String, default: null, index: true },
+
+  /** Optional per-meeting metadata from bulk journey UI (module / agent / notes). */
+  journeyBulkMeta: {
+    moduleId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    aiAgentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    notes: { type: String, default: '' }
+  },
   
   // Zoom-specific fields
   zoomMeetingId: { type: String }, // Zoom meeting ID
@@ -81,7 +91,7 @@ const meetingLinkSchema = new mongoose.Schema({
     debugSummary: { type: String },
     matchMethod: { 
       type: String, 
-      enum: ['email', 'email_local', 'exact_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map', 'manual_mark', 'manual_mark_all', 'initials_name', 'join_log_time', 'ambiguous'], 
+      enum: ['email', 'email_local', 'exact_name', 'exact_trim_name', 'sanitized_name', 'partial_name', 'fuzzy_name', 'containment', 'single_participant', 'no_match', 'manual_map', 'manual_mark', 'manual_mark_all', 'initials_name', 'join_log_time', 'ambiguous'], 
       default: 'no_match' 
     },
     zoomName: String, // Name displayed in Zoom

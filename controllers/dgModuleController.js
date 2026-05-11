@@ -181,6 +181,10 @@ exports.getAdminById = async (req, res) => {
   }
 };
 
+/** Fields for admin grid only — full module (scenes, vocab, role-play, description) loads on GET /modules/:id or /play. */
+const ADMIN_MODULE_LIST_SELECT =
+  'title level language courseDay visibleToStudents characterId targetBatchKeys updatedAt';
+
 exports.listAdmin = async (req, res) => {
   try {
     const filter = { isActive: true };
@@ -188,7 +192,7 @@ exports.listAdmin = async (req, res) => {
       filter.createdBy = req.user.id;
     }
     const modules = await DGModule.find(filter)
-      .populate('characterId')
+      .select(ADMIN_MODULE_LIST_SELECT)
       .sort({ updatedAt: -1 })
       .lean();
     res.json({

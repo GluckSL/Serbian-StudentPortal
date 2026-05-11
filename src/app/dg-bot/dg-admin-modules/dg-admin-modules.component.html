@@ -10,13 +10,16 @@
           </h1>
           <p class="admin-subtitle">Manage digital guide modules, teaching context, and guided scenes</p>
         </div>
-        <div class="col-md-4 text-end">
+        <div class="col-md-4 text-end" *ngIf="!loading">
           <div class="admin-stats-quick">
             <div class="stat-item">
               <span class="stat-number">{{ dgStatTotal }}</span>
               <span class="stat-label">Total modules</span>
             </div>
           </div>
+        </div>
+        <div class="col-md-4 text-end dg-mm-header-skel-wrap" *ngIf="loading">
+          <div class="dg-mm-skel dg-mm-skel--header-pill ms-auto"></div>
         </div>
       </div>
     </div>
@@ -26,12 +29,69 @@
     <div class="container-fluid">
       <p class="dg-adm__msg mb-2" *ngIf="message">{{ message }}</p>
 
-      <div class="loading-state text-center py-5" *ngIf="loading">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Loading...</span>
+      <!-- Initial load skeleton -->
+      <ng-container *ngIf="loading">
+        <div class="action-bar dg-mm-skel-action-bar">
+          <div class="row align-items-center g-2">
+            <div class="col-lg-5 d-flex gap-2">
+              <div class="dg-mm-skel dg-mm-skel--btn-wide"></div>
+              <div class="dg-mm-skel dg-mm-skel--btn-trash"></div>
+            </div>
+            <div class="col-lg-7">
+              <div class="row g-2">
+                <div class="col-md-8"><div class="dg-mm-skel dg-mm-skel--search"></div></div>
+                <div class="col-md-4"><div class="dg-mm-skel dg-mm-skel--select"></div></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <p class="mt-3 mb-0 text-muted small">Loading modules…</p>
-      </div>
+        <div class="stats-section mb-3">
+          <div class="row">
+            <div class="col-md-2" *ngFor="let _ of [0, 1, 2]">
+              <div class="dg-mm-skel-stat-card rounded-3">
+                <div class="dg-mm-skel dg-mm-skel--circle"></div>
+                <div class="flex-grow-1">
+                  <div class="dg-mm-skel dg-mm-skel--line-lg mb-2"></div>
+                  <div class="dg-mm-skel dg-mm-skel--line-sm"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3" *ngFor="let _ of [0, 1]">
+              <div class="dg-mm-skel-stat-card rounded-3">
+                <div class="dg-mm-skel dg-mm-skel--circle"></div>
+                <div class="flex-grow-1">
+                  <div class="dg-mm-skel dg-mm-skel--line-lg mb-2"></div>
+                  <div class="dg-mm-skel dg-mm-skel--line-sm"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dg-mm-skel-results mb-2"><div class="dg-mm-skel dg-mm-skel--line-md"></div></div>
+        <div class="modules-table">
+          <div class="data-table-card">
+            <div class="card">
+              <div class="dg-mm-skel-thead"></div>
+              <div class="table-responsive">
+                <table class="table mb-0">
+                  <tbody>
+                    <tr *ngFor="let _ of skeletonRows" class="dg-mm-skel-row">
+                      <td><div class="dg-mm-skel dg-mm-skel--line-title"></div></td>
+                      <td><div class="dg-mm-skel dg-mm-skel--pill"></div></td>
+                      <td><div class="dg-mm-skel dg-mm-skel--pill-sm"></div></td>
+                      <td><div class="dg-mm-skel dg-mm-skel--badge"></div></td>
+                      <td><div class="dg-mm-skel dg-mm-skel--line-xs"></div></td>
+                      <td><div class="dg-mm-skel dg-mm-skel--pill"></div></td>
+                      <td class="text-center"><div class="dg-mm-skel dg-mm-skel--icon-btn mx-auto"></div></td>
+                      <td class="text-center"><div class="dg-mm-skel dg-mm-skel--actions"></div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
 
       <ng-container *ngIf="!loading">
         <!-- Action bar (same row layout as Module Management) -->
@@ -56,12 +116,13 @@
                     type="search"
                     class="form-control dg-mm-search"
                     [(ngModel)]="listFilter"
+                    (ngModelChange)="resetListPage()"
                     name="dgSearchMm"
                     placeholder="Search by title…"
                   />
                 </div>
                 <div class="filter-options dg-mm-filter-wrap">
-                  <select class="form-select" [(ngModel)]="statusFilter" name="dgStatusFilter">
+                  <select class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="resetListPage()" name="dgStatusFilter">
                     <option value="all">All Modules</option>
                     <option value="live">Live only</option>
                     <option value="draft">Draft only</option>
@@ -130,6 +191,9 @@
               <span class="results-text">modules found</span>
               <span class="results-text text-muted">· {{ modules.length }} total</span>
             </div>
+            <p class="dg-mm-list-hint small text-muted mb-0">
+              List loads titles and settings only; scenes and full content load when you open <strong>Preview</strong> or <strong>Edit</strong>.
+            </p>
           </div>
         </div>
 
@@ -151,11 +215,10 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let m of filteredModules; trackBy: trackModule">
+                    <tr *ngFor="let m of pagedFilteredModules; trackBy: trackModule">
                       <td>
                         <div class="module-info">
                           <div class="module-title">{{ m.title }}</div>
-                          <div class="module-desc">{{ previewDescription(m.description) }}</div>
                         </div>
                       </td>
                       <td>
@@ -245,6 +308,16 @@
                   </tbody>
                 </table>
               </div>
+              <mat-paginator
+                *ngIf="filteredModules.length > 0"
+                class="dg-mm-paginator"
+                [length]="filteredModules.length"
+                [pageIndex]="pageIndex"
+                [pageSize]="pageSize"
+                [pageSizeOptions]="pageSizeOptions"
+                [showFirstLastButtons]="true"
+                (page)="onPageChange($event)"
+              />
             </div>
           </div>
         </div>
@@ -262,7 +335,11 @@
             <div class="empty-state-icon">🔍</div>
             <h3>No matches</h3>
             <p>Try another search or filter.</p>
-            <button class="btn btn-sm btn-outline-secondary mt-2" type="button" (click)="listFilter = ''; statusFilter = 'all'">
+            <button
+              class="btn btn-sm btn-outline-secondary mt-2"
+              type="button"
+              (click)="listFilter = ''; statusFilter = 'all'; resetListPage()"
+            >
               Reset filters
             </button>
           </div>

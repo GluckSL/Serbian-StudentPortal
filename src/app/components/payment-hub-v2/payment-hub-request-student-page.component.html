@@ -10,14 +10,14 @@
     <!-- Student Header -->
     <div class="student-header">
       <div class="header-left">
-        <div class="avatar">{{ history.student?.name?.[0] | uppercase }}</div>
+        <div class="avatar">{{ (history.student.name || '?')[0] | uppercase }}</div>
         <div class="student-info">
-          <h2>{{ history.student?.name }}</h2>
+          <h2>{{ history.student.name }}</h2>
           <div class="student-meta">
-            <span>{{ history.student?.email }}</span>
-            <span *ngIf="history.student?.batch" class="chip">{{ history.student.batch }}</span>
-            <span *ngIf="history.student?.level" class="chip chip-level">{{ history.student.level }}</span>
-            <span *ngIf="history.student?.['subscription']" class="chip chip-plan">{{ history.student['subscription'] }}</span>
+            <span>{{ history.student.email }}</span>
+            <span *ngIf="history.student.batch" class="chip">{{ history.student.batch }}</span>
+            <span *ngIf="history.student.level" class="chip chip-level">{{ history.student.level }}</span>
+            <span *ngIf="history.student['subscription']" class="chip chip-plan">{{ history.student['subscription'] }}</span>
           </div>
         </div>
       </div>
@@ -117,7 +117,7 @@
               <ng-container *ngIf="hasInstallmentBreakdown(req)">
                 <tr class="row-plan-summary">
                   <td>
-                    {{ req.paymentType }}{{ req.customType ? ' — ' + req.customType : '' }}
+                    {{ formatPaymentType(req.paymentType, req.customType) }}
                     <span class="inst-badge">{{ sortedInst(req).length }} parts</span>
                   </td>
                   <td>
@@ -176,7 +176,7 @@
                 </tr>
               </ng-container>
               <tr *ngIf="!hasInstallmentBreakdown(req)">
-                <td>{{ req.paymentType }}{{ req.customType ? ' — ' + req.customType : '' }}</td>
+                <td>{{ formatPaymentType(req.paymentType, req.customType) }}</td>
                 <td>
                   <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
                     {{ req.remarks | slice:0:60 }}{{ req.remarks.length > 60 ? '…' : '' }}
