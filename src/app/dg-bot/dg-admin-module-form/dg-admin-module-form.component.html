@@ -142,61 +142,23 @@
                 </small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Minimum Completion Time (minutes) *</label>
+                <label class="form-label">Duration (minutes) *</label>
                 <input
                   type="number"
                   class="form-control"
-                  [class.is-invalid]="isInvalid('minComplete')"
+                  [class.is-invalid]="isInvalid('duration')"
                   [(ngModel)]="editMinimumCompletionTime"
-                  (ngModelChange)="onFieldInput('minComplete')"
-                  name="minComplete"
-                  min="5"
-                  max="60"
-                  placeholder="10"
+                  (ngModelChange)="onFieldInput('duration')"
+                  name="duration"
+                  min="2"
+                  placeholder="5"
                 />
-                <div class="invalid-feedback" *ngIf="isInvalid('minComplete')">
-                  Enter a value between 5 and 60 minutes.
+                <div class="invalid-feedback" *ngIf="isInvalid('duration')">
+                  Enter a duration of at least 2 minutes.
                 </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('minComplete')">
-                  ⏱️ Minimum time required to complete this module (5–60 min)<br />
-                  <strong>Suggestions:</strong> Quick (5–8 min) | Standard (10–15 min) | Complex (15–20 min)
+                <small class="form-text text-muted" *ngIf="!isInvalid('duration')">
+                  Time the student must spend on this exercise to complete it.
                 </small>
-              </div>
-              <div class="col-md-3 mb-3">
-                <label class="form-label">Min Practice Time (minutes) *</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  [class.is-invalid]="isInvalid('minPracticeMins')"
-                  [(ngModel)]="editMinPracticeMinutes"
-                  (ngModelChange)="onFieldInput('minPracticeMins')"
-                  name="minPracticeMins"
-                  min="5"
-                  max="120"
-                  placeholder="10"
-                />
-                <div class="invalid-feedback" *ngIf="isInvalid('minPracticeMins')">
-                  Enter a value between 5 and 120 minutes.
-                </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('minPracticeMins')">Default student practice floor (5–120).</small>
-              </div>
-              <div class="col-md-3 mb-3">
-                <label class="form-label">Max Practice Time (minutes)</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  [class.is-invalid]="isInvalid('maxPracticeMins')"
-                  [(ngModel)]="editMaxPracticeMinutes"
-                  (ngModelChange)="onFieldInput('maxPracticeMins')"
-                  name="maxPracticeMins"
-                  min="5"
-                  max="180"
-                  placeholder="Optional"
-                />
-                <div class="invalid-feedback" *ngIf="isInvalid('maxPracticeMins')">
-                  Must be between 5–180 and ≥ min practice time, or leave empty.
-                </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('maxPracticeMins')">Optional soft cap, must be >= min practice.</small>
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">Course Day (Optional)</label>

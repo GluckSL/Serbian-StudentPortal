@@ -167,7 +167,7 @@
               <h3>Conversation Session</h3>
               <p>Practicing {{ payload.module.title }}</p>
               <p class="dg-conv__info-note">
-                Complete when 80% vocabulary covered + min time reached, or wait for max time limit.
+                Practice until the timer runs out — then you can continue or end the session.
               </p>
 
               <div class="dg-conv__actions-row">
@@ -210,22 +210,36 @@
                 [class.dg-conv__status-dot--thinking]="isAiThinking"></span>
           {{ statusLabel }}
         </div>
-        <div class="dg-conv__status" *ngIf="waitingForUser && !isAiThinking" aria-live="polite">
-          🎤 Your turn — speak now
+        <div class="dg-conv__status" *ngIf="waitingForUser && !isAiThinking && !awaitingGermanRepeat" aria-live="polite">
+          💬 What do you want to say? (speak in English or German)
+        </div>
+        <div class="dg-conv__status dg-conv__status--repeat" *ngIf="waitingForUser && !isAiThinking && awaitingGermanRepeat" aria-live="polite">
+          🎤 Now say this in German
         </div>
 
-        <!-- Session timer (counts up to admin minimum practice time) -->
-        <div class="dg-conv__session-timer" *ngIf="conversationStarted">
-          <span class="dg-conv__timer-label">Session time</span>
+        <!-- Countdown timer (hidden while completion modal is open; interval stops at 0) -->
+        <div class="dg-conv__session-timer"
+             *ngIf="!showCompletionOverlay"
+             [class.dg-conv__session-timer--waiting]="!conversationStarted">
+          <span class="dg-conv__timer-label">
+            {{ conversationStarted ? 'Time Remaining' : 'Duration' }}
+          </span>
           <div class="dg-conv__timer-main">
-            <span class="dg-conv__timer-elapsed">{{ formatMmSs(sessionElapsedSec) }}</span>
-            <span class="dg-conv__timer-sep">/</span>
-            <span class="dg-conv__timer-target">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
+            <span class="dg-conv__timer-elapsed"
+                  [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
+              {{ formatMmSs(countdownRemainSec) }}
+            </span>
+            <span class="dg-conv__timer-waiting-badge" *ngIf="!conversationStarted">
+              ⏸ Press Start
+            </span>
           </div>
           <div class="dg-conv__timer-track" aria-hidden="true">
             <div class="dg-conv__timer-fill"
-                 [style.width.%]="sessionTimerProgressPct"
-                 [class.dg-conv__timer-fill--goal]="sessionTimerProgressPct >= 100"></div>
+                 [style.width.%]="conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100"
+                 [class.dg-conv__timer-fill--waiting]="!conversationStarted"
+                 [class.dg-conv__timer-fill--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30"
+                 [class.dg-conv__timer-fill--goal]="conversationStarted && countdownRemainSec === 0">
+            </div>
           </div>
         </div>
 
@@ -273,11 +287,41 @@
             <div class="dg-conv__msg-avatar dg-conv__msg-avatar--student" *ngIf="msg.speaker === 'student'" aria-hidden="true">👤</div>
           </div>
 
+          <!-- AI typing indicator -->
+          <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="aiTyping">
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label">Ooly</span>
+              <div class="dg-conv__msg-bubble">
+                <div class="dg-conv__typing-bubble">
+                  <span class="dg-conv__typing-dot"></span>
+                  <span class="dg-conv__typing-dot"></span>
+                  <span class="dg-conv__typing-dot"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Empty state before conversation starts -->
           <div class="dg-conv__waiting" *ngIf="chatHistory.length === 0">
-            <p *ngIf="!conversationStarted">
-              🎙 Say <strong>"Bereit!"</strong> or <strong>"Ready!"</strong> to start.
-            </p>
+            <div class="dg-conv__start-prompt" *ngIf="!conversationStarted">
+              <div class="dg-conv__start-icon">🦊</div>
+              <p class="dg-conv__start-heading">Ready to practice?</p>
+              <p class="dg-conv__start-sub">
+                Ooly will speak German — reply in <strong>English</strong>, then say it in German.
+                The timer starts when you click below.
+              </p>
+              <button
+                mat-flat-button
+                color="primary"
+                class="dg-conv__start-btn"
+                [disabled]="isAiThinking || isTransitioning"
+                (click)="onStartConversationClick()"
+              >
+                <mat-icon>play_arrow</mat-icon>
+                Start Practice
+              </button>
+            </div>
             <p *ngIf="conversationStarted && displayLine">
               🤖 {{ displayLine }}
             </p>
@@ -288,10 +332,34 @@
 
         <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
         <div class="dg-conv__mic-area" *ngIf="!isMobile">
-          <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
-            🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
+          <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete && !awaitingGermanRepeat">
+            💬 Respond in <strong>English</strong> — Ooly will translate it to German for you to repeat.
           </p>
-          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+          <p class="dg-conv__mic-hint dg-conv__mic-hint--repeat" *ngIf="conversationStarted && !conversationComplete && awaitingGermanRepeat">
+            🎤 Speak the German phrase shown above — then Ooly will continue the conversation.
+          </p>
+          <!-- German repeat banner -->
+          <div class="dg-conv__german-repeat-banner" *ngIf="showStudentTurnUi && awaitingGermanRepeat">
+            <span class="dg-conv__german-repeat-label">Say in German:</span>
+            <span class="dg-conv__german-repeat-phrase">{{ pendingGermanHint }}</span>
+            <button
+              mat-icon-button
+              type="button"
+              class="dg-conv__german-repeat-play"
+              [disabled]="status === 'speaking' || isAiThinking"
+              (click)="playHintPronunciation(pendingGermanHint)"
+              aria-label="Hear pronunciation"
+              title="Hear pronunciation"
+            >
+              <mat-icon>volume_up</mat-icon>
+            </button>
+          </div>
+
+          <div class="dg-conv__turn-pill"
+               [class.dg-conv__turn-pill--repeat]="awaitingGermanRepeat"
+               *ngIf="showStudentTurnUi">
+            {{ awaitingGermanRepeat ? 'SAY IT IN GERMAN' : 'YOUR TURN' }}
+          </div>
           <app-dg-practice
             *ngIf="showStudentTurnUi"
             [expected]="''"
@@ -331,27 +399,39 @@
   <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
     <div class="dg-completion-card">
       <mat-icon class="dg-completion-icon">emoji_events</mat-icon>
-      <h2 class="dg-completion-title">Congratulations!</h2>
+      <h2 class="dg-completion-title">Time's Up — Great Work!</h2>
       <p class="dg-completion-sub">
-        You've completed this DG module. If you're enjoying it and want to
-        keep learning more, click <strong>Continue</strong>. Otherwise, click
-        <strong>End</strong> to finish.
+        You've practiced for the full session. Keep going or wrap up below.
+      </p>
+      <p class="dg-completion-tip">
+        You can click <strong>Continue</strong> to practice more, or <strong>End Session</strong> when you are done.
       </p>
 
-      <ul class="dg-completion-rules" aria-label="Completion checklist">
-        <li>
-          <mat-icon>check_circle</mat-icon>
-          80% vocabulary covered
-        </li>
-        <li>
-          <mat-icon>check_circle</mat-icon>
-          Minimum practice time reached
-        </li>
-      </ul>
-      <p class="dg-completion-note">
-        You can end the session now, or continue until the maximum time limit is reached.
-        The session will automatically end when max time is reached, even if vocabulary is not fully covered.
-      </p>
+      <!-- Stats row -->
+      <div class="dg-completion-stats">
+        <div class="dg-completion-stat">
+          <span class="dg-completion-stat__value">{{ formatMmSs(sessionElapsedSec) }}</span>
+          <span class="dg-completion-stat__label">Time Spent</span>
+        </div>
+        <div class="dg-completion-stat">
+          <span class="dg-completion-stat__value">{{ adminVocabCovered.length }}</span>
+          <span class="dg-completion-stat__label">Vocab Learned</span>
+        </div>
+        <div class="dg-completion-stat">
+          <span class="dg-completion-stat__value">{{ adminVocabList.length }}</span>
+          <span class="dg-completion-stat__label">Total Vocab</span>
+        </div>
+      </div>
+
+      <!-- Vocab learned -->
+      <div class="dg-vocab-block" *ngIf="adminVocabCovered.length">
+        <p class="dg-vocab-block__title">✅ Vocab You Learned</p>
+        <div class="dg-vocab-chips">
+          <span class="dg-vocab-chip dg-vocab-chip--covered"
+                *ngFor="let v of adminVocabCovered"
+                [title]="v.translation">{{ v.word }}</span>
+        </div>
+      </div>
 
       <div class="dg-completion-actions">
         <button
@@ -369,7 +449,7 @@
           [disabled]="isAiThinking || isTransitioning"
           (click)="endAfterCompletion()"
         >
-          End
+          End Session
         </button>
       </div>
     </div>

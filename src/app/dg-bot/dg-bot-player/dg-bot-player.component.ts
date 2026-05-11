@@ -96,6 +96,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   conversationStarted = false;
   /** True when vocab coverage ≥ 80 % or maxTurns reached. */
   conversationComplete = false;
+  /** True once the countdown timer hits zero. */
+  timerExpired = false;
+  /** True while waiting for AI response from conversationRespond API. */
+  aiTyping = false;
+  /**
+   * True after the bot returned a translation hint.
+   * The student's next mic turn should be the German repeat.
+   */
+  awaitingGermanRepeat = false;
+  /** The German phrase the student should now say aloud. */
+  pendingGermanHint = '';
   /** Full visible chat history (AI + student bubbles). */
   chatHistory: DgChatMessage[] = [];
   /** Vocab coverage 0-100 (still updated from API; not shown in UI). */
@@ -237,19 +248,37 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return this.status !== 'speaking';
   }
 
-  /** Both vocab 80%+ covered AND minimum practice time elapsed. */
-  get showMilestoneActions(): boolean {
-    if (!this.conversationStarted || this.conversationComplete) return false;
-    const minMet = this.sessionElapsedSec >= this.conversationMinTargetSeconds;
-    const vocabDone = this.vocabCoverage >= 80;
-    return vocabDone && minMet;
-  }
-
-  /** Completion overlay: shown once when the exercise goal is first reached. */
+  /** Completion overlay: shown once when the countdown timer expires. */
   completionDialogDismissed = false;
 
   get showCompletionOverlay(): boolean {
-    return this.showMilestoneActions && !this.completionDialogDismissed && !this.conversationComplete;
+    return this.timerExpired && !this.completionDialogDismissed && !this.conversationComplete;
+  }
+
+  /** Seconds remaining on the countdown (never below 0). */
+  get countdownRemainSec(): number {
+    return Math.max(0, this.conversationMinTargetSeconds - this.sessionElapsedSec);
+  }
+
+  /** Admin's full target vocabulary list (combined allowed + AI tutor vocab). */
+  get adminVocabList(): Array<{ word: string; translation: string }> {
+    const a = (this.payload?.module.allowedVocabulary ?? []) as any[];
+    const b = (this.payload?.module.aiTutorVocabulary ?? []) as any[];
+    const seen = new Set<string>();
+    return [...a, ...b]
+      .filter(Boolean)
+      .map(v => ({
+        word: (v.word || String(v) || '').trim(),
+        translation: (v.translation || '').trim(),
+      }))
+      .filter(v => v.word && !seen.has(v.word.toLowerCase()) && seen.add(v.word.toLowerCase()));
+  }
+
+  /** Admin vocab words that appeared in the conversation (tracked by API). */
+  get adminVocabCovered(): Array<{ word: string; translation: string }> {
+    const list = this.adminVocabList;
+    if (!list.length) return [];
+    return list.filter(v => this.usedVocab.has(v.word.toLowerCase()));
   }
 
   get studentDisplayName(): string {
@@ -367,7 +396,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     const next = Math.floor((Date.now() - this.conversationPracticeStartedAt) / 1000);
     this.ngZone.run(() => {
       this.sessionElapsedSec = Math.max(0, next);
+      if (this.conversationStarted && !this.timerExpired && this.sessionElapsedSec >= this.conversationMinTargetSeconds) {
+        this.timerExpired = true;
+        this.sessionElapsedSec = this.conversationMinTargetSeconds;
+        this.stopConversationPracticeTimer();
+        this.dgLog('countdown_finished', { elapsed: this.sessionElapsedSec, target: this.conversationMinTargetSeconds });
+      }
     });
+  }
+
+  private dgLog(event: string, data: Record<string, unknown> = {}): void {
+    console.log(`[DgBot:${event}]`, { ...data, elapsed: this.sessionElapsedSec, ts: Date.now() });
   }
 
   private stopConversationPracticeTimer(): void {
@@ -504,6 +543,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     if (!this.canNext) return;
     this.clearPendingAdvance();
     await this.advance();
+  }
+
+  /** Student clicked the "Start Practice" button — kick off the conversation. */
+  async onStartConversationClick(): Promise<void> {
+    if (this.conversationStarted || this.isAiThinking) return;
+    await this.handleConversationEval({
+      transcript: 'bereit', score: 100, isCorrect: true,
+      engine: 'start', confidence: 1,
+    } as any);
   }
 
   async onSkip(): Promise<void> {
@@ -655,6 +703,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.conversationMode = true;
     this.conversationStarted = false;
     this.conversationComplete = false;
+    this.timerExpired = false;
+    this.aiTyping = false;
+    this.awaitingGermanRepeat = false;
+    this.pendingGermanHint = '';
     this.completionDialogDismissed = false;
     this.chatHistory = [];
     this.vocabCoverage = 0;
@@ -725,23 +777,37 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.waitingForUser = false;
     this.mascotSpeechText = '';
 
-    // No speech at all → just retry mic
-    if (!transcript) { this.openMicForUserTurn(); return; }
+    // No speech at all → show hint and retry mic
+    if (!transcript) {
+      this.dgLog('empty_transcript', {});
+      this.chatHistory = [
+        ...this.chatHistory,
+        { speaker: 'hint' as const, text: "Couldn't hear you — please try again.", instructionEn: 'Speak clearly and try again.' },
+      ];
+      this.scrollChatToLatest();
+      this.openMicForUserTurn();
+      return;
+    }
 
     this.status = 'result';
 
-    // Add student bubble immediately (score is stored but not displayed in conversation mode)
-    this.chatHistory = [
-      ...this.chatHistory,
-      { speaker: 'student', text: transcript, score: ev.score ?? undefined },
-    ];
-    this.scrollChatToLatest();
+    // Don't show the start-trigger phrase as a chat bubble
+    const isStartTrigger = /^(bereit|ready|start)$/i.test(transcript);
+    if (!isStartTrigger) {
+      this.chatHistory = [
+        ...this.chatHistory,
+        { speaker: 'student', text: transcript, score: ev.score ?? undefined },
+      ];
+      this.scrollChatToLatest();
+    }
     this.displayLine = transcript;
     this.displaySub = '';
 
     // Block mic while AI is thinking / speaking
     this.isAiThinking = true;
+    this.aiTyping = true;
     this.charState.setState('thinking');
+    this.dgLog('student_spoke', { transcript });
 
     const moduleId = this.payload!.module._id;
     const durationMin =
@@ -783,6 +849,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       );
 
       this.isAiThinking = false;
+      this.aiTyping = false;
 
       // Persist conversation started state + start session timer toward admin min time
       if (response.conversationStarted && !this.conversationStarted) {
@@ -835,11 +902,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.displaySub = (response.translatedEnglish || response.hintEn || '').trim();
         this.mascotSpeechText = response.hintDe;
         this.charState.setState('idle');
+        // Pin the phrase so the mic banner can show it
+        this.awaitingGermanRepeat = true;
+        this.pendingGermanHint = response.hintDe;
         await dgDelay(220);
         this.openMicForUserTurn();
         return;
       }
 
+      // Student completed the German repeat (or spoke German directly) — clear scaffolding
+      this.awaitingGermanRepeat = false;
+      this.pendingGermanHint = '';
       this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
 
       this.conversationHistory = [
@@ -897,8 +970,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     } catch (err: any) {
       console.error('[dg-player] conversation respond failed:', err);
       this.isAiThinking = false;
+      this.aiTyping = false;
+      this.awaitingGermanRepeat = false;
+      this.pendingGermanHint = '';
       this.charState.setState('idle');
-      this.openMicForUserTurn(); // re-open mic even on error
+      this.dgLog('api_error', { err: String(err) });
+      this.chatHistory = [
+        ...this.chatHistory,
+        { speaker: 'hint' as const, text: 'Something went wrong — please try again.', instructionEn: 'Try speaking again.' },
+      ];
+      this.scrollChatToLatest();
+      this.openMicForUserTurn();
     }
   }
 
