@@ -126,6 +126,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   waitingForStartText = '';
   /** Debug panel: latest recognized user utterances from mic pipeline. */
   debugSpeechLog: string[] = [];
+  /** True when student said "end" / "beenden" before the timer expired. */
+  earlyEndRequested = false;
+  /** Motivation text displayed in the completion overlay. */
+  currentMotivationText = '';
 
   isAiThinking = false;
   aiResponseText = '';
@@ -248,11 +252,37 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return this.status !== 'speaking';
   }
 
-  /** Completion overlay: shown once when the countdown timer expires. */
+  /** Completion overlay: shown once when the countdown timer expires or student requests early end. */
   completionDialogDismissed = false;
 
   get showCompletionOverlay(): boolean {
-    return this.timerExpired && !this.completionDialogDismissed && !this.conversationComplete;
+    return (this.timerExpired || this.earlyEndRequested) && !this.completionDialogDismissed && !this.conversationComplete;
+  }
+
+  /** Completion percentage based on elapsed vs target time (0–100). */
+  get completionPercentage(): number {
+    const target = this.conversationMinTargetSeconds;
+    if (target <= 0) return 100;
+    return Math.min(100, Math.round((this.sessionElapsedSec / target) * 100));
+  }
+
+  private readonly motivationTexts = [
+    "You're doing amazing — every word counts!",
+    "Great effort! You're building real language skills.",
+    "Keep it up — practice makes progress!",
+    "Fantastic work! Learning a language takes courage.",
+    "You're on the right track — stay curious and keep going!",
+    "Awesome job! Each session brings you closer to fluency.",
+    "You're making great strides — the effort really shows!",
+    "Brilliant effort! Your confidence is growing every session.",
+    "Well done! Consistency is the key to language mastery.",
+    "You're a language learner — and that's something to be proud of!",
+    "Every conversation you have is a step toward fluency!",
+    "You showed up and practiced — that's what champions do!",
+  ];
+
+  private pickMotivationText(): string {
+    return this.motivationTexts[Math.floor(Math.random() * this.motivationTexts.length)];
   }
 
   /** Seconds remaining on the countdown (never below 0). */
@@ -399,6 +429,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (this.conversationStarted && !this.timerExpired && this.sessionElapsedSec >= this.conversationMinTargetSeconds) {
         this.timerExpired = true;
         this.sessionElapsedSec = this.conversationMinTargetSeconds;
+        this.currentMotivationText = this.pickMotivationText();
         this.stopConversationPracticeTimer();
         this.dgLog('countdown_finished', { elapsed: this.sessionElapsedSec, target: this.conversationMinTargetSeconds });
       }
@@ -708,6 +739,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.awaitingGermanRepeat = false;
     this.pendingGermanHint = '';
     this.completionDialogDismissed = false;
+    this.earlyEndRequested = false;
+    this.currentMotivationText = '';
     this.chatHistory = [];
     this.vocabCoverage = 0;
     this.studentVocabCoverage = 0;
@@ -790,6 +823,24 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     }
 
     this.status = 'result';
+
+    // Detect "end" / "beenden" — end the session early
+    const isEndTrigger =
+      this.conversationStarted &&
+      !this.showCompletionOverlay &&
+      /\b(end|beenden)\b/i.test(transcript);
+    if (isEndTrigger) {
+      this.chatHistory = [
+        ...this.chatHistory,
+        { speaker: 'student' as const, text: transcript, score: ev.score ?? undefined },
+      ];
+      this.scrollChatToLatest();
+      this.isAiThinking = false;
+      this.aiTyping = false;
+      this.currentMotivationText = this.pickMotivationText();
+      this.earlyEndRequested = true;
+      return;
+    }
 
     // Don't show the start-trigger phrase as a chat bubble
     const isStartTrigger = /^(bereit|ready|start)$/i.test(transcript);
@@ -986,7 +1037,13 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   /** Student chose "Continue" from the completion overlay — keep chatting. */
   async continueAfterCompletion(): Promise<void> {
+    const wasEarlyEnd = this.earlyEndRequested && !this.timerExpired;
+    this.earlyEndRequested = false;
     this.completionDialogDismissed = true;
+    if (wasEarlyEnd) {
+      // Reset so the timer-expired overlay can still appear later
+      this.completionDialogDismissed = false;
+    }
     this.openMicForUserTurn();
   }
 
@@ -998,6 +1055,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   async endAfterCompletion(): Promise<void> {
     if (this.conversationComplete) return;
     this.completionDialogDismissed = true;
+    this.earlyEndRequested = false;
     this.conversationComplete = true;
     this.waitingForUser = false;
     this.isAiThinking = false;

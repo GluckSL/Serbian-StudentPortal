@@ -118,6 +118,11 @@
         <!-- Mobile: mic/practice area in char header (big screens: hidden) -->
         <div class="dg-conv__char-header" *ngIf="isMobile">
           <div class="dg-conv__mic-area">
+            <!-- End-session note (mobile) -->
+            <div class="dg-conv__end-note" *ngIf="conversationStarted && !conversationComplete">
+              <span class="dg-conv__end-note-icon">💬</span>
+              Say <strong>"end"</strong> or <strong>"beenden"</strong> to end the conversation
+            </div>
             <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
             <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
               🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
@@ -211,7 +216,7 @@
           {{ statusLabel }}
         </div>
         <div class="dg-conv__status" *ngIf="waitingForUser && !isAiThinking && !awaitingGermanRepeat" aria-live="polite">
-          💬 What do you want to say? (speak in English or German)
+          your turn to speak 
         </div>
         <div class="dg-conv__status dg-conv__status--repeat" *ngIf="waitingForUser && !isAiThinking && awaitingGermanRepeat" aria-live="polite">
           🎤 Now say this in German
@@ -221,16 +226,22 @@
         <div class="dg-conv__session-timer"
              *ngIf="!showCompletionOverlay"
              [class.dg-conv__session-timer--waiting]="!conversationStarted">
-          <span class="dg-conv__timer-label">
-            {{ conversationStarted ? 'Time Remaining' : 'Duration' }}
-          </span>
+          <div class="dg-conv__session-timer__top">
+            <span class="dg-conv__timer-label">
+              {{ conversationStarted ? 'Time remaining' : 'Duration' }}
+            </span>
+            <span class="dg-conv__timer-caption dg-conv__timer-caption--muted" *ngIf="!conversationStarted">
+              Target length
+            </span>
+          </div>
           <div class="dg-conv__timer-main">
             <span class="dg-conv__timer-elapsed"
                   [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
               {{ formatMmSs(countdownRemainSec) }}
             </span>
-            <span class="dg-conv__timer-waiting-badge" *ngIf="!conversationStarted">
-              ⏸ Press Start
+            <span class="dg-conv__timer-of" *ngIf="conversationStarted">
+              <span class="dg-conv__timer-of__sep">/</span>
+              <span class="dg-conv__timer-of__total">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
             </span>
           </div>
           <div class="dg-conv__timer-track" aria-hidden="true">
@@ -332,6 +343,11 @@
 
         <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
         <div class="dg-conv__mic-area" *ngIf="!isMobile">
+          <!-- End-session note -->
+          <div class="dg-conv__end-note" *ngIf="conversationStarted && !conversationComplete">
+            <span class="dg-conv__end-note-icon">💬</span>
+            Say <strong>"end"</strong> or <strong>"beenden"</strong> to end the conversation
+          </div>
           <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete && !awaitingGermanRepeat">
             💬 Respond in <strong>English</strong> — Ooly will translate it to German for you to repeat.
           </p>
@@ -399,10 +415,28 @@
   <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
     <div class="dg-completion-card">
       <mat-icon class="dg-completion-icon">emoji_events</mat-icon>
-      <h2 class="dg-completion-title">Time's Up — Great Work!</h2>
-      <p class="dg-completion-sub">
-        You've practiced for the full session. Keep going or wrap up below.
-      </p>
+      <h2 class="dg-completion-title">Congratulations!</h2>
+      <p class="dg-completion-module-name">You completed "{{ payload?.module?.title }}"</p>
+
+      <!-- Completion percentage block -->
+      <div class="dg-completion-pct-block">
+        <div class="dg-completion-pct-ring"
+             [class.dg-completion-pct-ring--full]="completionPercentage >= 75">
+          <span class="dg-completion-pct-value">{{ completionPercentage }}%</span>
+          <span class="dg-completion-pct-label">Completed</span>
+        </div>
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--success" *ngIf="completionPercentage >= 75">
+          <mat-icon>check_circle</mat-icon>
+          Full completion achieved!
+        </p>
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--partial" *ngIf="completionPercentage < 75">
+          Reach <strong>75%</strong> or more to fully complete this module.
+        </p>
+      </div>
+
+      <!-- Motivation text -->
+      <p class="dg-completion-motivation">{{ currentMotivationText }}</p>
+
       <p class="dg-completion-tip">
         You can click <strong>Continue</strong> to practice more, or <strong>End Session</strong> when you are done.
       </p>
