@@ -7,16 +7,22 @@
         <p class="sa-header__sub">Official notices from your school. New posts appear here when your batch is included.</p>
       </div>
     </div>
-    <div class="sa-tabs" *ngIf="!loading && announcements.length > 0">
-      <button type="button" class="sa-tab" [class.sa-tab--on]="activeFilter === 'all'" (click)="setFilter('all')">
-        All <span class="sa-tab__count">({{ announcements.length }})</span>
-      </button>
-      <button type="button" class="sa-tab" [class.sa-tab--on]="activeFilter === 'website'" (click)="setFilter('website')">Portal only</button>
-      <button type="button" class="sa-tab" [class.sa-tab--on]="activeFilter === 'website_email'" (click)="setFilter('website_email')">Email + portal</button>
-    </div>
   </header>
 
-  <p *ngIf="loading" class="sa-loading">Loading announcements…</p>
+  <div *ngIf="loading" class="sa-skeleton">
+    <div class="sa-skeleton__card" *ngFor="let i of [1,2,3]">
+      <div class="sa-skeleton__stripe"></div>
+      <div class="sa-skeleton__inner">
+        <div class="sa-skeleton__top">
+          <div class="sa-skeleton__badge"></div>
+          <div class="sa-skeleton__date"></div>
+        </div>
+        <div class="sa-skeleton__title"></div>
+        <div class="sa-skeleton__body"></div>
+        <div class="sa-skeleton__body sa-skeleton__body--short"></div>
+      </div>
+    </div>
+  </div>
 
   <div *ngIf="!loading && announcements.length === 0" class="sa-empty sa-empty--card">
     <span class="material-icons sa-empty__icon" aria-hidden="true">notifications_none</span>

@@ -171,9 +171,11 @@
                  *ngIf="req.remarks && req.status !== 'APPROVED' && req.status !== 'FULLY_PAID'">
               <div class="sp-purpose-label">
                 <mat-icon>flag</mat-icon>
-                What this payment is for
+                <span class="">
+                What this payment is for?
+                </span>
+                <span class="sp-purpose-text">{{ req.remarks }}</span>
               </div>
-              <div class="sp-purpose-text">{{ req.remarks }}</div>
             </div>
 
             <div class="sp-inst-grid">
