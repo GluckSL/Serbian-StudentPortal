@@ -45,10 +45,11 @@ export class SidebarComponent implements OnInit {
           user.sidebarAccessLevels || {},
           user.teacherTabAccessLevels || {}
         );
+        // Silver package: no portal announcements tab (GO track still uses SILVER subscription).
+        // Platinum (including GO+Platinum) keeps announcements — do not key off goStatus alone.
         if (this.userRole === 'STUDENT') {
           const subscription = String(user.subscription || '').toUpperCase();
-          const goStatus = String(user.goStatus || '').toUpperCase();
-          if (subscription === 'SILVER' || goStatus === 'GO') {
+          if (subscription === 'SILVER') {
             groups = groups
               .map((g) => ({
                 ...g,

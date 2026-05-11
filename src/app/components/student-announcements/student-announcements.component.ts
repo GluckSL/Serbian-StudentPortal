@@ -1,7 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
-import { AuthService } from '../../services/auth.service';
+import {
+  AnnouncementDeliveryType,
+  AnnouncementItem,
+  AnnouncementService
+} from '../../services/announcement.service';
 
 @Component({
   selector: 'app-student-announcements',
@@ -15,10 +18,7 @@ export class StudentAnnouncementsComponent implements OnInit {
   announcements: AnnouncementItem[] = [];
   activeFilter: 'all' | 'website' | 'website_email' = 'all';
 
-  constructor(
-    private announcementService: AnnouncementService,
-    private authService: AuthService
-  ) {}
+  constructor(private announcementService: AnnouncementService) {}
 
   ngOnInit(): void {
     this.load();
@@ -38,16 +38,6 @@ export class StudentAnnouncementsComponent implements OnInit {
     });
   }
 
-  get studentName(): string {
-    const n = this.authService.getSnapshotUser()?.name || '';
-    if (!n) return 'Student';
-    return n.split(/\s+/)[0];
-  }
-
-  get announcementCount(): number {
-    return this.announcements.length;
-  }
-
   get filteredAnnouncements(): AnnouncementItem[] {
     if (this.activeFilter === 'all') return this.announcements;
     return this.announcements.filter((a) => a.deliveryType === this.activeFilter);
@@ -55,5 +45,11 @@ export class StudentAnnouncementsComponent implements OnInit {
 
   setFilter(filter: 'all' | 'website' | 'website_email'): void {
     this.activeFilter = filter;
+  }
+
+  deliveryLabel(dt: AnnouncementDeliveryType): string {
+    if (dt === 'website_email') return 'Email + portal';
+    if (dt === 'website') return 'Portal';
+    return dt;
   }
 }

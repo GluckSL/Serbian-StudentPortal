@@ -24,6 +24,12 @@ const { verifyToken, isAdmin, extractBearerToken } = require('../middleware/auth
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
 
+/** StudentLogs.batchAtUpdate is required; empty string / null / undefined must not be stored. */
+function batchAtUpdateForLog(batch, emptyFallback = "N/A") {
+  const s = batch == null ? "" : String(batch).trim();
+  return s || emptyFallback;
+}
+
 const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
 const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "dashboard",
@@ -1192,7 +1198,7 @@ router.put("/update-teacher-by-batch", async (req, res) => {
       action: "UPDATE",
       studentId: student._id,
       levelAtUpdate: student.level,
-      batchAtUpdate: student.batch,
+      batchAtUpdate: batchAtUpdateForLog(student.batch, batch),
       assignedTeacherAtUpdate: student.assignedTeacher,
       statusAtUpdate: student.studentStatus,
       subscriptionAtUpdate: student.subscription,
@@ -1233,7 +1239,7 @@ router.put("/:id", async (req, res) => {
         action: "UPDATE",
         studentId: existingUser._id,
         levelAtUpdate: existingUser.level,
-        batchAtUpdate: existingUser.batch,
+        batchAtUpdate: batchAtUpdateForLog(existingUser.batch),
         assignedTeacherAtUpdate: existingUser.assignedTeacher,
         statusAtUpdate: existingUser.studentStatus,
         subscriptionAtUpdate: existingUser.subscription,

@@ -1,53 +1,63 @@
 <div class="sa-page">
-  <!-- Welcome Banner -->
-  <section class="sa-hero">
-    <div class="sa-hero__inner">
+  <header class="sa-header">
+    <div class="sa-header__main">
+      <span class="sa-header__icon material-icons" aria-hidden="true">campaign</span>
       <div>
-        <div class="sa-hero__kicker">ACADEMIC PORTAL</div>
-        <h1 class="sa-hero__title">Welcome back, {{ studentName }}.</h1>
-        <p class="sa-hero__sub">
-          Here’s what’s new in your batch today. You have <strong>{{ announcementCount }}</strong> new announcement{{ announcementCount === 1 ? '' : 's' }}.
-        </p>
+        <h1 class="sa-header__title">Announcements</h1>
+        <p class="sa-header__sub">Official notices from your school. New posts appear here when your batch is included.</p>
       </div>
     </div>
-  </section>
-
-  <section class="sa-feed">
-    <div class="sa-feed__head">
-      <h2 class="sa-feed__title">Recent Feed</h2>
+    <div class="sa-tabs" *ngIf="!loading && announcements.length > 0">
+      <button type="button" class="sa-tab" [class.sa-tab--on]="activeFilter === 'all'" (click)="setFilter('all')">
+        All <span class="sa-tab__count">({{ announcements.length }})</span>
+      </button>
+      <button type="button" class="sa-tab" [class.sa-tab--on]="activeFilter === 'website'" (click)="setFilter('website')">Portal only</button>
+      <button type="button" class="sa-tab" [class.sa-tab--on]="activeFilter === 'website_email'" (click)="setFilter('website_email')">Email + portal</button>
     </div>
+  </header>
 
-    <p *ngIf="loading" class="sa-loading">Loading announcements...</p>
+  <p *ngIf="loading" class="sa-loading">Loading announcements…</p>
 
-    <div *ngIf="!loading && announcements.length === 0" class="sa-empty">No announcements yet.</div>
+  <div *ngIf="!loading && announcements.length === 0" class="sa-empty sa-empty--card">
+    <span class="material-icons sa-empty__icon" aria-hidden="true">notifications_none</span>
+    <p class="sa-empty__title">No announcements yet</p>
+    <p class="sa-empty__text">When your batch receives an update, it will show up here.</p>
+  </div>
 
-    <article class="sa-card" *ngFor="let item of announcements">
-      <div class="sa-card__stripe" [class.sa-card__stripe--email]="item.deliveryType === 'website_email'"></div>
+  <div *ngIf="!loading && announcements.length > 0 && filteredAnnouncements.length === 0" class="sa-empty sa-empty--card">
+    <p class="sa-empty__title">Nothing in this view</p>
+    <p class="sa-empty__text">Try another filter above.</p>
+  </div>
 
-      <header class="sa-card__head">
-        <div class="sa-card__meta">
-          <span class="sa-card__date">{{ item.createdAt | date:'medium' }}</span>
+  <div class="sa-list" *ngIf="!loading && filteredAnnouncements.length > 0">
+    <article class="sa-card" *ngFor="let item of filteredAnnouncements">
+      <div class="sa-card__stripe" [class.sa-card__stripe--email]="item.deliveryType === 'website_email'" aria-hidden="true"></div>
+
+      <div class="sa-card__inner">
+        <div class="sa-card__top">
+          <span class="sa-card__badge" *ngIf="item.deliveryType">{{ deliveryLabel(item.deliveryType) }}</span>
+          <time class="sa-card__date" [attr.datetime]="item.createdAt">{{ item.createdAt | date:'medium' }}</time>
         </div>
-      </header>
 
-      <h3 class="sa-card__title">{{ item.title }}</h3>
+        <h2 class="sa-card__title">{{ item.title }}</h2>
+        <p class="sa-card__body">{{ item.body }}</p>
 
-      <p class="sa-card__body">{{ item.body }}</p>
-
-      <div class="sa-card__files" *ngIf="item.attachments?.length">
-        <div class="sa-card__filesTitle">Attachments</div>
-        <div class="sa-card__fileRow">
-          <a
-            *ngFor="let file of item.attachments"
-            class="sa-chip"
-            [href]="file.fileUrl"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {{ file.fileName }}
-          </a>
+        <div class="sa-card__files" *ngIf="item.attachments?.length">
+          <div class="sa-card__filesTitle">Attachments</div>
+          <div class="sa-card__fileRow">
+            <a
+              *ngFor="let file of item.attachments"
+              class="sa-chip"
+              [href]="file.fileUrl"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span class="material-icons sa-chip__icon" aria-hidden="true">attach_file</span>
+              {{ file.fileName }}
+            </a>
+          </div>
         </div>
       </div>
     </article>
-  </section>
+  </div>
 </div>

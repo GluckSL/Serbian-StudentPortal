@@ -228,15 +228,10 @@ export class NavService {
       ]
     },
     {
-      group: 'My Course',
+      group: 'Learning',
       items: [
         { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
-        { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null }
-      ]
-    },
-    {
-      group: 'Performance History',
-      items: [
+        { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
         { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },
@@ -246,12 +241,12 @@ export class NavService {
         { id: 'documents', label: 'Documents', icon: 'folder', route: '/student-documents', subGroup: null }
       ]
     },
-    // {
-    //   group: 'Payments',
-    //   items: [
-    //     { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
-    //   ]
-    // },
+    {
+      group: 'Payments',
+      items: [
+        { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
+      ]
+    },
     {
       group: 'Visa Status',
       items: [
