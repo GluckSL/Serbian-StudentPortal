@@ -237,11 +237,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return this.status !== 'speaking';
   }
 
-  /** Both vocab fully covered AND minimum practice time elapsed. */
+  /** Both vocab 80%+ covered AND minimum practice time elapsed. */
   get showMilestoneActions(): boolean {
     if (!this.conversationStarted || this.conversationComplete) return false;
     const minMet = this.sessionElapsedSec >= this.conversationMinTargetSeconds;
-    const vocabDone = this.studentVocabCoverage >= 100 && this.aiVocabCoverage >= 100;
+    const vocabDone = this.vocabCoverage >= 80;
     return vocabDone && minMet;
   }
 
