@@ -1514,10 +1514,26 @@
     color: #555;
     font-size: 0.97rem;
     line-height: 1.55;
-    margin: 0 0 1.25rem;
+    margin: 0 0 0.65rem;
 
     strong {
       color: #1a1a2e;
+      font-weight: 600;
+    }
+  }
+
+  .dg-completion-tip {
+    color: #64748b;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    margin: 0 0 1.15rem;
+    padding: 0.55rem 0.75rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+
+    strong {
+      color: #4f46e5;
       font-weight: 600;
     }
   }

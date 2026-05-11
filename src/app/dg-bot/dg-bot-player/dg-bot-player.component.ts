@@ -281,13 +281,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return list.filter(v => this.usedVocab.has(v.word.toLowerCase()));
   }
 
-  /** Admin vocab words not yet used in the conversation. */
-  get adminVocabUncovered(): Array<{ word: string; translation: string }> {
-    const list = this.adminVocabList;
-    if (!list.length) return [];
-    return list.filter(v => !this.usedVocab.has(v.word.toLowerCase()));
-  }
-
   get studentDisplayName(): string {
     const name = (this.auth.getSnapshotUser()?.name || '').trim();
     return name || 'Student';
@@ -405,6 +398,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.sessionElapsedSec = Math.max(0, next);
       if (this.conversationStarted && !this.timerExpired && this.sessionElapsedSec >= this.conversationMinTargetSeconds) {
         this.timerExpired = true;
+        this.sessionElapsedSec = this.conversationMinTargetSeconds;
+        this.stopConversationPracticeTimer();
         this.dgLog('countdown_finished', { elapsed: this.sessionElapsedSec, target: this.conversationMinTargetSeconds });
       }
     });

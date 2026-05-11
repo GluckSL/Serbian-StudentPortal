@@ -217,15 +217,16 @@
           🎤 Now say this in German
         </div>
 
-        <!-- Countdown timer (visible as soon as conversation mode loads) -->
+        <!-- Countdown timer (hidden while completion modal is open; interval stops at 0) -->
         <div class="dg-conv__session-timer"
+             *ngIf="!showCompletionOverlay"
              [class.dg-conv__session-timer--waiting]="!conversationStarted">
           <span class="dg-conv__timer-label">
             {{ conversationStarted ? 'Time Remaining' : 'Duration' }}
           </span>
           <div class="dg-conv__timer-main">
             <span class="dg-conv__timer-elapsed"
-                  [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec <= 30">
+                  [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
               {{ formatMmSs(countdownRemainSec) }}
             </span>
             <span class="dg-conv__timer-waiting-badge" *ngIf="!conversationStarted">
@@ -236,7 +237,7 @@
             <div class="dg-conv__timer-fill"
                  [style.width.%]="conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100"
                  [class.dg-conv__timer-fill--waiting]="!conversationStarted"
-                 [class.dg-conv__timer-fill--urgent]="conversationStarted && countdownRemainSec <= 30"
+                 [class.dg-conv__timer-fill--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30"
                  [class.dg-conv__timer-fill--goal]="conversationStarted && countdownRemainSec === 0">
             </div>
           </div>
@@ -402,6 +403,9 @@
       <p class="dg-completion-sub">
         You've practiced for the full session. Keep going or wrap up below.
       </p>
+      <p class="dg-completion-tip">
+        You can click <strong>Continue</strong> to practice more, or <strong>End Session</strong> when you are done.
+      </p>
 
       <!-- Stats row -->
       <div class="dg-completion-stats">
@@ -425,16 +429,6 @@
         <div class="dg-vocab-chips">
           <span class="dg-vocab-chip dg-vocab-chip--covered"
                 *ngFor="let v of adminVocabCovered"
-                [title]="v.translation">{{ v.word }}</span>
-        </div>
-      </div>
-
-      <!-- Vocab not yet covered -->
-      <div class="dg-vocab-block" *ngIf="adminVocabUncovered.length">
-        <p class="dg-vocab-block__title">📚 Still to Practice</p>
-        <div class="dg-vocab-chips">
-          <span class="dg-vocab-chip dg-vocab-chip--uncovered"
-                *ngFor="let v of adminVocabUncovered"
                 [title]="v.translation">{{ v.word }}</span>
         </div>
       </div>
