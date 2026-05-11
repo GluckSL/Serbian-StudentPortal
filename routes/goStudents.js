@@ -14,8 +14,11 @@ const ZoomRecording = require('../models/ZoomRecording');
 const ZoomRecordingView = require('../models/ZoomRecordingView');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
+const DGModule = require('../models/DGModule');
+const DGSession = require('../models/DGSession');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { getStudentDgJourneyAccess, dgModuleUnlockedForStudentDay } = require('../utils/dgStudentJourneyGate');
 
 const GO_BATCH_NAME = 'GO-SILVER';
 
@@ -646,6 +649,49 @@ router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
     const completedModules = modules.filter(m => m.status === 'completed').length;
     const totalModules = modules.length;
 
+    // ── Glück Buddy (DG Bot) modules ─────────────────────────────────────────
+    let dgModules = [];
+    try {
+      const dgAccess = await getStudentDgJourneyAccess(studentId);
+      const allDg = await DGModule.find({
+        isActive: true,
+        visibleToStudents: true,
+      })
+        .select('title level courseDay')
+        .sort({ courseDay: 1, title: 1 })
+        .lean();
+
+      const dgCompletedIds = await DGSession.distinct('moduleId', { studentId, completed: true });
+      const dgAnyIds = await DGSession.distinct('moduleId', { studentId });
+      const dgCompletedSet = new Set((dgCompletedIds || []).map((id) => String(id)));
+      const dgAnySet = new Set((dgAnyIds || []).map((id) => String(id)));
+
+      dgModules = (allDg || []).map((m) => {
+        const dayLocked =
+          !dgModuleUnlockedForStudentDay(m.courseDay, currentDay) ||
+          !dgAccess.enabled ||
+          dgAccess.learningEnabled === false;
+        const completed = dgCompletedSet.has(String(m._id));
+        const started = dgAnySet.has(String(m._id));
+        let status = 'not_started';
+        if (completed) status = 'completed';
+        else if (started) status = 'in_progress';
+        return {
+          _id: m._id,
+          title: m.title,
+          level: m.level,
+          courseDay: m.courseDay ?? null,
+          locked: dayLocked,
+          status,
+        };
+      });
+    } catch (dgErr) {
+      console.warn('go-students detail: DG module summary skipped', dgErr?.message || dgErr);
+    }
+
+    const completedDgModules = dgModules.filter((d) => d.status === 'completed').length;
+    const totalDgModules = dgModules.length;
+
     res.json({
       journeyLength,
       student: {
@@ -663,12 +709,15 @@ router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
       zoomRecordings,
       modules,
       exercises,
+      dgModules,
       progress: {
         currentDay,
         totalExercises,
         attemptedExercises,
         totalModules,
         completedModules,
+        totalDgModules,
+        completedDgModules,
         overallPercent: totalExercises + totalModules > 0
           ? Math.round((attemptedExercises + completedModules) / (totalExercises + totalModules) * 100)
           : 0,

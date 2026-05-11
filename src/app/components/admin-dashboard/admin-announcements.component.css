@@ -512,6 +512,14 @@
   font-size: 0.8rem;
 }
 
+.ann-meta__pill {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
 .ann-actions {
   margin-top: 10px;
   display: flex;

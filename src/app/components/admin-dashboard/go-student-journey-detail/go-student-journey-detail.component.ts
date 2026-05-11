@@ -99,7 +99,40 @@ import { NotificationService } from '../../../services/notification.service';
       </ng-container>
 
       <ng-container *ngIf="tab === 'modules'">
-        <div *ngIf="(detail.modules?.length || 0) === 0" class="gsd-empty">No modules found.</div>
+        <div class="gsd-stats gsd-stats--snap" *ngIf="detail?.progress">
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.currentDay }}</span><span class="gsd-stat-lbl">Current day</span></div>
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.attemptedExercises }}/{{ detail.progress.totalExercises }}</span><span class="gsd-stat-lbl">Exercises</span></div>
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.completedModules }}/{{ detail.progress.totalModules }}</span><span class="gsd-stat-lbl">Learning modules</span></div>
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.completedDgModules ?? 0 }}/{{ detail.progress.totalDgModules ?? 0 }}</span><span class="gsd-stat-lbl">DG Bot</span></div>
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.overallPercent }}%</span><span class="gsd-stat-lbl">Overall</span></div>
+        </div>
+
+        <h3 class="gsd-section-title">Glück Buddy (DG Bot)</h3>
+        <p class="gsd-section-hint">Speaking-practice modules the student sees in the portal (journey day controls locks).</p>
+        <div *ngIf="(detail.dgModules?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No DG Bot modules are published for students yet.</div>
+        <div *ngFor="let dm of (detail.dgModules || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="dm.locked">
+          <div class="gsd-row-inner">
+            <span class="gsd-ico">{{ dm.locked ? '🔒' : '🤖' }}</span>
+            <div>
+              <div class="gsd-row-title">{{ dm.title }}</div>
+              <div class="gsd-row-meta">
+                <span *ngIf="dm.courseDay != null">Day {{ dm.courseDay }}</span>
+                <span *ngIf="dm.level">· {{ dm.level }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="gsd-row-side">
+            <span *ngIf="dm.locked" class="gsd-chip gsd-chip-lock">Locked</span>
+            <ng-container *ngIf="!dm.locked">
+              <span class="gsd-status" [class.gsd-status-done]="dm.status === 'completed'" [class.gsd-status-wip]="dm.status === 'in_progress'" [class.gsd-status-ns]="dm.status === 'not_started'">
+                {{ dm.status === 'not_started' ? 'Not started' : dm.status === 'in_progress' ? 'In progress' : 'Completed' }}
+              </span>
+            </ng-container>
+          </div>
+        </div>
+
+        <h3 class="gsd-section-title">Learning modules</h3>
+        <div *ngIf="(detail.modules?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No learning modules found.</div>
         <div *ngFor="let m of detail.modules" class="gsd-row gsd-row-flex" [class.gsd-locked]="m.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ m.locked ? '🔒' : '📘' }}</span>
@@ -155,12 +188,13 @@ import { NotificationService } from '../../../services/notification.service';
         <div class="gsd-stats">
           <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.currentDay }}</span><span class="gsd-stat-lbl">Current day</span></div>
           <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.attemptedExercises }}/{{ detail.progress?.totalExercises }}</span><span class="gsd-stat-lbl">Exercises</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedModules }}/{{ detail.progress?.totalModules }}</span><span class="gsd-stat-lbl">Modules</span></div>
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedModules }}/{{ detail.progress?.totalModules }}</span><span class="gsd-stat-lbl">Learning modules</span></div>
+          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedDgModules ?? 0 }}/{{ detail.progress?.totalDgModules ?? 0 }}</span><span class="gsd-stat-lbl">DG Bot</span></div>
           <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.overallPercent }}%</span><span class="gsd-stat-lbl">Overall</span></div>
         </div>
         <table class="gsd-table" *ngIf="(detail.progress?.dayBreakdown?.length || 0) > 0">
           <thead>
-            <tr><th>Day</th><th>Exercises</th><th>Modules</th><th>Avg score</th></tr>
+            <tr><th>Day</th><th>Exercises</th><th>Learning modules</th><th>Avg score</th></tr>
           </thead>
           <tbody>
             <tr *ngFor="let d of detail.progress?.dayBreakdown">
@@ -226,6 +260,14 @@ import { NotificationService } from '../../../services/notification.service';
       padding: 16px 20px 24px; min-height: 200px; box-shadow: 0 2px 12px rgba(15,23,42,.05);
     }
     .gsd-empty { text-align: center; color: #94a3b8; padding: 32px; }
+    .gsd-empty--tight { padding: 16px 12px; font-size: 13px; }
+    .gsd-section-title {
+      margin: 22px 0 0; font-size: 12px; font-weight: 700; color: #03396c; text-transform: uppercase; letter-spacing: .06em;
+      border-top: 1px solid #f1f5f9; padding-top: 18px;
+    }
+    .gsd-section-title:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    .gsd-section-hint { margin: 6px 0 12px; font-size: 12px; color: #64748b; line-height: 1.45; }
+    .gsd-stats--snap { margin-bottom: 8px; }
     .gsd-row { padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
     .gsd-row:last-child { border-bottom: none; }
     .gsd-row.gsd-locked { opacity: .55; }

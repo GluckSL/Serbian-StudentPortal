@@ -113,6 +113,7 @@ const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
+const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -380,6 +381,7 @@ connectMongoDb()
       scheduleAutoFetchAttendance();
       scheduleJourneyDayRollover();
       scheduleZoomMeetingReminderEmails();
+      schedulePublishScheduledAnnouncements();
 
       scheduleClassReminders();
       scheduleAbsenceAlerts();

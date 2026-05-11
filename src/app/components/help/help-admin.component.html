@@ -90,7 +90,7 @@
         </tr>
       </thead>
       <tbody>
-        <ng-container *ngFor="let ticket of filteredTickets">
+        <ng-container *ngFor="let ticket of filteredTickets; trackBy: trackTicketById">
           <tr [class.ha-row--selected]="selectedTicket?._id === ticket._id">
             <td class="ha-ticket-num">{{ ticket.ticketNumber || '—' }}</td>
             <td>
@@ -109,8 +109,9 @@
             </td>
             <td>
               <select class="ha-status-select" [class]="getStatusClass(ticket.status)"
-                      [value]="ticket.status || 'open'"
-                      (change)="updateStatus(ticket, $any($event.target).value)"
+                      [ngModel]="ticket.status || 'open'"
+                      [ngModelOptions]="{ standalone: true }"
+                      (ngModelChange)="updateStatus(ticket, $event)"
                       [disabled]="updatingId === ticket._id">
                 <option *ngFor="let s of statuses" [value]="s">{{ s | titlecase }}</option>
               </select>

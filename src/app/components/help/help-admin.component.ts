@@ -56,7 +56,10 @@ export class HelpAdminComponent implements OnInit {
       )
       .subscribe({
         next: (res) => {
-          this.tickets = res?.data || [];
+          this.tickets = (res?.data || []).map((t) => ({
+            ...t,
+            status: this.normalizeTicketStatus(t.status)
+          }));
           this.applyFilters();
           this.loading = false;
         },
@@ -88,23 +91,51 @@ export class HelpAdminComponent implements OnInit {
     this.filteredTickets = result;
   }
 
+  trackTicketById(_index: number, ticket: SupportTicket): string {
+    return ticket._id || '';
+  }
+
+  /** Keep status in sync with server enum and option values. */
+  private normalizeTicketStatus(raw?: string): SupportTicket['status'] {
+    const s = String(raw || 'open')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-');
+    const aliases: Record<string, SupportTicket['status']> = {
+      open: 'open',
+      'in-progress': 'in-progress',
+      inprogress: 'in-progress',
+      resolved: 'resolved',
+      closed: 'closed'
+    };
+    return aliases[s] || 'open';
+  }
+
   updateStatus(ticket: SupportTicket, newStatus: string): void {
     if (!ticket._id) return;
+    const normalized = this.normalizeTicketStatus(newStatus);
+    const prevNorm = this.normalizeTicketStatus(ticket.status);
+    if (normalized === prevNorm) return;
+
+    ticket.status = normalized;
     this.updatingId = ticket._id;
     this.http
       .patch<{ success: boolean; data: SupportTicket }>(
         `${environment.apiUrl}/support/tickets/${ticket._id}/status`,
-        { status: newStatus },
+        { status: normalized },
         { withCredentials: true }
       )
       .subscribe({
         next: (res) => {
-          if (res?.success) {
-            ticket.status = res.data.status;
+          if (res?.success && res.data) {
+            ticket.status = this.normalizeTicketStatus(res.data.status);
+          } else {
+            ticket.status = prevNorm;
           }
           this.updatingId = null;
         },
         error: () => {
+          ticket.status = prevNorm;
           this.updatingId = null;
         }
       });

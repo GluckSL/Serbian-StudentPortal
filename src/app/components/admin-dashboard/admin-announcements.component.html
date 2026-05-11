@@ -97,7 +97,7 @@
 
         <div class="ann-field" *ngIf="isScheduled">
           <label>Schedule Date & Time</label>
-          <input type="datetime-local" [(ngModel)]="scheduleAt" />
+          <input type="datetime-local" [(ngModel)]="scheduleAt" [attr.min]="minScheduleLocal" />
           <small>Select when this announcement should be sent.</small>
         </div>
 
@@ -108,7 +108,11 @@
         </div>
 
         <button type="button" class="ann-submit" [disabled]="saving" (click)="createAnnouncement()">
-          {{ saving ? 'Sending...' : 'Send Announcement' }}
+          {{
+            saving
+              ? (isScheduled ? 'Scheduling...' : 'Sending...')
+              : (isScheduled ? 'Schedule announcement' : 'Send Announcement')
+          }}
         </button>
         <button type="button" class="ann-draft" [disabled]="saving" (click)="saveDraftPlaceholder()">
           Save as Draft
@@ -161,6 +165,9 @@
       <p class="ann-item-body">{{ item.body }}</p>
       <div class="ann-meta">
         <span>Type: {{ item.deliveryType === 'website_email' ? 'Website + Email' : 'Website' }}</span>
+        <span *ngIf="item.scheduledPublishAt && item.isActive === false" class="ann-meta__pill">
+          Scheduled: {{ item.scheduledPublishAt | date: 'medium' }}
+        </span>
         <span>Batches: {{ formatTargetLabels(item.targetBatches) }}</span>
         <span *ngIf="item.createdBy?.name">By: {{ item.createdBy?.name }}</span>
       </div>

@@ -213,6 +213,14 @@ export class AdminAnnouncementsComponent implements OnInit {
     }
   }
 
+  /** Minimum value for datetime-local (browser local) — one minute from now. */
+  get minScheduleLocal(): string {
+    const d = new Date(Date.now() + 60_000);
+    d.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   loadTargetStudentsPreview(): void {
     if (!this.selectedBatches.length) {
       this.targetStudents = [];
@@ -257,6 +265,11 @@ export class AdminAnnouncementsComponent implements OnInit {
     }
 
     this.saving = true;
+    const scheduleAtPayload =
+      this.isScheduled && this.scheduleAt
+        ? new Date(this.scheduleAt).toISOString()
+        : '';
+
     this.announcementService
       .create({
         channel: 'website',
@@ -267,13 +280,13 @@ export class AdminAnnouncementsComponent implements OnInit {
         // Website + Email is now the only supported send type.
         emailSubject: this.title.trim(),
         emailBody: this.body.trim(),
-        scheduleAt: this.isScheduled ? this.scheduleAt : '',
+        scheduleAt: scheduleAtPayload,
         attachments: this.selectedFiles
       })
       .subscribe({
-        next: () => {
+        next: (res) => {
           this.saving = false;
-          this.notify.success('Announcement created successfully.');
+          this.notify.success(res?.message || 'Announcement created successfully.');
           this.resetForm();
           this.loadAnnouncements(1);
         },

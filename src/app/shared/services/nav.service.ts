@@ -246,7 +246,12 @@ export class NavService {
         { id: 'documents', label: 'Documents', icon: 'folder', route: '/student-documents', subGroup: null }
       ]
     },
-    // Payments nav hidden while student payment flows are in testing (routes still exist for direct access if needed).
+    // {
+    //   group: 'Payments',
+    //   items: [
+    //     { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
+    //   ]
+    // },
     {
       group: 'Visa Status',
       items: [

@@ -219,7 +219,7 @@ export const routes: Routes = [
 
   { path: 'student-progress', loadComponent: () => import('./components/student-progress/student-progress.component').then(m => m.StudentProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
-  { path: 'student-payments', loadComponent: () => import('./components/student-payments/student-payments.component').then(m => m.StudentPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  { path: 'student-payments', redirectTo: 'my-payments', pathMatch: 'full' },
 
   { path: 'performance-history', loadComponent: () => import('./components/student-dashboard/performance-history.component').then(m => m.PerformanceHistoryComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 

@@ -3931,8 +3931,9 @@ export class JourneyManagementComponent implements OnInit {
   get filteredGoStudents(): any[] {
     let list = [...(this.goStudents || [])];
     const q = String(this.goSearch || '').trim().toLowerCase();
-    const minDay = Number(this.goDayMinFilter);
-    const maxDay = Number(this.goDayMaxFilter);
+    // Do not use Number(null) — it is 0 and would apply Day ≤ 0 when filters are unset.
+    const minDay = this.goDayMinFilter;
+    const maxDay = this.goDayMaxFilter;
     if (q) {
       list = list.filter((s) =>
         String(s?.name || '').toLowerCase().includes(q) ||
@@ -3946,10 +3947,10 @@ export class JourneyManagementComponent implements OnInit {
     if (this.goStatusFilter !== 'all') {
       list = list.filter((s) => String(s?.studentStatus || '').toUpperCase() === this.goStatusFilter);
     }
-    if (Number.isFinite(minDay)) {
+    if (minDay != null && Number.isFinite(minDay)) {
       list = list.filter((s) => Number(s?.currentCourseDay || 1) >= minDay);
     }
-    if (Number.isFinite(maxDay)) {
+    if (maxDay != null && Number.isFinite(maxDay)) {
       list = list.filter((s) => Number(s?.currentCourseDay || 1) <= maxDay);
     }
     return list;

@@ -26,6 +26,8 @@ export interface AnnouncementItem {
   createdBy?: { _id: string; name: string; role: string };
   createdAt: string;
   updatedAt: string;
+  isActive?: boolean;
+  scheduledPublishAt?: string | null;
 }
 
 export interface AnnouncementTargetStudent {
