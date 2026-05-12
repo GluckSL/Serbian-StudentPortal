@@ -9,6 +9,8 @@ import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
 import { NotificationService } from '../../services/notification.service';
+import { AuthService } from '../../services/auth.service';
+import { NavService } from '../../shared/services/nav.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -68,7 +70,9 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     private zoomService: ZoomService,
     private cdr: ChangeDetectorRef,
     private joinClassFlow: JoinClassFlowService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private auth: AuthService,
+    private nav: NavService,
   ) {}
 
   ngOnInit(): void {
@@ -291,9 +295,17 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/teacher/meetings/create']);
   }
 
-  /** Same roles as POST /api/zoom/create-bulk-journey-meetings */
+  /** ADMIN / TEACHER_ADMIN always; SUB_ADMIN only if they have Manage Classes (manage-classes) permission */
   canBulkJourneyMeetings(): boolean {
-    return this.userRole === 'ADMIN' || this.userRole === 'TEACHER_ADMIN';
+    if (this.userRole === 'ADMIN' || this.userRole === 'TEACHER_ADMIN') return true;
+    if (this.userRole !== 'SUB_ADMIN') return false;
+    const user = this.auth.getSnapshotUser();
+    if (!user) return false;
+    return this.nav.canSubAdminAccessRoute(
+      '/teacher/meetings/bulk-journey-create',
+      user.sidebarPermissions || [],
+      user.sidebarAccessLevels || {},
+    );
   }
 
   bulkJourneyMeetings(): void {
