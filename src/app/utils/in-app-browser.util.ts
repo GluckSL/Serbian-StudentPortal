@@ -1,10 +1,13 @@
 // utils/in-app-browser.util.ts — detect restricted in-app WebView browsers
 
-/** Returns true when running inside a mobile in-app WebView that cannot reliably open
- *  native app deep links or create new top-level browser windows. */
-export function isInAppBrowser(): boolean {
+/**
+ * Returns true for social-media in-app browsers (WhatsApp, Instagram, Facebook, Telegram)
+ * that cannot reliably open native app deep links or new top-level browser windows.
+ * Does NOT include the Gluck app's own WebView — use isAndroidWebView() for that.
+ */
+export function isRestrictedInAppBrowser(): boolean {
   const ua = navigator.userAgent || '';
-  // WhatsApp: WAIS; WHATSAPP in UA
+  // WhatsApp
   if (/\bWA(IS|BAPP)?\b/i.test(ua) || ua.includes('WhatsApp')) return true;
   // Instagram
   if (ua.includes('Instagram')) return true;
@@ -12,9 +15,24 @@ export function isInAppBrowser(): boolean {
   if (/\bFBAN\b|FBAN\/|FBAV\/|FB_IAB\/|FBIOS|Messenger/i.test(ua)) return true;
   // Telegram
   if (ua.includes('Telegram') || /\bTGAndroid\b|\bTGIOS\b/i.test(ua)) return true;
-  // Generic Android WebView (may also catch other in-app browsers)
-  if (/wv\b/.test(ua) && /Android/i.test(ua)) return true;
   return false;
+}
+
+/**
+ * Returns true when running inside a generic Android WebView (e.g. the Gluck app).
+ * These WebViews cannot follow zoommtg:// but CAN open external apps via intent://.
+ */
+export function isAndroidWebView(): boolean {
+  const ua = navigator.userAgent || '';
+  return /wv\b/.test(ua) && /Android/i.test(ua);
+}
+
+/**
+ * Returns true when running inside any mobile in-app WebView.
+ * @deprecated Prefer isRestrictedInAppBrowser() or isAndroidWebView() for specific handling.
+ */
+export function isInAppBrowser(): boolean {
+  return isRestrictedInAppBrowser() || isAndroidWebView();
 }
 
 /** Returns true on Android or iOS. */

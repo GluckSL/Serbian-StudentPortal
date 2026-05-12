@@ -6,7 +6,7 @@ import { BehaviorSubject } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
 import { getAuthToken } from './auth.service';
-import { isInAppBrowser, isMobile } from '../utils/in-app-browser.util';
+import { isRestrictedInAppBrowser, isAndroidWebView, isMobile } from '../utils/in-app-browser.util';
 import {
   InAppBrowserWarningComponent,
   InAppBrowserWarningData,
@@ -262,7 +262,8 @@ export class JoinClassFlowService {
     this.detachLifecycleGuards();
     joinFlowLog('join_started', { meetingId });
 
-    if (isInAppBrowser()) {
+    if (isRestrictedInAppBrowser()) {
+      // Social-media in-app browsers (WhatsApp, Instagram, etc.) — warn user to open in Chrome/Safari first.
       this.prefetchJoinThen(meetingId, onError, (body) => {
         const webUrl = body.zoomWebUrl || body.redirectUrl || '';
         const dialogRef = this.dialog.open<
@@ -281,6 +282,7 @@ export class JoinClassFlowService {
       return;
     }
 
+    // Regular browser or Gluck app WebView — proceed with direct Zoom launch.
     this.fetchAndOpenZoom(meetingId, onError);
   }
 
@@ -377,38 +379,67 @@ export class JoinClassFlowService {
     const runId = this.activeLaunchRun;
 
     const mobile = isMobile();
+    const inWebView = isAndroidWebView();
     const d1 = primaryFallbackMs();
     this.attachLifecycleGuards(runId);
-    joinFlowLog('join_launch_scheduled', { runId, mobile, d1 });
+    joinFlowLog('join_launch_scheduled', { runId, mobile, inWebView, d1 });
 
-    if (appUrl) {
+    if (appUrl || (inWebView && universalUrl)) {
       this.joinState$.next({ loading: true, message: 'Opening Zoom app\u2026' });
-      joinFlowLog('deep_link_attempted', { runId });
-      window.location.href = appUrl;
+      if (inWebView && universalUrl) {
+        // In an Android WebView (e.g. Gluck app), zoommtg:// is blocked by default.
+        // Use intent:// to tell Android to open the Zoom app directly.
+        const intentUrl =
+          'intent://' +
+          universalUrl.replace(/^https?:\/\//, '') +
+          '#Intent;scheme=https;package=us.zoom.videomeetings;end';
+        joinFlowLog('deep_link_attempted', { runId, method: 'intent_webview' });
+        window.location.href = intentUrl;
+      } else {
+        joinFlowLog('deep_link_attempted', { runId, method: 'zoommtg' });
+        window.location.href = appUrl;
+      }
     } else {
       this.joinState$.next({ loading: true, message: 'Opening Zoom\u2026' });
     }
 
     if (mobile && universalUrl && webUrl) {
-      this.scheduleJoinTimer(() => {
-        if (runId !== this.activeLaunchRun) return;
-        joinFlowLog('universal_fallback_used', { runId });
-        this.joinState$.next({ loading: true, message: 'Opening Zoom link\u2026' });
-        window.location.href = universalUrl;
-      }, d1);
-      const d2 = secondaryFallbackMs();
-      this.scheduleJoinTimer(() => {
-        if (runId !== this.activeLaunchRun) return;
-        joinFlowLog('wc_fallback_used', { runId });
-        this.joinState$.next({ loading: false, message: 'Opening Zoom in browser\u2026' });
-        window.location.href = webUrl;
+      if (inWebView) {
+        // In a WebView the universal URL just navigates inside the WebView — skip it.
+        // After d1, fall back to the Zoom web client directly.
         this.scheduleJoinTimer(() => {
           if (runId !== this.activeLaunchRun) return;
-          this.joinState$.next({ loading: false, message: '' });
-          this.releaseJoinLock();
-          this.detachLifecycleGuards();
-        }, 2000);
-      }, d1 + d2);
+          joinFlowLog('wc_fallback_used', { runId, path: 'webview_fallback' });
+          this.joinState$.next({ loading: false, message: 'Opening Zoom in browser\u2026' });
+          window.location.href = webUrl;
+          this.scheduleJoinTimer(() => {
+            if (runId !== this.activeLaunchRun) return;
+            this.joinState$.next({ loading: false, message: '' });
+            this.releaseJoinLock();
+            this.detachLifecycleGuards();
+          }, 2000);
+        }, d1);
+      } else {
+        this.scheduleJoinTimer(() => {
+          if (runId !== this.activeLaunchRun) return;
+          joinFlowLog('universal_fallback_used', { runId });
+          this.joinState$.next({ loading: true, message: 'Opening Zoom link\u2026' });
+          window.location.href = universalUrl;
+        }, d1);
+        const d2 = secondaryFallbackMs();
+        this.scheduleJoinTimer(() => {
+          if (runId !== this.activeLaunchRun) return;
+          joinFlowLog('wc_fallback_used', { runId });
+          this.joinState$.next({ loading: false, message: 'Opening Zoom in browser\u2026' });
+          window.location.href = webUrl;
+          this.scheduleJoinTimer(() => {
+            if (runId !== this.activeLaunchRun) return;
+            this.joinState$.next({ loading: false, message: '' });
+            this.releaseJoinLock();
+            this.detachLifecycleGuards();
+          }, 2000);
+        }, d1 + d2);
+      }
       this.scheduleSafetyRelease(runId);
       return;
     }
