@@ -162,10 +162,16 @@
 
         <!-- Day completion badge -->
         <div class="mc-day-badge-wrap" *ngIf="dayHasTrackableContent">
-          <span class="mc-day-badge mc-day-badge--complete" *ngIf="isDayComplete">
-            <span class="material-icons">check_circle</span>
-            Day {{ journeyCourseDay }} Completed
-          </span>
+          <ng-container *ngIf="isDayComplete">
+            <span class="mc-day-badge mc-day-badge--complete">
+              <span class="material-icons">check_circle</span>
+              Day {{ journeyCourseDay }} Completed
+            </span>
+            <p class="mc-day-promote-hint" *ngIf="showSilverDayCompletePromotion">
+              <span class="material-icons mc-day-promote-hint__icon">rocket_launch</span>
+              You will be promoted to <strong>Day {{ nextJourneyPreviewDay }}</strong> on <strong>{{ promotionTomorrowDateLabel }}</strong>
+            </p>
+          </ng-container>
           <button
             type="button"
             class="mc-day-badge mc-day-badge--incomplete"
@@ -182,7 +188,23 @@
         <p class="mc-side-card__eyebrow">Updates</p>
         <!-- Announcements are shown under Help & Support (messenger) → Announcements -->
 
-        <div class="mc-update mc-update--journey-ready" *ngIf="showJourneyPendingCelebration">
+        <!-- Silver student: full day completion → promotion at midnight -->
+        <div class="mc-update mc-update--silver-complete" *ngIf="showSilverDayCompletePromotion">
+          <span class="mc-update__icon mc-update__icon--celebrate" aria-hidden="true">
+            <span class="material-icons">celebration</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">Day {{ journeyCourseDay }} Complete!</p>
+            <p class="mc-update__text">
+              You've finished all exercises, Gluck Buddy, and recordings for
+              <strong>Day {{ journeyCourseDay }}</strong>. At midnight on
+              <strong>{{ promotionTomorrowDateLabel }}</strong> you'll advance to
+              <strong>Day {{ nextJourneyPreviewDay }}</strong>. Keep going!
+            </p>
+          </div>
+        </div>
+
+        <div class="mc-update mc-update--journey-ready" *ngIf="showJourneyPendingCelebration && !showSilverDayCompletePromotion">
           <span class="mc-update__icon mc-update__icon--celebrate" aria-hidden="true">
             <span class="material-icons">celebration</span>
           </span>

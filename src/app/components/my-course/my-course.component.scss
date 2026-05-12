@@ -2599,6 +2599,39 @@ mc-tab-profile__row {
   }
 }
 
+/* ── Silver promotion hint (below completed badge) ────────────────────── */
+.mc-day-promote-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
+  line-height: 1.4;
+  text-align: left;
+
+  &__icon {
+    font-size: 13px;
+    flex-shrink: 0;
+    color: #16a34a;
+  }
+
+  strong {
+    font-weight: 700;
+  }
+}
+
+/* Silver complete update card (Updates panel) */
+.mc-update--silver-complete {
+  border-left: 3px solid #22c55e;
+  background: #f0fdf4;
+}
+
 /* ── Day completion modal ──────────────────────────────────────────────── */
 .mc-completion-overlay {
   position: fixed;

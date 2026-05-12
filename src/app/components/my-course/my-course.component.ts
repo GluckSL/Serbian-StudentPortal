@@ -549,6 +549,34 @@ export class MyCourseComponent implements OnInit {
     return String(u?.goStatus || '').toUpperCase() === 'GO';
   }
 
+  /**
+   * True only for Silver GO students (subscription === SILVER AND goStatus === GO).
+   * These students must complete all recordings, exercises, and DG bot before advancing.
+   */
+  get isSilverGoStudentFrontend(): boolean {
+    const u = this.authService.getSnapshotUser();
+    const goOk = String(u?.goStatus || '').toUpperCase() === 'GO';
+    const sub = String(
+      this.userProfile?.subscription || this.profile?.subscription || u?.subscription || ''
+    ).toUpperCase();
+    return goOk && sub === 'SILVER';
+  }
+
+  /** Tomorrow's date formatted for the promotion hint (e.g. "Wed, May 13"). */
+  get promotionTomorrowDateLabel(): string {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  /**
+   * True when a Silver GO student has completed every content item tagged to the current day
+   * (recordings, exercises, DG bot) and is therefore eligible for midnight promotion.
+   */
+  get showSilverDayCompletePromotion(): boolean {
+    return this.isSilverGoStudentFrontend && this.isDayComplete && this.journeyCourseDay < 200;
+  }
+
   get allowsLearningContent(): boolean {
     return this.profile?.learningContentEnabled !== false;
   }
