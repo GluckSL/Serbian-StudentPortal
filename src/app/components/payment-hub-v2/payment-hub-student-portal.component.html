@@ -28,10 +28,10 @@
 
   <div *ngIf="!loading">
 
-    <!-- Summary: catalog, paid, next payment; optional balance card on instalment plans -->
+    <!-- Summary: catalog, paid, next, documents; optional balance on instalment plans -->
     <div
       class="sp-summary-cards"
-      [class.sp-summary-cards--four]="showInstallmentBalanceCard"
+      [class.sp-summary-cards--five]="showInstallmentBalanceCard"
     >
       <!-- 1: Program total for your level (from catalog) — filtered to student's currency -->
       <mat-card class="sp-mini-stat sp-mini-indigo">
@@ -79,7 +79,25 @@
         </div>
       </mat-card>
 
-      <!-- 4: Balance vs catalog fee — single currency, installment plan only -->
+      <!-- 4: Documentation fees (from documentation payment requests) -->
+      <mat-card class="sp-mini-stat sp-mini-docs">
+        <div class="sp-mini-icon"><mat-icon>description</mat-icon></div>
+        <div class="sp-mini-body">
+          <span class="sp-mini-label">Documents</span>
+          <ng-container *ngIf="documentationIsPaid">
+            <span class="sp-mini-value">{{ documentationPaidLine!.currency }} {{ fmt(documentationPaidLine!.amount) }}</span>
+            <span class="sp-doc-pill sp-doc-pill-paid">Paid</span>
+            <span class="sp-mini-hint">Documentation fees settled</span>
+          </ng-container>
+          <ng-container *ngIf="!documentationIsPaid">
+            <span class="sp-mini-value sp-mini-muted">—</span>
+            <span class="sp-doc-pill sp-doc-pill-pending">Pending for documents</span>
+            <span class="sp-mini-hint">When you pay (or your coordinator records it), your approved amount will show here</span>
+          </ng-container>
+        </div>
+      </mat-card>
+
+      <!-- 5: Balance vs catalog fee — single currency, installment plan only -->
       <mat-card class="sp-mini-stat sp-mini-balance" *ngIf="showInstallmentBalanceCard && catalogBalanceDisplay">
         <div class="sp-mini-icon"><mat-icon>calculate</mat-icon></div>
         <div class="sp-mini-body">
@@ -206,10 +224,6 @@
             <div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
               <mat-icon>verified</mat-icon>
               <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this plan is fully paid.' : '.' }}</span>
-              <span class="sp-pill sp-legacy-chip" *ngIf="req.isImported">
-                <mat-icon class="sp-legacy-chip-icon">history</mat-icon>
-                Imported record
-              </span>
             </div>
           </ng-container>
 
@@ -290,10 +304,6 @@
               <div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
                 <mat-icon>verified</mat-icon>
                 <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this request is fully paid.' : '.' }}</span>
-                <span class="sp-pill sp-legacy-chip" *ngIf="req.isImported" matTooltip="This is a legacy imported record">
-                  <mat-icon class="sp-legacy-chip-icon">history</mat-icon>
-                  Imported record
-                </span>
               </div>
 
               <!-- Legacy imported record: show remarks + date when approved/fully paid -->

@@ -381,6 +381,14 @@ export class PaymentHubApiService {
     return this.http.get<{ success: boolean; data: StudentCatalog }>(`${this.base}/my/catalog`);
   }
 
+  // ── Bulk student fetch for Excel import matching ──────────────────────────
+
+  getAllStudentsForMatching(): Observable<PagedResponse<StudentTableRow>> {
+    return this.http.get<PagedResponse<StudentTableRow>>(`${this.base}/students/table`, {
+      params: this.toParams({ limit: 9999, page: 1 }),
+    });
+  }
+
   // ── Legacy payment mapping (admin) ────────────────────────────────────────
 
   mapLegacyPayments(body: MapLegacyPaymentsBody): Observable<{ success: boolean; message: string; data: MapLegacyPaymentsResult }> {

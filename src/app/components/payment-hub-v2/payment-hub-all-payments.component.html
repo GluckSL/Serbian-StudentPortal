@@ -53,6 +53,11 @@
       <mat-icon>upload_file</mat-icon>
       Map payment
     </button>
+    <button mat-flat-button color="accent" type="button" class="ph-action-btn ph-action-btn-import" (click)="openExcelImport()"
+      matTooltip="Upload an Excel sheet to bulk-import and map payments">
+      <mat-icon>table_chart</mat-icon>
+      Import from Excel
+    </button>
     <button mat-stroked-button color="primary" type="button" class="ph-action-btn ph-action-btn-bulk" (click)="openBulkLanguagePaid()"
       [disabled]="selectedCount === 0"
       matTooltip="Record full language fee for selected students (legacy approved rows)">

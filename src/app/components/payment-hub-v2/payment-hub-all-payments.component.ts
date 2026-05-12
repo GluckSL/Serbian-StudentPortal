@@ -18,6 +18,7 @@ import { PaymentHubApiService, DashboardStats, StudentTableRow } from './payment
 import { StudentLogService } from '../../services/student-log.service';
 import { PaymentLegacyMapperDialogComponent } from './payment-legacy-mapper-dialog.component';
 import { PaymentBulkLanguagePaidDialogComponent } from './payment-bulk-language-paid-dialog.component';
+import { PaymentExcelImportDialogComponent } from './payment-excel-import-dialog.component';
 
 @Component({
   selector: 'app-payment-hub-all-payments',
@@ -239,6 +240,22 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     ref.afterClosed().subscribe((saved) => {
       if (saved) {
         this.selectedStudentIds = new Set();
+        this.loadStats();
+        this.loadTable();
+      }
+    });
+  }
+
+  openExcelImport(): void {
+    const ref = this.dialog.open(PaymentExcelImportDialogComponent, {
+      width: '1120px',
+      maxWidth: '100vw',
+      maxHeight: '92vh',
+      panelClass: ['lm-dialog-panel', 'ei-import-dialog-panel'],
+      autoFocus: false,
+    });
+    ref.afterClosed().subscribe((saved) => {
+      if (saved) {
         this.loadStats();
         this.loadTable();
       }

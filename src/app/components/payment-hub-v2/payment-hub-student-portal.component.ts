@@ -239,6 +239,41 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     });
   }
 
+  /** Active documentation / processing fee requests for this student */
+  docsPaymentRequests(): PaymentRequest[] {
+    return this.requests.filter((r) => r.paymentType === 'DOCS_PAYMENT');
+  }
+
+  private documentationRequestFullyDone(r: PaymentRequest): boolean {
+    if (r.status === 'FULLY_PAID') return true;
+    const rem = r.amountRemaining ?? 0;
+    return rem <= 0 && r.status === 'APPROVED';
+  }
+
+  /** True when there is at least one docs request and every one is fully approved */
+  get documentationIsPaid(): boolean {
+    const list = this.docsPaymentRequests();
+    if (!list.length) return false;
+    return list.every((r) => this.documentationRequestFullyDone(r));
+  }
+
+  /** Total paid documentation amount (all requests settled); prefers inferred currency bucket */
+  get documentationPaidLine(): { currency: string; amount: number } | null {
+    if (!this.documentationIsPaid) return null;
+    const list = this.docsPaymentRequests();
+    const inferred = this.normalizeCurrency(this.inferredCurrency);
+    const totals = new Map<string, number>();
+    for (const r of list) {
+      const c = this.normalizeCurrency(r.currency);
+      const paid = Math.max(0, (r.amount ?? 0) - (r.amountRemaining ?? 0));
+      totals.set(c, (totals.get(c) || 0) + paid);
+    }
+    const primary = totals.get(inferred);
+    if (primary != null && primary > 0) return { currency: inferred, amount: primary };
+    const first = [...totals.entries()].find(([, a]) => a > 0);
+    return first ? { currency: first[0], amount: first[1] } : { currency: inferred, amount: 0 };
+  }
+
   /**
    * How much has actually been paid (APPROVED), broken down by currency.
    * For installment plans we walk each installment row directly so we don't
