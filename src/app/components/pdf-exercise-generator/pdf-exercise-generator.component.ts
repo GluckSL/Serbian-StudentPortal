@@ -64,6 +64,8 @@ interface ReviewQuestion {
   /** Per-question file (image, audio, PDF, video) */
   attachmentUrl?: string;
   attachmentUploading?: boolean;
+  /** When attachment is audio: max play starts per student attempt (empty = unlimited). */
+  attachmentAudioMaxPlaysPerAttempt?: number | null;
   /** Teacher explanation in student review (HTML) */
   answerExplanation?: string;
   generatingExplanation?: boolean;
@@ -1412,6 +1414,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       next: (res) => {
         q.attachmentUrl = res.url;
         q.attachmentUploading = false;
+        if (this.getAttachmentType(res.url) !== 'audio') {
+          q.attachmentAudioMaxPlaysPerAttempt = undefined;
+        }
         this.showSuccess('File uploaded');
       },
       error: (err: { error?: { error?: string } }) => {
@@ -1423,6 +1428,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   removeAttachment(q: ReviewQuestion): void {
     q.attachmentUrl = '';
+    q.attachmentAudioMaxPlaysPerAttempt = undefined;
   }
 
   private stripHtmlPlain(s: string): string {

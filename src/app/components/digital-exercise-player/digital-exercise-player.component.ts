@@ -178,6 +178,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   playerQuestions: PlayerQuestion[] = [];
   currentIndex = 0;
   submitting = false;
+  private currentlyPlayingAudio: HTMLAudioElement | null = null;
   showFinishSummary = false;
   finishingAll = false;
   private imagePinDrag: {
@@ -2307,8 +2308,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   playAudio(url: string): void {
     if (!url) return;
+    if (this.currentlyPlayingAudio) {
+      this.currentlyPlayingAudio.pause();
+      this.currentlyPlayingAudio.currentTime = 0;
+      this.currentlyPlayingAudio = null;
+    }
     const audio = new Audio(url);
-    audio.play().catch(() => {});
+    this.currentlyPlayingAudio = audio;
+    audio.play().catch(() => {
+      this.currentlyPlayingAudio = null;
+    });
+    audio.addEventListener('ended', () => {
+      this.currentlyPlayingAudio = null;
+    });
   }
 
   speakWordTTS(text: string): void {
@@ -3336,8 +3348,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.snackBar.open('Play limit reached for this attempt.', 'Close', { duration: 2800 });
       return;
     }
+    if (this.currentlyPlayingAudio) {
+      this.currentlyPlayingAudio.pause();
+      this.currentlyPlayingAudio.currentTime = 0;
+      this.currentlyPlayingAudio = null;
+    }
     const fullUrl = this.getMediaFullUrl(url);
     const audio = new Audio(fullUrl);
+    this.currentlyPlayingAudio = audio;
     if (cap != null) {
       pq.attachmentAudioPlaysUsed = used + 1;
     }
@@ -3345,7 +3363,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (cap != null) {
         pq.attachmentAudioPlaysUsed = Math.max(0, used);
       }
+      this.currentlyPlayingAudio = null;
       this.snackBar.open('Could not play audio.', 'Close', { duration: 2500 });
+    });
+    audio.addEventListener('ended', () => {
+      this.currentlyPlayingAudio = null;
     });
   }
 

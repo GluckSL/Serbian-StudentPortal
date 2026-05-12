@@ -1,4 +1,12 @@
 /* pdf-exercise-generator.component.css */
+
+/* Audio plays field */
+.attachment-audio-plays-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .generator-page {
   padding: 24px;
   max-width: 900px;
