@@ -1644,9 +1644,61 @@
 
       <!-- MIDDLE (now 70%): Question + Answer area -->
       <div class="question-area">
+        <!-- Batch Questions View: Show all fill-blank and true-false questions at once -->
+        <div class="batch-questions-card" *ngIf="hasBatchQuestions && isInBatchMode">
+          <div class="batch-card-header">
+            <span class="batch-card-title">{{ batchTitle }}</span>
+            <span class="batch-card-count">{{ batchQuestions.length }} questions</span>
+          </div>
+
+          <div class="batch-questions-list">
+            <ng-container *ngFor="let bq of batchQuestions; let batchIndex = index">
+              <ng-container *ngIf="getPlayerQuestionAtBatchIndex(batchIndex) as pq">
+                <div class="batch-question-row">
+                  <span class="batch-q-label">Q {{ getActualQuestionIndex(batchIndex) + 1 }}.</span>
+
+                  <!-- Fill-blank question -->
+                  <div class="batch-fill-blank" *ngIf="pq.data.type === 'fill-blank'">
+                    <span class="batch-sentence">
+                      <ng-container *ngFor="let part of getSentenceParts(pq.data.sentence); let pi = index">
+                        <span [innerHTML]="part | safeHtml"></span>
+                        <input type="text" class="batch-blank-input" [(ngModel)]="pq.fillAnswers![pi]" (ngModelChange)="markAttempted(pq)" [disabled]="hasCurrentSubmitted" *ngIf="pi < getSentenceParts(pq.data.sentence).length - 1" />
+                      </ng-container>
+                    </span>
+                    <span class="batch-hint" *ngIf="pq.data.hint">
+                      <span class="material-icons">lightbulb</span> {{ pq.data.hint }}
+                    </span>
+                  </div>
+
+                  <!-- True/False question -->
+                  <div class="batch-true-false" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data)">
+                    <span class="batch-tf-prompt" [innerHTML]="pq.data.prompt | safeHtml"></span>
+                    <span class="batch-tf-buttons">
+                      <button type="button" class="batch-tf-btn" [class.active]="parseTrueFalse(pq.qaResponse) === true" [disabled]="hasCurrentSubmitted" (click)="selectTrueFalse(pq, true)">Richtig</button>
+                      <button type="button" class="batch-tf-btn" [class.active]="parseTrueFalse(pq.qaResponse) === false" [disabled]="hasCurrentSubmitted" (click)="selectTrueFalse(pq, false)">Falsch</button>
+                    </span>
+                  </div>
+                </div>
+              </ng-container>
+            </ng-container>
+          </div>
+
+          <div class="batch-card-footer">
+            <button class="batch-nav-btn" *ngIf="batchQuestionIndices.length > 0 && getActualQuestionIndex(0) > 0" (click)="goToQuestion(getActualQuestionIndex(0) - 1)">
+              <span class="material-icons">arrow_back</span> Previous
+            </button>
+            <span></span>
+            <button class="batch-nav-btn" *ngIf="batchQuestionIndices.length > 0 && getActualQuestionIndex(batchQuestionIndices.length - 1) < playerQuestions.length - 1" (click)="goToQuestion(getActualQuestionIndex(batchQuestionIndices.length - 1) + 1)">
+              Next <span class="material-icons">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Single Question View (when NOT in batch mode) -->
         <div
           class="question-card"
           [class]="'q-type-' + currentQuestion.data.type"
+          *ngIf="!hasBatchQuestions || !isInBatchMode"
         >
           <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
           <div

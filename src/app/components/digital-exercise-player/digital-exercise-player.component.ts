@@ -1668,6 +1668,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.scheduleDraftSave();
   }
 
+  /** Navigate to a batch question by its position in the batch list */
+  goToBatchQuestion(batchPosition: number): void {
+    if (batchPosition >= 0 && batchPosition < this.batchQuestionIndices.length) {
+      const targetIndex = this.batchQuestionIndices[batchPosition];
+      this.goToQuestion(targetIndex);
+    }
+  }
+
   isQuestionAnswered(pq: PlayerQuestion): boolean {
     const q = pq.data;
     if (q.type === 'mcq') return pq.selectedOption !== undefined && pq.selectedOption !== null;
@@ -2933,6 +2941,91 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (data.worksheetKind && data.worksheetKind !== 'true-false') return false;
     const samples: any[] = Array.isArray(data.sampleAnswers) ? data.sampleAnswers : [];
     return samples.some(s => this.parseTrueFalseStrictSample(s) !== null);
+  }
+
+  /** Check if a question is a batch type (fill-blank or true-false) */
+  isBatchQuestionType(data: any): boolean {
+    if (!data) return false;
+    if (data.type === 'fill-blank') return true;
+    if (data.type === 'question-answer' && this.isTrueFalseQuestion(data)) return true;
+    return false;
+  }
+
+  /** Get all batch questions (fill-blank and true-false) */
+  get batchQuestions(): any[] {
+    return this.playerQuestions.filter(pq => this.isBatchQuestionType(pq.data));
+  }
+
+  /** Get the indices of batch questions in the main playerQuestions array */
+  get batchQuestionIndices(): number[] {
+    return this.playerQuestions
+      .map((pq, index) => ({ pq, index }))
+      .filter(item => this.isBatchQuestionType(item.pq.data))
+      .map(item => item.index);
+  }
+
+  /** Check if current view should show batch mode (batch questions are present) */
+  get hasBatchQuestions(): boolean {
+    return this.batchQuestions.length > 0;
+  }
+
+  /** Check if we are currently viewing a batch question */
+  get isInBatchMode(): boolean {
+    return this.hasBatchQuestions && this.batchQuestionIndices.includes(this.currentIndex);
+  }
+
+  /** Get the batch title based on question types */
+  get batchTitle(): string {
+    const hasFillBlank = this.batchQuestions.some(bq => bq.data.type === 'fill-blank');
+    const hasTrueFalse = this.batchQuestions.some(bq => bq.data.type === 'question-answer' && this.isTrueFalseQuestion(bq.data));
+    
+    if (hasFillBlank && hasTrueFalse) {
+      return 'Fill in the blanks & True/False';
+    } else if (hasFillBlank) {
+      return 'Fill in the blanks';
+    } else if (hasTrueFalse) {
+      return 'True/False';
+    }
+    return 'Questions';
+  }
+
+  /** Get the batch question at a specific offset from current batch start */
+  getBatchQuestionAtOffset(offset: number): any | null {
+    const batchIndices = this.batchQuestionIndices;
+    if (batchIndices.length === 0) return null;
+    const currentBatchIndex = batchIndices.indexOf(this.currentIndex);
+    if (currentBatchIndex === -1) return null;
+    const targetBatchIndex = currentBatchIndex + offset;
+    if (targetBatchIndex < 0 || targetBatchIndex >= batchIndices.length) return null;
+    const targetQuestionIndex = batchIndices[targetBatchIndex];
+    return this.playerQuestions[targetQuestionIndex];
+  }
+
+  /** Get the player question at a specific batch index (0-based) */
+  getPlayerQuestionAtBatchIndex(batchIdx: number): any | null {
+    if (batchIdx < 0 || batchIdx >= this.batchQuestionIndices.length) return null;
+    const questionIndex = this.batchQuestionIndices[batchIdx];
+    return this.playerQuestions[questionIndex];
+  }
+
+  /** Get the actual question index in playerQuestions for a batch index */
+  getActualQuestionIndex(batchIdx: number): number {
+    if (batchIdx < 0 || batchIdx >= this.batchQuestionIndices.length) return -1;
+    return this.batchQuestionIndices[batchIdx];
+  }
+
+  /** Check if there's a next batch question */
+  get hasNextBatchQuestion(): boolean {
+    const batchIndices = this.batchQuestionIndices;
+    const currentBatchIndex = batchIndices.indexOf(this.currentIndex);
+    return currentBatchIndex !== -1 && currentBatchIndex < batchIndices.length - 1;
+  }
+
+  /** Check if there's a previous batch question */
+  get hasPrevBatchQuestion(): boolean {
+    const batchIndices = this.batchQuestionIndices;
+    const currentBatchIndex = batchIndices.indexOf(this.currentIndex);
+    return currentBatchIndex > 0;
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────
