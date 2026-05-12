@@ -114,7 +114,9 @@ class ZoomService {
           approval_type: 2, // No registration required
           registrants_email_notification: false,
           registrants_confirmation_email: false,
-          alternative_hosts_email_notification: false
+          alternative_hosts_email_notification: false,
+          /** Block student↔student 1:1 chat in Zoom (public chat to everyone still allowed). */
+          private_chat: false
         }
       };
 
@@ -179,6 +181,7 @@ class ZoomService {
     const token = await this.getAccessToken();
     if (!updateData.settings) updateData.settings = {};
     updateData.settings.registrants_email_notification = false;
+    updateData.settings.private_chat = false;
 
     await axios.patch(`${zoomConfig.apiBaseUrl}/meetings/${meetingId}`, updateData, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
