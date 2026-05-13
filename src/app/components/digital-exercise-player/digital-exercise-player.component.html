@@ -339,8 +339,17 @@
               Say: <strong [innerHTML]="pq.data.caption | safeHtml"></strong>
             </div>
 
-            <!-- Attachment after question stem (same order as play view) -->
-            <div class="q-attachment-box" *ngIf="pq.data.attachmentUrl">
+            <!-- Attachment after stem; with sub-questions, same image is shown after sub-questions (aligned with play view) -->
+            <div
+              class="q-attachment-box"
+              *ngIf="
+                pq.data.attachmentUrl &&
+                !(
+                  pq.data.type === 'question-answer' &&
+                  pq.data.subQuestions?.length > 0
+                )
+              "
+            >
               <ng-container
                 [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
               >
@@ -446,6 +455,57 @@
               </div>
             </div>
           </div>
+
+            <div
+              class="q-attachment-box review-passage-ref"
+              *ngIf="
+                pq.data.attachmentUrl &&
+                pq.data.type === 'question-answer' &&
+                pq.data.subQuestions?.length > 0
+              "
+            >
+              <ng-container
+                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  alt="Attachment"
+                  class="q-attachment-img"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <audio
+                  *ngSwitchCase="'audio'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
           </div>
         </div>
       </ng-container>
@@ -1684,6 +1744,10 @@
         <div
           class="question-card"
           [class]="'q-type-' + currentQuestion.data.type"
+          [class.q-card-passage-subs]="
+            currentQuestion.data.type === 'question-answer' &&
+            currentQuestion.data.subQuestions?.length > 0
+          "
         >
           <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
           <div
@@ -1713,7 +1777,7 @@
             >
           </div>
 
-          <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question → 5. Image -->
+          <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question(s) → 5. Shared image (after sub-questions when present) -->
           <div
             class="q-guidance-stack"
             *ngIf="
@@ -3478,8 +3542,12 @@
               </ng-template>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
-            ></ng-container>
+              *ngIf="!currentQuestion.data.subQuestions?.length"
+            >
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAttachment"
+              ></ng-container>
+            </ng-container>
 
             <ng-container *ngIf="!isTrueFalseQuestion(currentQuestion.data)">
               <label class="qa-input-label">Your Answer</label>
@@ -3640,7 +3708,10 @@
                     <div *ngIf="sq.type === 'question-answer'" class="sub-q-qa">
                       <ng-container *ngIf="isTrueFalseQuestion(sq); else normalQAPrompt">
                         <div class="qa-tf-inline-row">
-                          <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                          <div
+                            class="qa-prompt"
+                            [innerHTML]="sq.prompt | safeHtml"
+                          ></div>
                           <div class="tf-answers tf-answers-inline" role="group" aria-label="Richtig oder Falsch">
                             <button type="button" class="tf-btn"
                               [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === true"
@@ -3767,6 +3838,18 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <div
+            class="q-passage-reference-wrap"
+            *ngIf="
+              currentQuestion.data.type === 'question-answer' &&
+              currentQuestion.data.subQuestions?.length > 0
+            "
+          >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAttachment"
+            ></ng-container>
           </div>
 
           <!-- Result Banner -->

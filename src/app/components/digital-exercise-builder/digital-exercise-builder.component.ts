@@ -320,44 +320,65 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         secondaryCaptionAtSeconds: this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds),
         acceptedVariants: [...(q.acceptedVariants || [])]
       });
-} else if (q.type === 'listening') {
-      q.prompt = '';
-      q.mediaUrl = (parent as any).mediaUrl || '';
-      q.expectedTranscript = '';
-      q.attemptMode = 'typing';
+    } else if (q.type === 'listening') {
+      Object.assign(base, {
+        prompt: q.prompt || '',
+        mediaUrl: q.mediaUrl || '',
+        expectedTranscript: q.expectedTranscript || '',
+        attemptMode: q.attemptMode === 'typing-or-speech' ? 'typing-or-speech' : 'typing'
+      });
     } else if ((q.type as any) === 'jumble-word') {
-      (q as any).scrambledText = '';
-      (q as any).boldLetter = '';
-      (q as any).expectedWord = '';
-      (q as any).categoryTip = '';
-      q.instruction = '';
-      q.aiGradingEnabled = false;
-      q.scoringMode = 'full';
+      Object.assign(base, {
+        scrambledText: String(q.scrambledText || ''),
+        boldLetter: String(q.boldLetter || ''),
+        expectedWord: String(q.expectedWord || ''),
+        categoryTip: String(q.categoryTip || '')
+      });
     } else if ((q.type as any) === 'rearrange') {
-      (q as any).rearrangePrompt = '';
-      (q as any).rearrangeAnswer = '';
-      (q as any).rearrangeTokens = '';
-      q.aiGradingEnabled = false;
-      q.scoringMode = 'full';
+      const rawToks = q.rearrangeTokens;
+      const tokensStr = Array.isArray(rawToks)
+        ? rawToks.map((t: any) => String(t || '').trim()).filter(Boolean).join('\n')
+        : String(rawToks || '');
+      Object.assign(base, {
+        rearrangePrompt: q.rearrangePrompt || '',
+        rearrangeAnswer: q.rearrangeAnswer || '',
+        rearrangeTokens: tokensStr
+      });
     } else if ((q.type as any) === 'image_pin_match') {
-      q.imageUrl = (parent as any).imageUrl || '';
-      q.labels = [
-        { id: this.newLabelId(), text: '', correctPinId: '' },
-        { id: this.newLabelId(), text: '', correctPinId: '' }
-      ];
-      q.pins = [];
-      q.settings = { randomizeLabels: true, allowRetry: true };
-      q.aiGradingEnabled = true;
-      q.scoringMode = 'proportional';
-      q.similarityThreshold = 100;
-    } else if (q.type === 'video-pronunciation') {
-      q.videoUrl = (parent as any).videoUrl || '';
-      q.caption = '';
-      q.secondaryCaption = '';
-      q.secondaryCaptionAtSeconds = 5;
+      Object.assign(base, {
+        imageUrl: q.imageUrl || '',
+        labels:
+          Array.isArray(q.labels) && q.labels.length
+            ? q.labels.map((l: any) => ({
+                id: String(l?.id || '').trim(),
+                text: String(l?.text || '').trim(),
+                correctPinId: String(l?.correctPinId || '').trim()
+              }))
+            : [
+                { id: this.newLabelId(), text: '', correctPinId: '' },
+                { id: this.newLabelId(), text: '', correctPinId: '' }
+              ],
+        pins: Array.isArray(q.pins)
+          ? q.pins
+              .map((p: any) => ({
+                id: String(p?.id || '').trim(),
+                x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+                y: Math.max(0, Math.min(100, Number(p?.y) || 0))
+              }))
+              .filter((p: { id: string }) => p.id)
+          : [],
+        settings: {
+          randomizeLabels: q.settings?.randomizeLabels !== false,
+          allowRetry: q.settings?.allowRetry !== false
+        }
+      });
     }
 
-    return q;
+    if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
+      (base as BuilderQuestion).subQuestions = q.subQuestions.map((sq: any) => this.mapQuestionFromApi(sq));
+    }
+
+    return base;
   }
 
   moveQuestion(index: number, direction: -1 | 1): void {
@@ -480,14 +501,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       (q as any).expectedWord = '';
       (q as any).categoryTip = '';
       q.instruction = '';
-      q.aiGradingEnabled = false;
-      q.scoringMode = 'full';
     } else if (type === 'rearrange') {
       (q as any).rearrangePrompt = '';
       (q as any).rearrangeAnswer = '';
       (q as any).rearrangeTokens = '';
-      q.aiGradingEnabled = false;
-      q.scoringMode = 'full';
     } else if (type === 'image_pin_match') {
       q.imageUrl = '';
       q.labels = [
@@ -589,14 +606,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       (q as any).expectedWord = '';
       (q as any).categoryTip = '';
       q.instruction = '';
-      q.aiGradingEnabled = false;
-      q.scoringMode = 'full';
     } else if ((qType as any) === 'rearrange') {
       (q as any).rearrangePrompt = '';
       (q as any).rearrangeAnswer = '';
       (q as any).rearrangeTokens = '';
-      q.aiGradingEnabled = false;
-      q.scoringMode = 'full';
     } else if ((qType as any) === 'image_pin_match') {
       q.imageUrl = parent.imageUrl || '';
       q.labels = [
@@ -613,6 +626,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.caption = '';
       q.secondaryCaption = '';
       q.secondaryCaptionAtSeconds = 5;
+      q.acceptedVariants = [];
     }
 
     return q;
@@ -1576,6 +1590,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (pin?.id && Array.isArray(q.labels)) {
       q.labels = q.labels.map((l) => (l.correctPinId === pin.id ? { ...l, correctPinId: '' } : l));
     }
+  }
+
+  /** Add a pin row manually (used when there is no click-to-place editor, e.g. sub-questions). */
+  addImagePinRow(q: BuilderQuestion): void {
+    if (!Array.isArray(q.pins)) q.pins = [];
+    q.pins.push({
+      id: this.newPinId(),
+      x: 50,
+      y: 50
+    });
   }
 
   startImagePinDrag(questionIndex: number, pinId: string, event: MouseEvent): void {

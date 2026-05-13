@@ -1678,8 +1678,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Backward-compatible alias used by older template fragments. */
   get isSubmittedState(): boolean { return this.state === 'submitted'; }
 
+  private stopCurrentAudio(): void {
+    if (this.currentlyPlayingAudio) {
+      this.currentlyPlayingAudio.pause();
+      this.currentlyPlayingAudio.currentTime = 0;
+      this.currentlyPlayingAudio = null;
+    }
+  }
+
   prevQuestion(): void {
     if (this.currentIndex > 0) {
+      this.stopCurrentAudio();
       this.currentIndex--;
       this.preloadImagesAroundCurrentQuestion();
       this.afterVideoOnlyNavigation();
@@ -1689,6 +1698,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   nextQuestion(): void {
     if (this.currentIndex < this.playerQuestions.length - 1) {
+      this.stopCurrentAudio();
       this.currentIndex++;
       this.preloadImagesAroundCurrentQuestion();
       this.afterVideoOnlyNavigation();
@@ -1697,6 +1707,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   goToQuestion(index: number): void {
+    this.stopCurrentAudio();
     this.currentIndex = index;
     this.preloadImagesAroundCurrentQuestion();
     this.afterVideoOnlyNavigation();
@@ -2545,11 +2556,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   playAudio(url: string): void {
     if (!url) return;
-    if (this.currentlyPlayingAudio) {
-      this.currentlyPlayingAudio.pause();
-      this.currentlyPlayingAudio.currentTime = 0;
-      this.currentlyPlayingAudio = null;
-    }
+    this.stopCurrentAudio();
     const audio = new Audio(url);
     this.currentlyPlayingAudio = audio;
     audio.play().catch(() => {
@@ -3693,11 +3700,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.snackBar.open('Play limit reached for this attempt.', 'Close', { duration: 2800 });
       return;
     }
-    if (this.currentlyPlayingAudio) {
-      this.currentlyPlayingAudio.pause();
-      this.currentlyPlayingAudio.currentTime = 0;
-      this.currentlyPlayingAudio = null;
-    }
+    this.stopCurrentAudio();
     const fullUrl = this.getMediaFullUrl(url);
     const audio = new Audio(fullUrl);
     this.currentlyPlayingAudio = audio;

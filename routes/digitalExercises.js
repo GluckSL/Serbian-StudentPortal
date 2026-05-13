@@ -335,6 +335,72 @@ function normalizeRearrangeSentence(raw) {
     .replace(/\s+/g, ' ');
 }
 
+function levenshteinDistance(a, b) {
+  const s = String(a ?? '');
+  const t = String(b ?? '');
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+  const v0 = new Array(t.length + 1);
+  const v1 = new Array(t.length + 1);
+  for (let i = 0; i <= t.length; i++) v0[i] = i;
+  for (let i = 0; i < s.length; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < t.length; j++) {
+      const cost = s[i] === t[j] ? 0 : 1;
+      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+    }
+    for (let j = 0; j <= t.length; j++) v0[j] = v1[j];
+  }
+  return v0[t.length];
+}
+
+/** 0–100: exact match 100; with advanced grading, partial credit from edit distance. */
+function jumbleWordRawScore(studentRaw, expectedRaw, useAdvanced) {
+  const student = String(studentRaw ?? '').trim().toLowerCase().replace(/\s+/g, '');
+  const expected = String(expectedRaw ?? '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!expected) return 0;
+  if (student === expected) return 100;
+  if (!useAdvanced || !student) return 0;
+  const dist = levenshteinDistance(student, expected);
+  const maxLen = Math.max(student.length, expected.length, 1);
+  return Math.max(0, Math.min(100, Math.round(100 * (1 - dist / maxLen))));
+}
+
+function lcsTokenLength(a, b) {
+  const n = a.length;
+  const m = b.length;
+  if (!n || !m) return 0;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[n][m];
+}
+
+/** 0–100: full token/sentence match 100; with advanced grading, token-order closeness via LCS. */
+function rearrangeRawScore(q, resp, useAdvanced) {
+  const expectedTokens = normalizeRearrangeTokens(q.rearrangeTokens);
+  const givenTokens = normalizeRearrangeTokens(resp.rearrangeTokensResponse);
+  const expectedSentence = normalizeRearrangeSentence(q.rearrangeAnswer);
+  const givenSentence = normalizeRearrangeSentence(resp.rearrangeTextResponse);
+  const tokensMatch =
+    expectedTokens.length > 0 &&
+    givenTokens.length === expectedTokens.length &&
+    expectedTokens.every((tok, idx) => tok === givenTokens[idx]);
+  const sentenceMatch = !!(expectedSentence && givenSentence && expectedSentence === givenSentence);
+  if (tokensMatch || sentenceMatch) return 100;
+  if (!useAdvanced) return 0;
+  if (expectedTokens.length > 0 && givenTokens.length > 0) {
+    const lcs = lcsTokenLength(expectedTokens, givenTokens);
+    return Math.round((lcs / expectedTokens.length) * 100);
+  }
+  return 0;
+}
+
 /** Must match what students see (GET handler sanitizes pair rights before shuffle). */
 function matchingRightsEqual(expectedRight, givenRight) {
   return sanitizeQuestionPlainText(expectedRight) === sanitizeQuestionPlainText(givenRight);
@@ -1706,21 +1772,10 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
       correctAnswer = { expectedTranscript: q.expectedTranscript };
     } else if (q.type === 'jumble-word') {
-      const studentWord = String(resp.jumbleWordResponse || '').trim().toLowerCase().replace(/\s+/g, '');
-      const expectedWord = String(q.expectedWord || '').trim().toLowerCase().replace(/\s+/g, '');
-      rawScore = (expectedWord && studentWord === expectedWord) ? 100 : 0;
+      rawScore = jumbleWordRawScore(resp.jumbleWordResponse, q.expectedWord, useAdvancedGrading);
       correctAnswer = { expectedWord: q.expectedWord };
     } else if (q.type === 'rearrange') {
-      const expectedTokens = normalizeRearrangeTokens(q.rearrangeTokens);
-      const givenTokens = normalizeRearrangeTokens(resp.rearrangeTokensResponse);
-      const expectedSentence = normalizeRearrangeSentence(q.rearrangeAnswer);
-      const givenSentence = normalizeRearrangeSentence(resp.rearrangeTextResponse);
-      const tokensMatch =
-        expectedTokens.length > 0 &&
-        givenTokens.length === expectedTokens.length &&
-        expectedTokens.every((t, i) => t === givenTokens[i]);
-      const sentenceMatch = !!(expectedSentence && givenSentence && expectedSentence === givenSentence);
-      rawScore = (tokensMatch || sentenceMatch) ? 100 : 0;
+      rawScore = rearrangeRawScore(q, resp, useAdvancedGrading);
       correctAnswer = {
         rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
         rearrangeAnswer: q.rearrangeAnswer || ''
@@ -2027,21 +2082,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
         correctAnswer = { expectedTranscript: q.expectedTranscript };
       } else if (q.type === 'jumble-word') {
-        const studentWord = String(resp.jumbleWordResponse || '').trim().toLowerCase().replace(/\s+/g, '');
-        const expectedWord = String(q.expectedWord || '').trim().toLowerCase().replace(/\s+/g, '');
-        rawScore = (expectedWord && studentWord === expectedWord) ? 100 : 0;
+        rawScore = jumbleWordRawScore(resp.jumbleWordResponse, q.expectedWord, useAdvancedGrading);
         correctAnswer = { expectedWord: q.expectedWord };
       } else if (q.type === 'rearrange') {
-        const expectedTokens = normalizeRearrangeTokens(q.rearrangeTokens);
-        const givenTokens = normalizeRearrangeTokens(resp.rearrangeTokensResponse);
-        const expectedSentence = normalizeRearrangeSentence(q.rearrangeAnswer);
-        const givenSentence = normalizeRearrangeSentence(resp.rearrangeTextResponse);
-        const tokensMatch =
-          expectedTokens.length > 0 &&
-          givenTokens.length === expectedTokens.length &&
-          expectedTokens.every((t, idx) => t === givenTokens[idx]);
-        const sentenceMatch = !!(expectedSentence && givenSentence && expectedSentence === givenSentence);
-        rawScore = (tokensMatch || sentenceMatch) ? 100 : 0;
+        rawScore = rearrangeRawScore(q, resp, useAdvancedGrading);
         correctAnswer = {
           rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
           rearrangeAnswer: q.rearrangeAnswer || ''

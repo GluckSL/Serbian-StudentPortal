@@ -869,6 +869,9 @@
               <span class="material-icons">auto_awesome</span>
               Grading Settings
             </div>
+            <p class="hint-text" *ngIf="q.type === 'jumble-word' || q.type === 'rearrange'" style="margin-top:0;">
+              With advanced grading on, students can earn partial credit for almost-correct answers (spelling similarity for jumble; word-order closeness for rearrange). Turn it off to require an exact match only.
+            </p>
             <div class="field-group full" style="margin-bottom:10px;">
               <label class="checkbox-label">
                 <input type="checkbox" [(ngModel)]="q.aiGradingEnabled" />
@@ -1211,6 +1214,139 @@
                       </div>
                     </div>
 
+                    <!-- Singular / Plural Sub-question -->
+                    <div *ngSwitchCase="'singular_plural'" class="sub-q-editor">
+                      <div class="pairs-section">
+                        <div class="pairs-header">
+                          <span class="col-label">Singular</span>
+                          <span class="col-label">Plural (answer)</span>
+                          <span></span>
+                        </div>
+                        <div class="pair-row" *ngFor="let pair of sq.pairs; let pi = index">
+                          <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Singular ' + (pi+1)" class="field-input" />
+                          <span class="pair-arrow">→</span>
+                          <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Plural ' + (pi+1)" class="field-input" />
+                          <button class="btn-remove-opt" (click)="removePair(sq, pi)" *ngIf="sq.pairs!.length > 1" matTooltip="Remove row" type="button">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" (click)="addPair(sq)" type="button">
+                          <span class="material-icons">add</span> Add row
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Jumble Word Sub-question -->
+                    <div *ngSwitchCase="'jumble-word'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label">Instruction <span class="label-optional">(optional)</span></label>
+                        <input type="text" [(ngModel)]="sq.instruction" class="field-input" placeholder="e.g. Unscramble the letters to form a word." />
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group half">
+                          <label class="field-label required">Scrambled Text</label>
+                          <input type="text" [(ngModel)]="sq.scrambledText" class="field-input" placeholder="e.g. Z I M M E R" />
+                        </div>
+                        <div class="field-group half">
+                          <label class="field-label required">Expected Word</label>
+                          <input type="text" [(ngModel)]="sq.expectedWord" class="field-input" placeholder="e.g. Zimmer" />
+                        </div>
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group half">
+                          <label class="field-label">Bold Letter <span class="label-optional">(optional)</span></label>
+                          <input type="text" [(ngModel)]="sq.boldLetter" class="field-input" maxlength="1" placeholder="e.g. Z" />
+                        </div>
+                        <div class="field-group half">
+                          <label class="field-label">Category Tip <span class="label-optional">(optional)</span></label>
+                          <input type="text" [(ngModel)]="sq.categoryTip" class="field-input" placeholder="Optional hint" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Rearrange Sub-question -->
+                    <div *ngSwitchCase="'rearrange'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Question</label>
+                        <app-rich-text-input [(ngModel)]="sq.rearrangePrompt" [rows]="2" placeholder="Instructions for the student"></app-rich-text-input>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label">Expected sentence <span class="label-optional">(optional)</span></label>
+                        <input type="text" [(ngModel)]="sq.rearrangeAnswer" class="field-input" placeholder="Full correct sentence" />
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label">Correct token order <span class="label-optional">(one per line)</span></label>
+                        <textarea [(ngModel)]="sq.rearrangeTokens" class="field-input" rows="4" placeholder="One token per line"></textarea>
+                      </div>
+                    </div>
+
+                    <!-- Image Pin Match Sub-question -->
+                    <div *ngSwitchCase="'image_pin_match'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Image URL</label>
+                        <input type="text" [(ngModel)]="sq.imageUrl" class="field-input" placeholder="https://..." />
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Labels &amp; correct pin id</label>
+                        <div class="pair-row" *ngFor="let label of sq.labels; let li = index">
+                          <input type="text" [(ngModel)]="label.text" class="field-input" [placeholder]="'Label ' + (li + 1)" />
+                          <input type="text" [(ngModel)]="label.correctPinId" class="field-input" placeholder="pin id" />
+                          <button class="btn-remove-opt" type="button" (click)="removeImagePinMatchLabel(sq, li)" *ngIf="(sq.labels?.length || 0) > 1">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" type="button" (click)="addImagePinMatchLabel(sq)">
+                          <span class="material-icons">add</span> Add Label
+                        </button>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Pins (id, x%, y%)</label>
+                        <div class="pair-row" *ngFor="let pin of sq.pins; let pi = index">
+                          <input type="text" [(ngModel)]="pin.id" class="field-input" placeholder="id" />
+                          <input type="number" [(ngModel)]="pin.x" min="0" max="100" step="0.1" class="field-input" placeholder="x" />
+                          <input type="number" [(ngModel)]="pin.y" min="0" max="100" step="0.1" class="field-input" placeholder="y" />
+                          <button class="btn-remove-opt" type="button" (click)="removeImagePin(sq, pi)">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" type="button" (click)="addImagePinRow(sq)">
+                          <span class="material-icons">add</span> Add Pin
+                        </button>
+                      </div>
+                      <div class="field-group full">
+                        <label class="checkbox-label">
+                          <input type="checkbox" [(ngModel)]="sq.settings!.randomizeLabels" />
+                          Randomize labels
+                        </label>
+                        <label class="checkbox-label">
+                          <input type="checkbox" [(ngModel)]="sq.settings!.allowRetry" />
+                          Allow retries
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- Video pronunciation Sub-question -->
+                    <div *ngSwitchCase="'video-pronunciation'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Video URL</label>
+                        <input type="text" [(ngModel)]="sq.videoUrl" class="field-input" placeholder="https://..." />
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Caption</label>
+                        <input type="text" [(ngModel)]="sq.caption" class="field-input" placeholder="Phrase student speaks" />
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group half">
+                          <label class="field-label">Second caption <span class="label-optional">(opt.)</span></label>
+                          <input type="text" [(ngModel)]="sq.secondaryCaption" class="field-input" />
+                        </div>
+                        <div class="field-group half">
+                          <label class="field-label">Delay (s)</label>
+                          <input type="number" [(ngModel)]="sq.secondaryCaptionAtSeconds" class="field-input" min="0" max="600" />
+                        </div>
+                      </div>
+                    </div>
+
                     <!-- Default: show basic fields -->
                     <div *ngSwitchDefault class="sub-q-editor">
                       <div class="field-group full">
@@ -1219,6 +1355,73 @@
                       </div>
                     </div>
                   </ng-container>
+
+                  <div class="qa-grading-config sub-q-grading">
+                    <div class="qa-grading-title">
+                      <span class="material-icons">auto_awesome</span>
+                      Grading (this part)
+                    </div>
+                    <div class="field-group full" style="margin-bottom:10px;">
+                      <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="sq.aiGradingEnabled" />
+                        Use AI/advanced grading for this part
+                      </label>
+                    </div>
+                    <p class="hint-text" *ngIf="sq.aiGradingEnabled === false" style="margin-top:-4px;">
+                      Strict grading only (no partial credit from similarity).
+                    </p>
+                    <div class="qa-grading-row" *ngIf="sq.aiGradingEnabled !== false">
+                      <div class="qa-grading-field">
+                        <label>Minimum % to pass</label>
+                        <div class="threshold-control">
+                          <div class="threshold-display">
+                            <div>
+                              <span class="threshold-val">{{ sq.similarityThreshold ?? 70 }}</span>
+                              <span class="threshold-val-unit">%</span>
+                            </div>
+                            <span class="threshold-label">match required to pass</span>
+                          </div>
+                          <input
+                            type="range" min="0" max="100" step="5"
+                            [ngModel]="sq.similarityThreshold ?? 70"
+                            (ngModelChange)="setThreshold(sq, $event)"
+                            class="threshold-slider"
+                            [style.--val]="(sq.similarityThreshold ?? 70) + '%'"
+                          />
+                          <div class="threshold-presets">
+                            <button *ngFor="let p of [20,40,60,70,80,90,100]"
+                              type="button"
+                              class="preset-btn"
+                              [class.active]="(sq.similarityThreshold ?? 70) === p"
+                              (click)="sq.similarityThreshold = p">
+                              {{ p }}%
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="qa-grading-field">
+                        <label>Marks awarded</label>
+                        <div class="scoring-mode-opts">
+                          <label class="scoring-opt" [class.active]="(sq.scoringMode || 'full') === 'full'" (click)="sq.scoringMode = 'full'">
+                            <input type="radio" [name]="'sub-sm-'+i+'-'+si" value="full" [(ngModel)]="sq.scoringMode" />
+                            <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                            <div class="scoring-opt-text">
+                              <span class="scoring-opt-name">Full marks if passed</span>
+                              <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                            </div>
+                          </label>
+                          <label class="scoring-opt" [class.active]="sq.scoringMode === 'proportional'" (click)="sq.scoringMode = 'proportional'">
+                            <input type="radio" [name]="'sub-sm-'+i+'-'+si" value="proportional" [(ngModel)]="sq.scoringMode" />
+                            <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                            <div class="scoring-opt-text">
+                              <span class="scoring-opt-name">Proportional marks</span>
+                              <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
