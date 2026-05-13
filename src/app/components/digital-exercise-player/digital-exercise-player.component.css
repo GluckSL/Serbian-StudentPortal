@@ -1171,19 +1171,20 @@
 }
 
 .sub-question-card {
-  background: #f8fafc;
-  border: 1.5px solid #e2e8f0;
+  /* background: #f0eeff; */
+  /* border: 1.5px solid #e2e8f0; */
   border-radius: 10px;
-  padding: 16px;
+  padding: 0;
 }
+
+/* .sub-question-card:nth-child(even) {
+  background: #f9fafb;
+} */
 
 .sub-q-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e2e8f0;
 }
 
 .sub-q-number {
@@ -1598,8 +1599,14 @@
 /* MCQ */
 .mcq-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .mcq-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .q-feedback-incorrect {
@@ -1612,9 +1619,9 @@
 .mcq-option {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px !important;
-  font-size: 1rem !important;
+  gap: 10px;
+  padding: 4px 8px !important;
+  font-size: 0.9rem !important;
   border-radius: 10px !important;
   border: 2px solid #e0e0e0;
   background: white;
@@ -1939,26 +1946,27 @@
   width: 180px;
   max-width: 100%;
   padding: 6px 12px;
-  border: 2px solid #4f46e5;
-  border-radius: 8px;
+  border: none;
+  border-bottom: 2px solid #4f46e5;
+  border-radius: 0;
   font-size: 1rem;
   outline: none;
   text-align: left;
-  background: #f8f7ff;
+  background: transparent;
   color: #1a1a2e;
   font-family: inherit;
   transition: border-color 0.2s;
 }
 .blank-input:focus {
-  border-color: #7c3aed;
+  border-bottom-color: #7c3aed;
 }
 .blank-input.correct {
-  border-color: #22c55e;
-  background: #f0fdf4;
+  border-bottom-color: #22c55e;
+  background: transparent;
 }
 .blank-input.wrong {
-  border-color: #f44336;
-  background: #fff5f5;
+  border-bottom-color: #f44336;
+  background: transparent;
 }
 .blank-input:disabled {
   cursor: not-allowed;
@@ -3799,13 +3807,6 @@
 }
 .question-card .q-guidance-stack {
   padding: 14px 20px 0;
-}
-.mcq-options {
-  grid-template-columns: 1fr;
-}
-.mcq-option {
-  padding: 4px 8px !important;
-  gap: 10px;
 }
 .question-card .question-nav-btns {
   flex-wrap: wrap;

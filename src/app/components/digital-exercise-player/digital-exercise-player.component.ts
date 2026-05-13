@@ -156,6 +156,18 @@ interface PlayerQuestion {
   attachmentAudioPlaysUsed?: number;
   /** Sub-question answers */
   subQuestionAnswers?: Record<number, string | number>;
+  /** Sub-question singular-plural inputs */
+  subQuestionSpInputs?: Record<number, string[]>;
+  /** Sub-question fill-blank answers */
+  subQuestionFillBlankAnswers?: Record<number, string[]>;
+  /** Sub-question matching (leftIndex -> rightIndex) */
+  subQuestionMatching?: Record<number, Record<number, number>>;
+  /** Sub-question matching selected left index */
+  subQuestionMatchingSelectedLeft?: Record<number, number | null>;
+  /** Sub-question word bank answers */
+  subQuestionWordBankAnswers?: Record<number, string[]>;
+  /** Sub-question rearrange tokens */
+  subQuestionRearrangeTokens?: Record<number, string[]>;
 }
 
 type SpecialInputTarget =
@@ -1761,6 +1773,180 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     pq.subQuestionAnswers[subIndex] = answer;
     this.markAttempted(pq);
+  }
+
+  setSubQuestionTrueFalse(pq: PlayerQuestion, subIndex: number, value: boolean): void {
+    this.setSubQuestionAnswer(pq, subIndex, value ? 'true' : 'false');
+  }
+
+  getSubQuestionSpInput(pq: PlayerQuestion, subIndex: number, rowIndex: number): string {
+    if (!pq.subQuestionSpInputs) {
+      pq.subQuestionSpInputs = {};
+    }
+    if (!pq.subQuestionSpInputs[subIndex]) {
+      pq.subQuestionSpInputs[subIndex] = [];
+    }
+    return pq.subQuestionSpInputs[subIndex][rowIndex] || '';
+  }
+
+  setSubQuestionSpInput(pq: PlayerQuestion, subIndex: number, rowIndex: number, value: string): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionSpInputs) {
+      pq.subQuestionSpInputs = {};
+    }
+    if (!pq.subQuestionSpInputs[subIndex]) {
+      pq.subQuestionSpInputs[subIndex] = [];
+    }
+    pq.subQuestionSpInputs[subIndex][rowIndex] = value;
+    this.markAttempted(pq);
+  }
+
+  // ─── Sub-Question Fill Blank ───────────────────────────────────────────────────
+  getSubQuestionFillBlankAnswer(pq: PlayerQuestion, subIndex: number, blankIndex: number): string {
+    if (!pq.subQuestionFillBlankAnswers) {
+      pq.subQuestionFillBlankAnswers = {};
+    }
+    if (!pq.subQuestionFillBlankAnswers[subIndex]) {
+      pq.subQuestionFillBlankAnswers[subIndex] = [];
+    }
+    return pq.subQuestionFillBlankAnswers[subIndex][blankIndex] || '';
+  }
+
+  setSubQuestionFillBlankAnswer(pq: PlayerQuestion, subIndex: number, blankIndex: number, value: string): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionFillBlankAnswers) {
+      pq.subQuestionFillBlankAnswers = {};
+    }
+    if (!pq.subQuestionFillBlankAnswers[subIndex]) {
+      pq.subQuestionFillBlankAnswers[subIndex] = [];
+    }
+    pq.subQuestionFillBlankAnswers[subIndex][blankIndex] = value;
+    this.markAttempted(pq);
+  }
+
+  // ─── Sub-Question Matching ─────────────────────────────────────────────────────
+  selectSubQuestionMatchingLeft(pq: PlayerQuestion, subIndex: number, leftIndex: number): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionMatching) {
+      pq.subQuestionMatching = {};
+    }
+    if (pq.subQuestionMatching[subIndex]?.[leftIndex] !== undefined && pq.subQuestionMatching[subIndex][leftIndex] !== null) {
+      delete pq.subQuestionMatching[subIndex][leftIndex];
+    }
+    pq.subQuestionMatchingSelectedLeft = pq.subQuestionMatchingSelectedLeft || {};
+    pq.subQuestionMatchingSelectedLeft[subIndex] = leftIndex;
+    this.markAttempted(pq);
+  }
+
+  selectSubQuestionMatchingRight(pq: PlayerQuestion, subIndex: number, rightIndex: number): void {
+    if (this.state === 'submitted') return;
+    const selectedLeft = pq.subQuestionMatchingSelectedLeft?.[subIndex];
+    if (selectedLeft === undefined || selectedLeft === null) return;
+    if (!pq.subQuestionMatching) {
+      pq.subQuestionMatching = {};
+    }
+    if (!pq.subQuestionMatching[subIndex]) {
+      pq.subQuestionMatching[subIndex] = {};
+    }
+    pq.subQuestionMatching[subIndex][selectedLeft] = rightIndex;
+    pq.subQuestionMatchingSelectedLeft = pq.subQuestionMatchingSelectedLeft || {};
+    pq.subQuestionMatchingSelectedLeft[subIndex] = null;
+    this.markAttempted(pq);
+  }
+
+  isSubQuestionMatchingRightUsed(pq: PlayerQuestion, subIndex: number, rightIndex: number): boolean {
+    const matches = pq.subQuestionMatching?.[subIndex];
+    if (!matches) return false;
+    return Object.values(matches).some(v => v === rightIndex);
+  }
+
+  // ─── Sub-Question Word Bank ───────────────────────────────────────────────────
+  getSubQuestionWordBankAnswer(pq: PlayerQuestion, subIndex: number, blankIndex: number): string {
+    if (!pq.subQuestionWordBankAnswers) {
+      pq.subQuestionWordBankAnswers = {};
+    }
+    if (!pq.subQuestionWordBankAnswers[subIndex]) {
+      pq.subQuestionWordBankAnswers[subIndex] = [];
+    }
+    return pq.subQuestionWordBankAnswers[subIndex][blankIndex] || '';
+  }
+
+  setSubQuestionWordBankAnswer(pq: PlayerQuestion, subIndex: number, blankIndex: number, value: string): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionWordBankAnswers) {
+      pq.subQuestionWordBankAnswers = {};
+    }
+    if (!pq.subQuestionWordBankAnswers[subIndex]) {
+      pq.subQuestionWordBankAnswers[subIndex] = [];
+    }
+    pq.subQuestionWordBankAnswers[subIndex][blankIndex] = value;
+    this.markAttempted(pq);
+  }
+
+  getSubQuestionWordBankItems(sq: any): any[] {
+    if (sq.prompts) return sq.prompts;
+    if (sq.sentences) return sq.sentences;
+    if (sq.blanks) return sq.blanks;
+    return [];
+  }
+
+  displaySubQuestionWordBankPrompt(item: any, index: number): string {
+    if (typeof item === 'string') return item;
+    if (item.prompt) return item.prompt;
+    if (item.sentence) return item.sentence;
+    return `Blank ${index + 1}`;
+  }
+
+  fillSubQuestionWordBankBlank(pq: PlayerQuestion, subIndex: number, word: string): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionWordBankAnswers) {
+      pq.subQuestionWordBankAnswers = {};
+    }
+    if (!pq.subQuestionWordBankAnswers[subIndex]) {
+      const itemCount = this.getSubQuestionWordBankItems(pq.data?.subQuestions?.[subIndex] || {}).length;
+      pq.subQuestionWordBankAnswers[subIndex] = new Array(itemCount).fill('');
+    }
+    const emptyIndex = pq.subQuestionWordBankAnswers[subIndex].findIndex((v: string) => !v || !v.trim());
+    if (emptyIndex !== -1) {
+      pq.subQuestionWordBankAnswers[subIndex][emptyIndex] = word;
+      this.markAttempted(pq);
+    }
+  }
+
+  // ─── Sub-Question Jumble Word ─────────────────────────────────────────────────
+  insertSubQuestionJumbleToken(pq: PlayerQuestion, subIndex: number, token: string): void {
+    if (this.state === 'submitted') return;
+    const current = this.getSubQuestionAnswer(pq, subIndex) || '';
+    this.setSubQuestionAnswer(pq, subIndex, current + token);
+  }
+
+  // ─── Sub-Question Rearrange ───────────────────────────────────────────────────
+  getSubQuestionRearrangeTokens(pq: PlayerQuestion, subIndex: number): string[] {
+    if (!pq.subQuestionRearrangeTokens) {
+      pq.subQuestionRearrangeTokens = {};
+    }
+    if (!pq.subQuestionRearrangeTokens[subIndex]) {
+      const sq = pq.data?.subQuestions?.[subIndex];
+      pq.subQuestionRearrangeTokens[subIndex] = sq?.tokens ? [...sq.tokens] : [];
+    }
+    return pq.subQuestionRearrangeTokens[subIndex];
+  }
+
+  onSubQuestionRearrangeDrop(pq: PlayerQuestion, subIndex: number, event: any): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionRearrangeTokens) {
+      pq.subQuestionRearrangeTokens = {};
+    }
+    const tokens = this.getSubQuestionRearrangeTokens(pq, subIndex);
+    const [moved] = tokens.splice(event.previousIndex, 1);
+    tokens.splice(event.currentIndex, 0, moved);
+    pq.subQuestionRearrangeTokens[subIndex] = tokens;
+    this.markAttempted(pq);
+  }
+
+  // ─── Sub-Question Answer Helper ───────────────────────────────────────────────
+  getSubQuestionAnswer(pq: PlayerQuestion, subIndex: number): string {
+    return pq.subQuestionAnswers?.[subIndex] as string || '';
   }
 
   // ─── Matching Interaction ─────────────────────────────────────────────────────

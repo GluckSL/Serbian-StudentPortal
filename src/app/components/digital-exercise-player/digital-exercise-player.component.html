@@ -432,7 +432,7 @@
                   <div class="review-sub-q-text" *ngIf="sq.type === 'pronunciation'">Say: {{ sq.word }}</div>
                   <div class="review-sub-q-text" *ngIf="sq.type === 'matching'">Match the items</div>
                   <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
-                  
+
                   <!-- Sub-question answer -->
                   <div class="review-sub-q-answer">
                     <span class="review-label">Your answer:</span>
@@ -1680,61 +1680,10 @@
 
       <!-- MIDDLE (now 70%): Question + Answer area -->
       <div class="question-area">
-        <!-- Batch Questions View: Show all fill-blank and true-false questions at once -->
-        <div class="batch-questions-card" *ngIf="hasBatchQuestions && isInBatchMode">
-          <div class="batch-card-header">
-            <span class="batch-card-title">{{ batchTitle }}</span>
-            <span class="batch-card-count">{{ batchQuestions.length }} questions</span>
-          </div>
-
-          <div class="batch-questions-list">
-            <ng-container *ngFor="let bq of batchQuestions; let batchIndex = index">
-              <ng-container *ngIf="getPlayerQuestionAtBatchIndex(batchIndex) as pq">
-                <div class="batch-question-row">
-                  <span class="batch-q-label">Q {{ getActualQuestionIndex(batchIndex) + 1 }}.</span>
-
-                  <!-- Fill-blank question -->
-                  <div class="batch-fill-blank" *ngIf="pq.data.type === 'fill-blank'">
-                    <span class="batch-sentence">
-                      <ng-container *ngFor="let part of getSentenceParts(pq.data.sentence); let pi = index">
-                        <span [innerHTML]="part | safeHtml"></span>
-                        <input type="text" class="batch-blank-input" [(ngModel)]="pq.fillAnswers![pi]" (ngModelChange)="markAttempted(pq)" [disabled]="hasCurrentSubmitted" *ngIf="pi < getSentenceParts(pq.data.sentence).length - 1" />
-                      </ng-container>
-                    </span>
-                    <span class="batch-hint" *ngIf="pq.data.hint">
-                      <span class="material-icons">lightbulb</span> {{ pq.data.hint }}
-                    </span>
-                  </div>
-
-                  <!-- True/False question -->
-                  <div class="batch-true-false" *ngIf="pq.data.type === 'question-answer' && isTrueFalseQuestion(pq.data)">
-                    <span class="batch-tf-prompt" [innerHTML]="pq.data.prompt | safeHtml"></span>
-                    <span class="batch-tf-buttons">
-                      <button type="button" class="batch-tf-btn" [class.active]="parseTrueFalse(pq.qaResponse) === true" [disabled]="hasCurrentSubmitted" (click)="selectTrueFalse(pq, true)">Richtig</button>
-                      <button type="button" class="batch-tf-btn" [class.active]="parseTrueFalse(pq.qaResponse) === false" [disabled]="hasCurrentSubmitted" (click)="selectTrueFalse(pq, false)">Falsch</button>
-                    </span>
-                  </div>
-                </div>
-              </ng-container>
-            </ng-container>
-          </div>
-
-          <div class="batch-card-footer">
-            <button class="batch-nav-btn" *ngIf="batchQuestionIndices.length > 0 && getActualQuestionIndex(0) > 0" (click)="goToQuestion(getActualQuestionIndex(0) - 1)">
-              <span class="material-icons">arrow_back</span> Previous
-            </button>
-            <span></span>
-            <button class="batch-nav-btn" *ngIf="batchQuestionIndices.length > 0 && getActualQuestionIndex(batchQuestionIndices.length - 1) < playerQuestions.length - 1" (click)="goToQuestion(getActualQuestionIndex(batchQuestionIndices.length - 1) + 1)">
-              Next <span class="material-icons">arrow_forward</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Single Question View (when NOT in batch mode) -->
+        <!-- Single Question View -->
         <div
           class="question-card"
           [class]="'q-type-' + currentQuestion.data.type"
-          *ngIf="!hasBatchQuestions || !isInBatchMode"
         >
           <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
           <div
@@ -3597,19 +3546,15 @@
           <!-- Sub-questions with same context - rendered at bottom -->
           <div class="sub-questions-section" *ngIf="currentQuestion.data.subQuestions && currentQuestion.data.subQuestions.length > 0">
             <div class="sub-questions-inner">
-              <div class="sub-questions-header">
-                <!--<span class="sub-questions-title">More Questions with Same Context</span>-->
-                <span class="sub-questions-count">{{ currentQuestion.data.subQuestions.length }} question(s)</span>
-              </div>
               <div class="sub-questions-list">
                 <div class="sub-question-card" *ngFor="let sq of currentQuestion.data.subQuestions; let sqIndex = index">
                   <div class="sub-q-header">
-                    <span class="sub-q-number">{{ currentIndex + 1 }}.{{ sqIndex + 1 }}</span>
-                    <span class="sub-q-type-label">{{ getQuestionTypeLabelForDisplay(sq) }}</span>
+                    <span class="sub-q-number">Q {{ currentIndex + 1 }}.{{ sqIndex + 1 }}</span>
                     <span class="sub-q-points">{{ sq.points || 1 }} pt</span>
                   </div>
 
                   <div class="sub-q-body">
+                    <!-- MCQ -->
                     <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
                       <p class="sub-q-text" [innerHTML]="sq.question | safeHtml"></p>
                       <div class="mcq-options sub-options">
@@ -3624,47 +3569,199 @@
                       </div>
                     </div>
 
+                    <!-- Fill Blank -->
                     <div *ngIf="sq.type === 'fill-blank'" class="sub-q-fill-blank">
-                      <p class="sub-q-text" [innerHTML]="sq.sentence | safeHtml"></p>
+                      <div class="sentence-container">
+                        <ng-container *ngFor="let part of getSentenceParts(sq.sentence); let pi = index">
+                          <span class="sentence-part" [innerHTML]="part | safeHtml"></span>
+                          <span class="blank-wrap" *ngIf="pi < getSentenceParts(sq.sentence).length - 1">
+                            <input type="text" class="blank-input"
+                              [ngModel]="getSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi)"
+                              (ngModelChange)="setSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi, $event)"
+                              [disabled]="hasCurrentSubmitted"
+                              [placeholder]="'blank ' + (pi + 1)" />
+                          </span>
+                        </ng-container>
+                      </div>
                       <p class="sub-q-hint" *ngIf="sq.hint"><span class="material-icons">lightbulb</span> {{ sq.hint }}</p>
                     </div>
 
+                    <!-- Matching -->
                     <div *ngIf="sq.type === 'matching'" class="sub-q-matching">
                       <p class="sub-q-text">Match the items on the left with their correct pairs.</p>
-                    </div>
-
-                    <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
-                      <div class="sub-q-word-bank-words" *ngIf="sq.wordBank?.length">
-                        <span class="word-bank-label">Word Bank:</span>
-                        <span *ngFor="let w of sq.wordBank" class="word-bank-chip">{{ w }}</span>
+                      <div class="matching-cols">
+                        <div class="matching-left">
+                          <div class="match-item" *ngFor="let item of sq.leftItems; let li = index"
+                            [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[li] !== null"
+                            (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, li)">
+                            <span class="match-label">{{ sq.leftLabels?.[li] || 'A' + li }}</span>
+                            <span class="match-text">{{ item }}</span>
+                          </div>
+                        </div>
+                        <div class="matching-right">
+                          <div class="match-item" *ngFor="let item of sq.rightItems; let ri = index"
+                            [class.matched]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, ri)"
+                            (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, ri)">
+                            <span class="match-text">{{ item }}</span>
+                            <span class="match-label">{{ sq.rightLabels?.[ri] || ri + 1 }}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
+                    <!-- Word Bank Fill -->
+                    <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
+                      <div class="word-bank-box" *ngIf="sq.wordBank?.length">
+                        <div class="word-bank-box-label">Word bank</div>
+                        <div class="word-bank-pills">
+                          <button type="button" class="word-bank-pill"
+                            *ngFor="let word of sq.wordBank; trackBy: trackByIndex"
+                            [disabled]="hasCurrentSubmitted"
+                            (click)="fillSubQuestionWordBankBlank(currentQuestion, sqIndex, word)">
+                            {{ word }}
+                          </button>
+                        </div>
+                      </div>
+                      <div class="word-bank-items">
+                        <div class="word-bank-item-row" *ngFor="let item of getSubQuestionWordBankItems(sq); let ii = index">
+                          <div class="word-bank-prompt q-text" [innerHTML]="displaySubQuestionWordBankPrompt(item, ii) | safeHtml"></div>
+                          <div class="word-bank-answer-wrap">
+                            <input type="text" class="blank-input word-bank-answer-input"
+                              [ngModel]="getSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii)"
+                              (ngModelChange)="setSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii, $event)"
+                              [disabled]="hasCurrentSubmitted"
+                              [placeholder]="'Blank ' + (ii + 1)" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Question Answer -->
                     <div *ngIf="sq.type === 'question-answer'" class="sub-q-qa">
-                      <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
-                      <input type="text" class="sub-q-input"
-                        [ngModel]="currentQuestion.subQuestionAnswers?.[sqIndex]"
-                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
-                        [disabled]="hasCurrentSubmitted"
-                        placeholder="Type your answer..." />
+                      <ng-container *ngIf="isTrueFalseQuestion(sq); else normalQAPrompt">
+                        <div class="qa-tf-inline-row">
+                          <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                          <div class="tf-answers tf-answers-inline" role="group" aria-label="Richtig oder Falsch">
+                            <button type="button" class="tf-btn"
+                              [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === true"
+                              [disabled]="hasCurrentSubmitted"
+                              (click)="setSubQuestionTrueFalse(currentQuestion, sqIndex, true)">
+                              Richtig
+                            </button>
+                            <button type="button" class="tf-btn"
+                              [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === false"
+                              [disabled]="hasCurrentSubmitted"
+                              (click)="setSubQuestionTrueFalse(currentQuestion, sqIndex, false)">
+                              Falsch
+                            </button>
+                          </div>
+                        </div>
+                      </ng-container>
+                      <ng-template #normalQAPrompt>
+                        <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                        <input type="text" class="sub-q-input"
+                          [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                          (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                          [disabled]="hasCurrentSubmitted"
+                          placeholder="Type your answer..." />
+                      </ng-template>
                     </div>
 
+                    <!-- Pronunciation -->
                     <div *ngIf="sq.type === 'pronunciation'" class="sub-q-pronunciation">
-                      <p class="sub-q-text">Say: <strong>{{ sq.word }}</strong></p>
-                      <p *ngIf="sq.phonetic" class="sub-q-phonetic">{{ sq.phonetic }}</p>
+                      <div class="pronunciation-word-card">
+                        <div class="big-word">{{ sq.word }}</div>
+                        <div class="word-phonetic" *ngIf="sq.phonetic">{{ sq.phonetic }}</div>
+                        <div class="word-translation" *ngIf="sq.translation">= {{ sq.translation }}</div>
+                      </div>
                     </div>
 
+                    <!-- Listening -->
                     <div *ngIf="sq.type === 'listening'" class="sub-q-listening">
                       <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                      <div class="listening-audio-wrap" *ngIf="sq.audioUrl">
+                        <audio [src]="getMediaFullUrl(sq.audioUrl)" controls></audio>
+                      </div>
                       <input type="text" class="sub-q-input"
-                        [ngModel]="currentQuestion.subQuestionAnswers?.[sqIndex]"
+                        [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                         (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                         [disabled]="hasCurrentSubmitted"
                         placeholder="Type what you hear..." />
                     </div>
 
-                    <div *ngIf="!['mcq', 'fill-blank', 'matching', 'word_bank_fill', 'question-answer', 'pronunciation', 'listening'].includes(sq.type)" class="sub-q-default">
-                      <p class="sub-q-text">Question: {{ sq.prompt || sq.question || 'No question text' }}</p>
+                    <!-- Singular Plural -->
+                    <div *ngIf="sq.type === 'singular_plural'" class="sub-q-singular-plural">
+                      <table class="sp-pairs-table" *ngIf="sq.singularPluralPairs?.length">
+                        <thead>
+                          <tr>
+                            <th>Singular</th>
+                            <th>Plural</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let sp of sq.singularPluralPairs; let ri = index">
+                            <td class="sp-singular-cell">{{ sp.singular }}</td>
+                            <td class="sp-plural-cell">
+                              <input type="text" class="blank-input"
+                                [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
+                                (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
+                                [disabled]="hasCurrentSubmitted"
+                                [placeholder]="'Plural'" />
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Jumble Word -->
+                    <div *ngIf="sq.type === 'jumble-word'" class="sub-q-jumble">
+                      <p class="sub-q-text" *ngIf="sq.categoryTip">{{ sq.categoryTip }}</p>
+                      <p class="sub-q-text">Form the word: <strong>{{ sq.scrambledText || sq.word }}</strong></p>
+                      <div class="jumble-scramble">
+                        <ng-container *ngFor="let token of getJumbleTokens(sq); let ti = index">
+                          <button *ngIf="token !== ' '" type="button" class="jumble-letter jumble-letter-btn"
+                            [class.jumble-letter--bold]="token === sq.boldLetter && ti === getFirstBoldIndex(sq)"
+                            (click)="insertSubQuestionJumbleToken(currentQuestion, sqIndex, token)"
+                            [disabled]="hasCurrentSubmitted">
+                            {{ token }}
+                          </button>
+                          <span *ngIf="token === ' '" class="jumble-space"> </span>
+                        </ng-container>
+                      </div>
+                      <input type="text" class="sub-q-input jumble-input"
+                        [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        placeholder="Type the unscrambled word..." />
+                    </div>
+
+                    <!-- Rearrange -->
+                    <div *ngIf="sq.type === 'rearrange'" class="sub-q-rearrange">
+                      <p class="sub-q-text" [innerHTML]="sq.rearrangePrompt | safeHtml"></p>
+                      <div class="rearrange-tokens-wrap" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.length">
+                        <div class="rearrange-label">Drag to rearrange:</div>
+                        <div class="rearrange-drop" cdkDropList cdkDropListOrientation="horizontal"
+                          [cdkDropListData]="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)"
+                          [cdkDropListSortingDisabled]="hasCurrentSubmitted"
+                          [class.disabled]="hasCurrentSubmitted"
+                          (cdkDropListDropped)="onSubQuestionRearrangeDrop(currentQuestion, sqIndex, $event)">
+                          <div class="rearrange-token" *ngFor="let t of getSubQuestionRearrangeTokens(currentQuestion, sqIndex); let ti = index"
+                            cdkDrag [cdkDragDisabled]="hasCurrentSubmitted">
+                            {{ t }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Image Pin Match -->
+                    <div *ngIf="sq.type === 'image_pin_match'" class="sub-q-image-pin">
+                      <p class="sub-q-text">Drag the handle from a label to the correct numbered pin on the image.</p>
+                    </div>
+
+                    <!-- Video Pronunciation -->
+                    <div *ngIf="sq.type === 'video-pronunciation'" class="sub-q-video-pron">
+                      <p class="sub-q-text">Say: <strong>{{ sq.caption }}</strong></p>
+                      <p *ngIf="sq.context" class="sub-q-text-sub">{{ sq.context }}</p>
                     </div>
                   </div>
                 </div>
