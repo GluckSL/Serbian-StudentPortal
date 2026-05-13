@@ -25,17 +25,27 @@ function extractZoomPwdFromJoinUrl(joinUrl) {
 }
 
 /**
- * Resolve passcode/token for join URLs: DB field, then `pwd` on stored Zoom links.
+ * Resolve passcode/token for join URLs.
+ *
+ * Priority:
+ *   1. Encrypted `pwd=` token extracted from the stored `joinUrl`  ← Zoom carries this through
+ *      to the web client when the user clicks "Join from browser" on zoom.us/j/…
+ *   2. Encrypted `pwd=` token extracted from the stored `link`
+ *   3. Plain-text `zoomPassword` from DB (last resort — Zoom may not carry this to /wc/)
+ *
+ * Using the plain-text passcode as `pwd=` on a universal link means Zoom's redirect to
+ * app.zoom.us/wc/ drops the password, forcing the user to re-enter it manually.
+ *
  * @param {{ zoomPassword?: string, joinUrl?: string, link?: string }} doc
  * @returns {string}
  */
 function resolveMeetingJoinPwd(doc) {
   if (!doc || typeof doc !== 'object') return '';
-  const stored = String(doc.zoomPassword || '').trim();
-  if (stored) return stored;
   const fromJoin = extractZoomPwdFromJoinUrl(doc.joinUrl);
   if (fromJoin) return fromJoin;
-  return extractZoomPwdFromJoinUrl(doc.link) || '';
+  const fromLink = extractZoomPwdFromJoinUrl(doc.link);
+  if (fromLink) return fromLink;
+  return String(doc.zoomPassword || '').trim();
 }
 
 /**
