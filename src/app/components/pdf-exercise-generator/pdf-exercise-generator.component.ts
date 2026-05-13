@@ -1966,9 +1966,34 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       courseDay,
       visibleToStudents: publish,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
-        const { expanded, aiGenerated, attachmentUploading, generatingExplanation, ...rest } = q;
-        return rest;
-      }) as ExerciseQuestion[],
+        const { expanded, aiGenerated, attachmentUploading, generatingExplanation, subQuestions, ...rest } = q;
+        
+        // Transform sub-questions if present
+        let transformedSubQuestions: ExerciseQuestion[] | undefined;
+        if (subQuestions && subQuestions.length > 0) {
+          transformedSubQuestions = subQuestions.map((sq: any) => {
+            const subRow: any = { ...sq };
+            subRow.type = sq.type;
+            subRow.points = sq.points || 1;
+            subRow.context = String(sq.context || '').trim();
+            subRow.instruction = String(sq.instruction || '');
+            subRow.example = String(sq.example || '');
+            subRow.worksheetKind = sq.worksheetKind || null;
+            subRow.attachmentUrl = String(sq.attachmentUrl || '');
+            subRow.answerExplanation = String(sq.answerExplanation || '');
+            subRow.similarityThreshold = sq.similarityThreshold ?? 70;
+            subRow.scoringMode = sq.scoringMode || 'full';
+            return subRow;
+          });
+        }
+        
+        return {
+          ...rest,
+          ...(transformedSubQuestions && transformedSubQuestions.length > 0 
+            ? { subQuestions: transformedSubQuestions } 
+            : {})
+        } as ExerciseQuestion;
+      }),
       tags: ['ai-generated', 'pdf-import', ...extraTags]
     };
 
