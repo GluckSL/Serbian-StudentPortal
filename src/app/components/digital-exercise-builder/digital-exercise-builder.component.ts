@@ -90,6 +90,8 @@ interface BuilderQuestion {
   labels?: Array<{ id: string; text: string; correctPinId: string }>;
   pins?: Array<{ id: string; x: number; y: number }>;
   settings?: { randomizeLabels?: boolean; allowRetry?: boolean };
+  // Sub-questions (multiple questions with same context/hints/images)
+  subQuestions?: BuilderQuestion[];
 }
 
 interface VideoFeedbackAudioRow {
@@ -318,61 +320,79 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         secondaryCaptionAtSeconds: this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds),
         acceptedVariants: [...(q.acceptedVariants || [])]
       });
-    } else if (q.type === 'listening') {
-      Object.assign(base, {
-        prompt: q.prompt || '',
-        mediaUrl: q.mediaUrl || '',
-        expectedTranscript: q.expectedTranscript || '',
-        attemptMode: q.attemptMode || 'typing'
-      });
-    } else if (q.type === 'jumble-word') {
-      Object.assign(base, {
-        scrambledText: q.scrambledText || '',
-        boldLetter: q.boldLetter || '',
-        expectedWord: q.expectedWord || '',
-        categoryTip: q.categoryTip || '',
-        // Jumble words are exact-match; keep advanced grading off.
-        aiGradingEnabled: false,
-        scoringMode: 'full'
-      });
+} else if (q.type === 'listening') {
+      q.prompt = '';
+      q.mediaUrl = (parent as any).mediaUrl || '';
+      q.expectedTranscript = '';
+      q.attemptMode = 'typing';
+    } else if ((q.type as any) === 'jumble-word') {
+      (q as any).scrambledText = '';
+      (q as any).boldLetter = '';
+      (q as any).expectedWord = '';
+      (q as any).categoryTip = '';
+      q.instruction = '';
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
     } else if ((q.type as any) === 'rearrange') {
-      Object.assign(base, {
-        rearrangePrompt: q.rearrangePrompt || '',
-        rearrangeAnswer: q.rearrangeAnswer || '',
-        rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens.join('\n') : '',
-        aiGradingEnabled: false,
-        scoringMode: 'full'
-      });
+      (q as any).rearrangePrompt = '';
+      (q as any).rearrangeAnswer = '';
+      (q as any).rearrangeTokens = '';
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
     } else if ((q.type as any) === 'image_pin_match') {
-      Object.assign(base, {
-        imageUrl: q.imageUrl || '',
-        labels: (Array.isArray(q.labels) ? q.labels : []).map((l: any) => ({
-          id: String(l?.id || ''),
-          text: String(l?.text || ''),
-          correctPinId: String(l?.correctPinId || '')
-        })),
-        pins: (Array.isArray(q.pins) ? q.pins : []).map((p: any) => ({
-          id: String(p?.id || ''),
-          x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
-          y: Math.max(0, Math.min(100, Number(p?.y) || 0))
-        })),
-        settings: {
-          randomizeLabels: q?.settings?.randomizeLabels !== false,
-          allowRetry: q?.settings?.allowRetry !== false
-        },
-        aiGradingEnabled: true,
-        scoringMode: 'proportional'
-      });
+      q.imageUrl = (parent as any).imageUrl || '';
+      q.labels = [
+        { id: this.newLabelId(), text: '', correctPinId: '' },
+        { id: this.newLabelId(), text: '', correctPinId: '' }
+      ];
+      q.pins = [];
+      q.settings = { randomizeLabels: true, allowRetry: true };
+      q.aiGradingEnabled = true;
+      q.scoringMode = 'proportional';
+      q.similarityThreshold = 100;
+    } else if (q.type === 'video-pronunciation') {
+      q.videoUrl = (parent as any).videoUrl || '';
+      q.caption = '';
+      q.secondaryCaption = '';
+      q.secondaryCaptionAtSeconds = 5;
     }
-    return base;
+
+    return q;
   }
 
-  /** Last question type for "Add one more" button. */
-  get lastQuestionType(): string {
-    if (this.questions.length === 0) return 'mcq';
-    const last = this.questions[this.questions.length - 1];
-    if (last.type === 'question-answer' && last.worksheetKind) return last.worksheetKind;
-    return last.type;
+  moveQuestion(index: number, direction: -1 | 1): void {
+    const target = index + direction;
+    if (target < 0 || target >= this.questions.length) return;
+    this.moveQuestionToIndex(index, target);
+  }
+
+  applyQuestionSequence(currentIndex: number, rawValue: string | number): void {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return;
+    const desiredIndex = Math.max(0, Math.min(this.questions.length - 1, Math.floor(parsed) - 1));
+    if (desiredIndex === currentIndex) return;
+    this.moveQuestionToIndex(currentIndex, desiredIndex);
+  }
+
+  private moveQuestionToIndex(fromIndex: number, toIndex: number): void {
+    if (fromIndex === toIndex) return;
+    const moved = this.questions[fromIndex];
+    if (!moved) return;
+
+    this.questions.splice(fromIndex, 1);
+    this.questions.splice(toIndex, 0, moved);
+
+    if (this.expandedQuestion === fromIndex) {
+      this.expandedQuestion = toIndex;
+      return;
+    }
+    if (fromIndex < this.expandedQuestion && this.expandedQuestion <= toIndex) {
+      this.expandedQuestion -= 1;
+      return;
+    }
+    if (toIndex <= this.expandedQuestion && this.expandedQuestion < fromIndex) {
+      this.expandedQuestion += 1;
+    }
   }
 
   /** Add one more question of the same type as the last one. */
@@ -439,9 +459,6 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.prompt = '';
       q.sampleAnswers = [''];
       q.storyParagraph = '';
-      // Default grading style:
-      // - transformations / true-false / error correction: mostly exact
-      // - free writing: proportional
       if (q.worksheetKind === 'free-writing-own-sentences' || q.worksheetKind === 'free-writing-profile' || q.worksheetKind === 'table-profile-fill') {
         q.similarityThreshold = 60;
         q.scoringMode = 'proportional';
@@ -495,39 +512,118 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
   }
 
-  moveQuestion(index: number, direction: -1 | 1): void {
-    const target = index + direction;
-    if (target < 0 || target >= this.questions.length) return;
-    this.moveQuestionToIndex(index, target);
+  addSubQuestion(parentIndex: number): void {
+    const parent = this.questions[parentIndex];
+    if (!parent) return;
+    if (!parent.subQuestions) {
+      parent.subQuestions = [];
+    }
+    const subQ = this.createSubQuestion(parent);
+    parent.subQuestions.push(subQ);
   }
 
-  applyQuestionSequence(currentIndex: number, rawValue: string | number): void {
-    const parsed = Number(rawValue);
-    if (!Number.isFinite(parsed)) return;
-    const desiredIndex = Math.max(0, Math.min(this.questions.length - 1, Math.floor(parsed) - 1));
-    if (desiredIndex === currentIndex) return;
-    this.moveQuestionToIndex(currentIndex, desiredIndex);
+  removeSubQuestion(parentIndex: number, subIndex: number): void {
+    const parent = this.questions[parentIndex];
+    if (!parent || !parent.subQuestions) return;
+    parent.subQuestions.splice(subIndex, 1);
   }
 
-  private moveQuestionToIndex(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex) return;
-    const moved = this.questions[fromIndex];
-    if (!moved) return;
+  private createSubQuestion(parent: BuilderQuestion): BuilderQuestion {
+    const qType = parent.type;
+    const q: BuilderQuestion = {
+      type: qType as any,
+      points: parent.points || 1,
+      context: parent.context || '',
+      instruction: parent.instruction || '',
+      workedExample: parent.workedExample || '',
+      worksheetKind: parent.worksheetKind,
+      attachmentUrl: parent.attachmentUrl || '',
+      answerExplanation: parent.answerExplanation || '',
+      similarityThreshold: parent.similarityThreshold ?? this.defaultThresholdForQuestion(qType),
+      scoringMode: parent.scoringMode || 'full',
+      aiGradingEnabled: parent.aiGradingEnabled ?? true
+    };
 
-    this.questions.splice(fromIndex, 1);
-    this.questions.splice(toIndex, 0, moved);
+    if (qType === 'mcq') {
+      q.question = '';
+      q.imageUrl = parent.imageUrl || '';
+      q.options = ['', '', '', ''];
+      q.correctAnswerIndex = 0;
+      q.explanation = parent.explanation || '';
+    } else if (qType === 'matching') {
+      q.instruction = parent.instruction || 'Match the items on the left with their correct pairs on the right.';
+      q.pairs = [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }];
+    } else if (qType === 'singular_plural') {
+      q.instruction = parent.instruction || 'Write the correct plural form.';
+      q.pairs = [{ singular: '', plural: '' }, { singular: '', plural: '' }];
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
+    } else if (qType === 'fill-blank') {
+      q.sentence = '';
+      q.answers = [''];
+      q.hint = parent.hint || '';
+      q.caseSensitive = parent.caseSensitive || false;
+    } else if ((qType as any) === 'word_bank_fill') {
+      q.wordBank = [...(parent.wordBank || [])];
+      q.items = [{ prompt: '', answer: '' }, { prompt: '', answer: '' }];
+      q.reusableWords = parent.reusableWords ?? true;
+    } else if (qType === 'pronunciation') {
+      q.word = '';
+      q.phonetic = parent.phonetic || '';
+      q.translation = parent.translation || '';
+      q.acceptedVariants = [];
+    } else if (qType === 'question-answer') {
+      q.prompt = '';
+      q.sampleAnswers = [''];
+      q.storyParagraph = parent.storyParagraph || '';
+      q.similarityThreshold = parent.similarityThreshold ?? 70;
+      q.scoringMode = parent.scoringMode || 'full';
+    } else if (qType === 'listening') {
+      q.prompt = '';
+      q.mediaUrl = parent.mediaUrl || '';
+      q.expectedTranscript = '';
+      q.attemptMode = 'typing';
+    } else if ((qType as any) === 'jumble-word') {
+      (q as any).scrambledText = '';
+      (q as any).boldLetter = '';
+      (q as any).expectedWord = '';
+      (q as any).categoryTip = '';
+      q.instruction = '';
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
+    } else if ((qType as any) === 'rearrange') {
+      (q as any).rearrangePrompt = '';
+      (q as any).rearrangeAnswer = '';
+      (q as any).rearrangeTokens = '';
+      q.aiGradingEnabled = false;
+      q.scoringMode = 'full';
+    } else if ((qType as any) === 'image_pin_match') {
+      q.imageUrl = parent.imageUrl || '';
+      q.labels = [
+        { id: this.newLabelId(), text: '', correctPinId: '' },
+        { id: this.newLabelId(), text: '', correctPinId: '' }
+      ];
+      q.pins = [];
+      q.settings = { randomizeLabels: true, allowRetry: true };
+      q.aiGradingEnabled = true;
+      q.scoringMode = 'proportional';
+      q.similarityThreshold = 100;
+    } else if (qType === 'video-pronunciation') {
+      q.videoUrl = parent.videoUrl || '';
+      q.caption = '';
+      q.secondaryCaption = '';
+      q.secondaryCaptionAtSeconds = 5;
+    }
 
-    if (this.expandedQuestion === fromIndex) {
-      this.expandedQuestion = toIndex;
-      return;
-    }
-    if (fromIndex < this.expandedQuestion && this.expandedQuestion <= toIndex) {
-      this.expandedQuestion -= 1;
-      return;
-    }
-    if (toIndex <= this.expandedQuestion && this.expandedQuestion < fromIndex) {
-      this.expandedQuestion += 1;
-    }
+    return q;
+  }
+
+  /** Last question type for "Add one more" button. */
+  get lastQuestionType(): string {
+    if (this.questions.length === 0) return 'mcq';
+    const last = this.questions[this.questions.length - 1];
+    if (last.type === 'question-answer' && last.worksheetKind) return last.worksheetKind;
+    return last.type;
   }
 
   toggleExpanded(index: number): void {
@@ -1057,7 +1153,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   isQuestionsValid(): boolean {
     if (this.questions.length === 0) return false;
-    return this.questions.every(q => this.isQuestionValid(q));
+    const mainValid = this.questions.every(q => this.isQuestionValid(q));
+    if (!mainValid) return false;
+    const subValid = this.questions.every(q => {
+      if (!q.subQuestions || q.subQuestions.length === 0) return true;
+      return q.subQuestions.every(sq => this.isQuestionValid(sq));
+    });
+    return subValid;
   }
 
   isQuestionValid(q: BuilderQuestion): boolean {
@@ -1220,6 +1322,106 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       } else {
         delete row.attachmentAudioMaxPlaysPerAttempt;
       }
+
+      // Include sub-questions if present
+      if (q.subQuestions && q.subQuestions.length > 0) {
+        row.subQuestions = q.subQuestions.map((sq: BuilderQuestion) => {
+          const subRow: any = { ...sq };
+          subRow.type = sq.type;
+          subRow.points = sq.points || 1;
+          subRow.context = String(sq.context || '').trim();
+          subRow.instruction = String(sq.instruction ?? '');
+          subRow.example = String(sq.workedExample ?? '');
+          subRow.worksheetKind = sq.worksheetKind || null;
+          subRow.attachmentUrl = String(sq.attachmentUrl || '');
+          subRow.answerExplanation = String(sq.answerExplanation || '');
+          subRow.similarityThreshold = sq.similarityThreshold ?? 70;
+          subRow.scoringMode = sq.scoringMode || 'full';
+          subRow.aiGradingEnabled = sq.aiGradingEnabled ?? true;
+
+          if (sq.type === 'mcq') {
+            subRow.question = String(sq.question || '');
+            subRow.imageUrl = String(sq.imageUrl || '');
+            subRow.options = (sq.options || []).map((o: string) => String(o || '').trim()).filter(Boolean);
+            subRow.correctAnswerIndex = sq.correctAnswerIndex ?? 0;
+            subRow.explanation = String(sq.explanation || '');
+          } else if (sq.type === 'matching' && Array.isArray(sq.pairs)) {
+            subRow.pairs = sq.pairs.map((p: { left?: string; right?: string }) => ({
+              left: String(p.left || '').trim(),
+              right: String(p.right || '').trim()
+            }));
+          } else if (sq.type === 'singular_plural' && Array.isArray(sq.pairs)) {
+            subRow.pairs = sq.pairs.map((p: { singular?: string; plural?: string }) => ({
+              singular: String(p.singular || '').trim(),
+              plural: String(p.plural || '').trim()
+            }));
+          } else if (sq.type === 'fill-blank') {
+            subRow.sentence = String(sq.sentence || '');
+            subRow.answers = (sq.answers || []).map((a: string) => String(a || '').trim()).filter(Boolean);
+            subRow.hint = String(sq.hint || '');
+            subRow.caseSensitive = sq.caseSensitive || false;
+          } else if ((sq.type as any) === 'word_bank_fill') {
+            subRow.wordBank = (sq.wordBank || []).map((w: string) => String(w || '').trim()).filter(Boolean);
+            subRow.items = (sq.items || [])
+              .map((item: any) => ({
+                prompt: String(item?.prompt || '').trim(),
+                answer: String(item?.answer || '').trim(),
+                acceptedAnswers: (item?.acceptedAnswers || []).map((a: string) => String(a || '').trim()).filter(Boolean)
+              }))
+              .filter((item: any) => item.prompt && item.answer);
+            subRow.reusableWords = sq.reusableWords !== false;
+          } else if (sq.type === 'pronunciation') {
+            subRow.word = String(sq.word || '');
+            subRow.phonetic = String(sq.phonetic || '');
+            subRow.translation = String(sq.translation || '');
+            subRow.audioUrl = String(sq.audioUrl || '');
+            subRow.acceptedVariants = (sq.acceptedVariants || []).map((v: string) => String(v || '').trim()).filter(Boolean);
+          } else if (sq.type === 'question-answer') {
+            subRow.prompt = String(sq.prompt || '');
+            subRow.sampleAnswers = (sq.sampleAnswers || []).map((a: string) => String(a || '').trim()).filter(Boolean);
+            subRow.storyParagraph = String(sq.storyParagraph || '');
+          } else if (sq.type === 'listening') {
+            subRow.prompt = String(sq.prompt || '');
+            subRow.mediaUrl = String(sq.mediaUrl || '');
+            subRow.expectedTranscript = String(sq.expectedTranscript || '');
+            subRow.attemptMode = sq.attemptMode || 'typing';
+          } else if ((sq.type as any) === 'jumble-word') {
+            subRow.scrambledText = String((sq as any).scrambledText || '');
+            subRow.boldLetter = String((sq as any).boldLetter || '');
+            subRow.expectedWord = String((sq as any).expectedWord || '');
+            subRow.categoryTip = String((sq as any).categoryTip || '');
+          } else if ((sq.type as any) === 'rearrange') {
+            subRow.rearrangePrompt = String((sq as any).rearrangePrompt || '');
+            subRow.rearrangeAnswer = String((sq as any).rearrangeAnswer || '');
+            const tokensRaw = String((sq as any).rearrangeTokens || '');
+            subRow.rearrangeTokens = tokensRaw.split('\n').map((x: string) => x.trim()).filter(Boolean);
+          } else if ((sq.type as any) === 'image_pin_match') {
+            subRow.imageUrl = String(sq.imageUrl || '');
+            subRow.labels = (sq.labels || []).map((l: any) => ({
+              id: String(l?.id || ''),
+              text: String(l?.text || ''),
+              correctPinId: String(l?.correctPinId || '')
+            })).filter((l: any) => l.id && l.text);
+            subRow.pins = (sq.pins || []).map((p: any) => ({
+              id: String(p?.id || ''),
+              x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+              y: Math.max(0, Math.min(100, Number(p?.y) || 0))
+            })).filter((p: any) => p.id);
+            subRow.settings = {
+              randomizeLabels: sq.settings?.randomizeLabels !== false,
+              allowRetry: sq.settings?.allowRetry !== false
+            };
+          } else if (sq.type === 'video-pronunciation') {
+            subRow.videoUrl = String(sq.videoUrl || '');
+            subRow.caption = String(sq.caption || '');
+            subRow.secondaryCaption = String(sq.secondaryCaption || '');
+            subRow.secondaryCaptionAtSeconds = sq.secondaryCaptionAtSeconds || 5;
+          }
+
+          return subRow;
+        });
+      }
+
       return row;
     });
 
@@ -1311,7 +1513,23 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   getTotalPoints(): number {
-    return this.questions.reduce((s, q) => s + (q.points || 1), 0);
+    return this.questions.reduce((s, q) => {
+      let total = s + (q.points || 1);
+      if (q.subQuestions && q.subQuestions.length > 0) {
+        total += q.subQuestions.reduce((subTotal, sq) => subTotal + (sq.points || 1), 0);
+      }
+      return total;
+    }, 0);
+  }
+
+  getTotalQuestionCount(): number {
+    return this.questions.reduce((s, q) => {
+      let total = 1;
+      if (q.subQuestions && q.subQuestions.length > 0) {
+        total += q.subQuestions.length;
+      }
+      return s + total;
+    }, 0);
   }
 
   getLevelColor(level: string): string {

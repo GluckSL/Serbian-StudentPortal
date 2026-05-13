@@ -63,6 +63,10 @@ interface VpChatMessage {
 interface PlayerQuestion {
   data: any; // raw question data from API
   index: number;
+  // Sub-question state
+  isSubQuestion?: boolean;
+  parentIndex?: number;
+  subQuestionIndex?: number;
   // MCQ state
   selectedOption?: number;
   // Matching state
@@ -150,6 +154,8 @@ interface PlayerQuestion {
   feedback?: string;
   /** Attachment audio: play starts used this exercise attempt (when teacher set a cap). */
   attachmentAudioPlaysUsed?: number;
+  /** Sub-question answers */
+  subQuestionAnswers?: Record<number, string | number>;
 }
 
 type SpecialInputTarget =
@@ -1621,7 +1627,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   get isFirstQuestion(): boolean { return this.currentIndex === 0; }
   get isLastQuestion(): boolean { return this.currentIndex === this.playerQuestions.length - 1; }
   get answeredCount(): number { return this.playerQuestions.filter(q => q.isAnswered === true).length; }
-  get totalPoints(): number { return this.playerQuestions.reduce((s, q) => s + (q.data.points || 1), 0); }
+  get totalQuestionCount(): number {
+    return this.playerQuestions.reduce((s, q) => {
+      let count = 1;
+      if (q.data.subQuestions?.length) {
+        count += q.data.subQuestions.length;
+      }
+      return s + count;
+    }, 0);
+  }
+  get totalPoints(): number {
+    return this.playerQuestions.reduce((s: number, q: any) => {
+      let pts = q.data.points || 1;
+      if (q.data.subQuestions?.length) {
+        pts += q.data.subQuestions.reduce((ss: number, sq: any) => ss + (sq.points || 1), 0);
+      }
+      return s + pts;
+    }, 0);
+  }
   get unattemptedCount(): number { return this.playerQuestions.length - this.answeredCount; }
 
   get correctCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true).length; }
@@ -1717,6 +1740,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   selectOption(pq: PlayerQuestion, index: number): void {
     if (this.state === 'submitted') return;
     pq.selectedOption = index;
+    this.markAttempted(pq);
+  }
+
+  // ─── Sub-question Interaction ─────────────────────────────────────────────────────
+
+  selectSubQuestionOption(pq: PlayerQuestion, subIndex: number, optionIndex: number): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionAnswers) {
+      pq.subQuestionAnswers = {};
+    }
+    pq.subQuestionAnswers[subIndex] = optionIndex;
+    this.markAttempted(pq);
+  }
+
+  setSubQuestionAnswer(pq: PlayerQuestion, subIndex: number, answer: string): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionAnswers) {
+      pq.subQuestionAnswers = {};
+    }
+    pq.subQuestionAnswers[subIndex] = answer;
     this.markAttempted(pq);
   }
 
@@ -2531,6 +2574,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         resp.spokenText = pq.vpSpokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }
+      if (pq.data.subQuestions?.length) {
+        resp.subQuestionResponses = pq.data.subQuestions.map((sq: any, sqi: number) => {
+          const ans = pq.subQuestionAnswers?.[sqi];
+          if (sq.type === 'mcq') {
+            return { questionIndex: sqi, selectedOptionIndex: ans !== undefined ? ans : null };
+          }
+          return { questionIndex: sqi, textAnswer: ans !== undefined ? String(ans) : null };
+        });
+      }
       return resp;
     });
   }
@@ -2898,6 +2950,20 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return first || '—';
     }
     return '—';
+  }
+
+  /** For review page: get sub-question answer text */
+  getSubQuestionAnswerText(pq: PlayerQuestion, sqIndex: number): string {
+    const answer = pq.subQuestionAnswers?.[sqIndex];
+    if (answer === undefined || answer === null) return 'Not answered';
+    if (typeof answer === 'number') {
+      const sq = pq.data.subQuestions?.[sqIndex];
+      if (sq && sq.type === 'mcq' && sq.options) {
+        return sq.options[answer] || String(answer);
+      }
+      return String(answer);
+    }
+    return String(answer);
   }
 
   getJumbleTokens(data: any): string[] {
