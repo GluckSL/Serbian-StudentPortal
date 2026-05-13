@@ -558,6 +558,11 @@
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || '—' }}</span>
                 <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen' }} ({{ q.mediaUrl ? 'audio' : '—' }})</span>
                 <span *ngSwitchCase="'jumble-word'">{{ q.scrambledText || '—' }}</span>
+                <span *ngSwitchCase="'word_bank_fill'">{{ (q.items?.length || 0) }} blank(s)</span>
+                <span *ngSwitchCase="'rearrange'">{{ q.rearrangePrompt || '—' }}</span>
+                <span *ngSwitchCase="'video-pronunciation'">{{ q.caption || '—' }}</span>
+                <span *ngSwitchCase="'image_pin_match'">{{ (q.labels?.length || 0) }} label(s)</span>
+                <span *ngSwitchDefault>{{ q.prompt || q.question || q.sentence || q.word || '—' }}</span>
               </ng-container>
             </span>
           </div>
@@ -883,6 +888,128 @@
             </div>
           </ng-container>
 
+          <!-- Word bank fill -->
+          <ng-container *ngIf="q.type === 'word_bank_fill'">
+            <div class="ed-field">
+              <label>Word bank <span class="hint-label">(one entry per line, at least two)</span></label>
+              <textarea
+                class="ed-input"
+                rows="4"
+                [value]="getWordBankLineText(q)"
+                (input)="onWordBankLinesChange(q, $any($event.target).value)"
+              ></textarea>
+            </div>
+            <div class="ed-field">
+              <label class="field-check">
+                <input type="checkbox" [(ngModel)]="q.reusableWords" />
+                Words can be reused across blanks
+              </label>
+            </div>
+            <div class="ed-field">
+              <label>Items</label>
+              <div *ngFor="let it of q.items; let ii = index" class="wb-item-row">
+                <span class="blank-num">#{{ ii + 1 }}</span>
+                <input type="text" [(ngModel)]="it.prompt" class="ed-input" placeholder="Sentence with ___" />
+                <input type="text" [(ngModel)]="it.answer" class="ed-input" placeholder="Answer (from bank)" style="max-width:180px" />
+                <button type="button" class="btn-rm-sm" (click)="removeWordBankItem(q, ii)" *ngIf="q.items!.length > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button type="button" class="btn-add-sm" (click)="addWordBankItem(q)">
+                <span class="material-icons">add</span> Add item
+              </button>
+            </div>
+          </ng-container>
+
+          <!-- Rearrange -->
+          <ng-container *ngIf="q.type === 'rearrange'">
+            <div class="ed-field">
+              <label>Prompt <span class="required">*</span></label>
+              <textarea [(ngModel)]="q.rearrangePrompt" class="ed-input" rows="2" placeholder="Instructions for the student"></textarea>
+            </div>
+            <div class="ed-field">
+              <label>Correct sentence <span class="opt-label">(optional if tokens set)</span></label>
+              <input type="text" [(ngModel)]="q.rearrangeAnswer" class="ed-input" placeholder="Full correct sentence" />
+            </div>
+            <div class="ed-field">
+              <label>Word tokens <span class="hint-label">(correct order, one per line)</span></label>
+              <textarea
+                class="ed-input"
+                rows="4"
+                [value]="getRearrangeTokensLineText(q)"
+                (input)="onRearrangeTokensLinesChange(q, $any($event.target).value)"
+                placeholder="One word per line, in the order students must achieve"
+              ></textarea>
+            </div>
+          </ng-container>
+
+          <!-- Video pronunciation -->
+          <ng-container *ngIf="q.type === 'video-pronunciation'">
+            <div class="ed-field">
+              <label>Video URL <span class="required">*</span></label>
+              <input type="text" [(ngModel)]="q.videoUrl" class="ed-input" placeholder="https://..." />
+            </div>
+            <div class="ed-field">
+              <label>Caption / line to speak <span class="required">*</span></label>
+              <input type="text" [(ngModel)]="q.caption" class="ed-input" />
+            </div>
+            <div class="ed-field">
+              <label>Secondary caption <span class="opt-label">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.secondaryCaption" class="ed-input" />
+            </div>
+            <div class="ed-field">
+              <label>Show secondary at (seconds)</label>
+              <input type="number" [(ngModel)]="q.secondaryCaptionAtSeconds" class="ed-input" style="width:100px" min="0" step="1" />
+            </div>
+          </ng-container>
+
+          <!-- Image pin match -->
+          <ng-container *ngIf="q.type === 'image_pin_match'">
+            <div class="ed-field">
+              <label>Background image URL <span class="required">*</span></label>
+              <input type="text" [(ngModel)]="q.imageUrl" class="ed-input" placeholder="Direct link to .jpg / .png …" />
+            </div>
+            <div class="ed-field">
+              <label>Pins</label>
+              <div *ngFor="let p of q.pins; let pi = index" class="pin-row-ed">
+                <span class="blank-num">{{ p.id }}</span>
+                <label>x %</label>
+                <input type="number" [(ngModel)]="p.x" class="ed-input" style="width:80px" min="0" max="100" />
+                <label>y %</label>
+                <input type="number" [(ngModel)]="p.y" class="ed-input" style="width:80px" min="0" max="100" />
+                <button type="button" class="btn-rm-sm" (click)="removeImagePinPin(q, pi)" *ngIf="q.pins!.length > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button type="button" class="btn-add-sm" (click)="addImagePinPin(q)">
+                <span class="material-icons">add</span> Add pin
+              </button>
+            </div>
+            <div class="ed-field">
+              <label>Labels</label>
+              <div *ngFor="let lab of q.labels; let li = index" class="pin-row-ed">
+                <span class="blank-num">#{{ li + 1 }}</span>
+                <input type="text" [(ngModel)]="lab.text" class="ed-input" placeholder="Label text" />
+                <label>→ pin</label>
+                <select [(ngModel)]="lab.correctPinId" class="ed-input" style="width:auto">
+                  <option *ngFor="let p of q.pins" [value]="p.id">{{ p.id }}</option>
+                </select>
+                <button type="button" class="btn-rm-sm" (click)="removeImagePinLabel(q, li)" *ngIf="q.labels!.length > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button type="button" class="btn-add-sm" (click)="addImagePinLabel(q)">
+                <span class="material-icons">add</span> Add label
+              </button>
+            </div>
+            <div class="ed-field" *ngIf="q.settings">
+              <label class="field-check">
+                <input type="checkbox" [(ngModel)]="q.settings.randomizeLabels" />
+                Randomize label order
+              </label>
+            </div>
+          </ng-container>
+
           <ng-container *ngIf="q.type === 'question-answer'">
             <div class="ed-field">
               <label>Question <span class="required">*</span></label>
@@ -1014,14 +1141,6 @@
           <button *ngFor="let qt of questionTypes" class="add-q-btn" (click)="addBlankQuestion(qt.value)"
             [style.background]="qt.bg" [style.color]="qt.color">
             <span class="material-icons">{{ qt.icon }}</span> {{ qt.label }}
-          </button>
-          <button class="add-q-btn" (click)="addBlankQuestion('listening')"
-            style="background:#fef3c7;color:#b45309">
-            <span class="material-icons">headphones</span> Listening
-          </button>
-          <button class="add-q-btn" (click)="addBlankQuestion('jumble-word')"
-            style="background:#fef3c7;color:#b45309">
-            <span class="material-icons">shuffle</span> Jumble Word
           </button>
         </div>
       </div>

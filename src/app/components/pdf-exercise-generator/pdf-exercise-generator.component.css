@@ -2161,3 +2161,24 @@
   height: 18px;
   accent-color: #6366f1;
 }
+
+/* Word bank + image pin rows in PDF review editor */
+.wb-item-row,
+.pin-row-ed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.wb-item-row .ed-input {
+  flex: 1;
+  min-width: 140px;
+}
+.field-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}

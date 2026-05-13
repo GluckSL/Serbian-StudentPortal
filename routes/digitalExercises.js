@@ -2748,6 +2748,10 @@ router.post(
         question.sentence ||
         question.word ||
         question.scrambledText ||
+        question.rearrangePrompt ||
+        question.expectedWord ||
+        question.caption ||
+        question.expectedTranscript ||
         '';
 
       // Shared meta fields to preserve
@@ -2765,7 +2769,18 @@ router.post(
         pairs: question.pairs || undefined,
         options: question.options || undefined,
         sampleAnswers: question.sampleAnswers || undefined,
-        answers: question.answers || undefined
+        answers: question.answers || undefined,
+        rearrangePrompt: question.rearrangePrompt || undefined,
+        rearrangeTokens: question.rearrangeTokens || undefined,
+        rearrangeAnswer: question.rearrangeAnswer || undefined,
+        scrambledText: question.scrambledText || undefined,
+        expectedWord: question.expectedWord || undefined,
+        wordBank: question.wordBank || undefined,
+        items: question.items || undefined,
+        caption: question.caption || undefined,
+        expectedTranscript: question.expectedTranscript || undefined,
+        labels: question.labels || undefined,
+        pins: question.pins || undefined
       };
 
       // Per-target type instructions + expected JSON shape
@@ -2806,7 +2821,33 @@ Return JSON: { "type": "pronunciation", "word": "<word or phrase>", "phonetic": 
 Return JSON: { "type": "question-answer", "worksheetKind": "free-writing-own-sentences", "prompt": "<writing prompt>", "sampleAnswers": ["<example sentence>"], "similarityThreshold": 60, "scoringMode": "proportional", "points": ${meta.points} }`,
 
         'table-profile-fill': `Convert to a table/profile fill-in task.
-Return JSON: { "type": "question-answer", "worksheetKind": "table-profile-fill", "prompt": "<fill-in prompt>", "sampleAnswers": ["<expected values>"], "similarityThreshold": 60, "scoringMode": "proportional", "points": ${meta.points} }`
+Return JSON: { "type": "question-answer", "worksheetKind": "table-profile-fill", "prompt": "<fill-in prompt>", "sampleAnswers": ["<expected values>"], "similarityThreshold": 60, "scoringMode": "proportional", "points": ${meta.points} }`,
+
+        'free-writing-profile': `Convert to a short profile (Steckbrief) writing task.
+Return JSON: { "type": "question-answer", "worksheetKind": "free-writing-profile", "prompt": "<profile writing prompt>", "sampleAnswers": ["<example profile sentence or bullet-style answer>"], "similarityThreshold": 60, "scoringMode": "proportional", "points": ${meta.points} }`,
+
+        'jumble-word': `Convert to a jumble-word task (scrambled letters → one correct word).
+Return JSON: { "type": "jumble-word", "scrambledText": "<letters with spaces as needed, e.g. Z I M M E R>", "expectedWord": "<correct word>", "boldLetter": "", "categoryTip": "<optional short hint>", "points": ${meta.points} }
+- scrambledText must be an anagram-style scramble of expectedWord.`,
+
+        rearrange: `Convert to a rearrange-the-words task (correct sentence order).
+Return JSON: { "type": "rearrange", "rearrangePrompt": "<short instruction shown to students>", "rearrangeAnswer": "<correct full sentence>", "rearrangeTokens": ["<word1>","<word2>",...], "points": ${meta.points} }
+- rearrangeTokens must be the words of rearrangeAnswer in correct order (the app shuffles them for the student).`,
+
+        word_bank_fill: `Convert to a word-bank fill exercise (shared bank, multiple blanks).
+Return JSON: { "type": "word_bank_fill", "instruction": "<instruction>", "wordBank": ["<word1>","<word2>",...], "items": [{"prompt":"<sentence with ___ for each blank>","answer":"<correct word>","acceptedAnswers":[]}], "reusableWords": true, "points": ${meta.points} }
+- At least 2 words in wordBank and at least 2 items. Each item.answer must appear in wordBank.`,
+
+        listening: `Convert to a listening comprehension question (teacher will attach audio later if missing).
+Return JSON: { "type": "listening", "prompt": "<what the student should do>", "mediaUrl": "", "expectedTranscript": "<exact text students should type>", "attemptMode": "typing-or-speech", "points": ${meta.points} }`,
+
+        'video-pronunciation': `Convert to a video pronunciation task (watch and speak a line).
+Return JSON: { "type": "video-pronunciation", "videoUrl": "", "caption": "<line the student should speak>", "secondaryCaption": "", "secondaryCaptionAtSeconds": 5, "points": ${meta.points} }
+- Leave videoUrl empty if unknown; teacher can paste a URL later.`,
+
+        image_pin_match: `Convert to an image pin match task (labels matched to numbered pins on an image).
+Return JSON: { "type": "image_pin_match", "imageUrl": "", "instruction": "<optional>", "labels": [{"id":"l1","text":"<label text>","correctPinId":"p1"},...], "pins": [{"id":"p1","x":30,"y":45},...], "settings": {"randomizeLabels": true, "allowRetry": true}, "points": ${meta.points} }
+- Use 3–4 label/pin pairs. x and y are percentages 5–95. Each label.correctPinId must equal one pin.id. Leave imageUrl empty if no image; teacher uploads later.`
       };
 
       const targetInstruction = targetInstructions[targetType];
@@ -2835,7 +2876,7 @@ Respond with ONLY the JSON object.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent }
         ],
-        max_tokens: 600,
+        max_tokens: 900,
         temperature: 0.4,
         response_format: { type: 'json_object' }
       });
@@ -2883,6 +2924,47 @@ Respond with ONLY the JSON object.`;
       } else if (targetType === 'question-answer') {
         converted.type = 'question-answer';
         converted.worksheetKind = null;
+      } else if (targetType === 'free-writing-profile') {
+        converted.type = 'question-answer';
+        converted.worksheetKind = 'free-writing-profile';
+        if (converted.similarityThreshold == null) converted.similarityThreshold = 60;
+        if (!converted.scoringMode) converted.scoringMode = 'proportional';
+      } else if (targetType === 'jumble-word') {
+        converted.type = 'jumble-word';
+        if (converted.boldLetter == null) converted.boldLetter = '';
+        if (converted.categoryTip == null) converted.categoryTip = '';
+      } else if (targetType === 'rearrange') {
+        converted.type = 'rearrange';
+        let toks = converted.rearrangeTokens;
+        if (typeof toks === 'string') {
+          toks = toks.split(/\s+/).map((t) => String(t || '').trim()).filter(Boolean);
+        }
+        if (!Array.isArray(toks)) toks = [];
+        converted.rearrangeTokens = toks;
+        if (!converted.rearrangePrompt) converted.rearrangePrompt = '';
+        if (!converted.rearrangeAnswer) converted.rearrangeAnswer = '';
+      } else if (targetType === 'word_bank_fill') {
+        converted.type = 'word_bank_fill';
+        if (!Array.isArray(converted.wordBank)) converted.wordBank = [];
+        if (!Array.isArray(converted.items)) converted.items = [];
+        if (converted.reusableWords == null) converted.reusableWords = true;
+      } else if (targetType === 'listening') {
+        converted.type = 'listening';
+        if (!converted.attemptMode) converted.attemptMode = 'typing-or-speech';
+        if (converted.mediaUrl == null) converted.mediaUrl = '';
+      } else if (targetType === 'video-pronunciation') {
+        converted.type = 'video-pronunciation';
+        if (converted.secondaryCaption == null) converted.secondaryCaption = '';
+        if (converted.secondaryCaptionAtSeconds == null) converted.secondaryCaptionAtSeconds = 5;
+        if (converted.videoUrl == null) converted.videoUrl = '';
+      } else if (targetType === 'image_pin_match') {
+        converted.type = 'image_pin_match';
+        if (!Array.isArray(converted.labels)) converted.labels = [];
+        if (!Array.isArray(converted.pins)) converted.pins = [];
+        if (!converted.settings || typeof converted.settings !== 'object') {
+          converted.settings = { randomizeLabels: true, allowRetry: true };
+        }
+        if (converted.imageUrl == null) converted.imageUrl = '';
       }
 
       return res.json({ question: converted });

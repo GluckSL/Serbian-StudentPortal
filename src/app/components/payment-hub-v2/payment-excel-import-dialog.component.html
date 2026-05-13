@@ -46,7 +46,7 @@
         <div class="ei-template-copy">
           <span class="ei-kicker">Template</span>
           <h2>Structured import file</h2>
-          <p>Headers support common aliases (student_email, paid amount, payment date, …). Currency falls back to each student’s profile when omitted.</p>
+          <p>Headers match the legacy sheet (Name, Lng Quoted / Lng Received, Doc Quoted / Doc Paid, Visa Quo / Visa Re, …) plus aliases like student_email. Currency falls back to each student’s profile when omitted.</p>
         </div>
         <button type="button" class="ei-btn ei-btn-secondary" (click)="downloadTemplate()">
           <mat-icon>download</mat-icon>
@@ -136,6 +136,8 @@
                 <th>Note</th>
                 <th class="ei-num">Doc quote</th>
                 <th class="ei-num">Doc recv</th>
+                <th class="ei-num">Visa Quo</th>
+                <th class="ei-num">Visa Re</th>
               </tr>
             </thead>
             <tbody>
@@ -181,9 +183,11 @@
                   <td class="ei-ellipsis" [matTooltip]="row.note">{{ row.note || '—' }}</td>
                   <td class="ei-num">{{ fmt(row.documentQuotation) }}</td>
                   <td class="ei-num">{{ fmt(row.documentReceived) }}</td>
+                  <td class="ei-num">{{ fmt(row.visaQuotation) }}</td>
+                  <td class="ei-num">{{ fmt(row.visaReceived) }}</td>
                 </tr>
                 <tr class="ei-expand-row" *ngIf="isExpanded(row) && rowHasExpandableIssues(row)">
-                  <td [attr.colspan]="16">
+                  <td [attr.colspan]="18">
                     <div class="ei-expand-panel">
                       <div class="ei-issue" *ngFor="let issue of issueDetails(row)">
                         <mat-icon>lightbulb_outline</mat-icon>

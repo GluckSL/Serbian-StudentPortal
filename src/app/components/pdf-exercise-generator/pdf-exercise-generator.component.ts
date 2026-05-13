@@ -17,7 +17,19 @@ import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-s
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 interface ReviewQuestion {
-  type: 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening' | 'singular_plural' | 'jumble-word';
+  type:
+    | 'mcq'
+    | 'matching'
+    | 'fill-blank'
+    | 'word_bank_fill'
+    | 'pronunciation'
+    | 'question-answer'
+    | 'listening'
+    | 'video-pronunciation'
+    | 'singular_plural'
+    | 'jumble-word'
+    | 'rearrange'
+    | 'image_pin_match';
   worksheetKind?: string | null;
   // MCQ
   question?: string;
@@ -57,6 +69,23 @@ interface ReviewQuestion {
   boldLetter?: string;
   expectedWord?: string;
   categoryTip?: string;
+  // Word bank fill
+  wordBank?: string[];
+  items?: Array<{ prompt?: string; answer?: string; acceptedAnswers?: string[] }>;
+  reusableWords?: boolean;
+  // Rearrange
+  rearrangePrompt?: string;
+  rearrangeAnswer?: string;
+  rearrangeTokens?: string[];
+  // Video pronunciation
+  videoUrl?: string;
+  caption?: string;
+  secondaryCaption?: string;
+  secondaryCaptionAtSeconds?: number;
+  // Image pin match (uses `imageUrl` above for background image)
+  labels?: Array<{ id: string; text: string; correctPinId: string }>;
+  pins?: Array<{ id: string; x: number; y: number }>;
+  settings?: { randomizeLabels?: boolean; allowRetry?: boolean };
   // Common
   points: number;
   /** Optional context/passage shown above the question */
@@ -198,20 +227,26 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   bulkConvertProgress = 0;
   bulkConvertTotal = 0;
 
+  /** Same catalogue as Digital Exercise Builder so bulk “Change type” lists every format. */
   readonly questionTypes = [
-    { value: 'mcq',             label: 'Multiple Choice',  desc: '4 options, 1 correct answer',      icon: 'quiz',              color: '#1976d2', bg: '#e8f4fd' },
-    { value: 'matching',        label: 'Matching',          desc: 'Match word / phrase pairs',         icon: 'compare_arrows',    color: '#7b1fa2', bg: '#f3e5f5' },
-    { value: 'fill-blank',      label: 'Fill in the Blanks',desc: 'Sentence with _ or ___ gaps',        icon: 'text_fields',       color: '#388e3c', bg: '#e8f5e9' },
-    { value: 'pronunciation',   label: 'Pronunciation',     desc: 'Speak a word aloud',               icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' },
-    { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer',    icon: 'short_text',        color: '#0d9488', bg: '#e0f2f1' },
-    { value: 'true-false', label: 'Richtig / Falsch', desc: 'Entscheiden, ob eine Aussage richtig oder falsch ist', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
+    { value: 'mcq', label: 'Multiple Choice', desc: '4 options, 1 correct answer', icon: 'quiz', color: '#1976d2', bg: '#e8f4fd' },
+    { value: 'matching', label: 'Matching', desc: 'Match word / phrase pairs', icon: 'compare_arrows', color: '#7b1fa2', bg: '#f3e5f5' },
+    { value: 'fill-blank', label: 'Fill in the Blanks', desc: 'Sentence with _ or ___ gaps', icon: 'text_fields', color: '#388e3c', bg: '#e8f5e9' },
+    { value: 'word_bank_fill', label: 'Word Bank Fill', desc: 'Shared word bank with multiple blank prompts', icon: 'format_list_bulleted', color: '#1565c0', bg: '#e3f2fd' },
+    { value: 'pronunciation', label: 'Pronunciation', desc: 'Speak a word aloud', icon: 'record_voice_over', color: '#e65100', bg: '#fff3e0' },
+    { value: 'question-answer', label: 'Question / Answer', desc: 'Student writes a short answer', icon: 'short_text', color: '#0d9488', bg: '#e0f2f1' },
+    { value: 'listening', label: 'Listening', desc: 'Listen to audio and type what you hear', icon: 'headphones', color: '#b45309', bg: '#fef3c7' },
+    { value: 'video-pronunciation', label: 'Video Pronunciation', desc: 'Watch a clip and speak the caption', icon: 'videocam', color: '#c2410c', bg: '#ffedd5' },
+    { value: 'true-false', label: 'Richtig / Falsch', desc: 'True or false statement', icon: 'toggle_on', color: '#0ea5e9', bg: '#e0f2fe' },
     { value: 'sentence-transformation', label: 'Sentence Transformation', desc: 'Transform the sentence (e.g. statement → question)', icon: 'transform', color: '#9333ea', bg: '#f3e8ff' },
-    { value: 'singular_plural', label: 'Singular Plural', desc: 'Singular form shown; student writes the plural', icon: 'swap_horiz', color: '#16a34a', bg: '#dcfce7' },
+    { value: 'singular_plural', label: 'Singular Plural', desc: 'Singular shown; student writes the plural', icon: 'swap_horiz', color: '#16a34a', bg: '#dcfce7' },
     { value: 'table-profile-fill', label: 'Table / Profile Fill-in', desc: 'Fill values from a table/profile', icon: 'table_rows', color: '#64748b', bg: '#f1f5f9' },
     { value: 'free-writing-own-sentences', label: 'Free Writing / Own Sentences', desc: 'Write your own sentences', icon: 'edit_note', color: '#f97316', bg: '#fff7ed' },
     { value: 'free-writing-profile', label: 'Free Writing – profile', desc: 'Write a short profile (Steckbrief)', icon: 'badge', color: '#db2777', bg: '#fce7f3' },
     { value: 'error-correction', label: 'Error Correction', desc: 'Correct mistakes and write the right sentence', icon: 'error', color: '#dc2626', bg: '#fee2e2' },
-    { value: 'jumble-word',      label: 'Jumble Word',       desc: 'Scrambled letters → form the correct word', icon: 'shuffle', color: '#b45309', bg: '#fef3c7' }
+    { value: 'jumble-word', label: 'Jumble Word', desc: 'Scrambled letters → form the correct word', icon: 'shuffle', color: '#b45309', bg: '#fef3c7' },
+    { value: 'rearrange', label: 'Rearrange', desc: 'Put words in the correct order', icon: 'reorder', color: '#5b21b6', bg: '#ede9fe' },
+    { value: 'image_pin_match', label: 'Image Pin Match', desc: 'Match labels to pins on an image', icon: 'place', color: '#0f766e', bg: '#ccfbf1' }
   ];
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -1242,6 +1277,47 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     }
     else if (type === 'listening') Object.assign(q, { prompt: 'Listen and type what you hear.', mediaUrl: '', expectedTranscript: '', attemptMode: 'typing-or-speech' });
     else if (type === 'jumble-word') Object.assign(q, { scrambledText: '', boldLetter: '', expectedWord: '', categoryTip: '' });
+    else if (type === 'word_bank_fill') {
+      Object.assign(q, {
+        type: 'word_bank_fill',
+        instruction: '',
+        wordBank: ['', ''],
+        items: [
+          { prompt: '', answer: '', acceptedAnswers: [] },
+          { prompt: '', answer: '', acceptedAnswers: [] }
+        ],
+        reusableWords: true
+      });
+    } else if (type === 'rearrange') {
+      Object.assign(q, {
+        type: 'rearrange',
+        rearrangePrompt: 'Put the words in the correct order.',
+        rearrangeAnswer: '',
+        rearrangeTokens: []
+      });
+    } else if (type === 'video-pronunciation') {
+      Object.assign(q, {
+        type: 'video-pronunciation',
+        videoUrl: '',
+        caption: '',
+        secondaryCaption: '',
+        secondaryCaptionAtSeconds: 5
+      });
+    } else if (type === 'image_pin_match') {
+      Object.assign(q, {
+        type: 'image_pin_match',
+        imageUrl: '',
+        labels: [
+          { id: 'l1', text: '', correctPinId: 'p1' },
+          { id: 'l2', text: '', correctPinId: 'p2' }
+        ],
+        pins: [
+          { id: 'p1', x: 30, y: 40 },
+          { id: 'p2', x: 70, y: 55 }
+        ],
+        settings: { randomizeLabels: true, allowRetry: true }
+      });
+    }
 
     this.reviewQuestions.push(q);
     this.addingType = '';
@@ -1260,6 +1336,60 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     else q.pairs!.push({ left: '', right: '' });
   }
   removePair(q: ReviewQuestion, i: number): void { if (q.pairs!.length > 2) q.pairs!.splice(i, 1); }
+
+  getRearrangeTokensLineText(q: ReviewQuestion): string {
+    const raw = q.rearrangeTokens;
+    return Array.isArray(raw) ? raw.join('\n') : '';
+  }
+
+  onRearrangeTokensLinesChange(q: ReviewQuestion, text: string): void {
+    q.rearrangeTokens = text
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  getWordBankLineText(q: ReviewQuestion): string {
+    return (q.wordBank || []).join('\n');
+  }
+
+  onWordBankLinesChange(q: ReviewQuestion, text: string): void {
+    q.wordBank = text.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  addWordBankItem(q: ReviewQuestion): void {
+    if (!q.items) q.items = [];
+    q.items.push({ prompt: '', answer: '', acceptedAnswers: [] });
+  }
+
+  removeWordBankItem(q: ReviewQuestion, i: number): void {
+    if (!q.items || q.items.length <= 1) return;
+    q.items.splice(i, 1);
+  }
+
+  addImagePinLabel(q: ReviewQuestion): void {
+    if (!q.labels) q.labels = [];
+    const pins = q.pins || [];
+    const n = q.labels.length + 1;
+    const pid = pins[Math.min(n - 1, pins.length - 1)]?.id || `p${n}`;
+    q.labels.push({ id: `l${n}`, text: '', correctPinId: pid });
+  }
+
+  removeImagePinLabel(q: ReviewQuestion, i: number): void {
+    if (!q.labels || q.labels.length <= 1) return;
+    q.labels.splice(i, 1);
+  }
+
+  addImagePinPin(q: ReviewQuestion): void {
+    if (!q.pins) q.pins = [];
+    const n = q.pins.length + 1;
+    q.pins.push({ id: `p${n}`, x: 50, y: 50 });
+  }
+
+  removeImagePinPin(q: ReviewQuestion, i: number): void {
+    if (!q.pins || q.pins.length <= 1) return;
+    q.pins.splice(i, 1);
+  }
 
   // Fill-blank
   onSentenceChange(q: ReviewQuestion): void {
@@ -1528,7 +1658,28 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       return true;
     }
     if (q.type === 'listening') return !!(q.mediaUrl?.trim()) && !!(q.expectedTranscript?.trim());
-    if ((q.type as any) === 'jumble-word') return !!(q as any).scrambledText?.trim() && !!(q as any).expectedWord?.trim();
+    if (q.type === 'word_bank_fill') {
+      const words = (q.wordBank || []).filter((w) => String(w || '').trim());
+      const rows = (q.items || []).filter((it) => String(it?.prompt || '').trim() && String(it?.answer || '').trim());
+      return words.length >= 2 && rows.length >= 1;
+    }
+    if (q.type === 'rearrange') {
+      const promptOk = !!String(q.rearrangePrompt || '').trim();
+      const ansOk = !!String(q.rearrangeAnswer || '').trim();
+      const toks = q.rearrangeTokens;
+      const toksOk = Array.isArray(toks) && toks.filter((t) => String(t || '').trim()).length >= 2;
+      return promptOk && (ansOk || toksOk);
+    }
+    if (q.type === 'video-pronunciation') return !!(q.videoUrl?.trim()) && !!(q.caption?.trim());
+    if (q.type === 'image_pin_match') {
+      const imageUrl = String(q.imageUrl || '').trim();
+      if (!imageUrl || this.getAttachmentType(imageUrl) !== 'image') return false;
+      const pins = q.pins || [];
+      const labels = q.labels || [];
+      if (pins.length < 1 || labels.length < 1) return false;
+      return labels.every((l) => String(l.text || '').trim() && String(l.correctPinId || '').trim());
+    }
+    if (q.type === 'jumble-word') return !!(q.scrambledText?.trim()) && !!(q.expectedWord?.trim());
     return false;
   }
 
@@ -1576,6 +1727,35 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     } else if (q.type === 'listening') {
       if (!q.mediaUrl?.trim()) parts.push('Add audio (upload or URL).');
       if (!q.expectedTranscript?.trim()) parts.push('Add the expected transcript.');
+    } else if (q.type === 'word_bank_fill') {
+      const words = (q.wordBank || []).filter((w) => String(w || '').trim());
+      const rows = (q.items || []).filter((it) => String(it?.prompt || '').trim() && String(it?.answer || '').trim());
+      if (words.length < 2) parts.push('Add at least two words to the word bank.');
+      if (rows.length < 1) parts.push('Add at least one item with prompt and answer.');
+    } else if (q.type === 'rearrange') {
+      if (!String(q.rearrangePrompt || '').trim()) parts.push('Add the task prompt.');
+      const ansOk = !!String(q.rearrangeAnswer || '').trim();
+      const toksOk =
+        Array.isArray(q.rearrangeTokens) && q.rearrangeTokens.filter((t) => String(t || '').trim()).length >= 2;
+      if (!ansOk && !toksOk) parts.push('Add the correct sentence or at least two word tokens in order.');
+    } else if (q.type === 'video-pronunciation') {
+      if (!q.videoUrl?.trim()) parts.push('Add a video URL.');
+      if (!q.caption?.trim()) parts.push('Add the caption line students should speak.');
+    } else if (q.type === 'image_pin_match') {
+      const imageUrl = String(q.imageUrl || '').trim();
+      if (!imageUrl || this.getAttachmentType(imageUrl) !== 'image') parts.push('Add a direct image URL for the background.');
+      const labels = q.labels || [];
+      const pins = q.pins || [];
+      if (pins.length < 1) parts.push('Add at least one pin.');
+      if (labels.length < 1) parts.push('Add at least one label.');
+      labels.forEach((l, i) => {
+        if (!String(l.text || '').trim() || !String(l.correctPinId || '').trim()) {
+          parts.push(`Complete label ${i + 1} (text and target pin).`);
+        }
+      });
+    } else if (q.type === 'jumble-word') {
+      if (!q.scrambledText?.trim()) parts.push('Add scrambled text.');
+      if (!q.expectedWord?.trim()) parts.push('Add the expected word.');
     } else {
       parts.push('This question type is incomplete.');
     }
@@ -1691,8 +1871,20 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       }).subscribe({
         next: (res) => {
           if (res?.question) {
-            const converted = { ...res.question, expanded: false, aiGenerated: q.aiGenerated };
-            this.reviewQuestions[idx] = converted as ReviewQuestion;
+            let conv = { ...res.question, expanded: false, aiGenerated: q.aiGenerated } as ReviewQuestion;
+            if (conv.type === 'rearrange' && conv.rearrangeTokens != null && typeof (conv as any).rearrangeTokens === 'string') {
+              conv = {
+                ...conv,
+                rearrangeTokens: String((conv as any).rearrangeTokens)
+                  .split(/\s+/)
+                  .map((t) => t.trim())
+                  .filter(Boolean)
+              };
+            }
+            if (conv.type === 'image_pin_match' && !conv.settings) {
+              conv = { ...conv, settings: { randomizeLabels: true, allowRetry: true } };
+            }
+            this.reviewQuestions[idx] = conv;
           }
           this.bulkConvertProgress = pos + 1;
           convertNext(pos + 1);
@@ -1810,7 +2002,16 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   getTypeInfo(type: string) {
-    return this.questionTypes.find(t => t.value === type) || this.questionTypes[0];
+    return (
+      this.questionTypes.find((t) => t.value === type) ?? {
+        value: type,
+        label: type,
+        desc: '',
+        icon: 'help_outline',
+        color: '#64748b',
+        bg: '#f1f5f9'
+      }
+    );
   }
 
   getLevelColor(level: string): string {

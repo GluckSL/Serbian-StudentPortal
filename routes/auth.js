@@ -219,6 +219,21 @@ function normalizeSubscription(raw) {
   return normalized;
 }
 
+function normalizeStudentStatus(raw) {
+  const normalized = String(raw || '')
+    .toUpperCase()
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return 'UNCERTAIN';
+  if (normalized === 'NOT STARTED') return 'ONGOING';
+  if (normalized === 'STARTED' || normalized === 'IN PROGRESS') return 'ONGOING';
+  if (normalized === 'COMPLETE') return 'COMPLETED';
+  if (normalized === 'WITHDRAWN') return 'WITHDREW';
+  return normalized;
+}
+
 function normalizeLevel(primary, fallback = '') {
   const candidates = [primary, fallback].map((v) => String(v || '').toUpperCase().trim()).filter(Boolean);
   for (const text of candidates) {
@@ -267,7 +282,7 @@ async function runMondaySync() {
 
   const eligibleItems = allItems.filter(item => {
     const get = (id) => mondayGet(item.column_values, id);
-    return get("color_mm019dcv").toUpperCase().trim() !== "WITHDREW";
+    return normalizeStudentStatus(get("color_mm019dcv")) !== "WITHDREW";
   });
 
   console.log(`âœ… ${eligibleItems.length} eligible (excluding WITHDREW)`);
@@ -292,7 +307,7 @@ async function runMondaySync() {
       const rawSubscription = get("color_mm02jfyb");
       const languageLevelOpted = get("color_mm02c95");
       const rawBatch = get("dropdown_mkxx6cfp");
-      const studentStatus = get("color_mm019dcv").toUpperCase().trim();
+      const studentStatus = normalizeStudentStatus(get("color_mm019dcv"));
       const rawLevel = get("dropdown_mkzshj5a");
       const subscription = normalizeSubscription(rawSubscription);
       const level = normalizeLevel(rawLevel, languageLevelOpted);
@@ -441,7 +456,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     // Filter: All packages, exclude WITHDREW status
     const eligibleItems = allItems.filter(item => {
       const get = (id) => mondayGet(item.column_values, id);
-      const currentStatus = get("color_mm019dcv").toUpperCase().trim();
+      const currentStatus = normalizeStudentStatus(get("color_mm019dcv"));
       return currentStatus !== "WITHDREW";
     });
 
@@ -464,7 +479,7 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       const rawSubscription   = get("color_mm02jfyb");
       const languageLevelOpted = get("color_mm02c95");
       const rawBatch          = get("dropdown_mkxx6cfp");
-      const studentStatus     = get("color_mm019dcv").toUpperCase().trim();
+      const studentStatus     = normalizeStudentStatus(get("color_mm019dcv"));
       const rawLevel          = get("dropdown_mkzshj5a");
       const subscription      = normalizeSubscription(rawSubscription);
       const level             = normalizeLevel(rawLevel, languageLevelOpted);

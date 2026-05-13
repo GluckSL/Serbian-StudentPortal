@@ -37,6 +37,10 @@ export interface ExcelImportRow {
   documentQuotation: number | null;
   /** Optional: amount received for documents (informational, stored in remarks for Docs rows). */
   documentReceived: number | null;
+  /** Optional: quoted visa fee (informational, stored in remarks for Visa rows). */
+  visaQuotation: number | null;
+  /** Optional: amount received for visa (informational, stored in remarks for Visa rows). */
+  visaReceived: number | null;
 }
 
 export interface PreviewRow extends ExcelImportRow {
@@ -161,7 +165,21 @@ export class PaymentExcelImportDialogComponent implements OnInit {
   }
 
   private findAmount(row: Record<string, unknown>): string {
-    return pickByAliases(row, ['Amount', 'amount', 'Amount paid', 'Paid amount', 'paid amount', 'Payment amount'], (k) => this.normalizeHeader(k));
+    return pickByAliases(
+      row,
+      [
+        'Amount',
+        'amount',
+        'Amount paid',
+        'Paid amount',
+        'paid amount',
+        'Payment amount',
+        'Lng Received',
+        'lng received',
+        'Language received',
+      ],
+      (k) => this.normalizeHeader(k),
+    );
   }
 
   private findType(row: Record<string, unknown>): string {
@@ -182,9 +200,9 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       'date of payment',
       'Payment Date',
       'payment date',
+      'Payment date',
       'Date',
       'date',
-      'Payment date',
       'Paid date',
     ];
     for (const a of dateAliases) {
@@ -195,11 +213,24 @@ export class PaymentExcelImportDialogComponent implements OnInit {
   }
 
   private findTotalAmount(row: Record<string, unknown>): string {
-    return pickByAliases(row, ['Total amount', 'total amount', 'Total course fee', 'Total', 'Course fee'], (k) => this.normalizeHeader(k));
+    return pickByAliases(
+      row,
+      [
+        'Total amount',
+        'total amount',
+        'Total course fee',
+        'Total',
+        'Course fee',
+        'Lng Quoted',
+        'lng quoted',
+        'Language quoted',
+      ],
+      (k) => this.normalizeHeader(k),
+    );
   }
 
   private findBalance(row: Record<string, unknown>): string {
-    return pickByAliases(row, ['Balance', 'Remaining balance'], (k) => this.normalizeHeader(k));
+    return pickByAliases(row, ['Balance', 'Bal', 'Remaining balance'], (k) => this.normalizeHeader(k));
   }
 
   private findNote(row: Record<string, unknown>): string {
@@ -217,6 +248,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
         'Document quotation',
         'document quotation',
         'Doc quotation',
+        'Doc Quoted',
+        'doc quoted',
         'Documentation quotation',
         'Document Quotation',
         'Docs quotation',
@@ -232,6 +265,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
         'Document received',
         'document received',
         'Docs received',
+        'Doc Paid',
+        'doc paid',
         'Documentation received',
         'Document Received',
       ],
@@ -239,42 +274,119 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     );
   }
 
+  private findVisaQuotation(row: Record<string, unknown>): string {
+    return pickByAliases(
+      row,
+      ['Visa Quo', 'visa quo', 'Visa Quoted', 'visa quoted', 'Visa quotation', 'Visa Quotation'],
+      (k) => this.normalizeHeader(k),
+    );
+  }
+
+  private findVisaReceived(row: Record<string, unknown>): string {
+    return pickByAliases(
+      row,
+      ['Visa Re', 'visa re', 'Visa Received', 'visa received', 'Visa paid', 'Visa Paid'],
+      (k) => this.normalizeHeader(k),
+    );
+  }
+
+  /** Optional context from legacy wide sheets (merged into Note when present). */
+  private findPlanTier(row: Record<string, unknown>): string {
+    return pickByAliases(
+      row,
+      ['PLATINUM / Silver', 'Platinum / Silver', 'Platinum/Silver', 'Subscription', 'Plan', 'Tier'],
+      (k) => this.normalizeHeader(k),
+    );
+  }
+
+  private findBatch(row: Record<string, unknown>): string {
+    return pickByAliases(row, ['Batch', 'batch', 'Batch number', 'Batch no'], (k) => this.normalizeHeader(k));
+  }
+
+  private findStudentStatus(row: Record<string, unknown>): string {
+    return pickByAliases(row, ['Status', 'Student status', 'Current status'], (k) => this.normalizeHeader(k));
+  }
+
+  private mergeLegacyContextNote(base: string, plan: string, batch: string, status: string): string {
+    const bits: string[] = [];
+    if (plan.trim()) bits.push(`Plan: ${plan.trim()}`);
+    if (batch.trim()) bits.push(`Batch: ${batch.trim()}`);
+    if (status.trim()) bits.push(`Status: ${status.trim()}`);
+    const prefix = bits.length ? bits.join(' · ') : '';
+    const rest = base.trim();
+    if (prefix && rest) return `${prefix} — ${rest}`;
+    return prefix || rest;
+  }
+
   downloadTemplate(): void {
+    // Matches common legacy workbook layout; trailing columns are required for this importer (one payment per row).
     const headers = [
+      '',
       'Name',
       'Email',
       'Level',
-      'Amount',
+      'PLATINUM / Silver',
+      'Batch',
+      'Status',
+      'Currency',
+      'Lng Quoted',
+      'Lng Received',
+      'Bal',
+      'Doc Quoted',
+      'Doc Paid',
+      'Visa Quo',
+      'Visa Re',
+      'Payment date',
       'Type',
       'Custom Label',
-      'Date of payment',
-      'Total amount',
-      'Balance',
       'Note',
-      'Currency',
-      'Document quotation',
-      'Document received',
     ];
-    const sample = ['John Silva', 'john@example.com', 'A1', '75000', 'Language', '', '2026-01-15', '75000', '0', 'First payment', 'LKR', '', ''];
+    const sample = [
+      '',
+      'John Silva',
+      'john@example.com',
+      'A1',
+      'PLATINUM',
+      '27',
+      'ONGOING',
+      'LKR',
+      '150000',
+      '75000',
+      '75000',
+      '300000',
+      '300000',
+      '400000',
+      '200000',
+      '2026-01-15',
+      'Language',
+      '',
+      'First payment',
+    ];
 
     const dataSheet = XLSX.utils.aoa_to_sheet([headers, sample]);
-    dataSheet['!cols'] = headers.map(() => ({ wch: 20 }));
+    dataSheet['!cols'] = headers.map((h, i) => ({ wch: i === 0 ? 4 : h.length > 12 ? 22 : 14 }));
 
     const notesData = [
       ['Field', 'Required', 'Notes'],
+      ['(first column)', 'Optional', 'Reserved for row numbers or IDs from your sheet — ignored on import'],
       ['Name', 'Recommended', 'Student full name — warning if it does not match portal'],
       ['Email', 'YES', 'Aliases: student_email, mail'],
       ['Level', 'Optional', 'E.g. A1, A2, B1'],
-      ['Amount', 'YES', 'Aliases: amount paid, paid amount'],
+      ['PLATINUM / Silver', 'Optional', 'Merged into Note as context (Plan: …)'],
+      ['Batch', 'Optional', 'Merged into Note as context'],
+      ['Status', 'Optional', 'Merged into Note as context'],
+      ['Currency', 'Recommended', 'LKR | INR | USD — inferred from student if blank'],
+      ['Lng Quoted', 'Optional', 'Aliases: Total amount, Language quoted'],
+      ['Lng Received', 'Optional', 'Aliases: Amount, Paid amount (language payment amount)'],
+      ['Bal', 'Optional', 'Aliases: Balance'],
+      ['Doc Quoted', 'Optional', 'Aliases: Document quotation — for Docs rows, stored in remarks'],
+      ['Doc Paid', 'Optional', 'Aliases: Document received — for Docs rows, stored in remarks'],
+      ['Visa Quo', 'Optional', 'For Visa rows: quoted visa fee (stored in remarks)'],
+      ['Visa Re', 'Optional', 'For Visa rows: visa amount received (stored in remarks)'],
+      ['Payment date', 'YES', 'Aliases: Date of payment, Payment Date'],
       ['Type', 'YES', 'Language | Docs | Visa | Custom'],
       ['Custom Label', 'Custom only', 'When Type is Custom'],
-      ['Date of payment', 'YES', 'Aliases: Date, Payment Date'],
-      ['Total amount', 'Language only', 'Defaults to Amount if blank'],
-      ['Balance', 'Optional', 'Informational'],
-      ['Note', 'Optional', 'Saved as remarks'],
-      ['Currency', 'Recommended', 'LKR | INR | USD — inferred from student if blank'],
-      ['Document quotation', 'Optional', 'For Type = Docs: quoted documentation fee (stored in remarks)'],
-      ['Document received', 'Optional', 'For Type = Docs: amount received for documents (stored in remarks)'],
+      ['Note', 'Optional', 'Saved as remarks (after Plan/Batch/Status prefix when those columns are filled)'],
     ];
     const notesSheet = XLSX.utils.aoa_to_sheet(notesData);
     notesSheet['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 60 }];
@@ -358,10 +470,15 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       const dateOfPayment = this.parseDate(this.findDate(r));
       const totalAmountRaw = this.findTotalAmount(r);
       const balanceRaw = this.findBalance(r);
-      const note = this.findNote(r);
+      const plan = this.findPlanTier(r);
+      const batch = this.findBatch(r);
+      const studentStatus = this.findStudentStatus(r);
+      const note = this.mergeLegacyContextNote(this.findNote(r), plan, batch, studentStatus);
       const currencyRaw = this.findCurrency(r).toUpperCase();
       const documentQuotation = this.parseNum(this.findDocumentQuotation(r));
       const documentReceived = this.parseNum(this.findDocumentReceived(r));
+      const visaQuotation = this.parseNum(this.findVisaQuotation(r));
+      const visaReceived = this.parseNum(this.findVisaReceived(r));
 
       const amount = this.parseNum(amountRaw);
       const totalAmount = this.parseNum(totalAmountRaw);
@@ -407,6 +524,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
         currency: sheetCurrency,
         documentQuotation,
         documentReceived,
+        visaQuotation,
+        visaReceived,
         matchedStudent,
         resolvedName,
         resolvedLevel,
@@ -592,6 +711,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
         Note: r.note,
         'Document quotation': r.documentQuotation ?? '',
         'Document received': r.documentReceived ?? '',
+        'Visa Quo': r.visaQuotation ?? '',
+        'Visa Re': r.visaReceived ?? '',
         'Portal name': r.resolvedName,
         'Portal level': r.resolvedLevel,
       });
@@ -623,6 +744,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       { wch: 18 },
       { wch: 18 },
       { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'FailedRows');
@@ -638,6 +761,20 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     }
     if (row.documentReceived != null) {
       parts.push(`Document received: ${row.documentReceived}`);
+    }
+    const out = parts.join(' · ');
+    return out || undefined;
+  }
+
+  /** Merge free-text note with optional visa quotation / received (Visa rows). */
+  private buildVisaRemarks(row: PreviewRow, baseNote?: string): string | undefined {
+    const parts: string[] = [];
+    if (baseNote?.trim()) parts.push(baseNote.trim());
+    if (row.visaQuotation != null) {
+      parts.push(`Visa quotation: ${row.visaQuotation}`);
+    }
+    if (row.visaReceived != null) {
+      parts.push(`Visa received: ${row.visaReceived}`);
     }
     const out = parts.join(' · ');
     return out || undefined;
@@ -687,7 +824,12 @@ export class PaymentExcelImportDialogComponent implements OnInit {
             remarks: this.buildDocsRemarks(row, row.note),
           });
         } else if (t === 'Visa') {
-          visaPayments.push({ amount, currency, paymentDate, remarks });
+          visaPayments.push({
+            amount,
+            currency,
+            paymentDate,
+            remarks: this.buildVisaRemarks(row, row.note),
+          });
         } else {
           const paymentType = row.customLabel || row.type || 'Custom';
           customPayments.push({ amount, currency, paymentDate, remarks, paymentType });
