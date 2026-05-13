@@ -2639,4 +2639,26 @@ router.get('/teachers', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), asyn
   }
 });
 
+/**
+ * POST /api/zoom/enforce-private-chat-off
+ * One-time (or periodic) admin action: disable private chat at the Zoom
+ * account level AND for every individual licensed host.
+ * Run this once after deployment to close the gap for existing host accounts.
+ */
+router.post('/enforce-private-chat-off', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const results = await zoomService.disablePrivateChatForAllUsers();
+    const failed = results.filter(r => !r.success);
+    res.json({
+      success: true,
+      message: `Private chat enforcement complete. ${results.length - failed.length}/${results.length} targets updated.`,
+      results,
+      ...(failed.length ? { warnings: failed } : {})
+    });
+  } catch (error) {
+    console.error('Error enforcing private chat off:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

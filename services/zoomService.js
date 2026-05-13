@@ -138,6 +138,10 @@ class ZoomService {
       const meeting = response.data;
       console.log('✅ Zoom meeting created:', meeting.id);
 
+      // Enforce private-chat=false at the user level for this host so the
+      // meeting-level setting is not silently overridden by user/account settings.
+      this.disablePrivateChatForUser(userId).catch(() => {});
+
       return {
         success: true,
         meeting: {
@@ -486,6 +490,92 @@ class ZoomService {
       throw new Error('Failed to get participant engagement data');
     }
   }
+  /**
+   * Disable private (1:1) chat at the user level for a specific Zoom host.
+   * This is required because meeting-level `private_chat: false` is silently
+   * ignored when the host's user-level or account-level setting allows it.
+   *
+   * @param {string} userEmail  - The Zoom user's email / user-id
+   */
+  async disablePrivateChatForUser(userEmail) {
+    try {
+      const token = await this.getAccessToken();
+      await axios.patch(
+        `${zoomConfig.apiBaseUrl}/users/${encodeURIComponent(userEmail)}/settings`,
+        { in_meeting: { private_chat: false } },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log(`✅ Private chat disabled at user level for: ${userEmail}`);
+      return { success: true };
+    } catch (error) {
+      console.error(
+        `⚠️  Could not disable private chat for user ${userEmail}:`,
+        error.response?.data || error.message
+      );
+      return { success: false, error: error.response?.data || error.message };
+    }
+  }
+
+  /**
+   * Disable private (1:1) chat at the master-account level.
+   * Calling this once ensures the setting applies to ALL meetings across ALL hosts,
+   * regardless of per-meeting or per-user overrides.
+   */
+  async disablePrivateChatAccountWide() {
+    try {
+      const token = await this.getAccessToken();
+      await axios.patch(
+        `${zoomConfig.apiBaseUrl}/accounts/me/settings`,
+        { in_meeting: { private_chat: false } },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log('✅ Private chat disabled at account level');
+      return { success: true };
+    } catch (error) {
+      console.error(
+        '⚠️  Could not disable private chat at account level:',
+        error.response?.data || error.message
+      );
+      return { success: false, error: error.response?.data || error.message };
+    }
+  }
+
+  /**
+   * Disable private chat for ALL licensed users on the master account.
+   * Combines account-wide + per-user enforcement for maximum coverage.
+   */
+  async disablePrivateChatForAllUsers() {
+    const results = [];
+
+    // Account-wide first (covers future users too)
+    const accountResult = await this.disablePrivateChatAccountWide();
+    results.push({ target: 'account', ...accountResult });
+
+    // Per-user enforcement on every existing licensed user
+    try {
+      const users = await this.getZoomUsers();
+      for (const user of users) {
+        const userResult = await this.disablePrivateChatForUser(user.email);
+        results.push({ target: user.email, ...userResult });
+      }
+    } catch (error) {
+      console.error('⚠️  Error fetching users for private chat enforcement:', error.message);
+      results.push({ target: 'all_users_fetch', success: false, error: error.message });
+    }
+
+    return results;
+  }
+
   /**
    * Get all licensed Zoom users on the master account
    */
