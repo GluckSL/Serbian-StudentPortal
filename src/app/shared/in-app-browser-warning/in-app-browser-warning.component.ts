@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
 export interface InAppBrowserWarningData {
-  /** The Zoom web URL to launch after the user copies/opens in a system browser. */
+  /** Zoom https link to open in the system browser (prefer universal `zoom.us/j/...` so the app can open). */
   zoomWebUrl: string;
 }
 

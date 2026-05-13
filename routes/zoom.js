@@ -13,6 +13,7 @@ const { findBestParticipantMatch } = require('../services/zoomParticipantMatch')
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
+const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
 const { getJoinLogDataForMeeting } = require('../services/joinLogHelpers');
 const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
 const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
@@ -1084,7 +1085,7 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
           email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
         },
         joinUrl,
-        password: meeting.zoomPassword,
+        password: resolveMeetingJoinPwd(meeting),
         status: meeting.status,
         currentStatus: currentStatus,
         canJoin: canJoin,

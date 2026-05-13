@@ -8,7 +8,12 @@ const User = require('../models/User');
 const JoinLog = require('../models/JoinLog');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { sanitizeDisplayName, DISPLAY_NAME_MAX } = require('../utils/studentDisplayName');
-const { buildZoomAppUrl, buildZoomUniversalUrl, buildZoomWebUrl } = require('../utils/zoomJoinUrls');
+const {
+  buildZoomAppUrl,
+  buildZoomUniversalUrl,
+  buildZoomWebUrl,
+  resolveMeetingJoinPwd,
+} = require('../utils/zoomJoinUrls');
 
 const router = express.Router();
 
@@ -150,23 +155,23 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
       { upsert: true, new: true }
     );
 
-    const pwd = meeting.zoomPassword || '';
-    const zoomAppUrl = buildZoomAppUrl(zoomId, pwd);
-    const zoomUniversalUrl = buildZoomUniversalUrl(zoomId, pwd);
+    const pwd = resolveMeetingJoinPwd(meeting);
+    const zoomAppUrl = buildZoomAppUrl(zoomId, pwd, displayName);
+    const zoomUniversalUrl = buildZoomUniversalUrl(zoomId, pwd, displayName);
     const zoomWebUrl = buildZoomWebUrl(zoomId, pwd, displayName);
 
     if (wantsJoinClassJsonResponse(req)) {
-      // redirectUrl is kept for backward-compatible callers that only read this field.
+      // Prefer universal (opens Zoom app); redirectUrl kept for older clients.
       return res.json({
         success: true,
         displayName,
         zoomAppUrl,
         zoomUniversalUrl,
         zoomWebUrl,
-        redirectUrl: zoomWebUrl,
+        redirectUrl: zoomUniversalUrl,
       });
     }
-    return res.redirect(302, zoomWebUrl);
+    return res.redirect(302, zoomUniversalUrl);
   } catch (err) {
     console.error('join-class error:', err.message);
     return res.status(500).json({ success: false, message: 'Failed to start join' });

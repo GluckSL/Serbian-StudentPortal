@@ -17,11 +17,6 @@ function primaryFallbackMs(): number {
   return 2200 + Math.floor(Math.random() * 901);
 }
 
-/** Secondary delay mobile: universal → wc (ms). */
-function secondaryFallbackMs(): number {
-  return 2200 + Math.floor(Math.random() * 801);
-}
-
 const JOIN_DEBOUNCE_MS = 900;
 const SAFETY_RELEASE_JOIN_MS = 28000;
 
@@ -271,7 +266,9 @@ export class JoinClassFlowService {
           InAppBrowserWarningData,
           boolean
         >(InAppBrowserWarningComponent, {
-          data: { zoomWebUrl: webUrl },
+          data: {
+            zoomWebUrl: body.zoomUniversalUrl || body.zoomWebUrl || body.redirectUrl || webUrl,
+          },
           width: '460px',
           disableClose: false,
         });
@@ -306,7 +303,8 @@ export class JoinClassFlowService {
           this.joinState$.next({ loading: false, message: '' });
           const webUrl = body?.zoomWebUrl || body?.redirectUrl || '';
           const appUrl = body?.zoomAppUrl || '';
-          if (!webUrl && !appUrl) {
+          const universalUrl = body?.zoomUniversalUrl || '';
+          if (!webUrl && !appUrl && !universalUrl) {
             this.releaseJoinLock();
             onError?.(body?.message || body?.msg || 'Could not start join.');
             return;
@@ -354,7 +352,7 @@ export class JoinClassFlowService {
     const appUrl = body?.zoomAppUrl || '';
     const universalUrl = body?.zoomUniversalUrl || '';
     const webUrl = body?.zoomWebUrl || body?.redirectUrl || '';
-    if (!webUrl && !appUrl) {
+    if (!appUrl && !universalUrl && !webUrl) {
       this.releaseJoinLock();
       this.joinState$.next({ loading: false, message: '' });
       onError?.(body?.message || body?.msg || 'Could not start join.');
@@ -364,8 +362,9 @@ export class JoinClassFlowService {
   }
 
   /**
-   * Mobile: zoommtg → universal → wc (same tab, guarded + cancellable).
-   * Desktop: zoommtg → wc in new tab (popup-block detection).
+   * Prefer the Zoom native app: zoommtg / Android intent, then universal https (opens the app).
+   * Avoids the browser `/wc/` client so students are not dropped on a manual passcode form.
+   * Desktop: after zoommtg, opens the universal link in a new tab (app or browser hand-off).
    */
   private launchZoom(
     appUrl: string,
@@ -403,57 +402,45 @@ export class JoinClassFlowService {
       this.joinState$.next({ loading: true, message: 'Opening Zoom\u2026' });
     }
 
-    if (mobile && universalUrl && webUrl) {
+    if (mobile && universalUrl) {
       if (inWebView) {
-        // In a WebView the universal URL just navigates inside the WebView — skip it.
-        // After d1, fall back to the Zoom web client directly.
+        // Intent already opened Zoom; do not navigate to /wc/ inside the WebView.
         this.scheduleJoinTimer(() => {
           if (runId !== this.activeLaunchRun) return;
-          joinFlowLog('wc_fallback_used', { runId, path: 'webview_fallback' });
-          this.joinState$.next({ loading: false, message: 'Opening Zoom in browser\u2026' });
-          window.location.href = webUrl;
-          this.scheduleJoinTimer(() => {
-            if (runId !== this.activeLaunchRun) return;
-            this.joinState$.next({ loading: false, message: '' });
-            this.releaseJoinLock();
-            this.detachLifecycleGuards();
-          }, 2000);
-        }, d1);
+          joinFlowLog('join_app_handoff_done', { runId, path: 'webview_intent_only' });
+          this.joinState$.next({ loading: false, message: '' });
+          this.releaseJoinLock();
+          this.detachLifecycleGuards();
+        }, d1 + 1800);
       } else {
         this.scheduleJoinTimer(() => {
           if (runId !== this.activeLaunchRun) return;
           joinFlowLog('universal_fallback_used', { runId });
-          this.joinState$.next({ loading: true, message: 'Opening Zoom link\u2026' });
+          this.joinState$.next({ loading: true, message: 'Opening Zoom app\u2026' });
           window.location.href = universalUrl;
         }, d1);
-        const d2 = secondaryFallbackMs();
         this.scheduleJoinTimer(() => {
           if (runId !== this.activeLaunchRun) return;
-          joinFlowLog('wc_fallback_used', { runId });
-          this.joinState$.next({ loading: false, message: 'Opening Zoom in browser\u2026' });
-          window.location.href = webUrl;
-          this.scheduleJoinTimer(() => {
-            if (runId !== this.activeLaunchRun) return;
-            this.joinState$.next({ loading: false, message: '' });
-            this.releaseJoinLock();
-            this.detachLifecycleGuards();
-          }, 2000);
-        }, d1 + d2);
+          this.joinState$.next({ loading: false, message: '' });
+          this.releaseJoinLock();
+          this.detachLifecycleGuards();
+        }, d1 + 3500);
       }
       this.scheduleSafetyRelease(runId);
       return;
     }
 
-    if (webUrl) {
+    const openUrl = universalUrl || webUrl;
+    if (openUrl) {
       this.scheduleJoinTimer(() => {
         if (runId !== this.activeLaunchRun) return;
         this.joinState$.next({ loading: false, message: 'Opening Zoom\u2026' });
         if (mobile) {
-          joinFlowLog('wc_fallback_used', { runId, path: 'mobile_same_tab' });
-          window.location.href = webUrl;
+          joinFlowLog('universal_open_same_tab', { runId });
+          window.location.href = openUrl;
         } else {
-          joinFlowLog('wc_fallback_used', { runId, path: 'desktop_new_tab' });
-          const win = window.open(webUrl, '_blank');
+          joinFlowLog('universal_or_web_desktop_tab', { runId, usedUniversal: !!universalUrl });
+          const win = window.open(openUrl, '_blank');
           if (win == null) {
             joinFlowLog('join_failed', { runId, reason: 'popup_blocked' });
             onError?.(JOIN_FLOW_FAIL_MSG);

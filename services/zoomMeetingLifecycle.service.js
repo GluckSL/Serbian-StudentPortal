@@ -6,6 +6,7 @@
 const MeetingLink = require('../models/MeetingLink');
 const zoomService = require('./zoomService');
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('./studentPortalCrmWebhook');
+const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
 
 /**
  * Find a non-cancelled meeting on the same Zoom host that overlaps [meetingStart, meetingEnd).
@@ -210,7 +211,12 @@ async function createMeetingLinkFromSlot(opts) {
     };
   }
 
-  const meeting = zoomResult.meeting;
+  const raw = zoomResult.meeting;
+  const zoomPwd =
+    String(raw.password || '').trim() ||
+    extractZoomPwdFromJoinUrl(raw.joinUrl) ||
+    '';
+  const meeting = { ...raw, password: zoomPwd };
 
   const meetingLinkPayload = {
     batch,
@@ -224,7 +230,7 @@ async function createMeetingLinkFromSlot(opts) {
     timezone: meeting.timezone,
     zoomMeetingId: String(meeting.id),
     zoomMeetingUuid: meeting.uuid ? String(meeting.uuid) : undefined,
-    zoomPassword: meeting.password,
+    zoomPassword: zoomPwd,
     hostEmail: meeting.hostEmail,
     startUrl: meeting.startUrl,
     joinUrl: meeting.joinUrl,

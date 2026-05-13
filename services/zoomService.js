@@ -150,7 +150,8 @@ class ZoomService {
           timezone: meeting.timezone,
           joinUrl: meeting.join_url,
           startUrl: meeting.start_url,
-          password: meeting.password,
+          // Zoom sometimes omits `password` but still provides `encrypted_password` / join_url `pwd=`
+          password: meeting.password || meeting.encrypted_password || '',
           hostEmail: meeting.host_email,
           agenda: meeting.agenda,
           status: meeting.status,
