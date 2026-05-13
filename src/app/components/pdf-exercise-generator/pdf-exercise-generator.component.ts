@@ -101,6 +101,8 @@ interface ReviewQuestion {
   // Editor state
   expanded?: boolean;
   aiGenerated?: boolean;
+  // Sub-questions (additional questions with shared context)
+  subQuestions?: any[];
 }
 
 const PROGRESS_MESSAGES = [
@@ -1446,6 +1448,31 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (/\b(true|richtig|wahr|ja|yes|correct)\b/.test(s)) return true;
     if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
     return null;
+  }
+
+  // Sub-questions helpers
+  addSubQuestion(q: ReviewQuestion): void {
+    if (!q.subQuestions) q.subQuestions = [];
+    const type = q.type;
+    const sq: any = {
+      type: type as any,
+      points: 1
+    };
+    if (type === 'mcq') Object.assign(sq, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0 });
+    else if (type === 'matching') Object.assign(sq, { pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
+    else if (type === 'fill-blank') Object.assign(sq, { sentence: '', answers: [''], hint: '' });
+    else if (type === 'word_bank_fill') Object.assign(sq, { wordBank: [], items: [{ prompt: '', answer: '' }] });
+    else if (type === 'question-answer') Object.assign(sq, { prompt: '', sampleAnswers: [''] });
+    else if (type === 'pronunciation') Object.assign(sq, { word: '', phonetic: '' });
+    else if (type === 'listening') Object.assign(sq, { prompt: '', mediaUrl: '', expectedTranscript: '' });
+    else Object.assign(sq, { prompt: '' });
+    q.subQuestions.push(sq);
+  }
+
+  removeSubQuestion(q: ReviewQuestion, index: number): void {
+    if (q.subQuestions && q.subQuestions.length > index) {
+      q.subQuestions.splice(index, 1);
+    }
   }
 
   setThreshold(q: ReviewQuestion, raw: any): void {

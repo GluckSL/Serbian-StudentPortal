@@ -1131,6 +1131,188 @@
               </div>
             </div>
           </ng-container>
+
+          <!-- Sub-questions Section -->
+          <div class="ed-section-label">
+            <span class="material-icons">content_copy</span>
+            Sub-questions (shared context)
+            <span class="sub-q-badge" *ngIf="q.subQuestions?.length">{{ q.subQuestions?.length }}</span>
+          </div>
+          
+          <div class="sub-questions-list" *ngIf="q.subQuestions && q.subQuestions.length > 0">
+            <div class="sub-question-item" *ngFor="let sq of q.subQuestions; let si = index">
+              <div class="sub-question-header">
+                <div class="sub-q-header-left">
+                  <span class="sub-q-num">{{ reviewQuestions.indexOf(q) + 1 }}.{{ si + 1 }}</span>
+                  <span class="sub-q-type-pill" [style.background]="getTypeInfo(sq.type).bg" [style.color]="getTypeInfo(sq.type).color">
+                    <span class="material-icons">{{ getTypeInfo(sq.type).icon }}</span>
+                    {{ getTypeInfo(sq.type).label }}
+                  </span>
+                </div>
+                <button type="button" class="btn-remove-sub" (click)="removeSubQuestion(q, si)" matTooltip="Remove">
+                  <span class="material-icons">delete_outline</span>
+                </button>
+              </div>
+              
+              <div class="sub-question-body">
+                <ng-container [ngSwitch]="sq.type">
+                  <!-- MCQ Sub-question -->
+                  <div *ngSwitchCase="'mcq'" class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Question</label>
+                      <app-rich-text-input [(ngModel)]="sq.question" [rows]="2" placeholder="Type your question…"></app-rich-text-input>
+                    </div>
+                    <div class="ed-field">
+                      <label>Options <span class="hint-label">(click radio to set correct)</span></label>
+                      <div class="opt-row" *ngFor="let opt of sq.options; let oi = index; trackBy: trackByIndex">
+                        <label class="radio-wrap">
+                          <input type="radio" [name]="'sub-correct-' + reviewQuestions.indexOf(q) + '-' + si" [value]="oi" [(ngModel)]="sq.correctAnswerIndex" />
+                        </label>
+                        <app-rich-text-input [(ngModel)]="sq.options![oi]" [placeholder]="'Option ' + (oi + 1)"></app-rich-text-input>
+                        <button class="btn-rm-sm" (click)="removeOption(sq, oi)" *ngIf="sq.options!.length > 2">
+                          <span class="material-icons">close</span>
+                        </button>
+                      </div>
+                      <button class="btn-add-sm" (click)="addOption(sq)" *ngIf="sq.options!.length < 6">
+                        <span class="material-icons">add</span> Add option
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Fill-blank Sub-question -->
+                  <div *ngSwitchCase="'fill-blank'" class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Sentence <span class="hint-label">(use _ or ___ for blanks)</span></label>
+                      <textarea [(ngModel)]="sq.sentence" (ngModelChange)="onSentenceChange(sq)" class="ed-input" rows="2"></textarea>
+                      <div class="blank-count-badge">{{ getBlankCount(sq) }} blank(s)</div>
+                    </div>
+                    <div class="ed-field" *ngIf="getBlankCount(sq) > 0">
+                      <label>Answers</label>
+                      <div class="ans-row" *ngFor="let ans of sq.answers; let ai = index; trackBy: trackByIndex">
+                        <span class="blank-num">Blank {{ ai+1 }}</span>
+                        <input type="text" [(ngModel)]="sq.answers![ai]" class="ans-input" [placeholder]="'Answer '+(ai+1)" />
+                      </div>
+                    </div>
+                    <div class="ed-field">
+                      <label>Hint <span class="opt-label">(optional)</span></label>
+                      <input type="text" [(ngModel)]="sq.hint" class="ed-input" placeholder="Grammar tip or vocabulary clue" />
+                    </div>
+                  </div>
+
+                  <!-- Matching Sub-question -->
+                  <div *ngSwitchCase="'matching'" class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Pairs</label>
+                      <div class="pair-row pair-row--rte" *ngFor="let pair of sq.pairs; let pi = index; trackBy: trackByIndex">
+                        <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi + 1)"></app-rich-text-input>
+                        <span class="pair-sep">↔</span>
+                        <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi + 1)"></app-rich-text-input>
+                        <button class="btn-rm-sm" (click)="removePair(sq, pi)"><span class="material-icons">close</span></button>
+                      </div>
+                      <button class="btn-add-sm" (click)="addPair(sq)"><span class="material-icons">add</span> Add pair</button>
+                    </div>
+                  </div>
+
+                  <!-- Word Bank Fill Sub-question -->
+                  <div *ngSwitchCase="'word_bank_fill'" class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Word bank <span class="hint-label">(one entry per line)</span></label>
+                      <textarea class="ed-input" rows="3" [value]="getWordBankLineText(sq)" (input)="onWordBankLinesChange(sq, $any($event.target).value)"></textarea>
+                    </div>
+                    <div class="ed-field">
+                      <label>Items</label>
+                      <div *ngFor="let it of sq.items; let ii = index" class="wb-item-row">
+                        <span class="blank-num">#{{ ii + 1 }}</span>
+                        <input type="text" [(ngModel)]="it.prompt" class="ed-input" placeholder="Sentence with ___" />
+                        <input type="text" [(ngModel)]="it.answer" class="ed-input" placeholder="Answer" style="max-width:150px" />
+                        <button type="button" class="btn-rm-sm" (click)="removeWordBankItem(sq, ii)" *ngIf="sq.items!.length > 1">
+                          <span class="material-icons">close</span>
+                        </button>
+                      </div>
+                      <button type="button" class="btn-add-sm" (click)="addWordBankItem(sq)">
+                        <span class="material-icons">add</span> Add item
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Question Answer Sub-question -->
+                  <div *ngSwitchCase="'question-answer'" class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Question</label>
+                      <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Type the question…"></app-rich-text-input>
+                    </div>
+                    <div class="ed-field" *ngIf="sq.worksheetKind !== 'true-false'">
+                      <label>Sample Answers <span class="opt-label">(optional)</span></label>
+                      <div class="var-row" *ngFor="let sa of sq.sampleAnswers; let si2 = index; trackBy: trackByIndex">
+                        <input type="text" [(ngModel)]="sq.sampleAnswers![si2]" class="ed-input" [placeholder]="'Answer ' + (si2 + 1)" />
+                        <button class="btn-rm-sm" (click)="removeSampleAnswer(sq, si2)" *ngIf="sq.sampleAnswers!.length > 1">
+                          <span class="material-icons">close</span>
+                        </button>
+                      </div>
+                      <button class="btn-add-sm" (click)="addSampleAnswer(sq)">
+                        <span class="material-icons">add</span> Add answer
+                      </button>
+                    </div>
+                    <div class="ed-field" *ngIf="sq.worksheetKind === 'true-false'">
+                      <label>Answer</label>
+                      <div class="tf-answers-pdf" role="group">
+                        <label class="tf-check-pdf">
+                          <input type="checkbox" [checked]="parseTrueFalseAnswer(sq.sampleAnswers?.[0]) === true" (click)="setTrueFalseAnswer(sq, true)" />
+                          Richtig
+                        </label>
+                        <label class="tf-check-pdf">
+                          <input type="checkbox" [checked]="parseTrueFalseAnswer(sq.sampleAnswers?.[0]) === false" (click)="setTrueFalseAnswer(sq, false)" />
+                          Falsch
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Pronunciation Sub-question -->
+                  <div *ngSwitchCase="'pronunciation'" class="sub-q-editor">
+                    <div class="ed-row">
+                      <div class="ed-field">
+                        <label>Word / Phrase</label>
+                        <input type="text" [(ngModel)]="sq.word" class="ed-input" />
+                      </div>
+                      <div class="ed-field">
+                        <label>Phonetic</label>
+                        <input type="text" [(ngModel)]="sq.phonetic" class="ed-input" placeholder="/ˈɡuːtən/" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Listening Sub-question -->
+                  <div *ngSwitchCase="'listening'" class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Question</label>
+                      <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Listen and type…"></app-rich-text-input>
+                    </div>
+                    <div class="ed-field">
+                      <label>Audio URL <span class="opt-label">(optional)</span></label>
+                      <input type="text" [(ngModel)]="sq.mediaUrl" class="ed-input" placeholder="https://…" />
+                    </div>
+                    <div class="ed-field">
+                      <label>Expected transcript</label>
+                      <textarea [(ngModel)]="sq.expectedTranscript" class="ed-input" rows="2"></textarea>
+                    </div>
+                  </div>
+
+                  <!-- Default: show type -->
+                  <div *ngSwitchDefault class="sub-q-editor">
+                    <div class="ed-field">
+                      <label>Question / Prompt</label>
+                      <textarea [(ngModel)]="sq.prompt" class="ed-input" rows="2" placeholder="Question text"></textarea>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="btn-add-sub-question" (click)="addSubQuestion(q)">
+            <span class="material-icons">add</span> Add Question
+          </button>
         </div>
       </div>
 
