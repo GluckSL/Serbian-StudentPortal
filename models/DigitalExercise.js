@@ -174,7 +174,97 @@ const DigitalExerciseSchema = new mongoose.Schema({
     settings: {
       randomizeLabels: { type: Boolean, default: true },
       allowRetry: { type: Boolean, default: true }
-    }
+    },
+    // Sub-questions with same context/hints/images
+    subQuestions: [{
+      type: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange', 'image_pin_match'], required: true },
+      // Common optional context shown above the question to students.
+      context: { type: String, default: '' },
+      // Instruction and example shown in a highlighted banner above the question body.
+      example: { type: String, default: '' },
+      // MCQ fields
+      question: String,
+      imageUrl: String,
+      options: [String],
+      correctAnswerIndex: Number,
+      explanation: String,
+      // Matching fields
+      instruction: String,
+      pairs: [{
+        left: String,
+        right: String,
+        singular: String,
+        plural: String
+      }],
+      // Fill-blank fields
+      sentence: String,
+      answers: [String],
+      hint: String,
+      caseSensitive: { type: Boolean, default: false },
+      // Word-bank-fill fields
+      wordBank: [String],
+      items: [{
+        prompt: String,
+        answer: String,
+        acceptedAnswers: [{ type: String }]
+      }],
+      reusableWords: { type: Boolean, default: true },
+      // Pronunciation fields
+      word: String,
+      phonetic: String,
+      translation: String,
+      audioUrl: String,
+      acceptedVariants: [String],
+      // Question / Answer fields
+      prompt: String,
+      sampleAnswers: [String],
+      // Story passage for worksheet-style questions (e.g. true/false reading).
+      storyParagraph: { type: String, default: '' },
+      similarityThreshold: { type: Number, default: 70 },
+      scoringMode: { type: String, enum: ['full', 'proportional'], default: 'full' },
+      aiGradingEnabled: { type: Boolean, default: true },
+      // Listening fields
+      mediaUrl: String,
+      expectedTranscript: String,
+      attemptMode: { type: String, enum: ['typing', 'typing-or-speech'], default: 'typing' },
+      // Video pronunciation fields
+      videoUrl: String,
+      caption: String,
+      secondaryCaption: String,
+      secondaryCaptionAtSeconds: { type: Number, default: 5 },
+      // Common
+      points: { type: Number, default: 1 },
+      attachmentUrl: { type: String, default: '' },
+      attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
+      answerExplanation: { type: String, default: '' },
+      sectionTitle: { type: String, default: null },
+      tier: { type: String, enum: ['easy', 'medium', 'hard', null], default: null },
+      worksheetKind: { type: String, default: null },
+      // Jumble-word fields
+      scrambledText: { type: String, default: '' },
+      boldLetter: { type: String, default: '' },
+      expectedWord: { type: String, default: '' },
+      categoryTip: { type: String, default: '' },
+      // Rearrange fields
+      rearrangePrompt: { type: String, default: '' },
+      rearrangeAnswer: { type: String, default: '' },
+      rearrangeTokens: [{ type: String }],
+      // Image Pin Match fields
+      labels: [{
+        id: { type: String, required: true },
+        text: { type: String, required: true },
+        correctPinId: { type: String, required: true }
+      }],
+      pins: [{
+        id: { type: String, required: true },
+        x: { type: Number, min: 0, max: 100, required: true },
+        y: { type: Number, min: 0, max: 100, required: true }
+      }],
+      settings: {
+        randomizeLabels: { type: Boolean, default: true },
+        allowRetry: { type: Boolean, default: true }
+      }
+    }]
   }],
 
   // Optional shared audio for manual listening worksheets.

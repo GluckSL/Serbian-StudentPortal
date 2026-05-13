@@ -151,6 +151,8 @@ export interface WorksheetQuestionMeta {
     | 'free-writing-profile'
     | 'error-correction'
     | null;
+  /** Sub-questions with same context/hints/images (for creating multiple questions from one context) */
+  subQuestions?: ExerciseQuestion[];
 }
 
 export interface JumbleWordQuestion extends QuestionCommonFields {

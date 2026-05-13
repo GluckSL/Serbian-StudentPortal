@@ -3558,6 +3558,84 @@
             </div>
           </div>
 
+          <!-- Sub-questions with same context - rendered at bottom -->
+          <div class="sub-questions-section" *ngIf="currentQuestion.data.subQuestions && currentQuestion.data.subQuestions.length > 0">
+            <div class="sub-questions-inner">
+              <div class="sub-questions-header">
+                <!--<span class="sub-questions-title">More Questions with Same Context</span>-->
+                <span class="sub-questions-count">{{ currentQuestion.data.subQuestions.length }} question(s)</span>
+              </div>
+              <div class="sub-questions-list">
+                <div class="sub-question-card" *ngFor="let sq of currentQuestion.data.subQuestions; let sqIndex = index">
+                  <div class="sub-q-header">
+                    <span class="sub-q-number">{{ currentIndex + 1 }}.{{ sqIndex + 1 }}</span>
+                    <span class="sub-q-type-label">{{ getQuestionTypeLabelForDisplay(sq) }}</span>
+                    <span class="sub-q-points">{{ sq.points || 1 }} pt</span>
+                  </div>
+
+                  <div class="sub-q-body">
+                    <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
+                      <p class="sub-q-text" [innerHTML]="sq.question | safeHtml"></p>
+                      <div class="mcq-options sub-options">
+                        <button *ngFor="let opt of sq.options; let oi = index"
+                          class="mcq-option"
+                          [class.selected]="currentQuestion.subQuestionAnswers?.[sqIndex] === oi"
+                          [class.disabled]="hasCurrentSubmitted"
+                          (click)="selectSubQuestionOption(currentQuestion, sqIndex, oi)">
+                          <span class="opt-letter">{{ "ABCD"[oi] }}</span>
+                          <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div *ngIf="sq.type === 'fill-blank'" class="sub-q-fill-blank">
+                      <p class="sub-q-text" [innerHTML]="sq.sentence | safeHtml"></p>
+                      <p class="sub-q-hint" *ngIf="sq.hint"><span class="material-icons">lightbulb</span> {{ sq.hint }}</p>
+                    </div>
+
+                    <div *ngIf="sq.type === 'matching'" class="sub-q-matching">
+                      <p class="sub-q-text">Match the items on the left with their correct pairs.</p>
+                    </div>
+
+                    <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
+                      <div class="sub-q-word-bank-words" *ngIf="sq.wordBank?.length">
+                        <span class="word-bank-label">Word Bank:</span>
+                        <span *ngFor="let w of sq.wordBank" class="word-bank-chip">{{ w }}</span>
+                      </div>
+                    </div>
+
+                    <div *ngIf="sq.type === 'question-answer'" class="sub-q-qa">
+                      <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                      <input type="text" class="sub-q-input"
+                        [ngModel]="currentQuestion.subQuestionAnswers?.[sqIndex]"
+                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        placeholder="Type your answer..." />
+                    </div>
+
+                    <div *ngIf="sq.type === 'pronunciation'" class="sub-q-pronunciation">
+                      <p class="sub-q-text">Say: <strong>{{ sq.word }}</strong></p>
+                      <p *ngIf="sq.phonetic" class="sub-q-phonetic">{{ sq.phonetic }}</p>
+                    </div>
+
+                    <div *ngIf="sq.type === 'listening'" class="sub-q-listening">
+                      <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                      <input type="text" class="sub-q-input"
+                        [ngModel]="currentQuestion.subQuestionAnswers?.[sqIndex]"
+                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        placeholder="Type what you hear..." />
+                    </div>
+
+                    <div *ngIf="!['mcq', 'fill-blank', 'matching', 'word_bank_fill', 'question-answer', 'pronunciation', 'listening'].includes(sq.type)" class="sub-q-default">
+                      <p class="sub-q-text">Question: {{ sq.prompt || sq.question || 'No question text' }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Result Banner -->
           <div
             class="result-banner"

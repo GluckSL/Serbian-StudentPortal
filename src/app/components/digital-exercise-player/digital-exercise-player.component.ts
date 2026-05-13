@@ -63,6 +63,10 @@ interface VpChatMessage {
 interface PlayerQuestion {
   data: any; // raw question data from API
   index: number;
+  // Sub-question state
+  isSubQuestion?: boolean;
+  parentIndex?: number;
+  subQuestionIndex?: number;
   // MCQ state
   selectedOption?: number;
   // Matching state
@@ -150,6 +154,8 @@ interface PlayerQuestion {
   feedback?: string;
   /** Attachment audio: play starts used this exercise attempt (when teacher set a cap). */
   attachmentAudioPlaysUsed?: number;
+  /** Sub-question answers */
+  subQuestionAnswers?: Record<number, string | number>;
 }
 
 type SpecialInputTarget =
@@ -1717,6 +1723,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   selectOption(pq: PlayerQuestion, index: number): void {
     if (this.state === 'submitted') return;
     pq.selectedOption = index;
+    this.markAttempted(pq);
+  }
+
+  // ─── Sub-question Interaction ─────────────────────────────────────────────────────
+
+  selectSubQuestionOption(pq: PlayerQuestion, subIndex: number, optionIndex: number): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionAnswers) {
+      pq.subQuestionAnswers = {};
+    }
+    pq.subQuestionAnswers[subIndex] = optionIndex;
+    this.markAttempted(pq);
+  }
+
+  setSubQuestionAnswer(pq: PlayerQuestion, subIndex: number, answer: string): void {
+    if (this.state === 'submitted') return;
+    if (!pq.subQuestionAnswers) {
+      pq.subQuestionAnswers = {};
+    }
+    pq.subQuestionAnswers[subIndex] = answer;
     this.markAttempted(pq);
   }
 
