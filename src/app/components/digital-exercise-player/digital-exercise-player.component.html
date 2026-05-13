@@ -410,6 +410,42 @@
                 [innerHTML]="pq.data.answerExplanation | safeHtml"
               ></span>
             </div>
+
+          <!-- Sub-questions in review -->
+          <div class="review-sub-questions" *ngIf="pq.data.subQuestions && pq.data.subQuestions.length > 0">
+            <div class="review-sub-q-header">
+              <span class="material-icons">subdirectory_arrow_right</span>
+              <span>Sub-questions ({{ pq.data.subQuestions.length }})</span>
+            </div>
+            <div class="review-sub-q-list">
+              <div class="review-sub-q-block" *ngFor="let sq of pq.data.subQuestions; let sqIndex = index">
+                <div class="review-sub-q-head">
+                  <span class="review-sub-q-num">{{ i + 1 }}.{{ sqIndex + 1 }}</span>
+                  <span class="review-sub-q-type">{{ getQuestionTypeLabelForDisplay(sq) }}</span>
+                  <span class="review-sub-q-pts">{{ sq.points || 1 }} pt</span>
+                </div>
+                <div class="review-sub-q-body">
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'mcq'" [innerHTML]="sq.question | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'fill-blank'" [innerHTML]="sq.sentence | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'question-answer'" [innerHTML]="sq.prompt | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'listening'" [innerHTML]="sq.prompt | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'pronunciation'">Say: {{ sq.word }}</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'matching'">Match the items</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
+                  
+                  <!-- Sub-question answer -->
+                  <div class="review-sub-q-answer">
+                    <span class="review-label">Your answer:</span>
+                    <span class="review-value">{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
+                  </div>
+                  <div class="review-sub-q-correct" *ngIf="sq.type === 'mcq'">
+                    <span class="review-label">Correct:</span>
+                    <span class="review-value correct">{{ sq.options?.[sq.correctAnswerIndex] || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           </div>
         </div>
       </ng-container>
@@ -452,7 +488,7 @@
         <div class="intro-stat">
           <span class="material-icons">quiz</span>
           <div>
-            <strong>{{ playerQuestions.length }}</strong>
+            <strong>{{ totalQuestionCount }}</strong>
             <span>Questions</span>
           </div>
         </div>

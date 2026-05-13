@@ -331,6 +331,7 @@ export interface QuestionResponse {
   rearrangeTextResponse?: string;
   rearrangeTokensResponse?: string[];
   imagePinAnswers?: Array<{ labelId: string; pinId: string }>;
+  subQuestionResponses?: Array<{ questionIndex: number; selectedOptionIndex?: number | null; textAnswer?: string | null }>;
 }
 
 
