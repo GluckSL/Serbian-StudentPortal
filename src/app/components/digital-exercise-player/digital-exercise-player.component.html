@@ -2883,9 +2883,10 @@
                     token === currentQuestion.data.boldLetter &&
                     ti === getFirstBoldIndex(currentQuestion.data)
                   "
+                  [class.jumble-letter--used]="isJumbleTokenUsed(currentQuestion, ti)"
                   (mousedown)="$event.preventDefault()"
-                  (click)="insertJumbleToken(token)"
-                  [disabled]="hasCurrentSubmitted"
+                  (click)="insertJumbleToken(token, ti)"
+                  [disabled]="hasCurrentSubmitted || isJumbleTokenUsed(currentQuestion, ti)"
                   [attr.aria-label]="'Insert ' + token"
                 >
                   {{ token }}
@@ -2902,8 +2903,8 @@
               class="jumble-input"
               placeholder="Type the word..."
               #jumbleInput
-              [(ngModel)]="currentQuestion.jumbleWordResponse"
-              (ngModelChange)="markAttempted(currentQuestion)"
+              [ngModel]="currentQuestion.jumbleWordResponse"
+              (ngModelChange)="onJumbleResponseChange(currentQuestion, $event)"
               (focus)="setActiveSpecialInputTarget({ type: 'jumble-word' })"
               [disabled]="hasCurrentSubmitted"
               (keydown.enter)="$event.preventDefault()"
@@ -3792,8 +3793,9 @@
                         <ng-container *ngFor="let token of getJumbleTokens(sq); let ti = index">
                           <button *ngIf="token !== ' '" type="button" class="jumble-letter jumble-letter-btn"
                             [class.jumble-letter--bold]="token === sq.boldLetter && ti === getFirstBoldIndex(sq)"
-                            (click)="insertSubQuestionJumbleToken(currentQuestion, sqIndex, token)"
-                            [disabled]="hasCurrentSubmitted">
+                            [class.jumble-letter--used]="isSubQuestionJumbleTokenUsed(currentQuestion, sqIndex, ti)"
+                            (click)="insertSubQuestionJumbleToken(currentQuestion, sqIndex, token, ti)"
+                            [disabled]="hasCurrentSubmitted || isSubQuestionJumbleTokenUsed(currentQuestion, sqIndex, ti)">
                             {{ token }}
                           </button>
                           <span *ngIf="token === ' '" class="jumble-space"> </span>
@@ -3801,7 +3803,7 @@
                       </div>
                       <input type="text" class="sub-q-input jumble-input"
                         [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
-                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        (ngModelChange)="onSubQuestionJumbleResponseChange(currentQuestion, sqIndex, sq, $event)"
                         [disabled]="hasCurrentSubmitted"
                         placeholder="Type the unscrambled word..." />
                     </div>

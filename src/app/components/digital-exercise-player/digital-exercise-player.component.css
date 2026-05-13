@@ -2719,6 +2719,17 @@
   color: #fff;
   font-weight: 800;
 }
+.jumble-letter--used,
+.jumble-letter--used:disabled {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.75;
+  position: relative;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
 .jumble-space {
   display: inline-block;
   width: 10px;

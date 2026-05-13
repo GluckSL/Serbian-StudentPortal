@@ -117,6 +117,7 @@ interface PlayerQuestion {
   listeningText?: string;
   // Jumble-word state
   jumbleWordResponse?: string;
+  jumbleUsedTokenIndices?: number[];
   // Rearrange state
   rearrangeTokens?: string[];
   rearrangeDragActive?: boolean;
@@ -166,6 +167,8 @@ interface PlayerQuestion {
   subQuestionMatchingSelectedLeft?: Record<number, number | null>;
   /** Sub-question word bank answers */
   subQuestionWordBankAnswers?: Record<number, string[]>;
+  /** Sub-question jumble-word used letter tile indexes */
+  subQuestionJumbleUsedTokenIndices?: Record<number, number[]>;
   /** Sub-question rearrange tokens */
   subQuestionRearrangeTokens?: Record<number, string[]>;
 }
@@ -1925,10 +1928,36 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   // ─── Sub-Question Jumble Word ─────────────────────────────────────────────────
-  insertSubQuestionJumbleToken(pq: PlayerQuestion, subIndex: number, token: string): void {
+  onSubQuestionJumbleResponseChange(pq: PlayerQuestion, subIndex: number, sq: any, answer: string): void {
     if (this.state === 'submitted') return;
+    if (!pq.subQuestionJumbleUsedTokenIndices) {
+      pq.subQuestionJumbleUsedTokenIndices = {};
+    }
+    pq.subQuestionJumbleUsedTokenIndices[subIndex] = this.reconcileJumbleUsedTokenIndices(
+      sq,
+      pq.subQuestionJumbleUsedTokenIndices[subIndex],
+      answer
+    );
+    this.setSubQuestionAnswer(pq, subIndex, answer);
+  }
+
+  insertSubQuestionJumbleToken(pq: PlayerQuestion, subIndex: number, token: string, tokenIndex: number): void {
+    if (this.state === 'submitted') return;
+    if (!token || token === ' ') return;
+    if (!pq.subQuestionJumbleUsedTokenIndices) {
+      pq.subQuestionJumbleUsedTokenIndices = {};
+    }
+    if (!pq.subQuestionJumbleUsedTokenIndices[subIndex]) {
+      pq.subQuestionJumbleUsedTokenIndices[subIndex] = [];
+    }
+    if (pq.subQuestionJumbleUsedTokenIndices[subIndex].includes(tokenIndex)) return;
     const current = this.getSubQuestionAnswer(pq, subIndex) || '';
+    pq.subQuestionJumbleUsedTokenIndices[subIndex].push(tokenIndex);
     this.setSubQuestionAnswer(pq, subIndex, current + token);
+  }
+
+  isSubQuestionJumbleTokenUsed(pq: PlayerQuestion, subIndex: number, tokenIndex: number): boolean {
+    return !!pq.subQuestionJumbleUsedTokenIndices?.[subIndex]?.includes(tokenIndex);
   }
 
   // ─── Sub-Question Rearrange ───────────────────────────────────────────────────
@@ -3171,6 +3200,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return tokens.findIndex((t) => t === bold);
   }
 
+  isJumbleTokenUsed(pq: PlayerQuestion | null | undefined, tokenIndex: number): boolean {
+    return !!pq?.jumbleUsedTokenIndices?.includes(tokenIndex);
+  }
+
+  private reconcileJumbleUsedTokenIndices(data: any, previousIndices: number[] | undefined, response: string): number[] {
+    const tokens = this.getJumbleTokens(data);
+    const previous = Array.isArray(previousIndices) ? previousIndices : [];
+    const selected: number[] = [];
+    const used = new Set<number>();
+    const responseChars = String(response || '').split('').filter((char) => char !== ' ');
+
+    for (const char of responseChars) {
+      const normalizedChar = char.toLocaleLowerCase();
+      const previousMatch = previous.find((index) => {
+        return !used.has(index) && String(tokens[index] || '').toLocaleLowerCase() === normalizedChar;
+      });
+      const tokenIndex = previousMatch ?? tokens.findIndex((token, index) => {
+        return !used.has(index) && String(token || '').toLocaleLowerCase() === normalizedChar;
+      });
+      if (tokenIndex >= 0) {
+        used.add(tokenIndex);
+        selected.push(tokenIndex);
+      }
+    }
+
+    return selected;
+  }
+
   parseTrueFalse(raw: any): boolean | null {
     const s = String(raw ?? '').trim().toLowerCase();
     if (!s) return null;
@@ -3536,11 +3593,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  insertJumbleToken(token: string): void {
+  insertJumbleToken(token: string, tokenIndex: number): void {
     if (this.state === 'submitted') return;
     const pq = this.currentQuestion;
     if (!pq || (pq.data?.type as string) !== 'jumble-word') return;
     if (!token || token === ' ') return;
+    if (!Array.isArray(pq.jumbleUsedTokenIndices)) {
+      pq.jumbleUsedTokenIndices = [];
+    }
+    if (pq.jumbleUsedTokenIndices.includes(tokenIndex)) return;
+    pq.jumbleUsedTokenIndices.push(tokenIndex);
 
     const input = this.jumbleInput?.nativeElement;
     if (input && !input.disabled) {
@@ -3555,6 +3617,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
 
     pq.jumbleWordResponse = `${pq.jumbleWordResponse || ''}${token}`;
+    this.markAttempted(pq);
+  }
+
+  onJumbleResponseChange(pq: PlayerQuestion, answer: string): void {
+    if (this.state === 'submitted') return;
+    pq.jumbleWordResponse = answer;
+    pq.jumbleUsedTokenIndices = this.reconcileJumbleUsedTokenIndices(
+      pq.data,
+      pq.jumbleUsedTokenIndices,
+      answer
+    );
     this.markAttempted(pq);
   }
 
