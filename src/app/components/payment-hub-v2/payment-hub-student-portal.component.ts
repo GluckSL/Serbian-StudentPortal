@@ -50,6 +50,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   inferredCurrency = 'LKR';
 
   userProfile: any = null;
+  expandedInstallments = new Set<string>();
 
   constructor(
     private readonly api: PaymentHubApiService,
@@ -101,6 +102,22 @@ export class PaymentHubStudentPortalComponent implements OnInit {
         r.status !== 'FULLY_PAID' &&
         r.studentInstallmentView?.allPaid !== true,
     );
+  }
+
+  getActiveInstallmentCount(): number {
+    return this.requests.filter(r => r.installmentAllowed).length;
+  }
+
+  toggleInstallments(reqId: string): void {
+    if (this.expandedInstallments.has(reqId)) {
+      this.expandedInstallments.delete(reqId);
+    } else {
+      this.expandedInstallments.add(reqId);
+    }
+  }
+
+  isInstallmentExpanded(reqId: string): boolean {
+    return this.expandedInstallments.has(reqId);
   }
 
   /** Fifth summary card: catalog level fee minus approved payments */
