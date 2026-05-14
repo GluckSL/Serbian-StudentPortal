@@ -221,10 +221,29 @@
               </div>
             </div>
 
-            <div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
-              <mat-icon>verified</mat-icon>
-              <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this plan is fully paid.' : '.' }}</span>
-            </div>
+<div class="sp-approved-row" *ngIf="req.status === 'APPROVED' || req.status === 'FULLY_PAID'">
+                <mat-icon>verified</mat-icon>
+                <span>Approved{{ req.status === 'FULLY_PAID' ? ' — this plan is fully paid.' : '.' }}</span>
+              </div>
+
+              <div class="sp-req-footer">
+                <button mat-flat-button
+                  *ngIf="canUpload(req)"
+                  [color]="isUrgent(req) ? 'warn' : 'primary'"
+                  [class.sp-btn-urgent]="isUrgent(req)"
+                  type="button"
+                  (click)="openUpload(req)">
+                  <mat-icon>cloud_upload</mat-icon>
+                  {{ actionLabel(req) }}
+                </button>
+                <button mat-stroked-button
+                  type="button"
+                  (click)="downloadInvoice(req)"
+                  matTooltip="Download Invoice">
+                  <mat-icon>receipt_long</mat-icon>
+                  Invoice
+                </button>
+              </div>
           </ng-container>
 
           <ng-template #oneLineRequest>
@@ -290,14 +309,22 @@
                 <div class="sp-purpose-text">{{ req.remarks }}</div>
               </div>
 
-              <div class="sp-req-footer" *ngIf="canUpload(req)">
+              <div class="sp-req-footer">
                 <button mat-flat-button
+                  *ngIf="canUpload(req)"
                   [color]="isUrgent(req) ? 'warn' : 'primary'"
                   [class.sp-btn-urgent]="isUrgent(req)"
                   type="button"
                   (click)="openUpload(req)">
                   <mat-icon>cloud_upload</mat-icon>
                   {{ actionLabel(req) }}
+                </button>
+                <button mat-stroked-button
+                  type="button"
+                  (click)="downloadInvoice(req)"
+                  matTooltip="Download Invoice">
+                  <mat-icon>receipt_long</mat-icon>
+                  Invoice
                 </button>
               </div>
 
