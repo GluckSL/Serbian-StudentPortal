@@ -1,8 +1,11 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
-const uploadDir = path.join(__dirname, '..', 'uploads', 'manual-recordings');
+// Stage uploads on the system temp volume (same idea as Zoom downloads in recordingProcessor).
+// Final HLS lives in R2 under manual/{recordingId}/hls/ — project uploads/ is not used.
+const uploadDir = path.join(os.tmpdir(), 'gluck-manual-recordings');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({

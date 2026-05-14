@@ -52,7 +52,7 @@ const RECORDING_PIPELINE_MAX_ATTEMPTS = Math.max(
 
 const FFMPEG_PROGRESS_LOG_MS = Math.max(
   5000,
-  Math.min(Number(process.env.RECORDING_FFMPEG_PROGRESS_LOG_MS) || 60000, 600000)
+  Math.min(Number(process.env.RECORDING_FFMPEG_PROGRESS_LOG_MS) || 15000, 600000)
 );
 
 /** Max width after scale filter (default 1280). Use 854 or 640 on very low-RAM hosts. */
@@ -379,7 +379,7 @@ async function convertToHLS(input, meetingLinkId) {
   const threads = effectiveFfmpegThreads();
   console.log(
     `🎬 FFmpeg HLS conversion started → ${tmpDir}${fromFile ? ' (from disk)' : ' (from stream)'} ` +
-    `[preset=${preset} crf=${crf} maxWidth=${maxW}${threads != null ? ` threads=${threads}` : ''}]`
+    `[preset=${preset}, crf=${crf}, maxWidth=${maxW}${threads != null ? `, threads=${threads}` : ''}]`
   );
 
   await new Promise((resolve, reject) => {
@@ -732,8 +732,9 @@ async function processManualRecordingUpload(recordingId, localFilePath) {
         resolve(Math.round(d));
       });
     });
-    const inputStream = fs.createReadStream(localFilePath);
-    const result = await convertToHLS(inputStream, `manual-${recordingId}`);
+    // Use the on-disk file as FFmpeg input (same as Zoom pipeline). Piping stdin from a
+    // read stream is fragile on Windows and can appear "stuck" with sparse progress logs.
+    const result = await convertToHLS(localFilePath, `manual-${recordingId}`);
     hlsDir = result.tmpDir;
 
     const hlsKey = await uploadHlsToR2(hlsDir, result.files, hlsPrefix);

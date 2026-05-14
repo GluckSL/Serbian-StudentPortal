@@ -771,7 +771,15 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     const query = andClauses.length ? { $and: andClauses } : {};
 
-    const sortOrder = date ? 1 : -1;
+    // Single calendar-day filter: chronological within the day.
+    // Scheduled / ongoing lists: soonest first (next class on page 1).
+    // Ended + legacy queries (no lifecycle): most recent first.
+    let sortOrder = -1;
+    if (date) {
+      sortOrder = 1;
+    } else if (lifecycle === 'scheduled' || lifecycle === 'ongoing') {
+      sortOrder = 1;
+    }
     const totalCount = await MeetingLink.countDocuments(query);
 
     const summaryAgg = await MeetingLink.aggregate([
