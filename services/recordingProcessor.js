@@ -16,6 +16,121 @@ const ZoomRecording = require('../models/ZoomRecording');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+const ALLOWED_FFMPEG_PRESETS = new Set([
+  'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow',
+]);
+
+function effectiveFfmpegPreset() {
+  const p = String(process.env.RECORDING_FFMPEG_PRESET || 'veryfast').trim().toLowerCase();
+  return ALLOWED_FFMPEG_PRESETS.has(p) ? p : 'veryfast';
+}
+
+function effectiveFfmpegCrf() {
+  const n = Number(process.env.RECORDING_FFMPEG_CRF);
+  if (Number.isFinite(n) && n >= 18 && n <= 35) return String(Math.round(n));
+  return '28';
+}
+
+const RECORDING_R2_UPLOAD_CONCURRENCY = Math.max(
+  1,
+  Math.min(Number(process.env.RECORDING_R2_UPLOAD_CONCURRENCY) || 8, 25)
+);
+
+/** Minimum free bytes on temp volume before download+encode (default 1 GiB). Set RECORDING_MIN_TMP_FREE_BYTES=0 to disable. */
+const MIN_TMP_FREE_BYTES = (() => {
+  const raw = process.env.RECORDING_MIN_TMP_FREE_BYTES;
+  if (raw === '0') return 0;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return 1024 ** 3;
+})();
+
+const RECORDING_PIPELINE_MAX_ATTEMPTS = Math.max(
+  1,
+  Math.min(Number(process.env.RECORDING_PIPELINE_MAX_ATTEMPTS) || 2, 5)
+);
+
+const FFMPEG_PROGRESS_LOG_MS = Math.max(
+  5000,
+  Math.min(Number(process.env.RECORDING_FFMPEG_PROGRESS_LOG_MS) || 60000, 600000)
+);
+
+/** Max width after scale filter (default 1280). Use 854 or 640 on very low-RAM hosts. */
+function effectiveMaxEncodeWidth() {
+  const n = Number(process.env.RECORDING_MAX_ENCODE_WIDTH);
+  if (Number.isFinite(n) && n >= 426 && n <= 1920) return Math.round(n);
+  return 1280;
+}
+
+/**
+ * Caps FFmpeg thread count (decoder + encoder). Omit env for FFmpeg default.
+ * On hosts with ~1GiB RAM, try RECORDING_FFMPEG_THREADS=1 or 2 to reduce peak memory.
+ */
+function effectiveFfmpegThreads() {
+  const raw = process.env.RECORDING_FFMPEG_THREADS;
+  if (raw === undefined || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(16, Math.round(n));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Best-effort free space for temp dir (null if unavailable). */
+function getTmpFreeBytes() {
+  try {
+    const { statfsSync } = require('fs');
+    if (typeof statfsSync !== 'function') return null;
+    const s = statfsSync(os.tmpdir());
+    return Number(s.bavail) * Number(s.bsize);
+  } catch {
+    return null;
+  }
+}
+
+function isRetryablePipelineError(err) {
+  const m = String(err?.message || err || '').toLowerCase();
+  if (m.includes('enospc') || m.includes('no space left')) return false;
+  if (m.includes('zoom download too small')) return false;
+  if (m.includes('not a valid mp4')) return false;
+  if (m.includes('temp filesystem low on space')) return false;
+  if (m.includes('likely oom')) return false;
+  if (m.includes('cannot allocate memory')) return false;
+  if (m.includes('401') && m.includes('zoom')) return false;
+  if (m.includes('403')) return false;
+  return (
+    m.includes('econnreset') ||
+    m.includes('etimedout') ||
+    m.includes('econnaborted') ||
+    m.includes('socket hang') ||
+    m.includes('timeout') ||
+    m.includes('ffmpeg exited') ||
+    m.includes('zoom download failed: http 5') ||
+    m.includes('eai_again') ||
+    m.includes('enotfound')
+  );
+}
+
+/** If stderr / message suggests OOM or SIGKILL, append a short hint for operators. */
+function hintIfLikelyOom(message, stderrLines) {
+  const blob = `${String(message || '')} ${(stderrLines || []).join(' ')}`.toLowerCase();
+  if (
+    blob.includes('cannot allocate memory') ||
+    blob.includes('killed') ||
+    blob.includes('signal 9') ||
+    blob.includes('out of memory') ||
+    /exited with code 137/.test(blob)
+  ) {
+    return (
+      ' Likely OOM: host RAM too small for this transcode. Use a ≥2GiB instance, or set ' +
+      'RECORDING_MAX_ENCODE_WIDTH=854 RECORDING_FFMPEG_PRESET=ultrafast RECORDING_FFMPEG_THREADS=1.'
+    );
+  }
+  return '';
+}
+
 // ── Key helpers ───────────────────────────────────────────────────────────────
 
 /**
@@ -169,6 +284,8 @@ async function createZoomDownloadStream(downloadUrl, accessToken, options = {}) 
       responseType: 'stream',
       maxRedirects: 0,
       validateStatus: () => true,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
       headers: opts.authHeader ? { Authorization: `Bearer ${accessToken}` } : {},
     });
   }
@@ -238,13 +355,11 @@ async function createZoomDownloadStream(downloadUrl, accessToken, options = {}) 
 /**
  * Convert the Zoom input stream to HLS segments in a temp directory.
  *
- * Encoding choices:
- *   - H.264 CRF 28, preset fast  → good quality/size for class recordings
- *   - Scale ≤ 1280 wide (720p)   → sharp on most devices
- *   - AAC 128 kbps stereo        → clear voice audio
- *   - 2-second segments          → faster first-frame startup
- *   - independent_segments flag  → every .ts is independently decodable
- *     (lets hls.js seek to any segment without downloading prior ones)
+ * Encoding choices (tuned via env for speed vs quality):
+ *   - H.264 CRF (RECORDING_FFMPEG_CRF, default 28), preset (RECORDING_FFMPEG_PRESET, default veryfast)
+ *   - Scale ≤ RECORDING_MAX_ENCODE_WIDTH (default 1280)
+ *   - AAC 128 kbps stereo
+ *   - 2-second segments, independent_segments for hls.js seeking
  *
  * @param {NodeJS.ReadableStream|string} input  - Video stream or path to a local MP4/MOV file
  * @param {string}                meetingLinkId
@@ -258,31 +373,56 @@ async function convertToHLS(input, meetingLinkId) {
   const segmentPattern = path.join(tmpDir, 'seg%03d.ts');
 
   const fromFile = typeof input === 'string';
-  console.log(`🎬 FFmpeg HLS conversion started → ${tmpDir}${fromFile ? ' (from disk)' : ' (from stream)'}`);
+  const preset = effectiveFfmpegPreset();
+  const crf = effectiveFfmpegCrf();
+  const maxW = effectiveMaxEncodeWidth();
+  const threads = effectiveFfmpegThreads();
+  console.log(
+    `🎬 FFmpeg HLS conversion started → ${tmpDir}${fromFile ? ' (from disk)' : ' (from stream)'} ` +
+    `[preset=${preset} crf=${crf} maxWidth=${maxW}${threads != null ? ` threads=${threads}` : ''}]`
+  );
 
   await new Promise((resolve, reject) => {
+    const stderrLines = [];
     const cmd = ffmpeg(input);
-    if (!fromFile) {
+    if (fromFile) {
+      cmd.inputOptions(['-fflags', '+genpts+discardcorrupt', '-err_detect', 'ignore_err']);
+    } else {
       cmd.inputFormat('mp4');
+    }
+    let lastProgressLog = 0;
+    const outOpts = [
+      '-crf', crf,
+      '-preset', preset,
+      `-vf scale='min(${maxW},iw)':-2`,
+      '-b:a', '128k',
+      '-hls_time', '2',
+      '-hls_list_size', '0',
+      '-hls_flags', 'independent_segments',
+      '-hls_segment_type', 'mpegts',
+      `-hls_segment_filename ${segmentPattern}`,
+      '-f', 'hls',
+    ];
+    if (threads != null) {
+      outOpts.unshift('-threads', String(threads));
     }
     cmd
       .videoCodec('libx264')
       .audioCodec('aac')
-      .outputOptions([
-        '-crf 28',
-        '-preset fast',
-        `-vf scale='min(1280,iw)':-2`,   // cap 720p, preserve aspect
-        '-b:a 128k',
-        '-hls_time 2',                    // 2-second segments
-        '-hls_list_size 0',               // keep all segments in playlist
-        '-hls_flags independent_segments',// each .ts independently decodable
-        '-hls_segment_type mpegts',
-        `-hls_segment_filename ${segmentPattern}`,
-        '-f hls',
-      ])
+      .outputOptions(outOpts)
       .output(playlistPath)
+      .on('stderr', (line) => {
+        const s = String(line || '').trim();
+        if (!s || s.startsWith('frame=') || s.startsWith('size=')) return;
+        stderrLines.push(s);
+        if (stderrLines.length > 48) stderrLines.shift();
+      })
       .on('progress', (p) => {
-        if (p.timemark) console.log(`  ⏱  FFmpeg progress: ${p.timemark}`);
+        if (!p.timemark) return;
+        const now = Date.now();
+        if (now - lastProgressLog < FFMPEG_PROGRESS_LOG_MS) return;
+        lastProgressLog = now;
+        console.log(`  ⏱  FFmpeg progress: ${p.timemark}`);
       })
       .on('end', resolve)
       .on('error', (err) => {
@@ -292,7 +432,10 @@ async function convertToHLS(input, meetingLinkId) {
           resolve();
           return;
         }
-        reject(err);
+        const tail = stderrLines.length
+          ? ` | ffmpeg: ${stderrLines.slice(-6).join(' | ')}`
+          : '';
+        reject(new Error(msg + tail + hintIfLikelyOom(msg, stderrLines)));
       })
       .run();
   });
@@ -337,8 +480,8 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
   const segments  = files.filter((f) => f.endsWith('.ts'));
   const playlists = files.filter((f) => f.endsWith('.m3u8'));
 
-  // Upload segments first (parallel, 5 at a time)
-  const CONCURRENCY = 5;
+  // Upload segments first (parallel, bounded concurrency)
+  const CONCURRENCY = RECORDING_R2_UPLOAD_CONCURRENCY;
   for (let i = 0; i < segments.length; i += CONCURRENCY) {
     const batch = segments.slice(i, i + CONCURRENCY);
     await Promise.all(batch.map((seg) =>
@@ -373,7 +516,8 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
  *   4. FFmpeg → HLS segments in temp dir
  *   5. Upload all HLS files to R2
  *   6. Mark ZoomRecording as ready with hlsKey
- *   7. Clean up temp dir
+ *   7. finally: unlink temp MP4 + rm HLS dir if they still exist (avoids ENOSPC)
+ *   Retries: transient network/FFmpeg errors retry up to RECORDING_PIPELINE_MAX_ATTEMPTS (default 2).
  *
  * @param {string} zoomMeetingId
  * @param {string} downloadUrl
@@ -385,6 +529,14 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
  */
 async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
   console.log(`🎬 Starting HLS pipeline for Zoom meeting ${zoomMeetingId}`);
+
+  const totalMem = os.totalmem();
+  if (totalMem < 1.75 * 1024 ** 3) {
+    console.warn(
+      `⚠️  Host has ~${Math.round(totalMem / (1024 ** 2))}MiB RAM — long HLS transcodes often fail (OOM). ` +
+        'Prefer ≥2GiB, or set RECORDING_MAX_ENCODE_WIDTH=854 RECORDING_FFMPEG_PRESET=ultrafast RECORDING_FFMPEG_THREADS=1.'
+    );
+  }
 
   // 1. Resolve MeetingLink
   const meetingLink = await resolveMeetingLink(zoomMeetingId, options);
@@ -417,84 +569,117 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
   }
   await zoomRecordingDoc.save();
 
-  let tmpDir = null;
-  let tmpMp4 = null;
+  let lastError = null;
 
-  try {
-    // 3. Zoom access token
-    const accessToken = await zoomService.getAccessToken();
-
-    // 4. Stream Zoom file to disk (FFmpeg on pipe often fails with "Invalid data" for cloud recordings)
+  for (let attempt = 1; attempt <= RECORDING_PIPELINE_MAX_ATTEMPTS; attempt += 1) {
+    let tempMp4 = null;
+    let hlsDir = null;
     try {
-      const u = new URL(downloadUrl);
-      console.log(`⬇️  Zoom download: ${u.origin}${u.pathname}`);
-    } catch { console.log(`⬇️  Zoom download: ${downloadUrl}`); }
-
-    const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken, {
-      downloadToken: options.downloadToken,
-    });
-    tmpMp4 = path.join(os.tmpdir(), `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
-    await pipeline(downloadStream, fs.createWriteStream(tmpMp4));
-
-    const st = fs.statSync(tmpMp4);
-    if (st.size < 2048) {
-      throw new Error(`Zoom download too small (${st.size} bytes) — likely an error response, not a recording`);
-    }
-
-    const head = Buffer.alloc(4096);
-    const fh = fs.openSync(tmpMp4, 'r');
-    const readLen = fs.readSync(fh, head, 0, head.length, 0);
-    fs.closeSync(fh);
-    const probe = head.subarray(0, readLen);
-    if (!bufferLooksLikeIsoBmff(probe)) {
-      const text = probe.toString('utf8').replace(/\s+/g, ' ').slice(0, 200);
-      throw new Error(`Zoom download is not a valid MP4 (size=${st.size}b, head=${JSON.stringify(text)})`);
-    }
-
-    // 5. FFmpeg → HLS temp files
-    const result = await convertToHLS(tmpMp4, meetingLinkId);
-    tmpDir = result.tmpDir;
-    const files = result.files;
-
-    // 6. Upload to R2
-    const hlsKey = await uploadHlsToR2(tmpDir, files, hlsPrefix);
-
-    // 7. Mark ready
-    zoomRecordingDoc.status = 'ready';
-    zoomRecordingDoc.hlsKey = hlsKey;
-    zoomRecordingDoc.r2Key = null; // HLS-only; no separate MP4
-    zoomRecordingDoc.duration = meetingLink.duration ? meetingLink.duration * 60 : null;
-    await zoomRecordingDoc.save();
-
-    console.log(`✅ HLS recording ready: ${hlsKey}`);
-    return { success: true, hlsKey, meetingLinkId };
-
-  } catch (err) {
-    console.error(`❌ HLS pipeline failed for meeting ${zoomMeetingId}:`, err.message);
-    zoomRecordingDoc.status = 'failed';
-    zoomRecordingDoc.errorMessage = err.message;
-    await zoomRecordingDoc.save();
-    return { success: false, error: err.message, meetingLinkId };
-
-  } finally {
-    if (tmpMp4) {
-      try {
-        fs.rmSync(tmpMp4, { force: true });
-        console.log(`🧹 Removed temp Zoom download: ${tmpMp4}`);
-      } catch (e) {
-        console.warn(`⚠️  Could not remove temp download ${tmpMp4}: ${e.message}`);
+      const free = getTmpFreeBytes();
+      if (MIN_TMP_FREE_BYTES > 0 && free != null && free < MIN_TMP_FREE_BYTES) {
+        throw new Error(
+          `Temp filesystem low on space: ${Math.round(free / (1024 * 1024))}MiB free ` +
+          `(need ≥${Math.round(MIN_TMP_FREE_BYTES / (1024 * 1024))}MiB). ` +
+          'Free disk or set RECORDING_MIN_TMP_FREE_BYTES=0 to skip this check.'
+        );
       }
-    }
-    // Always clean up temp dir
-    if (tmpDir) {
+
+      const accessToken = await zoomService.getAccessToken();
+
       try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-        console.log(`🧹 Cleaned temp dir: ${tmpDir}`);
-      } catch (e) {
-        console.warn(`⚠️  Could not remove temp dir ${tmpDir}: ${e.message}`);
+        const u = new URL(downloadUrl);
+        console.log(`⬇️  Zoom download: ${u.origin}${u.pathname}`);
+      } catch {
+        console.log(`⬇️  Zoom download: ${downloadUrl}`);
+      }
+
+      const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken, {
+        downloadToken: options.downloadToken,
+      });
+      tempMp4 = path.join(os.tmpdir(), `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
+      await pipeline(downloadStream, fs.createWriteStream(tempMp4));
+
+      const st = fs.statSync(tempMp4);
+      if (st.size < 2048) {
+        throw new Error(`Zoom download too small (${st.size} bytes) — likely an error response, not a recording`);
+      }
+
+      const head = Buffer.alloc(4096);
+      const fh = fs.openSync(tempMp4, 'r');
+      const readLen = fs.readSync(fh, head, 0, head.length, 0);
+      fs.closeSync(fh);
+      const probe = head.subarray(0, readLen);
+      if (!bufferLooksLikeIsoBmff(probe)) {
+        const text = probe.toString('utf8').replace(/\s+/g, ' ').slice(0, 200);
+        throw new Error(`Zoom download is not a valid MP4 (size=${st.size}b, head=${JSON.stringify(text)})`);
+      }
+
+      const result = await convertToHLS(tempMp4, meetingLinkId);
+      hlsDir = result.tmpDir;
+      const files = result.files;
+
+      const hlsKey = await uploadHlsToR2(hlsDir, files, hlsPrefix);
+
+      zoomRecordingDoc.status = 'ready';
+      zoomRecordingDoc.hlsKey = hlsKey;
+      zoomRecordingDoc.r2Key = null;
+      zoomRecordingDoc.errorMessage = null;
+      zoomRecordingDoc.duration = meetingLink.duration ? meetingLink.duration * 60 : null;
+      await zoomRecordingDoc.save();
+
+      console.log(`✅ HLS recording ready: ${hlsKey}`);
+      return { success: true, hlsKey, meetingLinkId };
+    } catch (err) {
+      lastError = err;
+      console.error(
+        `❌ HLS pipeline failed for meeting ${zoomMeetingId} ` +
+        `(attempt ${attempt}/${RECORDING_PIPELINE_MAX_ATTEMPTS}):`,
+        err.message
+      );
+      const willRetry = attempt < RECORDING_PIPELINE_MAX_ATTEMPTS && isRetryablePipelineError(err);
+      if (willRetry) {
+        zoomRecordingDoc.status = 'processing';
+        zoomRecordingDoc.errorMessage = `will retry: ${err.message}`;
+        await zoomRecordingDoc.save();
+        console.warn(
+          `🔁 Recording pipeline retry ${attempt + 1}/${RECORDING_PIPELINE_MAX_ATTEMPTS} ` +
+          `after ${Math.round(1500 * attempt)}ms…`
+        );
+        await sleep(1500 * attempt);
+      } else {
+        zoomRecordingDoc.status = 'failed';
+        zoomRecordingDoc.errorMessage = err.message;
+        await zoomRecordingDoc.save();
+        return { success: false, error: err.message, meetingLinkId };
+      }
+    } finally {
+      if (tempMp4 && fs.existsSync(tempMp4)) {
+        try {
+          fs.unlinkSync(tempMp4);
+          console.log(`🧹 Removed temp Zoom download: ${tempMp4}`);
+        } catch (e) {
+          console.warn(`⚠️  Could not unlink temp download ${tempMp4}: ${e.message}`);
+        }
+      }
+      if (hlsDir && fs.existsSync(hlsDir)) {
+        try {
+          fs.rmSync(hlsDir, {
+            recursive: true,
+            force: true,
+          });
+          console.log(`🧹 Cleaned HLS temp dir: ${hlsDir}`);
+        } catch (e) {
+          console.warn(`⚠️  Could not remove HLS temp dir ${hlsDir}: ${e.message}`);
+        }
       }
     }
   }
+
+  const fallbackMsg = lastError?.message || 'Recording pipeline failed after retries';
+  zoomRecordingDoc.status = 'failed';
+  zoomRecordingDoc.errorMessage = fallbackMsg;
+  await zoomRecordingDoc.save();
+  return { success: false, error: fallbackMsg, meetingLinkId };
 }
 
 // ── Global processing queue ───────────────────────────────────────────────────
@@ -535,7 +720,7 @@ async function processManualRecordingUpload(recordingId, localFilePath) {
   if (!localFilePath) throw new Error('localFilePath is required');
 
   const hlsPrefix = `manual/${recordingId}/hls`;
-  let tmpDir = null;
+  let hlsDir = null;
   let durationSec = null;
 
   try {
@@ -549,24 +734,29 @@ async function processManualRecordingUpload(recordingId, localFilePath) {
     });
     const inputStream = fs.createReadStream(localFilePath);
     const result = await convertToHLS(inputStream, `manual-${recordingId}`);
-    tmpDir = result.tmpDir;
+    hlsDir = result.tmpDir;
 
-    const hlsKey = await uploadHlsToR2(tmpDir, result.files, hlsPrefix);
+    const hlsKey = await uploadHlsToR2(hlsDir, result.files, hlsPrefix);
     return { success: true, hlsKey, duration: durationSec };
   } catch (err) {
     return { success: false, error: err.message || 'Manual upload processing failed' };
   } finally {
-    if (tmpDir) {
+    if (localFilePath && fs.existsSync(localFilePath)) {
       try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        fs.unlinkSync(localFilePath);
       } catch (e) {
-        console.warn(`⚠️  Could not remove temp dir ${tmpDir}: ${e.message}`);
+        console.warn(`⚠️  Could not unlink manual upload temp ${localFilePath}: ${e.message}`);
       }
     }
-    try {
-      fs.rmSync(localFilePath, { force: true });
-    } catch (e) {
-      console.warn(`⚠️  Could not remove uploaded file ${localFilePath}: ${e.message}`);
+    if (hlsDir && fs.existsSync(hlsDir)) {
+      try {
+        fs.rmSync(hlsDir, {
+          recursive: true,
+          force: true,
+        });
+      } catch (e) {
+        console.warn(`⚠️  Could not remove HLS temp dir ${hlsDir}: ${e.message}`);
+      }
     }
   }
 }

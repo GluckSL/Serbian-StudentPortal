@@ -64,6 +64,13 @@ body {
   color: #1c1e21;
 }
 
+/* Material typography / theme can set overflow:hidden on body, which clips nested scroll areas */
+body.mat-typography {
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
 a {
   text-decoration: none;
   color: inherit;

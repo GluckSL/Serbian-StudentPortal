@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Sticky header (public pages) */
@@ -15,10 +16,26 @@ app-header {
 /* Main content */
 .main-content {
   flex: 1;
+  /* Allow this flex child to shrink so overflow-y can form a real scrollport */
+  min-height: 0;
   padding-bottom: 0;
   box-sizing: border-box;
   background: #f4f4f4;
   overflow-y: auto;
+}
+
+/* Sidebar routes: let routed components fill <main> height so inner panes can scroll */
+.shell-content > .main-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-content > .main-content > app-digital-exercise-player {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .main-content.login-route {
@@ -42,7 +59,9 @@ app-footer {
 /* Sidebar shell layout */
 .app-shell {
   display: flex;
-  min-height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   overflow-x: hidden;
 }
 
@@ -51,8 +70,9 @@ app-footer {
   margin-left: 240px;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 0;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Mobile hamburger */
@@ -127,8 +147,7 @@ app-footer {
   }
 
   .main-content {
-    min-height: calc(100dvh - 52px);
-    /* Avoid horizontal scroll from wide tables/grids shifting the viewport sideways on small screens */
+    /* Do not force nearly full-viewport min-height: it blocks flex scrollports and clips tall pages */
     overflow-x: clip;
     max-width: 100%;
   }

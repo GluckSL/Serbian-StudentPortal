@@ -40,9 +40,21 @@
 .pron-mark-correct-btn {
   margin-top: 10px;
 }
+
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+}
+
 /* digital-exercise-player.component.css — Clean quiz UI */
 .player-page {
-  min-height: 100vh;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: #f8f7ff;
   font-family:
     "Inter",
@@ -1579,15 +1591,17 @@
   .ipm-play-wrap {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 22px;
     align-items: stretch;
   }
   .ipm-label-col {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 12px;
     width: 100%;
-    align-items: center;
+    justify-content: center;
+    align-items: flex-end;
   }
   .ipm-image-wrap {
     order: 0;
@@ -1616,11 +1630,14 @@
   }
   .ipm-label-col:nth-child(3) {
     order: 1;
+    align-items: flex-start;
   }
 
   .ipm-label-col:nth-child(1) .ipm-label-pill {
     flex-direction: column;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
+    flex: 0 1 auto;
     align-items: center;
   }
   .ipm-label-col:nth-child(1) .ipm-label-stem--right {
@@ -1629,7 +1646,9 @@
 
   .ipm-label-col:nth-child(3) .ipm-label-pill {
     flex-direction: column;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
+    flex: 0 1 auto;
     align-items: center;
   }
 }
@@ -6857,10 +6876,34 @@
 }
 
 @media (max-width: 900px) {
+  .player-layout:not(.player-layout--vp-only) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .player-layout:not(.player-layout--vp-only) .browser-guidance,
+  .player-layout:not(.player-layout--vp-only) .pron-debug,
+  .player-layout:not(.player-layout--vp-only) .player-header,
+  .player-layout:not(.player-layout--vp-only) .shared-audio-wrap {
+    flex-shrink: 0;
+  }
+
   .player-three-col {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto;
     gap: 16px;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    /* Clear fixed support FAB + home indicator so last lines / nav are reachable */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
   .player-side-col {
     display: contents;
@@ -6882,7 +6925,7 @@
 
   .player-skeleton {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto;
     gap: 16px;
   }
   .sk-side-col {
