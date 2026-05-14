@@ -432,6 +432,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     private pronunciation: PronunciationService,
     private pronAnalytics: PronunciationAnalyticsService,
     private zone: NgZone,
+    private el: ElementRef,
   ) {}
 
   ngOnInit(): void {
@@ -939,6 +940,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private scrollVpChatToBottom(): void {
+    if (this.imagePinDrag?.active) return;
     const el = this.vpChatScroll?.nativeElement;
     if (el) el.scrollTop = el.scrollHeight;
   }
@@ -2082,6 +2084,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return this.isImagePinDragActive(pq) && this.imagePinDrag.hoverPinId === pinId;
   }
 
+  private getPlayerThreeColEl(): HTMLElement | null {
+    return this.el.nativeElement.querySelector('.player-three-col');
+  }
+
   startImagePinDrag(pq: PlayerQuestion, labelId: string, event: PointerEvent): void {
     if (this.state === 'submitted' || !pq || pq.isCorrect === true || pq.isCorrect === false) return;
     event.preventDefault();
@@ -2089,6 +2095,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const wrap = this.getImagePinWrapEl(pq.index);
     const handle = this.getImagePinHandleEl(pq.index, labelId);
     if (!wrap || !handle) return;
+    
+    // Prevent scrolling while dragging
+    wrap.classList.add('no-touch');
+
     const wrapRect = wrap.getBoundingClientRect();
     const hRect = handle.getBoundingClientRect();
     const startX = hRect.left + hRect.width / 2 - wrapRect.left;
@@ -2152,6 +2162,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private resetImagePinDrag(): void {
+    const wrap = this.getImagePinWrapEl(this.imagePinDrag.questionIndex);
+    if (wrap) wrap.style.touchAction = '';
     this.imagePinDrag.active = false;
     this.imagePinDrag.questionIndex = -1;
     this.imagePinDrag.labelId = '';
