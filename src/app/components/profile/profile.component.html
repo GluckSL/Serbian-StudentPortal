@@ -93,7 +93,45 @@
 </div>
 
 <ng-template #loadingTpl>
-  <div class="pf" style="display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 80px);">
-    <div style="text-align:center;"><div class="pf-spinner"></div><p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading profile...</p></div>
+  <div class="pf-skeleton-wrap">
+    <h2 class="pf-skeleton-title"></h2>
+    <div class="pf-layout">
+      <!-- Left: Photo Card Skeleton -->
+      <div class="pf-photo-card pf-skeleton-card">
+        <div class="pf-skeleton-photo"></div>
+        <div class="pf-skeleton-name"></div>
+        <div class="pf-skeleton-badge"></div>
+        <div class="pf-skeleton-reg"></div>
+        <div class="pf-skeleton-stats">
+          <div class="pf-skeleton-stat"></div>
+          <div class="pf-skeleton-stat"></div>
+          <div class="pf-skeleton-stat"></div>
+        </div>
+        <div class="pf-skeleton-edit"></div>
+      </div>
+
+      <!-- Right: Details Skeleton -->
+      <div class="pf-details">
+        <div class="pf-card pf-skeleton-card">
+          <div class="pf-skeleton-card-title"></div>
+          <div class="pf-skeleton-field"></div>
+          <div class="pf-skeleton-field"></div>
+          <div class="pf-skeleton-field"></div>
+          <div class="pf-skeleton-field"></div>
+          <div class="pf-skeleton-field"></div>
+          <div class="pf-skeleton-field"></div>
+        </div>
+        <div class="pf-card pf-skeleton-card">
+          <div class="pf-skeleton-card-title"></div>
+          <div class="pf-skeleton-bar"></div>
+          <div class="pf-skeleton-field"></div>
+        </div>
+        <div class="pf-card pf-skeleton-card">
+          <div class="pf-skeleton-card-title"></div>
+          <div class="pf-skeleton-field"></div>
+          <div class="pf-skeleton-field"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </ng-template>

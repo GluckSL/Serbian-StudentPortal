@@ -19,8 +19,53 @@
     </div>
   </div>
 
-  <div *ngIf="loading" class="sp-spinner-wrap">
-    <mat-spinner diameter="44"></mat-spinner>
+  <div *ngIf="loading" class="sp-skeleton-wrap">
+    <!-- Page Header Skeleton -->
+    <div class="sp-skeleton-header">
+      <div class="sp-skeleton-title"></div>
+      <div class="sp-skeleton-subtitle"></div>
+    </div>
+
+    <!-- Analytics Row 1 Skeleton -->
+    <div class="sp-analytics-row">
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+    </div>
+
+    <!-- Analytics Row 2 Skeleton -->
+    <div class="sp-analytics-row sp-analytics-row--secondary">
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+    </div>
+
+    <!-- Table Skeleton -->
+    <div class="sp-skeleton-table-section">
+      <div class="sp-skeleton-table-header">
+        <div class="sp-skeleton-title-small"></div>
+        <div class="sp-skeleton-search"></div>
+      </div>
+      <div class="sp-skeleton-table">
+        <div class="sp-skeleton-table-head">
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+        </div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+      </div>
+    </div>
   </div>
 
   <div *ngIf="!loading">

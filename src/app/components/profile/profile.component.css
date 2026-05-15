@@ -127,3 +127,19 @@
   .pf-stats { gap: 0; }
   .pf-stat__val { font-size: 16px; }
 }
+
+/* Skeleton Loading */
+.pf-skeleton-wrap { animation: pf-pulse 1.5s ease-in-out infinite; }
+@keyframes pf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.pf-skeleton-title { height: 24px; width: 140px; background: #e2e8f0; border-radius: 6px; margin: 0 0 18px; }
+.pf-skeleton-card { background: #fff; border-radius: 16px; padding: 28px 24px; border: 1px solid #e8ecf4; }
+.pf-skeleton-photo { width: 130px; height: 130px; border-radius: 50%; background: #e2e8f0; margin: 0 auto 16px; }
+.pf-skeleton-name { height: 24px; width: 160px; background: #e2e8f0; border-radius: 6px; margin: 0 auto 10px; }
+.pf-skeleton-badge { height: 26px; width: 80px; background: #e2e8f0; border-radius: 999px; margin: 0 auto 10px; }
+.pf-skeleton-reg { height: 14px; width: 140px; background: #e2e8f0; border-radius: 4px; margin: 0 auto; }
+.pf-skeleton-stats { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+.pf-skeleton-stat { height: 40px; width: 60px; background: #e2e8f0; border-radius: 6px; }
+.pf-skeleton-edit { height: 40px; width: 100%; background: #e2e8f0; border-radius: 10px; margin-top: 16px; }
+.pf-skeleton-card-title { height: 18px; width: 160px; background: #e2e8f0; border-radius: 4px; margin-bottom: 16px; }
+.pf-skeleton-field { height: 20px; width: 100%; background: #f1f5f9; border-radius: 4px; margin-bottom: 12px; }
+.pf-skeleton-bar { height: 40px; width: 100%; background: #f1f5f9; border-radius: 6px; margin-bottom: 16px; }
