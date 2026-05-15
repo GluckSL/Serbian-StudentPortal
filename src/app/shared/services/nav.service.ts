@@ -56,105 +56,105 @@ export class NavService {
     {
       group: 'Dashboard',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '🏠', route: '/admin-dashboard', subGroup: null }
+        { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', route: '/admin-dashboard', subGroup: null }
       ]
     },
     {
       group: 'People',
       items: [
-        { id: 'students',     label: 'Students',     icon: '🎓', route: '/admin-dashboard',  subGroup: 'Student Management' },
-        { id: 'portal-analytics', label: 'Portal Analytics', icon: '⏱️', route: '/portal-analytics', subGroup: 'Student Management' },
-        { id: 'teachers',     label: 'Teachers',     icon: '🧑‍🏫', route: '/teachers',        subGroup: 'Teacher Management' },
-        { id: 'user-roles',   label: 'User Roles',   icon: '🔑', route: '/user-roles',       subGroup: null }
+        { id: 'students',     label: 'Students',     icon: 'school', route: '/admin-dashboard',  subGroup: 'Student Management' },
+        { id: 'portal-analytics', label: 'Portal Analytics', icon: 'analytics', route: '/portal-analytics', subGroup: 'Student Management' },
+        { id: 'teachers',     label: 'Teachers',     icon: 'group', route: '/teachers',        subGroup: 'Teacher Management' },
+        { id: 'user-roles',   label: 'User Roles',   icon: 'key', route: '/user-roles',       subGroup: null }
       ]
     },
     {
       group: 'Learning',
       items: [
-        { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/admin-modules',             subGroup: 'Module Management' },
-        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: '🦊', route: '/admin/dg-modules',          subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises', icon: '🏋️', route: '/admin/digital-exercises',   subGroup: null },
-        { id: 'teacher-resources', label: 'Teacher Resources', icon: '🗂️', route: '/admin/teacher-resources', subGroup: null },
-        { id: 'journey',           label: 'Journey',            icon: '📅', route: '/admin/journey',             subGroup: null },
-        { id: 'go-students',       label: 'GO Students',        icon: '🚀', route: '/admin/go-students',         subGroup: null }
+        { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/admin-modules',             subGroup: 'Module Management' },
+        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',          subGroup: 'Module Management' },
+        { id: 'exercises', label: 'Online Exercises', icon: 'fitness_center', route: '/admin/digital-exercises',   subGroup: null },
+        { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared', route: '/admin/teacher-resources', subGroup: null },
+        { id: 'journey',           label: 'Journey',            icon: 'map', route: '/admin/journey',             subGroup: null },
+        { id: 'go-students',       label: 'GO Students',        icon: 'rocket_launch', route: '/admin/go-students',         subGroup: null }
       ]
     },
     {
       group: 'Classes & Attendance',
       items: [
-        { id: 'manage-classes', label: 'Manage Classes', icon: '🎥', route: '/teacher/meetings',    subGroup: null },
-        { id: 'attendance',     label: 'Attendance',     icon: '📊', route: '/admin/zoom-reports',   subGroup: null },
-        { id: 'import-meeting', label: 'Import Meeting', icon: '🔗', route: '/admin/external-meetings', subGroup: null },
-        { id: 'class-recordings', label: 'Class Recordings', icon: '📹', route: '/class-recordings', subGroup: null }
+        { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings',    subGroup: null },
+        { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports',   subGroup: null },
+        { id: 'import-meeting', label: 'Import Meeting', icon: 'link', route: '/admin/external-meetings', subGroup: null },
+        { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }
       ]
     },
     {
       group: 'AI Bot Report',
       items: [
-        { id: 'ai-bot-report', label: 'AI Bot Report', icon: '📈', route: '/admin-analytics', subGroup: null }
+        { id: 'ai-bot-report', label: 'AI Bot Report', icon: 'insights', route: '/admin-analytics', subGroup: null }
       ]
     },
     {
       group: 'Documents',
       items: [
-        { id: 'documents', label: 'Documents', icon: '📁', route: '/admin/document-verification', subGroup: null }
+        { id: 'documents', label: 'Documents', icon: 'description', route: '/admin/document-verification', subGroup: null }
       ]
     },
     {
       group: 'Visa Tracking',
       items: [
-        { id: 'visa-tracking', label: 'Visa Tracking', icon: '✈️', route: '/admin/visa-tracking', subGroup: null }
+        { id: 'visa-tracking', label: 'Visa Tracking', icon: 'flight', route: '/admin/visa-tracking', subGroup: null }
       ]
     },
     {
       group: 'Student Progress',
       items: [
-        { id: 'student-progress', label: 'Student Progress', icon: '📊', route: '/admin/student-progress', subGroup: null },
-        { id: 'admin-performance', label: 'Performance', icon: '📈', route: '/admin/performance', subGroup: null }
+        { id: 'student-progress', label: 'Student Progress', icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
+        { id: 'admin-performance', label: 'Performance', icon: 'speed', route: '/admin/performance', subGroup: null }
       ]
     },
     {
       group: 'Payments',
       items: [
-        { id: 'payment-hub', label: 'Payment Hub (New)', icon: '💳', route: '/admin/payment-hub', subGroup: null },
-        { id: 'payment-request', label: 'Req Payment', icon: '📤', route: '/admin/payment-request', subGroup: null },
-        { id: 'payments', label: 'Payments', icon: '💵', route: '/admin/payments', subGroup: null },
-        { id: 'invoices', label: 'Invoices', icon: '🧾', route: '/admin/invoices', subGroup: null },
-        { id: 'payment-approvals', label: 'Payment Approvals', icon: '✅', route: '/admin/payment-approvals', subGroup: null }
+        { id: 'payment-hub', label: 'Payment Hub (New)', icon: 'credit_card', route: '/admin/payment-hub', subGroup: null },
+        { id: 'payment-request', label: 'Req Payment', icon: 'send', route: '/admin/payment-request', subGroup: null },
+        { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
+        { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
+        { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
       ]
     },
     {
       group: 'Timetable',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: '📅', route: '/time-table-view-admin', subGroup: null }
+        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-admin', subGroup: null }
       ]
     },
     {
       group: 'CRM Sync',
       items: [
-        { id: 'monday-sync', label: 'Monday.com Preview', icon: '🔄', route: '/admin/monday-sync-preview', subGroup: null }
+        { id: 'monday-sync', label: 'Monday.com Preview', icon: 'sync', route: '/admin/monday-sync-preview', subGroup: null }
       ]
     },
     {
       group: 'Support',
       items: [
-        { id: 'whatsapp-announcement', label: 'WhatsApp Announcement', icon: '💬', route: '/admin/whatsapp-announcement', subGroup: null },
-        { id: 'reminders', label: 'Reminders', icon: '⏰', route: '/admin/reminders', subGroup: null },
-        { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
-        { id: 'support-tickets', label: 'Support Tickets', icon: '🎫', route: '/admin/support-tickets', subGroup: null },
-        { id: 'help', label: 'Help & Support', icon: '❓', route: '/help', subGroup: null }
+        { id: 'whatsapp-announcement', label: 'WhatsApp Announcement', icon: 'chat', route: '/admin/whatsapp-announcement', subGroup: null },
+        { id: 'reminders', label: 'Reminders', icon: 'alarm', route: '/admin/reminders', subGroup: null },
+        { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
+        { id: 'support-tickets', label: 'Support Tickets', icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
+        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
       ]
     },
     {
       group: 'System',
       items: [
-        { id: 'test-accounts', label: 'Test Accounts', icon: '🧪', route: '/admin/test-accounts', subGroup: null }
+        { id: 'test-accounts', label: 'Test Accounts', icon: 'science', route: '/admin/test-accounts', subGroup: null }
       ]
     },
     {
       group: 'Profile',
       items: [
-        { id: 'profile', label: 'Profile', icon: '👤', route: '/profile', subGroup: null }
+        { id: 'profile', label: 'Profile', icon: 'person', route: '/profile', subGroup: null }
       ]
     }
   ];
@@ -165,55 +165,55 @@ export class NavService {
     {
       group: 'Students',
       items: [
-        { id: 'students', label: 'Students', icon: '👥', route: '/teacher-dashboard', subGroup: null },
-        { id: 'my-classes', label: 'My Classes', icon: '📚', route: '/teacher-dashboard/my-classes', subGroup: null }
+        { id: 'students', label: 'Students', icon: 'groups', route: '/teacher-dashboard', subGroup: null },
+        { id: 'my-classes', label: 'My Classes', icon: 'class', route: '/teacher-dashboard/my-classes', subGroup: null }
       ]
     },
     {
       group: 'Learning',
       items: [
-        { id: 'modules',   label: 'Learning Modules', icon: '🤖', route: '/learning-modules',         subGroup: 'Module Management' },
-        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: '🦊', route: '/admin/dg-modules',        subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: '🏋️', route: '/admin/digital-exercises', subGroup: null }
+        { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/learning-modules',         subGroup: 'Module Management' },
+        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Module Management' },
+        { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null }
       ]
     },
     {
       group: 'Classes & Attendance',
       items: [
-        { id: 'manage-classes', label: 'Manage Classes', icon: '🎥', route: '/teacher/meetings', subGroup: null },
-        { id: 'attendance',     label: 'Attendance',     icon: '📊', route: '/admin/zoom-reports', subGroup: null },
-        { id: 'class-recordings', label: 'Class Recordings', icon: '📹', route: '/class-recordings', subGroup: null }
+        { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings', subGroup: null },
+        { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports', subGroup: null },
+        { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }
       ]
     },
     {
       group: 'AI Bot Report',
       items: [
-        { id: 'ai-bot-report', label: 'AI Bot Report', icon: '📈', route: '/admin-analytics', subGroup: null }
+        { id: 'ai-bot-report', label: 'AI Bot Report', icon: 'insights', route: '/admin-analytics', subGroup: null }
       ]
     },
     {
       group: 'My Analytics',
       items: [
-        { id: 'my-analytics', label: 'My Analytics', icon: '📊', route: '/my-analytics', subGroup: null }
+        { id: 'my-analytics', label: 'My Analytics', icon: 'analytics', route: '/my-analytics', subGroup: null }
       ]
     },
     {
       group: 'Help',
       items: [
-        { id: 'announcements', label: 'Announcements', icon: '📢', route: '/admin/announcements', subGroup: null },
-        { id: 'help', label: 'Help & Support', icon: '🎫', route: '/help', subGroup: null }
+        { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
+        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
       ]
     },
     {
       group: 'Timetable',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: '📅', route: '/time-table-view-teacher', subGroup: null }
+        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-teacher', subGroup: null }
       ]
     },
     {
       group: 'Profile',
       items: [
-        { id: 'profile', label: 'Profile', icon: '👤', route: '/profile', subGroup: null }
+        { id: 'profile', label: 'Profile', icon: 'person', route: '/profile', subGroup: null }
       ]
     }
   ];
