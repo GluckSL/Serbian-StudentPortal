@@ -6,7 +6,11 @@ const StudentLogsSchema = new mongoose.Schema({
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     levelAtUpdate: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: true },
     batchAtUpdate: { type: String, required: true },
-    assignedTeacherAtUpdate: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    assignedTeacherAtUpdate: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
+    },
     statusAtUpdate: { type: String, enum: ["UNCERTAIN", "ONGOING", "COMPLETED", "WITHDREW"], required: true },
     subscriptionAtUpdate: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: true },
     mediumAtUpdate: { type: [String], required: true },
