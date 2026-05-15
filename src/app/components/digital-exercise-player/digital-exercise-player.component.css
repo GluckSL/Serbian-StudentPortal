@@ -321,23 +321,8 @@
   flex-direction: column;
   align-items: center;
   width: 100%;
-  height: calc(100vh - 48px);
-  min-height: 420px;
   padding: 24px;
   max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Outer wrapper: fills space below top padding */
-.player-vp-chat-frame {
-  width: 98%;
-  flex: 1 1 auto;
-  min-height: 0;
-  max-width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
   box-sizing: border-box;
 }
 
@@ -3856,10 +3841,6 @@
     padding: 16px;
   }
 
-  .player-vp-chat-frame {
-    width: 100%;
-    height: auto;
-  }
   .player-three-col {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr auto;
@@ -3953,23 +3934,21 @@
 }
 
 /* ── Video-only: 30% details | 40% video | 30% chat ───────────────────────── */
+.player-vp-chat-frame {
+  padding-bottom: 16px;
+}
 
 .player-vp-chat-layout {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr;
   gap: 16px;
-  align-items: stretch;
-  flex: 1;
-  min-height: 0;
   width: 100%;
   height: 100%;
   margin: 0;
-  overflow: hidden;
 }
 
 /* Keep all three columns inside the same rounded shell */
-.player-vp-chat-layout > .vp-details-col,
+.player-vp-chat-layout > .vp-details-cards,
 .player-vp-chat-layout > .vp-video-col,
 .player-vp-chat-layout > .vp-chat-panel--studio {
   min-height: 0;
@@ -4286,16 +4265,14 @@
   background: #f1f4f8;
   color: #0f172a;
   height: 100%;
+  width: 100%;
+  min-height: 0;
   min-width: 0;
-}
-
-/* Video-only middle column: hero + column fill height so portrait video grows */
-.vp-video-col {
+  position: relative;
   align-items: stretch;
   justify-content: center;
-  padding: 4px 6px 8px 4px;
+  padding: 0;
   flex: 1;
-  min-height: 0;
 }
 
 /* Portrait column — video-only: use full column width & height (minimal letterboxing) */
@@ -5497,9 +5474,6 @@
 /* Desktop: chat column matches details + video height inside the rounded shell */
 @media (min-width: 961px) {
   .player-vp-chat-layout .vp-chat-panel--studio {
-    min-height: 0;
-    max-height: none;
-    height: 100%;
   }
 }
 
@@ -5537,29 +5511,17 @@
     font-size: 0.75rem;
   }
 
-  .player-vp-chat-frame {
-    width: 100%;
-    height: auto;
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
   .player-vp-chat-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: none;
-    flex: 1 1 auto;
-    height: auto;
-    min-height: auto;
-    max-height: none;
   }
 
-  .player-vp-chat-layout > .vp-details-col,
+  .player-vp-chat-layout > .vp-details-cards,
   .player-vp-chat-layout > .vp-video-col,
   .player-vp-chat-layout > .vp-chat-panel--studio {
     height: auto;
   }
 
-  .vp-details-col {
+  .vp-details-cards {
     order: 2;
     min-height: auto;
     max-width: none;
@@ -6894,7 +6856,7 @@
     flex-direction: column;
     flex: 1 1 0;
     min-height: 0;
-    overflow: hidden;
+    /*overflow: hidden;*/
   }
 
   .player-layout:not(.player-layout--vp-only) .browser-guidance,
