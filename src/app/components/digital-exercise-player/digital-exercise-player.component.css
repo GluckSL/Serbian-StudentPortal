@@ -3222,6 +3222,8 @@
 .result-card-inner {
   padding: 44px 36px 40px;
   text-align: center;
+  max-height: 700px;
+  overflow: auto;
 }
 
 .result-hero-badge {
@@ -6007,9 +6009,6 @@
   }
   .points-earned {
     font-size: 2.5rem;
-  }
-  .result-mini-stats {
-    grid-template-columns: 1fr;
   }
   .intro-card {
     padding: 24px 16px;
