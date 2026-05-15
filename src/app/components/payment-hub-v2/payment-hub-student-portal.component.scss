@@ -1252,7 +1252,7 @@
   border-radius: 16px;
   padding: 20px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   border: 1px solid #eceff1;
@@ -1458,6 +1458,23 @@
 
   @media (max-width: 600px) {
     width: 100%;
+  }
+}
+
+.sp-search-input {
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 8px 10px;
+  width: 240px;
+  font-size: 14px;
+
+  @media (max-width: 600px) {
+    width: 100%;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #1976d2;
   }
 }
 
@@ -1683,9 +1700,7 @@
 }
 
 .sp-cell-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+
 }
 
 .sp-btn-upload {
@@ -1695,20 +1710,14 @@
 
 // Expandable Installment Row
 .sp-installment-row {
-  background: #f8f9fa;
-
   td {
     padding: 0 !important;
-    border: none !important;
   }
 }
 
 .sp-installment-details {
-  padding: 20px 24px;
-  background: #fff;
-  margin: 8px 24px;
-  border-radius: 12px;
-  border: 1px solid #eceff1;
+  padding: 20px;
+  padding-bottom: 0px;
 }
 
 .sp-inst-header {
