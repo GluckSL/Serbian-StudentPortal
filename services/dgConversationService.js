@@ -240,7 +240,7 @@ async function translateToTamil(text, fromLang) {
   if (!text || !process.env.DG_OPENAI_API_KEY) return '';
   try {
     const openai = _makeOpenAI();
-    const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o';
+    const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o-mini';
 
     const completion = await Promise.race([
       openai.chat.completions.create({
@@ -260,7 +260,7 @@ async function translateToTamil(text, fromLang) {
         temperature: 0.1,
       }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('DG translation timeout')), 8000),
+        setTimeout(() => reject(new Error('DG translation timeout')), 5000),
       ),
     ]);
 
@@ -279,7 +279,7 @@ async function translateText(text, fromLang, toLang) {
   if (!text || !process.env.DG_OPENAI_API_KEY) return '';
   try {
     const openai = _makeOpenAI();
-    const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o';
+    const translationModel = process.env.OPENAI_TRANSLATION_MODEL || 'gpt-4o-mini';
     const baseMessages = [
       {
         role: 'system',
@@ -299,7 +299,7 @@ async function translateText(text, fromLang, toLang) {
         temperature: 0.1,
       }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('DG translation timeout')), 8000),
+        setTimeout(() => reject(new Error('DG translation timeout')), 5000),
       ),
     ]);
     let translated = (completion.choices[0]?.message?.content || '').trim();
@@ -327,7 +327,7 @@ async function translateText(text, fromLang, toLang) {
           temperature: 0,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('DG translation retry timeout')), 8000),
+          setTimeout(() => reject(new Error('DG translation retry timeout')), 5000),
         ),
       ]);
       translated = (retry.choices[0]?.message?.content || translated).trim();

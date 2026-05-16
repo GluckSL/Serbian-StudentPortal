@@ -192,8 +192,10 @@ exports.respond = async (req, res) => {
           String(targetLang).toLowerCase().includes('german') || targetLang === 'Deutsch'
             ? 'Sehr gut, wir machen weiter!'
             : 'Great, let\'s keep going!';
-        const translatedTamil = await translateToTamil(msg, targetLang).catch(() => '');
-        const translatedEnglish = await translateText(msg, targetLang, 'English').catch(() => '');
+        const [translatedTamil, translatedEnglish] = await Promise.all([
+          translateToTamil(msg, targetLang).catch(() => ''),
+          translateText(msg, targetLang, 'English').catch(() => ''),
+        ]);
         const s = snap();
         return res.json({
           text: msg,
@@ -222,8 +224,10 @@ exports.respond = async (req, res) => {
         String(targetLang).toLowerCase().includes('german') || targetLang === 'Deutsch'
           ? 'Vielen Dank! Auf Wiedersehen!'
           : 'Thank you! Goodbye!';
-      const translatedTamil = await translateToTamil(farewell, targetLang).catch(() => '');
-      const translatedEnglish = await translateText(farewell, targetLang, 'English').catch(() => '');
+      const [translatedTamil, translatedEnglish] = await Promise.all([
+        translateToTamil(farewell, targetLang).catch(() => ''),
+        translateText(farewell, targetLang, 'English').catch(() => ''),
+      ]);
       const s = snap();
       return res.json({
         text: farewell,
@@ -261,8 +265,10 @@ exports.respond = async (req, res) => {
           targetLang === 'German'
             ? 'Sagen Sie "Bereit!" wenn Sie anfangen möchten.'
             : 'Say "Ready!" when you want to begin.';
-        const translatedTamil = await translateToTamil(promptMsg, targetLang).catch(() => '');
-        const translatedEnglish = await translateText(promptMsg, targetLang, 'English').catch(() => '');
+        const [translatedTamil, translatedEnglish] = await Promise.all([
+          translateToTamil(promptMsg, targetLang).catch(() => ''),
+          translateText(promptMsg, targetLang, 'English').catch(() => ''),
+        ]);
         return res.json({
           text: promptMsg, translatedTamil, translatedEnglish,
           turnCount: 0, conversationStarted: false, complete: false,
@@ -282,8 +288,10 @@ exports.respond = async (req, res) => {
       // Mark conversation started and generate opening message
       setState(sessionId, { conversationStarted: true });
       const openingText = await generateOpeningMessage({ ...state, conversationStarted: true });
-      const translatedTamil = await translateToTamil(openingText, targetLang).catch(() => '');
-      const translatedEnglish = await translateText(openingText, targetLang, 'English').catch(() => '');
+      const [translatedTamil, translatedEnglish] = await Promise.all([
+        translateToTamil(openingText, targetLang).catch(() => ''),
+        translateText(openingText, targetLang, 'English').catch(() => ''),
+      ]);
 
       // Record opening in history
       setState(sessionId, {
@@ -313,8 +321,10 @@ exports.respond = async (req, res) => {
       const hintDe = await suggestGermanLine(lastAi, userText);
       const hintEn = 'Say this in German to continue.';
       const s = snap();
-      const translatedTamil = await translateToTamil(hintDe, targetLang).catch(() => '');
-      const translatedEnglish = await translateText(hintDe, targetLang, 'English').catch(() => '');
+      const [translatedTamil, translatedEnglish] = await Promise.all([
+        translateToTamil(hintDe, targetLang).catch(() => ''),
+        translateText(hintDe, targetLang, 'English').catch(() => ''),
+      ]);
       return res.json({
         text: '',
         translatedTamil,
@@ -347,12 +357,14 @@ exports.respond = async (req, res) => {
       `[dgConversation] session=${sessionId} turn=${result.turnCount} vocab=${result.vocabCoverage}% phase=${result.phase} complete=${result.complete}`,
     );
 
-    const translatedEnglish =
-      await translateText(result.aiText, targetLang, 'English').catch(() => '');
+    const [translatedTamil, translatedEnglish] = await Promise.all([
+      translateToTamil(result.aiText, targetLang).catch(() => ''),
+      translateText(result.aiText, targetLang, 'English').catch(() => ''),
+    ]);
     res.json({
       text:                 result.aiText,
       translatedEnglish,
-      translatedTamil:      result.translatedTamil,
+      translatedTamil,
       turnCount:            result.turnCount,
       conversationStarted:  true,
       complete:             result.complete,

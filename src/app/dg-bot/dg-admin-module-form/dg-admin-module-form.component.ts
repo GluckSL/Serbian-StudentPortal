@@ -65,6 +65,7 @@ export class DgAdminModuleFormComponent implements OnInit {
   editLanguage = 'German';
   editNativeLanguage = 'English';
   editMinimumCompletionTime = 5;
+  editMaxPracticeMinutes: number | null = null;
   editCourseDay = '';
   editCharacterId = '';
   editVisible = false;
@@ -249,6 +250,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editNativeLanguage = row.nativeLanguage || 'English';
     this.editMinimumCompletionTime =
       row.minimumCompletionTime != null ? row.minimumCompletionTime : 5;
+    this.editMaxPracticeMinutes =
+      row.maxPracticeMinutes != null ? row.maxPracticeMinutes : null;
     this.editCourseDay =
       row.courseDay != null && row.courseDay > 0 ? String(row.courseDay) : '';
     this.editCharacterId =
@@ -272,7 +275,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editLanguage = 'German';
     this.editNativeLanguage = 'English';
     this.editMinimumCompletionTime = 5;
-    this.editCourseDay = '';
+    this.editMaxPracticeMinutes = null;
     this.editCharacterId =
       this.characters.find((c) => c.isDefault)?._id || this.characters[0]?._id || '';
     this.editVisible = false;
@@ -586,7 +589,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       nativeLanguage: this.editNativeLanguage,
       minimumCompletionTime: duration,
       minPracticeMinutes: duration,
-      maxPracticeMinutes: null,
+      maxPracticeMinutes: this.editMaxPracticeMinutes ?? null,
       courseDay: courseDayPayload,
       characterId: this.editCharacterId,
       visibleToStudents: this.editVisible,
@@ -630,6 +633,14 @@ export class DgAdminModuleFormComponent implements OnInit {
     const duration = Number(this.editMinimumCompletionTime);
     if (Number.isNaN(duration) || duration < 2) {
       fail('duration', 'Duration must be at least 2 minutes');
+    }
+    if (this.editMaxPracticeMinutes != null) {
+      const maxMin = Number(this.editMaxPracticeMinutes);
+      if (Number.isNaN(maxMin) || maxMin < 5 || maxMin > 180) {
+        fail('maxTime', 'Maximum time must be between 5 and 180 minutes');
+      } else if (!Number.isNaN(duration) && maxMin < duration) {
+        fail('maxTime', 'Maximum time must be ≥ duration');
+      }
     }
     if (!this.editRolePlay.situation?.trim()) fail('rpsSit', 'Situation');
     if (!this.editRolePlay.studentRole?.trim()) fail('rpsSr', 'Student role');

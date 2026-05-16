@@ -4,64 +4,7 @@ const {
   getStudentDgJourneyAccess,
   dgModuleUnlockedForStudentDay,
 } = require('../utils/dgStudentJourneyGate');
-
-function extractChatTurns(logs) {
-  const out = [];
-  for (const log of logs || []) {
-    if (log.event === 'conv_student' && String(log.transcript || '').trim()) {
-      out.push({
-        at: log.at,
-        speaker: 'student',
-        text: String(log.transcript).trim(),
-        score: log.score != null ? log.score : undefined,
-      });
-    } else if (log.event === 'conv_ai' && log.meta && String(log.meta.text || '').trim()) {
-      out.push({
-        at: log.at,
-        speaker: 'ai',
-        text: String(log.meta.text).trim(),
-        kind: log.meta.kind || undefined,
-      });
-    } else if (log.event === 'conv_hint' && log.meta) {
-      const hint = String(log.meta.text || '').trim();
-      if (hint) {
-        out.push({
-          at: log.at,
-          speaker: 'hint',
-          text: hint,
-          instructionEn: String(log.meta.instructionEn || log.meta.instruction || '').trim(),
-        });
-      }
-    } else if (log.event === 'practice_attempt' && String(log.transcript || '').trim()) {
-      out.push({
-        at: log.at,
-        speaker: 'student',
-        text: String(log.transcript).trim(),
-        score: log.score != null ? log.score : undefined,
-        kind: 'practice',
-      });
-    }
-  }
-  out.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
-  return out;
-}
-
-function totalSessionMinutes(session) {
-  const arr = session.timePerSceneMs || [];
-  const sumMs = arr.reduce((acc, n) => acc + (Number(n) || 0), 0);
-  if (sumMs > 0) return Math.round((sumMs / 60000) * 10) / 10;
-  let fromLogs = 0;
-  for (const log of session.logs || []) {
-    if (log.event === 'scene_complete' && typeof log.durationMs === 'number') {
-      fromLogs += log.durationMs;
-    }
-  }
-  if (fromLogs > 0) return Math.round((fromLogs / 60000) * 10) / 10;
-  const c = session.createdAt ? new Date(session.createdAt).getTime() : 0;
-  const u = session.updatedAt ? new Date(session.updatedAt).getTime() : 0;
-  if (u > c) return Math.max(0, Math.round(((u - c) / 60000) * 10) / 10);
-  return 0;
-}
+const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
 
 function pushLog(session, entry) {
   session.logs.push({
@@ -325,7 +268,7 @@ exports.listByModuleAdmin = async (req, res) => {
         updatedAt: s.updatedAt,
         completed: !!s.completed,
         completedAt: s.completedAt,
-        score: s.score,
+        score: effectiveSessionScore(s),
         attempts: s.attempts,
         successCount: s.successCount,
         failureCount: s.failureCount,
@@ -336,11 +279,9 @@ exports.listByModuleAdmin = async (req, res) => {
     });
 
     const completedN = sessions.filter((x) => x.completed).length;
-    const scores = sessions
-      .filter((x) => x.completed && typeof x.score === 'number')
-      .map((x) => x.score);
-    const avgScore = scores.length
-      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+    const completedSessions = sessions.filter((x) => x.completed);
+    const avgScore = completedSessions.length
+      ? Math.round(completedSessions.reduce((a, b) => a + (b.score || 0), 0) / completedSessions.length)
       : 0;
     const times = sessions.map((x) => x.timeMinutes).filter((n) => n > 0);
     const avgMinutes = times.length

@@ -1466,6 +1466,223 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 });
 
 /**
+ * Bulk update scheduled meetings (metadata + attendees)
+ * POST /api/zoom/meetings/bulk-update
+ *
+ * Body: { meetingIds, updates: { duration?, topic?, agenda?, courseDay?, assignedTeacher? },
+ *         attendeeUpdates: { addStudentIds?, removeStudentIds? } }
+ */
+router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
+  try {
+    const { meetingIds, updates = {}, attendeeUpdates = {} } = req.body;
+
+    if (!Array.isArray(meetingIds) || meetingIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'meetingIds must be a non-empty array' });
+    }
+
+    const validIds = meetingIds.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid meeting IDs provided' });
+    }
+
+    const requestingUser = await User.findById(req.user.id).select('role');
+    const isAdminUser = requestingUser.role === 'ADMIN' || requestingUser.role === 'SUB_ADMIN';
+
+    // Pre-load students to add (done once, reused per meeting)
+    const { addStudentIds = [], removeStudentIds = [] } = attendeeUpdates;
+    let studentsToAdd = [];
+    if (addStudentIds.length > 0) {
+      studentsToAdd = await User.find({
+        _id: { $in: addStudentIds },
+        role: 'STUDENT'
+      }).select('name email');
+    }
+
+    // Pre-validate assignedTeacher if supplied
+    let newTeacher = null;
+    if (updates.assignedTeacher) {
+      newTeacher = await User.findById(updates.assignedTeacher).select('name email role');
+      if (!newTeacher || !['TEACHER', 'TEACHER_ADMIN'].includes(newTeacher.role)) {
+        return res.status(400).json({ success: false, message: 'Invalid assignedTeacher ID' });
+      }
+    }
+
+    const results = [];
+    const CHUNK = 10;
+
+    for (let i = 0; i < validIds.length; i += CHUNK) {
+      const chunk = validIds.slice(i, i + CHUNK);
+
+      await Promise.all(chunk.map(async (meetingId) => {
+        try {
+          const meeting = await MeetingLink.findById(meetingId);
+          if (!meeting) {
+            results.push({ meetingId, success: false, message: 'Meeting not found' });
+            return;
+          }
+
+          // Status guard — only scheduled meetings
+          if (meeting.status !== 'scheduled') {
+            results.push({ meetingId, success: false, message: `Cannot edit a meeting with status "${meeting.status}"` });
+            return;
+          }
+
+          // Permission guard for teachers
+          if (!isAdminUser) {
+            const isOwner = meeting.createdBy && meeting.createdBy.toString() === req.user.id;
+            const isAssigned = meeting.assignedTeacher && meeting.assignedTeacher.toString() === req.user.id;
+            if (!isOwner && !isAssigned) {
+              results.push({ meetingId, success: false, message: 'Permission denied for this meeting' });
+              return;
+            }
+          }
+
+          // ---- Metadata updates ----
+          const { duration, topic, agenda, courseDay, startTime } = updates;
+          const zoomUpdateData = {};
+          const prevStartMs = meeting.startTime ? new Date(meeting.startTime).getTime() : null;
+
+          if (topic) { zoomUpdateData.topic = topic; meeting.topic = topic; }
+          if (duration) { zoomUpdateData.duration = duration; meeting.duration = duration; }
+          if (agenda !== undefined && agenda !== null) { zoomUpdateData.agenda = agenda; meeting.agenda = agenda; }
+          if (startTime) {
+            zoomUpdateData.start_time = startTime;
+            const nextStartMs = new Date(startTime).getTime();
+            meeting.startTime = new Date(startTime);
+            if (prevStartMs !== nextStartMs) {
+              meeting.reminderEmailSent = false;
+              meeting.reminderEmailSentAt = undefined;
+            }
+          }
+          if (Object.prototype.hasOwnProperty.call(updates, 'courseDay')) {
+            if (courseDay === null || courseDay === '') {
+              meeting.courseDay = null;
+            } else {
+              const n = parseInt(String(courseDay), 10);
+              meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+            }
+          }
+          if (newTeacher) {
+            meeting.assignedTeacher = newTeacher._id;
+          }
+
+          // Sync Zoom if anything changed
+          if (Object.keys(zoomUpdateData).length > 0) {
+            try {
+              await zoomService.updateMeeting(meeting.zoomMeetingId, zoomUpdateData);
+            } catch (zoomErr) {
+              results.push({ meetingId, success: false, message: `Zoom update failed: ${zoomErr.message}` });
+              return;
+            }
+          }
+
+          await meeting.save();
+
+          // Update timetable end-time slot when startTime (or duration) changes
+          if (startTime || duration) {
+            try {
+              const TimeTable = require('../models/TimeTable');
+              const refDate = startTime ? new Date(startTime) : new Date(meeting.startTime);
+              const dayOfWeek = refDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' }).toLowerCase();
+              const slotStart = refDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
+              const endDate = new Date(refDate.getTime() + (duration || meeting.duration) * 60000);
+              const slotEnd = endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
+
+              const timetable = await TimeTable.findOne({
+                batch: meeting.batch,
+                plan: meeting.plan,
+                weekStartDate: { $lte: refDate },
+                weekEndDate: { $gte: refDate }
+              });
+
+              if (timetable) {
+                const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                for (const day of days) {
+                  if (!Array.isArray(timetable[day])) continue;
+                  const slotIdx = timetable[day].findIndex((s) => s.zoomMeetingId === meeting.zoomMeetingId);
+                  if (slotIdx !== -1) {
+                    if (startTime) {
+                      // Move to new day
+                      timetable[day].splice(slotIdx, 1);
+                      if (!timetable[dayOfWeek]) timetable[dayOfWeek] = [];
+                      timetable[dayOfWeek].push({ start: slotStart, end: slotEnd, classStatus: 'Scheduled', zoomMeetingId: meeting.zoomMeetingId, zoomJoinUrl: meeting.joinUrl, zoomPassword: meeting.zoomPassword, meetingLinked: true });
+                    } else {
+                      // Only end time changed (duration update)
+                      timetable[day][slotIdx].end = slotEnd;
+                    }
+                    await timetable.save();
+                    break;
+                  }
+                }
+              }
+            } catch (ttErr) {
+              // Non-critical — log and continue
+              console.error(`⚠️ Timetable update failed for meeting ${meetingId}:`, ttErr.message);
+            }
+          }
+
+          // ---- Attendee updates ----
+          if (studentsToAdd.length > 0) {
+            const existingIds = new Set(meeting.attendees.map((a) => a.studentId.toString()));
+            const genuinelyNew = studentsToAdd.filter((s) => !existingIds.has(s._id.toString()));
+            genuinelyNew.forEach((student) => {
+              meeting.attendees.push({ studentId: student._id, name: student.name, email: student.email, joinUrl: meeting.joinUrl });
+            });
+
+            if (genuinelyNew.length > 0) {
+              await meeting.save();
+              // Send invite emails if the 10-min reminder already went out
+              if (meeting.reminderEmailSent) {
+                try {
+                  const transporter = require('../config/emailConfig');
+                  const { sendInvitationEmailsToAttendees } = require('../services/zoomInvitationEmail');
+                  await sendInvitationEmailsToAttendees(meeting, transporter, {
+                    onlyAttendees: genuinelyNew.map((s) => ({ name: s.name, email: s.email, joinUrl: meeting.joinUrl })),
+                    subject: '🎓 Class reminder — join via portal (Glück Global)',
+                    introParagraph: 'You have been added to this class. It is starting soon — join through the student portal using the steps below.'
+                  });
+                } catch (emailErr) {
+                  console.error(`⚠️ Email failed for new attendees on meeting ${meetingId}:`, emailErr.message);
+                }
+              }
+            }
+          }
+
+          if (removeStudentIds.length > 0) {
+            meeting.attendees = meeting.attendees.filter((a) => !removeStudentIds.includes(a.studentId.toString()));
+            await meeting.save();
+          }
+
+          // CRM webhook
+          scheduleDispatchEvent({
+            event: 'REMINDER_UPDATED',
+            entity: { ...sanitizeMeetingLink(meeting), type: 'MeetingLink' },
+            metaOverrides: { syncMode: 'live' }
+          });
+
+          results.push({ meetingId, success: true });
+        } catch (perMeetingErr) {
+          console.error(`❌ Bulk update error for meeting ${meetingId}:`, perMeetingErr.message);
+          results.push({ meetingId, success: false, message: perMeetingErr.message || 'Unexpected error' });
+        }
+      }));
+    }
+
+    const updatedCount = results.filter((r) => r.success).length;
+    const failedCount = results.length - updatedCount;
+
+    res.status(200).json({
+      success: true,
+      summary: { total: results.length, updated: updatedCount, failed: failedCount },
+      results
+    });
+  } catch (error) {
+    console.error('❌ Error in bulk-update meetings:', error);
+    res.status(500).json({ success: false, message: error.message || 'Bulk update failed' });
+  }
+});
+
+/**
  * Delete Zoom meeting
  * DELETE /api/zoom/meeting/:id
  */

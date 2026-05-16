@@ -214,6 +214,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return this.conversationMinTargetMinutes * 60;
   }
 
+  /** Maximum practice cap from admin (null = no limit). */
+  get conversationMaxTargetSeconds(): number | null {
+    const raw = this.payload?.module.maxPracticeMinutes;
+    if (raw == null) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.max(this.conversationMinTargetSeconds, Math.round(n * 60));
+  }
+
   /** Progress 0–100 toward admin min practice time (for optional bar). */
   get sessionTimerProgressPct(): number {
     const t = this.conversationMinTargetSeconds;
@@ -428,6 +437,20 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     const next = Math.floor((Date.now() - this.conversationPracticeStartedAt) / 1000);
     this.ngZone.run(() => {
       this.sessionElapsedSec = Math.max(0, next);
+
+      // Max-time cap: auto-complete the session as fully done
+      const maxSec = this.conversationMaxTargetSeconds;
+      if (
+        maxSec != null &&
+        this.conversationStarted &&
+        !this.conversationComplete &&
+        this.sessionElapsedSec >= maxSec
+      ) {
+        this.dgLog('max_time_reached', { elapsed: this.sessionElapsedSec, max: maxSec });
+        this.forceCompleteDueToMaxTime();
+        return;
+      }
+
       if (this.conversationStarted && !this.timerExpired && this.sessionElapsedSec >= this.conversationMinTargetSeconds) {
         this.timerExpired = true;
         this.sessionElapsedSec = this.conversationMinTargetSeconds;
@@ -436,6 +459,17 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.dgLog('countdown_finished', { elapsed: this.sessionElapsedSec, target: this.conversationMinTargetSeconds });
       }
     });
+  }
+
+  private forceCompleteDueToMaxTime(): void {
+    this.stopConversationPracticeTimer();
+    this.stopAudio();
+    this.charState.forceIdle();
+    this.isAiThinking = false;
+    this.waitingForUser = false;
+    this.conversationComplete = true;
+    this.timerExpired = true;
+    this.finishModule({ naturalConversation: true }).catch(() => {});
   }
 
   private dgLog(event: string, data: Record<string, unknown> = {}): void {
@@ -561,6 +595,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.refreshSceneBufferAndPreload();
       await this.presentScene();
     } catch (e: any) {
+      const code = e?.error?.code || e?.code;
+      if (code === 'MODULE_ALREADY_COMPLETED') {
+        this.exit();
+        return;
+      }
       this.error = e?.error?.message || e?.message || 'Could not load module';
       this.loading = false;
     }
@@ -1068,7 +1107,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
       if (phase === 'complete' || response.complete) {
         this.conversationComplete = true;
-        await dgDelay(800);
+        await dgDelay(300);
         await this.finishModule({ naturalConversation: true });
         return;
       }
@@ -1204,7 +1243,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       }
       if (response.complete) {
         this.conversationComplete = true;
-        await dgDelay(800);
+        await dgDelay(300);
         await this.finishModule({ naturalConversation: true });
         return;
       }

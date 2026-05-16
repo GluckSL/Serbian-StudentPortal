@@ -160,9 +160,10 @@
                 {{ hubStatusLabel(m) }}
               </span>
             </div>
-            <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']">
+            <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']"
+               *ngIf="activeTab !== 'completed'">
               <mat-icon>play_arrow</mat-icon>
-              {{ isModuleCompleted(m) ? 'Practice again' : 'Start' }}
+              Start
             </a>
           </div>
         </div>

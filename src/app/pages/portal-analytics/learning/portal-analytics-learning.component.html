@@ -2,7 +2,7 @@
   <mat-tab-group animationDuration="0ms" (selectedIndexChange)="onTabChanged($event)">
     <mat-tab label="Video"></mat-tab>
     <mat-tab label="Exercises"></mat-tab>
-    <mat-tab label="Modules"></mat-tab>
+    <mat-tab label="DigiBot"></mat-tab>
   </mat-tab-group>
   <div class="mode-toggle">
     <button
@@ -25,7 +25,192 @@
     <div class="pa-center"><mat-spinner diameter="40" /></div>
   } @else if (error) {
     <p class="text-danger">{{ error }}</p>
-  } @else if (data) {
+  } @else if (isDigiBotTab && digiBotData) {
+
+    <!-- ───────────── DigiBot tab ───────────── -->
+    <div class="learning-head">
+      <h3>Portal Analytics – DigiBot</h3>
+      <p>
+        Gluck Buddy (DG Bot) session activity — individual practice sessions with scores, time, and conversation logs.
+        @if (viewMode === 'day') {
+          Summary for <strong>{{ effectiveDay | date : 'mediumDate' }}</strong> (day-wise view).
+        } @else {
+          <strong>{{ range.from | date : 'mediumDate' }}</strong> to
+          <strong>{{ range.to | date : 'mediumDate' }}</strong> (range view).
+        }
+      </p>
+    </div>
+
+    <div class="kpi-grid kpi-grid--digibot">
+      <mat-card class="kpi-card kpi-card-primary" appearance="outlined">
+        <div class="kpi-label">Total sessions</div>
+        <div class="kpi-value">{{ digiBotData.summary.sessionCount }}</div>
+        <div class="kpi-subtle">{{ digiBotData.summary.completedCount }} completed</div>
+      </mat-card>
+      <mat-card class="kpi-card kpi-card-highlight" appearance="outlined">
+        <div class="kpi-label">Top student</div>
+        <div class="kpi-value kpi-value-sm">{{ digiBotData.summary.topStudent?.name || '—' }}</div>
+        @if (digiBotData.summary.topStudent) {
+          <div class="kpi-hint">{{ formatDuration(digiBotData.summary.topStudent.seconds) }}</div>
+        } @else {
+          <div class="kpi-subtle">No sessions in this selection</div>
+        }
+      </mat-card>
+      <mat-card class="kpi-card kpi-card-primary" appearance="outlined">
+        <div class="kpi-label">Avg score (completed)</div>
+        <div class="kpi-value">{{ digiBotData.summary.avgScore }}%</div>
+        <div class="kpi-subtle">Completed sessions only</div>
+      </mat-card>
+      <mat-card class="kpi-card" appearance="outlined">
+        <div class="kpi-label">Total time</div>
+        <div class="kpi-value">{{ formatDuration(digiBotData.summary.totalSeconds) }}</div>
+        <div class="kpi-subtle">Across all sessions</div>
+      </mat-card>
+      <mat-card class="kpi-card" appearance="outlined">
+        <div class="kpi-label">Avg time / session</div>
+        <div class="kpi-value">{{ formatDuration(digiBotData.summary.avgSecondsPerSession) }}</div>
+        <div class="kpi-subtle">Per session in selection</div>
+      </mat-card>
+    </div>
+
+    <div class="table-responsive table-card">
+      <div class="pa-pager">
+        <span class="text-muted small">
+          {{ totalRows }} session{{ totalRows !== 1 ? 's' : '' }} · page {{ currentPage }} / {{ totalPages }}
+        </span>
+        <div class="pa-pager-nav">
+          <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+          <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+        </div>
+      </div>
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Batch</th>
+            <th>Journey day</th>
+            <th>Module</th>
+            <th>When</th>
+            <th class="text-end">Time spent</th>
+            <th class="text-end">Score</th>
+            <th>Status</th>
+            <th class="text-center">Chat log</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of pagedDigiBotItems; track s.sessionId) {
+            <tr class="dg-session-row">
+              <td>
+                <div class="fw-medium">{{ s.studentName }}</div>
+                <div class="text-muted small text-truncate dg-session-row__email">{{ s.email }}</div>
+              </td>
+              <td>{{ s.batch || '-' }}</td>
+              <td>{{ s.journeyDay || '-' }}</td>
+              <td>
+                <div class="fw-medium">{{ s.moduleTitle }}</div>
+                @if (s.moduleLevel) {
+                  <div class="text-muted small">{{ s.moduleLevel }}</div>
+                }
+              </td>
+              <td class="small">{{ s.startedAt | date : 'dd MMM, h:mm a' }}</td>
+              <td class="text-end fw-semibold">{{ formatDuration(s.timeSpentSeconds) }}</td>
+              <td class="text-end">
+                <span class="badge rounded-pill"
+                  [class.bg-success]="s.completed"
+                  [class.bg-secondary]="!s.completed">
+                  {{ s.score }}%
+                </span>
+              </td>
+              <td>
+                <span class="badge rounded-pill dg-status-badge"
+                  [class.dg-status-badge--done]="s.completed"
+                  [class.dg-status-badge--progress]="!s.completed">
+                  {{ s.completed ? 'Completed' : 'In progress' }}
+                </span>
+                @if (s.attempts > 0) {
+                  <div class="text-muted small mt-1">
+                    tries {{ s.attempts }}
+                    @if (s.successCount > 0 || s.failureCount > 0) {
+                      · OK {{ s.successCount }} / miss {{ s.failureCount }}
+                    }
+                  </div>
+                }
+              </td>
+              <td class="text-center">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                  [disabled]="!s.chatTurns?.length"
+                  (click)="toggleExpand(s.sessionId)"
+                  [attr.aria-expanded]="expandedSessionId === s.sessionId">
+                  <i class="fas"
+                    [class.fa-chevron-down]="expandedSessionId !== s.sessionId"
+                    [class.fa-chevron-up]="expandedSessionId === s.sessionId"></i>
+                  {{ expandedSessionId === s.sessionId ? 'Hide' : 'View' }}
+                  <span class="ms-1 text-muted">({{ s.chatTurns?.length || 0 }})</span>
+                </button>
+              </td>
+            </tr>
+            @if (expandedSessionId === s.sessionId && s.chatTurns?.length) {
+              <tr class="dg-chat-expand">
+                <td colspan="9" class="p-0 border-0">
+                  <div class="dg-chat-view">
+                    <div class="dg-chat-view__header">
+                      <div class="dg-chat-view__avatar">{{ initials(s.studentName) }}</div>
+                      <div>
+                        <div class="fw-semibold">{{ s.studentName }}</div>
+                        <div class="text-muted small">{{ s.moduleTitle }}</div>
+                      </div>
+                      <div class="ms-auto text-muted small">
+                        {{ s.chatTurns.length }} turn{{ s.chatTurns.length !== 1 ? 's' : '' }}
+                      </div>
+                    </div>
+                    <div class="dg-chat-view__body">
+                      @for (turn of s.chatTurns; track $index) {
+                        <div class="dg-turn"
+                          [class.dg-turn--student]="turn.speaker === 'student'"
+                          [class.dg-turn--ai]="turn.speaker === 'ai'"
+                          [class.dg-turn--hint]="turn.speaker === 'hint'">
+                          <div class="dg-turn__bubble">
+                            <div class="dg-turn__meta">
+                              @if (turn.speaker === 'student') {
+                                <span class="dg-turn__who dg-turn__who--student">
+                                  {{ turn.kind === 'practice' ? 'Practice' : 'Student' }}
+                                </span>
+                              } @else if (turn.speaker === 'ai') {
+                                <span class="dg-turn__who dg-turn__who--ai">Gluck Buddy</span>
+                              } @else {
+                                <span class="dg-turn__who dg-turn__who--hint">Hint</span>
+                              }
+                              <span class="dg-turn__time text-muted">{{ turn.at | date : 'h:mm:ss a' }}</span>
+                              @if (turn.score != null) {
+                                <span class="dg-turn__score badge bg-success ms-1">{{ turn.score }}%</span>
+                              }
+                            </div>
+                            <p class="dg-turn__text mb-0">{{ turn.text }}</p>
+                            @if (turn.instructionEn) {
+                              <p class="dg-turn__instruction text-muted small mb-0 mt-1">{{ turn.instructionEn }}</p>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          } @empty {
+            <tr>
+              <td colspan="9" class="text-muted py-4 text-center">No DigiBot sessions in this range.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+  } @else if (!isDigiBotTab && data) {
+
+    <!-- ───────────── Video / Exercises tabs ───────────── -->
     <div class="learning-head">
       <h3>{{ labelFor(data.kind) }} Learning Analytics</h3>
       <p>

@@ -822,13 +822,19 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
   }
 
   // Fuzzy then partial (after join_log correlation when still unmatched).
+  // Guards: requires BOTH ≥75% Levenshtein similarity AND at least one shared name token.
+  // This prevents completely different names (e.g. "Pathmalethan" vs "Kamalathasan") from
+  // being fuzzy-matched just because their character edit-distance is coincidentally high.
   if (!bestMatch && !blockWeakFallbacks && !skipFuzzyOnly && !largeClassSafe && !MATCH_CONFIG.STRICT_MATCH_MODE) {
     for (const participant of participants) {
       if (participant._matched || participant._reserved) continue;
       if (!participant.name || !attendee.name) continue;
+      // Require shared token first — fast short-circuit for mismatched names.
+      if (!hasNameTokenOverlap(attendee.name, participant.name)) continue;
       const similarity = calculateStringSimilarity(attendee.name, participant.name);
-      const confidence = Math.round(similarity * 70);
-      if (confidence > bestConfidence && confidence >= 35) {
+      if (similarity < 0.75) continue;
+      const confidence = Math.round(similarity * 100);
+      if (confidence > bestConfidence) {
         bestMatch = participant;
         bestConfidence = confidence;
         bestMethod = 'fuzzy_name';
@@ -836,12 +842,13 @@ function findBestParticipantMatch(attendee, participants, options = {}) {
     }
   }
 
+  // Partial name: requires ≥75% of portal name tokens to appear in the Zoom name.
   if (!bestMatch && !blockWeakFallbacks && !largeClassSafe && !MATCH_CONFIG.STRICT_MATCH_MODE) {
     for (const participant of participants) {
       if (participant._matched || participant._reserved) continue;
       if (!participant.name || !attendee.name) continue;
       const confidence = calculatePartialNameMatch(attendee.name, participant.name);
-      if (confidence > bestConfidence && confidence >= 55) {
+      if (confidence > bestConfidence && confidence >= 75) {
         bestMatch = participant;
         bestConfidence = confidence;
         bestMethod = 'partial_name';
