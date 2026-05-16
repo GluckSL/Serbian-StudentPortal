@@ -10,6 +10,27 @@
         <p>Engagement and completion metrics across tracked sessions.</p>
       </div>
     </div>
+    <div class="sw-filters mb-3">
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Batches</mat-label>
+        <mat-select multiple [(ngModel)]="selectedBatches" (ngModelChange)="applyFilters()">
+          @for (batch of availableBatches; track batch) {
+            <mat-option [value]="batch">{{ batch }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Student Name</mat-label>
+        <input matInput [(ngModel)]="studentNameSearch" (ngModelChange)="applyFilters()" placeholder="Search by name" />
+      </mat-form-field>
+      <div class="filter-actions">
+        <button mat-stroked-button type="button" (click)="clearFilters()">Clear</button>
+        <button mat-stroked-button type="button" color="primary" (click)="exportCsv()">
+          <mat-icon>download</mat-icon>
+          Export CSV
+        </button>
+      </div>
+    </div>
     <div class="pa-pager">
       <span class="text-muted small">{{ rows.length }} students · page {{ currentPage }} / {{ totalPages }}</span>
       <div class="pa-pager-nav">

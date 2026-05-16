@@ -49,7 +49,9 @@
   box-shadow: 0 14px 32px rgba(30, 79, 156, 0.12);
   overflow: hidden;
   background: linear-gradient(170deg, #ffffff, #f4faff);
-  transition: transform 170ms ease, box-shadow 170ms ease;
+  transition:
+    transform 170ms ease,
+    box-shadow 170ms ease;
 }
 
 .pa-table-card:hover {
@@ -75,7 +77,13 @@
 }
 
 .pa-table-card tbody tr {
-  transition: transform 150ms ease, background-color 150ms ease;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  background: transparent !important;
+}
+
+.pa-table-card tbody tr:hover {
+  background: transparent !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
 }
 
 .pa-table-card tbody tr:hover {
@@ -122,4 +130,65 @@
   padding: 0.16rem 0.52rem;
   display: inline-flex;
   line-height: 1.2;
+}
+
+.sw-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  background: linear-gradient(170deg, #f8fcff, #f0f7ff);
+  border: 1px solid rgba(156, 193, 236, 0.35);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+
+  ::ng-deep {
+    .mat-mdc-form-field {
+      height: 40px;
+    }
+    .mat-mdc-form-field-flex {
+      height: 100%;
+      align-items: center;
+    }
+    .mat-mdc-text-field-wrapper {
+      padding: 0 0.5rem !important;
+    }
+    .mat-mdc-form-field-subscript-wrapper {
+      display: none;
+    }
+    .mat-mdc-form-field-infix {
+      padding: 0.25rem 0 !important;
+      min-height: unset;
+    }
+    .mat-mdc-floating-label {
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .mat-mdc-select-value-text {
+      font-size: 0.85rem;
+    }
+  }
+}
+
+.filter-field {
+  min-width: 130px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+
+  button {
+    --mdc-outlined-button-container-height: 32px;
+    --mdc-outlined-button-label-text-size: 0.8rem;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 0.2rem;
+    }
+  }
 }

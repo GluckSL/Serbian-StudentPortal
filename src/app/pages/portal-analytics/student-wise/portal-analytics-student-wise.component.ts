@@ -1,8 +1,13 @@
 import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { PortalAnalyticsApiService, PortalAnalyticsRange } from '../../../services/portal-analytics-api.service';
 import { formatPortalDuration } from '../portal-analytics-format';
 
@@ -25,7 +30,17 @@ export type SortOrder = 'asc' | 'desc';
 @Component({
   selector: 'app-portal-analytics-student-wise',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, MatIconModule, MatButtonModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatProgressSpinnerModule,
+    MatIconModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatCheckboxModule
+  ],
   templateUrl: './portal-analytics-student-wise.component.html',
   styleUrls: ['./portal-analytics-student-wise.component.scss']
 })
@@ -39,6 +54,12 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
   currentPage = 1;
   sortBy: StudentSortKey = 'time';
   order: SortOrder = 'desc';
+
+  availableBatches: string[] = [];
+  selectedBatches: string[] = [];
+  studentNameSearch = '';
+
+  private allRows: StudentWiseRow[] = [];
 
   constructor(private api: PortalAnalyticsApiService) {}
 
@@ -90,7 +111,9 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
     this.api.getStudentWise(this.range, 200, this.sortBy, this.order).subscribe({
       next: (res: unknown) => {
         const body = res as { items?: StudentWiseRow[] };
-        this.rows = body.items || [];
+        this.allRows = body.items || [];
+        this.extractBatches();
+        this.applyLocalFilters();
         this.currentPage = 1;
         this.loading = false;
       },
@@ -99,5 +122,82 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
         this.loading = false;
       }
     });
+  }
+
+  private extractBatches(): void {
+    const batchSet = new Set<string>();
+    for (const row of this.allRows) {
+      if (row.batch) {
+        batchSet.add(row.batch);
+      }
+    }
+    this.availableBatches = Array.from(batchSet).sort();
+  }
+
+  private applyLocalFilters(): void {
+    let filtered = [...this.allRows];
+
+    if (this.selectedBatches.length > 0) {
+      filtered = filtered.filter(r => r.batch && this.selectedBatches.includes(r.batch));
+    }
+
+    if (this.studentNameSearch.trim()) {
+      const search = this.studentNameSearch.trim().toLowerCase();
+      filtered = filtered.filter(r => r.studentName.toLowerCase().includes(search));
+    }
+
+    this.rows = filtered;
+  }
+
+  applyFilters(): void {
+    this.applyLocalFilters();
+    this.currentPage = 1;
+  }
+
+  clearFilters(): void {
+    this.selectedBatches = [];
+    this.studentNameSearch = '';
+    this.applyLocalFilters();
+    this.currentPage = 1;
+  }
+
+  exportCsv(): void {
+    if (!this.rows.length) return;
+    const lines: string[] = [];
+    lines.push('Student Performance Analytics');
+    lines.push(`Range,${this.range.from},${this.range.to}`);
+    if (this.selectedBatches.length) {
+      lines.push(`Batches,${this.selectedBatches.join('; ')}`);
+    }
+    if (this.studentNameSearch) {
+      lines.push(`Search,${this.studentNameSearch}`);
+    }
+    lines.push('');
+    lines.push('Student Name,Batch,Journey Day,Total Time (sec),Sessions,Avg Session (sec),Top Page');
+    for (const r of this.rows) {
+      lines.push(
+        [
+          this.csvEscape(r.studentName),
+          this.csvEscape(r.batch || ''),
+          r.journeyDay ?? '',
+          r.totalSeconds,
+          r.sessionsCount,
+          r.avgSessionSeconds,
+          this.csvEscape(r.topPage)
+        ].join(',')
+      );
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `student-analytics-${this.range.from}-${this.range.to}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  private csvEscape(s: string): string {
+    const v = String(s ?? '');
+    if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+    return v;
   }
 }
