@@ -1373,6 +1373,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  touch-action: pan-y;
 }
 
 .ipm-instruction {
@@ -1387,6 +1388,7 @@
   grid-template-columns: minmax(120px, 180px) minmax(240px, 1fr) minmax(120px, 180px);
   gap: 14px;
   align-items: center;
+  touch-action: pan-y;
 }
 
 .ipm-label-col {
@@ -1415,6 +1417,7 @@
   transition: transform 0.15s ease;
   min-height: 44px;
   opacity: 1 !important;
+  touch-action: pan-y;
 }
 
 .q-body.ipm-body .ipm-label-pill:hover:not(:disabled) {
@@ -1472,12 +1475,20 @@
   border: 2px solid #fff;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ipm-color, #4f46e5) 30%, transparent);
   cursor: grab;
-  touch-action: none;
+  touch-action: pan-y;
   animation: ipmPulse 1.6s ease-in-out infinite;
   z-index: 2;
 }
 
-.ipm-handle:active { cursor: grabbing; transform: scale(1.1); }
+.ipm-handle.is-dragging {
+  touch-action: none;
+  cursor: grabbing;
+}
+
+.ipm-handle:active,
+.ipm-handle.is-dragging {
+  transform: scale(1.1);
+}
 .ipm-handle:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 3px; }
 
 .q-body.ipm-body .ipm-label-pill--right {
@@ -1505,6 +1516,7 @@
   background: #f8fafc;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   display: inline-block;
+  touch-action: pan-y;
 }
 
 .ipm-image {
@@ -1538,6 +1550,7 @@
   -webkit-user-select: none;
   flex-shrink: 0;
   z-index: 5;
+  touch-action: pan-y;
 }
 
 .ipm-pin:hover,
