@@ -269,12 +269,12 @@ async function backfillZoomRecordings({
 
     const scanConcurrency = Math.max(
       1,
-      Math.min(Number(process.env.BACKFILL_ZOOM_SCAN_CONCURRENCY) || 2, 30)
+      Math.min(Number(process.env.BACKFILL_ZOOM_SCAN_CONCURRENCY) || 5, 30)
     );
 
     console.log(
       `🔎 Backfill Zoom scan: concurrency=${scanConcurrency} ` +
-      `(default 2 for low-resource hosts; raise BACKFILL_ZOOM_SCAN_CONCURRENCY up to ~10 if Zoom rate limits allow)`
+      `(default 5; raise BACKFILL_ZOOM_SCAN_CONCURRENCY up to ~10 if Zoom rate limits allow)`
     );
 
     const scanOne = async (meeting) => {

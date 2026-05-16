@@ -192,6 +192,8 @@ type SpecialInputTarget =
 export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   state: PlayerState = 'loading';
   exercise: DigitalExercise | null = null;
+  /** Full-size MCQ option image overlay (student zoom to read small text). */
+  mcqImageLightboxUrl: string | null = null;
   exerciseId = '';
   attemptId = '';
   private currentUserRole = '';
@@ -1694,6 +1696,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   prevQuestion(): void {
+    this.closeMcqOptionImageLightbox();
     if (this.currentIndex > 0) {
       this.stopCurrentAudio();
       this.currentIndex--;
@@ -1704,6 +1707,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   nextQuestion(): void {
+    this.closeMcqOptionImageLightbox();
     if (this.currentIndex < this.playerQuestions.length - 1) {
       this.stopCurrentAudio();
       this.currentIndex++;
@@ -1714,6 +1718,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   goToQuestion(index: number): void {
+    this.closeMcqOptionImageLightbox();
     this.stopCurrentAudio();
     this.currentIndex = index;
     this.preloadImagesAroundCurrentQuestion();
@@ -2054,6 +2059,47 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const fallback = String(data?.attachmentUrl || '').trim();
     if (fallback && this.getAttachmentType(fallback) === 'image') return fallback;
     return '';
+  }
+
+  getMcqOptionImageUrl(data: any, oi: number): string {
+    const urls = Array.isArray(data?.optionImageUrls) ? data.optionImageUrls : [];
+    return String(urls[oi] || '').trim();
+  }
+
+  hasMcqOptionImages(data: any): boolean {
+    const urls = Array.isArray(data?.optionImageUrls) ? data.optionImageUrls : [];
+    return urls.some((u: unknown) => !!String(u || '').trim());
+  }
+
+  openMcqOptionImageLightbox(rawUrl: string, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    const url = this.getMediaFullUrl(rawUrl);
+    if (!url) return;
+    this.mcqImageLightboxUrl = url;
+    document.body.style.overflow = 'hidden';
+  }
+
+  closeMcqOptionImageLightbox(): void {
+    this.mcqImageLightboxUrl = null;
+    document.body.style.overflow = '';
+  }
+
+  onMcqOptionKeyActivate(event: Event, pq: PlayerQuestion, oi: number): void {
+    if (this.hasCurrentSubmitted) return;
+    event.preventDefault();
+    this.selectOption(pq, oi);
+  }
+
+  onMcqSubOptionKeyActivate(event: Event, pq: PlayerQuestion, sqIndex: number, oi: number): void {
+    if (this.hasCurrentSubmitted) return;
+    event.preventDefault();
+    this.selectSubQuestionOption(pq, sqIndex, oi);
+  }
+
+  @HostListener('document:keydown.escape')
+  onMcqImageLightboxEscape(): void {
+    if (this.mcqImageLightboxUrl) this.closeMcqOptionImageLightbox();
   }
 
   getImagePinPins(data: any): Array<{ id: string; x: number; y: number }> {
@@ -3872,6 +3918,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const rawQuestions = (ex.questions || []) as unknown as Array<Record<string, unknown>>;
     for (const q of rawQuestions) {
       add(q['imageUrl'] as string | undefined);
+      const optImgs = Array.isArray(q['optionImageUrls']) ? q['optionImageUrls'] as string[] : [];
+      for (const u of optImgs) add(u);
       add(q['attachmentUrl'] as string | undefined);
       add(q['mediaUrl'] as string | undefined);
       add(q['audioUrl'] as string | undefined);

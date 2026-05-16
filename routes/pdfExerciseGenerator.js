@@ -3228,11 +3228,14 @@ function sanitizeQuestion(q) {
     const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
     const cai = parseInt(q.correctAnswerIndex);
     const maxIdx = Math.max(0, options.length - 1);
+    const rawOptionImages = Array.isArray(q.optionImageUrls) ? q.optionImageUrls.map((u) => String(u || '').trim()) : [];
+    const optionImageUrls = options.slice(0, 6).map((_, i) => rawOptionImages[i] || '');
     return {
       ...base,
       question: String(q.question || ''),
       imageUrl: q.imageUrl || null,
       options: options.slice(0, 6),
+      optionImageUrls,
       correctAnswerIndex: options.length === 0 || isNaN(cai) || cai < 0 ? 0 : Math.min(cai, maxIdx),
       explanation: String(q.explanation || '')
     };

@@ -155,10 +155,18 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
             this.stopBackfillPolling();
             this.backfillLoading = false;
             const s = status.summary;
-            this.backfillStatusMessage = s
-              ? `Done — queued: ${s.queued ?? 0}, skipped ready: ${s.skippedAlreadyReady ?? 0}, no recording: ${s.skippedNoRecordingInZoom ?? 0}, errors: ${s.errors ?? 0}`
-              : (status.error ? `Backfill error: ${status.error}` : 'Backfill complete');
-            this.snackBar.open(this.backfillStatusMessage, 'Close', { duration: 8000 });
+            if (s) {
+              const parts: string[] = [];
+              if (s.pipelineCompleted) parts.push(`✅ ${s.pipelineCompleted} processed`);
+              if (s.pipelineFailed) parts.push(`❌ ${s.pipelineFailed} failed`);
+              if (s.skippedAlreadyReady) parts.push(`${s.skippedAlreadyReady} already ready`);
+              if (s.skippedNoRecordingInZoom) parts.push(`${s.skippedNoRecordingInZoom} no Zoom file`);
+              if (s.errors) parts.push(`${s.errors} scan errors`);
+              this.backfillStatusMessage = parts.length ? `Done — ${parts.join(', ')}` : 'Done — nothing to process';
+            } else {
+              this.backfillStatusMessage = status.error ? `Backfill error: ${status.error}` : 'Backfill complete';
+            }
+            this.snackBar.open(this.backfillStatusMessage, 'Close', { duration: 10000 });
             setTimeout(() => this.loadRecordings(), 1500);
           }
         },

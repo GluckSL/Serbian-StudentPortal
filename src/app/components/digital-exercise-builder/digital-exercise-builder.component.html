@@ -5,6 +5,7 @@
   <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
   <input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
   <input type="file" #imagePinFileInput accept="image/*" (change)="onImagePinImageSelected($event)" class="file-input-hidden" />
+  <input type="file" #mcqOptionImageFileInput accept="image/*" (change)="onMcqOptionImageSelected($event)" class="file-input-hidden" />
 
   <!-- DISABLED: AI PDF generator banner (route admin/digital-exercises/generate-ai off)
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
@@ -477,14 +478,27 @@
             </div>
             <div class="options-section">
               <label class="field-label required">Options <span class="hint">(select the correct answer)</span></label>
-              <div class="option-row" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
-                <label class="radio-label">
-                  <input type="radio" [name]="'correct-' + i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
-                </label>
-                <app-rich-text-input [(ngModel)]="q.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
-                <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Remove option">
-                  <span class="material-icons">close</span>
-                </button>
+              <p class="option-image-hint">Add an illustration per option (upload or paste a URL — e.g. images extracted from a worksheet PDF).</p>
+              <div class="option-block" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
+                <div class="option-row">
+                  <label class="radio-label">
+                    <input type="radio" [name]="'correct-' + i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
+                  </label>
+                  <app-rich-text-input [(ngModel)]="q.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
+                  <div class="option-image-actions">
+                    <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(q, oi)" (click)="triggerMcqOptionImageFile(q, oi)" [disabled]="isMcqOptionImageUploading(q, oi)" matTooltip="Upload option image">
+                      <img *ngIf="getMcqOptionImageUrl(q, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="option-image-thumb" />
+                      <span class="material-icons" *ngIf="!getMcqOptionImageUrl(q, oi) && !isMcqOptionImageUploading(q, oi)">add_photo_alternate</span>
+                      <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(q, oi)">hourglass_empty</span>
+                    </button>
+                    <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(q, oi)" matTooltip="Paste image URL"><span class="material-icons">link</span></button>
+                  </div>
+                  <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Remove option"><span class="material-icons">close</span></button>
+                </div>
+                <div class="option-image-url-row" *ngIf="isMcqOptionUrlExpanded(q, oi) || getMcqOptionImageUrl(q, oi)">
+                  <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(q, oi)" (ngModelChange)="setMcqOptionImageUrl(q, oi, $event)" placeholder="https://… or path to extracted PDF image" />
+                  <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(q, oi)" (click)="removeMcqOptionImage(q, oi)" matTooltip="Remove image"><span class="material-icons">delete_outline</span></button>
+                </div>
               </div>
               <button class="btn-add-opt" (click)="addOption(q)" *ngIf="q.options!.length < 6">
                 <span class="material-icons">add</span> Add Option
@@ -1015,14 +1029,27 @@
                       </div>
                       <div class="options-section">
                         <label class="field-label required">Options <span class="hint">(select the correct answer)</span></label>
-                        <div class="option-row" *ngFor="let opt of sq.options; let oi = index; trackBy: trackByIndex">
-                          <label class="radio-label">
-                            <input type="radio" [name]="'sub-correct-' + i + '-' + si" [value]="oi" [(ngModel)]="sq.correctAnswerIndex" />
-                          </label>
-                          <app-rich-text-input [(ngModel)]="sq.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
-                          <button class="btn-remove-opt" (click)="removeOption(sq, oi)" *ngIf="sq.options!.length > 2" matTooltip="Remove option">
-                            <span class="material-icons">close</span>
-                          </button>
+                        <p class="option-image-hint">Add an illustration per option (upload or paste URL).</p>
+                        <div class="option-block" *ngFor="let opt of sq.options; let oi = index; trackBy: trackByIndex">
+                          <div class="option-row">
+                            <label class="radio-label">
+                              <input type="radio" [name]="'sub-correct-' + i + '-' + si" [value]="oi" [(ngModel)]="sq.correctAnswerIndex" />
+                            </label>
+                            <app-rich-text-input [(ngModel)]="sq.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
+                            <div class="option-image-actions">
+                              <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(sq, oi)" (click)="triggerMcqOptionImageFile(sq, oi)" [disabled]="isMcqOptionImageUploading(sq, oi)" matTooltip="Upload option image">
+                                <img *ngIf="getMcqOptionImageUrl(sq, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="option-image-thumb" />
+                                <span class="material-icons" *ngIf="!getMcqOptionImageUrl(sq, oi) && !isMcqOptionImageUploading(sq, oi)">add_photo_alternate</span>
+                                <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(sq, oi)">hourglass_empty</span>
+                              </button>
+                              <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(sq, oi)" matTooltip="Paste image URL"><span class="material-icons">link</span></button>
+                            </div>
+                            <button class="btn-remove-opt" (click)="removeOption(sq, oi)" *ngIf="sq.options!.length > 2" matTooltip="Remove option"><span class="material-icons">close</span></button>
+                          </div>
+                          <div class="option-image-url-row" *ngIf="isMcqOptionUrlExpanded(sq, oi) || getMcqOptionImageUrl(sq, oi)">
+                            <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(sq, oi)" (ngModelChange)="setMcqOptionImageUrl(sq, oi, $event)" placeholder="https://… or path to extracted PDF image" />
+                            <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(sq, oi)" (click)="removeMcqOptionImage(sq, oi)" matTooltip="Remove image"><span class="material-icons">delete_outline</span></button>
+                          </div>
                         </div>
                         <button class="btn-add-opt" (click)="addOption(sq)" *ngIf="sq.options!.length < 6">
                           <span class="material-icons">add</span> Add Option
@@ -1733,9 +1760,11 @@
             <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.question }}</p>
             <img *ngIf="q.imageUrl" [src]="getMediaFullUrl(q.imageUrl)" class="pq-image" />
-            <div class="pq-options">
-              <div *ngFor="let opt of q.options; let oi = index" class="pq-option" [class.correct]="oi === q.correctAnswerIndex">
-                <span class="opt-letter">{{ 'ABCD'[oi] }}</span> {{ opt }}
+            <div class="pq-options" [class.pq-options--visual]="hasMcqOptionImages(q)">
+              <div *ngFor="let opt of q.options; let oi = index" class="pq-option" [class.correct]="oi === q.correctAnswerIndex" [class.pq-option--visual]="hasMcqOptionImages(q)">
+                <img *ngIf="getMcqOptionImageUrl(q, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="pq-option-img" />
+                <span class="opt-letter">{{ hasMcqOptionImages(q) ? 'abcd'[oi] : 'ABCD'[oi] }}</span>
+                <span class="pq-option-text" [innerHTML]="opt"></span>
                 <span *ngIf="oi === q.correctAnswerIndex" class="correct-mark">✓</span>
               </div>
             </div>

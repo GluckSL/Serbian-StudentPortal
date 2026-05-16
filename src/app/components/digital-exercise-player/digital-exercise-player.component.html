@@ -1925,10 +1925,13 @@
                 class="q-image"
               />
             </div>
-            <div class="mcq-options">
-              <button
+            <div class="mcq-options" [class.mcq-options--visual]="hasMcqOptionImages(currentQuestion.data)">
+              <div
                 *ngFor="let opt of currentQuestion.data.options; let oi = index"
                 class="mcq-option"
+                role="button"
+                [attr.tabindex]="hasCurrentSubmitted ? -1 : 0"
+                [class.mcq-option--visual]="hasMcqOptionImages(currentQuestion.data)"
                 [class.selected]="currentQuestion.selectedOption === oi"
                 [class.correct]="
                   hasCurrentSubmitted &&
@@ -1941,9 +1944,28 @@
                 "
                 [class.disabled]="hasCurrentSubmitted"
                 (click)="selectOption(currentQuestion, oi)"
+                (keydown.enter)="onMcqOptionKeyActivate($event, currentQuestion, oi)"
+                (keydown.space)="onMcqOptionKeyActivate($event, currentQuestion, oi)"
               >
-                <span class="opt-letter">{{ "ABCD"[oi] }}</span>
-                <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
+                <div class="opt-visual-img-wrap" *ngIf="getMcqOptionImageUrl(currentQuestion.data, oi) as optImg">
+                  <img [src]="getMediaFullUrl(optImg)" alt="" class="opt-visual-img" />
+                  <button
+                    type="button"
+                    class="opt-visual-img-expand"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="openMcqOptionImageLightbox(optImg, $event)"
+                    aria-label="View larger image"
+                    matTooltip="View larger"
+                  >
+                    <span class="material-icons">zoom_in</span>
+                  </button>
+                </div>
+                <div class="opt-visual-label">
+                  <span class="opt-letter" [class.opt-letter-box]="hasMcqOptionImages(currentQuestion.data)">{{
+                    hasMcqOptionImages(currentQuestion.data) ? "abcd"[oi] : "ABCD"[oi]
+                  }}</span>
+                  <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
+                </div>
                 <span class="opt-icon" *ngIf="hasCurrentSubmitted">
                   <span
                     class="material-icons"
@@ -1959,7 +1981,7 @@
                     >cancel</span
                   >
                 </span>
-              </button>
+              </div>
             </div>
             <div
               class="q-feedback-incorrect"
@@ -3626,15 +3648,35 @@
                     <!-- MCQ -->
                     <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
                       <p class="sub-q-text" [innerHTML]="sq.question | safeHtml"></p>
-                      <div class="mcq-options sub-options">
-                        <button *ngFor="let opt of sq.options; let oi = index"
+                      <div class="mcq-options sub-options" [class.mcq-options--visual]="hasMcqOptionImages(sq)">
+                        <div *ngFor="let opt of sq.options; let oi = index"
                           class="mcq-option"
+                          role="button"
+                          [attr.tabindex]="hasCurrentSubmitted ? -1 : 0"
+                          [class.mcq-option--visual]="hasMcqOptionImages(sq)"
                           [class.selected]="currentQuestion.subQuestionAnswers?.[sqIndex] === oi"
                           [class.disabled]="hasCurrentSubmitted"
-                          (click)="selectSubQuestionOption(currentQuestion, sqIndex, oi)">
-                          <span class="opt-letter">{{ "ABCD"[oi] }}</span>
-                          <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
-                        </button>
+                          (click)="selectSubQuestionOption(currentQuestion, sqIndex, oi)"
+                          (keydown.enter)="onMcqSubOptionKeyActivate($event, currentQuestion, sqIndex, oi)"
+                          (keydown.space)="onMcqSubOptionKeyActivate($event, currentQuestion, sqIndex, oi)">
+                          <div class="opt-visual-img-wrap" *ngIf="getMcqOptionImageUrl(sq, oi) as optImg">
+                            <img [src]="getMediaFullUrl(optImg)" alt="" class="opt-visual-img" />
+                            <button
+                              type="button"
+                              class="opt-visual-img-expand"
+                              (mousedown)="$event.stopPropagation()"
+                              (click)="openMcqOptionImageLightbox(optImg, $event)"
+                              aria-label="View larger image"
+                              matTooltip="View larger"
+                            >
+                              <span class="material-icons">zoom_in</span>
+                            </button>
+                          </div>
+                          <div class="opt-visual-label">
+                            <span class="opt-letter" [class.opt-letter-box]="hasMcqOptionImages(sq)">{{ hasMcqOptionImages(sq) ? "abcd"[oi] : "ABCD"[oi] }}</span>
+                            <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -4068,5 +4110,27 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- MCQ option image lightbox (must be outside mic-test *ngIf) -->
+<div
+  class="mcq-image-lightbox"
+  *ngIf="mcqImageLightboxUrl"
+  (click)="closeMcqOptionImageLightbox()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Enlarged option image"
+>
+  <button
+    type="button"
+    class="mcq-image-lightbox-close"
+    (click)="closeMcqOptionImageLightbox(); $event.stopPropagation()"
+    aria-label="Close"
+  >
+    <span class="material-icons">close</span>
+  </button>
+  <div class="mcq-image-lightbox-panel" (click)="$event.stopPropagation()">
+    <img [src]="mcqImageLightboxUrl" alt="Enlarged option image" class="mcq-image-lightbox-img" />
   </div>
 </div>

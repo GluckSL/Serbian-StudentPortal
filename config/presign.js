@@ -199,6 +199,25 @@ async function resignExercise(exercise) {
       if (isS3Url(q.videoUrl))  q.videoUrl  = await presignS3Url(q.videoUrl);
       if (isS3Url(q.imageUrl))  q.imageUrl  = await presignS3Url(q.imageUrl);
       if (isS3Url(q.attachmentUrl)) q.attachmentUrl = await presignS3Url(q.attachmentUrl);
+      if (Array.isArray(q.optionImageUrls)) {
+        for (let oi = 0; oi < q.optionImageUrls.length; oi++) {
+          if (isS3Url(q.optionImageUrls[oi])) {
+            q.optionImageUrls[oi] = await presignS3Url(q.optionImageUrls[oi]);
+          }
+        }
+      }
+      if (Array.isArray(q.subQuestions)) {
+        for (const sq of q.subQuestions) {
+          if (isS3Url(sq.imageUrl)) sq.imageUrl = await presignS3Url(sq.imageUrl);
+          if (Array.isArray(sq.optionImageUrls)) {
+            for (let oi = 0; oi < sq.optionImageUrls.length; oi++) {
+              if (isS3Url(sq.optionImageUrls[oi])) {
+                sq.optionImageUrls[oi] = await presignS3Url(sq.optionImageUrls[oi]);
+              }
+            }
+          }
+        }
+      }
     }
   }
 

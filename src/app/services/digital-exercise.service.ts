@@ -48,6 +48,8 @@ export interface MCQQuestion extends QuestionCommonFields {
   question: string;
   imageUrl?: string;
   options: string[];
+  /** Optional illustration per option (e.g. images extracted from a worksheet PDF). */
+  optionImageUrls?: string[];
   correctAnswerIndex?: number; // hidden from students during play
   explanation?: string;
   points: number;

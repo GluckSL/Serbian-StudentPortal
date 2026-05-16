@@ -8,6 +8,7 @@ const MCQQuestionSchema = new mongoose.Schema({
   question: { type: String, required: true },
   imageUrl: { type: String, default: null },
   options: [{ type: String, required: true }],
+  optionImageUrls: [{ type: String }],
   correctAnswerIndex: { type: Number, required: true },
   explanation: { type: String, default: '' },
   points: { type: Number, default: 1 }
@@ -90,6 +91,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
     question: String,
     imageUrl: String,
     options: [String],
+    optionImageUrls: [String],
     correctAnswerIndex: Number,
     explanation: String,
     // Matching fields
@@ -186,6 +188,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
       question: String,
       imageUrl: String,
       options: [String],
+      optionImageUrls: [String],
       correctAnswerIndex: Number,
       explanation: String,
       // Matching fields

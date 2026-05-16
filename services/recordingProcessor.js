@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pipeline } = require('stream/promises');
+const { Transform } = require('stream');
 const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
@@ -18,7 +19,6 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 /**
  * Configurable working directory for temp Zoom download and HLS segment files.
- * On t3.micro (8 GiB disk) point this to a mount with ≥5 GiB headroom to avoid ENOSPC.
  * Falls back to os.tmpdir() if unset or if the provided path cannot be created.
  * Example: RECORDING_WORK_DIR=/mnt/recordings-tmp
  */
@@ -40,8 +40,8 @@ const ALLOWED_FFMPEG_PRESETS = new Set([
 ]);
 
 function effectiveFfmpegPreset() {
-  const p = String(process.env.RECORDING_FFMPEG_PRESET || 'veryfast').trim().toLowerCase();
-  return ALLOWED_FFMPEG_PRESETS.has(p) ? p : 'veryfast';
+  const p = String(process.env.RECORDING_FFMPEG_PRESET || 'superfast').trim().toLowerCase();
+  return ALLOWED_FFMPEG_PRESETS.has(p) ? p : 'superfast';
 }
 
 function effectiveFfmpegCrf() {
@@ -52,20 +52,19 @@ function effectiveFfmpegCrf() {
 
 const RECORDING_R2_UPLOAD_CONCURRENCY = Math.max(
   1,
-  Math.min(Number(process.env.RECORDING_R2_UPLOAD_CONCURRENCY) || 4, 25)
+  Math.min(Number(process.env.RECORDING_R2_UPLOAD_CONCURRENCY) || 8, 25)
 );
 
 /**
  * Minimum free bytes on the work volume before starting download + encode.
- * Default 3 GiB — a safe margin for an 8 GiB EC2 disk (t3.micro).
- * Set RECORDING_MIN_TMP_FREE_BYTES=0 to disable the check entirely.
+ * Default 3 GiB. Set RECORDING_MIN_TMP_FREE_BYTES=0 to disable the check entirely.
  */
 const MIN_TMP_FREE_BYTES = (() => {
   const raw = process.env.RECORDING_MIN_TMP_FREE_BYTES;
   if (raw === '0') return 0;
   const n = Number(raw);
   if (Number.isFinite(n) && n >= 0) return n;
-  return 3 * 1024 ** 3; // 3 GiB — conservative default for 8 GiB disk
+  return 3 * 1024 ** 3;
 })();
 
 const RECORDING_PIPELINE_MAX_ATTEMPTS = Math.max(
@@ -86,8 +85,7 @@ function effectiveMaxEncodeWidth() {
 }
 
 /**
- * Caps FFmpeg thread count (decoder + encoder). Omit env for FFmpeg default.
- * On hosts with ~1GiB RAM, try RECORDING_FFMPEG_THREADS=1 or 2 to reduce peak memory.
+ * Caps FFmpeg thread count (decoder + encoder). Omit env to let FFmpeg auto-select.
  */
 function effectiveFfmpegThreads() {
   const raw = process.env.RECORDING_FFMPEG_THREADS;
@@ -677,7 +675,24 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
         downloadToken: options.downloadToken,
       });
       tempMp4 = path.join(RECORDING_WORK_DIR, `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
-      await pipeline(downloadStream, fs.createWriteStream(tempMp4));
+      {
+        let dlBytes = 0;
+        let dlLastLog = Date.now();
+        const DL_LOG_MS = 30_000;
+        const dlProgress = new Transform({
+          transform(chunk, _enc, cb) {
+            dlBytes += chunk.length;
+            const now = Date.now();
+            if (now - dlLastLog >= DL_LOG_MS) {
+              dlLastLog = now;
+              console.log(`  ⬇️  Downloading: ${(dlBytes / (1024 ** 2)).toFixed(1)} MiB received`);
+            }
+            cb(null, chunk);
+          },
+        });
+        await pipeline(downloadStream, dlProgress, fs.createWriteStream(tempMp4));
+        console.log(`  ⬇️  Download complete: ${(dlBytes / (1024 ** 2)).toFixed(1)} MiB total`);
+      }
 
       const st = fs.statSync(tempMp4);
       if (st.size < 2048) {

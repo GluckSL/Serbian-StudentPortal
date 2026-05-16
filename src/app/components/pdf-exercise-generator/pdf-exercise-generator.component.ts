@@ -35,6 +35,7 @@ interface ReviewQuestion {
   question?: string;
   imageUrl?: string;
   options?: string[];
+  optionImageUrls?: string[];
   correctAnswerIndex?: number;
   explanation?: string;
   // Matching / singular–plural (same `pairs` array shape differs by type)
@@ -125,9 +126,13 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('attachmentFileInput') attachmentFileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('mcqOptionImageFileInput') mcqOptionImageFileInput!: ElementRef<HTMLInputElement>;
 
   /** Target question for per-question attachment upload */
   currentAttachmentQ: ReviewQuestion | null = null;
+  currentMcqOptionImage: { q: ReviewQuestion; oi: number } | null = null;
+  mcqOptionImageUploadingKey: string | null = null;
+  mcqOptionUrlExpandedKey: string | null = null;
 
   currentStep: WizardStep = 1;
 
@@ -1228,7 +1233,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       generatingExplanation: false
     };
 
-    if (type === 'mcq') Object.assign(q, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0, explanation: '' });
+    if (type === 'mcq') Object.assign(q, { question: '', options: ['', '', '', ''], optionImageUrls: ['', '', '', ''], correctAnswerIndex: 0, explanation: '' });
     else if (type === 'matching') Object.assign(q, { instruction: 'Match the items.', pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
     else if (type === 'singular_plural') {
       Object.assign(q, {
@@ -1326,10 +1331,108 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   // MCQ helpers
-  addOption(q: ReviewQuestion): void { q.options!.push(''); }
+  addOption(q: ReviewQuestion): void {
+    q.options!.push('');
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls!.push('');
+  }
   removeOption(q: ReviewQuestion, i: number): void {
     q.options!.splice(i, 1);
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls!.splice(i, 1);
     if (q.correctAnswerIndex! >= q.options!.length) q.correctAnswerIndex = 0;
+  }
+
+  ensureMcqOptionImages(q: ReviewQuestion): void {
+    if (!Array.isArray(q.options)) return;
+    if (!Array.isArray(q.optionImageUrls)) {
+      const raw = Array.isArray((q as any).optionImageUrls) ? (q as any).optionImageUrls : [];
+      q.optionImageUrls = q.options.map((_, i) => String(raw[i] || '').trim());
+      return;
+    }
+    while (q.optionImageUrls.length < q.options.length) q.optionImageUrls.push('');
+    while (q.optionImageUrls.length > q.options.length) q.optionImageUrls.pop();
+  }
+
+  mcqOptionKey(q: ReviewQuestion, oi: number): string {
+    const idx = this.reviewQuestions.indexOf(q);
+    return `pdf-${idx >= 0 ? idx : 'sub'}-${oi}`;
+  }
+
+  getMcqOptionImageUrl(q: ReviewQuestion, oi: number): string {
+    this.ensureMcqOptionImages(q);
+    return String(q.optionImageUrls?.[oi] || '').trim();
+  }
+
+  hasMcqOptionImages(q: ReviewQuestion): boolean {
+    this.ensureMcqOptionImages(q);
+    return (q.optionImageUrls || []).some((u) => !!String(u || '').trim());
+  }
+
+  isMcqOptionImageUploading(q: ReviewQuestion, oi: number): boolean {
+    return this.mcqOptionImageUploadingKey === this.mcqOptionKey(q, oi);
+  }
+
+  toggleMcqOptionUrlInput(q: ReviewQuestion, oi: number): void {
+    const key = this.mcqOptionKey(q, oi);
+    this.mcqOptionUrlExpandedKey = this.mcqOptionUrlExpandedKey === key ? null : key;
+  }
+
+  isMcqOptionUrlExpanded(q: ReviewQuestion, oi: number): boolean {
+    return this.mcqOptionUrlExpandedKey === this.mcqOptionKey(q, oi);
+  }
+
+  triggerMcqOptionImageFile(q: ReviewQuestion, oi: number): void {
+    this.currentMcqOptionImage = { q, oi };
+    this.mcqOptionImageFileInput?.nativeElement?.click();
+  }
+
+  onMcqOptionImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const target = this.currentMcqOptionImage;
+    this.currentMcqOptionImage = null;
+    input.value = '';
+    if (!file || !target) return;
+    if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+      this.showError('Please select an image file');
+      return;
+    }
+    const { q, oi } = target;
+    const key = this.mcqOptionKey(q, oi);
+    this.mcqOptionImageUploadingKey = key;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        const canonicalUrl = String(res?.canonicalUrl || res?.url || '').trim();
+        if (!canonicalUrl || this.getAttachmentType(canonicalUrl) !== 'image') {
+          this.mcqOptionImageUploadingKey = null;
+          this.showError('Uploaded file is not a valid image');
+          return;
+        }
+        this.ensureMcqOptionImages(q);
+        q.optionImageUrls![oi] = canonicalUrl;
+        this.mcqOptionImageUploadingKey = null;
+        this.mcqOptionUrlExpandedKey = null;
+        this.showSuccess('Option image uploaded');
+      },
+      error: (err) => {
+        this.mcqOptionImageUploadingKey = null;
+        this.showError(err.error?.error || 'Image upload failed');
+      }
+    });
+  }
+
+  setMcqOptionImageUrl(q: ReviewQuestion, oi: number, raw: string): void {
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls![oi] = String(raw || '').trim();
+  }
+
+  removeMcqOptionImage(q: ReviewQuestion, oi: number): void {
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls![oi] = '';
+    if (this.mcqOptionUrlExpandedKey === this.mcqOptionKey(q, oi)) {
+      this.mcqOptionUrlExpandedKey = null;
+    }
   }
 
   // Matching helpers
@@ -1458,7 +1561,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       type: type as any,
       points: 1
     };
-    if (type === 'mcq') Object.assign(sq, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0 });
+    if (type === 'mcq') Object.assign(sq, { question: '', options: ['', '', '', ''], optionImageUrls: ['', '', '', ''], correctAnswerIndex: 0 });
     else if (type === 'matching') Object.assign(sq, { pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
     else if (type === 'fill-blank') Object.assign(sq, { sentence: '', answers: [''], hint: '' });
     else if (type === 'word_bank_fill') Object.assign(sq, { wordBank: [], items: [{ prompt: '', answer: '' }] });

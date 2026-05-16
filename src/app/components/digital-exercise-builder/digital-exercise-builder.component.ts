@@ -19,6 +19,7 @@ interface BuilderQuestion {
   question?: string;
   imageUrl?: string;
   options?: string[];
+  optionImageUrls?: string[];
   correctAnswerIndex?: number;
   explanation?: string;
   /** Worked sample banner; persisted on API as `example` (avoid in-memory name `example` for ngModel). */
@@ -144,6 +145,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   currentAttachmentQ: BuilderQuestion | null = null;
   @ViewChild('imagePinFileInput') imagePinFileInput!: ElementRef<HTMLInputElement>;
   currentImagePinQ: BuilderQuestion | null = null;
+  @ViewChild('mcqOptionImageFileInput') mcqOptionImageFileInput!: ElementRef<HTMLInputElement>;
+  currentMcqOptionImage: { q: BuilderQuestion; oi: number } | null = null;
+  mcqOptionImageUploadingKey: string | null = null;
+  mcqOptionUrlExpandedKey: string | null = null;
 
   readonly maxVideoFeedbackClips = 4;
   videoSuccessFeedbackRows: VideoFeedbackAudioRow[] = [];
@@ -254,10 +259,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       aiGradingEnabled: q.aiGradingEnabled !== false
     };
     if (q.type === 'mcq') {
+      const options = [...(q.options || ['', '', '', ''])];
+      const rawImages = Array.isArray(q.optionImageUrls) ? q.optionImageUrls.map((u: unknown) => String(u || '').trim()) : [];
       Object.assign(base, {
         question: q.question || '',
         imageUrl: q.imageUrl || '',
-        options: [...(q.options || ['', '', '', ''])],
+        options,
+        optionImageUrls: options.map((_, i) => rawImages[i] || ''),
         correctAnswerIndex: q.correctAnswerIndex ?? 0,
         explanation: q.explanation || ''
       });
@@ -452,6 +460,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.question = '';
       q.imageUrl = '';
       q.options = ['', '', '', ''];
+      q.optionImageUrls = ['', '', '', ''];
       q.correctAnswerIndex = 0;
       q.explanation = '';
     } else if (qType === 'matching') {
@@ -645,10 +654,107 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   // MCQ helpers
-  addOption(q: BuilderQuestion): void { q.options!.push(''); }
+  addOption(q: BuilderQuestion): void {
+    q.options!.push('');
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls!.push('');
+  }
   removeOption(q: BuilderQuestion, i: number): void {
     q.options!.splice(i, 1);
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls!.splice(i, 1);
     if (q.correctAnswerIndex! >= q.options!.length) q.correctAnswerIndex = 0;
+  }
+
+  ensureMcqOptionImages(q: BuilderQuestion): void {
+    if (!Array.isArray(q.options)) return;
+    if (!Array.isArray(q.optionImageUrls)) {
+      q.optionImageUrls = q.options.map(() => '');
+      return;
+    }
+    while (q.optionImageUrls.length < q.options.length) q.optionImageUrls.push('');
+    while (q.optionImageUrls.length > q.options.length) q.optionImageUrls.pop();
+  }
+
+  mcqOptionKey(q: BuilderQuestion, oi: number): string {
+    const idx = this.questions.indexOf(q);
+    return `${idx >= 0 ? idx : 'sub'}-${oi}`;
+  }
+
+  getMcqOptionImageUrl(q: BuilderQuestion, oi: number): string {
+    this.ensureMcqOptionImages(q);
+    return String(q.optionImageUrls?.[oi] || '').trim();
+  }
+
+  hasMcqOptionImages(q: BuilderQuestion): boolean {
+    this.ensureMcqOptionImages(q);
+    return (q.optionImageUrls || []).some((u) => !!String(u || '').trim());
+  }
+
+  isMcqOptionImageUploading(q: BuilderQuestion, oi: number): boolean {
+    return this.mcqOptionImageUploadingKey === this.mcqOptionKey(q, oi);
+  }
+
+  toggleMcqOptionUrlInput(q: BuilderQuestion, oi: number): void {
+    const key = this.mcqOptionKey(q, oi);
+    this.mcqOptionUrlExpandedKey = this.mcqOptionUrlExpandedKey === key ? null : key;
+  }
+
+  isMcqOptionUrlExpanded(q: BuilderQuestion, oi: number): boolean {
+    return this.mcqOptionUrlExpandedKey === this.mcqOptionKey(q, oi);
+  }
+
+  triggerMcqOptionImageFile(q: BuilderQuestion, oi: number): void {
+    this.currentMcqOptionImage = { q, oi };
+    this.mcqOptionImageFileInput?.nativeElement?.click();
+  }
+
+  onMcqOptionImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const target = this.currentMcqOptionImage;
+    this.currentMcqOptionImage = null;
+    input.value = '';
+    if (!file || !target) return;
+    if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+      this.showError('Please select an image file');
+      return;
+    }
+    const { q, oi } = target;
+    const key = this.mcqOptionKey(q, oi);
+    this.mcqOptionImageUploadingKey = key;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        const canonicalUrl = String(res?.canonicalUrl || res?.url || '').trim();
+        if (!canonicalUrl || this.getAttachmentType(canonicalUrl) !== 'image') {
+          this.mcqOptionImageUploadingKey = null;
+          this.showError('Uploaded file is not a valid image');
+          return;
+        }
+        this.ensureMcqOptionImages(q);
+        q.optionImageUrls![oi] = canonicalUrl;
+        this.mcqOptionImageUploadingKey = null;
+        this.mcqOptionUrlExpandedKey = null;
+        this.showSuccess('Option image uploaded');
+      },
+      error: (err) => {
+        this.mcqOptionImageUploadingKey = null;
+        this.showError(err.error?.error || 'Image upload failed');
+      }
+    });
+  }
+
+  setMcqOptionImageUrl(q: BuilderQuestion, oi: number, raw: string): void {
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls![oi] = String(raw || '').trim();
+  }
+
+  removeMcqOptionImage(q: BuilderQuestion, oi: number): void {
+    this.ensureMcqOptionImages(q);
+    q.optionImageUrls![oi] = '';
+    if (this.mcqOptionUrlExpandedKey === this.mcqOptionKey(q, oi)) {
+      this.mcqOptionUrlExpandedKey = null;
+    }
   }
 
   // Matching helpers
@@ -1304,6 +1410,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         tokens = (tokens || []).map((t: string) => String(t).trim()).filter((t: string) => t && t !== '/');
         row.rearrangeTokens = tokens;
       }
+      if (q.type === 'mcq') {
+        this.ensureMcqOptionImages(q);
+        row.options = (q.options || []).map((o: string) => String(o || '').trim());
+        row.optionImageUrls = (q.optionImageUrls || [])
+          .slice(0, row.options.length)
+          .map((u: string) => String(u || '').trim());
+        while (row.optionImageUrls.length < row.options.length) row.optionImageUrls.push('');
+      }
       if ((q.type as any) === 'image_pin_match') {
         row.imageUrl = String(q.imageUrl || '').trim();
         row.pins = (Array.isArray(q.pins) ? q.pins : [])
@@ -1354,9 +1468,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           subRow.aiGradingEnabled = sq.aiGradingEnabled ?? true;
 
           if (sq.type === 'mcq') {
+            this.ensureMcqOptionImages(sq);
             subRow.question = String(sq.question || '');
             subRow.imageUrl = String(sq.imageUrl || '');
             subRow.options = (sq.options || []).map((o: string) => String(o || '').trim()).filter(Boolean);
+            subRow.optionImageUrls = (sq.optionImageUrls || [])
+              .slice(0, subRow.options.length)
+              .map((u: string) => String(u || '').trim());
+            while (subRow.optionImageUrls.length < subRow.options.length) subRow.optionImageUrls.push('');
             subRow.correctAnswerIndex = sq.correctAnswerIndex ?? 0;
             subRow.explanation = String(sq.explanation || '');
           } else if (sq.type === 'matching' && Array.isArray(sq.pairs)) {
