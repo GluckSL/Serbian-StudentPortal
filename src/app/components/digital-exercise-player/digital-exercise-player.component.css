@@ -337,10 +337,6 @@
   contain: layout;
 }
 
-.no-touch {
-  touch-action: none !important;
-}
-
 .player-side-col {
   display: flex;
   flex-direction: column;
@@ -1475,18 +1471,15 @@
   border: 2px solid #fff;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ipm-color, #4f46e5) 30%, transparent);
   cursor: grab;
-  touch-action: pan-y;
+  /* none only on this tiny dot so the finger can drag in any direction to a pin */
+  touch-action: none;
   animation: ipmPulse 1.6s ease-in-out infinite;
   z-index: 2;
 }
 
-.ipm-handle.is-dragging {
-  touch-action: none;
-  cursor: grabbing;
-}
-
 .ipm-handle:active,
 .ipm-handle.is-dragging {
+  cursor: grabbing;
   transform: scale(1.1);
 }
 .ipm-handle:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 3px; }

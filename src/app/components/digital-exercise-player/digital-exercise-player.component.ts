@@ -202,14 +202,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private currentlyPlayingAudio: HTMLAudioElement | null = null;
   showFinishSummary = false;
   finishingAll = false;
-  private readonly imagePinDragThresholdPx = 10;
-  private imagePinDragPending: {
-    questionIndex: number;
-    labelId: string;
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-  } | null = null;
   private imagePinCaptureTarget: HTMLElement | null = null;
   private imagePinCapturePointerId: number | null = null;
   private imagePinDrag: {
@@ -2101,30 +2093,25 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   startImagePinDrag(pq: PlayerQuestion, labelId: string, event: PointerEvent): void {
     if (this.state === 'submitted' || !pq || pq.isCorrect === true || pq.isCorrect === false) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    // Defer preventDefault until a horizontal drag is confirmed so vertical swipes scroll the page.
-    this.imagePinDragPending = {
-      questionIndex: pq.index,
-      labelId,
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY
-    };
-  }
 
-  private beginImagePinDrag(pq: PlayerQuestion, labelId: string, event: PointerEvent): void {
     const wrap = this.getImagePinWrapEl(pq.index);
     const handle = this.getImagePinHandleEl(pq.index, labelId);
     if (!wrap || !handle) return;
 
+    // Capture the pointer on the handle element so all subsequent move/up events
+    // are routed here regardless of where the finger travels on the screen.
+    // touch-action: none on .ipm-handle (set in CSS) tells the browser not to
+    // scroll when touch starts on the handle, so drag always works.
     event.preventDefault();
     event.stopPropagation();
-    wrap.classList.add('no-touch');
+
     handle.classList.add('is-dragging');
 
     const wrapRect = wrap.getBoundingClientRect();
     const hRect = handle.getBoundingClientRect();
     const startX = hRect.left + hRect.width / 2 - wrapRect.left;
     const startY = hRect.top + hRect.height / 2 - wrapRect.top;
+
     this.imagePinDrag = {
       active: true,
       questionIndex: pq.index,
@@ -2136,65 +2123,36 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       y2: event.clientY - wrapRect.top,
       hoverPinId: null
     };
+
     this.imagePinCaptureTarget = handle;
     this.imagePinCapturePointerId = event.pointerId;
     try {
       handle.setPointerCapture(event.pointerId);
     } catch {
-      // Ignore capture errors (some browsers/environments don't support this)
+      // Ignore on unsupported environments
     }
     this.zone.run(() => {});
   }
 
   @HostListener('window:pointermove', ['$event'])
   onImagePinPointerMove(event: PointerEvent): void {
-    if (this.imagePinDrag.active) {
-      const wrap = this.getImagePinWrapEl(this.imagePinDrag.questionIndex);
-      if (!wrap) return;
-      event.preventDefault();
-      const wrapRect = wrap.getBoundingClientRect();
-      this.imagePinDrag.x2 = event.clientX - wrapRect.left;
-      this.imagePinDrag.y2 = event.clientY - wrapRect.top;
-      this.imagePinDrag.hoverPinId = this.findClosestPinId(
-        this.imagePinDrag.questionIndex,
-        event.clientX,
-        event.clientY,
-        34
-      );
-      this.zone.run(() => {});
-      return;
-    }
-
-    const pending = this.imagePinDragPending;
-    if (!pending || event.pointerId !== pending.pointerId) return;
-
-    const dx = event.clientX - pending.startClientX;
-    const dy = event.clientY - pending.startClientY;
-    const dist = Math.hypot(dx, dy);
-    if (dist < this.imagePinDragThresholdPx) return;
-
-    // Mostly vertical movement → treat as scroll, not a pin connection drag.
-    if (Math.abs(dy) > Math.abs(dx)) {
-      this.cancelImagePinDragPending();
-      return;
-    }
-
-    const pq = this.playerQuestions[pending.questionIndex];
-    if (!pq) {
-      this.cancelImagePinDragPending();
-      return;
-    }
-    const labelId = pending.labelId;
-    this.imagePinDragPending = null;
-    this.beginImagePinDrag(pq, labelId, event);
+    if (!this.imagePinDrag.active) return;
+    const wrap = this.getImagePinWrapEl(this.imagePinDrag.questionIndex);
+    if (!wrap) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    this.imagePinDrag.x2 = event.clientX - wrapRect.left;
+    this.imagePinDrag.y2 = event.clientY - wrapRect.top;
+    this.imagePinDrag.hoverPinId = this.findClosestPinId(
+      this.imagePinDrag.questionIndex,
+      event.clientX,
+      event.clientY,
+      34
+    );
+    this.zone.run(() => {});
   }
 
   @HostListener('window:pointerup', ['$event'])
-  onImagePinPointerUp(event: PointerEvent): void {
-    if (this.imagePinDragPending && event.pointerId === this.imagePinDragPending.pointerId) {
-      this.cancelImagePinDragPending();
-      return;
-    }
+  onImagePinPointerUp(_event: PointerEvent): void {
     if (!this.imagePinDrag.active) return;
     const pq = this.playerQuestions[this.imagePinDrag.questionIndex];
     const pinId = this.imagePinDrag.hoverPinId;
@@ -2212,11 +2170,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.zone.run(() => {});
   }
 
-  @HostListener('window:pointercancel', ['$event'])
-  onImagePinPointerCancel(event: PointerEvent): void {
-    if (this.imagePinDragPending && event.pointerId === this.imagePinDragPending.pointerId) {
-      this.cancelImagePinDragPending();
-    }
+  @HostListener('window:pointercancel')
+  onImagePinPointerCancel(): void {
     if (this.imagePinDrag.active) {
       this.resetImagePinDrag();
       this.zone.run(() => {});
@@ -2225,23 +2180,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   @HostListener('window:resize')
   onImagePinResize(): void {
-    // Trigger change detection so SVG coordinates are recomputed.
     if (this.imagePinDrag.active) {
       this.imagePinDrag = { ...this.imagePinDrag };
     }
   }
 
-  private cancelImagePinDragPending(): void {
-    this.imagePinDragPending = null;
-  }
-
   private resetImagePinDrag(): void {
-    const wrap = this.getImagePinWrapEl(this.imagePinDrag.questionIndex);
-    const handle = this.getImagePinHandleEl(this.imagePinDrag.questionIndex, this.imagePinDrag.labelId);
-    if (wrap) {
-      wrap.classList.remove('no-touch');
-      wrap.style.touchAction = '';
-    }
+    const handle = this.getImagePinHandleEl(
+      this.imagePinDrag.questionIndex,
+      this.imagePinDrag.labelId
+    );
     handle?.classList.remove('is-dragging');
     try {
       if (this.imagePinCaptureTarget && this.imagePinCapturePointerId != null) {

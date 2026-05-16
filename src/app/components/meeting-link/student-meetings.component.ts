@@ -51,6 +51,11 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   attemptedMeetings: StudentMeeting[] = [];
   activeTab: 'upcoming' | 'live' | 'attempted' = 'upcoming';
 
+  readonly classesPageSize = 7;
+  upcomingPage = 1;
+  livePage = 1;
+  attemptedPage = 1;
+
   loading = false;
   error = '';
   private meetingsRefreshId: ReturnType<typeof setInterval> | null = null;
@@ -111,17 +116,94 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   categorizeMeetings(): void {
-    this.ongoingMeetings = this.allMeetings.filter(
-      (m) => m.isOngoing || (!!m.canJoin && !m.hasEnded && Number(m.timeUntilStart) <= 0)
-    );
-    this.upcomingMeetings = this.allMeetings.filter(
-      (m) => !this.ongoingMeetings.some((live) => live._id === m._id) && !m.hasEnded
-    );
-    this.pastMeetings = this.allMeetings.filter(m => m.hasEnded);
+    const byStartAsc = (a: StudentMeeting, b: StudentMeeting) =>
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+    const byStartDesc = (a: StudentMeeting, b: StudentMeeting) =>
+      new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+
+    this.ongoingMeetings = this.allMeetings
+      .filter((m) => m.isOngoing || (!!m.canJoin && !m.hasEnded && Number(m.timeUntilStart) <= 0))
+      .sort(byStartAsc);
+    this.upcomingMeetings = this.allMeetings
+      .filter((m) => !this.ongoingMeetings.some((live) => live._id === m._id) && !m.hasEnded)
+      .sort(byStartAsc);
+    this.pastMeetings = this.allMeetings.filter((m) => m.hasEnded).sort(byStartDesc);
     this.attemptedMeetings = this.pastMeetings;
+    this.clampClassPages();
     if (this.ongoingMeetings.length > 0) this.activeTab = 'live';
     else if (this.upcomingMeetings.length > 0) this.activeTab = 'upcoming';
     else this.activeTab = 'attempted';
+  }
+
+  private clampClassPages(): void {
+    this.upcomingPage = this.clampPage(this.upcomingPage, this.upcomingMeetings.length);
+    this.livePage = this.clampPage(this.livePage, this.ongoingMeetings.length);
+    this.attemptedPage = this.clampPage(this.attemptedPage, this.attemptedMeetings.length);
+  }
+
+  private clampPage(page: number, totalItems: number): number {
+    const totalPages = this.totalPagesFor(totalItems);
+    return Math.min(Math.max(1, page), totalPages);
+  }
+
+  private totalPagesFor(totalItems: number): number {
+    return Math.max(1, Math.ceil(totalItems / this.classesPageSize));
+  }
+
+  get paginatedUpcomingMeetings(): StudentMeeting[] {
+    return this.slicePage(this.upcomingMeetings, this.upcomingPage);
+  }
+
+  get paginatedOngoingMeetings(): StudentMeeting[] {
+    return this.slicePage(this.ongoingMeetings, this.livePage);
+  }
+
+  get paginatedAttemptedMeetings(): StudentMeeting[] {
+    return this.slicePage(this.attemptedMeetings, this.attemptedPage);
+  }
+
+  get upcomingTotalPages(): number {
+    return this.totalPagesFor(this.upcomingMeetings.length);
+  }
+
+  get liveTotalPages(): number {
+    return this.totalPagesFor(this.ongoingMeetings.length);
+  }
+
+  get attemptedTotalPages(): number {
+    return this.totalPagesFor(this.attemptedMeetings.length);
+  }
+
+  private slicePage(list: StudentMeeting[], page: number): StudentMeeting[] {
+    const start = (page - 1) * this.classesPageSize;
+    return list.slice(start, start + this.classesPageSize);
+  }
+
+  getClassPageNumbers(totalPages: number, currentPage: number): number[] {
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    const pages: number[] = [];
+    for (let p = start; p <= end; p++) pages.push(p);
+    return pages;
+  }
+
+  changeUpcomingPage(page: number): void {
+    this.upcomingPage = this.clampPage(page, this.upcomingMeetings.length);
+  }
+
+  changeLivePage(page: number): void {
+    this.livePage = this.clampPage(page, this.ongoingMeetings.length);
+  }
+
+  changeAttemptedPage(page: number): void {
+    this.attemptedPage = this.clampPage(page, this.attemptedMeetings.length);
+  }
+
+  classPageRangeLabel(page: number, totalItems: number): string {
+    if (totalItems === 0) return '';
+    const start = (page - 1) * this.classesPageSize + 1;
+    const end = Math.min(page * this.classesPageSize, totalItems);
+    return `Showing ${start}–${end} of ${totalItems}`;
   }
 
   joinMeeting(meeting: StudentMeeting): void {
@@ -235,7 +317,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return 'badge-missed';
   }
 
-  setTab(tab: 'upcoming' | 'live' | 'attempted'): void { this.activeTab = tab; }
+  setTab(tab: 'upcoming' | 'live' | 'attempted'): void {
+    this.activeTab = tab;
+  }
 
   copyMeetingInfo(meeting: StudentMeeting): void {
     const info = `Meeting: ${meeting.topic}\nDate: ${this.formatDate(meeting.startTime)}\nTime: ${this.formatTime(meeting.startTime)}\nDuration: ${this.formatDuration(meeting.duration)}\nJoin URL: ${meeting.joinUrl}\nPassword: ${meeting.password}`;
