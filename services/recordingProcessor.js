@@ -16,6 +16,25 @@ const ZoomRecording = require('../models/ZoomRecording');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+/**
+ * Configurable working directory for temp Zoom download and HLS segment files.
+ * On t3.micro (8 GiB disk) point this to a mount with ≥5 GiB headroom to avoid ENOSPC.
+ * Falls back to os.tmpdir() if unset or if the provided path cannot be created.
+ * Example: RECORDING_WORK_DIR=/mnt/recordings-tmp
+ */
+const RECORDING_WORK_DIR = (() => {
+  const d = String(process.env.RECORDING_WORK_DIR || '').trim();
+  if (d) {
+    try {
+      fs.mkdirSync(d, { recursive: true });
+      return d;
+    } catch (e) {
+      console.warn(`⚠️  RECORDING_WORK_DIR="${d}" not usable (${e.message}) — falling back to os.tmpdir()`);
+    }
+  }
+  return os.tmpdir();
+})();
+
 const ALLOWED_FFMPEG_PRESETS = new Set([
   'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow',
 ]);
@@ -33,16 +52,20 @@ function effectiveFfmpegCrf() {
 
 const RECORDING_R2_UPLOAD_CONCURRENCY = Math.max(
   1,
-  Math.min(Number(process.env.RECORDING_R2_UPLOAD_CONCURRENCY) || 8, 25)
+  Math.min(Number(process.env.RECORDING_R2_UPLOAD_CONCURRENCY) || 4, 25)
 );
 
-/** Minimum free bytes on temp volume before download+encode (default 1 GiB). Set RECORDING_MIN_TMP_FREE_BYTES=0 to disable. */
+/**
+ * Minimum free bytes on the work volume before starting download + encode.
+ * Default 3 GiB — a safe margin for an 8 GiB EC2 disk (t3.micro).
+ * Set RECORDING_MIN_TMP_FREE_BYTES=0 to disable the check entirely.
+ */
 const MIN_TMP_FREE_BYTES = (() => {
   const raw = process.env.RECORDING_MIN_TMP_FREE_BYTES;
   if (raw === '0') return 0;
   const n = Number(raw);
   if (Number.isFinite(n) && n >= 0) return n;
-  return 1024 ** 3;
+  return 3 * 1024 ** 3; // 3 GiB — conservative default for 8 GiB disk
 })();
 
 const RECORDING_PIPELINE_MAX_ATTEMPTS = Math.max(
@@ -78,15 +101,56 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Best-effort free space for temp dir (null if unavailable). */
+/** Best-effort free space on RECORDING_WORK_DIR volume (null if unavailable). */
 function getTmpFreeBytes() {
   try {
     const { statfsSync } = require('fs');
     if (typeof statfsSync !== 'function') return null;
-    const s = statfsSync(os.tmpdir());
+    const s = statfsSync(RECORDING_WORK_DIR);
     return Number(s.bavail) * Number(s.bsize);
   } catch {
     return null;
+  }
+}
+
+/** Free RAM in bytes (os.freemem). */
+function getFreeRamBytes() {
+  return os.freemem();
+}
+
+/**
+ * Remove leftover zoom-src-* and hls-* temp entries in RECORDING_WORK_DIR
+ * that are older than maxAgeMs (default 4 h).
+ * Called at module startup, before each pipeline run, and on a 2 h interval.
+ */
+function sweepOrphanedTempFiles(maxAgeMs = 4 * 60 * 60 * 1000) {
+  try {
+    const entries = fs.readdirSync(RECORDING_WORK_DIR);
+    const now = Date.now();
+    let swept = 0;
+    for (const entry of entries) {
+      if (!entry.startsWith('zoom-src-') && !entry.startsWith('hls-')) continue;
+      const full = path.join(RECORDING_WORK_DIR, entry);
+      try {
+        const stat = fs.statSync(full);
+        const ageMs = now - stat.mtimeMs;
+        if (ageMs < maxAgeMs) continue;
+        if (stat.isDirectory()) {
+          fs.rmSync(full, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(full);
+        }
+        console.log(`🧹 Swept orphaned temp (age=${Math.round(ageMs / 3600000)}h): ${entry}`);
+        swept += 1;
+      } catch (e) {
+        console.warn(`⚠️  Could not sweep orphan "${entry}": ${e.message}`);
+      }
+    }
+    if (swept > 0) {
+      console.log(`🧹 Orphan sweep: removed ${swept} stale temp file(s) from ${RECORDING_WORK_DIR}`);
+    }
+  } catch (e) {
+    console.warn(`⚠️  Orphan temp sweep failed: ${e.message}`);
   }
 }
 
@@ -366,7 +430,7 @@ async function createZoomDownloadStream(downloadUrl, accessToken, options = {}) 
  * @returns {Promise<string[]>}  List of local file paths [playlist.m3u8, seg000.ts, …]
  */
 async function convertToHLS(input, meetingLinkId) {
-  const tmpDir = path.join(os.tmpdir(), `hls-${meetingLinkId}-${Date.now()}`);
+  const tmpDir = path.join(RECORDING_WORK_DIR, `hls-${meetingLinkId}-${Date.now()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const playlistPath  = path.join(tmpDir, 'playlist.m3u8');
@@ -531,10 +595,16 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
   console.log(`🎬 Starting HLS pipeline for Zoom meeting ${zoomMeetingId}`);
 
   const totalMem = os.totalmem();
+  const freeMemAtStart = getFreeRamBytes();
   if (totalMem < 1.75 * 1024 ** 3) {
     console.warn(
-      `⚠️  Host has ~${Math.round(totalMem / (1024 ** 2))}MiB RAM — long HLS transcodes often fail (OOM). ` +
+      `⚠️  Host has ~${Math.round(totalMem / (1024 ** 2))} MiB total RAM — long HLS transcodes often fail (OOM). ` +
         'Prefer ≥2GiB, or set RECORDING_MAX_ENCODE_WIDTH=854 RECORDING_FFMPEG_PRESET=ultrafast RECORDING_FFMPEG_THREADS=1.'
+    );
+  } else if (freeMemAtStart < 256 * 1024 * 1024) {
+    console.warn(
+      `⚠️  Low free RAM: ${Math.round(freeMemAtStart / (1024 ** 2))} MiB — FFmpeg may OOM. ` +
+        'Consider RECORDING_FFMPEG_PRESET=ultrafast RECORDING_FFMPEG_THREADS=1 RECORDING_MAX_ENCODE_WIDTH=854'
     );
   }
 
@@ -549,6 +619,16 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
   const meetingLinkId = meetingLink._id.toString();
   const hlsPrefix = buildHlsPrefix(meetingLinkId);
   console.log(`🧩 meetingLinkId=${meetingLinkId}  hlsPrefix=${hlsPrefix}`);
+
+  // Reclaim any leftover temp files from crashed/cancelled prior runs before we start.
+  sweepOrphanedTempFiles();
+
+  const preFreeDisk = getTmpFreeBytes();
+  console.log(
+    `💾 Resources before HLS pipeline [${meetingLinkId}]: ` +
+    `disk=${preFreeDisk != null ? (preFreeDisk / (1024 ** 3)).toFixed(2) + ' GiB' : 'unknown'} free on ${RECORDING_WORK_DIR}, ` +
+    `RAM=${Math.round(freeMemAtStart / (1024 ** 2))} MiB free / ${Math.round(totalMem / (1024 ** 2))} MiB total`
+  );
 
   // 2. Upsert ZoomRecording as processing
   let zoomRecordingDoc = await ZoomRecording.findOne({ meetingLinkId });
@@ -578,9 +658,9 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
       const free = getTmpFreeBytes();
       if (MIN_TMP_FREE_BYTES > 0 && free != null && free < MIN_TMP_FREE_BYTES) {
         throw new Error(
-          `Temp filesystem low on space: ${Math.round(free / (1024 * 1024))}MiB free ` +
-          `(need ≥${Math.round(MIN_TMP_FREE_BYTES / (1024 * 1024))}MiB). ` +
-          'Free disk or set RECORDING_MIN_TMP_FREE_BYTES=0 to skip this check.'
+          `Temp filesystem low on space: ${(free / (1024 ** 3)).toFixed(2)} GiB free on ${RECORDING_WORK_DIR} ` +
+          `(need ≥${(MIN_TMP_FREE_BYTES / (1024 ** 3)).toFixed(2)} GiB). ` +
+          'Free disk, set RECORDING_WORK_DIR to a larger volume, or set RECORDING_MIN_TMP_FREE_BYTES=0 to skip this check.'
         );
       }
 
@@ -596,13 +676,14 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
       const downloadStream = await createZoomDownloadStream(downloadUrl, accessToken, {
         downloadToken: options.downloadToken,
       });
-      tempMp4 = path.join(os.tmpdir(), `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
+      tempMp4 = path.join(RECORDING_WORK_DIR, `zoom-src-${meetingLinkId}-${Date.now()}.mp4`);
       await pipeline(downloadStream, fs.createWriteStream(tempMp4));
 
       const st = fs.statSync(tempMp4);
       if (st.size < 2048) {
         throw new Error(`Zoom download too small (${st.size} bytes) — likely an error response, not a recording`);
       }
+      console.log(`📁 Zoom download size: ${(st.size / (1024 ** 2)).toFixed(1)} MiB → ${tempMp4}`);
 
       const head = Buffer.alloc(4096);
       const fh = fs.openSync(tempMp4, 'r');
@@ -761,5 +842,12 @@ async function processManualRecordingUpload(recordingId, localFilePath) {
     }
   }
 }
+
+// ── Startup orphan sweep + periodic maintenance ───────────────────────────────
+// Run once at boot so any temp files left by a previous crash are removed before
+// the first job starts, then repeat every 2 hours to prevent ENOSPC accumulation.
+sweepOrphanedTempFiles();
+const _orphanSweepTimer = setInterval(() => sweepOrphanedTempFiles(), 2 * 60 * 60 * 1000);
+if (typeof _orphanSweepTimer.unref === 'function') _orphanSweepTimer.unref();
 
 module.exports = { processZoomRecording, processManualRecordingUpload };
