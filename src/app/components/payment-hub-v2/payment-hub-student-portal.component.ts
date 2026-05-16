@@ -11,10 +11,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import jsPDF from 'jspdf';
 import { PaymentHubApiService, PaymentRequestItem as PaymentRequest, StudentCatalog, CefrRow, InstallmentRow, ApprovalQueueItem } from './payment-hub-api.service';
 import { PaymentUploadDialogComponent } from './payment-upload-dialog.component';
 import { AuthService } from '../../services/auth.service';
+import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml } from '../../utils/invoice-pdf.util';
 @Component({
   selector: 'app-payment-hub-student-portal',
   standalone: true,
@@ -605,7 +605,6 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   }
 
   canUpload(req: PaymentRequest): boolean {
-    // Installment plan: only allow upload if the current slice is actionable
     if (req.installmentAllowed) {
       const view = req.studentInstallmentView;
       return !!view && !view.allPaid && view.canUpload;
@@ -613,6 +612,12 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     const subs = (req.submissions as Array<{ status: string }>) || [];
     if (subs.some(s => s.status === 'REUPLOAD_REQUIRED')) return true;
     return ['REQUESTED', 'REJECTED', 'OVERDUE'].includes(req.status);
+  }
+
+  canDownloadInvoice(req: PaymentRequest): boolean {
+    const subs = (req.submissions as Array<{ status: string }>) || [];
+    if (subs.length > 0) return true;
+    return req.status === 'APPROVED' || req.status === 'FULLY_PAID';
   }
 
   isUrgent(req: PaymentRequest): boolean {
@@ -685,37 +690,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     this.inferredCurrency = uniform ?? this.phoneInferredCurrency;
   }
 
-  private getStatusColor(status: string): number[] {
-    const statusUpper = status.toUpperCase();
-    switch (statusUpper) {
-      case 'APPROVED':
-      case 'FULLY_PAID':
-        return [22, 160, 133];
-      case 'SUBMITTED':
-      case 'UNDER_REVIEW':
-        return [52, 152, 219];
-      case 'REQUESTED':
-      case 'PENDING':
-        return [243, 156, 18];
-      case 'REJECTED':
-      case 'OVERDUE':
-        return [231, 76, 60];
-      case 'REUPLOAD_REQUIRED':
-        return [230, 126, 34];
-      default:
-        return [128, 128, 128];
-    }
-  }
-
-  private getProgressColor(percent: number): number[] {
-    if (percent >= 100) return [22, 160, 133];
-    if (percent >= 75) return [46, 204, 113];
-    if (percent >= 50) return [52, 152, 219];
-    if (percent >= 25) return [243, 156, 18];
-    return [231, 76, 60];
-  }
-
-  downloadInvoice(req: PaymentRequest): void {
+  async downloadInvoice(req: PaymentRequest): Promise<void> {
     const student = req.studentId;
     const paidAmount = req.amount - (req.amountRemaining ?? 0);
     const submission = req.submissions?.[0] as ApprovalQueueItem | undefined;
@@ -724,453 +699,105 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       : req.dueDate;
 
     const statusLabel = this.displayStatus(req);
-    const statusColor = this.getStatusColor(req.status);
     const percentPaid = req.amount > 0 ? Math.round((paidAmount / req.amount) * 100) : 0;
-    const progressColor = this.getProgressColor(percentPaid);
+    const isOverdue = req.status !== 'APPROVED' && req.status !== 'FULLY_PAID' && new Date(req.dueDate) < new Date();
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const contentWidth = pageWidth - margin * 2;
-    let y = 20;
+    const balanceColor = percentPaid >= 100 ? '#16a085' : '#000000';
+    const progressColor = this.getProgressColorHex(percentPaid);
+    const dueDateColor = isOverdue ? '#e74c3c' : '#000000';
 
-    const checkPageBreak = (neededSpace: number) => {
-      if (y + neededSpace > pageHeight - margin) {
-        doc.addPage();
-        y = margin;
-      }
+    const invoiceData: InvoiceData = {
+      invoiceNumber: `INV-${req._id.slice(-8).toUpperCase()}`,
+      invoiceDate: new Date().toISOString(),
+      status: statusLabel,
+      statusColor: this.getStatusColorHex(req.status),
+      requestId: req._id,
+      source: req.source,
+      isImported: req.isImported,
+      studentInfo: {
+        name: this.userProfile?.name || student?.name,
+        email: this.userProfile?.email || student?.email,
+        level: this.userProfile?.level || student?.level,
+        batch: this.userProfile?.batch || student?.batch,
+        studentStatus: this.userProfile?.studentStatus,
+        subscription: this.userProfile?.subscription,
+        phoneNumber: this.userProfile?.phoneNumber,
+        address: this.userProfile?.address,
+        servicesOpted: this.userProfile?.servicesOpted,
+        regNo: this.userProfile?.regNo,
+      },
+      paymentType: this.formatPaymentType(req.paymentType, req.customType),
+      customType: req.customType,
+      currency: req.currency,
+      totalAmount: req.amount,
+      paidAmount: paidAmount,
+      amountRemaining: req.amountRemaining ?? 0,
+      percentPaid: percentPaid,
+      progressColor: progressColor,
+      balanceColor: balanceColor,
+      dueDate: req.dueDate,
+      dueDateColor: dueDateColor,
+      isOverdue: isOverdue,
+      paymentDate: paymentDate,
+      installmentAllowed: req.installmentAllowed,
+      totalInstallments: req.totalInstallments,
+      activeInstallmentNumber: req.studentInstallmentView?.activeInstallmentNumber ?? undefined,
+      remarks: req.remarks,
+      submission: submission ? {
+        _id: submission._id,
+        paymentMethod: submission.paymentMethod,
+        paidAmount: submission.paidAmount,
+        currency: submission.currency,
+        status: submission.status,
+        submittedAt: submission.submittedAt,
+        approvedAt: (submission as any).approvedAt,
+        transactionId: submission.transactionId,
+        rejectionReason: submission.rejectionReason,
+        reuploadNote: submission.reuploadNote,
+        adminRemarks: submission.adminRemarks,
+      } : undefined,
+      installments: req.installments?.map(inst => ({
+        installmentNumber: inst.installmentNumber,
+        currency: inst.currency,
+        requestedAmount: inst.requestedAmount,
+        status: inst.status,
+        dueDate: inst.dueDate,
+        paidAmount: inst.paidAmount,
+        remainingAmount: inst.remainingAmount,
+      })),
     };
 
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(40);
-    doc.text('INVOICE', pageWidth / 2, y, { align: 'center' });
-    y += 12;
+    const html = renderInvoiceHTML(invoiceData)
+    await generatePdfFromHtml(html, `Invoice-${req._id.slice(-8)}.pdf`)
+  }
 
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100);
-    doc.text('Gluck Global Education', pageWidth / 2, y, { align: 'center' });
-    y += 6;
-    doc.text('www.gluckglobal.com | info@gluckglobal.com', pageWidth / 2, y, { align: 'center' });
-    y += 15;
-
-    doc.setDrawColor(200);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-
-    doc.setFontSize(11);
-    doc.setTextColor(60);
-    doc.text('INVOICE DETAILS', margin, y);
-    y += 8;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('Invoice Number', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`INV-${req._id.slice(-8).toUpperCase()}`, margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Invoice Date', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(new Date().toLocaleDateString('en-GB'), margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Status', margin, y);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
-    doc.text(statusLabel, margin + 45, y);
-    doc.setTextColor(0);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Request ID', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(req._id, margin + 45, y);
-    y += 6;
-
-    if (req.source) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Source', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(req.source, margin + 45, y);
-      y += 6;
+  private getStatusColorHex(status: string): string {
+    const statusUpper = status.toUpperCase();
+    switch (statusUpper) {
+      case 'APPROVED':
+      case 'FULLY_PAID':
+        return '#16a085';
+      case 'SUBMITTED':
+      case 'UNDER_REVIEW':
+        return '#3498db';
+      case 'REQUESTED':
+      case 'PENDING':
+        return '#f39c12';
+      case 'REJECTED':
+      case 'OVERDUE':
+        return '#e74c3c';
+      case 'REUPLOAD_REQUIRED':
+        return '#e67e22';
+      default:
+        return '#808080';
     }
+  }
 
-    if (req.isImported) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Imported', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Yes - Legacy Import', margin + 45, y);
-      y += 6;
-    }
-    y += 8;
-
-    doc.setDrawColor(220);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 8;
-
-    doc.setFontSize(11);
-    doc.setTextColor(60);
-    doc.text('STUDENT INFORMATION', margin, y);
-    y += 8;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('Full Name', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.name || student?.name || 'N/A', margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Email', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.email || student?.email || 'N/A', margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Registration No.', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.regNo || 'N/A', margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Level', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.level || student?.level || 'N/A', margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Batch', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.batch || student?.batch || 'N/A', margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Student Status', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.studentStatus || 'N/A', margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Subscription Plan', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.userProfile?.subscription || 'N/A', margin + 45, y);
-    y += 6;
-
-    if (this.userProfile?.phoneNumber) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Phone', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(this.userProfile.phoneNumber, margin + 45, y);
-      y += 6;
-    }
-
-    if (this.userProfile?.address) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Address', margin, y);
-      doc.setFont('helvetica', 'normal');
-      const addressLines = doc.splitTextToSize(this.userProfile.address, contentWidth - 45);
-      doc.text(addressLines, margin + 45, y);
-      y += addressLines.length * 5 + 2;
-    }
-
-    if (this.userProfile?.servicesOpted) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Services Opted', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(this.userProfile.servicesOpted, margin + 45, y);
-      y += 6;
-    }
-
-    y += 8;
-    doc.setDrawColor(220);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 8;
-
-    doc.setFontSize(11);
-    doc.setTextColor(60);
-    doc.text('PAYMENT DETAILS', margin, y);
-    y += 8;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('Payment Type', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(this.formatPaymentType(req.paymentType, req.customType), margin + 45, y);
-    y += 6;
-
-    if (req.customType) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Custom Label', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(req.customType, margin + 45, y);
-      y += 6;
-    }
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Currency', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(req.currency, margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total Amount (Quoted)', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${req.currency} ${this.fmt(req.amount)}`, margin + 45, y);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Amount Paid', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${req.currency} ${this.fmt(paidAmount)}`, margin + 45, y);
-    y += 6;
-
-const balanceColor = percentPaid >= 100 ? [22, 160, 133] : [0, 0, 0];
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Balance Due', margin, y);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(balanceColor[0], balanceColor[1], balanceColor[2]);
-    doc.text(`${req.currency} ${this.fmt(req.amountRemaining ?? 0)}`, margin + 45, y);
-    doc.setTextColor(0);
-    y += 6;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Payment Progress', margin, y);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(progressColor[0], progressColor[1], progressColor[2]);
-    doc.text(`${percentPaid}% paid`, margin + 45, y);
-    doc.setTextColor(0);
-y += 6;
-
-    const isOverdue = req.status !== 'APPROVED' && req.status !== 'FULLY_PAID' && new Date(req.dueDate) < new Date();
-    const dueDateColor = isOverdue ? [231, 76, 60] : [0, 0, 0];
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Due Date', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(dueDateColor[0], dueDateColor[1], dueDateColor[2]);
-    const dueDateText = isOverdue ? `${this.fmtDate(req.dueDate)} (Overdue)` : this.fmtDate(req.dueDate);
-    doc.text(dueDateText, margin + 45, y);
-    doc.setTextColor(0);
-    y += 6;
-
-    if (paymentDate && (req.status === 'APPROVED' || req.status === 'FULLY_PAID')) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Payment Date', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(this.fmtDate(paymentDate), margin + 45, y);
-      y += 6;
-    }
-
-    if (req.installmentAllowed) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Installments', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${req.totalInstallments || 1} parts`, margin + 45, y);
-      y += 6;
-
-      if (req.studentInstallmentView) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('Active Part', margin, y);
-        doc.setFont('helvetica', 'normal');
-        const view = req.studentInstallmentView;
-        doc.text(`${view.activeInstallmentNumber || 'N/A'} of ${view.totalInstallments || req.totalInstallments || 1}`, margin + 45, y);
-        y += 6;
-      }
-    }
-
-    y += 8;
-    doc.setDrawColor(220);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 8;
-
-    if (req.remarks) {
-      doc.setFontSize(11);
-      doc.setTextColor(60);
-      doc.text('PAYMENT PURPOSE / REMARKS', margin, y);
-      y += 8;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0);
-      const remarksLines = doc.splitTextToSize(req.remarks, contentWidth);
-      doc.text(remarksLines, margin, y);
-      y += remarksLines.length * 5 + 8;
-    }
-
-    if (submission) {
-      checkPageBreak(50);
-      doc.setDrawColor(220);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 8;
-
-      doc.setFontSize(11);
-      doc.setTextColor(60);
-      doc.text('PAYMENT SUBMISSION DETAILS', margin, y);
-      y += 8;
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0);
-      doc.text('Submission ID', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(submission._id, margin + 45, y);
-      y += 6;
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('Payment Method', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(submission.paymentMethod || 'N/A', margin + 45, y);
-      y += 6;
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('Amount Paid', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${submission.currency} ${this.fmt(submission.paidAmount)}`, margin + 45, y);
-      y += 6;
-
-      const subStatusColor = this.getStatusColor(submission.status);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Submission Status', margin, y);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(subStatusColor[0], subStatusColor[1], subStatusColor[2]);
-      doc.text(submission.status, margin + 45, y);
-      doc.setTextColor(0);
-      y += 6;
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('Submitted At', margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(this.fmtDate(submission.submittedAt), margin + 45, y);
-      y += 6;
-
-      if (submission.status === 'APPROVED' && (submission as any).approvedAt) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('Approved At', margin, y);
-        doc.setFont('helvetica', 'normal');
-        doc.text(this.fmtDate((submission as any).approvedAt), margin + 45, y);
-        y += 6;
-      }
-
-      if (submission.transactionId) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('Transaction ID', margin, y);
-        doc.setFont('helvetica', 'normal');
-        doc.text(submission.transactionId, margin + 45, y);
-        y += 6;
-      }
-
-      if (submission.rejectionReason) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('Rejection Reason', margin, y);
-        doc.setFont('helvetica', 'normal');
-        const rejectionLines = doc.splitTextToSize(submission.rejectionReason, contentWidth - 45);
-        doc.text(rejectionLines, margin + 45, y);
-        y += rejectionLines.length * 5 + 2;
-      }
-
-      if (submission.reuploadNote) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('Reupload Note', margin, y);
-        doc.setFont('helvetica', 'normal');
-        const reuploadLines = doc.splitTextToSize(submission.reuploadNote, contentWidth - 45);
-        doc.text(reuploadLines, margin + 45, y);
-        y += reuploadLines.length * 5 + 2;
-      }
-
-      if (submission.adminRemarks) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('Admin Remarks', margin, y);
-        doc.setFont('helvetica', 'normal');
-        const adminLines = doc.splitTextToSize(submission.adminRemarks, contentWidth - 45);
-        doc.text(adminLines, margin + 45, y);
-        y += adminLines.length * 5 + 2;
-      }
-    }
-
-    if (req.installments && req.installments.length > 0) {
-      checkPageBreak(50);
-      y += 5;
-      doc.setDrawColor(220);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 8;
-
-      doc.setFontSize(11);
-      doc.setTextColor(60);
-      doc.text('INSTALLMENT SCHEDULE', margin, y);
-      y += 8;
-
-      for (const inst of this.sortedInstallments(req)) {
-        checkPageBreak(40);
-
-        doc.setFontSize(10);
-        doc.setTextColor(60);
-        doc.text(`Installment ${inst.installmentNumber}`, margin, y);
-        y += 6;
-
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0);
-        doc.text('Part Number', margin, y);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${inst.installmentNumber} of ${req.totalInstallments || inst.installmentNumber}`, margin + 45, y);
-        y += 5;
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('Requested Amount', margin, y);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${inst.currency} ${this.fmt(inst.requestedAmount)}`, margin + 45, y);
-        y += 5;
-
-        const instStatusColor = this.getStatusColor(inst.status);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Status', margin, y);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(instStatusColor[0], instStatusColor[1], instStatusColor[2]);
-        doc.text(inst.status, margin + 45, y);
-        doc.setTextColor(0);
-        y += 5;
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('Due Date', margin, y);
-        doc.setFont('helvetica', 'normal');
-        doc.text(this.fmtDate(inst.dueDate), margin + 45, y);
-        y += 5;
-
-        if (inst.paidAmount > 0) {
-          doc.setFont('helvetica', 'bold');
-          doc.text('Paid Amount', margin, y);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`${inst.currency} ${this.fmt(inst.paidAmount)}`, margin + 45, y);
-          y += 5;
-        }
-
-        if (inst.remainingAmount > 0) {
-          doc.setFont('helvetica', 'bold');
-          doc.text('Remaining Amount', margin, y);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`${inst.currency} ${this.fmt(inst.remainingAmount)}`, margin + 45, y);
-          y += 5;
-        }
-
-        y += 5;
-      }
-    }
-
-    checkPageBreak(30);
-    y += 15;
-    doc.setDrawColor(200);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text('This is a computer-generated invoice.', pageWidth / 2, y, { align: 'center' });
-    y += 5;
-    doc.text('No signature required. Generated on ' + new Date().toLocaleString('en-IN'), pageWidth / 2, y, { align: 'center' });
-
-    doc.save(`Invoice-${req._id.slice(-8)}.pdf`);
+  private getProgressColorHex(percent: number): string {
+    if (percent >= 100) return '#16a085';
+    if (percent >= 75) return '#2ecc71';
+    if (percent >= 50) return '#3498db';
+    if (percent >= 25) return '#f39c12';
+    return '#e74c3c';
   }
 }
