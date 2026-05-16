@@ -5,13 +5,13 @@ export function dgDelay(ms: number): Promise<void> {
 
 /** Character / dialogue UX timing (DG Bot player). */
 export const DG_CHAR_TIMING = {
-  preSpeakAnticipationMs: 80,
-  postSpeakSpeakingTailMs: 50,
-  postSpeakPauseBeforeReactionMs: 70,
-  reactionHoldMs: 120,
-  successHappyHoldMs: 300,
-  failureThinkBeforeSadMs: 150,
-  practiceListeningPrimingMs: 200,
+  preSpeakAnticipationMs: 50,
+  postSpeakSpeakingTailMs: 30,
+  postSpeakPauseBeforeReactionMs: 50,
+  reactionHoldMs: 80,
+  successHappyHoldMs: 200,
+  failureThinkBeforeSadMs: 100,
+  practiceListeningPrimingMs: 150,
 } as const;
 
 /** ±40ms jitter on top of (base × pacing) — keeps motion human, bounded. */

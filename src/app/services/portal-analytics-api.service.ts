@@ -79,7 +79,7 @@ export class PortalAnalyticsApiService {
     return this.http.get(`${this.base}/device-wise`, { params: this.params(range, { limit }), withCredentials: true });
   }
 
-  getLearning(range: PortalAnalyticsRange, kind: 'video' | 'exercises' | 'modules', limit = 300): Observable<unknown> {
+  getLearning(range: PortalAnalyticsRange, kind: 'video' | 'exercises' | 'digibot', limit = 300): Observable<unknown> {
     return this.http.get(`${this.base}/learning/${kind}`, {
       params: this.params(range, { limit }),
       withCredentials: true

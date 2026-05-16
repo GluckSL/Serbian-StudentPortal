@@ -193,3 +193,157 @@
   color: #13284c;
 }
 
+// ── DigiBot tab overrides ──────────────────────────────────────
+
+.kpi-grid--digibot {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 700px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dg-session-row__email {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dg-status-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+
+.dg-status-badge--done {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.dg-status-badge--progress {
+  background: #e0e7ef;
+  color: #3d5270;
+}
+
+.dg-chat-expand td {
+  background: #f6faff;
+}
+
+.dg-chat-view {
+  padding: 0.9rem 1.1rem 1rem;
+}
+
+.dg-chat-view__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(166, 200, 240, 0.5);
+}
+
+.dg-chat-view__avatar {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f8cde, #2660c4);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.dg-chat-view__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.dg-turn {
+  display: flex;
+
+  &--student {
+    justify-content: flex-end;
+    .dg-turn__bubble {
+      background: #dbeafe;
+      border-radius: 14px 14px 2px 14px;
+      border: 1px solid rgba(96, 165, 250, 0.4);
+    }
+    .dg-turn__meta { flex-direction: row-reverse; }
+  }
+
+  &--ai {
+    justify-content: flex-start;
+    .dg-turn__bubble {
+      background: #f0fdf4;
+      border-radius: 14px 14px 14px 2px;
+      border: 1px solid rgba(52, 211, 153, 0.35);
+    }
+  }
+
+  &--hint {
+    justify-content: center;
+    .dg-turn__bubble {
+      background: #fffbeb;
+      border-radius: 10px;
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      max-width: 90%;
+    }
+  }
+}
+
+.dg-turn__bubble {
+  max-width: 70%;
+  padding: 0.5rem 0.75rem;
+}
+
+.dg-turn__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+
+.dg-turn__who {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  &--student { color: #1d4ed8; }
+  &--ai      { color: #059669; }
+  &--hint    { color: #b45309; }
+}
+
+.dg-turn__time {
+  font-size: 0.66rem;
+}
+
+.dg-turn__score {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.dg-turn__text {
+  font-size: 0.85rem;
+  color: #13284c;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.dg-turn__instruction {
+  font-size: 0.76rem;
+  font-style: italic;
+  color: #8a6a20;
+}
+

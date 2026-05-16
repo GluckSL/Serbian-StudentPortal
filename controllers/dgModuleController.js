@@ -323,6 +323,24 @@ exports.getPlay = async (req, res) => {
           moduleCourseDay: mod.courseDay,
         });
       }
+
+      // Block students from replaying a fully-completed module
+      const studentOid =
+        typeof req.user.id === 'string' && mongoose.Types.ObjectId.isValid(req.user.id)
+          ? new mongoose.Types.ObjectId(req.user.id)
+          : req.user.id;
+      const alreadyCompleted = await DGSession.exists({
+        studentId: studentOid,
+        moduleId: mod._id,
+        completed: true,
+        $or: [{ moduleFullyComplete: true }, { moduleFullyComplete: { $exists: false } }],
+      });
+      if (alreadyCompleted) {
+        return res.status(403).json({
+          message: 'You have already completed this module. New modules unlock as you progress through your journey.',
+          code: 'MODULE_ALREADY_COMPLETED',
+        });
+      }
     }
 
     // Plain objects so JSON always includes optional audioUrl (pre-generated audio) per scene.

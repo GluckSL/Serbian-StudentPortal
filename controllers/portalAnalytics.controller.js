@@ -163,7 +163,7 @@ exports.learning = async (req, res) => {
     res.json(data);
   } catch (err) {
     if (err.message === 'INVALID_LEARNING_KIND') {
-      return res.status(400).json({ message: 'Invalid learning type. Use video, exercises, or modules.' });
+      return res.status(400).json({ message: 'Invalid learning type. Use video, exercises, or digibot.' });
     }
     console.error('[portal-analytics] learning', err);
     res.status(500).json({ message: 'Failed to load learning analytics' });

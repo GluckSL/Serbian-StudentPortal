@@ -9,6 +9,8 @@ const StudentLogs = require('../models/StudentLogs');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecordingView = require('../models/ZoomRecordingView');
 const MeetingLink = require('../models/MeetingLink');
+const DGSession = require('../models/DGSession');
+const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
 
 /** Max seconds credited per heartbeat (tab sends ~every 10s when active). */
 const MAX_CREDIT_PER_HEARTBEAT_SEC = 30;
@@ -1710,6 +1712,87 @@ async function getCombinedVideoLearningAnalytics(from, to, limit, cohortIds = nu
   };
 }
 
+async function getDigiBotLearningAnalytics(from, to, cap, cohortIds) {
+  const match = {
+    createdAt: { $gte: from, $lte: to },
+    ...(cohortIds ? { studentId: { $in: cohortIds } } : {})
+  };
+
+  const rows = await DGSession.find(match)
+    .sort({ createdAt: -1 })
+    .limit(cap)
+    .populate('studentId', 'name email batch currentCourseDay regNo level')
+    .populate('moduleId', 'title level courseDay')
+    .lean();
+
+  const items = rows.map((s) => {
+    const stud = s.studentId && typeof s.studentId === 'object' ? s.studentId : null;
+    const mod = s.moduleId && typeof s.moduleId === 'object' ? s.moduleId : null;
+    const timeSpentSeconds = Math.round(totalSessionMinutes(s) * 60);
+    const displayScore = effectiveSessionScore(s);
+    return {
+      sessionId: String(s._id),
+      studentId: String(s.studentId?._id || s.studentId || ''),
+      studentName: stud?.name || 'Unknown',
+      email: stud?.email || '',
+      batch: stud?.batch || '-',
+      journeyDay: Number(stud?.currentCourseDay || 0) || null,
+      regNo: stud?.regNo || '',
+      studentLevel: stud?.level || '',
+      moduleId: String(mod?._id || s.moduleId || ''),
+      moduleTitle: mod?.title || 'DG module',
+      moduleLevel: mod?.level || '',
+      startedAt: s.createdAt,
+      completedAt: s.completedAt || null,
+      completed: !!s.completed,
+      score: displayScore,
+      moduleCompletionPercent: s.moduleCompletionPercent ?? null,
+      moduleFullyComplete: !!s.moduleFullyComplete,
+      attempts: s.attempts || 0,
+      successCount: s.successCount || 0,
+      failureCount: s.failureCount || 0,
+      timeSpentSeconds,
+      chatTurns: extractChatTurns(s.logs)
+    };
+  });
+
+  const sessionCount = items.length;
+  const completedItems = items.filter((x) => x.completed);
+  const completedCount = completedItems.length;
+
+  const avgScore =
+    completedItems.length > 0
+      ? Math.round(completedItems.reduce((a, b) => a + (b.score || 0), 0) / completedItems.length)
+      : 0;
+
+  const totalSeconds = items.reduce((a, b) => a + (b.timeSpentSeconds || 0), 0);
+  const avgSecondsPerSession = sessionCount ? Math.round(totalSeconds / sessionCount) : 0;
+
+  // Aggregate per-student time to find the top contributor
+  const secByStudent = {};
+  const nameByStudent = {};
+  for (const it of items) {
+    const sid = it.studentId;
+    secByStudent[sid] = (secByStudent[sid] || 0) + (it.timeSpentSeconds || 0);
+    nameByStudent[sid] = it.studentName;
+  }
+  let topStudent = null;
+  let topSec = 0;
+  for (const [sid, sec] of Object.entries(secByStudent)) {
+    if (sec > topSec) {
+      topSec = sec;
+      topStudent = { studentId: sid, name: nameByStudent[sid], seconds: sec };
+    }
+  }
+
+  return {
+    kind: 'digibot',
+    range: { from, to },
+    summary: { sessionCount, completedCount, avgScore, totalSeconds, avgSecondsPerSession, topStudent },
+    items
+  };
+}
+
 async function getLearningAnalytics(from, to, kind = 'video', limit = 300, cohort = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
   const k = String(kind || 'video').toLowerCase();
@@ -1717,6 +1800,10 @@ async function getLearningAnalytics(from, to, kind = 'video', limit = 300, cohor
 
   if (k === 'video') {
     return getCombinedVideoLearningAnalytics(from, to, limit, cohortIds);
+  }
+
+  if (k === 'digibot') {
+    return getDigiBotLearningAnalytics(from, to, cap, cohortIds);
   }
 
   const pageMatch = {
@@ -1727,8 +1814,6 @@ async function getLearningAnalytics(from, to, kind = 'video', limit = 300, cohor
   let kindRegex = null;
   if (k === 'exercises') {
     kindRegex = /(digital-exercises|exercise)/i;
-  } else if (k === 'modules') {
-    kindRegex = /(learning-modules|module)/i;
   } else {
     throw new Error('INVALID_LEARNING_KIND');
   }
@@ -1775,5 +1860,6 @@ module.exports = {
   getDeviceWise,
   getDashboard,
   getDailyPortalLogs,
-  getLearningAnalytics
+  getLearningAnalytics,
+  getDigiBotLearningAnalytics
 };

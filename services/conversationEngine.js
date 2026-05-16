@@ -217,7 +217,7 @@ async function generateOpeningMessage(state) {
     const openai = _openai();
     const completion = await Promise.race([
       openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages: [
           { role: 'system', content: prompt },
           { role: 'user',   content: seed  },
@@ -225,7 +225,7 @@ async function generateOpeningMessage(state) {
         max_tokens: 50,
         temperature: 0.7,
       }),
-      _timeout(8000, 'Opening message timeout'),
+      _timeout(7000, 'Opening message timeout'),
     ]);
     return (completion.choices[0]?.message?.content || '').trim();
   } catch (err) {
@@ -355,8 +355,7 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
     closingExchangeCount,
   });
 
-  // Translate (non-blocking)
-  const translatedTamil = await translateToTamil(aiText, ctx.language).catch(() => '');
+  // Translations are done in parallel by the controller — not here.
 
   const vocabCoverage = state.vocabList.length > 0
     ? Math.round((finalUsedVocab.length / state.vocabList.length) * 100)
@@ -372,7 +371,7 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
 
   return {
     aiText,
-    translatedTamil,
+    translatedTamil: '',
     turnCount: newTurnCount,
     complete: isComplete,
     completionReason,
@@ -382,7 +381,6 @@ async function processStudentTurn(sessionId, transcript, pronunciationScore) {
     shouldWrapUp: timeCompletion.shouldWrapUp,
     vocabCoverage,
     usedVocab: finalUsedVocab,
-    // Phase + per-bucket coverage for UI / debug
     phase: conversationPhase,
     studentVocabCoverage,
     aiVocabCoverage,
@@ -641,19 +639,19 @@ async function _generateReply(systemPrompt, history, isClosing, allowHigherTemp 
     const openai = _openai();
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...history.slice(-20).map((m) => ({
+      ...history.slice(-12).map((m) => ({
         role: m.speaker === 'ai' ? 'assistant' : 'user',
         content: m.text,
       })),
     ];
     const completion = await Promise.race([
       openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages,
         max_tokens: isClosing ? 80 : 60,
         temperature: allowHigherTemp ? 0.85 : 0.7,
       }),
-      _timeout(10000, 'AI reply timeout'),
+      _timeout(7000, 'AI reply timeout'),
     ]);
     return (completion.choices[0]?.message?.content || '').trim();
   } catch (err) {
