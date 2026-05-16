@@ -155,6 +155,29 @@ export class ZoomService {
   }
 
   /**
+   * Bulk update scheduled meetings (metadata + attendees).
+   */
+  bulkUpdateMeetings(payload: {
+    meetingIds: string[];
+    updates?: {
+      duration?: number;
+      topic?: string;
+      agenda?: string;
+      courseDay?: number | null;
+      assignedTeacher?: string;
+      startTime?: string;
+    };
+    attendeeUpdates?: {
+      addStudentIds?: string[];
+      removeStudentIds?: string[];
+    };
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meetings/bulk-update`, payload, {
+      withCredentials: true
+    });
+  }
+
+  /**
    * Delete a Zoom meeting
    */
   deleteMeeting(meetingId: string): Observable<any> {

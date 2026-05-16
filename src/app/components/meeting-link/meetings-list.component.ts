@@ -5,12 +5,14 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PageEvent } from '@angular/material/paginator';
+import { MatDialog } from '@angular/material/dialog';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
 import { NotificationService } from '../../services/notification.service';
 import { AuthService } from '../../services/auth.service';
 import { NavService } from '../../shared/services/nav.service';
+import { BulkEditMeetingsDialogComponent } from './bulk-edit-meetings-dialog.component';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -65,6 +67,9 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   /** Refresh “Join in …” labels periodically */
   private joinLabelTimer?: ReturnType<typeof setInterval>;
 
+  isBulkEditing = false;
+  isSelectingAllBatch = false;
+
   constructor(
     private router: Router,
     private zoomService: ZoomService,
@@ -73,6 +78,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     private notify: NotificationService,
     private auth: AuthService,
     private nav: NavService,
+    private dialog: MatDialog,
   ) {}
 
   ngOnInit(): void {
@@ -280,6 +286,48 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
       error: () => {
         this.error = 'Failed to delete selected meetings.';
         this.isDeletingSelected = false;
+      }
+    });
+  }
+
+  selectAllInBatch(): void {
+    if (this.isSelectingAllBatch) return;
+    this.isSelectingAllBatch = true;
+    const batchParam = this.batchFilter !== 'all' ? this.batchFilter : undefined;
+    this.zoomService.getAllMeetings({
+      lifecycle: this.statusTab,
+      limit: 2000,
+      batch: batchParam,
+      search: this.searchQuery.trim() || undefined,
+    }).subscribe({
+      next: (response) => {
+        if (response?.success && response?.data?.meetings) {
+          response.data.meetings.forEach((m: any) => this.selectedMeetingIds.add(m._id));
+        }
+        this.isSelectingAllBatch = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.isSelectingAllBatch = false;
+        this.notify.error('Could not load all meetings. Please try again.');
+      }
+    });
+  }
+
+  openBulkEdit(): void {
+    if (!this.selectedMeetingIds.size) return;
+    const selectedMeetings = this.meetings.filter((m) => this.selectedMeetingIds.has(m._id));
+    const ref = this.dialog.open(BulkEditMeetingsDialogComponent, {
+      data: { selectedMeetings },
+      width: '600px',
+      maxWidth: '98vw',
+      disableClose: true,
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result && result.summary?.updated > 0) {
+        this.selectedMeetingIds.clear();
+        this.loadMeetings();
+        this.notify.success(`${result.summary.updated} meeting${result.summary.updated !== 1 ? 's' : ''} updated successfully.`);
       }
     });
   }

@@ -83,14 +83,37 @@
   <ng-container *ngIf="!loading && !error">
     <mat-card *ngIf="canBulkDelete() && meetings.length > 0" class="bulk-actions-card">
       <div class="bulk-actions-row">
-        <mat-checkbox
-          [checked]="areAllFilteredSelected()"
-          [indeterminate]="hasSomeFilteredSelected()"
-          (change)="toggleSelectAllFiltered($event.checked)">
-          Select all on this page
-        </mat-checkbox>
+        <div class="bulk-select-left">
+          <mat-checkbox
+            [checked]="areAllFilteredSelected()"
+            [indeterminate]="hasSomeFilteredSelected()"
+            (change)="toggleSelectAllFiltered($event.checked)">
+            Select all on this page
+          </mat-checkbox>
+          <!-- Select all in batch when totalCount > current page -->
+          <span class="select-all-batch-wrap" *ngIf="totalCount > meetings.length || selectedCount() > meetings.length">
+            <span class="select-batch-sep">·</span>
+            <button mat-button class="select-all-batch-btn"
+                    (click)="selectAllInBatch()"
+                    [disabled]="isSelectingAllBatch">
+              <mat-spinner diameter="14" *ngIf="isSelectingAllBatch" class="inline-spinner"></mat-spinner>
+              <mat-icon *ngIf="!isSelectingAllBatch">done_all</mat-icon>
+              <span *ngIf="!isSelectingAllBatch">
+                Select all {{ totalCount }}
+                <ng-container *ngIf="batchFilter !== 'all'"> in Batch {{ batchFilter }}</ng-container>
+                <ng-container *ngIf="batchFilter === 'all'"> scheduled</ng-container>
+              </span>
+              <span *ngIf="isSelectingAllBatch">Loading…</span>
+            </button>
+          </span>
+        </div>
         <div class="bulk-actions-right">
           <span class="selected-count" *ngIf="selectedCount() > 0">{{ selectedCount() }} selected</span>
+          <button mat-stroked-button color="primary" (click)="openBulkEdit()"
+                  [disabled]="selectedCount() === 0">
+            <mat-icon>edit_calendar</mat-icon>
+            Bulk Edit
+          </button>
           <button mat-stroked-button color="warn" (click)="deleteSelectedMeetings($event)"
                   [disabled]="selectedCount() === 0 || isDeletingSelected">
             <mat-icon>delete</mat-icon>
