@@ -62,9 +62,62 @@ type DialogStep = 'form' | 'preview' | 'applying' | 'result';
           <span>Only fill in the fields you want to update. Empty fields are ignored.</span>
         </div>
 
-        <!-- Duration -->
+        <!-- Schedule -->
         <div class="field-section">
           <p class="section-label">Schedule</p>
+          <div class="time-card">
+            <div class="time-card-header">
+              <mat-icon>schedule</mat-icon>
+              Start time (IST)
+            </div>
+            <div class="time-card-body">
+              <label class="time-field-label">Class start</label>
+              <div class="time-input-row" (click)="openClockPicker(startTimeInput)">
+                <input
+                  #startTimeInput
+                  type="time"
+                  step="1"
+                  class="time-native-input"
+                  [(ngModel)]="formStartClockTime"
+                  name="startClockTime"
+                  (ngModelChange)="onStartClockInput()"
+                  (click)="$event.stopPropagation()"
+                />
+                <button
+                  type="button"
+                  class="time-clock-btn"
+                  matTooltip="Open clock"
+                  aria-label="Open clock to pick time"
+                  (click)="$event.stopPropagation(); openClockPicker(startTimeInput)">
+                  <mat-icon>schedule</mat-icon>
+                </button>
+              </div>
+              <div class="time-breakdown" [class.time-breakdown--empty]="!hasStartClockTime">
+                <div class="time-segments">
+                  <div class="time-segment">
+                    <span class="time-digit">{{ timeParts?.hour ?? '--' }}</span>
+                    <span class="time-segment-label">Hour</span>
+                  </div>
+                  <span class="time-colon" aria-hidden="true">:</span>
+                  <div class="time-segment">
+                    <span class="time-digit">{{ timeParts?.minute ?? '--' }}</span>
+                    <span class="time-segment-label">Minute</span>
+                  </div>
+                  <span class="time-colon" aria-hidden="true">:</span>
+                  <div class="time-segment">
+                    <span class="time-digit">{{ timeParts?.second ?? '--' }}</span>
+                    <span class="time-segment-label">Second</span>
+                  </div>
+                  <span class="time-ampm">{{ timeParts?.ampm ?? '—' }}</span>
+                </div>
+                <p class="time-readable" *ngIf="hasStartClockTime">{{ formattedStartClockDisplay }}</p>
+                <p class="time-readable time-readable--hint" *ngIf="!hasStartClockTime">
+                  Tap the clock icon to pick a time. Leave empty for no change.
+                </p>
+              </div>
+              <p class="time-hint">Sets the same time on each meeting's date (IST).</p>
+            </div>
+          </div>
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Duration</mat-label>
             <mat-select [(ngModel)]="formDuration" name="duration">
@@ -172,6 +225,10 @@ type DialogStep = 'form' | 'preview' | 'applying' | 'result';
       <div class="bulk-dialog-body" *ngIf="step === 'preview'">
         <p class="preview-title">Review changes before applying</p>
         <div class="preview-table">
+          <div class="preview-row" *ngIf="hasStartClockTime">
+            <span class="preview-key">Start Time</span>
+            <span class="preview-val">→ {{ clockTimeLabel(formStartClockTime) }} on each meeting's date</span>
+          </div>
           <div class="preview-row" *ngIf="formDuration">
             <span class="preview-key">Duration</span>
             <span class="preview-val">→ {{ durationLabel(formDuration) }}</span>
@@ -380,6 +437,177 @@ type DialogStep = 'form' | 'preview' | 'applying' | 'result';
 
     .full-width {
       width: 100%;
+    }
+
+    .time-card {
+      border: 1px solid #e8ecf4;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    }
+
+    .time-card-header {
+      background: #03396c;
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .time-card-header mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .time-card-body {
+      padding: 14px;
+    }
+
+    .time-field-label {
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: block;
+    }
+
+    .time-input-row {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .time-native-input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      padding: 10px 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1e293b;
+      background: transparent;
+      font-family: inherit;
+    }
+
+    .time-native-input:focus {
+      outline: none;
+    }
+
+    .time-native-input::-webkit-calendar-picker-indicator {
+      display: none;
+    }
+
+    .time-clock-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-left: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 0 14px;
+      cursor: pointer;
+      color: #03396c;
+      transition: background 0.15s;
+    }
+
+    .time-clock-btn:hover {
+      background: #eff6ff;
+    }
+
+    .time-clock-btn mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+    }
+
+    .time-breakdown {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+
+    .time-breakdown--empty .time-digit {
+      color: #cbd5e1;
+    }
+
+    .time-segments {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .time-segment {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 52px;
+    }
+
+    .time-digit {
+      font-size: 22px;
+      font-weight: 700;
+      color: #03396c;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .time-segment-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .time-colon {
+      font-size: 20px;
+      font-weight: 700;
+      color: #64748b;
+      padding-bottom: 18px;
+    }
+
+    .time-ampm {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0369a1;
+      padding-bottom: 16px;
+      margin-left: 6px;
+    }
+
+    .time-readable {
+      margin: 10px 0 0;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .time-readable--hint {
+      font-weight: 500;
+      color: #94a3b8;
+    }
+
+    .time-hint {
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: #64748b;
     }
 
     .student-search-row {
@@ -648,6 +876,7 @@ export class BulkEditMeetingsDialogComponent implements OnInit {
   step: DialogStep = 'form';
 
   // Form fields
+  formStartClockTime = '';
   formDuration: number | null = null;
   formTopic = '';
   formAgenda = '';
@@ -689,6 +918,7 @@ export class BulkEditMeetingsDialogComponent implements OnInit {
 
   get noChanges(): boolean {
     return (
+      !this.hasStartClockTime &&
       !this.formDuration &&
       !this.formTopic.trim() &&
       !this.formAgenda.trim() &&
@@ -779,6 +1009,73 @@ export class BulkEditMeetingsDialogComponent implements OnInit {
     return m ? `${h}h ${m}m` : `${h} hour${h !== 1 ? 's' : ''}`;
   }
 
+  get hasStartClockTime(): boolean {
+    return !!this.parseClockValue(this.formStartClockTime);
+  }
+
+  get timeParts(): { hour: string; minute: string; second: string; ampm: string } | null {
+    return this.parseClockValue(this.formStartClockTime);
+  }
+
+  get formattedStartClockDisplay(): string {
+    const p = this.timeParts;
+    if (!p) return '';
+    return `${p.hour}:${p.minute}:${p.second} ${p.ampm} IST`;
+  }
+
+  openClockPicker(input: HTMLInputElement): void {
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // fall through to click
+      }
+    }
+    input.focus();
+    input.click();
+  }
+
+  onStartClockInput(): void {
+    const parsed = this.parseClockValue(this.formStartClockTime);
+    if (!parsed) return;
+    this.formStartClockTime = `${parsed.hour24}:${parsed.minute}:${parsed.second}`;
+  }
+
+  private parseClockValue(
+    value: string
+  ): { hour: string; minute: string; second: string; ampm: string; hour24: string } | null {
+    const trimmed = value?.trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) return null;
+    const hour24 = parseInt(match[1], 10);
+    const minute = match[2];
+    const second = (match[3] ?? '00').padStart(2, '0');
+    if (hour24 > 23 || parseInt(minute, 10) > 59 || parseInt(second, 10) > 59) return null;
+    const hour12 = hour24 % 12 || 12;
+    const ampm = hour24 >= 12 ? 'PM' : 'AM';
+    return {
+      hour: String(hour12).padStart(2, '0'),
+      minute,
+      second,
+      ampm,
+      hour24: String(hour24).padStart(2, '0')
+    };
+  }
+
+  private normalizeClockForApi(value: string): string {
+    const parsed = this.parseClockValue(value);
+    if (!parsed) return '';
+    return `${parsed.hour24}:${parsed.minute}`;
+  }
+
+  clockTimeLabel(clock: string): string {
+    const parsed = this.parseClockValue(clock);
+    if (!parsed) return clock?.trim() || '';
+    return `${parsed.hour}:${parsed.minute}:${parsed.second} ${parsed.ampm}`;
+  }
+
   teacherName(id: string | null): string {
     if (!id) return '';
     return this.teachers.find((t) => t._id === id)?.name || id;
@@ -796,6 +1093,8 @@ export class BulkEditMeetingsDialogComponent implements OnInit {
     const meetingIds = this.data.selectedMeetings.map((m) => m._id);
 
     const updates: Record<string, any> = {};
+    const clock = this.normalizeClockForApi(this.formStartClockTime);
+    if (clock) updates['startClockTime'] = clock;
     if (this.formDuration) updates['duration'] = this.formDuration;
     if (this.formTopic.trim()) updates['topic'] = this.formTopic.trim();
     if (this.formAgenda.trim()) updates['agenda'] = this.formAgenda.trim();

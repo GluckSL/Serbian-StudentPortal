@@ -166,6 +166,8 @@ export class ZoomService {
       courseDay?: number | null;
       assignedTeacher?: string;
       startTime?: string;
+      /** HH:mm (IST) — applies new wall-clock time on each meeting's existing date */
+      startClockTime?: string;
     };
     attendeeUpdates?: {
       addStudentIds?: string[];

@@ -173,16 +173,16 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
       lines.push(`Search,${this.studentNameSearch}`);
     }
     lines.push('');
-    lines.push('Student Name,Batch,Journey Day,Total Time (sec),Sessions,Avg Session (sec),Top Page');
+    lines.push('Student Name,Batch,Journey Day,Total Time (min),Sessions,Avg Session (min),Top Page');
     for (const r of this.rows) {
       lines.push(
         [
           this.csvEscape(r.studentName),
           this.csvEscape(r.batch || ''),
           r.journeyDay ?? '',
-          r.totalSeconds,
+          this.secondsToMinutes(r.totalSeconds),
           r.sessionsCount,
-          r.avgSessionSeconds,
+          this.secondsToMinutes(r.avgSessionSeconds),
           this.csvEscape(r.topPage)
         ].join(',')
       );
@@ -199,5 +199,10 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
     const v = String(s ?? '');
     if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
     return v;
+  }
+
+  /** Convert seconds to minutes for CSV export (one decimal place). */
+  private secondsToMinutes(seconds: number): number {
+    return Math.round((Math.max(0, seconds || 0) / 60) * 10) / 10;
   }
 }

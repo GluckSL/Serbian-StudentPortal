@@ -613,7 +613,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
   try {
     const { status, batch, date } = req.query;
     const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 150);
     const skip = (pageNum - 1) * pageSize;
     const userId = req.user.id || req.user.userId || req.user._id;
 
@@ -1469,15 +1469,41 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
  * Bulk update scheduled meetings (metadata + attendees)
  * POST /api/zoom/meetings/bulk-update
  *
- * Body: { meetingIds, updates: { duration?, topic?, agenda?, courseDay?, assignedTeacher? },
+ * Body: { meetingIds, updates: { duration?, topic?, agenda?, courseDay?, assignedTeacher?, startTime?, startClockTime? },
  *         attendeeUpdates: { addStudentIds?, removeStudentIds? } }
+ *
+ * startClockTime (HH:mm, IST): keeps each meeting's date and applies the new wall-clock time.
  */
+function applyClockTimeToMeetingDate(existingStart, clockHHmm) {
+  const cur = new Date(existingStart);
+  if (Number.isNaN(cur.getTime())) {
+    throw new Error('Invalid existing start time');
+  }
+  const datePart = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(cur);
+  const [hh, mm] = String(clockHHmm).trim().split(':');
+  const iso = `${datePart}T${hh.padStart(2, '0')}:${mm.padStart(2, '0')}:00+05:30`;
+  const next = new Date(iso);
+  if (Number.isNaN(next.getTime())) {
+    throw new Error('Invalid start clock time');
+  }
+  return next.toISOString();
+}
+
 router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
   try {
     const { meetingIds, updates = {}, attendeeUpdates = {} } = req.body;
 
     if (!Array.isArray(meetingIds) || meetingIds.length === 0) {
       return res.status(400).json({ success: false, message: 'meetingIds must be a non-empty array' });
+    }
+
+    if (updates.startClockTime && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(updates.startClockTime).trim())) {
+      return res.status(400).json({ success: false, message: 'Invalid startClockTime (use HH:mm)' });
     }
 
     const validIds = meetingIds.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
@@ -1538,17 +1564,33 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
           }
 
           // ---- Metadata updates ----
-          const { duration, topic, agenda, courseDay, startTime } = updates;
+          const { duration, topic, agenda, courseDay, startTime, startClockTime } = updates;
           const zoomUpdateData = {};
           const prevStartMs = meeting.startTime ? new Date(meeting.startTime).getTime() : null;
+
+          let effectiveStartTime = null;
+          if (startClockTime) {
+            if (!meeting.startTime) {
+              results.push({ meetingId, success: false, message: 'Meeting has no start time to update' });
+              return;
+            }
+            try {
+              effectiveStartTime = applyClockTimeToMeetingDate(meeting.startTime, startClockTime);
+            } catch (clockErr) {
+              results.push({ meetingId, success: false, message: clockErr.message || 'Invalid start clock time' });
+              return;
+            }
+          } else if (startTime) {
+            effectiveStartTime = startTime;
+          }
 
           if (topic) { zoomUpdateData.topic = topic; meeting.topic = topic; }
           if (duration) { zoomUpdateData.duration = duration; meeting.duration = duration; }
           if (agenda !== undefined && agenda !== null) { zoomUpdateData.agenda = agenda; meeting.agenda = agenda; }
-          if (startTime) {
-            zoomUpdateData.start_time = startTime;
-            const nextStartMs = new Date(startTime).getTime();
-            meeting.startTime = new Date(startTime);
+          if (effectiveStartTime) {
+            zoomUpdateData.start_time = effectiveStartTime;
+            const nextStartMs = new Date(effectiveStartTime).getTime();
+            meeting.startTime = new Date(effectiveStartTime);
             if (prevStartMs !== nextStartMs) {
               meeting.reminderEmailSent = false;
               meeting.reminderEmailSentAt = undefined;
@@ -1578,11 +1620,11 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
 
           await meeting.save();
 
-          // Update timetable end-time slot when startTime (or duration) changes
-          if (startTime || duration) {
+          // Update timetable end-time slot when start time (or duration) changes
+          if (effectiveStartTime || duration) {
             try {
               const TimeTable = require('../models/TimeTable');
-              const refDate = startTime ? new Date(startTime) : new Date(meeting.startTime);
+              const refDate = effectiveStartTime ? new Date(effectiveStartTime) : new Date(meeting.startTime);
               const dayOfWeek = refDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' }).toLowerCase();
               const slotStart = refDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
               const endDate = new Date(refDate.getTime() + (duration || meeting.duration) * 60000);
@@ -1601,7 +1643,7 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
                   if (!Array.isArray(timetable[day])) continue;
                   const slotIdx = timetable[day].findIndex((s) => s.zoomMeetingId === meeting.zoomMeetingId);
                   if (slotIdx !== -1) {
-                    if (startTime) {
+                    if (effectiveStartTime) {
                       // Move to new day
                       timetable[day].splice(slotIdx, 1);
                       if (!timetable[dayOfWeek]) timetable[dayOfWeek] = [];
