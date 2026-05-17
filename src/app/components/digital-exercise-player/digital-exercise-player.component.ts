@@ -23,7 +23,7 @@ import {
   DigitalExerciseDraftPayload
 } from '../../services/digital-exercise-player-draft.service';
 import { resolveMediaUrl } from '../../utils/media-url';
-import { countFillBlankRuns, splitFillBlankSentence } from '../../utils/fill-blank';
+import { countFillBlankRuns, splitFillBlankSentence, splitByWords } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
@@ -3469,7 +3469,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getSentenceParts(sentence: string): string[] {
-    return splitFillBlankSentence(sentence || '');
+    return splitByWords(sentence || '');
   }
 
   getWordBankItems(pq: PlayerQuestion): Array<{ prompt: string }> {

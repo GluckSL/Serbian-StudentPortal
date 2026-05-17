@@ -11,3 +11,9 @@ export function splitFillBlankSentence(sentence: string): string[] {
   if (sentence == null || sentence === '') return [''];
   return sentence.split(/_+/);
 }
+
+/** Split by underscores (only existing underscores become blanks). */
+export function splitByWords(sentence: string): string[] {
+  if (sentence == null || sentence === '') return [''];
+  return sentence.split(/_+/);
+}
