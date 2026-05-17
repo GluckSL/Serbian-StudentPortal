@@ -5,8 +5,7 @@ import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ClassDoubtService {
-  private base = `${environment.apiUrl}/class-doubts`;
-
+  private base = `${environment.apiUrl}/class-doubts`
   constructor(private http: HttpClient) {}
 
   list(meetingId: string): Observable<any> {

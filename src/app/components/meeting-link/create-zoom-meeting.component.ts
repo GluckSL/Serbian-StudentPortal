@@ -4,15 +4,16 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.service';
+import { ZoomService, Student, Teacher, ZoomAccount, ZoomHostConflict } from '../../services/zoom.service';
 import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
   selector: 'app-create-zoom-meeting',
   standalone: true,
   templateUrl: './create-zoom-meeting.component.html',
   styleUrls: ['./create-zoom-meeting.component.css'],
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, TestAccountBadgeComponent]
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, TestAccountBadgeComponent, MatTooltipModule]
 })
 export class CreateZoomMeetingComponent implements OnInit {
   /** All classes use India Standard Time only (no user-selectable timezone). */
@@ -531,16 +532,56 @@ export class CreateZoomMeetingComponent implements OnInit {
     });
   }
 
+  /** IST ISO strings for all slots being scheduled (used for portal busy check). */
+  private buildSlotIsoTimes(): string[] {
+    const generatedTimes = this.generateScheduledStartTimes();
+    const locals = generatedTimes.length > 0
+      ? generatedTimes
+      : [this.meetingForm.get('startTime')?.value].filter(Boolean);
+    return locals.map((local) => this.buildTimezoneAwareIso(local, this.meetingTimezoneIana));
+  }
+
+  get busyZoomAccounts(): ZoomAccount[] {
+    return this.zoomAccounts.filter((a) => a.isBusy);
+  }
+
+  formatConflictWhen(conflict: ZoomHostConflict): string {
+    const dt = new Date(conflict.startTime);
+    if (Number.isNaN(dt.getTime())) return '';
+    const date = dt.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: this.meetingTimezoneIana
+    });
+    const time = dt.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: this.meetingTimezoneIana
+    });
+    const mins = conflict.duration || 60;
+    return `${date} ${time} (${mins} min)`;
+  }
+
+  conflictTooltip(conflicts: ZoomHostConflict[] | undefined): string {
+    if (!conflicts?.length) {
+      return 'Busy — another class is booked on this Zoom account in the portal at your selected time.';
+    }
+    return conflicts
+      .map((c) => {
+        const batch = c.batch ? ` · Batch ${c.batch}` : '';
+        return `${c.topic}${batch}\n${this.formatConflictWhen(c)}`;
+      })
+      .join('\n\n');
+  }
+
   /** Re-check zoom account availability when time/duration changes */
   onTimeChange(): void {
-    const generatedTimes = this.generateScheduledStartTimes();
-    const firstLocal = generatedTimes.length > 0
-      ? generatedTimes[0]
-      : this.meetingForm.get('startTime')?.value || null;
-    const startTime = firstLocal ? `${firstLocal}:00+05:30` : null;
+    const slotIsos = this.buildSlotIsoTimes();
     const duration = this.meetingForm.get('duration')?.value;
-    if (startTime && duration) {
-      this.zoomService.getAvailableZoomHosts(startTime, duration).subscribe({
+    if (slotIsos.length > 0 && duration) {
+      this.zoomService.getAvailableZoomHosts(slotIsos[0], duration, slotIsos).subscribe({
         next: (response) => {
           if (response.success) {
             this.zoomAccounts = response.data;

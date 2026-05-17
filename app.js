@@ -156,6 +156,13 @@ if (!mongoUri || typeof mongoUri !== 'string') {
 }
 
 const { ensureDefaultDgCharacter } = require('./services/dgCharacterSeed');
+const { ensureInteractiveGamesSeeded } = require('./services/interactiveGamesSeed');
+const { ensureDefaultChallenges } = require('./services/interactiveGames/dailyChallenges');
+const { ensureDefaultAchievements } = require('./services/interactiveGames/achievements');
+const { ensureDefaultQuests } = require('./services/interactiveGames/quests');
+const { scheduleGlueckArenaJobs } = require('./jobs/glueckArenaDailyReset');
+const { initGlueckArenaSockets } = require('./sockets/glueckArenaMultiplayer');
+const http = require('http');
 
 function parseMongoHosts(uri) {
   if (!uri || typeof uri !== 'string') return [];
@@ -225,6 +232,10 @@ async function connectMongoDb() {
   });
   console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
   await ensureDefaultDgCharacter();
+  await ensureInteractiveGamesSeeded();
+  await ensureDefaultChallenges();
+  await ensureDefaultAchievements();
+  await ensureDefaultQuests();
 }
 
 // API Routes
@@ -314,6 +325,9 @@ app.use('/api/class-resources', classResourceRoutes);
 const classDoubtRoutes = require('./routes/classDoubts');
 app.use('/api/class-doubts', classDoubtRoutes);
 
+const interactiveGamesRoutes = require('./routes/interactiveGames');
+app.use('/api/interactive-games', interactiveGamesRoutes);
+
 const classSubmissionRoutes = require('./routes/classSubmissions');
 app.use('/api/class-submissions', classSubmissionRoutes);
 
@@ -372,9 +386,37 @@ app.post('/api/grade-assignment', async (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 
+let httpServer = null;
+
+function gracefulShutdown(signal) {
+  console.log(`[shutdown] ${signal} received — closing GlückArena server`);
+  try {
+    const { getIo } = require('./sockets/glueckArenaMultiplayer');
+    const io = getIo();
+    if (io) io.close();
+  } catch { /* sockets optional */ }
+  if (httpServer) {
+    httpServer.close(() => {
+      mongoose.connection.close(false).then(() => process.exit(0)).catch(() => process.exit(1));
+    });
+    setTimeout(() => process.exit(1), 10_000);
+  } else {
+    process.exit(0);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 connectMongoDb()
   .then(() => {
-    app.listen(PORT, () => {
+    const envCheck = require('./services/interactiveGames/productionHealth').validateEnvironment();
+    if (envCheck.warnings.length) console.warn('[glueck-arena] Env warnings:', envCheck.warnings);
+    if (!envCheck.ok) console.error('[glueck-arena] Env errors:', envCheck.errors);
+
+    httpServer = http.createServer(app);
+    initGlueckArenaSockets(httpServer);
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
 
       scheduleMetaToMondaySync();
@@ -390,6 +432,7 @@ connectMongoDb()
       scheduleConsecutiveAbsenceAlerts();
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
+      scheduleGlueckArenaJobs();
     });
   })
   .catch((err) => {

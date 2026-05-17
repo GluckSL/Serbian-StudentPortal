@@ -7,7 +7,7 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { lastValueFrom } from 'rxjs';
 import { MaterialModule } from '../../shared/material.module';
-import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.service';
+import { ZoomService, Student, Teacher, ZoomAccount, ZoomHostConflict } from '../../services/zoom.service';
 import { environment } from '../../../environments/environment';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
@@ -252,6 +252,41 @@ export class BulkJourneyMeetingComponent implements OnInit {
 
   deselectAll(): void {
     this.selectedStudents = [];
+  }
+
+  get busyZoomAccounts(): ZoomAccount[] {
+    return this.zoomAccounts.filter((a) => a.isBusy);
+  }
+
+  formatConflictWhen(conflict: ZoomHostConflict): string {
+    const dt = new Date(conflict.startTime);
+    if (Number.isNaN(dt.getTime())) return '';
+    const date = dt.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata'
+    });
+    const time = dt.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    });
+    const mins = conflict.duration || 60;
+    return `${date} ${time} (${mins} min)`;
+  }
+
+  conflictTooltip(conflicts: ZoomHostConflict[] | undefined): string {
+    if (!conflicts?.length) {
+      return 'Busy — another class is booked on this Zoom account in the portal at your selected time.';
+    }
+    return conflicts
+      .map((c) => {
+        const batch = c.batch ? ` · Batch ${c.batch}` : '';
+        return `${c.topic}${batch}\n${this.formatConflictWhen(c)}`;
+      })
+      .join('\n\n');
   }
 
   /** First journey slot as ISO for Zoom busy check */

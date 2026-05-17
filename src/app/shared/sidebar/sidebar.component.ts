@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { NavService, NavGroup } from '../services/nav.service';
 import { TourService } from '../../services/tour.service';
 import { PortalTrackingService } from '../../services/portal-tracking.service';
+import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -28,7 +29,8 @@ export class SidebarComponent implements OnInit {
     private navService: NavService,
     private router: Router,
     private tourService: TourService,
-    private portalTracking: PortalTrackingService
+    private portalTracking: PortalTrackingService,
+    private arenaService: InteractiveGameService
   ) {}
 
   ngOnInit(): void {
@@ -57,6 +59,21 @@ export class SidebarComponent implements OnInit {
               }))
               .filter((g) => (g.items || []).length > 0);
           }
+          this.arenaService.getArenaAccess().subscribe({
+            next: (r) => {
+              if (!r.hasAccess) {
+                groups = groups
+                  .map((g) => ({
+                    ...g,
+                    items: (g.items || []).filter((item) => item.id !== 'glueck-arena')
+                  }))
+                  .filter((g) => (g.items || []).length > 0);
+              }
+              this.navGroups = groups;
+            },
+            error: () => { this.navGroups = groups; }
+          });
+          return;
         }
         this.navGroups = groups;
       }

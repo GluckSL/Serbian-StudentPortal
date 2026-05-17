@@ -46,11 +46,20 @@ export interface CreateMeetingRequest {
   courseDaysByStart?: Record<string, number | null>;
 }
 
+export interface ZoomHostConflict {
+  meetingId: string;
+  topic: string;
+  startTime: string;
+  duration: number;
+  batch?: string;
+}
+
 export interface ZoomAccount {
   id: string;
   email: string;
   name: string;
   isBusy?: boolean;
+  conflicts?: ZoomHostConflict[];
 }
 
 export interface Teacher {
@@ -109,9 +118,20 @@ export class ZoomService {
   /**
    * Get available zoom hosts for a time slot (checks overlap)
    */
-  getAvailableZoomHosts(startTime: string, duration: number): Observable<any> {
+  getAvailableZoomHosts(
+    startTime: string,
+    duration: number,
+    startTimes?: string[]
+  ): Observable<any> {
+    const params: Record<string, string> = {
+      startTime,
+      duration: duration.toString()
+    };
+    if (startTimes && startTimes.length > 1) {
+      params['startTimes'] = JSON.stringify(startTimes);
+    }
     return this.http.get(`${this.apiUrl}/available-hosts`, {
-      params: { startTime, duration: duration.toString() },
+      params,
       withCredentials: true
     });
   }

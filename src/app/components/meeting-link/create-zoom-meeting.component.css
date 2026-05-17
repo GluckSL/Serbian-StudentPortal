@@ -438,3 +438,57 @@ textarea.form-control {
   .footer-card .btn { flex: 1; }
   .confirm-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Zoom busy conflict panel ── */
+.zoom-busy-panel {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  font-size: 11px;
+  color: #78350f;
+}
+
+.zoom-busy-panel-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoom-busy-account + .zoom-busy-account {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #fde68a;
+}
+
+.zoom-busy-account-name {
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoom-busy-info-icon {
+  color: #b45309;
+  cursor: help;
+  font-size: 12px;
+}
+
+.zoom-busy-conflict-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+.zoom-busy-conflict-list li {
+  margin-bottom: 2px;
+}
+
+::ng-deep .zoom-busy-tooltip {
+  white-space: pre-line;
+  max-width: 320px;
+  font-size: 12px;
+  line-height: 1.4;
+}

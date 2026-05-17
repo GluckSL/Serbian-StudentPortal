@@ -15,18 +15,85 @@ const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
  * @param {Date} meetingEnd
  * @returns {Promise<object|null>}
  */
-async function findZoomHostOverlap(zoomHostEmail, meetingStart, meetingEnd) {
-  return MeetingLink.findOne({
-    hostEmail: zoomHostEmail,
-    status: { $ne: 'cancelled' },
+/** Active portal meetings that block scheduling (excludes cancelled and ended). */
+const ACTIVE_MEETING_STATUSES = ['scheduled', 'started'];
+
+function overlapWindowQuery(meetingStart, meetingEnd, hostEmail = null) {
+  const query = {
+    status: { $in: ACTIVE_MEETING_STATUSES },
     startTime: { $lt: meetingEnd },
     $expr: {
       $gt: [
-        { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
+        {
+          $add: [
+            '$startTime',
+            { $multiply: [{ $ifNull: ['$duration', 60] }, 60000] }
+          ]
+        },
         meetingStart
       ]
     }
-  }).lean();
+  };
+  if (hostEmail) {
+    query.hostEmail = hostEmail;
+  }
+  return query;
+}
+
+async function findZoomHostOverlap(zoomHostEmail, meetingStart, meetingEnd) {
+  return MeetingLink.findOne(overlapWindowQuery(meetingStart, meetingEnd, zoomHostEmail)).lean();
+}
+
+/**
+ * List portal meetings overlapping a time window (any host).
+ * @returns {Promise<Array<{ _id, hostEmail, topic, startTime, duration, batch }>>}
+ */
+async function findOverlappingMeetings(meetingStart, meetingEnd) {
+  return MeetingLink.find(overlapWindowQuery(meetingStart, meetingEnd))
+    .select('hostEmail topic startTime duration batch')
+    .sort({ startTime: 1 })
+    .lean();
+}
+
+/**
+ * Zoom hosts with busy flag and portal conflict details for one or more slots.
+ * @param {Array<{ start: Date, end: Date }>} windows
+ * @param {Array<{ id: string, email: string, name: string }>} hosts
+ */
+async function buildHostAvailability(hosts, windows) {
+  const conflictsByEmail = new Map();
+
+  for (const { start, end } of windows) {
+    const overlapping = await findOverlappingMeetings(start, end);
+    for (const m of overlapping) {
+      const email = String(m.hostEmail || '').trim().toLowerCase();
+      if (!email) continue;
+      if (!conflictsByEmail.has(email)) {
+        conflictsByEmail.set(email, []);
+      }
+      const list = conflictsByEmail.get(email);
+      const id = String(m._id);
+      if (!list.some((c) => c.meetingId === id)) {
+        list.push({
+          meetingId: id,
+          topic: m.topic || 'Untitled class',
+          startTime: m.startTime,
+          duration: m.duration || 60,
+          batch: m.batch || ''
+        });
+      }
+    }
+  }
+
+  return hosts.map((h) => {
+    const email = h.email.toLowerCase();
+    const conflicts = conflictsByEmail.get(email) || [];
+    return {
+      ...h,
+      isBusy: conflicts.length > 0,
+      conflicts
+    };
+  });
 }
 
 /**
@@ -298,7 +365,11 @@ async function createMeetingLinkFromSlot(opts) {
 }
 
 module.exports = {
+  ACTIVE_MEETING_STATUSES,
+  overlapWindowQuery,
   findZoomHostOverlap,
+  findOverlappingMeetings,
+  buildHostAvailability,
   createMeetingLinkFromSlot,
   linkMeetingToTimetable
 };

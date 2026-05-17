@@ -67,6 +67,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "announcements",
   "whatsapp-announcement",
   "reminders",
+  "glueck-arena",
   "help",
   "profile"
 ];

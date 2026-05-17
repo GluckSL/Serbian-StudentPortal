@@ -85,11 +85,41 @@
               <select class="form-select" formControlName="zoomHostEmail"
                 [class.is-invalid]="meetingForm.get('zoomHostEmail')?.invalid && meetingForm.get('zoomHostEmail')?.touched">
                 <option value="">Select Zoom Account</option>
-                <option *ngFor="let acc of zoomAccounts" [value]="acc.email" [disabled]="acc.isBusy">
+                <option
+                  *ngFor="let acc of zoomAccounts"
+                  [value]="acc.email"
+                  [disabled]="acc.isBusy"
+                  [attr.title]="acc.isBusy ? conflictTooltip(acc.conflicts) : null">
                   {{ acc.name }} ({{ acc.email }}){{ acc.isBusy ? ' — BUSY' : '' }}
                 </option>
               </select>
-              <small class="text-muted">Accounts marked BUSY have a meeting at the selected time</small>
+              <small class="text-muted d-block">
+                BUSY means another class is already booked on that account in this portal (not the Zoom website calendar).
+                Hover a BUSY option or see details below.
+              </small>
+              <div class="zoom-busy-panel" *ngIf="busyZoomAccounts.length > 0">
+                <div class="zoom-busy-panel-title">
+                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                  Conflicting portal classes at your selected time(s)
+                </div>
+                <div class="zoom-busy-account" *ngFor="let acc of busyZoomAccounts">
+                  <span class="zoom-busy-account-name">
+                    {{ acc.name }}
+                    <i
+                      class="fas fa-circle-info zoom-busy-info-icon"
+                      [matTooltip]="conflictTooltip(acc.conflicts)"
+                      matTooltipClass="zoom-busy-tooltip"
+                      aria-label="Conflict details"></i>
+                  </span>
+                  <ul class="zoom-busy-conflict-list">
+                    <li *ngFor="let c of acc.conflicts">
+                      <strong>{{ c.topic }}</strong>
+                      <span *ngIf="c.batch"> · Batch {{ c.batch }}</span>
+                      — {{ formatConflictWhen(c) }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <div class="row">

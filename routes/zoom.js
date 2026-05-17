@@ -18,7 +18,10 @@ const { getJoinLogDataForMeeting } = require('../services/joinLogHelpers');
 const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
 const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 const { attendanceDebug, attendanceWarn, attendanceDebugEnabled } = require('../utils/attendanceDebug');
-const { createMeetingLinkFromSlot } = require('../services/zoomMeetingLifecycle.service');
+const {
+  createMeetingLinkFromSlot,
+  buildHostAvailability
+} = require('../services/zoomMeetingLifecycle.service');
 
 /**
  * Build an attendance row for a manual override.
@@ -2713,41 +2716,55 @@ router.get('/meeting/:meetingId/engagement/teacher', verifyToken, async (req, re
  */
 router.get('/available-hosts', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { startTime, duration } = req.query;
+    const { startTime, duration, startTimes: startTimesRaw } = req.query;
+    const durationMin = Number(duration);
 
-    if (!startTime || !duration) {
-      return res.status(400).json({ success: false, message: 'startTime and duration are required' });
+    if (!duration || !Number.isFinite(durationMin) || durationMin <= 0) {
+      return res.status(400).json({ success: false, message: 'duration is required' });
     }
 
-    const meetingStart = new Date(startTime);
-    const meetingEnd = new Date(meetingStart.getTime() + Number(duration) * 60000);
-
-    // Get all Zoom hosts from Zoom API
-    const users = await zoomService.getZoomUsers();
-    const hosts = users.map(u => ({ id: u.id, email: u.email, name: u.first_name + ' ' + u.last_name }));
-
-    // Find meetings that overlap with the requested time
-    const overlapping = await MeetingLink.find({
-      status: { $ne: 'cancelled' },
-      startTime: { $lt: meetingEnd },
-      $expr: {
-        $gt: [
-          { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
-          meetingStart
-        ]
+    const slotInputs = [];
+    if (startTimesRaw) {
+      try {
+        const parsed = JSON.parse(String(startTimesRaw));
+        if (Array.isArray(parsed)) {
+          slotInputs.push(...parsed.map(String));
+        }
+      } catch {
+        /* ignore malformed JSON */
       }
-    }).select('hostEmail startTime duration');
+    }
+    if (startTime) {
+      slotInputs.unshift(String(startTime));
+    }
+    const uniqueSlots = [...new Set(slotInputs.filter(Boolean))];
+    if (uniqueSlots.length === 0) {
+      return res.status(400).json({ success: false, message: 'startTime or startTimes is required' });
+    }
 
-    const busyEmails = new Set(
-      overlapping
-        .filter(m => m.hostEmail)
-        .map(m => m.hostEmail.toLowerCase())
-    );
+    const windows = uniqueSlots.map((slot) => {
+      const meetingStart = new Date(slot);
+      if (Number.isNaN(meetingStart.getTime())) {
+        return null;
+      }
+      return {
+        start: meetingStart,
+        end: new Date(meetingStart.getTime() + durationMin * 60000)
+      };
+    }).filter(Boolean);
 
-    const data = hosts.map(h => ({
-      ...h,
-      isBusy: busyEmails.has(h.email.toLowerCase())
+    if (windows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid startTime value(s)' });
+    }
+
+    const users = await zoomService.getZoomUsers();
+    const hosts = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: `${u.first_name} ${u.last_name}`.trim()
     }));
+
+    const data = await buildHostAvailability(hosts, windows);
 
     res.json({ success: true, data });
   } catch (error) {

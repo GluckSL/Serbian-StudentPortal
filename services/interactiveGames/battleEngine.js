@@ -1,0 +1,463 @@
+// services/interactiveGames/battleEngine.js
+// Authoritative realtime battle state — synchronized rounds, server validation
+
+const ArenaRoom = require('../../models/ArenaRoom');
+const GameQuestion = require('../../models/GameQuestion');
+const config = require('../../config/glueckArena');
+const { attachScrambled, evaluateAnswer: evalScramble } = require('./scrambleRush');
+const { getShuffledTokens, evaluateAnswer: evalSentence } = require('./sentenceBuilder');
+const { basePoints } = require('./scoring');
+const antiCheat = require('./antiCheat');
+const auditLog = require('./auditLog');
+const replayService = require('./replays');
+
+const DEFAULT_ROUNDS = 10;
+const FAST_ANSWER_BONUS = 5;
+const COMBO_STREAK_BONUS = 3;
+const COMBO_THRESHOLD = 3;
+
+/** @type {Map<string, NodeJS.Timeout>} */
+const roundTimers = new Map();
+/** @type {Map<string, { emit: Function }>} */
+const roomEmitters = new Map();
+
+const battleMetrics = {
+  battlesStarted: 0,
+  roundsCompleted: 0,
+  answersValidated: 0,
+  cheatBlocked: 0,
+};
+
+function roundDurationMs() {
+  return config.multiplayer?.answerWindowMs || 15_000;
+}
+
+function maxRounds() {
+  return config.multiplayer?.battleRounds || DEFAULT_ROUNDS;
+}
+
+function sanitizeQuestionForClient(q, gameType, index) {
+  if (gameType === 'scramble_rush') {
+    const scrambled = attachScrambled([q])[0];
+    return {
+      questionId: String(q._id),
+      index,
+      scrambledLetters: scrambled.scrambledLetters,
+      hint: q.hint || '',
+      audioUrl: q.audioUrl || null,
+      imageUrl: q.imageUrl || null,
+      letterCount: scrambled.letterCount,
+    };
+  }
+  if (gameType === 'sentence_builder') {
+    return {
+      questionId: String(q._id),
+      index,
+      shuffledTokens: getShuffledTokens(q),
+      translation: q.translation || '',
+      sentenceAudioUrl: q.sentenceAudioUrl || null,
+    };
+  }
+  return { questionId: String(q._id), index };
+}
+
+function sanitizeBattlePublic(battle) {
+  if (!battle) return null;
+  return {
+    totalRounds: battle.totalRounds,
+    currentRound: battle.currentRound,
+    roundDurationMs: battle.roundDurationMs,
+    roundStartedAt: battle.roundStartedAt,
+    roundEndsAt: battle.roundEndsAt,
+    serverTime: Date.now(),
+  };
+}
+
+function getRoundPayload(room) {
+  const b = room.battle;
+  if (!b || b.currentRound >= b.totalRounds) return null;
+  const question = b.questions[b.currentRound];
+  return {
+    roundIndex: b.currentRound,
+    totalRounds: b.totalRounds,
+    question,
+    roundStartedAt: b.roundStartedAt,
+    roundEndsAt: b.roundEndsAt,
+    serverTime: Date.now(),
+    roundDurationMs: b.roundDurationMs,
+  };
+}
+
+function registerRoomEmitter(roomId, emitFn) {
+  roomEmitters.set(String(roomId), { emit: emitFn });
+}
+
+function unregisterRoomEmitter(roomId) {
+  roomEmitters.delete(String(roomId));
+  clearRoundTimer(roomId);
+}
+
+function clearRoundTimer(roomId) {
+  const key = String(roomId);
+  const t = roundTimers.get(key);
+  if (t) clearTimeout(t);
+  roundTimers.delete(key);
+}
+
+function emitToRoom(roomId, event, payload) {
+  const reg = roomEmitters.get(String(roomId));
+  if (reg?.emit) reg.emit(event, payload);
+}
+
+async function initBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
+  const room = await ArenaRoom.findById(roomId);
+  if (!room) return { ok: false, message: 'Room not found' };
+
+  const questions = await GameQuestion.find({
+    gameSetId: room.gameSetId,
+    gameType: room.gameType,
+    isDeleted: false,
+  })
+    .sort({ order: 1 })
+    .limit(maxRounds())
+    .lean();
+
+  if (!questions.length) {
+    return { ok: false, message: 'No questions in game set' };
+  }
+
+  const sanitized = questions.map((q, idx) =>
+    sanitizeQuestionForClient(q, room.gameType, idx)
+  );
+
+  const duration = roundDurationMs();
+  room.battle = {
+    totalRounds: sanitized.length,
+    roundDurationMs: duration,
+    questions: sanitized,
+    currentRound: 0,
+    roundStartedAt: null,
+    roundEndsAt: null,
+    roundAnsweredBy: [],
+    roundResults: [],
+    comboStreaks: {},
+    questionDocs: questions.map(q => ({
+      questionId: String(q._id),
+      word: q.word,
+      correctSentence: q.correctSentence,
+      tokens: q.tokens,
+    })),
+    snapshotVersion: 1,
+  };
+  room.currentQuestionIndex = 0;
+  room.markModified('battle');
+  await room.save();
+
+  battleMetrics.battlesStarted += 1;
+  replayService.startRecording(roomId, {
+    inviteCode: room.inviteCode,
+    gameType: room.gameType,
+    gameSetId: room.gameSetId,
+    tournamentId: room.tournamentId,
+  });
+  replayService.recordEvent(roomId, 'battle_start', { totalRounds: sanitized.length });
+  return { ok: true, room: sanitizeRoomFn(room), battle: sanitizeBattlePublic(room.battle) };
+}
+
+async function startBattleLoop(roomId, sanitizeRoomFn, buildLeaderboardFn) {
+  await startRound(roomId, sanitizeRoomFn, buildLeaderboardFn);
+}
+
+async function startRound(roomId, sanitizeRoomFn, buildLeaderboardFn) {
+  clearRoundTimer(roomId);
+  const room = await ArenaRoom.findById(roomId);
+  if (!room?.battle) return null;
+
+  const b = room.battle;
+  if (b.currentRound >= b.totalRounds) {
+    return finishBattle(roomId, sanitizeRoomFn, buildLeaderboardFn);
+  }
+
+  const now = Date.now();
+  b.roundStartedAt = new Date(now);
+  b.roundEndsAt = new Date(now + b.roundDurationMs);
+  b.roundAnsweredBy = [];
+  b.roundResults = [];
+  b.snapshotVersion = (b.snapshotVersion || 0) + 1;
+  room.currentQuestionIndex = b.currentRound;
+  room.markModified('battle');
+  await room.save();
+
+  const round = getRoundPayload(room);
+  const sanitized = sanitizeRoomFn(room);
+
+  replayService.recordEvent(roomId, 'round_start', { roundIndex: b.currentRound });
+  emitToRoom(roomId, 'arena:battle_round', { round, room: sanitized });
+  emitToRoom(roomId, 'arena:leaderboard', { players: buildLeaderboardFn(room) });
+
+  const timer = setTimeout(() => {
+    endRound(roomId, sanitizeRoomFn, buildLeaderboardFn).catch(err => {
+      console.error('[battleEngine] endRound error', err);
+    });
+  }, b.roundDurationMs);
+  roundTimers.set(String(roomId), timer);
+
+  return { round, room: sanitized };
+}
+
+async function endRound(roomId, sanitizeRoomFn, buildLeaderboardFn) {
+  clearRoundTimer(roomId);
+  const room = await ArenaRoom.findById(roomId);
+  if (!room?.battle) return null;
+
+  battleMetrics.roundsCompleted += 1;
+  room.battle.currentRound += 1;
+  room.markModified('battle');
+  await room.save();
+
+  emitToRoom(roomId, 'arena:battle_round_end', {
+    roundIndex: room.battle.currentRound - 1,
+    results: room.battle.roundResults || [],
+    room: sanitizeRoomFn(room),
+  });
+
+  if (room.battle.currentRound >= room.battle.totalRounds) {
+    return finishBattle(roomId, sanitizeRoomFn, buildLeaderboardFn);
+  }
+
+  return startRound(roomId, sanitizeRoomFn, buildLeaderboardFn);
+}
+
+async function submitBattleAnswer(roomId, studentId, payload, buildLeaderboardFn, sanitizeRoomFn) {
+  const cheat = antiCheat.validateBattleAnswer(studentId, payload);
+  if (!cheat.ok) {
+    battleMetrics.cheatBlocked += 1;
+    await auditLog.log({
+      actorId: studentId,
+      action: 'multiplayer_cheat_blocked',
+      resourceId: roomId,
+      metadata: { reason: cheat.message, source: 'battle' },
+      severity: 'warn',
+    });
+    return { ok: false, message: cheat.message };
+  }
+
+  const room = await ArenaRoom.findById(roomId);
+  if (!room || room.status !== 'playing' || !room.battle) {
+    return { ok: false, message: 'Battle not active' };
+  }
+
+  const b = room.battle;
+  const roundIndex = parseInt(payload.roundIndex, 10);
+  if (roundIndex !== b.currentRound) {
+    return { ok: false, message: 'Stale round' };
+  }
+
+  if (b.roundAnsweredBy.some(id => String(id) === String(studentId))) {
+    return { ok: false, message: 'Already answered this round' };
+  }
+
+  if (Date.now() > new Date(b.roundEndsAt).getTime() + 500) {
+    return { ok: false, message: 'Round ended' };
+  }
+
+  const question = b.questions[roundIndex];
+  if (!question) return { ok: false, message: 'Invalid question' };
+
+  const qDoc = b.questionDocs?.find(d => d.questionId === question.questionId);
+  if (!qDoc) return { ok: false, message: 'Question data missing' };
+
+  const roundStart = new Date(b.roundStartedAt).getTime();
+  const responseTimeMs = Math.max(0, Date.now() - roundStart);
+
+  let evalResult;
+  let revealCorrect = null;
+
+  if (room.gameType === 'scramble_rush') {
+    evalResult = evalScramble(
+      { word: qDoc.word },
+      payload.typedWord || ''
+    );
+    if (!evalResult.isCorrect) {
+      revealCorrect = { word: qDoc.word };
+    }
+  } else if (room.gameType === 'sentence_builder') {
+    evalResult = evalSentence(
+      { correctSentence: qDoc.correctSentence, tokens: qDoc.tokens },
+      payload.orderedTokens || []
+    );
+    if (!evalResult.isCorrect) {
+      revealCorrect = { sentence: qDoc.correctSentence };
+    }
+  } else {
+    return { ok: false, message: 'Unsupported game type' };
+  }
+
+  let points = evalResult.isCorrect ? (evalResult.points || basePoints(room.gameType)) : 0;
+  let fastest = false;
+  let comboStreak = 0;
+
+  if (!b.comboStreaks) b.comboStreaks = {};
+  const sid = String(studentId);
+
+  if (evalResult.isCorrect) {
+    const priorCorrect = (b.roundResults || []).some(r => r.isCorrect);
+    if (!priorCorrect) {
+      fastest = true;
+      points += FAST_ANSWER_BONUS;
+      replayService.recordEvent(roomId, 'fastest_answer', { studentId: sid, roundIndex });
+    }
+    b.comboStreaks[sid] = (b.comboStreaks[sid] || 0) + 1;
+    comboStreak = b.comboStreaks[sid];
+    if (comboStreak >= COMBO_THRESHOLD) {
+      points += COMBO_STREAK_BONUS;
+      replayService.recordEvent(roomId, 'combo_streak', { studentId: sid, comboStreak });
+    }
+  } else {
+    b.comboStreaks[sid] = 0;
+  }
+
+  replayService.recordEvent(roomId, 'answer', {
+    studentId: sid,
+    roundIndex,
+    isCorrect: evalResult.isCorrect,
+    points: evalResult.isCorrect ? points : 0,
+  });
+
+  const player = room.players.find(p => String(p.studentId) === sid);
+  if (!player) return { ok: false, message: 'Not in room' };
+
+  b.roundAnsweredBy.push(studentId);
+  b.roundResults.push({
+    studentId,
+    isCorrect: evalResult.isCorrect,
+    points,
+    responseTimeMs,
+    fastest,
+    comboStreak,
+  });
+
+  player.totalAnswers = (player.totalAnswers || 0) + 1;
+  if (evalResult.isCorrect) {
+    player.correctAnswers = (player.correctAnswers || 0) + 1;
+    player.score += points;
+  }
+  player.lastAnswerAt = new Date();
+  player.lastHeartbeatAt = new Date();
+
+  room.markModified('battle');
+  await room.save();
+
+  battleMetrics.answersValidated += 1;
+
+  const leaderboard = buildLeaderboardFn(room);
+  const answerResult = {
+    isCorrect: evalResult.isCorrect,
+    points: evalResult.isCorrect ? points : 0,
+    fastest,
+    comboStreak,
+    correctAnswer: revealCorrect,
+    responseTimeMs,
+  };
+
+  emitToRoom(roomId, 'arena:battle_answer_result', {
+    studentId: sid,
+    roundIndex,
+    result: answerResult,
+  });
+  emitToRoom(roomId, 'arena:leaderboard', { players: leaderboard });
+
+  const connectedPlayers = room.players.filter(p => p.isConnected !== false);
+  const answeredCount = b.roundAnsweredBy.length;
+  if (answeredCount >= Math.max(1, connectedPlayers.length)) {
+    setImmediate(() => {
+      endRound(roomId, sanitizeRoomFn, buildLeaderboardFn).catch(() => {});
+    });
+  }
+
+  return {
+    ok: true,
+    result: answerResult,
+    leaderboard,
+    room: sanitizeRoomFn(room),
+  };
+}
+
+async function finishBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
+  clearRoundTimer(roomId);
+  unregisterRoomEmitter(roomId);
+
+  const room = await ArenaRoom.findByIdAndUpdate(
+    roomId,
+    { $set: { status: 'finished' } },
+    { new: true }
+  );
+  if (!room) return { ok: false, message: 'Room not found' };
+
+  const results = buildLeaderboardFn(room);
+  replayService.recordEvent(roomId, 'battle_finish', { results: results.map(r => ({ id: r.studentId, score: r.score })) });
+  const replay = await replayService.finalizeRecording(roomId, {
+    inviteCode: room.inviteCode,
+    gameType: room.gameType,
+    gameSetId: room.gameSetId,
+    tournamentId: room.tournamentId,
+    playerCount: room.players.length,
+    winnerId: results[0]?.studentId,
+  });
+  emitToRoom(roomId, 'arena:battle_complete', { results, room: sanitizeRoomFn(room), replayId: replay?._id, shareToken: replay?.shareToken });
+  emitToRoom(roomId, 'arena:finished', { results, room: sanitizeRoomFn(room), replayId: replay?._id });
+
+  if (room.matchmakingMode === 'ranked' && results.length >= 2) {
+    try {
+      const ranked = require('./ranked');
+      await ranked.recordMatchResult(results[0].studentId, results[1].studentId);
+    } catch (e) {
+      console.warn('[battleEngine] ranked update failed', e.message);
+    }
+  }
+
+  return { ok: true, results, room: sanitizeRoomFn(room) };
+}
+
+function getBattleSnapshot(room) {
+  if (!room?.battle) return null;
+  return {
+    battle: sanitizeBattlePublic(room.battle),
+    round: getRoundPayload(room),
+    room: room,
+  };
+}
+
+function resetBattleState(room) {
+  room.battle = undefined;
+  room.currentQuestionIndex = 0;
+  room.markModified('battle');
+}
+
+function getMetrics() {
+  return { ...battleMetrics, activeTimers: roundTimers.size };
+}
+
+/** Batch emit helper for production hardening */
+function batchEmit(roomId, events) {
+  const reg = roomEmitters.get(String(roomId));
+  if (!reg?.emit) return;
+  reg.emit('arena:batch', { events, serverTime: Date.now() });
+}
+
+module.exports = {
+  initBattle,
+  startBattleLoop,
+  startRound,
+  endRound,
+  submitBattleAnswer,
+  finishBattle,
+  getBattleSnapshot,
+  getRoundPayload,
+  sanitizeBattlePublic,
+  registerRoomEmitter,
+  unregisterRoomEmitter,
+  resetBattleState,
+  getMetrics,
+  batchEmit,
+};

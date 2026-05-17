@@ -74,6 +74,10 @@ export class NavService {
         { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/admin-modules',             subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',          subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: 'fitness_center', route: '/admin/digital-exercises',   subGroup: null },
+        { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
+        { id: 'glueck-arena-analytics', label: 'Arena Analytics', icon: 'insights', route: '/admin/glueck-arena/analytics', subGroup: null },
+        { id: 'glueck-arena-command', label: 'Arena Command Center', icon: 'dashboard', route: '/admin/glueck-arena/command-center', subGroup: null },
+        { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null },
         { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared', route: '/admin/teacher-resources', subGroup: null },
         { id: 'journey',           label: 'Journey',            icon: 'map', route: '/admin/journey',             subGroup: null },
         { id: 'go-students',       label: 'GO Students',        icon: 'rocket_launch', route: '/admin/go-students',         subGroup: null }
@@ -174,7 +178,9 @@ export class NavService {
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/learning-modules',         subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null }
+        { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null },
+        { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
+        { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null }
       ]
     },
     {
@@ -231,6 +237,7 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
+        { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
         { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
         { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]

@@ -57,11 +57,41 @@
               <label class="form-label">Zoom account *</label>
               <select class="form-select" formControlName="zoomHostEmail" (change)="refreshZoomBusyHint()">
                 <option value="">Select Zoom host</option>
-                <option *ngFor="let z of zoomAccounts" [value]="z.email" [disabled]="z.isBusy">
+                <option
+                  *ngFor="let z of zoomAccounts"
+                  [value]="z.email"
+                  [disabled]="z.isBusy"
+                  [attr.title]="z.isBusy ? conflictTooltip(z.conflicts) : null">
                   {{ z.name }} ({{ z.email }}){{ z.isBusy ? ' — BUSY' : '' }}
                 </option>
               </select>
-              <small class="text-muted">Busy flags use the next upcoming class time from your schedule.</small>
+              <small class="text-muted d-block">
+                BUSY reflects portal bookings at your journey start time (not the Zoom website calendar).
+                Hover a BUSY option or see details below.
+              </small>
+              <div class="zoom-busy-panel" *ngIf="busyZoomAccounts.length > 0">
+                <div class="zoom-busy-panel-title">
+                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                  Conflicting portal classes
+                </div>
+                <div class="zoom-busy-account" *ngFor="let acc of busyZoomAccounts">
+                  <span class="zoom-busy-account-name">
+                    {{ acc.name }}
+                    <i
+                      class="fas fa-circle-info zoom-busy-info-icon"
+                      [matTooltip]="conflictTooltip(acc.conflicts)"
+                      matTooltipClass="zoom-busy-tooltip"
+                      aria-label="Conflict details"></i>
+                  </span>
+                  <ul class="zoom-busy-conflict-list">
+                    <li *ngFor="let c of acc.conflicts">
+                      <strong>{{ c.topic }}</strong>
+                      <span *ngIf="c.batch"> · Batch {{ c.batch }}</span>
+                      — {{ formatConflictWhen(c) }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
             <div class="row">
               <div class="col-md-4 mb-3">
