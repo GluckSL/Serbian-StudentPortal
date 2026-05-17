@@ -93,13 +93,71 @@ async function getOrCreateSettings() {
   return doc;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Fire-and-forget: schedule dispatch without blocking the HTTP handler.
+ * Fire-and-forget single attempt — preserves legacy behaviour site-wide.
  */
 function scheduleDispatchEvent(payload) {
   setImmediate(() => {
     dispatchEvent(payload).catch((err) =>
       console.error('[StudentPortalCRM] scheduleDispatchEvent error:', err.message)
+    );
+  });
+}
+
+/**
+ * Bounded retries + structured logs; never throws. Prefer this from CRM upsert flows.
+ *
+ * @param {object} payload — passed to dispatchEvent
+ * @param {object} [opts]
+ * @param {number} [opts.maxAttempts=4]
+ * @param {string} [opts.correlationId] — printed in logs for tracing
+ */
+function scheduleDispatchEventResilient(payload, opts = {}) {
+  const maxAttempts = Math.min(Math.max(Number(opts.maxAttempts) || 4, 1), 8);
+  const correlationId = opts.correlationId || '';
+
+  setImmediate(() => {
+    (async () => {
+      let attempt = 0;
+      let lastErr = null;
+      while (attempt < maxAttempts) {
+        attempt++;
+        try {
+          const result = await dispatchEvent(payload);
+          if (result.ok || result.skipped) {
+            if (correlationId) {
+              console.log(
+                `[StudentPortalCRM][dispatch][rid=${correlationId}] attempt=${attempt}/${maxAttempts} ok=${result.ok} skipped=${!!result.skipped} reason=${result.reason || ''}`
+              );
+            }
+            return;
+          }
+          lastErr = result.error || 'unknown';
+        } catch (err) {
+          lastErr = err.message;
+          console.error(
+            `[StudentPortalCRM][dispatch][rid=${correlationId}] attempt=${attempt}/${maxAttempts} threw:`,
+            err.message
+          );
+        }
+
+        const backoffMs = Math.min(8000, 400 * Math.pow(2, attempt - 1));
+        console.warn(
+          `[StudentPortalCRM][dispatch][rid=${correlationId}] retry in ${backoffMs}ms after failure:`,
+          lastErr
+        );
+        await sleep(backoffMs);
+      }
+      console.error(
+        `[StudentPortalCRM][dispatch][rid=${correlationId}] exhausted ${maxAttempts} attempts; last error:`,
+        lastErr
+      );
+    })().catch((err) =>
+      console.error('[StudentPortalCRM] scheduleDispatchEventResilient fatal:', err.message)
     );
   });
 }
@@ -176,6 +234,7 @@ module.exports = {
   getOrCreateSettings,
   dispatchEvent,
   scheduleDispatchEvent,
+  scheduleDispatchEventResilient,
   sanitizeUserDoc,
   sanitizeMeetingLink,
   sanitizeFeedbackDoc,

@@ -119,6 +119,16 @@ const UserSchema = new mongoose.Schema({
   // GO Silver batch fields
   goStatus: { type: String, enum: ['GO'], default: undefined },
   goJoiningDate: { type: Date, default: null },
+
+  // CRM link — stores the external WP/Gluck CRM contact ID so portal ↔ CRM records stay linked
+  crmExternalId: { type: String, default: '', index: true },
 });
+
+// Sparse unique index: two students cannot share the same non-empty crmExternalId,
+// but an empty string is allowed on all records (sparse = only indexes non-empty values).
+UserSchema.index(
+  { crmExternalId: 1 },
+  { unique: true, sparse: true, partialFilterExpression: { crmExternalId: { $gt: '' } } }
+);
 
 module.exports = mongoose.model("User", UserSchema);

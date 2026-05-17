@@ -8,10 +8,13 @@
  */
 
 const express = require('express');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Reminder = require('../models/Reminder');
 const MeetingLink = require('../models/MeetingLink');
 const { crmTokenAuth } = require('../middleware/crmTokenAuth');
+const { toStudentDto } = require('../services/crmStudentExport');
+const { upsertStudentFromCrm } = require('../services/crmStudentUpsert');
 
 async function batchParticipantsAndSchedules(batchName) {
   const name = String(batchName || '').trim();
@@ -67,19 +70,65 @@ const ADV_STUDENT_FILTER_FIELDS = {
 
 router.use(crmTokenAuth);
 
+/** Stable ordering for CRM exports — pairs with cursor pagination to avoid skipping rows during large syncs */
+const CRM_STUDENT_EXPORT_SORT = { updatedAt: 1, _id: 1 };
+
+function buildCrmStudentExportFilter(query) {
+  const filter = { role: 'STUDENT' };
+
+  if (query.excludeTestAccounts === 'true') {
+    filter.isTestAccount = { $ne: true };
+  }
+  if (query.studentStatus) {
+    filter.studentStatus = String(query.studentStatus).trim().toUpperCase();
+  }
+  if (query.batch) {
+    filter.batch = String(query.batch).trim();
+  }
+  if (query.updatedSince) {
+    const since = new Date(String(query.updatedSince).trim());
+    if (!isNaN(since.getTime())) {
+      filter.updatedAt = { $gte: since };
+    }
+  }
+
+  return filter;
+}
+
 // ─── GET /api/crm/summary — lightweight “dashboard” counts ───────────────────
 router.get('/summary', async (_req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const [studentTotal, teacherTotal, batchSample] = await Promise.all([
+
+    const [
+      studentTotal,
+      studentTotalExcludingTest,
+      teacherTotal,
+      batchSample,
+      statusAgg
+    ] = await Promise.all([
       User.countDocuments({ role: 'STUDENT' }),
+      User.countDocuments({ role: 'STUDENT', isTestAccount: { $ne: true } }),
       User.countDocuments({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }),
-      User.distinct('batch', { role: 'STUDENT', batch: { $nin: [null, ''] } })
+      User.distinct('batch', { role: 'STUDENT', batch: { $nin: [null, ''] } }),
+      User.aggregate([
+        { $match: { role: 'STUDENT' } },
+        { $group: { _id: '$studentStatus', count: { $sum: 1 } } }
+      ])
     ]);
+
+    const byStatus = { ONGOING: 0, COMPLETED: 0, WITHDREW: 0, UNCERTAIN: 0 };
+    for (const row of statusAgg) {
+      const key = String(row._id || 'UNCERTAIN').toUpperCase();
+      byStatus[key] = (byStatus[key] || 0) + row.count;
+    }
+
     res.json({
       success: true,
       data: {
         studentTotal,
+        studentTotalExcludingTest,
+        byStatus,
         teacherTotal,
         distinctBatchCount: (batchSample || []).length
       }
@@ -220,6 +269,221 @@ router.get('/students', async (req, res) => {
   } catch (err) {
     console.error('[crm] GET /students', err);
     res.status(500).json({ success: false, message: 'Failed to fetch students', error: err.message });
+  }
+});
+
+// ─── GET /api/crm/students/export — full student dump in CRM DTO shape ────────
+//
+// Pagination:
+//   • Recommended for large syncs — cursor mode (stable under concurrent writes):
+//       GET ...?cursorUpdatedAt=<ISO>&cursorId=<MongoObjectId>&limit=500
+//     Follow pagination.nextCursor until hasMore is false.
+//   • Legacy — page mode:
+//       GET ...?page=1&limit=500
+//
+// Sort is always { updatedAt: 1, _id: 1 } for deterministic ordering.
+//
+// Filters: excludeTestAccounts, studentStatus, batch, updatedSince (same as before)
+router.get('/students/export', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const limit = Math.min(toPositiveInt(req.query.limit, 500), 500);
+    const baseFilter = buildCrmStudentExportFilter(req.query);
+
+    const cursorUpdatedAt = req.query.cursorUpdatedAt ? String(req.query.cursorUpdatedAt).trim() : '';
+    const cursorId = req.query.cursorId ? String(req.query.cursorId).trim() : '';
+
+    const usePartialCursor =
+      (cursorUpdatedAt && !cursorId) || (!cursorUpdatedAt && cursorId);
+    if (usePartialCursor) {
+      return res.status(400).json({
+        success: false,
+        message: 'cursor pagination requires both cursorUpdatedAt and cursorId (or omit both for page mode).',
+      });
+    }
+
+    const useCursor = !!(cursorUpdatedAt && cursorId);
+
+    let mongoFilter = baseFilter;
+    if (useCursor) {
+      const cu = new Date(cursorUpdatedAt);
+      if (isNaN(cu.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid cursorUpdatedAt.' });
+      }
+      if (!mongoose.Types.ObjectId.isValid(cursorId)) {
+        return res.status(400).json({ success: false, message: 'Invalid cursorId.' });
+      }
+      const oid = new mongoose.Types.ObjectId(cursorId);
+      mongoFilter = {
+        $and: [
+          baseFilter,
+          {
+            $or: [{ updatedAt: { $gt: cu } }, { updatedAt: cu, _id: { $gt: oid } }],
+          },
+        ],
+      };
+    }
+
+    const populateTeacher = {
+      path: 'assignedTeacher',
+      select: 'name regNo email medium role',
+    };
+
+    let studentsRaw;
+    let paginationPayload;
+
+    if (useCursor) {
+      studentsRaw = await User.find(mongoFilter)
+        .select('-password')
+        .sort(CRM_STUDENT_EXPORT_SORT)
+        .limit(limit + 1)
+        .populate(populateTeacher)
+        .lean();
+
+      const hasMore = studentsRaw.length > limit;
+      const slice = hasMore ? studentsRaw.slice(0, limit) : studentsRaw;
+
+      let nextCursor = null;
+      if (hasMore && slice.length > 0) {
+        const last = slice[slice.length - 1];
+        nextCursor = {
+          updatedAt:
+            last.updatedAt instanceof Date ? last.updatedAt.toISOString() : String(last.updatedAt || ''),
+          id: String(last._id),
+        };
+      }
+
+      paginationPayload = {
+        mode: 'cursor',
+        limit,
+        hasMore,
+        nextCursor,
+      };
+      studentsRaw = slice;
+    } else {
+      const page = toPositiveInt(req.query.page, 1);
+      const skip = (page - 1) * limit;
+      const total = await User.countDocuments(baseFilter);
+
+      studentsRaw = await User.find(baseFilter)
+        .select('-password')
+        .sort(CRM_STUDENT_EXPORT_SORT)
+        .skip(skip)
+        .limit(limit)
+        .populate(populateTeacher)
+        .lean();
+
+      const pages = Math.max(1, Math.ceil(total / limit));
+      paginationPayload = {
+        mode: 'page',
+        total,
+        page,
+        limit,
+        pages,
+      };
+    }
+
+    res.json({
+      success: true,
+      data: studentsRaw.map(toStudentDto),
+      pagination: paginationPayload,
+    });
+  } catch (err) {
+    console.error('[crm] GET /students/export', err);
+    res.status(500).json({ success: false, message: 'Failed to export students', error: err.message });
+  }
+});
+
+// ─── GET /api/crm/students/:portalId — single student by Mongo _id ────────────
+router.get('/students/:portalId', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const { portalId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(portalId)) {
+      return res.status(400).json({ success: false, message: 'Invalid portalId.' });
+    }
+    const student = await User.findOne({ _id: portalId, role: 'STUDENT' })
+      .select('-password')
+      .populate({ path: 'assignedTeacher', select: 'name regNo email medium role' })
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+    res.json({ success: true, data: toStudentDto(student) });
+  } catch (err) {
+    console.error('[crm] GET /students/:portalId', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch student', error: err.message });
+  }
+});
+
+// ─── POST /api/crm/students/upsert — create or update one student from CRM ───
+//
+// Minimum body for a WhatsApp lead:
+//   { name, whatsappNumber }
+//
+// Full options:
+//   crmExternalId, name, email, whatsappNumber, phoneNumber,
+//   createPortalLogin (bool, default false),
+//   sendCredentialsEmail (bool, default false),
+//   + any student profile fields (batch, level, subscription, studentStatus, etc.)
+//   idempotencyKey | requestId — optional; replays return the same payload + idempotentReplay:true
+router.post('/students/upsert', async (req, res) => {
+  try {
+    const result = await upsertStudentFromCrm(req.body || {});
+    const replayStatus = result._replayHttpStatus;
+    if (Object.prototype.hasOwnProperty.call(result, '_replayHttpStatus')) {
+      delete result._replayHttpStatus;
+    }
+    const status =
+      typeof replayStatus === 'number'
+        ? replayStatus
+        : result.action === 'created'
+          ? 201
+          : 200;
+    res.status(status).json({ success: true, ...result });
+  } catch (err) {
+    console.error('[crm] POST /students/upsert', err);
+    const statusCode = err.statusCode || 500;
+    res.status(statusCode).json({ success: false, message: err.message });
+  }
+});
+
+// ─── POST /api/crm/students/bulk-upsert — batch upsert (max 100 per call) ────
+router.post('/students/bulk-upsert', async (req, res) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : (req.body?.students || []);
+    if (!items.length) {
+      return res.status(400).json({ success: false, message: 'Provide an array of student objects (or { students: [...] }).' });
+    }
+    if (items.length > 100) {
+      return res.status(400).json({ success: false, message: 'Maximum 100 students per bulk-upsert call.' });
+    }
+
+    const results = [];
+    for (const item of items) {
+      try {
+        const r = await upsertStudentFromCrm(item);
+        const row = { ...r };
+        delete row._replayHttpStatus;
+        results.push({ success: true, ...row });
+      } catch (e) {
+        results.push({ success: false, message: e.message, input: item });
+      }
+    }
+
+    const created = results.filter((r) => r.action === 'created').length;
+    const updated = results.filter((r) => r.action === 'updated').length;
+    const failed  = results.filter((r) => !r.success).length;
+
+    res.json({
+      success: true,
+      summary: { total: items.length, created, updated, failed },
+      results
+    });
+  } catch (err) {
+    console.error('[crm] POST /students/bulk-upsert', err);
+    res.status(500).json({ success: false, message: 'Bulk upsert failed', error: err.message });
   }
 });
 

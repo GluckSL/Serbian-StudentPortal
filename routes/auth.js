@@ -18,6 +18,11 @@ const {
   sanitizeUserDoc,
   userEventForRole
 } = require("../services/studentPortalCrmWebhook");
+const {
+  generateRegNo: sharedGenerateRegNo,
+  getRegNoSeed: sharedGetRegNoSeed,
+  generatePassword: sharedGeneratePassword,
+} = require('../utils/userRegistration');
 
 //const auth = require("../middleware/auth");
 const { verifyToken, isAdmin, extractBearerToken } = require('../middleware/auth');
@@ -562,96 +567,19 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 });
 
 
-// âœ… Reg No generation for different roles
+// Delegating to shared utils/userRegistration.js — keeping local names for all call sites.
 async function generateRegNo(role) {
-  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
-  if (!roleKey) {
-    throw new Error("Role is required to generate regNo");
-  }
-  // map roles to prefixes
-  const prefixMap = {
-    STUDENT: "STUD",
-    TEACHER: "T",
-    ADMIN: "AD",
-    SUB_ADMIN: "SAD"
-  };
-
-  const prefix = prefixMap[roleKey] || roleKey.substring(0, 2).toUpperCase(); // fallback
-
-  const lastUser = await User.findOne({
-    role: roleKey,
-    regNo: { $regex: `^${prefix}\\d+$` }
-  })
-    // Sort by regNo so padding keeps correct order (e.g., SAD003 < SAD010)
-    .sort({ regNo: -1 })
-    .exec();
-
-  let nextNumber = 1;
-
-  if (lastUser && lastUser.regNo) {
-    const match = lastUser.regNo.match(new RegExp(`^${prefix}(\\d+)$`));
-    if (match) {
-      nextNumber = parseInt(match[1], 10) + 1;
-    }
-  }
-
-  return prefix + String(nextNumber).padStart(3, "0");
+  return sharedGenerateRegNo(role);
 }
 
 async function getRegNoSeed(role) {
-  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
-  if (!roleKey) throw new Error("Role is required to generate regNo");
-
-  const prefixMap = {
-    STUDENT: "STUD",
-    TEACHER: "T",
-    ADMIN: "AD",
-    SUB_ADMIN: "SAD"
-  };
-  const prefix = prefixMap[roleKey] || roleKey.substring(0, 2).toUpperCase();
-
-  const lastUser = await User.findOne({
-    role: roleKey,
-    regNo: { $regex: `^${prefix}\\d+$` }
-  })
-    .sort({ regNo: -1 })
-    .lean();
-
-  let nextNumber = 1;
-  if (lastUser?.regNo) {
-    const match = lastUser.regNo.match(new RegExp(`^${prefix}(\\d+)$`));
-    if (match) nextNumber = parseInt(match[1], 10) + 1;
-  }
-
+  const { prefix, nextNumber } = await sharedGetRegNoSeed(role);
+  const roleKey = typeof role === 'string' ? role.trim().toUpperCase() : '';
   return { prefix, nextNumber, roleKey };
 }
 
-//Password generation
 async function generatePassword(role, regNo) {
-  // map roles to prefixes
-  const prefixMap = {
-    STUDENT: "Student",
-    TEACHER: "Teacher",
-    ADMIN: "Admin",
-    SUB_ADMIN: "SubAdmin"
-  };
-
-  const roleKey = typeof role === "string" ? role.trim().toUpperCase() : "";
-  if (!roleKey) {
-    throw new Error("Role is required to generate password");
-  }
-  const prefix = prefixMap[roleKey] || roleKey;
-
-  // get last 3 characters of regNo
-  const lastThreeDigits = regNo.slice(-3);
-
-  // get current year
-  const currentYear = new Date().getFullYear();
-
-  // construct password
-  const password = `${prefix}${lastThreeDigits}@${currentYear}`;
-
-  return password;
+  return sharedGeneratePassword(role, regNo);
 }
 
 // âœ… Get teachers by student level + medium
