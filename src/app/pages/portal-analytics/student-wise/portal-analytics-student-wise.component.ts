@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, HostListener, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -58,10 +58,14 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
   availableBatches: string[] = [];
   selectedBatches: string[] = [];
   studentNameSearch = '';
+  isDropdownOpen = false;
 
   private allRows: StudentWiseRow[] = [];
 
-  constructor(private api: PortalAnalyticsApiService) {}
+  constructor(
+    private api: PortalAnalyticsApiService,
+    private elementRef: ElementRef
+  ) {}
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['range'] && this.range?.from && this.range?.to) {
@@ -159,6 +163,26 @@ export class PortalAnalyticsStudentWiseComponent implements OnChanges {
     this.studentNameSearch = '';
     this.applyLocalFilters();
     this.currentPage = 1;
+  }
+
+  toggleDropdown(): void {
+    this.isDropdownOpen = !this.isDropdownOpen;
+  }
+
+  toggleBatch(batch: string): void {
+    if (this.selectedBatches.includes(batch)) {
+      this.selectedBatches = this.selectedBatches.filter(b => b !== batch);
+    } else {
+      this.selectedBatches = [...this.selectedBatches, batch];
+    }
+    this.applyFilters();
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.elementRef.nativeElement.contains(event.target)) {
+      this.isDropdownOpen = false;
+    }
   }
 
   exportCsv(): void {

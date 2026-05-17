@@ -11,18 +11,33 @@
       </div>
     </div>
     <div class="sw-filters mb-3">
-      <mat-form-field appearance="outline" class="filter-field">
-        <mat-label>Batches</mat-label>
-        <mat-select multiple [(ngModel)]="selectedBatches" (ngModelChange)="applyFilters()">
-          @for (batch of availableBatches; track batch) {
-            <mat-option [value]="batch">{{ batch }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="filter-field">
-        <mat-label>Student Name</mat-label>
-        <input matInput [(ngModel)]="studentNameSearch" (ngModelChange)="applyFilters()" placeholder="Search by name" />
-      </mat-form-field>
+      <div class="custom-dropdown">
+        <div class="dropdown-trigger" (click)="toggleDropdown()">
+          <div class="dropdown-value">
+            @if (selectedBatches.length === 0) {
+              <span class="placeholder">Select batches</span>
+            } @else if (selectedBatches.length === 1) {
+              {{ selectedBatches[0] }}
+            } @else {
+              {{ selectedBatches.length }} selected
+            }
+            <mat-icon class="dropdown-arrow">{{ isDropdownOpen ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </div>
+        </div>
+        @if (isDropdownOpen) {
+          <div class="dropdown-options">
+            @for (batch of availableBatches; track batch) {
+              <label class="dropdown-option">
+                <input type="checkbox" [checked]="selectedBatches.includes(batch)" (change)="toggleBatch(batch)" />
+                <span>{{ batch }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
+      <div class="custom-input">
+        <input type="text" [(ngModel)]="studentNameSearch" (ngModelChange)="applyFilters()" placeholder="Search by name" />
+      </div>
       <div class="filter-actions">
         <button mat-stroked-button type="button" (click)="clearFilters()">Clear</button>
         <button mat-stroked-button type="button" color="primary" (click)="exportCsv()">
@@ -60,7 +75,7 @@
               </button>
             </th>
             <th class="text-end">Avg session</th>
-            <th>Top page</th>
+            <th class="top-page-header">Top page</th>
           </tr>
         </thead>
         <tbody>

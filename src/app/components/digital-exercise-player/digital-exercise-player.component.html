@@ -2099,7 +2099,8 @@
                 <ng-container
                   *ngFor="
                     let part of getSentenceParts(currentQuestion.data.sentence);
-                    let pi = index
+                    let pi = index;
+                    let last = last
                   "
                 >
                   <span
@@ -2108,10 +2109,7 @@
                   ></span>
                   <span
                     class="blank-wrap"
-                    *ngIf="
-                      pi <
-                      getSentenceParts(currentQuestion.data.sentence).length - 1
-                    "
+                    *ngIf="!last"
                   >
                     <input
                       type="text"
