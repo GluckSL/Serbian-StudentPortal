@@ -3,7 +3,7 @@
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
 import { throwError } from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
-import { resolveMediaUrl } from '../../utils/media-url';
+import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -1672,9 +1672,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     q.attachmentUploading = true;
     this.exerciseService.uploadQuestionAttachment(file).subscribe({
       next: (res) => {
-        q.attachmentUrl = res.url;
+        q.attachmentUrl = canonicalizeStoredMediaUrl(res.canonicalUrl || res.url);
         q.attachmentUploading = false;
-        if (this.getAttachmentType(res.url) !== 'audio') {
+        if (this.getAttachmentType(q.attachmentUrl) !== 'audio') {
           q.attachmentAudioMaxPlaysPerAttempt = undefined;
         }
         this.showSuccess('File uploaded');

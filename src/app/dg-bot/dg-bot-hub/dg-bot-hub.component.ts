@@ -120,6 +120,10 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     this.applyFilters();
   }
 
+  countForTab(tab: HubTab): number {
+    return this.modules.filter((m) => this.matchesStudentTab(m, tab)).length;
+  }
+
   onSearchInput(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {

@@ -23,6 +23,25 @@ export function getApiOriginForCredentials(): string {
  * - When `apiUrl` is relative (`/api`), media is loaded from the **current page origin** (`/uploads/...`).
  *   In dev, add a dev-server proxy so `/uploads` forwards to the Node app.
  */
+/**
+ * Stable URL for persistence — strips S3 presign query params so saves do not
+ * store short-lived signed URLs in the database.
+ */
+export function canonicalizeStoredMediaUrl(url: string | null | undefined): string {
+  if (url == null || url === '') return '';
+  const s = String(url).trim();
+  if (!s) return '';
+  if (s.includes('.amazonaws.com/')) {
+    try {
+      const u = new URL(s);
+      return `${u.origin}${u.pathname}`;
+    } catch {
+      return s.split('?')[0];
+    }
+  }
+  return s;
+}
+
 export function resolveMediaUrl(relative: string | null | undefined): string {
   if (relative == null || relative === '') return '';
   const s = String(relative).trim();

@@ -4,8 +4,13 @@ import { Component, OnInit, ViewChild, ElementRef, HostListener } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { DigitalExerciseService, DigitalExercise, VideoExerciseFeedbackItem } from '../../services/digital-exercise.service';
-import { resolveMediaUrl } from '../../utils/media-url';
+import {
+  DigitalExerciseService,
+  DigitalExercise,
+  ExerciseMediaClear,
+  VideoExerciseFeedbackItem
+} from '../../services/digital-exercise.service';
+import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
@@ -113,6 +118,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   exerciseId: string | null = null;
   saving = false;
   loading = false;
+  /** Explicit media removals this session — server will not restore previous URLs for these fields. */
+  private mediaClears: ExerciseMediaClear[] = [];
 
   // Exercise metadata
   title = '';
@@ -229,6 +236,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           caption: x.caption || '',
           uploading: false
         }));
+        this.mediaClears = [];
         this.loading = false;
       },
       error: () => {
@@ -236,6 +244,37 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.showError('Failed to load exercise');
       }
     });
+  }
+
+  private canonicalizeMediaField(url: string | null | undefined): string {
+    return canonicalizeStoredMediaUrl(url);
+  }
+
+  private markMediaCleared(qIndex: number, field: string, subIndex: number | null = null): void {
+    this.mediaClears.push({ qIndex, subIndex, field });
+  }
+
+  private questionIndexOf(q: BuilderQuestion): number {
+    return this.questions.indexOf(q);
+  }
+
+  private subQuestionIndexOf(parent: BuilderQuestion, sq: BuilderQuestion): number {
+    return (parent.subQuestions || []).indexOf(sq);
+  }
+
+  /** Drop builder-only UI fields before persisting to the API. */
+  private stripBuilderOnlyFields(row: Record<string, unknown>): void {
+    const drop = [
+      'workedExample',
+      'imagePinDisplayUrl',
+      'imagePinImageUploading',
+      'imagePinImageLoadError',
+      'attachmentUploading',
+      'videoUploading',
+      'transcribing',
+      'generatingExplanation'
+    ];
+    for (const key of drop) delete row[key];
   }
 
   private mapQuestionFromApi(q: any): BuilderQuestion {
@@ -246,7 +285,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       // Persisted on every question type; shown in player banner (non-matching) and editor.
       instruction: q.instruction || '',
       workedExample: q.example || '',
-      attachmentUrl: q.attachmentUrl || '',
+      attachmentUrl: this.canonicalizeMediaField(q.attachmentUrl),
       attachmentAudioMaxPlaysPerAttempt: this.normalizeAttachmentAudioMaxPlays(
         q.attachmentAudioMaxPlaysPerAttempt
       ),
@@ -263,9 +302,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       const rawImages = Array.isArray(q.optionImageUrls) ? q.optionImageUrls.map((u: unknown) => String(u || '').trim()) : [];
       Object.assign(base, {
         question: q.question || '',
-        imageUrl: q.imageUrl || '',
+        imageUrl: this.canonicalizeMediaField(q.imageUrl),
         options,
-        optionImageUrls: options.map((_, i) => rawImages[i] || ''),
+        optionImageUrls: options.map((_, i) => this.canonicalizeMediaField(rawImages[i])),
         correctAnswerIndex: q.correctAnswerIndex ?? 0,
         explanation: q.explanation || ''
       });
@@ -322,7 +361,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       });
     } else if (q.type === 'video-pronunciation') {
       Object.assign(base, {
-        videoUrl: q.videoUrl || '',
+        videoUrl: this.canonicalizeMediaField(q.videoUrl),
         caption: q.caption || '',
         secondaryCaption: q.secondaryCaption || '',
         secondaryCaptionAtSeconds: this.normalizeSecondaryCaptionDelaySeconds(q.secondaryCaptionAtSeconds),
@@ -354,7 +393,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       });
     } else if ((q.type as any) === 'image_pin_match') {
       Object.assign(base, {
-        imageUrl: q.imageUrl || '',
+        imageUrl: this.canonicalizeMediaField(q.imageUrl),
         labels:
           Array.isArray(q.labels) && q.labels.length
             ? q.labels.map((l: any) => ({
@@ -751,6 +790,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   removeMcqOptionImage(q: BuilderQuestion, oi: number): void {
     this.ensureMcqOptionImages(q);
+    const qi = this.questionIndexOf(q);
+    if (qi >= 0) this.markMediaCleared(qi, `optionImageUrl:${oi}`);
     q.optionImageUrls![oi] = '';
     if (this.mcqOptionUrlExpandedKey === this.mcqOptionKey(q, oi)) {
       this.mcqOptionUrlExpandedKey = null;
@@ -885,9 +926,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     q.attachmentUploading = true;
     this.exerciseService.uploadQuestionAttachment(file).subscribe({
       next: (res) => {
-        q.attachmentUrl = res.url;
+        const canonicalUrl = this.canonicalizeMediaField(res.canonicalUrl || res.url);
+        q.attachmentUrl = canonicalUrl;
         q.attachmentUploading = false;
-        if (this.getAttachmentType(res.url) !== 'audio') {
+        if (this.getAttachmentType(canonicalUrl) !== 'audio') {
           q.attachmentAudioMaxPlaysPerAttempt = undefined;
         }
         this.showSuccess('File uploaded');
@@ -900,6 +942,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   removeAttachment(q: BuilderQuestion): void {
+    const qi = this.questionIndexOf(q);
+    if (qi >= 0) this.markMediaCleared(qi, 'attachmentUrl');
     q.attachmentUrl = '';
     q.attachmentAudioMaxPlaysPerAttempt = undefined;
   }
@@ -1158,6 +1202,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   removeVideoSuccessFeedbackRow(i: number): void {
+    this.markMediaCleared(-1, `videoSuccessFeedback:${i}:audioUrl`);
     this.videoSuccessFeedbackRows.splice(i, 1);
   }
 
@@ -1167,6 +1212,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   removeVideoRetryFeedbackRow(i: number): void {
+    this.markMediaCleared(-1, `videoRetryFeedback:${i}:audioUrl`);
     this.videoRetryFeedbackRows.splice(i, 1);
   }
 
@@ -1415,11 +1461,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         row.options = (q.options || []).map((o: string) => String(o || '').trim());
         row.optionImageUrls = (q.optionImageUrls || [])
           .slice(0, row.options.length)
-          .map((u: string) => String(u || '').trim());
+          .map((u: string) => this.canonicalizeMediaField(u));
         while (row.optionImageUrls.length < row.options.length) row.optionImageUrls.push('');
+        row.imageUrl = this.canonicalizeMediaField(q.imageUrl);
       }
       if ((q.type as any) === 'image_pin_match') {
-        row.imageUrl = String(q.imageUrl || '').trim();
+        row.imageUrl = this.canonicalizeMediaField(q.imageUrl);
         row.pins = (Array.isArray(q.pins) ? q.pins : [])
           .map((p) => ({
             id: String(p?.id || '').trim(),
@@ -1438,6 +1485,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           randomizeLabels: q.settings?.randomizeLabels !== false,
           allowRetry: q.settings?.allowRetry !== false
         };
+      }
+      row.attachmentUrl = this.canonicalizeMediaField(row.attachmentUrl);
+      if (q.type === 'video-pronunciation') {
+        row.videoUrl = this.canonicalizeMediaField(q.videoUrl);
       }
       const attUrl = String(row.attachmentUrl || '').trim();
       if (attUrl && this.getAttachmentType(attUrl) === 'audio') {
@@ -1461,7 +1512,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           subRow.instruction = String(sq.instruction ?? '');
           subRow.example = String(sq.workedExample ?? '');
           subRow.worksheetKind = sq.worksheetKind || null;
-          subRow.attachmentUrl = String(sq.attachmentUrl || '');
+          subRow.attachmentUrl = this.canonicalizeMediaField(sq.attachmentUrl);
           subRow.answerExplanation = String(sq.answerExplanation || '');
           subRow.similarityThreshold = sq.similarityThreshold ?? 70;
           subRow.scoringMode = sq.scoringMode || 'full';
@@ -1470,11 +1521,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           if (sq.type === 'mcq') {
             this.ensureMcqOptionImages(sq);
             subRow.question = String(sq.question || '');
-            subRow.imageUrl = String(sq.imageUrl || '');
+            subRow.imageUrl = this.canonicalizeMediaField(sq.imageUrl);
             subRow.options = (sq.options || []).map((o: string) => String(o || '').trim()).filter(Boolean);
             subRow.optionImageUrls = (sq.optionImageUrls || [])
               .slice(0, subRow.options.length)
-              .map((u: string) => String(u || '').trim());
+              .map((u: string) => this.canonicalizeMediaField(u));
             while (subRow.optionImageUrls.length < subRow.options.length) subRow.optionImageUrls.push('');
             subRow.correctAnswerIndex = sq.correctAnswerIndex ?? 0;
             subRow.explanation = String(sq.explanation || '');
@@ -1529,7 +1580,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
             const tokensRaw = String((sq as any).rearrangeTokens || '');
             subRow.rearrangeTokens = tokensRaw.split('\n').map((x: string) => x.trim()).filter(Boolean);
           } else if ((sq.type as any) === 'image_pin_match') {
-            subRow.imageUrl = String(sq.imageUrl || '');
+            subRow.imageUrl = this.canonicalizeMediaField(sq.imageUrl);
             subRow.labels = (sq.labels || []).map((l: any) => ({
               id: String(l?.id || ''),
               text: String(l?.text || ''),
@@ -1545,16 +1596,18 @@ export class DigitalExerciseBuilderComponent implements OnInit {
               allowRetry: sq.settings?.allowRetry !== false
             };
           } else if (sq.type === 'video-pronunciation') {
-            subRow.videoUrl = String(sq.videoUrl || '');
+            subRow.videoUrl = this.canonicalizeMediaField(sq.videoUrl);
             subRow.caption = String(sq.caption || '');
             subRow.secondaryCaption = String(sq.secondaryCaption || '');
             subRow.secondaryCaptionAtSeconds = sq.secondaryCaptionAtSeconds || 5;
           }
 
+          this.stripBuilderOnlyFields(subRow);
           return subRow;
         });
       }
 
+      this.stripBuilderOnlyFields(row);
       return row;
     });
 
@@ -1577,7 +1630,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       visibleToStudents: this.visibleToStudents,
       questions: normalizedQuestions as any,
       videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
-      videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows)
+      videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows),
+      ...(this.isEditMode && this.mediaClears.length
+        ? { mediaClears: [...this.mediaClears] }
+        : {})
     };
 
     const request = this.isEditMode

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -8,6 +8,7 @@ import { ClassResourceService } from '../../services/class-resource.service';
 import { ClassDoubtService } from '../../services/class-doubt.service';
 import { ClassSubmissionService } from '../../services/class-submission.service';
 import { NotificationService } from '../../services/notification.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
 
 @Component({
   selector: 'app-teacher-my-classes',
@@ -16,12 +17,26 @@ import { NotificationService } from '../../services/notification.service';
   templateUrl: './teacher-my-classes.component.html',
   styleUrls: ['./teacher-my-classes.component.css']
 })
-export class TeacherMyClassesComponent implements OnInit {
+export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   meetings: any[] = [];
   batchOptions: string[] = [];
   loading = false;
   loadingBatches = false;
   error = '';
+  totalCount = 0;
+  currentPage = 1;
+  pageSize = 15;
+  readonly skeletonRows = [0, 1, 2, 3, 4, 5, 6, 7];
+
+  /** API lifecycle filter: scheduled | ongoing | ended */
+  statusTab: 'scheduled' | 'ongoing' | 'ended' = 'scheduled';
+  tabCounts: { scheduled: number; ongoing: number; ended: number } = {
+    scheduled: 0,
+    ongoing: 0,
+    ended: 0
+  };
+
+  private joinLabelTimer?: ReturnType<typeof setInterval>;
 
   filters = { batch: '', date: '', plan: '', status: '' };
   /** 'all' = no date filter (show every class for this teacher); 'one' = filter by `filters.date` */
@@ -58,7 +73,9 @@ export class TeacherMyClassesComponent implements OnInit {
     private resourceService: ClassResourceService,
     private doubtService: ClassDoubtService,
     private submissionService: ClassSubmissionService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private joinClassFlow: JoinClassFlowService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -66,13 +83,84 @@ export class TeacherMyClassesComponent implements OnInit {
     this.filters.date = '';
     this.loadBatchOptions();
     this.loadClasses();
+    this.joinLabelTimer = setInterval(() => this.cdr.markForCheck(), 30000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.joinLabelTimer) clearInterval(this.joinLabelTimer);
+  }
+
+  get headerClassCount(): number {
+    const sum = this.tabCounts.scheduled + this.tabCounts.ongoing + this.tabCounts.ended;
+    return sum > 0 ? sum : this.totalCount;
+  }
+
+  setStatusTab(tab: 'scheduled' | 'ongoing' | 'ended'): void {
+    if (this.statusTab === tab) return;
+    this.statusTab = tab;
+    this.currentPage = 1;
+    this.loadClasses();
+  }
+
+  tabCount(tab: 'scheduled' | 'ongoing' | 'ended'): number {
+    return this.tabCounts[tab] ?? 0;
+  }
+
+  tabTitle(tab: 'scheduled' | 'ongoing' | 'ended'): string {
+    const titles = { scheduled: 'Upcoming', ongoing: 'Live', ended: 'Conducted' };
+    return titles[tab];
+  }
+
+  emptyTabMessage(): string {
+    const msgs = {
+      scheduled: 'No upcoming classes match your filters.',
+      ongoing: 'No live classes right now.',
+      ended: 'No conducted classes match your filters.'
+    };
+    return msgs[this.statusTab];
   }
 
   onDateFilterTypeChange(): void {
     if (this.dateFilterType === 'all') {
       this.filters.date = '';
     }
+    this.currentPage = 1;
     this.loadClasses();
+  }
+
+  onFiltersChange(): void {
+    this.currentPage = 1;
+    this.loadClasses();
+  }
+
+  get totalPages(): number {
+    return Math.max(Math.ceil(this.totalCount / this.pageSize), 1);
+  }
+
+  get pageStart(): number {
+    if (!this.totalCount) return 0;
+    return (this.currentPage - 1) * this.pageSize + 1;
+  }
+
+  get pageEnd(): number {
+    return Math.min(this.currentPage * this.pageSize, this.totalCount);
+  }
+
+  changePage(page: number): void {
+    const next = Math.min(Math.max(page, 1), this.totalPages);
+    if (next === this.currentPage) return;
+    this.currentPage = next;
+    this.loadClasses();
+  }
+
+  getPaginationPages(): number[] {
+    const pages: number[] = [];
+    const maxButtons = 5;
+    let start = Math.max(1, this.currentPage - Math.floor(maxButtons / 2));
+    const end = Math.min(this.totalPages, start + maxButtons - 1);
+    start = Math.max(1, end - maxButtons + 1);
+    for (let p = start; p <= end; p++) pages.push(p);
+    return pages;
   }
 
   loadBatchOptions(): void {
@@ -86,21 +174,65 @@ export class TeacherMyClassesComponent implements OnInit {
   loadClasses(): void {
     this.loading = true;
     this.error = '';
-    const f: Record<string, string> = {};
-    if (this.dateFilterType === 'one' && this.filters.date) f['date'] = this.filters.date;
-    if (this.filters.batch) f['batch'] = this.filters.batch;
-    if (this.filters.plan) f['plan'] = this.filters.plan;
-    if (this.filters.status) f['status'] = this.filters.status;
+    const f: {
+      date?: string;
+      batch?: string;
+      plan?: string;
+      status?: string;
+      page: number;
+      limit: number;
+      lifecycle: 'scheduled' | 'ongoing' | 'ended';
+      includeTabCounts: boolean;
+    } = {
+      page: this.currentPage,
+      limit: this.pageSize,
+      lifecycle: this.statusTab,
+      includeTabCounts: true
+    };
+    if (this.dateFilterType === 'one' && this.filters.date) f.date = this.filters.date;
+    if (this.filters.batch) f.batch = this.filters.batch;
+    if (this.filters.plan) f.plan = this.filters.plan;
+    if (this.filters.status) f.status = this.filters.status;
 
-    this.zoomService.getAllMeetings(Object.keys(f).length ? f : undefined).subscribe({
-      next: (res) => { this.meetings = res.success ? res.data || [] : []; if (!res.success) this.error = res.message || 'Failed'; this.loading = false; },
-      error: (err) => { this.meetings = []; this.error = err.error?.message || 'Failed'; this.loading = false; }
+    this.zoomService.getAllMeetings(f).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.meetings = res.data || [];
+          this.totalCount = Number(res.totalCount ?? res.pagination?.totalItems ?? this.meetings.length) || 0;
+          if (res.tabCounts) {
+            this.tabCounts = {
+              scheduled: res.tabCounts.scheduled ?? 0,
+              ongoing: res.tabCounts.ongoing ?? 0,
+              ended: res.tabCounts.ended ?? 0
+            };
+          }
+          const totalPages = Math.max(Math.ceil(this.totalCount / this.pageSize), 1);
+          if (this.currentPage > totalPages) {
+            this.currentPage = totalPages;
+            this.loading = false;
+            this.loadClasses();
+            return;
+          }
+        } else {
+          this.meetings = [];
+          this.totalCount = 0;
+          this.error = res.message || 'Failed';
+        }
+        this.loading = false;
+      },
+      error: (err) => {
+        this.meetings = [];
+        this.totalCount = 0;
+        this.error = err.error?.message || 'Failed';
+        this.loading = false;
+      }
     });
   }
 
   clearFilters(): void {
     this.dateFilterType = 'all';
     this.filters = { batch: '', date: '', plan: '', status: '' };
+    this.currentPage = 1;
     this.loadClasses();
   }
 
@@ -125,6 +257,52 @@ export class TeacherMyClassesComponent implements OnInit {
     return new Date(m.startTime).toLocaleString('en-LK', {
       timeZone: 'Asia/Colombo', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
+  }
+
+  showJoinButton(_m: any): boolean {
+    return this.statusTab !== 'ended';
+  }
+
+  joinMeeting(m: any, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.joinClassFlow.openJoin(m, (msg) => this.notify.error(msg));
+  }
+
+  joinButtonLabel(m: any): string {
+    if (this.getMeetingStatus(m) === 'ongoing') return 'Join';
+    if (this.canJoinMeeting(m)) return 'Join';
+    return 'Join in ' + this.formatTimeUntilJoinOpens(m);
+  }
+
+  formatTimeUntilJoinOpens(m: any): string {
+    const start = new Date(m.startTime);
+    const joinOpens = new Date(start.getTime() - 10 * 60000);
+    const ms = joinOpens.getTime() - Date.now();
+    if (ms <= 0) return '0 min';
+    const totalMins = Math.floor(ms / 60000);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    if (totalMins >= 1) return `${totalMins} min`;
+    return `${Math.max(1, Math.ceil(ms / 1000))} sec`;
+  }
+
+  getMeetingStatus(m: any): 'scheduled' | 'ongoing' | 'ended' {
+    const now = new Date();
+    const start = new Date(m.startTime);
+    const end = new Date(start.getTime() + (m.duration || 0) * 60000);
+    if (now >= start && now <= end) return 'ongoing';
+    if (now > end) return 'ended';
+    return 'scheduled';
+  }
+
+  canJoinMeeting(m: any): boolean {
+    const now = new Date();
+    const start = new Date(m.startTime);
+    const end = new Date(start.getTime() + (m.duration || 0) * 60000);
+    const tenMinBefore = new Date(start.getTime() - 10 * 60000);
+    return now >= tenMinBefore && now <= end;
   }
 
   // ── Resources Modal ──

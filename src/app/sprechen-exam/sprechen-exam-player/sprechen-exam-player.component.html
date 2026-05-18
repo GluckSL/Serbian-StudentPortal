@@ -1,0 +1,197 @@
+<div class="dg-player" *ngIf="loading">
+  <div class="dg-player__sk-grid">
+    <div class="dg-player__sk-char"></div>
+    <div class="dg-player__sk-chat-wrap">
+      <div class="dg-player__sk-chat-body">
+        <div class="dg-player__sk-bubble"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dg-player__err" *ngIf="error && !loading">{{ error }}</div>
+
+<div class="dg-player sp-exam-player" *ngIf="!loading && !error && payload && !examDone">
+  <div class="dg-player__ambient" aria-hidden="true"></div>
+
+  <header class="dg-player__top sp-exam-player__top">
+    <div class="dg-player__progress-block">
+      <div class="dg-player__progress-head">
+        <span class="dg-player__module-title">{{ payload.module.title }}</span>
+        <span class="sp-exam-player__exam-label">Goethe A1 — Sprechprüfung</span>
+      </div>
+      <app-exam-progress [activeTeil]="teilNumber" class="sp-exam-player__teil-progress"></app-exam-progress>
+    </div>
+    <div class="dg-player__exit" (click)="onExit()" role="button" tabindex="0" aria-label="Exit">
+      <mat-icon>close</mat-icon>
+    </div>
+  </header>
+
+  <div class="dg-player__stage-wrap">
+    <div class="dg-conv">
+      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+        <div class="dg-conv__char-header" *ngIf="isMobile">
+          <div class="dg-conv__mic-area">
+            <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+            <ng-container *ngTemplateOutlet="examMic"></ng-container>
+          </div>
+        </div>
+        <app-exam-card-panel *ngIf="currentCard" [card]="currentCard" class="sp-exam-player__card-panel"></app-exam-card-panel>
+        <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
+          <app-dg-character
+            [minimalChrome]="true"
+            [name]="characterName"
+          ></app-dg-character>
+        </div>
+        <p class="sp-exam-player__char-name">{{ characterName }}</p>
+        <p class="sp-exam-player__char-role">Olly Tutor · Prüfer</p>
+      </aside>
+
+      <main class="dg-conv__chat">
+        <header class="dg-conv__chat-head">
+          <div class="dg-conv__brand">
+            <div class="dg-conv__brand-avatar" aria-hidden="true">
+              <mat-icon>record_voice_over</mat-icon>
+            </div>
+            <div class="dg-conv__brand-text">
+              <h3>Sprechen Exam</h3>
+              <p>{{ payload.module.title }}</p>
+              <div class="dg-conv__actions-row">
+                <button
+                  type="button"
+                  class="dg-conv__action-btn"
+                  [class.dg-conv__action-btn--active]="ccMode === 'en'"
+                  (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
+                >
+                  CC EN
+                </button>
+                <button
+                  type="button"
+                  class="dg-conv__action-btn"
+                  [class.dg-conv__action-btn--active]="ccMode === 'ta'"
+                  (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
+                >
+                  CC தமிழ்
+                </button>
+                <button
+                  type="button"
+                  class="dg-conv__action-btn dg-conv__action-btn--replay"
+                  [disabled]="botSpeaking || micProcessing"
+                  (click)="replayTts()"
+                >
+                  <mat-icon>volume_up</mat-icon>
+                  Replay
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="dg-conv__session-divider">
+          <span>Prüfung gestartet</span>
+        </div>
+
+        <div class="dg-conv__status" *ngIf="statusLabel" aria-live="polite">
+          <span class="dg-conv__status-dot" [class.dg-conv__status-dot--thinking]="micProcessing"></span>
+          {{ statusLabel }}
+        </div>
+
+        <div class="dg-conv__history" #chatScroll>
+          <div
+            *ngFor="let msg of chatHistory"
+            class="dg-conv__msg"
+            [class.dg-conv__msg--ai]="msg.speaker === 'ai'"
+            [class.dg-conv__msg--student]="msg.speaker === 'student'"
+          >
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" *ngIf="msg.speaker === 'ai'" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label" *ngIf="msg.speaker === 'ai'">{{ characterName }}</span>
+              <span class="dg-conv__msg-label dg-conv__msg-label--student" *ngIf="msg.speaker === 'student'">Sie</span>
+              <div class="dg-conv__msg-bubble">
+                <span class="dg-conv__msg-text">{{ msg.text }}</span>
+                <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
+                  {{ getCcCaption(msg) }}
+                </span>
+              </div>
+            </div>
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--student" *ngIf="msg.speaker === 'student'" aria-hidden="true">👤</div>
+          </div>
+
+          <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="botSpeaking && chatHistory.length > 0">
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label">{{ characterName }}</span>
+              <div class="dg-conv__msg-bubble">
+                <div class="dg-conv__typing-bubble">
+                  <span class="dg-conv__typing-dot"></span>
+                  <span class="dg-conv__typing-dot"></span>
+                  <span class="dg-conv__typing-dot"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dg-conv__waiting" *ngIf="isWelcomePhase && !botSpeaking && !micProcessing">
+            <div class="dg-conv__start-prompt">
+              <div class="dg-conv__start-icon">🦊</div>
+              <p class="dg-conv__start-heading">Bereit für die Prüfung?</p>
+              <p class="dg-conv__start-sub">
+                {{ characterName }} führt Sie durch drei Teile der Goethe A1 Sprechprüfung.
+                Klicken Sie unten, wenn Sie bereit sind.
+              </p>
+              <button
+                mat-flat-button
+                color="primary"
+                class="dg-conv__start-btn"
+                [disabled]="botSpeaking"
+                (click)="onReady()"
+              >
+                <mat-icon>play_arrow</mat-icon>
+                Ja, ich bin bereit
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dg-conv__mic-area" *ngIf="!isMobile">
+          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+          <p class="dg-conv__mic-hint" *ngIf="showStudentTurnUi">
+            🎧 Für Zahlen und Buchstabieren: Headset und ruhiger Raum empfohlen.
+          </p>
+          <ng-container *ngTemplateOutlet="examMic"></ng-container>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<ng-template #examMic>
+  <app-dg-practice
+    *ngIf="showStudentTurnUi"
+    [expected]="''"
+    [allowFreeSpeech]="true"
+    [instantStart]="true"
+    [hideFeedback]="true"
+    language="German"
+    [hint]="''"
+    [disabled]="micProcessing || botSpeaking"
+    [retryTick]="micRetryTick"
+    [sceneKey]="'sprechen-' + micRetryTick"
+    (evaluated)="onEvaluated($event)"
+    (silence)="onSilence()"
+    (phaseChange)="onPracticePhase($event)"
+  ></app-dg-practice>
+</ng-template>
+
+<ng-container *ngIf="examDone">
+  <div class="sp-exam-player__summary-wrap">
+    <app-exam-summary
+      [scores]="finalScores"
+      (retake)="onRetake()"
+      (exit)="onExit()"
+    ></app-exam-summary>
+  </div>
+</ng-container>

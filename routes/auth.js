@@ -57,6 +57,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "user-roles",
   "modules",
   "dg-bot",
+  "sprechen-exam",
   "exercises",
   "teacher-resources",
   "journey",

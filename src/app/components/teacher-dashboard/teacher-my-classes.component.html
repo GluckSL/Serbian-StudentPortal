@@ -12,7 +12,7 @@
         <div class="col-md-4 text-end">
           <div class="teacher-stats-quick">
             <div class="stat-item">
-              <span class="stat-number">{{ meetings.length }}</span>
+              <span class="stat-number">{{ headerClassCount }}</span>
               <span class="stat-label">Classes</span>
             </div>
           </div>
@@ -44,13 +44,13 @@
                   type="date"
                   class="form-control"
                   [(ngModel)]="filters.date"
-                  (change)="loadClasses()"
+                  (change)="onFiltersChange()"
                 />
                 <small class="text-muted d-block mt-1" *ngIf="dateFilterType === 'all'">Showing every scheduled class you teach</small>
               </div>
               <div class="col-md-3">
                 <label class="form-label">Batch</label>
-                <select class="form-select" [(ngModel)]="filters.batch" (change)="loadClasses()">
+                <select class="form-select" [(ngModel)]="filters.batch" (change)="onFiltersChange()">
                   <option value="">All batches</option>
                   <option *ngFor="let b of batchOptions" [value]="b">{{ b }}</option>
                 </select>
@@ -58,7 +58,7 @@
               </div>
               <div class="col-md-2">
                 <label class="form-label">Plan</label>
-                <select class="form-select" [(ngModel)]="filters.plan" (change)="loadClasses()">
+                <select class="form-select" [(ngModel)]="filters.plan" (change)="onFiltersChange()">
                   <option value="">All plans</option>
                   <option value="PLATINUM">Platinum</option>
                   <option value="SILVER">Silver</option>
@@ -66,7 +66,7 @@
               </div>
               <div class="col-md-2">
                 <label class="form-label">Status</label>
-                <select class="form-select" [(ngModel)]="filters.status" (change)="loadClasses()">
+                <select class="form-select" [(ngModel)]="filters.status" (change)="onFiltersChange()">
                   <option value="">All statuses</option>
                   <option value="scheduled">Scheduled</option>
                   <option value="started">Started</option>
@@ -87,18 +87,27 @@
       <div class="results-summary" *ngIf="!error">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="results-info">
-            <span class="results-count">{{ meetings.length }}</span>
-            <span class="results-text">class(es)</span>
+            <span class="results-count">{{ totalCount }}</span>
+            <span class="results-text">{{ tabTitle(statusTab) | lowercase }} class(es)</span>
             <span class="text-muted small ms-2">· {{ resultsSummaryText() }}</span>
           </div>
         </div>
       </div>
 
       <div class="alert alert-warning" *ngIf="error">{{ error }}</div>
-      <div class="text-center py-4 text-muted" *ngIf="loading">Loading…</div>
-
-      <div class="data-table-card" *ngIf="!loading && !error">
+      <div class="data-table-card" *ngIf="!error">
         <div class="card">
+          <div class="tmc-tab-row" role="tablist" aria-label="Class schedule">
+            <button type="button" class="tmc-tab-btn" role="tab" [class.active]="statusTab === 'scheduled'" [attr.aria-selected]="statusTab === 'scheduled'" (click)="setStatusTab('scheduled')">
+              Upcoming <span class="tmc-tab-count">({{ tabCount('scheduled') }})</span>
+            </button>
+            <button type="button" class="tmc-tab-btn" role="tab" [class.active]="statusTab === 'ongoing'" [attr.aria-selected]="statusTab === 'ongoing'" (click)="setStatusTab('ongoing')">
+              Live <span class="tmc-tab-count">({{ tabCount('ongoing') }})</span>
+            </button>
+            <button type="button" class="tmc-tab-btn" role="tab" [class.active]="statusTab === 'ended'" [attr.aria-selected]="statusTab === 'ended'" (click)="setStatusTab('ended')">
+              Conducted <span class="tmc-tab-count">({{ tabCount('ended') }})</span>
+            </button>
+          </div>
           <div class="table-responsive">
             <table class="table table-hover mb-0">
               <thead class="table-dark">
@@ -113,11 +122,23 @@
                   <th class="text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody *ngIf="loading">
+                <tr *ngFor="let _ of skeletonRows" class="tmc-skeleton-row">
+                  <td><div class="tmc-skeleton tmc-skeleton--lg"></div></td>
+                  <td><div class="tmc-skeleton"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--md"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--actions"></div></td>
+                </tr>
+              </tbody>
+              <tbody *ngIf="!loading">
                 <tr *ngIf="meetings.length === 0">
                   <td colspan="8" class="text-center text-muted py-4">
-                    No classes match your filters.
-                    <span *ngIf="dateFilterType === 'one' && !filters.date">Choose a date, or switch Date to “All dates”.</span>
+                    {{ emptyTabMessage() }}
+                    <span *ngIf="dateFilterType === 'one' && !filters.date"> Choose a date, or switch Date to “All dates”.</span>
                   </td>
                 </tr>
                 <tr *ngFor="let m of meetings; trackBy: trackById">
@@ -137,6 +158,16 @@
                   <td>{{ m.attendees?.length ?? 0 }}</td>
                   <td class="text-center">
                     <div class="action-btns">
+                      <button
+                        *ngIf="showJoinButton(m)"
+                        type="button"
+                        class="tbl-action-btn tbl-action-btn--join"
+                        (click)="joinMeeting(m, $event)"
+                        [disabled]="!canJoinMeeting(m)"
+                        title="Join class"
+                      >
+                        <i class="fas fa-video"></i> {{ joinButtonLabel(m) }}
+                      </button>
                       <button type="button" class="tbl-action-btn tbl-action-btn--resource" (click)="openResources(m)" title="Resources">
                         <i class="fas fa-folder-open"></i> Resources
                       </button>
@@ -152,6 +183,32 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div
+            class="table-pagination-bar d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-3 border-top"
+            *ngIf="!loading && totalCount > 0"
+          >
+            <small class="text-muted">
+              Showing {{ pageStart }}–{{ pageEnd }} of {{ totalCount }}
+              <span *ngIf="totalPages > 1"> · Page {{ currentPage }} of {{ totalPages }}</span>
+            </small>
+            <div class="btn-group btn-group-sm" role="group" *ngIf="totalPages > 1">
+              <button type="button" class="btn btn-outline-secondary" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">
+                Prev
+              </button>
+              <button
+                type="button"
+                class="btn"
+                *ngFor="let page of getPaginationPages()"
+                [ngClass]="page === currentPage ? 'btn-primary' : 'btn-outline-secondary'"
+                (click)="changePage(page)"
+              >
+                {{ page }}
+              </button>
+              <button type="button" class="btn btn-outline-secondary" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>

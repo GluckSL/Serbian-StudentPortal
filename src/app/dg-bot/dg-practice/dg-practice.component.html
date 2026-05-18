@@ -40,7 +40,7 @@
 
   <p class="dg-practice__hint" *ngIf="hint && !countdownActive">{{ hint }}</p>
 
-  <ng-container *ngIf="lastEval as ev">
+  <ng-container *ngIf="!hideFeedback && lastEval as ev">
     <p class="dg-practice__transcript" *ngIf="ev.transcript">
       You said: <span class="dg-practice__said-text">{{ ev.transcript }}</span>
     </p>

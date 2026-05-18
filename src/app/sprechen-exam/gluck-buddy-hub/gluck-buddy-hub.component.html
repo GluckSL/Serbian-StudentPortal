@@ -1,0 +1,74 @@
+<div class="gb-hub" [class.gb-hub--journey]="journeyFixedDay != null">
+  <div class="gb-hub__loading" *ngIf="loadingAvailability">
+    <div class="gb-hub__loading-bar" *ngFor="let _ of [1, 2, 3]"></div>
+  </div>
+
+  <p class="gb-hub__error" *ngIf="!loadingAvailability && availabilityError">{{ availabilityError }}</p>
+
+  <ng-container *ngIf="!loadingAvailability && !availabilityError">
+    <!-- Hero only when both Practice and Exam tabs are shown (hidden when Exam tab is not offered). -->
+    <header class="gb-hub__hero" *ngIf="showSegment">
+      <div class="gb-hub__hero-copy">
+        <p class="gb-hub__kicker">Speaking practice</p>
+        <h2 class="gb-hub__title">Glück Buddy</h2>
+        <p class="gb-hub__lead">Role-play lessons and exam simulations for your journey day.</p>
+      </div>
+      <div class="gb-hub__hero-visual" aria-hidden="true">
+        <img src="assets/images/practice-partner-fox.svg" alt="" width="72" height="72" />
+      </div>
+    </header>
+
+    <div class="gb-hub__segment" *ngIf="showSegment" role="tablist" aria-label="Glück Buddy mode">
+      <button
+        type="button"
+        role="tab"
+        class="gb-hub__segment-btn"
+        [class.gb-hub__segment-btn--on]="subTab === 'practice'"
+        [attr.aria-selected]="subTab === 'practice'"
+        (click)="subTab = 'practice'"
+      >
+        <span class="material-icons" aria-hidden="true">forum</span>
+        <span>Practice</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="gb-hub__segment-btn"
+        [class.gb-hub__segment-btn--on]="subTab === 'exam'"
+        [attr.aria-selected]="subTab === 'exam'"
+        (click)="subTab = 'exam'"
+      >
+        <span class="material-icons" aria-hidden="true">record_voice_over</span>
+        <span>Exam</span>
+      </button>
+    </div>
+
+    <div class="gb-hub__panel" role="tabpanel" *ngIf="hasAnyModules">
+      <app-dg-bot-hub
+        *ngIf="subTab === 'practice' && showPracticeTab"
+        [embedded]="true"
+        [hideEmbeddedHeader]="true"
+        [journeyFixedDay]="journeyFixedDay"
+      ></app-dg-bot-hub>
+
+      <app-sprechen-exam-hub
+        *ngIf="subTab === 'exam' && showExamTab"
+        [embedded]="true"
+        [hideEmbeddedHeader]="true"
+        [journeyFixedDay]="journeyFixedDay"
+        tutorName="Olly Tutor"
+      ></app-sprechen-exam-hub>
+    </div>
+
+    <section class="gb-hub__empty" *ngIf="!hasAnyModules">
+      <img class="gb-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
+      <h3>No Glück Buddy modules yet</h3>
+      <p *ngIf="journeyFixedDay != null">
+        Nothing is assigned for <strong>Day {{ journeyFixedDay }}</strong> yet. Check back later or try another journey day.
+      </p>
+      <p *ngIf="journeyFixedDay == null">
+        Your teacher has not published speaking practice or exam modules for <strong>Day {{ studentCourseDay }}</strong> yet.
+      </p>
+    </section>
+  </ng-container>
+</div>

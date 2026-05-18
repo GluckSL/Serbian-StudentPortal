@@ -19,6 +19,93 @@ function isS3Url(url) {
 }
 
 /**
+ * Strip presigned query params so only the stable object URL is stored in MongoDB.
+ * Prevents expired signatures from breaking media after admin save/reload cycles.
+ */
+function canonicalizeS3Url(url) {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  if (!trimmed || !isS3Url(trimmed)) return trimmed;
+  try {
+    const u = new URL(trimmed);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return trimmed.split('?')[0];
+  }
+}
+
+function canonicalizeMediaUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  return canonicalizeS3Url(url.trim());
+}
+
+function urlHasPresignedQuery(url) {
+  if (!url || typeof url !== 'string') return false;
+  const s = url.trim();
+  return s.includes('.amazonaws.com/') && (s.includes('X-Amz-') || s.includes('x-amz-'));
+}
+
+function questionHasPresignedMedia(q) {
+  if (!q || typeof q !== 'object') return false;
+  const fields = [q.audioUrl, q.mediaUrl, q.videoUrl, q.imageUrl, q.attachmentUrl];
+  if (fields.some(urlHasPresignedQuery)) return true;
+  if (Array.isArray(q.optionImageUrls) && q.optionImageUrls.some(urlHasPresignedQuery)) return true;
+  if (Array.isArray(q.subQuestions)) {
+    return q.subQuestions.some(questionHasPresignedMedia);
+  }
+  return false;
+}
+
+/** True when an exercise document still stores short-lived S3 presigned URLs. */
+function exerciseHasPresignedMedia(exercise) {
+  if (!exercise || typeof exercise !== 'object') return false;
+  if (urlHasPresignedQuery(exercise.sharedAudioUrl)) return true;
+  for (const list of [exercise.videoSuccessFeedback, exercise.videoRetryFeedback]) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (urlHasPresignedQuery(item?.audioUrl)) return true;
+    }
+  }
+  if (!Array.isArray(exercise.questions)) return false;
+  return exercise.questions.some(questionHasPresignedMedia);
+}
+
+function canonicalizeQuestionMedia(q) {
+  if (!q || typeof q !== 'object') return;
+  if (q.audioUrl) q.audioUrl = canonicalizeMediaUrl(q.audioUrl);
+  if (q.mediaUrl) q.mediaUrl = canonicalizeMediaUrl(q.mediaUrl);
+  if (q.videoUrl) q.videoUrl = canonicalizeMediaUrl(q.videoUrl);
+  if (q.imageUrl) q.imageUrl = canonicalizeMediaUrl(q.imageUrl);
+  if (q.attachmentUrl) q.attachmentUrl = canonicalizeMediaUrl(q.attachmentUrl);
+  if (Array.isArray(q.optionImageUrls)) {
+    q.optionImageUrls = q.optionImageUrls.map((u) => canonicalizeMediaUrl(u));
+  }
+  if (Array.isArray(q.subQuestions)) {
+    for (const sq of q.subQuestions) canonicalizeQuestionMedia(sq);
+  }
+}
+
+/**
+ * Normalize all media URL fields before persisting an exercise document.
+ */
+function canonicalizeExerciseForStorage(exercise) {
+  if (!exercise || typeof exercise !== 'object') return exercise;
+  if (exercise.sharedAudioUrl) {
+    exercise.sharedAudioUrl = canonicalizeMediaUrl(exercise.sharedAudioUrl);
+  }
+  for (const list of [exercise.videoSuccessFeedback, exercise.videoRetryFeedback]) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (item?.audioUrl) item.audioUrl = canonicalizeMediaUrl(item.audioUrl);
+    }
+  }
+  if (Array.isArray(exercise.questions)) {
+    for (const q of exercise.questions) canonicalizeQuestionMedia(q);
+  }
+  return exercise;
+}
+
+/**
  * Extract the S3 object key from a full S3 URL.
  * Some stored URLs are multiply percent-encoded; decoding repeatedly yields the
  * real key that matches the object in the bucket. Signing with a key that still
@@ -208,7 +295,11 @@ async function resignExercise(exercise) {
       }
       if (Array.isArray(q.subQuestions)) {
         for (const sq of q.subQuestions) {
+          if (isS3Url(sq.audioUrl)) sq.audioUrl = await presignS3Url(sq.audioUrl);
+          if (isS3Url(sq.mediaUrl)) sq.mediaUrl = await presignS3Url(sq.mediaUrl);
+          if (isS3Url(sq.videoUrl)) sq.videoUrl = await presignS3Url(sq.videoUrl);
           if (isS3Url(sq.imageUrl)) sq.imageUrl = await presignS3Url(sq.imageUrl);
+          if (isS3Url(sq.attachmentUrl)) sq.attachmentUrl = await presignS3Url(sq.attachmentUrl);
           if (Array.isArray(sq.optionImageUrls)) {
             for (let oi = 0; oi < sq.optionImageUrls.length; oi++) {
               if (isS3Url(sq.optionImageUrls[oi])) {
@@ -242,6 +333,10 @@ module.exports = {
   presignS3InlineUrl,
   resignExercise,
   resignExercises,
+  canonicalizeS3Url,
+  canonicalizeMediaUrl,
+  canonicalizeExerciseForStorage,
+  exerciseHasPresignedMedia,
   isS3Url,
   USE_SIGNED
 };

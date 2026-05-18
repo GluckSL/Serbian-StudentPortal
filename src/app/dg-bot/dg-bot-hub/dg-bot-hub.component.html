@@ -107,7 +107,32 @@
     </div>
 
     <!-- My Course → Gluck Buddy tab: optional title search only -->
-    <div class="dg-hub__filters dg-hub__filters--search-only" *ngIf="showEmbeddedSearchOnly()">
+    <div class="dg-hub__toolbar" *ngIf="embedded && modules.length > 0">
+      <div class="dg-hub__search-wrap dg-hub__search-wrap--toolbar">
+        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
+        <input type="text" class="dg-hub__search-input" [placeholder]="searchInputPlaceholder" [(ngModel)]="searchQuery" (input)="onSearchInput()" />
+        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dg-hub__status-row" role="tablist" aria-label="Module status">
+        <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'new'" (click)="setTab('new')">
+          New <span class="dg-hub__status-count">{{ countForTab('new') }}</span>
+        </button>
+        <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'pending'" (click)="setTab('pending')">
+          Pending <span class="dg-hub__status-count">{{ countForTab('pending') }}</span>
+        </button>
+        <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'completed'" (click)="setTab('completed')">
+          Completed <span class="dg-hub__status-count">{{ countForTab('completed') }}</span>
+        </button>
+      </div>
+      <p class="dg-hub__day-hint" *ngIf="journeyFixedDay == null">
+        <span class="material-icons" aria-hidden="true">calendar_today</span>
+        Journey day {{ studentCourseDay }} — “New” matches today’s assigned lessons.
+      </p>
+    </div>
+
+    <div class="dg-hub__filters dg-hub__filters--search-only" *ngIf="showEmbeddedSearchOnly() && !embedded">
       <div class="dg-hub__search-wrap">
         <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
         <input
@@ -123,7 +148,7 @@
       </div>
     </div>
 
-    <div class="mc-tabs-wrap">
+    <div class="mc-tabs-wrap" *ngIf="!embedded">
       <div class="mc-tabs">
         <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
           Completed
@@ -194,9 +219,14 @@
     </section>
 
     <section *ngIf="modules.length > 0 && filteredModules.length === 0" class="dg-hub__empty dg-hub__empty--soft">
-      <div class="dg-hub__empty-icon">🦊</div>
+      <img class="dg-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
       <h3>No modules in this view</h3>
-      <p>Try another tab<span *ngIf="showFullFilters() || showEmbeddedSearchOnly()"> or clear filters</span>.</p>
+      <p>Nothing here for <strong>{{ activeTab }}</strong> yet. Try another status or clear your search.</p>
+      <div class="dg-hub__empty-actions" *ngIf="embedded">
+        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'new'" (click)="setTab('new')">View New</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'pending'" (click)="setTab('pending')">View Pending</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">Clear search</button>
+      </div>
     </section>
 
     <section *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">

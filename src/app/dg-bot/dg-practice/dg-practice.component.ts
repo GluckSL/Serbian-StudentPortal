@@ -44,6 +44,8 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
   /** Parent bumps after a failed attempt (reserved for future UX hooks). */
   @Input() retryTick = 0;
   @Input() sceneKey = '';
+  /** Hide transcript, word breakdown, and tips (e.g. formal exam mode). */
+  @Input() hideFeedback = false;
 
   @Output() evaluated = new EventEmitter<PronunciationEvaluateResponse>();
   @Output() silence = new EventEmitter<void>();

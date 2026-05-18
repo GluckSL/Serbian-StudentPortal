@@ -353,6 +353,61 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] },
   },
 
+  // ── Sprechen Exam (Goethe A1 Speaking Bot) ───────────────────────────────
+  {
+    path: 'sprechen-exam',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-exam-hub/sprechen-exam-hub.component').then(
+        (m) => m.SprechenExamHubComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'STUDENT' },
+  },
+  {
+    path: 'sprechen-exam/:moduleId/play',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-exam-player/sprechen-exam-player.component').then(
+        (m) => m.SprechenExamPlayerComponent,
+      ),
+    canActivate: [AuthGuard],
+  },
+  {
+    path: 'admin/sprechen-exam',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-admin-modules/sprechen-admin-modules.component').then(
+        (m) => m.SprechenAdminModulesComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] },
+  },
+  {
+    path: 'admin/sprechen-exam/new',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-admin-module-form/sprechen-admin-module-form.component').then(
+        (m) => m.SprechenAdminModuleFormComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], sprechenFormMode: 'create' },
+  },
+  {
+    path: 'admin/sprechen-exam/:id/edit',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-admin-module-form/sprechen-admin-module-form.component').then(
+        (m) => m.SprechenAdminModuleFormComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], sprechenFormMode: 'edit' },
+  },
+  {
+    path: 'admin/sprechen-exam/:moduleId/sessions',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-session-review/sprechen-session-review.component').then(
+        (m) => m.SprechenSessionReviewComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] },
+  },
+
   // ── Digital Exercises (new feature) ──────────────────────────────────────
   // Student & all roles: browse and play exercises
   {

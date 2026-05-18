@@ -473,7 +473,7 @@
               <label class="field-label">Image URL (optional)</label>
               <input type="text" [(ngModel)]="q.imageUrl" class="field-input" placeholder="https://..." />
               <div class="image-preview" *ngIf="q.imageUrl">
-                <img [src]="getMediaFullUrl(q.imageUrl)" alt="Question image" class="preview-img" (error)="q.imageUrl = ''" />
+                <img [src]="getMediaFullUrl(q.imageUrl)" alt="Question image" class="preview-img" />
               </div>
             </div>
             <div class="options-section">

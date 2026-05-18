@@ -208,6 +208,13 @@ export interface VideoExerciseFeedbackItem {
   caption?: string;
 }
 
+/** Tells the server an empty media field was removed on purpose (do not restore previous URL). */
+export interface ExerciseMediaClear {
+  qIndex: number;
+  subIndex?: number | null;
+  field: string;
+}
+
 export interface DigitalExercise {
   _id?: string;
   title: string;
@@ -239,6 +246,8 @@ export interface DigitalExercise {
    * Students must pass all prior letters before this unlocks.
    */
   sequenceLetter?: string | null;
+  /** Sent on PUT when teacher explicitly removed uploaded media from a question. */
+  mediaClears?: ExerciseMediaClear[];
   /** Set by server for student list response when sequence-locked */
   sequenceLocked?: boolean;
   previousSequenceLetter?: string | null;
@@ -806,7 +815,7 @@ export class DigitalExerciseService {
     }
     const formData = new FormData();
     formData.append('attachment', file);
-    return this.http.post<{ success: boolean; url: string }>(
+    return this.http.post<{ success: boolean; url: string; canonicalUrl?: string }>(
       `${environment.apiUrl}/digital-exercises/upload-attachment`,
       formData,
       { withCredentials: true }

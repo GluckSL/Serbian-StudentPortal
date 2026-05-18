@@ -13,7 +13,17 @@ const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
-const { resignExercise, resignExercises, presignS3Url } = require('../config/presign');
+const {
+  resignExercise,
+  resignExercises,
+  presignS3Url,
+  canonicalizeExerciseForStorage,
+  exerciseHasPresignedMedia
+} = require('../config/presign');
+const {
+  preserveExistingQuestionMedia,
+  preserveTopLevelMedia
+} = require('../utils/exerciseMediaPreserve');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
@@ -1235,7 +1245,29 @@ router.get('/:id', verifyToken, async (req, res) => {
       exercise.studentAttempt = bestAttempt;
     }
 
-    await resignExercise(exercise);
+    // Repair legacy rows that stored presigned S3 URLs (they expire and break images).
+    const staffRoles = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+    if (!studentView && staffRoles.includes(req.user.role) && exerciseHasPresignedMedia(exercise)) {
+      const doc = await DigitalExercise.findById(req.params.id);
+      if (doc) {
+        canonicalizeExerciseForStorage(doc);
+        doc.markModified('questions');
+        if (doc.sharedAudioUrl) doc.markModified('sharedAudioUrl');
+        if (doc.videoSuccessFeedback) doc.markModified('videoSuccessFeedback');
+        if (doc.videoRetryFeedback) doc.markModified('videoRetryFeedback');
+        await doc.save();
+        const repaired = await DigitalExercise.findById(req.params.id)
+          .populate('createdBy', 'name email')
+          .lean();
+        if (repaired) Object.assign(exercise, repaired);
+      }
+    }
+
+    // Presign only for playback (students / staff preview). Admin editor must receive
+    // canonical URLs so a save does not persist short-lived signed URLs to MongoDB.
+    if (studentView) {
+      await resignExercise(exercise);
+    }
     res.json(exercise);
   } catch (err) {
     console.error('GET /digital-exercises/:id error:', err);
@@ -1437,10 +1469,10 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
       normalizedBody.questions = normalizeQuestionContexts(normalizedBody.questions);
     }
 
-    const exerciseData = {
+    const exerciseData = canonicalizeExerciseForStorage({
       ...normalizedBody,
       createdBy: req.user.id
-    };
+    });
     const exercise = new DigitalExercise(exerciseData);
     await exercise.save();
     res.status(201).json(exercise);
@@ -1499,13 +1531,28 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
+    const mediaClears = req.body.mediaClears;
+    const existingTopMedia = {
+      sharedAudioUrl: exercise.sharedAudioUrl,
+      videoSuccessFeedback: exercise.videoSuccessFeedback,
+      videoRetryFeedback: exercise.videoRetryFeedback
+    };
     for (const key of DIGITAL_EXERCISE_ASSIGNABLE_KEYS) {
       if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-        exercise[key] = key === 'questions'
-          ? normalizeQuestionContexts(req.body[key])
-          : req.body[key];
+        if (key === 'questions') {
+          const normalized = normalizeQuestionContexts(req.body[key]);
+          exercise.questions = preserveExistingQuestionMedia(
+            exercise.questions,
+            normalized,
+            mediaClears
+          );
+        } else {
+          exercise[key] = req.body[key];
+        }
       }
     }
+    preserveTopLevelMedia(existingTopMedia, exercise, mediaClears);
+    canonicalizeExerciseForStorage(exercise);
     exercise.lastUpdatedBy = req.user.id;
     exercise.updatedAt = new Date();
 
@@ -2555,6 +2602,8 @@ router.post(
       }
 
       // S3 (image/video): .location; PDF/docs: disk relative path
+      // Policy: never delete previous S3/R2 objects when a new file is uploaded — old
+      // media remains in storage; only the exercise document URL field is updated.
       const rawUrl = req.file.location || `/uploads/exercise-attachments/${req.file.filename}`;
       // When the bucket is private (S3_USE_SIGNED_URLS=true), presign the URL so the
       // builder can display the image immediately without a 403 from S3.

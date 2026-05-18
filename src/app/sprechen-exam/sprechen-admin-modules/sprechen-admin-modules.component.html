@@ -1,0 +1,170 @@
+<div class="dg-admin-mm admin-modules">
+  <div class="admin-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="admin-title">
+            <i class="fas fa-microphone-alt"></i>
+            Sprechen Exam modules
+          </h1>
+          <p class="admin-subtitle">Manage Goethe A1 speaking exams — same workflow as DG Bot (Olly Tutor)</p>
+        </div>
+        <div class="col-md-4 text-end" *ngIf="!loading">
+          <div class="admin-stats-quick">
+            <div class="stat-item">
+              <span class="stat-number">{{ statTotal }}</span>
+              <span class="stat-label">Total modules</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-content">
+    <div class="container-fluid">
+      <p class="dg-adm__msg mb-2" *ngIf="message">{{ message }}</p>
+
+      <ng-container *ngIf="loading">
+        <div class="dg-hub__loading-cards">
+          <div class="dg-hub__skeleton-card" *ngFor="let _ of skeletonRows"></div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loading">
+        <div class="action-bar">
+          <div class="row align-items-center g-2">
+            <div class="col-lg-5">
+              <div class="dg-mm-actions">
+                <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
+                  <i class="fas fa-plus"></i> Create New Module
+                </button>
+                <button class="btn btn-outline-secondary" type="button" (click)="seedPlaceholder()">
+                  <i class="fas fa-magic"></i> Quick placeholder
+                </button>
+              </div>
+            </div>
+            <div class="col-lg-7">
+              <div class="dg-mm-controls">
+                <input
+                  type="search"
+                  class="form-control dg-mm-search"
+                  [(ngModel)]="listFilter"
+                  (ngModelChange)="resetListPage()"
+                  placeholder="Search by title…"
+                />
+                <select class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="resetListPage()">
+                  <option value="all">All Modules</option>
+                  <option value="live">Live only</option>
+                  <option value="draft">Draft only</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-section">
+          <div class="row">
+            <div class="col-md-4">
+              <div class="stat-card bg-primary text-white">
+                <div class="stat-content"><h3>{{ statTotal }}</h3><p>Total</p></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card bg-success text-white">
+                <div class="stat-content"><h3>{{ statLive }}</h3><p>Live</p></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card bg-warning text-white">
+                <div class="stat-content"><h3>{{ statDraft }}</h3><p>Draft</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modules-table" *ngIf="modules.length > 0">
+          <div class="data-table-card">
+            <div class="card">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Module</th>
+                      <th>Level</th>
+                      <th>Pass</th>
+                      <th>Journey day</th>
+                      <th>Status</th>
+                      <th class="text-center">Student view</th>
+                      <th class="text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let m of pagedFilteredModules; trackBy: trackModule">
+                      <td><div class="module-title">{{ m.title }}</div></td>
+                      <td><span class="badge bg-primary">{{ m.level || 'A1' }}</span></td>
+                      <td>{{ m.passThreshold ?? 10 }} / 15</td>
+                      <td>
+                        <span class="badge journey-day-badge" *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>
+                        <span class="text-muted" *ngIf="m.courseDay == null">—</span>
+                      </td>
+                      <td>
+                        <span class="badge" [class.mm-badge-live]="m.visibleToStudents" [class.mm-badge-draft]="!m.visibleToStudents">
+                          {{ m.visibleToStudents ? 'Live' : 'Draft' }}
+                        </span>
+                      </td>
+                      <td class="text-center">
+                        <button
+                          type="button"
+                          class="btn btn-sm dg-mm-btn-visibility"
+                          [class.dg-mm-btn-visibility--on]="m.visibleToStudents"
+                          [disabled]="visibilityBusyId === m._id"
+                          (click)="toggleStudentVisibility(m)"
+                        >
+                          <i class="fas" [ngClass]="m.visibleToStudents ? 'fa-eye' : 'fa-eye-slash'"></i>
+                        </button>
+                      </td>
+                      <td class="text-center">
+                        <div class="action-buttons">
+                          <button type="button" class="btn btn-sm btn-outline-purple me-1" (click)="goAnalytics(m)" title="Sessions">
+                            <i class="fas fa-chart-bar"></i>
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="goEdit(m)" title="Edit">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-success me-1" (click)="goPreview(m)" title="Preview">
+                            <i class="fas fa-play"></i>
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-danger" (click)="archiveModule(m)" title="Archive">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <mat-paginator
+                *ngIf="filteredModules.length > pageSize"
+                class="dg-mm-paginator"
+                [length]="filteredModules.length"
+                [pageIndex]="pageIndex"
+                [pageSize]="pageSize"
+                [pageSizeOptions]="pageSizeOptions"
+                [showFirstLastButtons]="true"
+                (page)="onPageChange($event)"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="mm-empty-card" *ngIf="modules.length === 0">
+          <div class="empty-state">
+            <h3>No Sprechen exam modules yet</h3>
+            <p>Create your first module with <strong>Create New Module</strong> (same as DG Bot).</p>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

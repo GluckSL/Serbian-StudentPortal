@@ -1,0 +1,108 @@
+{
+  "title": "Goethe A1 Sprechen — Prüfung 1",
+  "level": "A1",
+  "passThreshold": 10,
+  "teil1": {
+    "keywords": ["Name", "Alter", "Land", "Wohnort", "Sprachen", "Beruf", "Hobby"],
+    "spellPrompts": [
+      "Buchstabieren Sie bitte Ihren Nachnamen.",
+      "Buchstabieren Sie bitte Ihren Vornamen."
+    ],
+    "numberPrompts": [
+      "Nennen Sie mir bitte Ihre Telefonnummer.",
+      "Nennen Sie mir bitte Ihre Postleitzahl."
+    ]
+  },
+  "teil2": {
+    "themes": [
+      {
+        "name": "Essen und Trinken",
+        "studentKeyword": "Frühstück",
+        "botKeyword": "Lieblingsessen"
+      },
+      {
+        "name": "Freizeit",
+        "studentKeyword": "Sport",
+        "botKeyword": "Wochenende"
+      }
+    ]
+  },
+  "teil3": {
+    "rounds": [
+      {
+        "studentCard": { "label": "Stift", "objectDe": "einen Stift", "imageUrl": "" },
+        "botCard": { "label": "Wasser", "objectDe": "ein Glas Wasser", "imageUrl": "" }
+      },
+      {
+        "studentCard": { "label": "Buch", "objectDe": "ein Buch", "imageUrl": "" },
+        "botCard": { "label": "Stuhl", "objectDe": "einen Stuhl", "imageUrl": "" }
+      }
+    ]
+  },
+  "rubric": {
+    "teil1": {
+      "maxPoints": 3,
+      "criteria": [
+        {
+          "id": "t1_content",
+          "label": "Introduces all topics",
+          "points": 1,
+          "prompt": "Did the student address at least 5 of the 7 prompt topics (Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby) in their self-introduction? Award 1 point if yes, 0 if they mentioned fewer than 3 topics.",
+          "turnType": "teil1_card"
+        },
+        {
+          "id": "t1_spell",
+          "label": "Spells correctly",
+          "points": 1,
+          "prompt": "Did the student spell out a word or name letter-by-letter in German when asked? Award 1 point if they made a clear spelling attempt using German letter names, 0 if they did not attempt or it was completely unintelligible.",
+          "turnType": "teil1_spell"
+        },
+        {
+          "id": "t1_number",
+          "label": "Produces number correctly",
+          "points": 1,
+          "prompt": "Did the student say a sequence of numbers (phone number or postal code) in German? Award 1 point if they produced recognisable German numbers in sequence, 0 if the response was absent or entirely unclear.",
+          "turnType": "teil1_number"
+        }
+      ]
+    },
+    "teil2": {
+      "maxPoints": 6,
+      "criteria": [
+        {
+          "id": "t2_question",
+          "label": "Forms a question",
+          "points": 1.5,
+          "prompt": "Did the student form a W-question (Wann, Was, Wo, Wie, etc.) or a yes/no question in German related to the keyword shown on the card? Award 1.5 points for a clear, grammatically reasonable A1-level question, 1 point for an understandable but imperfect question, 0 for no recognisable question.",
+          "turnType": "teil2_student_ask"
+        },
+        {
+          "id": "t2_answer",
+          "label": "Answers the question",
+          "points": 1.5,
+          "prompt": "Did the student understand and respond to the question asked? Award 1.5 points for a relevant, understandable answer in German, 1 point for a partial/fragmented answer, 0 for no response or completely off-topic.",
+          "turnType": "teil2_student_answer"
+        }
+      ]
+    },
+    "teil3": {
+      "maxPoints": 6,
+      "criteria": [
+        {
+          "id": "t3_request",
+          "label": "Makes polite request",
+          "points": 1.5,
+          "prompt": "Did the student make a polite request in German using or referencing the object/situation shown on the card (e.g., 'Darf ich bitte...', 'Können Sie mir bitte...')? Award 1.5 for a polite, clear request, 1 for an attempt lacking politeness markers, 0 for no request.",
+          "turnType": "teil3_student_request"
+        },
+        {
+          "id": "t3_response",
+          "label": "Responds to request",
+          "points": 1.5,
+          "prompt": "Did the student respond appropriately to the bot's request (accepting or declining with a natural reason in German)? Award 1.5 for a clear accept/decline with a reason, 1 for minimal response, 0 for no response.",
+          "turnType": "teil3_student_response"
+        }
+      ]
+    }
+  }
+}

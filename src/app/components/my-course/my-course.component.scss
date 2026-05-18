@@ -607,13 +607,20 @@ mc-tab-profile__row {
 .mc-panel {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 12px 10px 20px;
+  border-radius: 16px;
+  padding: 14px 12px 22px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
   box-sizing: border-box;
+}
+
+.mc-panel:has(app-gluck-buddy-hub) {
+  padding-top: 10px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 @media (min-width: 480px) {

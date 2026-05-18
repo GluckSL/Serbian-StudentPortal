@@ -1,0 +1,225 @@
+<div class="dg-form-page">
+  <div class="container-fluid px-3 py-3">
+    <div
+      *ngIf="message"
+      class="alert d-flex align-items-start gap-2 mb-3"
+      [ngClass]="{
+        'alert-danger': messageType === 'error',
+        'alert-success': messageType === 'success',
+        'alert-info': messageType === 'info'
+      }"
+      role="alert"
+    >
+      <div class="flex-grow-1">{{ message }}</div>
+      <button type="button" class="btn-close" (click)="message = null"></button>
+    </div>
+
+    <div class="text-center py-5" *ngIf="loading">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 text-muted small">Loading…</p>
+    </div>
+
+    <div class="card dg-adm-rp-card" *ngIf="!loading && selected">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h4 class="mb-0">🎤 {{ isCreateMode ? 'Create' : 'Edit' }} Sprechen Exam Module</h4>
+          <small class="text-muted d-block mt-1">Same workflow as DG Bot — exam content for Olly Tutor (Goethe A1)</small>
+        </div>
+        <button type="button" class="btn btn-secondary" (click)="goBack()">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+      </div>
+
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-12"><h5 class="border-bottom pb-2">📝 Basic Information</h5></div>
+          <div class="col-md-8 mb-3">
+            <label class="form-label">Module Title *</label>
+            <input
+              type="text"
+              class="form-control"
+              [class.is-invalid]="isInvalid('title')"
+              [(ngModel)]="editTitle"
+              (ngModelChange)="onFieldInput('title')"
+              name="title"
+              placeholder="e.g. Goethe A1 Sprechen — Prüfung 1"
+            />
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Level *</label>
+            <select
+              class="form-select"
+              [(ngModel)]="editLevel"
+              name="level"
+              [class.is-invalid]="isInvalid('level')"
+            >
+              <option *ngFor="let lv of cefrLevels" [value]="lv">{{ lv }}</option>
+            </select>
+          </div>
+          <div class="col-12 mb-3">
+            <label class="form-label">Description *</label>
+            <textarea
+              class="form-control"
+              rows="2"
+              [(ngModel)]="editDescription"
+              name="description"
+              [class.is-invalid]="isInvalid('description')"
+            ></textarea>
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label">Pass threshold (/15)</label>
+            <input type="number" class="form-control" min="0" max="15" [(ngModel)]="editPassThreshold" name="passThreshold" />
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label">Journey day</label>
+            <input type="number" class="form-control" min="1" max="200" [(ngModel)]="editCourseDay" name="courseDay" placeholder="e.g. 12" />
+            <small class="text-muted">Empty = any day</small>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Tutor character *</label>
+            <select class="form-select" [(ngModel)]="editCharacterId" name="characterId" [class.is-invalid]="isInvalid('characterId')">
+              <option value="">Select character</option>
+              <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}{{ c.isDefault ? ' (default)' : '' }}</option>
+            </select>
+            <small class="text-muted">Use <strong>Olly Tutor</strong> for exam modules.</small>
+          </div>
+          <div class="col-md-2 mb-3 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" [(ngModel)]="editVisible" id="spVisible" />
+              <label class="form-check-label" for="spVisible">Live for students</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-4">
+          <div class="col-12"><h5 class="border-bottom pb-2">🎯 Batch targeting</h5></div>
+          <div class="col-md-6 mb-2">
+            <select class="form-select" [(ngModel)]="batchToAdd" (change)="onBatchDropdownChange()">
+              <option value="">Add batch…</option>
+              <option *ngFor="let b of batches" [value]="b.batchName">{{ b.batchName }}</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <span *ngFor="let b of targetBatches" class="badge bg-primary me-1 mb-1" style="cursor:pointer" (click)="toggleBatch(b)">{{ b }} ×</span>
+            <span class="text-muted small" *ngIf="!targetBatches.length">All batches (when empty)</span>
+          </div>
+        </div>
+
+        <div class="row mb-4">
+          <div class="col-12"><h5 class="border-bottom pb-2">1️⃣ Teil 1 — Self introduction</h5></div>
+          <div class="col-12 mb-3">
+            <label class="form-label">Intro card image (above Olly in Teil 1)</label>
+            <p class="text-muted small mb-2">Upload the visual prompt card. Students tap it in the exam to view full screen.</p>
+            <div class="d-flex flex-wrap align-items-start gap-3">
+              <div *ngIf="introCardImageUrl" class="border rounded p-2 bg-light">
+                <img [src]="getIntroCardPreviewUrl()" alt="Intro card preview" style="max-height:120px;max-width:200px;object-fit:contain" />
+              </div>
+              <div>
+                <input type="file" class="form-control" accept="image/*" (change)="onIntroCardFile($event)" [disabled]="introCardUploading" />
+                <small class="text-muted d-block mt-1" *ngIf="introCardUploading">Uploading…</small>
+                <button type="button" class="btn btn-sm btn-outline-danger mt-1" *ngIf="introCardImageUrl" (click)="introCardImageUrl = ''">Remove image</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 mb-3">
+            <label class="form-label">Keywords fallback (comma-separated, if no image)</label>
+            <input class="form-control" [(ngModel)]="keywordsText" name="keywords" placeholder="Name, Alter, Land, …" />
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Spell prompts (one per line)</label>
+            <textarea class="form-control" rows="3" [(ngModel)]="spellPromptsText" name="spellPrompts"></textarea>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Number prompts (one per line)</label>
+            <textarea class="form-control" rows="3" [(ngModel)]="numberPromptsText" name="numberPrompts"></textarea>
+          </div>
+        </div>
+
+        <div class="row mb-4">
+          <div class="col-12 d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+            <h5 class="mb-0">2️⃣ Teil 2 — Questions</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addTheme()">+ Theme</button>
+          </div>
+          <div class="col-12 mb-3" *ngFor="let t of themes; let i = index">
+            <div class="card p-3 bg-light">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label small">Theme name</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="t.name" [name]="'themeName' + i" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Student keyword</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="t.studentKeyword" [name]="'sk' + i" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Bot keyword</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="t.botKeyword" [name]="'bk' + i" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Student card image</label>
+                  <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onThemeImageFile($event, t, 'studentCardImageUrl')" />
+                  <img *ngIf="t.studentCardImageUrl" [src]="getCardPreviewUrl(t.studentCardImageUrl)" alt="" class="mt-1" style="max-height:48px" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Bot card image</label>
+                  <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onThemeImageFile($event, t, 'botCardImageUrl')" />
+                  <img *ngIf="t.botCardImageUrl" [src]="getCardPreviewUrl(t.botCardImageUrl)" alt="" class="mt-1" style="max-height:48px" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                  <button type="button" class="btn btn-sm btn-outline-danger w-100" (click)="removeTheme(i)">Remove</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-4">
+          <div class="col-12 d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+            <h5 class="mb-0">3️⃣ Teil 3 — Requests</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addRound()">+ Round</button>
+          </div>
+          <div class="col-12 mb-3" *ngFor="let r of rounds; let i = index">
+            <div class="card p-3">
+              <p class="small fw-bold mb-2">Round {{ i + 1 }}</p>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small">Student card label</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.label" />
+                  <label class="form-label small mt-1">Object (German)</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.objectDe" placeholder="einen Stift" />
+                  <label class="form-label small mt-1">Student card image</label>
+                  <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onRoundImageFile($event, r, 'student')" />
+                  <img *ngIf="r.studentCard.imageUrl" [src]="getCardPreviewUrl(r.studentCard.imageUrl)" alt="" class="mt-1" style="max-height:48px" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Bot card label</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="r.botCard.label" />
+                  <label class="form-label small mt-1">Object (German)</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="r.botCard.objectDe" placeholder="ein Glas Wasser" />
+                  <label class="form-label small mt-1">Bot card image</label>
+                  <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onRoundImageFile($event, r, 'bot')" />
+                  <img *ngIf="r.botCard.imageUrl" [src]="getCardPreviewUrl(r.botCard.imageUrl)" alt="" class="mt-1" style="max-height:48px" />
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="removeRound(i)">Remove round</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-muted small">
+          Scoring rubric uses the default A1 template on create. Advanced rubric editing will come with the curriculum document import.
+        </p>
+
+        <div class="d-flex flex-wrap gap-2 mt-4">
+          <button type="button" class="btn btn-primary" [disabled]="saving" (click)="save()">
+            <i class="fas fa-save"></i> {{ saving ? 'Saving…' : 'Save module' }}
+          </button>
+          <button type="button" class="btn btn-outline-success" *ngIf="!isCreateMode" (click)="preview()">
+            <i class="fas fa-play"></i> Preview exam
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="goBack()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

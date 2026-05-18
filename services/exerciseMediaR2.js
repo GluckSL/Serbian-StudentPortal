@@ -1,4 +1,6 @@
 // Shared Cloudflare R2 helpers for exercise audio / attachments (PutObject, HeadObject, URL parsing).
+// Policy: exercise media is write-only from this app — objects are never deleted when replaced or
+// when an exercise is updated; only MongoDB URL references change.
 const { S3Client, PutObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 
 let cachedConfig;

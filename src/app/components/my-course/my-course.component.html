@@ -290,7 +290,7 @@
   <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
 
   <div class="mc-panel" *ngIf="activeTab === 'talk-buddy'" role="tabpanel">
-    <app-dg-bot-hub [embedded]="true"></app-dg-bot-hub>
+    <app-gluck-buddy-hub></app-gluck-buddy-hub>
   </div>
 
   <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
@@ -558,11 +558,10 @@
           <span class="mc-day-section__count mc-day-section__count--muted">Day {{ selectedJourneyDay }}</span>
         </div>
         <p class="mc-day-section__intro">Speaking role-play for this journey day (Completed / Pending / New).</p>
-        <app-dg-bot-hub
-          [embedded]="true"
+        <app-gluck-buddy-hub
           [journeyFixedDay]="selectedJourneyDay"
           [hideEmbeddedHeader]="true"
-        ></app-dg-bot-hub>
+        ></app-gluck-buddy-hub>
       </div>
     </div>
 

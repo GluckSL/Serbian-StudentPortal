@@ -777,11 +777,16 @@ router.get('/meetings', verifyToken, async (req, res) => {
     // Single calendar-day filter: chronological within the day.
     // Scheduled / ongoing lists: soonest first (next class on page 1).
     // Ended + legacy queries (no lifecycle): most recent first.
+    const sortRaw = String(req.query.sort || '').trim().toLowerCase();
     let sortOrder = -1;
     if (date) {
       sortOrder = 1;
     } else if (lifecycle === 'scheduled' || lifecycle === 'ongoing') {
       sortOrder = 1;
+    } else if (sortRaw === 'asc' || sortRaw === 'start_asc') {
+      sortOrder = 1;
+    } else if (sortRaw === 'desc' || sortRaw === 'start_desc') {
+      sortOrder = -1;
     }
     const totalCount = await MeetingLink.countDocuments(query);
 

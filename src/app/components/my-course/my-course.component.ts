@@ -15,7 +15,7 @@ import { StudentRecordingsComponent } from '../class-recordings/student-recordin
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
 // Digital learning modules (Modules tab) removed from student My Course — use Gluck Buddy for DG speaking practice.
 // import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
-import { DgBotHubComponent } from '../../dg-bot/dg-bot-hub/dg-bot-hub.component';
+import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluck-buddy-hub.component';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
@@ -42,7 +42,7 @@ type ProgressRange = 'weekly' | 'overall';
     StudentMeetingsComponent,
     StudentRecordingsComponent,
     DigitalExercisesComponent,
-    DgBotHubComponent
+    GluckBuddyHubComponent
   ],
   templateUrl: './my-course.component.html',
   styleUrls: ['./my-course.component.scss']

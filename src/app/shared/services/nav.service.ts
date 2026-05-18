@@ -27,7 +27,8 @@ export class NavService {
       '/create-roleplay-module',
       '/edit-module',
       '/ai-tutor-chat',
-      '/admin/dg-modules'
+      '/admin/dg-modules',
+      '/admin/sprechen-exam'
     ],
     exercises: [
       '/admin/digital-exercises',
@@ -73,6 +74,7 @@ export class NavService {
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/admin-modules',             subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',          subGroup: 'Module Management' },
+        { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: 'fitness_center', route: '/admin/digital-exercises',   subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
         { id: 'glueck-arena-analytics', label: 'Arena Analytics', icon: 'insights', route: '/admin/glueck-arena/analytics', subGroup: null },
@@ -178,6 +180,7 @@ export class NavService {
       items: [
         { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/learning-modules',         subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Module Management' },
+        { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
         { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null }
