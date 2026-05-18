@@ -48,29 +48,35 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
       </div>
 
       <div class="ga-toolbar">
-        <mat-form-field appearance="outline" class="ga-toolbar__search">
-          <mat-label>Search game sets</mat-label>
-          <input matInput [(ngModel)]="searchTerm" (ngModelChange)="onSearch()" placeholder="Title, category…">
-          <mat-icon matPrefix>search</mat-icon>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Game type</mat-label>
-          <mat-select [(ngModel)]="filterGameType" (ngModelChange)="load()">
-            <mat-option value="">All types</mat-option>
-            <mat-option value="scramble_rush">Scramble Rush</mat-option>
-            <mat-option value="sentence_builder">Sentence Builder</mat-option>
-            <mat-option value="matching">Matching</mat-option>
-            <mat-option value="flashcards">Flashcards</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select [(ngModel)]="filterPublished" (ngModelChange)="load()">
-            <mat-option value="">All</mat-option>
-            <mat-option [value]="true">Published</mat-option>
-            <mat-option [value]="false">Draft</mat-option>
-          </mat-select>
-        </mat-form-field>
+        <div class="ga-toolbar__search">
+          <mat-icon>search</mat-icon>
+          <input type="search" [(ngModel)]="searchTerm" (ngModelChange)="onSearch()"
+            placeholder="Search game sets…" aria-label="Search game sets">
+        </div>
+        <div class="ga-toolbar__dropdown-wrap">
+          <div class="ga-toolbar__dropdown" (click)="typeOpen = !typeOpen">
+            <span>{{ getTypeLabel(filterGameType) }}</span>
+            <mat-icon>expand_more</mat-icon>
+          </div>
+          <div class="ga-toolbar__dropdown-menu" *ngIf="typeOpen">
+            <div class="ga-toolbar__dropdown-item" (click)="setType('')">All types</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('scramble_rush')">Scramble Rush</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('matching')">Matching</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('flashcards')">Flashcards</div>
+          </div>
+        </div>
+        <div class="ga-toolbar__dropdown-wrap">
+          <div class="ga-toolbar__dropdown" (click)="statusOpen = !statusOpen">
+            <span>{{ getStatusLabel(filterPublished) }}</span>
+            <mat-icon>expand_more</mat-icon>
+          </div>
+          <div class="ga-toolbar__dropdown-menu" *ngIf="statusOpen">
+            <div class="ga-toolbar__dropdown-item" (click)="setStatus('')">All</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setStatus(true)">Published</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setStatus(false)">Draft</div>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="loading" class="ga-loading">
@@ -208,10 +214,39 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
     .ga-stat__value { display: block; font-size: 26px; font-weight: 700; color: #1e3a5f; }
     .ga-stat__label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
     .ga-toolbar {
-      display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
-      background: #fff; padding: 16px 20px; border-radius: 14px; border: 1px solid #e8ecf4;
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+      background: #fff; padding: 14px 16px; border-radius: 14px; border: 1px solid #e8ecf4;
     }
-    .ga-toolbar__search { flex: 1; min-width: 220px; }
+    .ga-toolbar__search {
+      flex: 1; min-width: 200px; display: flex; align-items: center; gap: 10px;
+      padding: 0 14px; height: 48px; border-radius: 12px;
+      background: #f8fafc; border: 1px solid #e8ecf4;
+    }
+    .ga-toolbar__search mat-icon { color: #94a3b8; }
+    .ga-toolbar__search input {
+      flex: 1; border: none; background: transparent; outline: none;
+      font-size: 14px; color: #334155;
+    }
+    .ga-toolbar__dropdown-wrap { position: relative; }
+    .ga-toolbar__dropdown {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 0 14px; height: 48px; min-width: 130px; border-radius: 12px;
+      background: #f8fafc; border: 1px solid #e8ecf4; cursor: pointer;
+      font-size: 14px; color: #334155;
+    }
+    .ga-toolbar__dropdown mat-icon { color: #94a3b8; transition: transform 0.2s; }
+    .ga-toolbar__dropdown:hover { border-color: #94a3b8; }
+    .ga-toolbar__dropdown-menu {
+      position: absolute; top: 100%; left: 0; z-index: 100; margin-top: 6px; min-width: 100%;
+      background: #fff; border: 1px solid #e8ecf4;
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+      overflow: hidden;
+    }
+    .ga-toolbar__dropdown-item {
+      padding: 12px 16px; font-size: 14px; color: #334155; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ga-toolbar__dropdown-item:hover { background: #f1f5f9; }
     .ga-loading, .ga-error, .ga-empty { text-align: center; padding: 56px 24px; }
     .ga-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; color: #64748b; }
     .ga-error mat-icon, .ga-empty mat-icon { font-size: 56px; width: 56px; height: 56px; color: #94a3b8; }
@@ -221,9 +256,11 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
       background: #fff; border-radius: 16px; border: 1px solid #e8ecf4;
       overflow: hidden; box-shadow: 0 4px 20px rgba(64, 89, 128, 0.08);
     }
-    .ga-table { width: 100%; }
+    .ga-table { width: 100%; table-layout: auto; }
+    .ga-table th, .ga-table td { white-space: normal; word-wrap: break-word; }
+    .ga-table .ga-pill { white-space: nowrap; }
     .ga-table__row:hover { background: #f8fafc; }
-    .ga-row-title { display: flex; align-items: center; gap: 12px; }
+    .ga-row-title { display: flex; align-items: flex-start; gap: 12px; min-width: 280px; }
     .ga-row-title__icon {
       width: 40px; height: 40px; border-radius: 10px; background: #eef2ff;
       display: flex; align-items: center; justify-content: center; color: #405980;
@@ -260,6 +297,17 @@ export class GameSetListComponent implements OnInit {
   filterPublished: boolean | '' = '';
   searchTimeout: ReturnType<typeof setTimeout> | undefined;
   pagination = { page: 1, limit: 15, total: 0 };
+  typeOpen = false;
+  statusOpen = false;
+
+  getTypeLabel(v: string): string { return v ? this.formatType(v as GameType) : 'Game type'; }
+  getStatusLabel(v: boolean | ''): string {
+    if (v === true) return 'Published';
+    if (v === false) return 'Draft';
+    return 'Status';
+  }
+  setType(v: string) { this.filterGameType = v; this.typeOpen = false; this.load(); }
+  setStatus(v: boolean | '') { this.filterPublished = v; this.statusOpen = false; this.load(); }
 
   get publishedCount(): number { return this.sets.filter(s => s.isPublished).length; }
   get draftCount(): number { return this.sets.filter(s => !s.isPublished).length; }

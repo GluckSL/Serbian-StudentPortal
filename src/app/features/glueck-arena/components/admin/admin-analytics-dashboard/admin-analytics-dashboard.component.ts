@@ -119,7 +119,7 @@ import { AdminAnalyticsResponse, GameType } from '../../../glueck-arena.types';
     .ga-kpi__lbl { font-size: 11px; color: var(--ga-muted, #888); }
     .ga-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
     @media (max-width: 768px) { .ga-charts-row { grid-template-columns: 1fr; } }
-    .ga-chart-card, .ga-table-card { margin-bottom: 16px; padding: 8px; }
+    .ga-chart-card, .ga-table-card { margin-bottom: 16px; padding: 16px; border-radius: 16px; }
     .ga-table { width: 100%; }
   `]
 })

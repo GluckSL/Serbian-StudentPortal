@@ -85,6 +85,7 @@ import { GlueckArenaChartComponent } from '../../../shared/glueck-arena-chart/gl
     .asc { padding: 24px; max-width: 1100px; margin: 0 auto; }
     .asc__header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
     .asc__kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .asc__kpis mat-card { padding: 16px; border-radius: 16px; }
     .asc__val { font-size: 32px; font-weight: 800; color: #405980; }
     .asc__panel { padding: 24px 0; }
     .asc__spin { margin: 48px auto; display: block; }
