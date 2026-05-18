@@ -163,6 +163,7 @@ const { ensureDefaultQuests } = require('./services/interactiveGames/quests');
 const { scheduleGlueckArenaJobs } = require('./jobs/glueckArenaDailyReset');
 const { initGlueckArenaSockets } = require('./sockets/glueckArenaMultiplayer');
 const http = require('http');
+const { ensurePortalBatches } = require('./services/ensurePortalBatches');
 
 function parseMongoHosts(uri) {
   if (!uri || typeof uri !== 'string') return [];
@@ -236,6 +237,7 @@ async function connectMongoDb() {
   await ensureDefaultChallenges();
   await ensureDefaultAchievements();
   await ensureDefaultQuests();
+  await ensurePortalBatches();
 }
 
 // API Routes

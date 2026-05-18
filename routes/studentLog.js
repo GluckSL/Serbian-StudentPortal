@@ -20,6 +20,7 @@ const {
     studentProgressQueryForActivityWindow,
     assignmentSubmissionQueryForActivityWindow
 } = require('../services/studentActivityWindowQueries');
+const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 
 function canExposeActivityDeleteRefs(req) {
     const r = req.user?.role;
@@ -607,10 +608,9 @@ router.get('/student-options', verifyToken, isAdmin, async (req, res) => {
 router.get('/batch-options', verifyToken, isAdmin, async (req, res) => {
     try {
         const raw = await User.distinct('batch', { role: 'STUDENT' });
-        const batches = raw
-            .map((b) => (b == null ? '' : String(b).trim()))
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const batches = mergePortalBatchNames(
+          raw.map((b) => (b == null ? '' : String(b).trim())).filter(Boolean)
+        );
         res.status(200).json({ success: true, data: batches });
     } catch (err) {
         console.error('Error fetching batch options:', err);

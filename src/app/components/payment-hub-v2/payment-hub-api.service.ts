@@ -94,6 +94,7 @@ export interface StudentTableRow {
     batch?: string;
     level?: string;
     phoneNumber?: string;
+    enrollmentDate?: string;
     dateJoined?: string;
     createdAt?: string;
   };

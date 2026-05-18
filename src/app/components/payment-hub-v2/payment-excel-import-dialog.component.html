@@ -46,7 +46,7 @@
         <div class="ei-template-copy">
           <span class="ei-kicker">Template</span>
           <h2>Structured import file</h2>
-          <p>Headers match the legacy sheet (Name, Lng Quoted / Lng Received, Doc Quoted / Doc Paid, Visa Quo / Visa Re, …) plus aliases like student_email. Currency falls back to each student’s profile when omitted.</p>
+          <p>Headers match the legacy sheet (Name, Lng Quoted / Lng Received, Doc Quoted / Doc Paid, Visa Quo / Visa Re, …) plus aliases like student_email. Batch, payment date, type, and note are optional. Currency falls back to each student’s profile when omitted; payment date defaults to today and type to Language when blank.</p>
         </div>
         <button type="button" class="ei-btn ei-btn-secondary" (click)="downloadTemplate()">
           <mat-icon>download</mat-icon>
