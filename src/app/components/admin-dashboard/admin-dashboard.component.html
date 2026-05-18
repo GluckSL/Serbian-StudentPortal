@@ -377,12 +377,13 @@
                   <td *ngIf="isColVisible('teacherIncharge')" class="crm-cell">{{ crmCellDisplay(student, 'teacherIncharge') }}</td>
                   <td *ngIf="isColVisible('whatsappNumber')" class="crm-cell">{{ crmCellDisplay(student, 'whatsappNumber') }}</td>
                   <td>
-                    <span class="badge" [ngClass]="{
-                      'bg-success': student.studentStatus === 'COMPLETED',
-                      'bg-primary': student.studentStatus === 'ONGOING',
-                      'bg-warning': student.studentStatus === 'UNCERTAIN',
-                      'bg-danger': student.studentStatus === 'DROPPED',
-                      'bg-secondary': !student.studentStatus
+                    <span class="badge student-status-pill" [ngClass]="{
+                      'student-status--done': student.studentStatus === 'COMPLETED',
+                      'student-status--ongoing': student.studentStatus === 'ONGOING',
+                      'student-status--uncertain': student.studentStatus === 'UNCERTAIN',
+                      'student-status--dropped': student.studentStatus === 'DROPPED',
+                      'student-status--withdrew': student.studentStatus === 'WITHDREW',
+                      'student-status--empty': !student.studentStatus
                     }">
                       {{ student.studentStatus || 'N/A' }}
                     </span>

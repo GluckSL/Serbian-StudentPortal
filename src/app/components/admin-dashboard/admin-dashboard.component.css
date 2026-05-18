@@ -885,6 +885,49 @@
 .badge.bg-danger    { background: #ffe0e6 !important; color: #e11d48 !important; }
 .badge.bg-secondary { background: #f1f5f9 !important; color: #64748b !important; }
 
+/* Directory status column — high-contrast pills (all studentStatus values) */
+.student-status-pill {
+  font-weight: 600;
+  font-size: 0.65rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: #475569;
+  color: #fff;
+}
+
+.student-status--done {
+  background: #16a34a;
+  color: #fff;
+}
+
+.student-status--ongoing {
+  background: #2563eb;
+  color: #fff;
+}
+
+.student-status--uncertain {
+  background: #ca8a04;
+  color: #fff;
+}
+
+.student-status--dropped {
+  background: #dc2626;
+  color: #fff;
+}
+
+.student-status--withdrew {
+  background: #475569;
+  color: #fff;
+}
+
+.student-status--empty {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 /* ── Checkbox ── */
 .form-check-input { width: 14px; height: 14px; cursor: pointer; border-radius: 4px; }
 .form-check-input:checked { background-color: #0369a1; border-color: #0369a1; }
