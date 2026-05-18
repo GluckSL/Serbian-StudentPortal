@@ -38,8 +38,13 @@ function preserveScalarMedia(existingQ, incomingQ, qIndex, clears, subIndex = nu
 }
 
 function preserveOptionImages(existingQ, incomingQ, qIndex, clears, subIndex = null) {
-  if (!Array.isArray(incomingQ.optionImageUrls)) return;
   const existingArr = Array.isArray(existingQ?.optionImageUrls) ? existingQ.optionImageUrls : [];
+  if (!Array.isArray(incomingQ.optionImageUrls)) {
+    if (existingArr.some((u) => String(u ?? '').trim())) {
+      incomingQ.optionImageUrls = [...existingArr];
+    }
+    return;
+  }
   incomingQ.optionImageUrls = incomingQ.optionImageUrls.map((inc, oi) => {
     const field = `optionImageUrl:${oi}`;
     if (isCleared(clears, qIndex, field, subIndex)) return String(inc || '').trim();

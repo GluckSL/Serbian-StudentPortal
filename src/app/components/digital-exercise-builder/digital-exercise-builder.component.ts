@@ -120,6 +120,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   loading = false;
   /** Explicit media removals this session — server will not restore previous URLs for these fields. */
   private mediaClears: ExerciseMediaClear[] = [];
+  /** Presigned S3 URLs for admin preview (canonical URLs remain in question models). */
+  private mediaDisplayCache = new Map<string, string>();
 
   // Exercise metadata
   title = '';
@@ -237,12 +239,54 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           uploading: false
         }));
         this.mediaClears = [];
+        this.hydrateMediaDisplayUrls();
         this.loading = false;
       },
       error: () => {
         this.loading = false;
         this.showError('Failed to load exercise');
       }
+    });
+  }
+
+  private collectMediaUrlsForPresign(): string[] {
+    const urls: string[] = [];
+    const add = (raw: string | null | undefined) => {
+      const c = this.canonicalizeMediaField(raw);
+      if (c && c.includes('.amazonaws.com/')) urls.push(c);
+    };
+    for (const q of this.questions) {
+      add(q.imageUrl);
+      add(q.attachmentUrl);
+      add(q.videoUrl);
+      if (q.type === 'mcq') {
+        for (const u of q.optionImageUrls || []) add(u);
+      }
+      for (const sq of q.subQuestions || []) {
+        add(sq.imageUrl);
+        add(sq.attachmentUrl);
+        if (sq.type === 'mcq') {
+          for (const u of sq.optionImageUrls || []) add(u);
+        }
+      }
+    }
+    for (const row of [...this.videoSuccessFeedbackRows, ...this.videoRetryFeedbackRows]) {
+      add(row.audioUrl);
+    }
+    return [...new Set(urls)];
+  }
+
+  private hydrateMediaDisplayUrls(): void {
+    this.mediaDisplayCache.clear();
+    const needPresign = this.collectMediaUrlsForPresign();
+    if (!needPresign.length) return;
+    this.exerciseService.presignMediaUrls(needPresign).subscribe({
+      next: ({ resolutions }) => {
+        for (const r of resolutions || []) {
+          const original = this.canonicalizeMediaField(r.original);
+          if (original && r.url) this.mediaDisplayCache.set(original, r.url);
+        }
+      },
     });
   }
 
@@ -772,6 +816,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         }
         this.ensureMcqOptionImages(q);
         q.optionImageUrls![oi] = canonicalUrl;
+        const displayUrl = String(res?.url || '').trim();
+        if (displayUrl) this.mediaDisplayCache.set(canonicalUrl, displayUrl);
         this.mcqOptionImageUploadingKey = null;
         this.mcqOptionUrlExpandedKey = null;
         this.showSuccess('Option image uploaded');
@@ -1273,7 +1319,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   getMediaFullUrl(relative: string): string {
-    return resolveMediaUrl(relative);
+    const canonical = this.canonicalizeMediaField(relative);
+    if (!canonical) return '';
+    return this.mediaDisplayCache.get(canonical) || resolveMediaUrl(canonical);
   }
 
   getBlankCount(q: BuilderQuestion): number {
@@ -1522,7 +1570,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
             this.ensureMcqOptionImages(sq);
             subRow.question = String(sq.question || '');
             subRow.imageUrl = this.canonicalizeMediaField(sq.imageUrl);
-            subRow.options = (sq.options || []).map((o: string) => String(o || '').trim()).filter(Boolean);
+            subRow.options = (sq.options || []).map((o: string) => String(o || '').trim());
             subRow.optionImageUrls = (sq.optionImageUrls || [])
               .slice(0, subRow.options.length)
               .map((u: string) => this.canonicalizeMediaField(u));

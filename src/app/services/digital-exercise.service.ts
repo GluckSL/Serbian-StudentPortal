@@ -807,7 +807,7 @@ export class DigitalExerciseService {
     );
   }
 
-  /** Per-question attachment: audio goes to R2 only; other types use multipart (disk/S3). */
+  /** Per-question attachment: audio goes to R2; images use multipart (server stores in R2 or S3). */
   uploadQuestionAttachment(file: File): Observable<{ success: boolean; url: string; canonicalUrl?: string }> {
     const mt = (file.type || '').toLowerCase();
     if (mt.startsWith('audio/')) {
@@ -825,6 +825,21 @@ export class DigitalExerciseService {
   /**
    * When stored URLs point at missing local files, remap to canonical R2 public URLs if the object exists.
    */
+  /** Presign private S3 URLs for admin builder preview (canonical URLs stay in the form model). */
+  presignMediaUrls(urls: string[]): Observable<{
+    resolutions: Array<{ original: string; url: string }>;
+  }> {
+    const uniq = [...new Set((urls || []).map((u) => String(u || '').trim()).filter(Boolean))];
+    if (uniq.length === 0) {
+      return of({ resolutions: [] });
+    }
+    return this.http.post<{ resolutions: Array<{ original: string; url: string }> }>(
+      `${environment.apiUrl}/digital-exercises/presign-media-urls`,
+      { urls: uniq },
+      { withCredentials: true }
+    );
+  }
+
   resolveMediaFromR2(urls: string[]): Observable<{
     resolutions: Array<{ original: string; url: string; found: boolean }>;
   }> {

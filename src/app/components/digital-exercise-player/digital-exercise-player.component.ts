@@ -4124,6 +4124,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         q['videoUrl'] = nv;
         updated++;
       }
+      const optImgs = Array.isArray(q['optionImageUrls']) ? (q['optionImageUrls'] as string[]) : [];
+      if (optImgs.length) {
+        let optChanged = false;
+        const nextOpt = optImgs.map((u) => {
+          const n = patchVal(u);
+          if (n !== u) optChanged = true;
+          return (n as string) || '';
+        });
+        if (optChanged) {
+          q['optionImageUrls'] = nextOpt;
+          updated++;
+        }
+      }
+      const subs = Array.isArray(q['subQuestions']) ? (q['subQuestions'] as Array<Record<string, unknown>>) : [];
+      for (const sq of subs) {
+        const sqOpt = Array.isArray(sq['optionImageUrls']) ? (sq['optionImageUrls'] as string[]) : [];
+        if (!sqOpt.length) continue;
+        let sqChanged = false;
+        const nextSqOpt = sqOpt.map((u) => {
+          const n = patchVal(u);
+          if (n !== u) sqChanged = true;
+          return (n as string) || '';
+        });
+        if (sqChanged) {
+          sq['optionImageUrls'] = nextSqOpt;
+          updated++;
+        }
+      }
     }
     return updated;
   }

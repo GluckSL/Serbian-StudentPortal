@@ -17,8 +17,10 @@ const {
   resignExercise,
   resignExercises,
   presignS3Url,
+  canonicalizeMediaUrl,
   canonicalizeExerciseForStorage,
-  exerciseHasPresignedMedia
+  exerciseHasPresignedMedia,
+  isS3Url
 } = require('../config/presign');
 const {
   preserveExistingQuestionMedia,
@@ -78,7 +80,7 @@ const attachmentMemoryStorage = multer.memoryStorage();
 const attachmentHybridStorage = {
   _handleFile(req, file, cb) {
     const mt = String(file.mimetype || '').toLowerCase();
-    if (mt.startsWith('audio/')) {
+    if (mt.startsWith('audio/') || (mt.startsWith('image/') && isExerciseR2Configured())) {
       attachmentMemoryStorage._handleFile(req, file, cb);
     } else if (isVideoOrImageMime(file.mimetype)) {
       attachmentS3Storage._handleFile(req, file, cb);
@@ -2573,6 +2575,35 @@ router.get('/analytics/student/:studentId', verifyToken, checkRole(['ADMIN', 'TE
   }
 });
 
+// POST /api/digital-exercises/presign-media-urls — Batch presign S3 URLs for admin editor preview
+router.post(
+  '/presign-media-urls',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const raw = req.body?.urls;
+      if (!Array.isArray(raw)) {
+        return res.status(400).json({ error: 'urls array is required' });
+      }
+      const seen = new Set();
+      const resolutions = [];
+      for (const item of raw) {
+        const original = String(item || '').trim();
+        if (!original || seen.has(original)) continue;
+        seen.add(original);
+        const canonical = canonicalizeMediaUrl(original);
+        const url = isS3Url(canonical) ? await presignS3Url(canonical) : original;
+        resolutions.push({ original, url });
+      }
+      return res.json({ resolutions });
+    } catch (err) {
+      console.error('POST /digital-exercises/presign-media-urls error:', err);
+      return res.status(500).json({ error: err.message || 'Presign failed' });
+    }
+  }
+);
+
 // POST /api/digital-exercises/upload-attachment  — Upload a per-question attachment
 router.post(
   '/upload-attachment',
@@ -2604,11 +2635,20 @@ router.post(
       // S3 (image/video): .location; PDF/docs: disk relative path
       // Policy: never delete previous S3/R2 objects when a new file is uploaded — old
       // media remains in storage; only the exercise document URL field is updated.
+      if (mt.startsWith('image/') && req.file.buffer?.length && isExerciseR2Configured()) {
+        const ext = path.extname(req.file.originalname || '') || '.png';
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+        const key = `exercise-attachments/${filename}`;
+        const publicUrl = await putExerciseMediaBuffer(req.file.buffer, key, mt || 'image/png');
+        return res.json({ success: true, url: publicUrl, canonicalUrl: publicUrl });
+      }
+
       const rawUrl = req.file.location || `/uploads/exercise-attachments/${req.file.filename}`;
+      const canonicalUrl = canonicalizeMediaUrl(rawUrl);
       // When the bucket is private (S3_USE_SIGNED_URLS=true), presign the URL so the
       // builder can display the image immediately without a 403 from S3.
-      const url = req.file.location ? (await presignS3Url(rawUrl)) : rawUrl;
-      return res.json({ success: true, url, canonicalUrl: rawUrl });
+      const url = req.file.location ? (await presignS3Url(canonicalUrl)) : canonicalUrl;
+      return res.json({ success: true, url, canonicalUrl });
     } catch (err) {
       console.error('POST /digital-exercises/upload-attachment error:', err);
       return res.status(500).json({ error: err.message });
