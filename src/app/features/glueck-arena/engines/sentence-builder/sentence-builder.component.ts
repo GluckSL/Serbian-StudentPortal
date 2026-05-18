@@ -483,6 +483,13 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
     if (fromIndex !== targetIndex) {
       this.feedbackInstant(fromIndex);
     }
+
+    // A word might already be on its correct numbered slot due to shuffle; if neither
+    // endpoint of this swap was evaluated as correct above, lock those silently.
+    this.lockSilentAlreadyCorrectSlots();
+    if (this.allLocked) {
+      this.onAllSlotsLockedLocal();
+    }
   }
 
   private normaliseToken(t: string): string {
@@ -515,15 +522,12 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
     }
 
     if (this.isSlotCorrect(index)) {
-      this.slotLocked[index] = true;
-      this.wrongFlash[index] = false;
-      this.lastWrongHint = '';
-      this.audio.playCorrect();
-      this.syncSlotToServer(index, token);
-
-      // After locking, immediately re-check all other unlocked words —
-      // catches words stranded in wrong spots (e.g. esse still at position 1)
-      this.checkAllUnlocked();
+      // Lock this slot (+ sound); also lock other slots already correct —
+      // the shuffle sometimes leaves a token in the right place and students
+      // never drag that slot, so it stayed purple/unlocked until now.
+      this.tryLockSlotIfCorrect(index, true);
+      this.lockSilentAlreadyCorrectSlots();
+      this.flashMisplacedSlots();
 
       if (this.allLocked) {
         this.onAllSlotsLockedLocal();
@@ -536,13 +540,37 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
     }
   }
 
-  private checkAllUnlocked() {
+  /**
+   * Lock one slot when it matches correctTokens[slotIndex].
+   * @param playSound only for the drag the student just resolved (avoid a burst when several lock at once).
+   */
+  private tryLockSlotIfCorrect(index: number, playSound: boolean): boolean {
+    if (!this.currentQ?.correctTokens?.length) return false;
+    if (this.slotLocked[index]) return false;
+    const t = this.positionSlots[index]?.[0];
+    if (!t || !this.isSlotCorrect(index)) return false;
+    this.slotLocked[index] = true;
+    this.wrongFlash[index] = false;
+    this.lastWrongHint = '';
+    if (playSound) this.audio.playCorrect();
+    this.syncSlotToServer(index, t);
+    return true;
+  }
+
+  /** Lock every unlocked slot whose token already matches — no sfx (shuffle luck). */
+  private lockSilentAlreadyCorrectSlots(): void {
+    for (let i = 0; i < this.slotCount; i++) {
+      this.tryLockSlotIfCorrect(i, false);
+    }
+  }
+
+  /** Shake red any unlocked word that sits in the wrong numbered position. */
+  private flashMisplacedSlots(): void {
     for (let i = 0; i < this.slotCount; i++) {
       if (this.slotLocked[i]) continue;
       const tok = this.positionSlots[i]?.[0];
       if (!tok) continue;
       if (!this.isSlotCorrect(i)) {
-        // show red for words sitting in wrong spot
         this.wrongFlash[i] = true;
         setTimeout(() => { this.wrongFlash[i] = false; }, 350);
       }
@@ -582,6 +610,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
   }
 
   private onAllSlotsLockedLocal() {
+    if (this.pendingAdvance) return;
     this.pendingAdvance = true;
     this.triggerConfetti();
     this.tryAdvanceAfterSync();

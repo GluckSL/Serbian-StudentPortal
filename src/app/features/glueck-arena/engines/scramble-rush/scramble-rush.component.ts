@@ -135,7 +135,31 @@ const DEADLINE_Y = 88;
 
 
 
-      <div class="sr__stage">
+      <div class="sr__playfield">
+
+        <aside class="sr__buddy" aria-hidden="true">
+
+          <img
+
+            class="sr__buddy-img"
+
+            src="assets/images/practice-partner-fox.svg"
+
+            alt=""
+
+            width="200"
+
+            height="200"
+
+            loading="lazy"
+
+            decoding="async"
+
+          />
+
+        </aside>
+
+        <div class="sr__stage">
 
         <div class="sr__arena" #arena>
 
@@ -319,6 +343,8 @@ const DEADLINE_Y = 88;
 
       </div>
 
+      </div>
+
 
 
       <app-xp-float [xp]="3" [trigger]="xpTrigger"></app-xp-float>
@@ -339,13 +365,115 @@ const DEADLINE_Y = 88;
 
       gap: 14px;
 
-      padding: 12px 16px 24px;
+      padding: 16px 18px 28px;
 
-      max-width: 900px;
+      max-width: 960px;
 
       margin: 0 auto;
 
       width: 100%;
+
+      box-sizing: border-box;
+
+      position: relative;
+
+      border-radius: 24px;
+
+      background:
+        radial-gradient(ellipse 120% 80% at 50% -20%, rgba(124, 58, 237, 0.35) 0%, transparent 55%),
+        radial-gradient(ellipse 80% 60% at 100% 50%, rgba(56, 189, 248, 0.12) 0%, transparent 45%),
+        linear-gradient(180deg, #070b14 0%, #0f172a 38%, #1a1033 100%);
+
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 0 1px rgba(56, 189, 248, 0.15),
+        0 24px 64px rgba(0, 0, 0, 0.45);
+
+    }
+
+    .sr::before {
+
+      content: '';
+
+      position: absolute;
+
+      inset: 0;
+
+      border-radius: 24px;
+
+      background-image:
+        linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+
+      background-size: 28px 28px;
+
+      pointer-events: none;
+
+      opacity: 0.5;
+
+      mask-image: linear-gradient(180deg, black 0%, transparent 92%);
+
+    }
+
+    .sr__playfield {
+
+      display: flex;
+
+      flex-direction: row;
+
+      align-items: stretch;
+
+      gap: 8px;
+
+      width: 100%;
+
+    }
+
+    .sr__buddy {
+
+      flex: 0 0 148px;
+
+      display: flex;
+
+      align-items: flex-end;
+
+      justify-content: center;
+
+      margin: 0;
+
+      padding: 0 4px 8px 0;
+
+      pointer-events: none;
+
+      min-height: 120px;
+
+      align-self: flex-end;
+
+    }
+
+    .sr__buddy-img {
+
+      width: 100%;
+
+      max-width: 168px;
+
+      height: auto;
+
+      object-fit: contain;
+
+      filter:
+        drop-shadow(0 0 22px rgba(56, 189, 248, 0.35))
+        drop-shadow(0 12px 28px rgba(0, 0, 0, 0.5));
+
+      animation: buddy-float 3.2s ease-in-out infinite;
+
+    }
+
+    @keyframes buddy-float {
+
+      0%, 100% { transform: translateY(0); }
+
+      50% { transform: translateY(-8px); }
 
     }
 
@@ -375,19 +503,21 @@ const DEADLINE_Y = 88;
 
       font-size: 13px;
 
-      font-weight: 600;
+      font-weight: 700;
 
-      color: #405980;
+      color: #e0e7ff;
 
-      background: rgba(64, 89, 128, 0.08);
+      background: rgba(56, 189, 248, 0.12);
 
-      padding: 6px 12px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+
+      padding: 7px 14px;
 
       border-radius: 20px;
 
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.12);
+
     }
-
-
 
     .sr__meta-chip mat-icon {
 
@@ -396,6 +526,8 @@ const DEADLINE_Y = 88;
       width: 16px;
 
       height: 16px;
+
+      color: #38bdf8;
 
     }
 
@@ -407,13 +539,15 @@ const DEADLINE_Y = 88;
 
       min-width: 120px;
 
-      height: 6px;
+      height: 8px;
 
-      background: #e8ecf0;
+      background: rgba(15, 23, 42, 0.75);
 
-      border-radius: 3px;
+      border-radius: 4px;
 
       overflow: hidden;
+
+      border: 1px solid rgba(56, 189, 248, 0.2);
 
     }
 
@@ -423,11 +557,13 @@ const DEADLINE_Y = 88;
 
       height: 100%;
 
-      background: linear-gradient(90deg, #405980, #5b7cb8);
+      background: linear-gradient(90deg, #7c3aed, #38bdf8, #22d3ee);
 
-      border-radius: 3px;
+      border-radius: 4px;
 
       transition: width 0.35s ease;
+
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
 
     }
 
@@ -441,15 +577,22 @@ const DEADLINE_Y = 88;
 
       gap: 12px;
 
-      background: #fff;
+      flex: 1;
+
+      min-width: 0;
+
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.65) 0%, rgba(30, 27, 75, 0.45) 100%);
 
       border-radius: 24px;
 
-      padding: 12px;
+      padding: 14px;
 
-      box-shadow: 0 8px 32px rgba(64, 89, 128, 0.12);
+      box-shadow:
+        0 0 0 1px rgba(167, 139, 250, 0.35),
+        0 12px 40px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
-      border: 1px solid #e8ecf0;
+      border: 1px solid rgba(129, 140, 248, 0.35);
 
     }
 
@@ -467,9 +610,16 @@ const DEADLINE_Y = 88;
 
       overflow: hidden;
 
-      border: 2px solid #b8cfe8;
+      border: 2px solid rgba(56, 189, 248, 0.45);
 
-      background: linear-gradient(180deg, #a8d4ff 0%, #d4e9ff 45%, #eef6ff 100%);
+      background:
+        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(167, 139, 250, 0.35) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 45% at 85% 20%, rgba(56, 189, 248, 0.2) 0%, transparent 50%),
+        linear-gradient(180deg, #0c1929 0%, #132a4a 42%, #1e3a5f 100%);
+
+      box-shadow:
+        inset 0 0 80px rgba(56, 189, 248, 0.08),
+        0 0 32px rgba(8, 145, 178, 0.12);
 
     }
 
@@ -483,9 +633,19 @@ const DEADLINE_Y = 88;
 
       background:
 
-        radial-gradient(ellipse 80px 40px at 15% 12%, rgba(255,255,255,.7) 0%, transparent 70%),
+        radial-gradient(ellipse 100px 50px at 20% 18%, rgba(56, 189, 248, 0.25) 0%, transparent 70%),
 
-        radial-gradient(ellipse 100px 50px at 75% 8%, rgba(255,255,255,.6) 0%, transparent 70%);
+        radial-gradient(ellipse 120px 55px at 78% 12%, rgba(167, 139, 250, 0.2) 0%, transparent 70%),
+
+        radial-gradient(1px 1px at 12% 25%, rgba(255,255,255,.55) 0%, transparent 100%),
+
+        radial-gradient(1px 1px at 45% 18%, rgba(255,255,255,.45) 0%, transparent 100%),
+
+        radial-gradient(1px 1px at 70% 35%, rgba(255,255,255,.4) 0%, transparent 100%),
+
+        radial-gradient(1px 1px at 88% 22%, rgba(255,255,255,.5) 0%, transparent 100%);
+
+      background-size: auto, auto, 220px 120px, 220px 120px, 220px 120px, 220px 120px;
 
       pointer-events: none;
 
@@ -505,9 +665,9 @@ const DEADLINE_Y = 88;
 
       height: 3px;
 
-      background: repeating-linear-gradient(90deg, #e53935 0, #e53935 12px, transparent 12px, transparent 22px);
+      background: repeating-linear-gradient(90deg, #f472b6 0, #f472b6 10px, transparent 10px, transparent 18px);
 
-      box-shadow: 0 0 12px rgba(229, 57, 53, 0.35);
+      box-shadow: 0 0 16px rgba(244, 114, 182, 0.6), 0 0 28px rgba(56, 189, 248, 0.35);
 
       z-index: 2;
 
@@ -527,21 +687,25 @@ const DEADLINE_Y = 88;
 
       font-size: 11px;
 
-      font-weight: 700;
+      font-weight: 800;
 
-      color: #c62828;
+      color: #fda4af;
 
       text-transform: uppercase;
 
-      letter-spacing: 0.04em;
+      letter-spacing: 0.12em;
 
       white-space: nowrap;
 
-      background: rgba(255,255,255,.85);
+      background: rgba(15, 23, 42, 0.9);
 
-      padding: 2px 10px;
+      padding: 4px 12px;
 
       border-radius: 8px;
+
+      border: 1px solid rgba(244, 114, 182, 0.45);
+
+      text-shadow: 0 0 12px rgba(244, 114, 182, 0.55);
 
     }
 
@@ -553,7 +717,7 @@ const DEADLINE_Y = 88;
 
       transform: translateX(-50%);
 
-      background: linear-gradient(145deg, #ff9800, #f57c00);
+      background: linear-gradient(145deg, #f59e0b 0%, #ea580c 45%, #c026d3 130%);
 
       color: #fff;
 
@@ -561,13 +725,18 @@ const DEADLINE_Y = 88;
 
       padding: 10px 18px 8px;
 
-      box-shadow: 0 6px 20px rgba(245, 124, 0, 0.45);
+      box-shadow:
+        0 4px 20px rgba(234, 88, 12, 0.55),
+        0 0 24px rgba(192, 38, 211, 0.35),
+        inset 0 1px 0 rgba(255,255,255,.25);
 
       text-align: center;
 
       min-width: 88px;
 
       z-index: 3;
+
+      border: 1px solid rgba(253, 224, 71, 0.35);
 
       transition: box-shadow 0.2s;
 
@@ -739,11 +908,11 @@ const DEADLINE_Y = 88;
 
       right: -10px;
 
-      background: #fff;
+      background: rgba(15, 23, 42, 0.9);
 
-      color: #405980;
+      color: #38bdf8;
 
-      border: none;
+      border: 1px solid rgba(56, 189, 248, 0.4);
 
       border-radius: 50%;
 
@@ -761,7 +930,7 @@ const DEADLINE_Y = 88;
 
       padding: 0;
 
-      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+      box-shadow: 0 2px 12px rgba(0,0,0,.35);
 
     }
 
@@ -823,19 +992,25 @@ const DEADLINE_Y = 88;
 
       justify-content: center;
 
-      font-size: 42px;
+      font-size: clamp(28px, 8vw, 42px);
 
-      font-weight: 800;
+      font-weight: 900;
 
-      color: #405980;
+      font-style: italic;
 
-      text-shadow: 0 2px 20px rgba(255,255,255,.9);
+      color: #f0abfc;
+
+      text-shadow:
+        0 0 24px rgba(192, 38, 211, 0.9),
+        0 0 48px rgba(56, 189, 248, 0.5);
 
       z-index: 15;
 
       animation: level-banner 1.2s ease-out forwards;
 
       pointer-events: none;
+
+      letter-spacing: 0.04em;
 
     }
 
@@ -871,11 +1046,15 @@ const DEADLINE_Y = 88;
 
       padding: 32px 28px;
 
-      background: #fff;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
 
       border-radius: 24px;
 
-      box-shadow: 0 16px 48px rgba(0,0,0,.25);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+
+      box-shadow:
+        0 0 40px rgba(124, 58, 237, 0.25),
+        0 16px 48px rgba(0,0,0,.45);
 
       max-width: 340px;
 
@@ -895,11 +1074,13 @@ const DEADLINE_Y = 88;
 
       height: 72px;
 
-      color: #78909c;
+      color: #94a3b8;
 
       display: block;
 
       margin: 0 auto 8px;
+
+      filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.35));
 
     }
 
@@ -917,7 +1098,7 @@ const DEADLINE_Y = 88;
 
       font-weight: 800;
 
-      color: #2c3e50;
+      color: #f1f5f9;
 
     }
 
@@ -939,9 +1120,9 @@ const DEADLINE_Y = 88;
 
     .sr__overlay-stat { display: flex; flex-direction: column; align-items: center; }
 
-    .sr__overlay-stat-val { font-size: 28px; font-weight: 800; color: #405980; }
+    .sr__overlay-stat-val { font-size: 28px; font-weight: 800; color: #7dd3fc; }
 
-    .sr__overlay-stat-lbl { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .sr__overlay-stat-lbl { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
 
 
 
@@ -965,15 +1146,17 @@ const DEADLINE_Y = 88;
 
       gap: 12px;
 
-      background: linear-gradient(180deg, #f8fafc, #fff);
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(30, 27, 75, 0.75));
 
       border-radius: 16px;
 
       padding: 10px 12px 10px 16px;
 
-      border: 2px solid #e8ecf0;
+      border: 1px solid rgba(56, 189, 248, 0.35);
 
-      transition: border-color 0.2s;
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.1);
+
+      transition: border-color 0.2s, box-shadow 0.2s;
 
     }
 
@@ -1007,7 +1190,7 @@ const DEADLINE_Y = 88;
 
 
 
-    .sr__input-icon { color: #405980; opacity: 0.5; }
+    .sr__input-icon { color: #38bdf8; opacity: 0.75; }
 
 
 
@@ -1023,15 +1206,15 @@ const DEADLINE_Y = 88;
 
       font-size: 20px;
 
-      font-weight: 700;
+      font-weight: 800;
 
       text-transform: uppercase;
 
-      letter-spacing: 1px;
+      letter-spacing: 2px;
 
       outline: none;
 
-      color: #2c3e50;
+      color: #f1f5f9;
 
     }
 
@@ -1047,7 +1230,7 @@ const DEADLINE_Y = 88;
 
       letter-spacing: 0;
 
-      color: #aaa;
+      color: #64748b;
 
     }
 
@@ -1061,7 +1244,11 @@ const DEADLINE_Y = 88;
 
       height: 52px !important;
 
-      box-shadow: 0 4px 14px rgba(64, 89, 128, 0.35) !important;
+      box-shadow:
+        0 0 20px rgba(56, 189, 248, 0.45),
+        0 4px 14px rgba(124, 58, 237, 0.35) !important;
+
+      background: linear-gradient(145deg, #2563eb, #7c3aed) !important;
 
     }
 
@@ -1185,7 +1372,33 @@ const DEADLINE_Y = 88;
 
 
 
+    @media (max-width: 820px) {
+
+      .sr__playfield { flex-direction: column; align-items: stretch; gap: 4px; }
+
+      .sr__buddy {
+
+        flex: 0 0 auto;
+
+        order: -1;
+
+        flex-direction: row;
+
+        justify-content: center;
+
+        padding: 4px 0 0;
+
+        min-height: 0;
+
+      }
+
+      .sr__buddy-img { max-width: 96px; }
+
+    }
+
     @media (max-width: 600px) {
+
+      .sr { padding: 12px 12px 22px; border-radius: 18px; }
 
       .sr__arena { min-height: 260px; }
 

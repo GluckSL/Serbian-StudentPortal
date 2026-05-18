@@ -5,7 +5,13 @@
   [ngClass]="displayState"
 >
   <div class="dg-char__stage dg-char__stage--motion">
-    <img class="dg-char__img" [class.blink]="isBlinking" [src]="getImageSrc()" [alt]="name" />
+    <img
+      class="dg-char__img"
+      [class.blink]="isBlinking"
+      [src]="getImageSrc()"
+      (error)="onImgError($event)"
+      [alt]="name"
+    />
   </div>
   <div class="dg-char__badge" *ngIf="!minimalChrome">{{ moodLabel() }}</div>
 </div>

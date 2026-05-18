@@ -316,7 +316,7 @@
           <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="aiTyping">
             <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
             <div class="dg-conv__msg-stack">
-              <span class="dg-conv__msg-label">Ooly</span>
+              <span class="dg-conv__msg-label">{{ botDisplayName }}</span>
               <div class="dg-conv__msg-bubble">
                 <div class="dg-conv__typing-bubble">
                   <span class="dg-conv__typing-dot"></span>
@@ -333,7 +333,7 @@
               <div class="dg-conv__start-icon">🦊</div>
               <p class="dg-conv__start-heading">Ready to practice?</p>
               <p class="dg-conv__start-sub">
-                Ooly will speak German — reply in <strong>English</strong>, then say it in German.
+                {{ botDisplayName }} will speak German — reply in <strong>English</strong>, then say it in German.
                 The timer starts when you click below.
               </p>
               <button
@@ -359,7 +359,7 @@
         <div class="dg-conv__mic-area" *ngIf="!isMobile">
          
           <p class="dg-conv__mic-hint dg-conv__mic-hint--repeat" *ngIf="conversationStarted && !conversationComplete && awaitingGermanRepeat">
-            🎤 Speak the German phrase shown above — then Ooly will continue the conversation.
+            🎤 Speak the German phrase shown above — then {{ botDisplayName }} will continue the conversation.
           </p>
           <!-- German repeat banner -->
           <div class="dg-conv__german-repeat-banner" *ngIf="showStudentTurnUi && awaitingGermanRepeat">

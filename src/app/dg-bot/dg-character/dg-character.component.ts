@@ -98,10 +98,11 @@ export class DgCharacterComponent implements OnInit {
     }, wait);
   }
 
-  private clearBlinkTimers(): void {
-    if (this.blinkChain) clearTimeout(this.blinkChain);
-    if (this.blinkOff) clearTimeout(this.blinkOff);
-    this.blinkChain = null;
-    this.blinkOff = null;
+  onImgError(event: Event): void {
+    const img = event.target as HTMLImageElement | null;
+    if (!img) return;
+    const fallback = 'assets/dg-bot/lumo.svg';
+    if (img.src.includes('lumo.svg') || img.getAttribute('data-fallback') === '1') return;
+    img.setAttribute('data-fallback', '1');
+    img.src = fallback;
   }
-}

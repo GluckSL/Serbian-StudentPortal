@@ -327,8 +327,10 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return name || 'Student';
   }
 
+  /** DG guide display name from the loaded character (legacy UI used “Ooly”). */
   get botDisplayName(): string {
-    return 'Ooly';
+    const n = (this.payload?.character?.name || '').trim();
+    return n || 'Lumo';
   }
 
   highlightStartCue(text: string): string {

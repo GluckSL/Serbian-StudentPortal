@@ -156,6 +156,8 @@ export interface LeaderboardEntry {
   bestScore: number;
   bestTime?: number;
   accuracy?: number;
+  /** Completed runs contributing to this row (per-game leaderboard) */
+  attempts?: number;
 }
 
 export interface LeaderboardResponse {
