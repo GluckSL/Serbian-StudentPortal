@@ -697,19 +697,23 @@ exports.adminUpsertQuestions = async (req, res) => {
         isPlaceholder: false,
       };
 
-      if (set.gameType === 'scramble_rush') {
-        doc.word = String(q.word || '').trim().toUpperCase();
-        doc.hint = q.hint || '';
-        doc.imageUrl = q.imageUrl || null;
-        doc.audioUrl = q.audioUrl || null;
-        doc.difficultyLevel = Math.min(5, Math.max(1, parseInt(q.difficultyLevel, 10) || 1));
-        doc.fallDurationSeconds = Math.min(30, Math.max(2, parseInt(q.fallDurationSeconds, 10) || 5));
-      } else if (set.gameType === 'sentence_builder') {
+      if (set.gameType === 'sentence_builder') {
         doc.correctSentence = String(q.correctSentence || '').trim();
         doc.translation = q.translation || '';
         doc.sentenceAudioUrl = q.sentenceAudioUrl || null;
         doc.randomizeWords = q.randomizeWords !== false;
         doc.tokens = doc.correctSentence.trim().split(/\s+/).filter(Boolean);
+      } else {
+        // scramble_rush, matching, flashcards all use word/hint
+        doc.word = String(q.word || '').trim().toUpperCase();
+        doc.hint = q.hint || '';
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
+
+        if (set.gameType === 'scramble_rush') {
+          doc.difficultyLevel = Math.min(5, Math.max(1, parseInt(q.difficultyLevel, 10) || 1));
+          doc.fallDurationSeconds = Math.min(30, Math.max(2, parseInt(q.fallDurationSeconds, 10) || 5));
+        }
       }
 
       if (q._id) {
@@ -884,9 +888,9 @@ exports.getAchievements = async (req, res) => {
 
 exports.adminImportPreview = async (req, res) => {
   try {
-    const { rows, importType } = req.body;
+    const { rows, importType, gameType } = req.body;
     if (!Array.isArray(rows)) return badRequest(res, 'rows array required');
-    const result = await importService.previewImport(req.params.id, rows, importType);
+    const result = await importService.previewImport(req.params.id, rows, importType, gameType);
     res.json({ success: true, ...result });
   } catch (err) {
     serverError(res, err);
@@ -895,9 +899,9 @@ exports.adminImportPreview = async (req, res) => {
 
 exports.adminImportCommit = async (req, res) => {
   try {
-    const { rows, importType } = req.body;
+    const { rows, importType, gameType } = req.body;
     if (!Array.isArray(rows)) return badRequest(res, 'rows array required');
-    const result = await importService.commitImport(req.params.id, rows, importType);
+    const result = await importService.commitImport(req.params.id, rows, importType, gameType);
     if (!result.ok) return res.status(400).json(result);
     res.json({ success: true, ...result });
   } catch (err) {
@@ -909,8 +913,9 @@ exports.adminImportTemplate = async (req, res) => {
   try {
     const set = await GameSet.findById(req.params.id).lean();
     if (!set) return notFound(res);
-    const template = importService.getImportTemplate(set.gameType);
-    res.json({ success: true, template, gameType: set.gameType });
+    const gType = req.query.gameType || set.gameType;
+    const template = importService.getImportTemplate(gType);
+    res.json({ success: true, template, gameType: gType });
   } catch (err) {
     serverError(res, err);
   }

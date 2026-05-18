@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -13,6 +13,7 @@ import { GameSet, GameType, AdminGameQuestion, GameLevel } from '../../../glueck
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
 import { SentenceQuestionFormComponent } from '../sentence-question-form/sentence-question-form.component';
+import { SimpleQuestionFormComponent } from '../simple-question-form/simple-question-form.component';
 import { LevelEditorComponent } from '../level-editor/level-editor.component';
 import { GameImportPanelComponent } from '../game-import-panel/game-import-panel.component';
 
@@ -21,7 +22,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule, MaterialModule,
-    ScrambleQuestionFormComponent, SentenceQuestionFormComponent, LevelEditorComponent, GameImportPanelComponent
+    ScrambleQuestionFormComponent, SentenceQuestionFormComponent, SimpleQuestionFormComponent,
+    LevelEditorComponent, GameImportPanelComponent
   ],
   template: `
     <div class="ga-editor">
@@ -50,8 +52,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                 <mat-select formControlName="gameType" (selectionChange)="onTypeChange()">
                   <mat-option value="scramble_rush">Scramble Rush</mat-option>
                   <mat-option value="sentence_builder">Sentence Builder</mat-option>
-                  <mat-option value="matching">Matching (placeholder)</mat-option>
-                  <mat-option value="flashcards">Flashcards (placeholder)</mat-option>
+                  <mat-option value="matching">Matching</mat-option>
+                  <mat-option value="flashcards">Flashcards</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -201,13 +203,21 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
         <mat-tab [label]="questionsLabel" [disabled]="!setId">
           <ng-container [ngSwitch]="form.get('gameType')?.value">
             <app-scramble-question-form
+              #scrambleForm
               *ngSwitchCase="'scramble_rush'"
               [gameSetId]="setId!"
             ></app-scramble-question-form>
             <app-sentence-question-form
+              #sentenceForm
               *ngSwitchCase="'sentence_builder'"
               [gameSetId]="setId!"
             ></app-sentence-question-form>
+            <app-simple-question-form
+              #simpleForm
+              *ngSwitchCase="['matching', 'flashcards'].includes(form.get('gameType')?.value) ? form.get('gameType')?.value : '___never___'"
+              [gameSetId]="setId!"
+              [gameType]="form.get('gameType')?.value"
+            ></app-simple-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
@@ -221,7 +231,12 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
         </mat-tab>
 
         <mat-tab label="Import" [disabled]="!setId">
-          <app-game-import-panel *ngIf="setId" [gameSetId]="setId!"></app-game-import-panel>
+          <app-game-import-panel 
+            *ngIf="setId" 
+            [gameSetId]="setId!" 
+            [gameType]="form.get('gameType')?.value"
+            (imported)="refreshQuestions()"
+          ></app-game-import-panel>
         </mat-tab>
       </mat-tab-group>
     </div>
@@ -255,6 +270,10 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
   `]
 })
 export class GameSetEditorComponent implements OnInit {
+  @ViewChild('scrambleForm') scrambleForm?: ScrambleQuestionFormComponent;
+  @ViewChild('sentenceForm') sentenceForm?: SentenceQuestionFormComponent;
+  @ViewChild('simpleForm') simpleForm?: SimpleQuestionFormComponent;
+
   form!: FormGroup;
   isEdit = false;
   setId: string | null = null;
@@ -270,8 +289,8 @@ export class GameSetEditorComponent implements OnInit {
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
 
   get questionsLabel(): string {
-    const count = 0; // could fetch from set
-    return 'Questions';
+    const count = this.form.get('questionCount')?.value || 0;
+    return `Questions (${count})`;
   }
 
   constructor(
@@ -292,6 +311,13 @@ export class GameSetEditorComponent implements OnInit {
       this.setId = id;
       this.loadSet(id);
     }
+  }
+
+  refreshQuestions() {
+    this.scrambleForm?.load();
+    this.sentenceForm?.load();
+    this.simpleForm?.load();
+    if (this.setId) this.loadSet(this.setId);
   }
 
   private async loadBatches(): Promise<void> {
@@ -337,6 +363,7 @@ export class GameSetEditorComponent implements OnInit {
       courseDay: [null],
       sessionLimitSeconds: [null],
       perQuestionSeconds: [null],
+      questionCount: [0],
     });
   }
 

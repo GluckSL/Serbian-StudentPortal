@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../../../../shared/material.module';
 import { InteractiveGameService } from '../../../services/interactive-game.service';
@@ -11,12 +11,12 @@ import * as XLSX from 'xlsx';
   imports: [CommonModule, MaterialModule],
   template: `
     <div class="gip" *ngIf="gameSetId">
-      <h3>Bulk import (CSV / Excel)</h3>
+      <h3>Bulk import (CSV)</h3>
       <p class="gip__hint">Download template, fill rows, upload for preview, then commit.</p>
       <div class="gip__actions">
         <button mat-stroked-button (click)="downloadTemplate()"><mat-icon>download</mat-icon> Template</button>
-        <button mat-stroked-button (click)="fileInput.click()"><mat-icon>upload_file</mat-icon> Upload file</button>
-        <input #fileInput type="file" accept=".csv,.xlsx,.xls" hidden (change)="onFile($event)">
+        <button mat-stroked-button (click)="fileInput.click()"><mat-icon>upload_file</mat-icon> Upload CSV</button>
+        <input #fileInput type="file" accept=".csv" hidden (change)="onFile($event)">
         <button mat-raised-button color="primary" [disabled]="!rows.length || importing" (click)="commit()">
           Import {{ rows.length }} rows
         </button>
@@ -39,22 +39,34 @@ import * as XLSX from 'xlsx';
     .gip__preview pre { font-size: 11px; max-height: 200px; overflow: auto; background: #f5f5f5; padding: 12px; border-radius: 8px; }
   `]
 })
-export class GameImportPanelComponent {
+export class GameImportPanelComponent implements OnChanges {
   @Input() gameSetId!: string;
+  @Input() gameType?: string;
+  @Output() imported = new EventEmitter<void>();
   rows: Record<string, unknown>[] = [];
   previewRows: unknown[] = [];
   previewErrors: string[] = [];
+  previewOk = false;
   importing = false;
 
   constructor(private svc: InteractiveGameService, private notify: NotificationService) {}
 
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['gameSetId'] || changes['gameType']) {
+      this.rows = [];
+      this.previewRows = [];
+      this.previewErrors = [];
+      this.previewOk = false;
+    }
+  }
+
   downloadTemplate() {
-    this.svc.adminImportTemplate(this.gameSetId).subscribe({
+    this.svc.adminImportTemplate(this.gameSetId, this.gameType).subscribe({
       next: (r) => {
         const ws = XLSX.utils.json_to_sheet(r.template || []);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Import');
-        XLSX.writeFile(wb, `glueck-arena-${r.gameType}-template.xlsx`);
+        XLSX.writeFile(wb, `glueck-arena-${r.gameType}-template.csv`);
       }
     });
   }
@@ -74,23 +86,30 @@ export class GameImportPanelComponent {
   }
 
   preview() {
-    this.svc.adminImportPreview(this.gameSetId, this.rows).subscribe({
+    this.svc.adminImportPreview(this.gameSetId, this.rows, undefined, this.gameType).subscribe({
       next: (r) => {
         this.previewRows = r.preview || [];
         this.previewErrors = r.errors || [];
+        this.previewOk = !!r.ok;
         if (!r.ok) this.notify.error('Validation errors — fix before import');
       }
     });
   }
 
   commit() {
+    if (!this.previewOk) {
+      this.notify.error('Please fix preview errors first');
+      return;
+    }
     this.importing = true;
-    this.svc.adminImportCommit(this.gameSetId, this.rows).subscribe({
+    this.svc.adminImportCommit(this.gameSetId, this.rows, undefined, this.gameType).subscribe({
       next: (r) => {
         this.importing = false;
         this.notify.success(`Imported ${r.imported} items`);
         this.rows = [];
         this.previewRows = [];
+        this.previewOk = false;
+        this.imported.emit();
       },
       error: () => { this.importing = false; this.notify.error('Import failed'); }
     });
