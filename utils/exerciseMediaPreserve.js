@@ -13,10 +13,11 @@ function normalizeClears(raw) {
       subIndex: c?.subIndex == null || c?.subIndex === '' ? null : Number(c.subIndex),
       field: String(c?.field || '').trim()
     }))
-    .filter((c) => Number.isFinite(c.qIndex) && c.qIndex >= 0 && c.field);
+    .filter((c) => Number.isFinite(c.qIndex) && (c.qIndex >= 0 || c.qIndex === -1) && c.field);
 }
 
 function isCleared(clears, qIndex, field, subIndex = null) {
+  if (!Array.isArray(clears) || clears.length === 0) return false;
   return clears.some(
     (c) =>
       c.qIndex === qIndex &&
@@ -61,8 +62,10 @@ function preserveQuestionPair(existingQ, incomingQ, qIndex, clears, subIndex = n
   return incomingQ;
 }
 
-function preserveTopLevelMedia(existingExercise, incomingExercise, clears) {
+function preserveTopLevelMedia(existingExercise, incomingExercise, mediaClears) {
   if (!existingExercise || !incomingExercise) return incomingExercise;
+
+  const clears = normalizeClears(mediaClears);
 
   if (!isCleared(clears, -1, 'sharedAudioUrl', null)) {
     const inc = String(incomingExercise.sharedAudioUrl ?? '').trim();
