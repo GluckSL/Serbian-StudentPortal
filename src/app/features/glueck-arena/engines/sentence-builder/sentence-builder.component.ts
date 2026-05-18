@@ -96,60 +96,13 @@ export interface SBResult {
         </div>
       </main>
 
-      <aside class="sb-panel" *ngIf="gameSet">
-        <div class="sb-panel__game">
-          <div class="sb-panel__icon" [style.background]="typeGradient">
-            <mat-icon>{{ gameSet.icon || 'sports_esports' }}</mat-icon>
-          </div>
-          <h2>{{ gameSet.title }}</h2>
-          <p class="sb-panel__type">Sentence Builder</p>
-        </div>
-
-        <div class="sb-panel__timer-card">
-          <mat-icon>timer</mat-icon>
-          <div>
-            <span class="sb-panel__timer-val">{{ formatElapsed(sessionElapsedSeconds) }}</span>
-            <span class="sb-panel__timer-lbl">elapsed</span>
-          </div>
-          <small>Timer runs until you finish all sentences</small>
-        </div>
-
-        <section class="sb-panel__block">
-          <h3><mat-icon>info</mat-icon> How it works</h3>
-          <ol>
-            <li>Each numbered spot is a fixed position in the sentence.</li>
-            <li>Drag a word into a spot — if it belongs there, it turns green and locks.</li>
-            <li>Wrong spot? The word shakes red — try a different position.</li>
-            <li>Lock every word in each sentence, then move to the next.</li>
-          </ol>
-        </section>
-
-        <section class="sb-panel__block sb-panel__block--score">
-          <h3><mat-icon>leaderboard</mat-icon> Scoring</h3>
-          <ul>
-            <li><strong>+10 pts</strong> per correct word position</li>
-            <li>Fastest total time ranks higher on the leaderboard</li>
-          </ul>
-        </section>
-      </aside>
-
+    </div>
       <app-xp-float [xp]="xpPerAnswer" [trigger]="xpTrigger"></app-xp-float>
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
-    </div>
   `,
   styles: [`
     .sb-layout {
-      display: grid;
-      grid-template-columns: 1fr 300px;
-      gap: 24px;
-      max-width: 1100px;
       margin: 0 auto;
-      padding: 16px;
-      align-items: start;
-    }
-    @media (max-width: 900px) {
-      .sb-layout { grid-template-columns: 1fr; }
-      .sb-panel { order: -1; }
     }
 
     .sb-play {
@@ -327,43 +280,7 @@ export interface SBResult {
     .sb-complete { text-align: center; padding: 48px 24px; }
     .sb-complete mat-icon { font-size: 64px; width: 64px; height: 64px; color: #f59e0b; }
 
-    .sb-panel {
-      background: #fff; border-radius: 20px; padding: 22px;
-      border: 1px solid #e2e8f0;
-      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
-      position: sticky; top: 16px;
-    }
-    .sb-panel__game { text-align: center; margin-bottom: 20px; }
-    .sb-panel__icon {
-      width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 12px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .sb-panel__icon mat-icon { font-size: 32px; width: 32px; height: 32px; color: #fff; }
-    .sb-panel h2 { margin: 0 0 4px; font-size: 18px; color: #1e293b; }
-    .sb-panel__type { margin: 0; font-size: 12px; color: #6366f1; font-weight: 700; text-transform: uppercase; }
-    .sb-panel__timer-card {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
-      padding: 16px; border-radius: 14px; margin-bottom: 18px;
-      background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff;
-    }
-    .sb-panel__timer-card mat-icon { font-size: 36px; width: 36px; height: 36px; opacity: 0.9; }
-    .sb-panel__timer-val { display: block; font-size: 28px; font-weight: 800; line-height: 1; }
-    .sb-panel__timer-lbl { font-size: 12px; opacity: 0.85; }
-    .sb-panel__timer-card small { width: 100%; opacity: 0.75; font-size: 11px; }
-    .sb-panel__block { margin-bottom: 18px; }
-    .sb-panel__block h3 {
-      display: flex; align-items: center; gap: 6px;
-      margin: 0 0 10px; font-size: 13px; font-weight: 800;
-      text-transform: uppercase; letter-spacing: 0.04em; color: #475569;
-    }
-    .sb-panel__block h3 mat-icon { font-size: 18px; width: 18px; height: 18px; color: #6366f1; }
-    .sb-panel__block ol { margin: 0; padding-left: 18px; font-size: 13px; color: #64748b; line-height: 1.55; }
-    .sb-panel__block ol li { margin-bottom: 8px; }
-    .sb-panel__block--score {
-      background: #f8fafc; border-radius: 12px; padding: 14px;
-      border: 1px solid #e2e8f0;
-    }
-    .sb-panel__block--score ul { margin: 0; padding-left: 18px; font-size: 13px; color: #64748b; }
+
   `]
 })
 export class SentenceBuilderComponent implements OnInit, OnDestroy {
@@ -574,6 +491,10 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
         this.wrongFlash[i] = true;
         setTimeout(() => { this.wrongFlash[i] = false; }, 350);
       }
+    }
+
+    if (this.allLocked) {
+      this.onAllSlotsLockedLocal();
     }
   }
 

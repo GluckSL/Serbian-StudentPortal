@@ -6,7 +6,7 @@ import { InteractiveGameService } from '../../services/interactive-game.service'
 import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
-  GameAttempt, GameQuestion, GameLevel, GameSet,
+  GameAttempt, GameQuestion, GameLevel, GameSet, CatalogFilters,
   SentenceQuestion, ScrambleQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
@@ -34,192 +34,129 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
         <button mat-raised-button (click)="back()">Go Back</button>
       </div>
 
-      <!-- Intro -->
-      <div *ngIf="phase === 'intro' && set" class="shell-intro">
-        <div class="shell-intro__top">
-          <div class="shell-intro__main">
-            <div class="shell-intro__hero" [style.background]="getTypeColor(set.gameType)">
-              <mat-icon>{{ set.icon || 'sports_esports' }}</mat-icon>
+      <!-- Unified shell layout for intro and playing phases -->
+      <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing'">
+
+        <div class="shell-game-wrap__side">
+
+          <!-- Info card -->
+          <aside class="shell-side__info" *ngIf="set">
+            <button class="shell-side__back" (click)="back()"><mat-icon>arrow_back</mat-icon></button>
+            <div class="sb-panel__game">
+              <div class="sb-panel__icon" [style.background]="getTypeColor(set.gameType)">
+                <mat-icon>{{ set.icon || 'sports_esports' }}</mat-icon>
+              </div>
+              <h2>{{ set.title }}</h2>
+              <p class="sb-panel__type">{{ formatType(set.gameType) }}</p>
             </div>
-            <div class="shell-intro__tags">
-              <span class="shell-tag">{{ formatType(set.gameType) }}</span>
-              <span class="shell-tag">{{ set.difficulty }}</span>
-              <span class="shell-tag" *ngIf="set.level">{{ set.level }}</span>
-            </div>
-            <h1>{{ set.title }}</h1>
-            <p class="shell-intro__desc">{{ set.description }}</p>
-            <div class="shell-intro__stats">
-              <div><mat-icon>quiz</mat-icon><strong>{{ questions.length }}</strong><span>Questions</span></div>
-              <div><mat-icon>schedule</mat-icon><strong>~{{ set.estimatedDurationMinutes }}</strong><span>Minutes</span></div>
-              <div><mat-icon>timer</mat-icon><strong>Count-up</strong><span>Total time</span></div>
-              <div><mat-icon>bolt</mat-icon><strong>{{ set.xpReward }}</strong><span>Max XP</span></div>
-            </div>
-            <div class="shell-intro__actions">
-              <button mat-raised-button color="primary" class="shell-intro__start" (click)="startPlay()">
-                <mat-icon>play_arrow</mat-icon> Start game
-              </button>
-              <button mat-stroked-button (click)="back()">Back to arena</button>
-            </div>
-          </div>
-          <aside class="shell-intro__side">
-            <section>
-              <h3><mat-icon>rule</mat-icon> How to play</h3>
+            <section class="sb-panel__block">
+              <h3><mat-icon>info</mat-icon> How it works</h3>
               <p *ngIf="set.gameType === 'sentence_builder'">Drag words into the correct positions. The clock counts up from zero — finish all sentences as fast as you can.</p>
               <p *ngIf="set.gameType === 'scramble_rush'">Type words before letters fall. Limited lives — complete all levels to win.</p>
             </section>
-            <section>
-              <h3><mat-icon>leaderboard</mat-icon> Scoring</h3>
-              <ul>
-                <li *ngIf="set.gameType === 'sentence_builder'"><strong>+15 pts</strong> per correct sentence</li>
-                <li *ngIf="set.gameType === 'sentence_builder'">Faster total time = higher leaderboard rank</li>
-                <li *ngIf="set.gameType === 'scramble_rush'">Finish levels with lives left for maximum points</li>
-                <li *ngIf="set.gameType === 'scramble_rush'">Higher score and speed help you climb the board</li>
-              </ul>
-            </section>
           </aside>
+
+          <!-- Leaderboard card -->
+          <aside class="shell-side">
+            <div class="shell-side__lb">
+              <header class="shell-side__lb-head">
+                <h3><mat-icon>leaderboard</mat-icon> Leaderboard</h3>
+                <a routerLink="/glueck-arena/leaderboard" class="shell-side__lb-link">See all</a>
+              </header>
+              <div class="lb__list" *ngIf="!lbLoading && lbEntries.length">
+                <div class="lb__row" *ngFor="let e of lbEntries" [class.lb__row--me]="isMe(e)">
+                  <span class="lb__rank"
+                    [class.lb__rank--gold]="e.rank === 1"
+                    [class.lb__rank--silver]="e.rank === 2"
+                    [class.lb__rank--bronze]="e.rank === 3"
+                  >{{ e.rank }}</span>
+                  <div class="lb__info">
+                    <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">(You)</span></span>
+                    <span class="lb__sub">{{ e.gamesCompleted }} games · Best: {{ e.bestScore }} pts</span>
+                  </div>
+                  <span class="lb__xp">⚡{{ e.totalXp }}</span>
+                </div>
+              </div>
+              <div class="lb__list lb__list--skel" *ngIf="lbLoading">
+                <div class="lb__row lb__row--skel" *ngFor="let _ of [1,2,3]"></div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Similar games -->
+          <aside class="shell-side shell-side--similar" *ngIf="similarGames.length">
+            <h3 class="shell-side__sim-head"><mat-icon>extension</mat-icon> Similar games</h3>
+            <a class="shell-side__sim-card" *ngFor="let g of similarGames" [routerLink]="['/glueck-arena', g._id]">
+              <div class="shell-side__sim-visual" [style.background]="getTypeColor(g.gameType)">
+                <mat-icon>{{ g.icon || 'sports_esports' }}</mat-icon>
+              </div>
+              <div class="shell-side__sim-body">
+                <span class="shell-side__sim-title">{{ g.title }}</span>
+                <span class="shell-side__sim-meta">{{ g.estimatedDurationMinutes }} min · {{ g.questionCount }} Q</span>
+              </div>
+              <mat-icon class="shell-side__sim-arrow">chevron_right</mat-icon>
+            </a>
+          </aside>
+
         </div>
 
-        <section class="shell-compete" aria-labelledby="compete-heading">
-          <div class="shell-compete__head">
-            <div>
-              <h2 id="compete-heading">Compete with your batch</h2>
-              <p class="shell-compete__sub">See how you stack up on this game. Finish strong to move up the board.</p>
+        <!-- Main game content -->
+        <div class="shell-game-wrap__main">
+
+          <!-- Intro -->
+          <div *ngIf="phase === 'intro' && set" class="shell-intro">
+            <div class="shell-intro__main">
+              <div class="shell-intro__hero" [style.background]="getTypeColor(set.gameType)">
+                <mat-icon>{{ set.icon || 'sports_esports' }}</mat-icon>
+              </div>
+              <div class="shell-intro__tags">
+                <span class="shell-tag">{{ formatType(set.gameType) }}</span>
+                <span class="shell-tag">{{ set.difficulty }}</span>
+                <span class="shell-tag" *ngIf="set.level">{{ set.level }}</span>
+              </div>
+              <h1>{{ set.title }}</h1>
+              <p class="shell-intro__desc">{{ set.description }}</p>
+              <div class="shell-intro__stats">
+                <div><mat-icon>quiz</mat-icon><strong>{{ questions.length }}</strong><span>Questions</span></div>
+                <div><mat-icon>schedule</mat-icon><strong>~{{ set.estimatedDurationMinutes }}</strong><span>Minutes</span></div>
+                <div><mat-icon>timer</mat-icon><strong>Count-up</strong><span>Total time</span></div>
+                <div><mat-icon>bolt</mat-icon><strong>{{ set.xpReward }}</strong><span>Max XP</span></div>
+              </div>
+              <div class="shell-intro__actions">
+                <button class="shell-intro__start" (click)="startPlay()">
+                  <mat-icon>play_arrow</mat-icon>
+                </button>
+              </div>
             </div>
-            <a mat-stroked-button color="primary" routerLink="/glueck-arena/leaderboard" class="shell-compete__arena-link">
-              <mat-icon>public</mat-icon> Arena leaderboard
-            </a>
           </div>
 
-          <div class="shell-compete__grid">
-            <article class="shell-batch-card">
-              <div class="shell-batch-card__accent"></div>
-              <header class="shell-batch-card__header">
-                <mat-icon class="shell-batch-card__icon">groups</mat-icon>
-                <div>
-                  <h3>Your standing</h3>
-                  <p class="shell-batch-card__hint">Your profile batch and this run</p>
-                </div>
-              </header>
-              <dl class="shell-batch-card__stats">
-                <div class="shell-batch-card__row">
-                  <dt><mat-icon>school</mat-icon> Your batch</dt>
-                  <dd>{{ studentBatchLabel }}</dd>
-                </div>
-                <div class="shell-batch-card__row" *ngIf="set.batchLabel">
-                  <dt><mat-icon>category</mat-icon> Game cohort</dt>
-                  <dd>{{ set.batchLabel }}</dd>
-                </div>
-                <div class="shell-batch-card__row">
-                  <dt><mat-icon>military_tech</mat-icon> Your rank (this game)</dt>
-                  <dd>
-                    <span class="shell-batch-card__rank-pill" *ngIf="myGameRank != null">#{{ myGameRank }}</span>
-                    <span class="shell-batch-card__rank-muted" *ngIf="myGameRank == null && !leaderboardLoading">Not in top 20 yet</span>
-                    <span class="shell-batch-card__rank-muted" *ngIf="leaderboardLoading">…</span>
-                  </dd>
-                </div>
-                <div class="shell-batch-card__row" *ngIf="myBoardEntry as me">
-                  <dt><mat-icon>emoji_events</mat-icon> Your best listed</dt>
-                  <dd><strong>{{ me.bestScore }}</strong> pts · {{ formatLeaderTime(me.bestTime) }}</dd>
-                </div>
-                <div class="shell-batch-card__row">
-                  <dt><mat-icon>replay</mat-icon> This session</dt>
-                  <dd>Attempt #{{ attempt?.attemptNumber ?? '—' }}</dd>
-                </div>
-              </dl>
-              <p class="shell-batch-card__foot" *ngIf="gameLeaderboard.length">
-                <mat-icon>info_outline</mat-icon>
-                {{ gameLeaderboard.length }} players on this board — tie-breakers use best time.
-              </p>
-            </article>
+          <!-- Engines -->
+          <app-sentence-builder
+            *ngIf="phase === 'playing' && set?.gameType === 'sentence_builder' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asSentenceQuestions()"
+            (onComplete)="handleComplete($event)"
+          ></app-sentence-builder>
 
-            <article class="shell-lb-card">
-              <header class="shell-lb-card__head">
-                <div class="shell-lb-card__title">
-                  <mat-icon>format_list_numbered</mat-icon>
-                  <div>
-                    <h3>Top players</h3>
-                    <span>Live rankings for {{ set.title }}</span>
-                  </div>
-                </div>
-                <div class="shell-lb-card__shine" aria-hidden="true"></div>
-              </header>
+          <app-scramble-rush
+            *ngIf="phase === 'playing' && set?.gameType === 'scramble_rush' && attempt"
+            [attempt]="attempt!"
+            [questions]="asScrambleQuestions()"
+            [levels]="levels"
+            (onComplete)="handleScrambleComplete($event)"
+          ></app-scramble-rush>
 
-              <div class="shell-lb-skel" *ngIf="leaderboardLoading">
-                <div class="shell-lb-skel__row" *ngFor="let _ of [1,2,3,4,5]"></div>
-              </div>
-
-              <div class="shell-lb-empty" *ngIf="!leaderboardLoading && !gameLeaderboard.length">
-                <mat-icon>rocket_launch</mat-icon>
-                <p><strong>No scores yet.</strong> Be the first from your batch to finish and own rank #1.</p>
-              </div>
-
-              <div class="shell-lb-table-wrap" *ngIf="!leaderboardLoading && gameLeaderboard.length">
-                <table class="shell-lb-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Rank</th>
-                      <th scope="col">Player</th>
-                      <th scope="col">Score</th>
-                      <th scope="col">Best time</th>
-                      <th scope="col">Runs</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let e of gameLeaderboard"
-                        [class.shell-lb-table__me]="isLeaderboardMe(e)"
-                        [class.shell-lb-table__row--1]="e.rank === 1"
-                        [class.shell-lb-table__row--2]="e.rank === 2"
-                        [class.shell-lb-table__row--3]="e.rank === 3">
-                      <td>
-                        <span class="shell-lb-rank" [attr.data-rank]="e.rank">{{ e.rank }}</span>
-                      </td>
-                      <td>
-                        <div class="shell-lb-player">
-                          <div class="shell-lb-avatar" *ngIf="e.avatarUrl as av">
-                            <img [src]="av" alt="">
-                          </div>
-                          <div class="shell-lb-avatar shell-lb-avatar--txt" *ngIf="!e.avatarUrl">{{ playerInitials(e.name) }}</div>
-                          <div class="shell-lb-player__meta">
-                            <span class="shell-lb-name">{{ e.name }}</span>
-                            <span class="shell-lb-you" *ngIf="isLeaderboardMe(e)">You</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td><span class="shell-lb-score">{{ e.bestScore }}</span></td>
-                      <td class="shell-lb-muted">{{ formatLeaderTime(e.bestTime) }}</td>
-                      <td class="shell-lb-muted">{{ e.attempts ?? '—' }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </article>
+          <!-- Placeholder -->
+          <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
+            <mat-icon>construction</mat-icon>
+            <h3>Coming Soon</h3>
+            <p>{{ set?.gameType }} game type is coming soon!</p>
+            <button mat-raised-button (click)="back()">Back to GlückArena</button>
           </div>
-        </section>
-      </div>
 
-      <!-- Engines -->
-      <app-sentence-builder
-        *ngIf="phase === 'playing' && set?.gameType === 'sentence_builder' && attempt && set"
-        [attempt]="attempt!"
-        [gameSet]="set"
-        [questions]="asSentenceQuestions()"
-        (onComplete)="handleComplete($event)"
-      ></app-sentence-builder>
+        </div>
 
-      <app-scramble-rush
-        *ngIf="phase === 'playing' && set?.gameType === 'scramble_rush' && attempt"
-        [attempt]="attempt!"
-        [questions]="asScrambleQuestions()"
-        [levels]="levels"
-        (onComplete)="handleScrambleComplete($event)"
-      ></app-scramble-rush>
-
-      <!-- Placeholder -->
-      <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
-        <mat-icon>construction</mat-icon>
-        <h3>Coming Soon</h3>
-        <p>{{ set?.gameType }} game type is coming soon!</p>
-        <button mat-raised-button (click)="back()">Back to GlückArena</button>
       </div>
 
       <div class="shell__badge-popup" *ngIf="newBadges.length">
@@ -265,7 +202,28 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
     .shell__loading, .shell__error { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 64px; text-align: center; }
     .shell__error mat-icon { font-size: 48px; width: 48px; height: 48px; color: #c62828; }
 
-    .shell-intro { display: flex; flex-direction: column; gap: 28px; }
+    .shell-game-wrap {
+      display: grid;
+      grid-template-columns: 0.3fr 0.7fr;
+      gap: 16px;
+      align-items: start;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .shell-game-wrap__side {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .shell-game-wrap__main { min-width: 0; }
+    @media (max-width: 1000px) {
+      .shell-game-wrap { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .shell-game-wrap { grid-template-columns: 1fr; }
+    }
+
+    .shell-intro {
+      display: flex; flex-direction: column; gap: 28px;
+    }
     .shell-intro__top {
       display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start;
     }
@@ -297,22 +255,107 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
     .shell-intro__stats mat-icon { color: #6366f1; font-size: 22px; width: 22px; height: 22px; }
     .shell-intro__stats strong { display: block; font-size: 20px; color: #1e293b; margin-top: 4px; }
     .shell-intro__stats span { font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
-    .shell-intro__actions { display: flex; gap: 12px; flex-wrap: wrap; }
-    .shell-intro__start { padding: 12px 28px !important; border-radius: 14px !important; font-size: 16px !important; }
-    .shell-intro__side {
-      background: #fff; border-radius: 20px; padding: 24px;
-      border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    .shell-intro__actions { display: flex; justify-content: center; }
+    .shell-intro__start {
+      width: 70px; height: 70px; border-radius: 50%; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .shell-intro__start mat-icon { font-size: 32px; width: 32px; height: 32px; color: #fff; }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    .shell-intro__info { margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+
+    .shell-side__info {
+      background: #fff; border-radius: 20px; padding: 22px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
       position: sticky; top: 16px;
     }
-    .shell-intro__side section { margin-bottom: 20px; }
-    .shell-intro__side section:last-child { margin-bottom: 0; }
-    .shell-intro__side h3 {
-      display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
-      font-size: 13px; font-weight: 800; text-transform: uppercase; color: #475569;
+    .shell-side__back {
+      position: absolute; top: 12px; left: 12px;
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border: none; border-radius: 10px;
+      background: #f1f5f9; cursor: pointer; z-index: 1;
+      color: #475569; transition: background 0.15s;
+      padding: 0;
     }
-    .shell-intro__side h3 mat-icon { color: #6366f1; font-size: 20px; width: 20px; height: 20px; }
-    .shell-intro__side p, .shell-intro__side li { font-size: 13px; color: #64748b; line-height: 1.55; }
-    .shell-intro__side ul { margin: 0; padding-left: 18px; }
+    .shell-side__back:hover { background: #e2e8f0; }
+    .shell-side__back mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .sb-panel__game { text-align: center; margin-bottom: 16px; }
+    .sb-panel__icon {
+      width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sb-panel__icon mat-icon { font-size: 32px; width: 32px; height: 32px; color: #fff; }
+    .shell-side__info h2 { margin: 0 0 4px; font-size: 18px; color: #1e293b; }
+    .sb-panel__type { margin: 0; font-size: 12px; color: #6366f1; font-weight: 700; text-transform: uppercase; }
+
+    .shell-side {
+      background: #fff; border-radius: 20px; padding: 22px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+      position: sticky; top: 16px;
+    }
+    .sb-panel__block { margin-bottom: 16px; }
+    .sb-panel__block h3 {
+      display: flex; align-items: center; gap: 6px;
+      margin: 0 0 8px; font-size: 13px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.04em; color: #475569;
+    }
+    .sb-panel__block h3 mat-icon { font-size: 18px; width: 18px; height: 18px; color: #6366f1; }
+    .sb-panel__block p { font-size: 13px; color: #64748b; line-height: 1.55; margin: 0; }
+    .shell-side__lb-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 0;
+      background: none;
+    }
+    .shell-side__lb-head h3 {
+      margin: 0; font-size: 14px; font-weight: 800; color: #1e293b;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .shell-side__lb-head h3 mat-icon { font-size: 18px; width: 18px; height: 18px; color: #6366f1; }
+    .shell-side__lb-link {
+      font-size: 11px; font-weight: 700; color: #6366f1; text-decoration: none;
+    }
+    .shell-side .lb__list { display: flex; flex-direction: column; gap: 8px; }
+    .shell-side .lb__row {
+      display: grid;
+      grid-template-columns: 20px 1fr auto;
+      gap: 6px;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #eef2f7;
+    }
+    .shell-side .lb__row--me { background: #e8edf5; border-color: #405980; }
+    .shell-side .lb__rank {
+      text-align: center; font-size: 12px; font-weight: 800;
+      color: #888;
+    }
+    .shell-side .lb__rank--gold { color: #ff8f00; }
+    .shell-side .lb__rank--silver { color: #90a4ae; }
+    .shell-side .lb__rank--bronze { color: #a0522d; }
+    .shell-side .lb__info { min-width: 0; overflow: hidden; }
+    .shell-side .lb__name {
+      display: block; font-size: 12px; font-weight: 600; color: #2c3e50;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .shell-side .lb__sub { display: block; font-size: 10px; color: #888; }
+    .shell-side .lb__you { font-size: 10px; color: #405980; font-weight: 700; }
+    .shell-side .lb__xp { font-size: 12px; font-weight: 800; color: #ff8f00; white-space: nowrap; }
+    .shell-side .lb__row--skel {
+      height: 43px; cursor: default;
+      background: linear-gradient(90deg, #e8edf5 25%, #f5f7fa 50%, #e8edf5 75%);
+      background-size: 200% 100%;
+      animation: skel 1.4s infinite;
+    }
 
     .shell-compete__head {
       display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;
@@ -493,6 +536,36 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
     }
     .shell__badge-popup mat-icon { font-size: 36px; width: 36px; height: 36px; }
     @keyframes badgePop { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes skel { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    .shell-side--similar { display: none; }
+    @media (min-width: 1000px) {
+      .shell-side--similar { display: block; }
+    }
+    .shell-side__sim-head {
+      display: flex; align-items: center; gap: 6px;
+      margin: 0 0 12px; font-size: 13px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.04em; color: #475569;
+    }
+    .shell-side__sim-head mat-icon { font-size: 18px; width: 18px; height: 18px; color: #6366f1; }
+    .shell-side__sim-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px; border-radius: 12px;
+      background: #f8fafc; border: 1px solid #eef2f7;
+      text-decoration: none; margin-bottom: 8px;
+      transition: background 0.15s;
+    }
+    .shell-side__sim-card:hover { background: #eef2f7; }
+    .shell-side__sim-visual {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .shell-side__sim-visual mat-icon { font-size: 20px; width: 20px; height: 20px; color: #fff; }
+    .shell-side__sim-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .shell-side__sim-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+    .shell-side__sim-meta { font-size: 11px; color: #94a3b8; }
+    .shell-side__sim-arrow { font-size: 18px; width: 18px; height: 18px; color: #cbd5e1; }
   `]
 })
 export class GamePlayShellComponent implements OnInit {
@@ -510,6 +583,11 @@ export class GamePlayShellComponent implements OnInit {
   gameLeaderboard: LeaderboardEntry[] = [];
   leaderboardLoading = false;
   myGameRank: number | null = null;
+
+  lbEntries: LeaderboardEntry[] = [];
+  lbLoading = false;
+
+  similarGames: GameSet[] = [];
 
   constructor(
     private svc: InteractiveGameService,
@@ -531,6 +609,7 @@ export class GamePlayShellComponent implements OnInit {
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
+    this.loadLeaderboard();
     this.svc.startAttempt(id).subscribe({
       next: (r) => {
         this.set = r.set;
@@ -539,6 +618,7 @@ export class GamePlayShellComponent implements OnInit {
         this.levels = r.levels || [];
         this.phase = 'intro';
         this.fetchGameLeaderboard(id);
+        this.loadSimilarGames();
       },
       error: (err) => {
         this.error = err?.error?.message || 'Could not start game';
@@ -559,6 +639,41 @@ export class GamePlayShellComponent implements OnInit {
         this.leaderboardLoading = false;
       },
     });
+  }
+
+  loadSimilarGames() {
+    if (!this.set) return;
+    const filters: CatalogFilters = {
+      gameType: this.set.gameType,
+      page: 1,
+      limit: 5,
+    };
+    this.svc.getCatalog(filters).subscribe({
+      next: (r) => {
+        this.similarGames = (r.items || []).filter(s => s._id !== this.set!._id).slice(0, 4);
+      },
+    });
+  }
+
+  loadLeaderboard() {
+    this.lbLoading = true;
+    this.svc.getGlobalLeaderboard('all').subscribe({
+      next: (r) => {
+        this.lbEntries = (r.leaderboard || []).slice(0, 5).map(row => ({
+          ...row,
+          totalXp: row.totalXp ?? 0,
+          gamesCompleted: row.gamesCompleted ?? 0,
+          bestScore: row.bestScore ?? 0,
+        }));
+        this.lbLoading = false;
+      },
+      error: () => { this.lbLoading = false; }
+    });
+  }
+
+  isMe(e: LeaderboardEntry): boolean {
+    if (!this.lbEntries.length) return false;
+    return String(e.studentId) === String(this.attempt?.studentId);
   }
 
   isLeaderboardMe(e: LeaderboardEntry): boolean {

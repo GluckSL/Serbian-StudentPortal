@@ -447,5 +447,3 @@ connectMongoDb()
     );
     process.exit(1);
   });
-
-
