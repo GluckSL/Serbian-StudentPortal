@@ -325,6 +325,78 @@ async function resignExercises(exercises) {
   return exercises;
 }
 
+const MEDIA_URL_FIELD_NAMES = new Set([
+  'imageUrl',
+  'thumbnailUrl',
+  'introCardImageUrl',
+  'studentCardImageUrl',
+  'botCardImageUrl',
+  'cardImageUrl',
+  'attachmentUrl',
+  'mediaUrl',
+  'videoUrl',
+  'audioUrl',
+]);
+
+/**
+ * Presign known media URL fields on any plain object tree (Sprechen modules, game sets, etc.).
+ */
+async function resignMediaInObject(root) {
+  if (!USE_SIGNED || !root) return root;
+
+  const walk = async (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      await Promise.all(node.map((item) => walk(item)));
+      return;
+    }
+    const entries = Object.entries(node);
+    await Promise.all(
+      entries.map(async ([key, val]) => {
+        if (typeof val === 'string' && MEDIA_URL_FIELD_NAMES.has(key) && isS3Url(val)) {
+          node[key] = await presignS3Url(val);
+          return;
+        }
+        if (val && typeof val === 'object') {
+          await walk(val);
+        }
+      })
+    );
+  };
+
+  await walk(root);
+  return root;
+}
+
+async function resignMediaInObjects(items) {
+  if (!USE_SIGNED || !Array.isArray(items)) return items;
+  await Promise.all(items.map((item) => resignMediaInObject(item)));
+  return items;
+}
+
+/** Strip presign query params from known media URL fields before persisting to MongoDB. */
+function canonicalizeMediaInObject(root) {
+  if (!root || typeof root !== 'object') return root;
+
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach((item) => walk(item));
+      return;
+    }
+    for (const [key, val] of Object.entries(node)) {
+      if (typeof val === 'string' && MEDIA_URL_FIELD_NAMES.has(key)) {
+        node[key] = canonicalizeMediaUrl(val);
+      } else if (val && typeof val === 'object') {
+        walk(val);
+      }
+    }
+  };
+
+  walk(root);
+  return root;
+}
+
 module.exports = {
   presignS3Url,
   presignS3ObjectKey,
@@ -333,6 +405,9 @@ module.exports = {
   presignS3InlineUrl,
   resignExercise,
   resignExercises,
+  resignMediaInObject,
+  resignMediaInObjects,
+  canonicalizeMediaInObject,
   canonicalizeS3Url,
   canonicalizeMediaUrl,
   canonicalizeExerciseForStorage,

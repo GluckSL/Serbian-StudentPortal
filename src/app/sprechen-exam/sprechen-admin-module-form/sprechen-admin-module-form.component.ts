@@ -9,7 +9,7 @@ import { DgApiService } from '../../dg-bot/dg-api.service';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { environment } from '../../../environments/environment';
 import { defaultSprechenExamContent } from '../sprechen-exam.defaults';
-import { resolveMediaUrl } from '../../utils/media-url';
+import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
 import type { DgCharacterDoc } from '../../dg-bot/dg-bot.types';
 import type {
   SprechenExamModuleSummary,
@@ -214,7 +214,7 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     onStart?.();
     try {
       const res = await firstValueFrom(this.sprechenApi.uploadCardImage(file));
-      setUrl(res.url);
+      setUrl(res.url || res.canonicalUrl || '');
       this.messageType = 'success';
       this.message = 'Image uploaded.';
     } catch (e: any) {
@@ -289,12 +289,40 @@ export class SprechenAdminModuleFormComponent implements OnInit {
           .split(/[,;\n]/)
           .map((k) => k.trim())
           .filter(Boolean),
-        introCardImageUrl: (this.introCardImageUrl || '').trim(),
+        introCardImageUrl: canonicalizeStoredMediaUrl((this.introCardImageUrl || '').trim()),
         spellPrompts: this.spellPromptsText.split('\n').map((s) => s.trim()).filter(Boolean),
         numberPrompts: this.numberPromptsText.split('\n').map((s) => s.trim()).filter(Boolean),
       },
-      teil2: { themes: this.themes.filter((t) => t.name?.trim()) },
-      teil3: { rounds: this.rounds },
+      teil2: {
+        themes: this.themes
+          .filter((t) => t.name?.trim())
+          .map((t) => ({
+            ...t,
+            studentCardImageUrl: t.studentCardImageUrl
+              ? canonicalizeStoredMediaUrl(t.studentCardImageUrl)
+              : t.studentCardImageUrl,
+            botCardImageUrl: t.botCardImageUrl
+              ? canonicalizeStoredMediaUrl(t.botCardImageUrl)
+              : t.botCardImageUrl,
+          })),
+      },
+      teil3: {
+        rounds: this.rounds.map((r) => ({
+          ...r,
+          studentCard: {
+            ...r.studentCard,
+            imageUrl: r.studentCard?.imageUrl
+              ? canonicalizeStoredMediaUrl(r.studentCard.imageUrl)
+              : r.studentCard?.imageUrl,
+          },
+          botCard: {
+            ...r.botCard,
+            imageUrl: r.botCard?.imageUrl
+              ? canonicalizeStoredMediaUrl(r.botCard.imageUrl)
+              : r.botCard?.imageUrl,
+          },
+        })),
+      },
       rubric: this.selected?.rubric || defaults.rubric,
     };
   }

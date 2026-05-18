@@ -57,7 +57,7 @@ export class SprechenApiService {
     return this.http.post<SprechenExamModuleSummary>(`${this.base}/modules/seed-placeholder`, {});
   }
 
-  uploadCardImage(file: File): Observable<{ url: string }> {
+  uploadCardImage(file: File): Observable<{ url: string; canonicalUrl?: string }> {
     const fd = new FormData();
     fd.append('image', file);
     return this.http.post<{ url: string }>(`${this.base}/upload-card-image`, fd, {

@@ -16,6 +16,7 @@ const sentenceBuilderService = require('../services/interactiveGames/sentenceBui
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
 const { uploadThumbnail, uploadQuestionAudio } = require('../services/interactiveGames/mediaUpload');
+const { presignS3Url, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
 const dailyChallengesService = require('../services/interactiveGames/dailyChallenges');
@@ -114,6 +115,8 @@ exports.getCatalog = async (req, res) => {
       studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
     }));
 
+    await resignMediaInObjects(items);
+
     res.json({
       success: true,
       items,
@@ -138,6 +141,8 @@ exports.getGameDetail = async (req, res) => {
 
     // Attach leaderboard preview (top 3)
     const top3 = await leaderboardService.getPerGameLeaderboard(set._id, { limit: 3 });
+
+    await resignMediaInObject(set);
 
     res.json({ success: true, set, leaderboardPreview: top3 });
   } catch (err) {
@@ -206,6 +211,8 @@ exports.startAttempt = async (req, res) => {
     if (set.gameType === 'scramble_rush') {
       levels = await GameLevel.find({ gameSetId: set._id }).sort({ levelNumber: 1 }).lean();
     }
+
+    await resignMediaInObject(set);
 
     res.json({ success: true, attempt, questions: sanitized, levels, set });
   } catch (err) {
@@ -536,6 +543,8 @@ exports.adminListSets = async (req, res) => {
         : (s.targetBatchKeys || []).join(', '),
     }));
 
+    await resignMediaInObjects(enriched);
+
     res.json({
       success: true,
       sets: enriched,
@@ -596,6 +605,8 @@ exports.adminGetSet = async (req, res) => {
     ]);
 
     set.targetBatches = set.targetBatchKeys || [];
+    await resignMediaInObject(set);
+
     res.json({ success: true, set, questions, levels });
   } catch (err) {
     serverError(res, err);
@@ -653,17 +664,18 @@ exports.adminDeleteSet = async (req, res) => {
 
 exports.adminUploadThumbnail = async (req, res) => {
   try {
-    const url = await uploadThumbnail(req, res);
-    if (!url) return;  // uploadThumbnail sends response on error
+    const canonicalUrl = await uploadThumbnail(req, res);
+    if (!canonicalUrl) return;  // uploadThumbnail sends response on error
 
     const set = await GameSet.findByIdAndUpdate(
       req.params.id,
-      { thumbnailUrl: url, updatedBy: req.user.id },
+      { thumbnailUrl: canonicalUrl, updatedBy: req.user.id },
       { new: true }
     );
     if (!set) return notFound(res);
 
-    res.json({ success: true, thumbnailUrl: url });
+    const thumbnailUrl = await presignS3Url(canonicalUrl);
+    res.json({ success: true, thumbnailUrl, canonicalUrl });
   } catch (err) {
     serverError(res, err);
   }
@@ -925,17 +937,18 @@ exports.adminImportTemplate = async (req, res) => {
 
 exports.adminUploadQuestionAudio = async (req, res) => {
   try {
-    const url = await uploadQuestionAudio(req, res);
-    if (!url) return;
+    const canonicalUrl = await uploadQuestionAudio(req, res);
+    if (!canonicalUrl) return;
 
     const field = req.body.field === 'sentence' ? 'sentenceAudioUrl' : 'audioUrl';
     const question = await GameQuestion.findByIdAndUpdate(
       req.params.qid,
-      { [field]: url },
+      { [field]: canonicalUrl },
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    res.json({ success: true, url, question });
+    const url = await presignS3Url(canonicalUrl);
+    res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
   }

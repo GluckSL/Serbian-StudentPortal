@@ -51,13 +51,13 @@
               </div>
             </td>
             <td class="sr-review__date">{{ formatDate(row.createdAt) }}</td>
-            <td>{{ row.scores?.teil1 | number:'1.0-1' }}</td>
-            <td>{{ row.scores?.teil2 | number:'1.0-1' }}</td>
-            <td>{{ row.scores?.teil3 | number:'1.0-1' }}</td>
-            <td class="sr-review__total">{{ row.scores?.total | number:'1.0-1' }}<span class="sr-review__max">/15</span></td>
+            <td>{{ row.scores.teil1 | number:'1.0-1' }}</td>
+            <td>{{ row.scores.teil2 | number:'1.0-1' }}</td>
+            <td>{{ row.scores.teil3 | number:'1.0-1' }}</td>
+            <td class="sr-review__total">{{ row.scores.total | number:'1.0-1' }}<span class="sr-review__max">/15</span></td>
             <td>
-              <span class="sr-review__badge" [class.sr-review__badge--pass]="row.scores?.passed" [class.sr-review__badge--fail]="!row.scores?.passed">
-                {{ row.scores?.passed ? 'Ja' : 'Nein' }}
+              <span class="sr-review__badge" [class.sr-review__badge--pass]="row.scores.passed" [class.sr-review__badge--fail]="!row.scores.passed">
+                {{ row.scores.passed ? 'Ja' : 'Nein' }}
               </span>
             </td>
             <td>
@@ -80,10 +80,10 @@
                   <div class="sr-review__replay-header">
                     <span>{{ replay.session.student?.name }}</span>
                     <span class="sr-review__replay-scores">
-                      T1: {{ replay.session.scores?.teil1 | number:'1.0-1' }} &nbsp;
-                      T2: {{ replay.session.scores?.teil2 | number:'1.0-1' }} &nbsp;
-                      T3: {{ replay.session.scores?.teil3 | number:'1.0-1' }} &nbsp;
-                      <strong>Gesamt: {{ replay.session.scores?.total | number:'1.0-1' }}/15</strong>
+                      T1: {{ replay.session.scores.teil1 | number:'1.0-1' }} &nbsp;
+                      T2: {{ replay.session.scores.teil2 | number:'1.0-1' }} &nbsp;
+                      T3: {{ replay.session.scores.teil3 | number:'1.0-1' }} &nbsp;
+                      <strong>Gesamt: {{ replay.session.scores.total | number:'1.0-1' }}/15</strong>
                     </span>
                   </div>
 

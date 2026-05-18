@@ -8,6 +8,7 @@ const {
 } = require('../utils/sprechenStudentJourneyGate');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const placeholderContent = require('../content/sprechen-a1-placeholder.json');
+const { resignMediaInObject, resignMediaInObjects, canonicalizeMediaInObject } = require('../config/presign');
 
 // ─── Admin CRUD ───────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ exports.listAdmin = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate('characterId', 'name avatarUrl')
       .lean();
+    await resignMediaInObjects(mods);
     res.json({ modules: mods });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -29,6 +31,7 @@ exports.getAdminById = async (req, res) => {
       .populate('characterId', 'name avatarUrl voice')
       .lean();
     if (!mod) return res.status(404).json({ message: 'Not found' });
+    await resignMediaInObject(mod);
     res.json(mod);
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -94,8 +97,11 @@ exports.uploadCardImage = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No image uploaded' });
     }
-    const url = `/uploads/sprechen-cards/${req.file.filename}`;
-    res.json({ url });
+    const { presignS3Url, canonicalizeMediaUrl } = require('../config/presign');
+    const rawUrl = req.file.location || `/uploads/sprechen-cards/${req.file.filename || ''}`;
+    const canonicalUrl = canonicalizeMediaUrl(rawUrl);
+    const url = req.file.location ? await presignS3Url(canonicalUrl) : canonicalUrl;
+    res.json({ url, canonicalUrl });
   } catch (e) {
     res.status(500).json({ message: e.message || 'Upload failed' });
   }
@@ -163,6 +169,8 @@ exports.listStudent = async (req, res) => {
       studentProgress: sessionMap[String(m._id)] || { attempts: 0, bestTotal: 0, lastCompleted: false },
     }));
 
+    await resignMediaInObjects(result);
+
     res.json({ modules: result, studentCourseDay: access.courseDay });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -195,6 +203,7 @@ exports.getPlay = async (req, res) => {
       }
     }
 
+    await resignMediaInObject(mod);
     res.json({ module: mod, character: mod.characterId || null });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -288,9 +297,18 @@ function _sanitizePayload(body, createdBy) {
   if (body.passThreshold !== undefined) p.passThreshold = Number(body.passThreshold) || 10;
   if (body.characterId !== undefined) p.characterId = body.characterId || undefined;
   if (body.targetBatchKeys !== undefined) p.targetBatchKeys = normalizeBatchKeys(body.targetBatchKeys);
-  if (body.teil1 !== undefined) p.teil1 = body.teil1;
-  if (body.teil2 !== undefined) p.teil2 = body.teil2;
-  if (body.teil3 !== undefined) p.teil3 = body.teil3;
+  if (body.teil1 !== undefined) {
+    p.teil1 = body.teil1;
+    canonicalizeMediaInObject(p.teil1);
+  }
+  if (body.teil2 !== undefined) {
+    p.teil2 = body.teil2;
+    canonicalizeMediaInObject(p.teil2);
+  }
+  if (body.teil3 !== undefined) {
+    p.teil3 = body.teil3;
+    canonicalizeMediaInObject(p.teil3);
+  }
   if (body.rubric !== undefined) p.rubric = body.rubric;
   if (createdBy) p.createdBy = createdBy;
   return p;

@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const s3Client = require('../../config/s3');
 const multerS3 = require('multer-s3');
+const { canonicalizeMediaUrl } = require('../../config/presign');
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 function buildUploader() {
@@ -46,8 +47,8 @@ function uploadThumbnail(req, res) {
         res.status(400).json({ success: false, message: 'No thumbnail file provided' });
         return resolve(null);
       }
-      const url = req.file.location || req.file.path || '';
-      resolve(url);
+      const rawUrl = req.file.location || req.file.path || '';
+      resolve(canonicalizeMediaUrl(rawUrl));
     });
   });
 }
@@ -91,7 +92,8 @@ function uploadQuestionAudio(req, res) {
         res.status(400).json({ success: false, message: 'No audio file provided' });
         return resolve(null);
       }
-      resolve(req.file.location || req.file.path || '');
+      const rawUrl = req.file.location || req.file.path || '';
+      resolve(canonicalizeMediaUrl(rawUrl));
     });
   });
 }
