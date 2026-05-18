@@ -28,16 +28,11 @@ import { StudentGameStats } from '../../glueck-arena.types';
       margin-bottom: 16px;
     }
     .gsb--hero .gsb__item {
-      background: rgba(255, 255, 255, 0.12);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      backdrop-filter: blur(8px);
+      background: #fff;
+      border: 1px solid #e8ecf4;
     }
-    .gsb--hero .gsb__val { color: #fff; }
-    .gsb--hero .gsb__lbl { color: rgba(255, 255, 255, 0.75); }
-    .gsb--hero .gsb__icon-wrap {
-      background: rgba(255, 255, 255, 0.15);
-      color: #fff;
-    }
+    .gsb--hero .gsb__val { color: #1e3a5f; }
+    .gsb--hero .gsb__lbl { color: #94a3b8; }
     .gsb__item {
       display: flex;
       align-items: center;

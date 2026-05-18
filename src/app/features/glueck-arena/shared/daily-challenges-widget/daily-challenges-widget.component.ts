@@ -21,6 +21,7 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
       </header>
       <div class="dcw__grid">
         <article class="dcw__card" *ngFor="let c of challenges" [class.dcw__card--done]="c.isCompleted">
+          <small class="dcw__progress-tag">{{ c.progress }} / {{ c.targetValue }}</small>
           <div class="dcw__ring" [style.--pct]="progressPct(c) + '%'">
             <span class="dcw__ring-inner">{{ progressPct(c) }}%</span>
           </div>
@@ -28,11 +29,10 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
             <h4>{{ c.title }}</h4>
             <p>{{ c.description }}</p>
             <div class="dcw__bar"><span [style.width.%]="progressPct(c)"></span></div>
-            <small>{{ c.progress }} / {{ c.targetValue }}</small>
+            <button *ngIf="c.isCompleted && !c.isClaimed" class="dcw__claim" (click)="claim(c)">
+              +{{ c.xpReward }} XP
+            </button>
           </div>
-          <button *ngIf="c.isCompleted && !c.isClaimed" class="dcw__claim" (click)="claim(c)">
-            +{{ c.xpReward }} XP
-          </button>
           <span *ngIf="c.isClaimed" class="dcw__claimed"><mat-icon>check_circle</mat-icon></span>
         </article>
       </div>
@@ -41,7 +41,6 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
   `,
   styles: [`
     .dcw {
-      margin-bottom: 24px;
       padding: 20px 22px;
       border-radius: 18px;
       background: linear-gradient(145deg, #fff 0%, #f8fafc 100%);
@@ -65,8 +64,9 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
       gap: 14px;
     }
     .dcw__card {
+      position: relative;
       display: grid;
-      grid-template-columns: 56px 1fr auto;
+      grid-template-columns: 56px 1fr;
       gap: 12px;
       align-items: center;
       padding: 14px;
@@ -99,8 +99,14 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
       background: linear-gradient(90deg, #6366f1, #8b5cf6);
       transition: width 0.35s ease;
     }
-    .dcw__body small { font-size: 11px; color: #94a3b8; font-weight: 600; }
+    .dcw__progress-tag {
+      position: absolute; top: 8px; right: 8px;
+      font-size: 10px; font-weight: 700; color: #94a3b8;
+      background: #f1f5f9; padding: 2px 8px; border-radius: 999px;
+      line-height: 1.5;
+    }
     .dcw__claim {
+      margin-top: 8px;
       border: none; cursor: pointer; padding: 8px 12px; border-radius: 10px;
       font-size: 12px; font-weight: 700; color: #fff;
       background: linear-gradient(135deg, #f59e0b, #ea580c);
@@ -108,6 +114,9 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
       white-space: nowrap;
     }
     .dcw__claim:hover { filter: brightness(1.05); }
+    .dcw__claimed {
+      position: absolute; top: 8px; right: 8px;
+    }
     .dcw__claimed mat-icon { color: #16a34a; font-size: 28px; width: 28px; height: 28px; }
   `]
 })

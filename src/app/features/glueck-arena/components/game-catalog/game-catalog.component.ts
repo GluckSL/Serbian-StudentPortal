@@ -22,7 +22,7 @@ interface QuickLink {
     GameStatsBannerComponent, DailyChallengesWidgetComponent
   ],
   template: `
-    <div class="arena" [attr.data-theme]="darkMode ? 'dark' : 'light'">
+    <div class="arena">
 
       <div *ngIf="accessChecked && !hasArenaAccess" class="arena__locked">
         <div class="arena__locked-icon"><mat-icon>lock</mat-icon></div>
@@ -43,32 +43,25 @@ interface QuickLink {
                 <p>Level up your German — play, earn XP, climb the ranks</p>
               </div>
             </div>
-            <button type="button" class="arena-hero__theme" (click)="darkMode = !darkMode" matTooltip="Toggle theme">
-              <mat-icon>{{ darkMode ? 'light_mode' : 'dark_mode' }}</mat-icon>
-            </button>
+            <a *ngFor="let link of quickLinks" [routerLink]="link.route" class="arena-nav__link">
+              <mat-icon>{{ link.icon }}</mat-icon>
+              <span>{{ link.label }}</span>
+            </a>
           </div>
 
           <app-game-stats-banner *ngIf="myStats" [stats]="myStats" variant="hero"></app-game-stats-banner>
         </header>
 
-        <!-- Quick nav -->
-        <nav class="arena-nav" aria-label="Arena sections">
-          <a *ngFor="let link of quickLinks" [routerLink]="link.route" class="arena-nav__link">
-            <mat-icon>{{ link.icon }}</mat-icon>
-            <span>{{ link.label }}</span>
-          </a>
-        </nav>
-
+        <div class="arena-layout">
         <app-daily-challenges-widget></app-daily-challenges-widget>
 
         <!-- Games section -->
         <section class="arena-games">
-          <div class="arena-games__head">
-            <h2><mat-icon>videogame_asset</mat-icon> Your games</h2>
+          <!-- <div class="arena-games__head">
             <span class="arena-games__count" *ngIf="!loading">{{ pagination.total }} available</span>
-          </div>
+          </div> -->
 
-          <div class="arena-filters">
+          <!-- <div class="arena-filters">
             <div class="arena-filters__search">
               <mat-icon>search</mat-icon>
               <input type="search" [(ngModel)]="filters.search" (ngModelChange)="onSearch()"
@@ -109,7 +102,7 @@ interface QuickLink {
                 <div class="arena-filters__dropdown-item" (click)="setDiff('Advanced')">Advanced</div>
               </div>
             </div>
-          </div>
+          </div> -->
 
           <div *ngIf="loading" class="arena-grid">
             <div class="arena-card arena-card--skel" *ngFor="let _ of [1,2,3,4,5,6]"></div>
@@ -162,6 +155,7 @@ interface QuickLink {
             class="arena-paginator"
           ></mat-paginator>
         </section>
+        </div>
       </ng-container>
     </div>
   `,
@@ -174,20 +168,12 @@ interface QuickLink {
       --arena-border: #e2e8f0;
       --arena-hero-from: #0f2744;
       --arena-hero-to: #1e4d7a;
-      max-width: 1180px;
       margin: 0 auto;
+      max-width: 1500px;
       padding: 20px 20px 48px;
       min-height: 60vh;
       background: var(--arena-bg);
     }
-    .arena[data-theme="dark"] {
-      --arena-bg: #0f172a;
-      --arena-surface: #1e293b;
-      --arena-text: #f1f5f9;
-      --arena-muted: #94a3b8;
-      --arena-border: #334155;
-    }
-
     .arena__locked {
       text-align: center; padding: 80px 24px; border-radius: 24px;
       background: var(--arena-surface); border: 1px dashed var(--arena-border);
@@ -201,15 +187,11 @@ interface QuickLink {
     .arena__locked p { color: var(--arena-muted); max-width: 400px; margin: 0 auto; line-height: 1.55; }
 
     .arena-hero {
-      position: relative; border-radius: 24px; padding: 28px 28px 24px;
-      margin-bottom: 20px; overflow: hidden;
-      background: linear-gradient(135deg, var(--arena-hero-from) 0%, var(--arena-hero-to) 55%, #2d6a9f 100%);
-      box-shadow: 0 20px 50px rgba(15, 39, 68, 0.35);
-    }
-    .arena-hero__glow {
-      position: absolute; top: -40%; right: -10%; width: 50%; height: 120%;
-      background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, transparent 70%);
-      pointer-events: none;
+      position: relative; border-radius: 14px;
+      margin-bottom: 20px;
+      background: #fff;
+      padding: 20px;
+      border: 1px solid var(--arena-border);
     }
     .arena-hero__top {
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -217,49 +199,56 @@ interface QuickLink {
     }
     .arena-hero__brand { display: flex; gap: 16px; align-items: center; }
     .arena-hero__logo {
-      width: 56px; height: 56px; border-radius: 16px;
-      background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center;
-      border: 1px solid rgba(255,255,255,0.2);
+      width: 56px; height: 56px; border-radius: 16px; flex-shrink: 0;
+      background: #f1f5f9; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--arena-border);
     }
-    .arena-hero__logo mat-icon { font-size: 32px; width: 32px; height: 32px; color: #fff; }
+    .arena-hero__logo mat-icon { font-size: 32px; width: 32px; height: 32px; color: var(--arena-text); }
     .arena-hero h1 {
-      margin: 0; font-size: 28px; font-weight: 800; color: #fff;
+      margin: 0; font-size: 28px; font-weight: 800; color: var(--arena-text);
       letter-spacing: -0.03em; line-height: 1.15;
     }
-    .arena-hero p { margin: 6px 0 0; font-size: 14px; color: rgba(255,255,255,0.82); max-width: 360px; }
-    .arena-hero__theme {
-      border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.1);
-      color: #fff; width: 44px; height: 44px; border-radius: 12px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; padding: 0;
+    .arena-hero p { margin: 6px 0 0; font-size: 14px; color: var(--arena-muted); max-width: 360px; }
+    .arena-hero .gsb--hero { }
+    @media (min-width: 1700px) {
+      .arena-hero .gsb--hero { grid-template-columns: repeat(7, 1fr) !important; margin-top: 30px; }
     }
-    .arena-hero__theme:hover { background: rgba(255,255,255,0.18); }
-    .arena-hero__theme mat-icon { font-size: 22px; width: 22px; height: 22px; }
-
-    .arena-hero .gsb { }
+    @media (min-width: 1400px) and (max-width: 1699px) {
+      .arena-hero .gsb--hero { grid-template-columns: repeat(6, 1fr) !important; margin-top: 30px; }
+    }
     @media (max-width: 920px) {
-      .arena-hero .gsb { grid-template-columns: repeat(4, 1fr); }
+      .arena-hero .gsb--hero { grid-template-columns: repeat(4, 1fr) !important; }
     }
     @media (max-width: 620px) {
-      .arena-hero .gsb { grid-template-columns: repeat(3, 1fr); }
+      .arena-hero .gsb--hero { grid-template-columns: repeat(3, 1fr) !important; }
     }
     @media (max-width: 420px) {
-      .arena-hero .gsb { grid-template-columns: repeat(2, 1fr); }
+      .arena-hero .gsb--hero { grid-template-columns: repeat(2, 1fr) !important; }
     }
 
-    .arena-nav {
-      display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;
-      margin-bottom: 22px; scrollbar-width: thin;
-      -webkit-overflow-scrolling: touch;
+    .arena-layout {
+      display: grid;
+      grid-template-columns: 0.3fr 0.7fr;
+      gap: 20px;
+      align-items: start;
     }
-    .arena-nav::-webkit-scrollbar { height: 4px; }
+    @media (max-width: 1000px) {
+      .arena-layout { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .arena-layout { grid-template-columns: 1fr; }
+    }
+    :host ::ng-deep .arena-layout .dcw__grid {
+      grid-template-columns: 1fr;
+    }
+
     .arena-nav__link {
-      flex: 0 0 auto;
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 16px; border-radius: 999px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 14px;
       text-decoration: none; font-size: 13px; font-weight: 600;
-      color: var(--arena-text); background: var(--arena-surface);
-      border: 1px solid var(--arena-border);
-      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+      color: var(--arena-text); background: #fff;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 2px 8px rgba(30, 58, 95, 0.06);
       transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
     }
     .arena-nav__link mat-icon { font-size: 18px; width: 18px; height: 18px; color: #405980; }
@@ -268,15 +257,10 @@ interface QuickLink {
       border-color: #93c5fd;
       box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
     }
-    .arena-nav__link:last-child {
-      background: linear-gradient(135deg, #1e3a5f, #2563eb);
-      color: #fff; border-color: transparent;
-    }
-    .arena-nav__link:last-child mat-icon { color: #fff; }
 
     .arena-games__head {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px; gap: 12px;
+      display: flex; justify-content: flex-end;
+      margin-bottom: 16px;
     }
     .arena-games__head h2 {
       margin: 0; font-size: 20px; font-weight: 800; color: var(--arena-text);
@@ -296,7 +280,6 @@ interface QuickLink {
       padding: 0 14px; height: 48px; border-radius: 12px;
       background: #f8fafc; border: 1px solid var(--arena-border);
     }
-    .arena[data-theme="dark"] .arena-filters__search { background: #0f172a; }
     .arena-filters__search mat-icon { color: #94a3b8; }
     .arena-filters__search input {
       flex: 1; border: none; background: transparent; outline: none;
@@ -310,7 +293,6 @@ interface QuickLink {
       background: #f8fafc; border: 1px solid var(--arena-border); cursor: pointer;
       font-size: 14px; color: var(--arena-text);
     }
-    .arena[data-theme="dark"] .arena-filters__dropdown { background: #0f172a; }
     .arena-filters__dropdown mat-icon { color: #94a3b8; transition: transform 0.2s; }
     .arena-filters__dropdown:hover { border-color: #94a3b8; }
     .arena-filters__dropdown-menu {
@@ -324,7 +306,6 @@ interface QuickLink {
       transition: background 0.15s;
     }
     .arena-filters__dropdown-item:hover { background: #f1f5f9; }
-    .arena[data-theme="dark"] .arena-filters__dropdown-item:hover { background: #1e293b; }
 
     .arena-grid {
       display: grid;
@@ -422,7 +403,7 @@ interface QuickLink {
 
     @media (max-width: 640px) {
       .arena { padding: 12px 12px 32px; }
-      .arena-hero { padding: 20px 18px; border-radius: 18px; }
+      .arena-hero { border-radius: 18px; }
       .arena-hero h1 { font-size: 22px; }
       .arena-filters__select { width: 100%; flex: 1 1 45%; }
       .arena-grid { grid-template-columns: 1fr; }
@@ -441,7 +422,6 @@ export class GameCatalogComponent implements OnInit {
   pagination = { page: 1, limit: 12, total: 0 };
   searchTimeout: ReturnType<typeof setTimeout> | undefined;
   cefrLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-  darkMode = false;
   typeOpen = false;
   levelOpen = false;
   diffOpen = false;

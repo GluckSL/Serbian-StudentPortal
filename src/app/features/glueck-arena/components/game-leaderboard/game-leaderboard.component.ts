@@ -43,23 +43,23 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
       <!-- Top 3 podium -->
       <div class="lb__podium" *ngIf="!loading && leaderboard.length >= 3">
         <div class="lb__podium__place lb__podium__place--2">
-          <span class="lb__podium__name">{{ leaderboard[1]?.name }}</span>
+          <span class="lb__podium__name">{{ leaderboard[1].name }}</span>
           <div class="lb__podium__bar">
-            <span class="lb__podium__xp">{{ leaderboard[1]?.totalXp }} XP</span>
+            <span class="lb__podium__xp">{{ leaderboard[1].totalXp }} XP</span>
             🥈
           </div>
         </div>
         <div class="lb__podium__place lb__podium__place--1">
-          <span class="lb__podium__name">{{ leaderboard[0]?.name }}</span>
+          <span class="lb__podium__name">{{ leaderboard[0].name }}</span>
           <div class="lb__podium__bar">
-            <span class="lb__podium__xp">{{ leaderboard[0]?.totalXp }} XP</span>
+            <span class="lb__podium__xp">{{ leaderboard[0].totalXp }} XP</span>
             🥇
           </div>
         </div>
         <div class="lb__podium__place lb__podium__place--3">
-          <span class="lb__podium__name">{{ leaderboard[2]?.name }}</span>
+          <span class="lb__podium__name">{{ leaderboard[2].name }}</span>
           <div class="lb__podium__bar">
-            <span class="lb__podium__xp">{{ leaderboard[2]?.totalXp }} XP</span>
+            <span class="lb__podium__xp">{{ leaderboard[2].totalXp }} XP</span>
             🥉
           </div>
         </div>
@@ -77,11 +77,11 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
             [class.lb__rank--silver]="e.rank === 2"
             [class.lb__rank--bronze]="e.rank === 3"
           >{{ e.rank }}</span>
-          <div class="lb__avatar">{{ e.name?.charAt(0)?.toUpperCase() }}</div>
+          <div class="lb__avatar">{{ e.name.charAt(0).toUpperCase() }}</div>
           <div class="lb__info">
             <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">(You)</span></span>
             <span class="lb__sub">
-              {{ e.gamesCompleted ?? 0 }} games · Best: {{ e.bestScore ?? 0 }} pts
+              {{ e.gamesCompleted }} games · Best: {{ e.bestScore }} pts
               <ng-container *ngIf="e.accuracy != null"> · {{ e.accuracy }}% accuracy</ng-container>
             </span>
           </div>
