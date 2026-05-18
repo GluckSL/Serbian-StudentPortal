@@ -6,7 +6,8 @@ const PORTAL_BATCH_PRESETS = [
   'uncertain',
   'docs only',
   'visa only',
-  'docs and visa'
+  'docs and visa',
+  'completed'
 ];
 
 function normalizeBatchKey(name) {

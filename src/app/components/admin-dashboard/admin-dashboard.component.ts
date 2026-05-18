@@ -304,6 +304,8 @@ export class AdminDashboardComponent implements OnInit {
     });
     }
 
+  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0 };
+
   fetchFilterOptions(): void {
     this.http
       .get<{
@@ -312,6 +314,7 @@ export class AdminDashboardComponent implements OnInit {
         servicesOpted?: string[];
         qualifications?: string[];
         languageLevelOpted?: string[];
+        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number };
       }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
       .subscribe({
         next: (res) => {
@@ -320,6 +323,7 @@ export class AdminDashboardComponent implements OnInit {
           this.filterOptions.servicesOpted = res.servicesOpted ?? [];
           this.filterOptions.qualifications = res.qualifications ?? [];
           this.filterOptions.languageLevelOpted = res.languageLevelOpted ?? [];
+          if (res.studentCounts) this.portalStudentCounts = res.studentCounts;
         },
         error: () => {
           /* non-blocking */
@@ -413,6 +417,14 @@ export class AdminDashboardComponent implements OnInit {
     this.studentNameControl.setValue('');
     this.teacherNameControl.setValue('');
     this.fetchStudents(1);
+  }
+
+  hasActiveStudentFilters(): boolean {
+    const f = this.filters;
+    return !!(
+      f.level || f.plan || f.batch || f.studentStatus || f.studentName || f.teacherName ||
+      f.servicesOpted || f.qualifications || f.languageLevelOpted
+    );
   }
 
   crmCellDisplay(student: any, field: string): string {

@@ -22,17 +22,83 @@ interface UpdatedStudent {
 interface NewStudent {
   name: string;
   email: string;
+  regNo?: string;
   batch: string;
   level: string;
   subscription: string;
+  studentStatus?: string;
   servicesOpted: string;
   teacherIncharge: string;
+  mondayItemId?: string;
+}
+
+export interface PreviewStudentRow {
+  name: string;
+  email?: string;
+  regNo?: string;
+  batch?: string;
+  level?: string;
+  subscription?: string;
+  studentStatus?: string;
+  servicesOpted?: string;
+  teacherIncharge?: string;
+  mondayItemId?: string;
+  detail?: string;
+  replacedByName?: string;
+  replacedById?: string;
+  changes?: SyncChange[];
+}
+
+export type DrillDownKey =
+  | 'allBoardRows'
+  | 'withdrewOnMonday'
+  | 'uniqueEmailsToSync'
+  | 'duplicateRowsMerged'
+  | 'noEmailRows'
+  | 'matchedInPortal'
+  | 'missingFromPortal'
+  | 'portalOnly'
+  | 'crmSyncTarget'
+  | 'willCreate'
+  | 'willUpdate'
+  | 'noChanges';
+
+interface DrillDownBuckets {
+  allBoardRows: PreviewStudentRow[];
+  withdrewOnMonday: PreviewStudentRow[];
+  uniqueEmailsToSync: PreviewStudentRow[];
+  duplicateRowsMerged: PreviewStudentRow[];
+  noEmailRows: PreviewStudentRow[];
+  matchedInPortal: PreviewStudentRow[];
+  missingFromPortal: PreviewStudentRow[];
+  portalOnly: PreviewStudentRow[];
+  noChanges: PreviewStudentRow[];
+}
+
+interface PortalReconciliation {
+  portalTotal: number;
+  portalActive: number;
+  portalWithdrew: number;
+  mondayTotalOnBoard: number;
+  mondayWithdrew: number;
+  mondayUniqueEmails: number;
+  mondayRowsWithoutEmail?: number;
+  mondayDuplicateEmailRows: number;
+  portalMatchedMonday: number;
+  portalMissingFromMonday: number;
+  portalExtraNotOnMonday: number;
+  crmSyncTarget: number;
 }
 
 interface PreviewResponse {
   success: boolean;
   totalOnBoard: number;
   eligibleCount: number;
+  eligibleUniqueCount?: number;
+  duplicateRowsMerged?: number;
+  rowsWithoutEmail?: number;
+  reconciliation?: PortalReconciliation;
+  drillDown?: DrillDownBuckets;
   newStudents: NewStudent[];
   updatedStudents: UpdatedStudent[];
   skipped: { name: string; reason: string }[];
@@ -56,14 +122,14 @@ export class MondaySyncPreviewComponent implements OnInit {
   error = '';
   data: PreviewResponse | null = null;
 
-  // Filters
-  activeTab: 'new' | 'updated' | 'nochange' = 'new';
+  activeTab: 'new' | 'updated' = 'new';
   searchQuery = '';
-
-  // Expanded rows for updated students
   expandedRows = new Set<string>();
 
-  // Sync status
+  /** Clicked reconciliation / summary card */
+  activeDrillDown: DrillDownKey | null = null;
+  activeDrillDownLabel = '';
+
   lastSyncRun: string | null = null;
   lastSyncResult: any = null;
   syncing = false;
@@ -87,7 +153,12 @@ export class MondaySyncPreviewComponent implements OnInit {
   }
 
   forceSync(): void {
-    this.notify.confirm('Run Monday Sync', 'Are you sure you want to run the Monday.com sync now? This will create new students and update existing ones.', 'Yes, Run Sync', 'Cancel').subscribe(ok => {
+    this.notify.confirm(
+      'Run Monday Sync',
+      'Are you sure you want to run the Monday.com sync now? This will create new students and update existing ones.',
+      'Yes, Run Sync',
+      'Cancel'
+    ).subscribe(ok => {
       if (!ok) return;
       this.syncing = true;
       this.syncResult = null;
@@ -108,17 +179,106 @@ export class MondaySyncPreviewComponent implements OnInit {
 
   formatSyncDate(d: string | null): string {
     if (!d) return 'Never';
-    return new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
   }
 
   loadPreview(): void {
     this.loading = true;
     this.error = '';
+    this.activeDrillDown = null;
     this.http.get<PreviewResponse>(`${environment.apiUrl}/auth/monday-sync-preview`, { withCredentials: true })
       .subscribe({
-        next: (res) => { this.data = res; this.loading = false; },
-        error: (err) => { this.error = err.error?.message || 'Failed to fetch preview'; this.loading = false; }
+        next: (res) => {
+          this.data = res;
+          this.loading = false;
+        },
+        error: (err) => {
+          this.error = err.error?.message || 'Failed to fetch preview';
+          this.loading = false;
+        }
       });
+  }
+
+  selectDrillDown(key: DrillDownKey, label: string): void {
+    if (!this.data?.drillDown && key !== 'willCreate' && key !== 'willUpdate') return;
+    if (this.activeDrillDown === key) {
+      this.clearDrillDown();
+      return;
+    }
+    this.activeDrillDown = key;
+    this.activeDrillDownLabel = label;
+    this.searchQuery = '';
+    this.expandedRows.clear();
+  }
+
+  clearDrillDown(): void {
+    this.activeDrillDown = null;
+    this.activeDrillDownLabel = '';
+    this.searchQuery = '';
+    this.expandedRows.clear();
+  }
+
+  isDrillDownActive(key: DrillDownKey): boolean {
+    return this.activeDrillDown === key;
+  }
+
+  get drillDownRows(): PreviewStudentRow[] {
+    if (!this.data || !this.activeDrillDown) return [];
+
+    let rows: PreviewStudentRow[] = [];
+    const d = this.data.drillDown;
+
+    switch (this.activeDrillDown) {
+      case 'willCreate':
+        rows = this.data.newStudents.map(s => ({ ...s }));
+        break;
+      case 'willUpdate':
+        rows = this.data.updatedStudents.map(s => ({
+          name: s.name,
+          email: s.email,
+          regNo: s.regNo,
+          changes: s.changes,
+          detail: `${s.changes.length} field(s) will change`,
+        }));
+        break;
+      case 'crmSyncTarget':
+        rows = d?.uniqueEmailsToSync ?? [];
+        break;
+      default:
+        rows = (d?.[this.activeDrillDown] as PreviewStudentRow[]) ?? [];
+    }
+
+    if (!this.searchQuery.trim()) return rows;
+    const q = this.searchQuery.toLowerCase();
+    return rows.filter(r =>
+      (r.name || '').toLowerCase().includes(q) ||
+      (r.email || '').toLowerCase().includes(q) ||
+      (r.regNo || '').toLowerCase().includes(q) ||
+      (r.detail || '').toLowerCase().includes(q)
+    );
+  }
+
+  get drillDownCount(): number {
+    if (!this.data || !this.activeDrillDown) return 0;
+    if (this.activeDrillDown === 'willCreate') return this.data.newStudents.length;
+    if (this.activeDrillDown === 'willUpdate') return this.data.updatedStudents.length;
+    if (this.activeDrillDown === 'crmSyncTarget') return this.data.drillDown?.uniqueEmailsToSync?.length ?? 0;
+    const d = this.data.drillDown;
+    if (!d) return 0;
+    return (d[this.activeDrillDown as keyof DrillDownBuckets] as PreviewStudentRow[])?.length ?? 0;
+  }
+
+  get showChangesColumn(): boolean {
+    return this.activeDrillDown === 'willUpdate';
+  }
+
+  get showDetailColumn(): boolean {
+    return this.activeDrillDown === 'duplicateRowsMerged'
+      || this.activeDrillDown === 'noEmailRows'
+      || this.activeDrillDown === 'portalOnly';
   }
 
   get filteredNew(): NewStudent[] {

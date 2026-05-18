@@ -141,7 +141,7 @@ function accessLevelsToPermissions(accessLevels) {
     .map(([permissionId]) => permissionId);
 }
 
-// Read CRM data from Monday.com â€” Full sync: update existing + create new (all packages, exclude WITHDREW)
+// Read CRM data from Monday.com — full sync: every board row (including WITHDREW) → portal student record
 // Track last sync status
 let lastSyncStatus = { lastRun: null, result: null };
 
@@ -257,6 +257,243 @@ function normalizeBatch(raw, normalizedSubscription) {
   return '';
 }
 
+/** Monday email cells sometimes contain multiple addresses or stray text — take the first valid email. */
+function normalizeMondayEmail(raw) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (!s) return '';
+  const match = s.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/);
+  return match ? match[0] : '';
+}
+
+/** Lightweight row for sync preview drill-down tables. */
+function previewRowFromMondayItem(item) {
+  const get = (id) => mondayGet(item.column_values, id);
+  const rawSubscription = get('color_mm02jfyb');
+  const subscription = normalizeSubscription(rawSubscription);
+  return {
+    name: item.name,
+    email: normalizeMondayEmail(get('text_mkw3spks')) || '',
+    studentStatus: normalizeStudentStatus(get('color_mm019dcv')),
+    batch: normalizeBatch(get('dropdown_mkxx6cfp'), subscription),
+    level: normalizeLevel(get('dropdown_mkzshj5a'), get('color_mm02c95')),
+    subscription,
+    servicesOpted: get('color_mm023vmt') || get('text_mkwz1j6q') || '',
+    teacherIncharge: get('dropdown_mkw72gz4') || '',
+    mondayItemId: String(item.id),
+  };
+}
+
+/** Same email on multiple Monday rows → one portal user; last row wins. */
+function dedupeMondayItemsByEmail(items) {
+  const byEmail = new Map();
+  let duplicateRows = 0;
+  let noEmail = 0;
+  const duplicateRowsList = [];
+  const noEmailRows = [];
+
+  for (const item of items) {
+    const get = (id) => mondayGet(item.column_values, id);
+    const email = normalizeMondayEmail(get('text_mkw3spks'));
+    if (!email) {
+      noEmail += 1;
+      noEmailRows.push({ ...previewRowFromMondayItem(item), detail: 'No valid email on Monday row' });
+      continue;
+    }
+    if (byEmail.has(email)) {
+      duplicateRows += 1;
+      const superseded = byEmail.get(email);
+      duplicateRowsList.push({
+        ...previewRowFromMondayItem(superseded),
+        email,
+        detail: `Earlier row merged — kept "${item.name}" (id ${item.id}) for this email`,
+        replacedByName: item.name,
+        replacedById: String(item.id),
+      });
+    }
+    byEmail.set(email, item);
+  }
+  return { items: [...byEmail.values()], duplicateRows, noEmail, duplicateRowsList, noEmailRows };
+}
+
+/** Defaults so User schema validation passes when Monday fields are empty. */
+function ensureStudentCreateFields(data) {
+  const d = { ...data };
+  if (!d.subscription) d.subscription = 'SILVER';
+  if (!d.studentStatus) d.studentStatus = 'UNCERTAIN';
+  if (!d.level) d.level = 'A1';
+  d.batch = normalizeBatch(d.batch, d.subscription);
+  if (!Array.isArray(d.medium) || !d.medium.length) d.medium = ['Not set'];
+  return d;
+}
+
+/** Build portal update payload from one Monday board item (all CRM columns). */
+async function mapMondayItemToPortalFields(item) {
+  const get = (id) => mondayGet(item.column_values, id);
+  const name = item.name;
+  const email = normalizeMondayEmail(get('text_mkw3spks'));
+  if (!email) return { skip: true, reason: 'No email', name };
+
+  const phoneNumber = get('text_mkw2wpvr');
+  const whatsappNumber = get('phone_mkv0a5mm');
+  const address = get('text_mkv080k2');
+  const ageStr = get('text_mkw38wse');
+  const qualifications = get('text_mkw32n6r');
+  const enrollmentDateStr = get('date_mkw7wejn');
+  const servicesOpted = get('color_mm023vmt') || get('text_mkwz1j6q');
+  const rawSubscription = get('color_mm02jfyb');
+  const languageLevelOpted = get('color_mm02c95');
+  const rawBatch = get('dropdown_mkxx6cfp');
+  const studentStatus = normalizeStudentStatus(get('color_mm019dcv'));
+  const rawLevel = get('dropdown_mkzshj5a');
+  const subscription = normalizeSubscription(rawSubscription);
+  const level = normalizeLevel(rawLevel, languageLevelOpted);
+  const batch = normalizeBatch(rawBatch, subscription);
+  const otherLanguageKnown = get('dropdown_mkzsadkp');
+  const medium = get('dropdown_mkw09h9j');
+  const leadSource = get('dropdown_mm0d9jrv');
+  const stream = get('text_mkwtq4fq');
+  const batchStartedOnStr = get('date_mkxkba8t');
+  const teacherIncharge = get('dropdown_mkw72gz4');
+
+  let assignedTeacherId = null;
+  if (teacherIncharge) {
+    const tName = teacherIncharge.trim();
+    const escapedName = tName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const teacher = await User.findOne({
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+      name: { $regex: new RegExp('(^|\\s)' + escapedName + '(\\s|$)', 'i') },
+    }).select('_id');
+    if (teacher) assignedTeacherId = teacher._id;
+  }
+
+  const dateWithdrewStr = get('date_mkzzgvxv');
+  const reasonForWithdrawing = get('text_mkzz24qx');
+  const a1StartStr = get('date_mm1dceqs');
+  const a1CompletedStr = get('date_mkzt1xj');
+  const a2StartStr = get('date_mm1dwzc8');
+  const a2CompletedStr = get('date_mkztk1pn');
+  const b1StartStr = get('date_mm1d7az3');
+  const b1CompletedStr = get('date_mkztxce7');
+  const b2StartStr = get('date_mm1dbv8e');
+  const b2CompletedStr = get('date_mkztwdfn');
+  const examPassedDateStr = get('date_mkw7zwjh');
+  const languageExamStatus = get('color_mkw7syb');
+  const candidateStatus = get('text_mkzzjdv1');
+  const examRemark = get('text_mkzzbgz1');
+  const readingScore = get('numeric_mkzz97be');
+  const listeningScore = get('numeric_mkzz8sr4');
+  const writingScore = get('numeric_mkzz2bzg');
+  const speakingScore = get('numeric_mkzz8q32');
+  const documentationPaymentStatus = mondayGetFirstNonEmpty(
+    item.column_values,
+    process.env.MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS
+  );
+
+  const parseDate = (str) => (str ? new Date(str) : null);
+
+  const updateData = {
+    name,
+    phoneNumber,
+    whatsappNumber,
+    address,
+    age: ageStr ? parseInt(ageStr, 10) : null,
+    qualifications,
+    servicesOpted,
+    subscription,
+    languageLevelOpted,
+    batch,
+    studentStatus,
+    level,
+    otherLanguageKnown,
+    medium: medium ? [medium] : [],
+    leadSource,
+    stream,
+    teacherIncharge,
+    ...(assignedTeacherId ? { assignedTeacher: assignedTeacherId } : {}),
+    reasonForWithdrawing,
+    languageExamStatus,
+    candidateStatus,
+    examRemark,
+    documentationPaymentStatus,
+    crmExternalId: String(item.id),
+    enrollmentDate: parseDate(enrollmentDateStr),
+    batchStartedOn: parseDate(batchStartedOnStr),
+    dateWithdrew: parseDate(dateWithdrewStr),
+    examPassedDate: parseDate(examPassedDateStr),
+    examScores: {
+      reading: readingScore ? parseFloat(readingScore) : null,
+      listening: listeningScore ? parseFloat(listeningScore) : null,
+      writing: writingScore ? parseFloat(writingScore) : null,
+      speaking: speakingScore ? parseFloat(speakingScore) : null,
+    },
+    courseStartDates: {
+      A1StartDate: parseDate(a1StartStr),
+      A2StartDate: parseDate(a2StartStr),
+      B1StartDate: parseDate(b1StartStr),
+      B2StartDate: parseDate(b2StartStr),
+    },
+    courseCompletionDates: {
+      A1CompletionDate: parseDate(a1CompletedStr),
+      A2CompletionDate: parseDate(a2CompletedStr),
+      B1CompletionDate: parseDate(b1CompletedStr),
+      B2CompletionDate: parseDate(b2CompletedStr),
+    },
+    updatedAt: new Date(),
+  };
+
+  if (studentStatus !== 'WITHDREW') {
+    updateData.dateWithdrew = null;
+    updateData.reasonForWithdrawing = '';
+  }
+
+  return { name, email, updateData, studentStatus, mondayItemId: String(item.id) };
+}
+
+async function computeMondayPortalReconciliation(allItems, dedupedItems, duplicateRows, noEmail) {
+  const mondayEmails = [];
+  const mondayIds = [];
+  let mondayWithdrew = 0;
+  for (const item of dedupedItems) {
+    const get = (id) => mondayGet(item.column_values, id);
+    const email = normalizeMondayEmail(get('text_mkw3spks'));
+    if (email) mondayEmails.push(email);
+    mondayIds.push(String(item.id));
+    if (normalizeStudentStatus(get('color_mm019dcv')) === 'WITHDREW') mondayWithdrew += 1;
+  }
+
+  const [portalTotal, portalActive, portalWithdrew, portalMatchedByEmail, portalMatchedByCrmId] =
+    await Promise.all([
+      User.countDocuments({ role: 'STUDENT' }),
+      User.countDocuments({ role: 'STUDENT', studentStatus: { $ne: 'WITHDREW' } }),
+      User.countDocuments({ role: 'STUDENT', studentStatus: 'WITHDREW' }),
+      mondayEmails.length
+        ? User.countDocuments({ role: 'STUDENT', email: { $in: mondayEmails } })
+        : Promise.resolve(0),
+      mondayIds.length
+        ? User.countDocuments({ role: 'STUDENT', crmExternalId: { $in: mondayIds } })
+        : Promise.resolve(0),
+    ]);
+
+  const mondayUniqueEmails = mondayEmails.length;
+  const portalMatchedMonday = Math.max(portalMatchedByEmail, portalMatchedByCrmId);
+
+  return {
+    portalTotal,
+    portalActive,
+    portalWithdrew,
+    mondayTotalOnBoard: allItems.length,
+    mondayWithdrew,
+    mondayUniqueEmails,
+    mondayRowsWithoutEmail: noEmail,
+    mondayDuplicateEmailRows: duplicateRows,
+    portalMatchedMonday,
+    portalMissingFromMonday: Math.max(0, mondayUniqueEmails - portalMatchedMonday),
+    portalExtraNotOnMonday: Math.max(0, portalTotal - portalMatchedMonday),
+    /** Target portal count aligned with CRM (unique emails on board). */
+    crmSyncTarget: mondayUniqueEmails,
+  };
+}
+
 // Reusable Monday.com sync function
 async function runMondaySync() {
   console.log("ðŸ”„ Starting Monday CRM full sync...");
@@ -286,117 +523,110 @@ async function runMondaySync() {
 
   console.log(`ðŸ“‹ Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
 
-  const eligibleItems = allItems.filter(item => {
-    const get = (id) => mondayGet(item.column_values, id);
-    return normalizeStudentStatus(get("color_mm019dcv")) !== "WITHDREW";
-  });
+  const { items: syncItems, duplicateRows, noEmail } = dedupeMondayItemsByEmail(allItems);
 
-  console.log(`âœ… ${eligibleItems.length} eligible (excluding WITHDREW)`);
+  console.log(
+    `âœ… ${allItems.length} Monday rows → ${syncItems.length} unique emails to sync` +
+    ` (${duplicateRows} duplicate rows merged, ${noEmail} without email)`
+  );
 
   let created = 0, updated = 0, skipped = 0, errors = 0;
   const createdNames = [], updatedNames = [], errorNames = [];
 
-  for (const item of eligibleItems) {
+  for (const item of syncItems) {
+    let email = '';
+    let updateData = null;
+    let name = item.name;
+    let studentStatus = 'UNCERTAIN';
     try {
-      const get = (id) => mondayGet(item.column_values, id);
-      const name = item.name;
-      const email = get("text_mkw3spks").trim().toLowerCase();
-      if (!email) { skipped++; continue; }
-
-      const phoneNumber = get("text_mkw2wpvr");
-      const whatsappNumber = get("phone_mkv0a5mm");
-      const address = get("text_mkv080k2");
-      const ageStr = get("text_mkw38wse");
-      const qualifications = get("text_mkw32n6r");
-      const enrollmentDateStr = get("date_mkw7wejn");
-      const servicesOpted = get("color_mm023vmt") || get("text_mkwz1j6q");
-      const rawSubscription = get("color_mm02jfyb");
-      const languageLevelOpted = get("color_mm02c95");
-      const rawBatch = get("dropdown_mkxx6cfp");
-      const studentStatus = normalizeStudentStatus(get("color_mm019dcv"));
-      const rawLevel = get("dropdown_mkzshj5a");
-      const subscription = normalizeSubscription(rawSubscription);
-      const level = normalizeLevel(rawLevel, languageLevelOpted);
-      const batch = normalizeBatch(rawBatch, subscription);
-      const otherLanguageKnown = get("dropdown_mkzsadkp");
-      const medium = get("dropdown_mkw09h9j");
-      const leadSource = get("dropdown_mm0d9jrv");
-      const stream = get("text_mkwtq4fq");
-      const batchStartedOnStr = get("date_mkxkba8t");
-      const teacherIncharge = get("dropdown_mkw72gz4");
-
-      let assignedTeacherId = null;
-      if (teacherIncharge) {
-        const tName = teacherIncharge.trim();
-        const escapedName = tName.replace(/[.*+?^${}()|[\]\\]/g, '\\' + '$&');
-        const teacher = await User.findOne({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }, name: { $regex: new RegExp('(^|\\s)' + escapedName + '(\\s|$)', 'i') } }).select('_id');
-        if (teacher) assignedTeacherId = teacher._id;
+      const mapped = await mapMondayItemToPortalFields(item);
+      if (mapped.skip) {
+        skipped++;
+        continue;
       }
-
-      const dateWithdrewStr = get("date_mkzzgvxv");
-      const reasonForWithdrawing = get("text_mkzz24qx");
-      const a1StartStr = get("date_mm1dceqs"), a1CompletedStr = get("date_mkzt1xj");
-      const a2StartStr = get("date_mm1dwzc8"), a2CompletedStr = get("date_mkztk1pn");
-      const b1StartStr = get("date_mm1d7az3"), b1CompletedStr = get("date_mkztxce7");
-      const b2StartStr = get("date_mm1dbv8e"), b2CompletedStr = get("date_mkztwdfn");
-      const examPassedDateStr = get("date_mkw7zwjh");
-      const languageExamStatus = get("color_mkw7syb");
-      const candidateStatus = get("text_mkzzjdv1");
-      const examRemark = get("text_mkzzbgz1");
-      const readingScore = get("numeric_mkzz97be"), listeningScore = get("numeric_mkzz8sr4");
-      const writingScore = get("numeric_mkzz2bzg"), speakingScore = get("numeric_mkzz8q32");
-      const documentationPaymentStatus = mondayGetFirstNonEmpty(
-        item.column_values,
-        process.env.MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS
-      );
-
-      const parseDate = (str) => str ? new Date(str) : null;
-
-      const updateData = {
-        name, phoneNumber, whatsappNumber, address,
-        age: ageStr ? parseInt(ageStr) : null, qualifications,
-        servicesOpted, subscription, languageLevelOpted, batch,
-        studentStatus, level, otherLanguageKnown,
-        medium: medium ? [medium] : [], leadSource, stream, teacherIncharge,
-        ...(assignedTeacherId ? { assignedTeacher: assignedTeacherId } : {}),
-        reasonForWithdrawing, languageExamStatus, candidateStatus, examRemark,
-        documentationPaymentStatus,
-        enrollmentDate: parseDate(enrollmentDateStr),
-        batchStartedOn: parseDate(batchStartedOnStr),
-        dateWithdrew: parseDate(dateWithdrewStr),
-        examPassedDate: parseDate(examPassedDateStr),
-        examScores: { reading: readingScore ? parseFloat(readingScore) : null, listening: listeningScore ? parseFloat(listeningScore) : null, writing: writingScore ? parseFloat(writingScore) : null, speaking: speakingScore ? parseFloat(speakingScore) : null },
-        courseStartDates: { A1StartDate: parseDate(a1StartStr), A2StartDate: parseDate(a2StartStr), B1StartDate: parseDate(b1StartStr), B2StartDate: parseDate(b2StartStr) },
-        courseCompletionDates: { A1CompletionDate: parseDate(a1CompletedStr), A2CompletionDate: parseDate(a2CompletedStr), B1CompletionDate: parseDate(b1CompletedStr), B2CompletionDate: parseDate(b2CompletedStr) },
-        updatedAt: new Date()
-      };
+      name = mapped.name;
+      email = mapped.email;
+      updateData = mapped.updateData;
+      studentStatus = mapped.studentStatus;
 
       const existingUser = await User.findOne({ email });
       if (existingUser) {
         await User.updateOne({ email }, { $set: updateData });
-        updated++; updatedNames.push(name);
+        updated++;
+        updatedNames.push(name);
       } else {
-        const regNo = await generateRegNo("STUDENT");
-        const passwordPlain = await generatePassword("STUDENT", regNo);
+        const regNo = await generateRegNo('STUDENT');
+        const passwordPlain = await generatePassword('STUDENT', regNo);
         const hashedPassword = await bcrypt.hash(passwordPlain, 10);
-        const newUser = new User({ ...updateData, email, regNo, password: hashedPassword, role: "STUDENT", registeredAt: parseDate(enrollmentDateStr) || new Date(), createdAt: new Date() });
+        const createFields = ensureStudentCreateFields({
+          ...updateData,
+          email,
+          regNo,
+          password: hashedPassword,
+          role: 'STUDENT',
+          registeredAt: updateData.enrollmentDate || new Date(),
+          createdAt: new Date(),
+        });
+        const newUser = new User(createFields);
         await newUser.save();
-        try {
-          await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject: "Welcome to Gluck Global Student Portal",
-            html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p></div>` });
-          newUser.lastCredentialsEmailSent = new Date(); await newUser.save();
-          console.log(`  ðŸ“§ Credentials email sent to ${email}`);
-        } catch (emailErr) { console.error(`  âš ï¸ Failed to send email to ${email}:`, emailErr.message); }
-        created++; createdNames.push(name);
+        if (studentStatus !== 'WITHDREW') {
+          try {
+            await transporter.sendMail({
+              from: process.env.EMAIL_USER,
+              to: email,
+              subject: 'Welcome to Gluck Global Student Portal',
+              html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p></div>`,
+            });
+            newUser.lastCredentialsEmailSent = new Date();
+            await newUser.save();
+            console.log(`  ðŸ“§ Credentials email sent to ${email}`);
+          } catch (emailErr) {
+            console.error(`  âš ï¸ Failed to send email to ${email}:`, emailErr.message);
+          }
+        }
+        created++;
+        createdNames.push(name);
       }
-    } catch (itemErr) { console.error(`  âŒ Error processing item "${item.name}":`, itemErr.message); errors++; errorNames.push(item.name); }
+    } catch (itemErr) {
+      if (itemErr.code === 11000 && email && updateData) {
+        try {
+          await User.updateOne({ email }, { $set: updateData });
+          updated++;
+          updatedNames.push(item.name);
+          console.log(`  ↻ Duplicate email resolved via update: ${email}`);
+          continue;
+        } catch (retryErr) {
+          console.error(`  ❌ Retry update failed for "${item.name}":`, retryErr.message);
+        }
+      }
+      console.error(`  âŒ Error processing item "${item.name}":`, itemErr.message);
+      errors++;
+      errorNames.push(item.name);
+    }
   }
 
-  const result = { created, updated, skipped, errors, totalOnBoard: allItems.length, eligible: eligibleItems.length, createdNames, updatedNames, errorNames, duration: Math.round((Date.now() - startTime.getTime()) / 1000) };
-  console.log(`\nâœ… Monday CRM sync completed: Created: ${created} | Updated: ${updated} | Skipped: ${skipped} | Errors: ${errors}`);
+  const reconciliation = await computeMondayPortalReconciliation(allItems, syncItems, duplicateRows, noEmail);
+  const result = {
+    created,
+    updated,
+    skipped: skipped + noEmail,
+    errors,
+    totalOnBoard: allItems.length,
+    syncUnique: syncItems.length,
+    duplicateRowsMerged: duplicateRows,
+    rowsWithoutEmail: noEmail,
+    reconciliation,
+    createdNames,
+    updatedNames,
+    errorNames,
+    duration: Math.round((Date.now() - startTime.getTime()) / 1000),
+  };
+  console.log(`\nâœ… Monday CRM sync completed: Created: ${created} | Updated: ${updated} | Skipped: ${result.skipped} | Errors: ${errors}`);
+  console.log(`   CRM target: ${reconciliation.crmSyncTarget} | Portal matched: ${reconciliation.portalMatchedMonday}`);
   lastSyncStatus = { lastRun: new Date(), result };
   return result;
 }
+
 
 // Cron: run sync every day at 11:50 PM Sri Lanka time
 cron.schedule("50 23 * * *", async () => {
@@ -459,107 +689,146 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       hasMore = !!cursor;
     }
 
-    // Filter: All packages, exclude WITHDREW status
-    const eligibleItems = allItems.filter(item => {
-      const get = (id) => mondayGet(item.column_values, id);
-      const currentStatus = normalizeStudentStatus(get("color_mm019dcv"));
-      return currentStatus !== "WITHDREW";
-    });
+    const { items: syncItems, duplicateRows, noEmail, duplicateRowsList, noEmailRows } =
+      dedupeMondayItemsByEmail(allItems);
 
-    const parseDate = (str) => str ? new Date(str) : null;
     const newStudents = [];
     const updatedStudents = [];
     const skipped = [];
+    const drillDown = {
+      allBoardRows: allItems.map(previewRowFromMondayItem),
+      withdrewOnMonday: allItems
+        .filter((item) => {
+          const get = (id) => mondayGet(item.column_values, id);
+          return normalizeStudentStatus(get('color_mm019dcv')) === 'WITHDREW';
+        })
+        .map(previewRowFromMondayItem),
+      uniqueEmailsToSync: [],
+      duplicateRowsMerged: duplicateRowsList,
+      noEmailRows,
+      matchedInPortal: [],
+      missingFromPortal: [],
+      portalOnly: [],
+      noChanges: [],
+    };
 
-    for (const item of eligibleItems) {
-      const get = (id) => mondayGet(item.column_values, id);
+    const previewScalarFields = [
+      'name', 'phoneNumber', 'whatsappNumber', 'address', 'qualifications',
+      'servicesOpted', 'subscription', 'languageLevelOpted', 'batch',
+      'studentStatus', 'level', 'otherLanguageKnown', 'leadSource', 'stream',
+      'teacherIncharge', 'reasonForWithdrawing', 'languageExamStatus',
+      'candidateStatus', 'examRemark', 'documentationPaymentStatus',
+    ];
 
-      const name              = item.name;
-      const email             = get("text_mkw3spks").trim().toLowerCase();
-      const phoneNumber       = get("text_mkw2wpvr");
-      const address           = get("text_mkv080k2");
-      const age               = get("text_mkw38wse");
-      const qualifications    = get("text_mkw32n6r");
-      const enrollmentDate    = get("date_mkw7wejn");
-      const servicesOpted     = get("color_mm023vmt") || get("text_mkwz1j6q");
-      const rawSubscription   = get("color_mm02jfyb");
-      const languageLevelOpted = get("color_mm02c95");
-      const rawBatch          = get("dropdown_mkxx6cfp");
-      const studentStatus     = normalizeStudentStatus(get("color_mm019dcv"));
-      const rawLevel          = get("dropdown_mkzshj5a");
-      const subscription      = normalizeSubscription(rawSubscription);
-      const level             = normalizeLevel(rawLevel, languageLevelOpted);
-      const batch             = normalizeBatch(rawBatch, subscription);
-      const medium            = get("dropdown_mkw09h9j");
-      const leadSource        = get("dropdown_mm0d9jrv");
-      const stream            = get("text_mkwtq4fq");
-      const teacherIncharge   = get("dropdown_mkw72gz4");
-      const documentationPaymentStatus = mondayGetFirstNonEmpty(
-        item.column_values,
-        process.env.MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS
-      );
+    for (const item of syncItems) {
+      const mapped = await mapMondayItemToPortalFields(item);
+      if (mapped.skip) {
+        skipped.push({ name: mapped.name || item.name, reason: mapped.reason || 'No email' });
+        continue;
+      }
 
-      if (!email) { skipped.push({ name, reason: 'No email' }); continue; }
-
-      const mondayData = {
-        name, email, phoneNumber, address, age, qualifications,
-        servicesOpted, subscription, languageLevelOpted, batch,
-        studentStatus, level, medium, leadSource, stream,
-        teacherIncharge, enrollmentDate, documentationPaymentStatus
+      const { name, email, updateData } = mapped;
+      const syncRow = {
+        name,
+        email,
+        batch: updateData.batch,
+        level: updateData.level,
+        subscription: updateData.subscription,
+        studentStatus: updateData.studentStatus,
+        servicesOpted: updateData.servicesOpted,
+        teacherIncharge: updateData.teacherIncharge,
+        mondayItemId: updateData.crmExternalId,
       };
+      drillDown.uniqueEmailsToSync.push(syncRow);
 
       const existingUser = await User.findOne({ email }).lean();
 
       if (existingUser) {
-        // Compare fields to find changes
         const changes = [];
-        const fieldsToCompare = {
-          name: name,
-          phoneNumber: phoneNumber,
-          subscription: subscription,
-          batch: batch,
-          level: level,
-          studentStatus: studentStatus,
-          servicesOpted: servicesOpted,
-          languageLevelOpted: languageLevelOpted,
-          stream: stream,
-          leadSource: leadSource,
-          teacherIncharge: teacherIncharge,
-          address: address,
-          documentationPaymentStatus: documentationPaymentStatus
-        };
-
-        for (const [field, mondayVal] of Object.entries(fieldsToCompare)) {
-          const portalVal = String(existingUser[field] || '');
-          const mVal = String(mondayVal || '');
-          if (portalVal !== mVal && mVal) {
-            changes.push({ field, portalValue: portalVal || '(empty)', mondayValue: mVal });
+        for (const field of previewScalarFields) {
+          const mondayVal = updateData[field];
+          let portalVal = existingUser[field];
+          if (field === 'medium') {
+            portalVal = Array.isArray(portalVal) ? portalVal.join(', ') : String(portalVal || '');
+            const mVal = Array.isArray(mondayVal) ? mondayVal.join(', ') : String(mondayVal || '');
+            if (portalVal !== mVal) {
+              changes.push({ field, portalValue: portalVal || '(empty)', mondayValue: mVal || '(empty)' });
+            }
+            continue;
+          }
+          const pStr = portalVal == null ? '' : String(portalVal);
+          const mStr = mondayVal == null ? '' : String(mondayVal);
+          if (pStr !== mStr) {
+            changes.push({ field, portalValue: pStr || '(empty)', mondayValue: mStr || '(empty)' });
           }
         }
 
+        drillDown.matchedInPortal.push({ ...syncRow, regNo: existingUser.regNo });
+
         if (changes.length > 0) {
-          updatedStudents.push({
-            name, email, regNo: existingUser.regNo, changes
-          });
+          updatedStudents.push({ name, email, regNo: existingUser.regNo, changes });
+        } else {
+          drillDown.noChanges.push({ ...syncRow, regNo: existingUser.regNo });
         }
       } else {
-        newStudents.push(mondayData);
+        drillDown.missingFromPortal.push(syncRow);
+        newStudents.push({
+          name,
+          email,
+          regNo: '',
+          batch: updateData.batch,
+          level: updateData.level,
+          subscription: updateData.subscription,
+          studentStatus: updateData.studentStatus,
+          servicesOpted: updateData.servicesOpted,
+          teacherIncharge: updateData.teacherIncharge,
+          mondayItemId: updateData.crmExternalId,
+        });
       }
     }
+
+    const mondayEmailSet = drillDown.uniqueEmailsToSync.map((r) => r.email).filter(Boolean);
+    if (mondayEmailSet.length) {
+      const portalOnlyUsers = await User.find({
+        role: 'STUDENT',
+        email: { $nin: mondayEmailSet },
+      })
+        .select('name email regNo batch level subscription studentStatus servicesOpted teacherIncharge')
+        .lean();
+      drillDown.portalOnly = portalOnlyUsers.map((u) => ({
+        name: u.name,
+        email: u.email,
+        regNo: u.regNo,
+        batch: u.batch || '',
+        level: u.level || '',
+        subscription: u.subscription || '',
+        studentStatus: u.studentStatus || '',
+        servicesOpted: u.servicesOpted || '',
+        teacherIncharge: u.teacherIncharge || '',
+        detail: 'In portal but email not on Monday board',
+      }));
+    }
+
+    const reconciliation = await computeMondayPortalReconciliation(allItems, syncItems, duplicateRows, noEmail);
 
     res.json({
       success: true,
       totalOnBoard: allItems.length,
-      eligibleCount: eligibleItems.length,
+      eligibleCount: allItems.length,
+      eligibleUniqueCount: syncItems.length,
+      duplicateRowsMerged: duplicateRows,
+      rowsWithoutEmail: noEmail,
+      reconciliation,
+      drillDown,
       newStudents,
       updatedStudents,
       skipped,
       summary: {
         willCreate: newStudents.length,
         willUpdate: updatedStudents.length,
-        noChanges: eligibleItems.length - newStudents.length - updatedStudents.length - skipped.length,
-        skipped: skipped.length
-      }
+        noChanges: syncItems.length - newStudents.length - updatedStudents.length,
+        skipped: skipped.length + noEmail,
+      },
     });
   } catch (err) {
     console.error("âŒ Monday sync preview error:", err.message);

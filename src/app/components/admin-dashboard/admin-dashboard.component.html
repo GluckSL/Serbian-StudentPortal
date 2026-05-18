@@ -19,8 +19,13 @@
         <div class="admin-header-stat">
           <div class="stat-item stat-item--elevated">
             <span class="stat-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
-            <span class="stat-label">Students</span>
-            <span class="stat-hint">matching filters</span>
+            <span class="stat-label">Students in portal</span>
+            <span class="stat-hint" *ngIf="!hasActiveStudentFilters() && portalStudentCounts.portalTotal">
+              {{ portalStudentCounts.portalCrmLinked }} linked to Monday CRM ·
+              {{ portalStudentCounts.portalWithdrew }} withdrew ·
+              {{ portalStudentCounts.portalTotal }} total accounts
+            </span>
+            <span class="stat-hint" *ngIf="hasActiveStudentFilters()">matching filters</span>
           </div>
         </div>
       </div>
