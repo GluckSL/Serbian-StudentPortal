@@ -826,6 +826,26 @@ export class DigitalExerciseService {
    * When stored URLs point at missing local files, remap to canonical R2 public URLs if the object exists.
    */
   /** Presign private S3 URLs for admin builder preview (canonical URLs stay in the form model). */
+  recoverExerciseMedia(exerciseId: string): Observable<{
+    success: boolean;
+    updatedCount: number;
+    recovered: Array<{ original: string; url: string; found: boolean; field?: string }>;
+    missing: Array<{ original: string; url: string; found: boolean }>;
+    exercise: DigitalExercise;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      updatedCount: number;
+      recovered: Array<{ original: string; url: string; found: boolean; field?: string }>;
+      missing: Array<{ original: string; url: string; found: boolean }>;
+      exercise: DigitalExercise;
+    }>(
+      `${environment.apiUrl}/digital-exercises/${exerciseId}/recover-media`,
+      {},
+      { withCredentials: true }
+    );
+  }
+
   presignMediaUrls(urls: string[]): Observable<{
     resolutions: Array<{ original: string; url: string }>;
   }> {

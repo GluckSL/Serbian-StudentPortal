@@ -413,5 +413,6 @@ module.exports = {
   canonicalizeExerciseForStorage,
   exerciseHasPresignedMedia,
   isS3Url,
+  extractKey,
   USE_SIGNED
 };

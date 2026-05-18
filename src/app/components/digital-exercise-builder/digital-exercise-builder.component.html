@@ -46,6 +46,17 @@
           {{ visibleToStudents ? 'Published' : 'Draft' }}
         </span>
       </label>
+      <button
+        *ngIf="isEditMode"
+        type="button"
+        class="btn-recover-media"
+        (click)="recoverMediaFromCloud()"
+        [disabled]="mediaRecovering || saving"
+        matTooltip="Restore images/audio from R2 or S3 when links broke after a deploy"
+      >
+        <span class="material-icons">{{ mediaRecovering ? 'hourglass_empty' : 'cloud_download' }}</span>
+        {{ mediaRecovering ? 'Recovering…' : 'Recover media' }}
+      </button>
       <button class="btn-cancel" (click)="cancel()">Cancel</button>
       <button class="btn-save" (click)="save()" [disabled]="saving">
         <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>

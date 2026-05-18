@@ -26,6 +26,7 @@ const {
   preserveExistingQuestionMedia,
   preserveTopLevelMedia
 } = require('../utils/exerciseMediaPreserve');
+const { recoverExerciseMedia } = require('../utils/exerciseMediaRecover');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
@@ -1521,6 +1522,48 @@ router.patch('/:id/toggle-active', verifyToken, checkRole(['ADMIN', 'TEACHER', '
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/digital-exercises/:id/recover-media — Repair broken media URLs from R2/S3 (admin)
+router.post(
+  '/:id/recover-media',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const exercise = await DigitalExercise.findById(req.params.id);
+      if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+      if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+        return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+      }
+
+      const { updatedCount, resolutions, missing } = await recoverExerciseMedia(exercise);
+
+      if (updatedCount > 0) {
+        canonicalizeExerciseForStorage(exercise);
+        exercise.markModified('questions');
+        if (exercise.sharedAudioUrl) exercise.markModified('sharedAudioUrl');
+        if (exercise.videoSuccessFeedback) exercise.markModified('videoSuccessFeedback');
+        if (exercise.videoRetryFeedback) exercise.markModified('videoRetryFeedback');
+        exercise.lastUpdatedBy = req.user.id;
+        exercise.updatedAt = new Date();
+        await exercise.save();
+      }
+
+      const plain = exercise.toObject();
+      res.json({
+        success: true,
+        updatedCount,
+        recovered: resolutions.filter((r) => r.found),
+        missing,
+        exercise: plain,
+      });
+    } catch (err) {
+      console.error('POST /digital-exercises/:id/recover-media error:', err);
+      res.status(500).json({ error: err.message || 'Media recovery failed' });
+    }
+  }
+);
 
 // PUT /api/digital-exercises/:id  — Update exercise
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {

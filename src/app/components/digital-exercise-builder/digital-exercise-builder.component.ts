@@ -118,6 +118,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   exerciseId: string | null = null;
   saving = false;
   loading = false;
+  mediaRecovering = false;
   /** Explicit media removals this session — server will not restore previous URLs for these fields. */
   private mediaClears: ExerciseMediaClear[] = [];
   /** Presigned S3 URLs for admin preview (canonical URLs remain in question models). */
@@ -286,6 +287,46 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           const original = this.canonicalizeMediaField(r.original);
           if (original && r.url) this.mediaDisplayCache.set(original, r.url);
         }
+      },
+    });
+  }
+
+  /** Scan R2/S3 for stored paths and repair MongoDB links (e.g. Modeltest after redeploy). */
+  recoverMediaFromCloud(): void {
+    if (!this.isEditMode || !this.exerciseId || this.mediaRecovering) return;
+    this.mediaRecovering = true;
+    this.exerciseService.recoverExerciseMedia(this.exerciseId).subscribe({
+      next: (res) => {
+        this.mediaRecovering = false;
+        const n = res.updatedCount || 0;
+        const miss = res.missing?.length || 0;
+        if (n > 0) {
+          this.questions = (res.exercise.questions || []).map((q) => this.mapQuestionFromApi(q));
+          this.videoSuccessFeedbackRows = (res.exercise.videoSuccessFeedback || []).map((x) => ({
+            audioUrl: x.audioUrl,
+            caption: x.caption || '',
+            uploading: false,
+          }));
+          this.videoRetryFeedbackRows = (res.exercise.videoRetryFeedback || []).map((x) => ({
+            audioUrl: x.audioUrl,
+            caption: x.caption || '',
+            uploading: false,
+          }));
+          this.hydrateMediaDisplayUrls();
+        }
+        if (n > 0 && miss === 0) {
+          this.showSuccess(`Recovered ${n} media link(s) from cloud storage.`);
+        } else if (n > 0) {
+          this.showSuccess(`Recovered ${n} link(s). ${miss} could not be found — re-upload those.`);
+        } else if (miss > 0) {
+          this.showError(`No files found in cloud for ${miss} stored path(s). Re-upload missing images.`);
+        } else {
+          this.showSuccess('All media links already point to cloud storage.');
+        }
+      },
+      error: (err) => {
+        this.mediaRecovering = false;
+        this.showError(err?.error?.error || 'Media recovery failed');
       },
     });
   }
