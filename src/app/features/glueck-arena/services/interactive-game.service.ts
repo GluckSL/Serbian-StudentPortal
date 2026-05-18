@@ -187,16 +187,18 @@ export class InteractiveGameService {
 
   // ── Import ────────────────────────────────────────────────────────────────
 
-  adminImportTemplate(gameSetId: string): Observable<any> {
-    return this.http.get<any>(`${this.base}/admin/sets/${gameSetId}/import/template`);
+  adminImportTemplate(gameSetId: string, gameType?: string): Observable<any> {
+    let p = new HttpParams();
+    if (gameType) p = p.set('gameType', gameType);
+    return this.http.get<any>(`${this.base}/admin/sets/${gameSetId}/import/template`, { params: p });
   }
 
-  adminImportPreview(gameSetId: string, rows: unknown[], importType?: string): Observable<any> {
-    return this.http.post<any>(`${this.base}/admin/sets/${gameSetId}/import/preview`, { rows, importType });
+  adminImportPreview(gameSetId: string, rows: unknown[], importType?: string, gameType?: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/admin/sets/${gameSetId}/import/preview`, { rows, importType, gameType });
   }
 
-  adminImportCommit(gameSetId: string, rows: unknown[], importType?: string): Observable<any> {
-    return this.http.post<any>(`${this.base}/admin/sets/${gameSetId}/import/commit`, { rows, importType });
+  adminImportCommit(gameSetId: string, rows: unknown[], importType?: string, gameType?: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/admin/sets/${gameSetId}/import/commit`, { rows, importType, gameType });
   }
 
   adminUploadQuestionAudio(qid: string, file: File, field: 'word' | 'sentence' = 'word'): Observable<any> {
