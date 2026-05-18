@@ -68,7 +68,10 @@ import {
     .srmp { display: flex; flex-direction: column; gap: 12px; }
     .srmp__arena { position: relative; min-height: 220px; background: linear-gradient(180deg,#dbeeff,#eef4ff); border-radius: 20px; padding: 32px 24px; text-align: center; border: 2px solid #c8d8e8; }
     .srmp__round-badge { font-size: 13px; font-weight: 600; color: #666; margin-bottom: 12px; }
-    .srmp__letters { font-size: 36px; font-weight: 800; letter-spacing: 6px; color: #ff8f00; display: block; margin: 16px 0; }
+    .srmp__letters {
+      font-size: 36px; font-weight: 800; letter-spacing: 6px; color: #ff8f00;
+      display: block; margin: 16px 0; white-space: nowrap; word-break: keep-all;
+    }
     .srmp__hint { color: #666; font-size: 14px; margin: 8px 0; }
     .srmp__audio { background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
     .srmp__timer-bar { height: 6px; background: #e0e0e0; border-radius: 3px; margin-top: 24px; overflow: hidden; }
@@ -110,7 +113,10 @@ export class ScrambleRushMpComponent implements OnChanges, OnDestroy {
   constructor(readonly audio: GameAudioService) {}
 
   get displayLetters(): string {
-    return (this.question?.scrambledLetters || []).join(' ');
+    return (this.question?.scrambledLetters || [])
+      .map((ch) => String(ch || '').trim())
+      .filter(Boolean)
+      .join('\u00a0');
   }
 
   ngOnChanges(changes: SimpleChanges): void {

@@ -203,7 +203,10 @@ const DEADLINE_Y = 88;
 
             </div>
 
-            <span class="sr__tile__letters">{{ w.display }}</span>
+            <span
+              class="sr__tile__letters"
+              [class.sr__tile__letters--long]="(w.question.scrambledLetters?.length || 0) > 8"
+            >{{ w.display }}</span>
 
             <span class="sr__tile__hint" *ngIf="w.question.hint">{{ w.question.hint }}</span>
 
@@ -734,11 +737,19 @@ const DEADLINE_Y = 88;
 
       min-width: 88px;
 
+      width: max-content;
+
+      max-width: calc(100% - 12px);
+
+      white-space: nowrap;
+
       z-index: 3;
 
       border: 1px solid rgba(253, 224, 71, 0.35);
 
       transition: box-shadow 0.2s;
+
+      box-sizing: border-box;
 
     }
 
@@ -881,6 +892,22 @@ const DEADLINE_Y = 88;
       letter-spacing: 4px;
 
       margin-top: 4px;
+
+      white-space: nowrap;
+
+      word-break: keep-all;
+
+      overflow-wrap: normal;
+
+    }
+
+
+
+    .sr__tile__letters--long {
+
+      font-size: clamp(13px, 2.4vw, 18px);
+
+      letter-spacing: 2px;
 
     }
 
@@ -1650,6 +1677,14 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     this.spawnWord();
   }
 
+  /** Non-breaking spaces so letters stay on one line (e.g. S O I O E W). */
+  private formatScrambledLetters(letters: string[]): string {
+    return (letters || [])
+      .map((ch) => String(ch || '').trim())
+      .filter(Boolean)
+      .join('\u00a0');
+  }
+
   spawnWord() {
     if (this.hasActiveFallingWord()) return;
 
@@ -1660,16 +1695,19 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     const q = available[Math.floor(Math.random() * available.length)];
 
     const letters = q.scrambledLetters || [];
+    const letterCount = letters.length;
+    const xMin = letterCount > 8 ? 24 : 12;
+    const xMax = letterCount > 8 ? 76 : 88;
 
     const now = Date.now();
     const perWordMs = this.getQuestionFallMs(q);
     const fw: FallingWord = {
       id: ++this.wordIdCounter,
       question: q,
-      x: 10 + Math.random() * 75,
+      x: xMin + Math.random() * (xMax - xMin),
       y: 0,
       speed: 0,
-      display: letters.join(' '),
+      display: this.formatScrambledLetters(letters),
       state: 'falling',
       spawnedAt: now,
       deadlineAt: now + perWordMs,
