@@ -1004,7 +1004,7 @@
 
 /* Context + instruction + example: padded to align with .q-body */
 .q-guidance-stack {
-  padding: 16px 28px 0;
+  padding: 16px 28px 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1048,11 +1048,11 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  padding: 0;
+  border: none;
+  background: transparent;
   max-width: 100%;
+  width: 100%;
 }
 .q-attachment-audio-capped-hint {
   margin: 0;
@@ -1183,32 +1183,127 @@
   padding: 0;
 }
 
+/* Listening panel (shared audio above multipart prompts) */
+.q-listening-panel {
+  margin: 20px 24px 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #c7d2fe;
+  background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.08);
+}
+.q-listening-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.q-listening-panel-icon {
+  font-size: 22px;
+  color: #4f46e5;
+}
+.q-listening-panel-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #4338ca;
+}
+.q-listening-panel .q-attachment-box {
+  margin: 0;
+}
+.q-listening-panel .q-attachment-audio-capped-hint {
+  font-size: 0.85rem;
+  color: #475569;
+}
+.q-listening-panel .btn-q-attachment-audio-play {
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+}
+
+/* Multipart question parts (parent + sub-questions) */
+.multipart-part-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.multipart-part-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+}
+.qa-body--multipart {
+  gap: 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
 /* Parent question + sub-questions first, shared attachment (e.g. reading passage) last */
 .q-card-passage-subs .sub-questions-section {
   margin-top: 0;
   border-top: none;
 }
 .q-card-passage-subs .sub-questions-inner {
-  padding-top: 0;
+  padding: 8px 24px 20px;
 }
-.q-card-passage-subs .q-question-box,
-.q-card-passage-subs .sub-question-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+.q-card-passage-subs .sub-questions-list {
+  gap: 12px;
 }
-.q-card-passage-subs .sub-question-card:last-of-type {
+.q-card-passage-subs .q-body.qa-body {
+  padding-bottom: 8px;
+}
+.q-card-passage-subs .q-question-box.multipart-part-card {
   margin-bottom: 0;
 }
 .q-card-passage-subs .sub-q-header {
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8edf4;
 }
 .q-card-passage-subs .sub-q-body {
-  padding-top: 2px;
+  padding-top: 0;
+}
+.q-card-passage-subs .qa-tf-inline-row {
+  align-items: flex-start;
+  gap: 16px;
+}
+.q-card-passage-subs .qa-tf-inline-row .qa-prompt {
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+.multipart-part-card .q-attachment-box--audio,
+.q-question-box .q-attachment-box--audio,
+.sub-question-card > .q-attachment-box--audio {
+  margin-bottom: 12px;
+}
+.sub-question-card > .q-attachment-box--audio {
+  margin-top: 0;
+  padding: 0 16px;
+}
+@media (max-width: 720px) {
+  .q-listening-panel {
+    margin: 0 16px 12px;
+    padding: 12px 14px;
+  }
+  .q-card-passage-subs .sub-questions-inner {
+    padding: 8px 16px 16px;
+  }
+  .q-card-passage-subs .qa-tf-inline-row,
+  .multipart-part-card .qa-tf-inline-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .q-card-passage-subs .tf-answers-inline,
+  .multipart-part-card .tf-answers-inline {
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+  .tf-btn {
+    flex: 1;
+    min-width: 0;
+  }
 }
 .q-passage-reference-wrap {
   padding: 8px 24px 20px;
@@ -1232,9 +1327,17 @@
 }
 
 .sub-q-number {
+  display: inline-flex;
+  align-items: center;
   font-weight: 700;
-  color: #4f46e5;
-  font-size: 0.9rem;
+  color: #4338ca;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 4px 12px;
 }
 
 .sub-q-type-label {
@@ -1296,6 +1399,11 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+  grid-template-columns: unset;
+}
+.multipart-part-card > .mcq-options.sub-options {
+  margin-top: 14px;
+  width: 100%;
 }
 
 .sub-options .mcq-option {
@@ -2852,14 +2960,26 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-.tf-btn.active {
+.tf-btn--true.active {
   border-color: #16a34a;
   background: #22c55e;
   color: #fff;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.35);
 }
-.tf-btn.active:hover:not(:disabled) {
+.tf-btn--true.active:hover:not(:disabled) {
   border-color: #15803d;
   background: #16a34a;
+  color: #fff;
+}
+.tf-btn--false.active {
+  border-color: #dc2626;
+  background: #ef4444;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+.tf-btn--false.active:hover:not(:disabled) {
+  border-color: #b91c1c;
+  background: #dc2626;
   color: #fff;
 }
 
@@ -6220,14 +6340,16 @@
 .q-instruction-banner {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  background: #e8f3ff;
-  border-left: 4px solid #4ba3ff;
-  border-radius: 0 6px 6px 0;
-  padding: 10px 14px;
-  margin: 0 0 12px;
-  font-size: 0.9rem;
-  line-height: 1.5;
+  gap: 6px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid #0ea5e9;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  box-shadow: 0 1px 2px rgba(14, 165, 233, 0.06);
 }
 
 .q-instruction-label {
@@ -7336,6 +7458,16 @@
 .review-sub-q-num {
   font-weight: 600;
   color: #374151;
+}
+
+.review-part-label {
+  font-weight: 700;
+  color: #1e3a5f;
+  margin: 10px 0 4px;
+}
+
+.review-passage-audio-top {
+  margin-bottom: 12px;
 }
 
 .review-sub-q-type {

@@ -339,15 +339,25 @@
               Say: <strong [innerHTML]="pq.data.caption | safeHtml"></strong>
             </div>
 
-            <!-- Attachment after stem; with sub-questions, same image is shown after sub-questions (aligned with play view) -->
+            <!-- Shared audio above prompts when Q&A has sub-parts -->
+            <div
+              class="q-attachment-box review-passage-audio-top"
+              *ngIf="shouldShowPassageAudioAtTop(pq.data)"
+            >
+              <audio
+                [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                controls
+                class="q-attachment-audio"
+              ></audio>
+            </div>
+
+            <!-- Attachment after stem; with sub-questions, non-audio stays after sub-parts -->
             <div
               class="q-attachment-box"
               *ngIf="
                 pq.data.attachmentUrl &&
-                !(
-                  pq.data.type === 'question-answer' &&
-                  pq.data.subQuestions?.length > 0
-                )
+                !shouldShowPassageAudioAtTop(pq.data) &&
+                !shouldShowPassageAttachmentAtBottom(pq.data)
               "
             >
               <ng-container
@@ -393,6 +403,13 @@
               </ng-container>
             </div>
 
+            <div
+              class="review-part-label"
+              *ngIf="hasSubQuestions(pq.data)"
+            >
+              Q {{ getQuestionPartLabel(i, getParentPartNumber()) }}
+            </div>
+
             <div class="review-answer-row">
               <span class="review-label">Your answer:</span>
               <span class="review-value" [class.wrong]="!pq.isCorrect">{{
@@ -429,7 +446,7 @@
             <div class="review-sub-q-list">
               <div class="review-sub-q-block" *ngFor="let sq of pq.data.subQuestions; let sqIndex = index">
                 <div class="review-sub-q-head">
-                  <span class="review-sub-q-num">{{ i + 1 }}.{{ sqIndex + 1 }}</span>
+                  <span class="review-sub-q-num">Q {{ getQuestionPartLabel(i, getSubQuestionPartNumber(sqIndex, pq.data)) }}</span>
                   <span class="review-sub-q-type">{{ getQuestionTypeLabelForDisplay(sq) }}</span>
                   <span class="review-sub-q-pts">{{ sq.points || 1 }} pt</span>
                 </div>
@@ -458,11 +475,7 @@
 
             <div
               class="q-attachment-box review-passage-ref"
-              *ngIf="
-                pq.data.attachmentUrl &&
-                pq.data.type === 'question-answer' &&
-                pq.data.subQuestions?.length > 0
-              "
+              *ngIf="shouldShowPassageAttachmentAtBottom(pq.data)"
             >
               <ng-container
                 [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
@@ -1744,10 +1757,7 @@
         <div
           class="question-card"
           [class]="'q-type-' + currentQuestion.data.type"
-          [class.q-card-passage-subs]="
-            currentQuestion.data.type === 'question-answer' &&
-            currentQuestion.data.subQuestions?.length > 0
-          "
+          [class.q-card-passage-subs]="hasSubQuestions(currentQuestion.data)"
         >
           <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
           <div
@@ -1828,27 +1838,28 @@
             ></div>
           </div>
 
-          <!-- Shared: per-question attachment (rendered after prompt via *ngTemplateOutlet in each q-body) -->
-          <ng-template #playerQuestionAttachment>
+          <div
+            class="q-listening-panel"
+            *ngIf="shouldShowSharedPassageAudio(currentQuestion.data)"
+          >
+            <div class="q-listening-panel-head">
+              <span class="material-icons q-listening-panel-icon" aria-hidden="true">headphones</span>
+              <span class="q-listening-panel-title">Listen to the audio</span>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+          </div>
+
+          <!-- Audio attachment: above question/prompt -->
+          <ng-template #playerQuestionAudioAttachment>
             <div
-              class="q-attachment-box"
-              *ngIf="currentQuestion.data.attachmentUrl"
+              class="q-attachment-box q-attachment-box--audio"
+              *ngIf="shouldShowQuestionAudio(currentQuestion.data)"
             >
               <ng-container
-                [ngSwitch]="
-                  getAttachmentType(currentQuestion.data.attachmentUrl)
-                "
+                *ngIf="getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
               >
-                <img
-                  *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-                  alt="Question attachment"
-                  class="q-attachment-img"
-                />
-                <ng-container *ngSwitchCase="'audio'">
-                  <ng-container
-                    *ngIf="getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
-                  >
                     <div class="q-attachment-audio-capped">
                       <p class="q-attachment-audio-capped-hint" role="status">
                         <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) > 0">
@@ -1872,14 +1883,32 @@
                       </button>
                     </div>
                   </ng-container>
-                  <ng-template #unlimitedPlayerAttachmentAudio>
-                    <audio
-                      [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
-                      controls
-                      class="q-attachment-audio"
-                    ></audio>
-                  </ng-template>
-                </ng-container>
+              <ng-template #unlimitedPlayerAttachmentAudio>
+                <audio
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+              </ng-template>
+            </div>
+          </ng-template>
+
+          <ng-template #playerQuestionMediaAttachment>
+            <div
+              class="q-attachment-box"
+              *ngIf="hasMediaAttachment(currentQuestion.data)"
+            >
+              <ng-container
+                [ngSwitch]="
+                  getAttachmentType(currentQuestion.data.attachmentUrl)
+                "
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  alt="Question attachment"
+                  class="q-attachment-img"
+                />
                 <video
                   *ngSwitchCase="'video'"
                   [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
@@ -1909,23 +1938,27 @@
 
           <!-- ── MCQ ── -->
           <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
-            <div class="q-question-box">
+            <div
+              class="q-question-box"
+              *ngIf="shouldShowParentMcqPart(currentQuestion.data)"
+              [class.multipart-part-card]="hasSubQuestions(currentQuestion.data)"
+            >
+              <div class="sub-q-header" *ngIf="hasSubQuestions(currentQuestion.data)">
+                <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getParentPartNumber(currentQuestion.data)) }}</span>
+                <span class="sub-q-points">{{ currentQuestion.data.points || 1 }} pt</span>
+              </div>
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
               <p
                 class="q-text"
                 [innerHTML]="currentQuestion.data.question | safeHtml"
               ></p>
-            </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
-            ></ng-container>
-            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
-              <img
-                [src]="currentQuestion.data.imageUrl"
-                alt="Question image"
-                class="q-image"
-              />
-            </div>
-            <div class="mcq-options" [class.mcq-options--visual]="hasMcqOptionImages(currentQuestion.data)">
+              <div
+                class="mcq-options"
+                [class.sub-options]="hasSubQuestions(currentQuestion.data)"
+                [class.mcq-options--visual]="hasMcqOptionImages(currentQuestion.data)"
+              >
               <div
                 *ngFor="let opt of currentQuestion.data.options; let oi = index"
                 class="mcq-option"
@@ -1982,6 +2015,17 @@
                   >
                 </span>
               </div>
+              </div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
+              <img
+                [src]="currentQuestion.data.imageUrl"
+                alt="Question image"
+                class="q-image"
+              />
             </div>
             <div
               class="q-feedback-incorrect"
@@ -2000,6 +2044,9 @@
 
           <!-- ── MATCHING ── (instruction lives in guidance banner) -->
           <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
             <div class="matching-container">
               <!-- Labels Row -->
               <div class="matching-row labels-row">
@@ -2070,7 +2117,7 @@
               </div>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
             <div
               class="matching-hint"
@@ -2095,6 +2142,9 @@
             *ngIf="currentQuestion.data.type === 'fill-blank'"
           >
             <div class="q-question-box">
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
               <div class="sentence-container">
                 <ng-container
                   *ngFor="
@@ -2147,7 +2197,7 @@
               </div>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
             <div class="hint-label" *ngIf="currentQuestion.data.hint">
               <span class="material-icons">lightbulb</span>
@@ -2212,7 +2262,7 @@
             *ngIf="currentQuestion.data.type === 'word_bank_fill'"
           >
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
             ></ng-container>
             <div
               class="word-bank-box"
@@ -2328,6 +2378,9 @@
                 </button>
               </div>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
             <div
               class="fill-feedback"
               *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
@@ -2343,7 +2396,7 @@
             *ngIf="currentQuestion.data.type === 'singular_plural'"
           >
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
             ></ng-container>
             <div class="sp-table-wrap">
               <table
@@ -2401,6 +2454,9 @@
                 </tbody>
               </table>
             </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
             <div
               class="special-char-pad"
               *ngIf="
@@ -2438,6 +2494,9 @@
             class="q-body pronunciation-body"
             *ngIf="currentQuestion.data.type === 'pronunciation'"
           >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
             <div class="pronunciation-word-card">
               <div>
                 <div class="big-word">{{ currentQuestion.data.word }}</div>
@@ -2461,7 +2520,7 @@
               </div>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
 
             <div class="pronunciation-controls">
@@ -2792,6 +2851,22 @@
             *ngIf="currentQuestion.data.type === 'listening'"
           >
             <div class="q-question-box">
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
+              <div
+                class="listening-audio-wrap"
+                *ngIf="getListeningSupplementalAudioUrl(currentQuestion.data)"
+              >
+                <audio
+                  [src]="
+                    getMediaFullUrl(
+                      getListeningSupplementalAudioUrl(currentQuestion.data)
+                    )
+                  "
+                  controls
+                ></audio>
+              </div>
               <div
                 class="qa-prompt"
                 [innerHTML]="
@@ -2801,21 +2876,8 @@
               ></div>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
-            <div
-              class="listening-audio-wrap"
-              *ngIf="getListeningSupplementalAudioUrl(currentQuestion.data)"
-            >
-              <audio
-                [src]="
-                  getMediaFullUrl(
-                    getListeningSupplementalAudioUrl(currentQuestion.data)
-                  )
-                "
-                controls
-              ></audio>
-            </div>
             <label class="qa-input-label">Your Answer</label>
             <div class="listening-input-row">
               <textarea
@@ -2882,6 +2944,9 @@
             class="q-body jumble-body"
             *ngIf="currentQuestion.data.type === 'jumble-word'"
           >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
             <div
               class="jumble-category-tip"
               *ngIf="currentQuestion.data.categoryTip"
@@ -2915,7 +2980,7 @@
               </ng-container>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
             <label class="qa-input-label">Form the word:</label>
             <input
@@ -2961,6 +3026,9 @@
             *ngIf="currentQuestion.data.type === 'rearrange'"
           >
             <div class="q-question-box">
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
               <div
                 class="qa-prompt"
                 [innerHTML]="
@@ -2969,7 +3037,7 @@
               ></div>
             </div>
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
 
             <div
@@ -3156,7 +3224,7 @@
                 </div>
 
                 <ng-container
-                  *ngTemplateOutlet="playerQuestionAttachment"
+                  *ngTemplateOutlet="playerQuestionMediaAttachment"
                 ></ng-container>
 
                 <div
@@ -3505,9 +3573,20 @@
           <!-- Question / Answer body -->
           <div
             class="q-body qa-body"
+            [class.qa-body--multipart]="hasSubQuestions(currentQuestion.data)"
             *ngIf="currentQuestion.data.type === 'question-answer'"
           >
-            <div class="q-question-box">
+            <div
+              class="q-question-box"
+              [class.multipart-part-card]="hasSubQuestions(currentQuestion.data)"
+            >
+              <div class="sub-q-header" *ngIf="hasSubQuestions(currentQuestion.data)">
+                <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getParentPartNumber()) }}</span>
+                <span class="sub-q-points">{{ currentQuestion.data.points || 1 }} pt</span>
+              </div>
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
               <ng-container
                 *ngIf="
                   isTrueFalseQuestion(currentQuestion.data);
@@ -3526,7 +3605,7 @@
                   >
                     <button
                       type="button"
-                      class="tf-btn"
+                      class="tf-btn tf-btn--true"
                       [class.active]="
                         parseTrueFalse(currentQuestion.qaResponse) === true
                       "
@@ -3540,7 +3619,7 @@
                     </button>
                     <button
                       type="button"
-                      class="tf-btn"
+                      class="tf-btn tf-btn--false"
                       [class.active]="
                         parseTrueFalse(currentQuestion.qaResponse) === false
                       "
@@ -3566,7 +3645,7 @@
               *ngIf="!currentQuestion.data.subQuestions?.length"
             >
               <ng-container
-                *ngTemplateOutlet="playerQuestionAttachment"
+                *ngTemplateOutlet="playerQuestionMediaAttachment"
               ></ng-container>
             </ng-container>
 
@@ -3636,15 +3715,32 @@
           <div class="sub-questions-section" *ngIf="currentQuestion.data.subQuestions && currentQuestion.data.subQuestions.length > 0">
             <div class="sub-questions-inner">
               <div class="sub-questions-list">
-                <div class="sub-question-card" *ngFor="let sq of currentQuestion.data.subQuestions; let sqIndex = index">
+                <div class="sub-question-card multipart-part-card" *ngFor="let sq of currentQuestion.data.subQuestions; let sqIndex = index">
                   <div class="sub-q-header">
-                    <span class="sub-q-number">Q {{ currentIndex + 1 }}.{{ sqIndex + 1 }}</span>
+                    <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getSubQuestionPartNumber(sqIndex, currentQuestion.data)) }}</span>
                     <span class="sub-q-points">{{ sq.points || 1 }} pt</span>
                   </div>
+                  <ng-container
+                    *ngIf="shouldShowPassageAudioOnFirstSub(sqIndex, currentQuestion.data)"
+                  >
+                    <ng-container
+                      *ngTemplateOutlet="playerQuestionAudioAttachment"
+                    ></ng-container>
+                  </ng-container>
 
                   <div class="sub-q-body">
                     <!-- MCQ -->
                     <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
+                      <div
+                        class="q-attachment-box q-attachment-box--audio"
+                        *ngIf="hasSubQuestionOwnAudio(currentQuestion.data, sq)"
+                      >
+                        <audio
+                          [src]="getMediaFullUrl(sq.attachmentUrl)"
+                          controls
+                          class="q-attachment-audio"
+                        ></audio>
+                      </div>
                       <p class="sub-q-text" [innerHTML]="sq.question | safeHtml"></p>
                       <div class="mcq-options sub-options" [class.mcq-options--visual]="hasMcqOptionImages(sq)">
                         <div *ngFor="let opt of sq.options; let oi = index"
@@ -3754,13 +3850,13 @@
                             [innerHTML]="sq.prompt | safeHtml"
                           ></div>
                           <div class="tf-answers tf-answers-inline" role="group" aria-label="Richtig oder Falsch">
-                            <button type="button" class="tf-btn"
+                            <button type="button" class="tf-btn tf-btn--true"
                               [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === true"
                               [disabled]="hasCurrentSubmitted"
                               (click)="setSubQuestionTrueFalse(currentQuestion, sqIndex, true)">
                               Richtig
                             </button>
-                            <button type="button" class="tf-btn"
+                            <button type="button" class="tf-btn tf-btn--false"
                               [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === false"
                               [disabled]="hasCurrentSubmitted"
                               (click)="setSubQuestionTrueFalse(currentQuestion, sqIndex, false)">
@@ -3790,10 +3886,10 @@
 
                     <!-- Listening -->
                     <div *ngIf="sq.type === 'listening'" class="sub-q-listening">
-                      <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
                       <div class="listening-audio-wrap" *ngIf="sq.audioUrl">
                         <audio [src]="getMediaFullUrl(sq.audioUrl)" controls></audio>
                       </div>
+                      <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
                       <input type="text" class="sub-q-input"
                         [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                         (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
@@ -3884,13 +3980,10 @@
 
           <div
             class="q-passage-reference-wrap"
-            *ngIf="
-              currentQuestion.data.type === 'question-answer' &&
-              currentQuestion.data.subQuestions?.length > 0
-            "
+            *ngIf="shouldShowPassageAttachmentAtBottom(currentQuestion.data)"
           >
             <ng-container
-              *ngTemplateOutlet="playerQuestionAttachment"
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
           </div>
 

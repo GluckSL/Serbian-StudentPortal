@@ -156,13 +156,7 @@ if (!mongoUri || typeof mongoUri !== 'string') {
 }
 
 const { ensureDefaultDgCharacter } = require('./services/dgCharacterSeed');
-const { ensureInteractiveGamesSeeded } = require('./services/interactiveGamesSeed');
-const { ensureDefaultChallenges } = require('./services/interactiveGames/dailyChallenges');
-const { ensureDefaultAchievements } = require('./services/interactiveGames/achievements');
-const { ensureDefaultQuests } = require('./services/interactiveGames/quests');
-const { scheduleGlueckArenaJobs } = require('./jobs/glueckArenaDailyReset');
-const { initGlueckArenaSockets } = require('./sockets/glueckArenaMultiplayer');
-const http = require('http');
+const { ensurePortalBatches } = require('./services/ensurePortalBatches');
 
 function parseMongoHosts(uri) {
   if (!uri || typeof uri !== 'string') return [];
@@ -232,10 +226,14 @@ async function connectMongoDb() {
   });
   console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
   await ensureDefaultDgCharacter();
+<<<<<<< HEAD
   await ensureInteractiveGamesSeeded();
   await ensureDefaultChallenges();
   await ensureDefaultAchievements();
   await ensureDefaultQuests();
+=======
+  await ensurePortalBatches();
+>>>>>>> 557842f95e49e58ab44b7cd8e8ee11e6c5bbcdea
 }
 
 // API Routes
@@ -443,5 +441,3 @@ connectMongoDb()
     );
     process.exit(1);
   });
-
-

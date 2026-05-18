@@ -140,18 +140,18 @@
                 <button
                   type="button"
                   class="btn btn-sm btn-outline-primary rounded-pill px-3"
-                  [disabled]="!s.chatTurns?.length"
+                  [disabled]="!s.chatTurns.length"
                   (click)="toggleExpand(s.sessionId)"
                   [attr.aria-expanded]="expandedSessionId === s.sessionId">
                   <i class="fas"
                     [class.fa-chevron-down]="expandedSessionId !== s.sessionId"
                     [class.fa-chevron-up]="expandedSessionId === s.sessionId"></i>
                   {{ expandedSessionId === s.sessionId ? 'Hide' : 'View' }}
-                  <span class="ms-1 text-muted">({{ s.chatTurns?.length || 0 }})</span>
+                  <span class="ms-1 text-muted">({{ s.chatTurns.length || 0 }})</span>
                 </button>
               </td>
             </tr>
-            @if (expandedSessionId === s.sessionId && s.chatTurns?.length) {
+            @if (expandedSessionId === s.sessionId && s.chatTurns.length) {
               <tr class="dg-chat-expand">
                 <td colspan="9" class="p-0 border-0">
                   <div class="dg-chat-view">

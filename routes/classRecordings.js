@@ -23,6 +23,7 @@ const {
   meetsStrictThreshold
 } = require('../services/journeyDayCompletion.service');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -418,8 +419,8 @@ router.get('/batches', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       }
     }
 
-    batches.sort((a, b) => a.localeCompare(b));
-    res.json({ success: true, batches });
+    const merged = mergePortalBatchNames(batches);
+    res.json({ success: true, batches: merged });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

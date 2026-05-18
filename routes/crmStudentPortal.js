@@ -14,6 +14,7 @@ const {
 } = require('../services/studentPortalCrmWebhook');
 const { runSyncKind, runFullSync } = require('../services/studentPortalCrmSync');
 const { reloadStudentPortalCron } = require('../jobs/studentPortalCrmFullSync');
+const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 
 const ADMIN_ROLES = ['ADMIN', 'TEACHER_ADMIN'];
 
@@ -178,7 +179,7 @@ router.get('/manual-announcement/options', verifyToken, checkRole(ADMIN_ROLES), 
     res.json({
       success: true,
       data: {
-        batches: sortAsc(batches),
+        batches: mergePortalBatchNames(sortAsc(batches)),
         statuses: sortAsc(statuses),
         levels: sortAsc(levels),
         services: sortAsc(services),
