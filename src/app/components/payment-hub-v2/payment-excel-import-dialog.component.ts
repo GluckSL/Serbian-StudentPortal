@@ -319,7 +319,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
   }
 
   downloadTemplate(): void {
-    // Matches common legacy workbook layout; trailing columns are required for this importer (one payment per row).
+    // Matches common legacy workbook layout (one payment per row).
     const headers = [
       '',
       'Name',
@@ -383,8 +383,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       ['Doc Paid', 'Optional', 'Aliases: Document received — for Docs rows, stored in remarks'],
       ['Visa Quo', 'Optional', 'For Visa rows: quoted visa fee (stored in remarks)'],
       ['Visa Re', 'Optional', 'For Visa rows: visa amount received (stored in remarks)'],
-      ['Payment date', 'YES', 'Aliases: Date of payment, Payment Date'],
-      ['Type', 'YES', 'Language | Docs | Visa | Custom'],
+      ['Payment date', 'Optional', 'Defaults to today if blank. Aliases: Date of payment, Payment Date'],
+      ['Type', 'Optional', 'Language | Docs | Visa | Custom — defaults to Language if blank'],
       ['Custom Label', 'Custom only', 'When Type is Custom'],
       ['Note', 'Optional', 'Saved as remarks (after Plan/Batch/Status prefix when those columns are filled)'],
     ];
@@ -488,8 +488,6 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       let parseError = '';
       if (!email) parseError = `Row ${rowNum}: Email is required`;
       else if (amount === null || amount <= 0) parseError = `Row ${rowNum}: Amount must be a positive number`;
-      else if (!type) parseError = `Row ${rowNum}: Type is required`;
-      else if (!dateOfPayment) parseError = `Row ${rowNum}: Date of payment is invalid or missing`;
 
       if (parseError) errors.push(parseError);
 
@@ -551,9 +549,11 @@ export class PaymentExcelImportDialogComponent implements OnInit {
 
   private markDuplicates(rows: PreviewRow[]): void {
     const key = (r: PreviewRow): string | null => {
-      if (!r.matchedStudent || r.parseError || r.amount == null || !r.dateOfPayment || !r.type) return null;
+      if (!r.matchedStudent || r.parseError || r.amount == null) return null;
       const sid = r.matchedStudent.studentId._id;
-      return `${sid}|${r.amount}|${this.dateKey(r.dateOfPayment)}|${r.type}`;
+      const effectiveType = r.type || 'Language';
+      const effectiveDate = this.dateKey(r.dateOfPayment) || new Date().toISOString().slice(0, 10);
+      return `${sid}|${r.amount}|${effectiveDate}|${effectiveType}`;
     };
     const groups = new Map<string, PreviewRow[]>();
     for (const r of rows) {
@@ -804,9 +804,9 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       for (const row of rows) {
         const currency = row.currency || (VALID_CURRENCIES.has(fallbackCurrency) ? fallbackCurrency : 'LKR');
         const amount = row.amount!;
-        const paymentDate = row.dateOfPayment;
+        const paymentDate = row.dateOfPayment || new Date().toISOString();
         const remarks = row.note || undefined;
-        const t = row.type;
+        const t = row.type || 'Language';
 
         if (t === 'Language') {
           body.languagePayment = {

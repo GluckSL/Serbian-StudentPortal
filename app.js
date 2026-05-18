@@ -156,6 +156,7 @@ if (!mongoUri || typeof mongoUri !== 'string') {
 }
 
 const { ensureDefaultDgCharacter } = require('./services/dgCharacterSeed');
+const { ensurePortalBatches } = require('./services/ensurePortalBatches');
 
 function parseMongoHosts(uri) {
   if (!uri || typeof uri !== 'string') return [];
@@ -225,6 +226,7 @@ async function connectMongoDb() {
   });
   console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
   await ensureDefaultDgCharacter();
+  await ensurePortalBatches();
 }
 
 // API Routes

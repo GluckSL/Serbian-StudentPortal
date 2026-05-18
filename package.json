@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "server": "node app.js",
+    "seed:batches": "node scripts/seed-portal-batches.js",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"

@@ -8,6 +8,7 @@ const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
+const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 
 /** Whitelist: API key → User schema path (advanced filter + distinct values) */
 const ADV_STUDENT_FILTER_FIELDS = {
@@ -57,7 +58,7 @@ router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) =>
 
     res.json({
       success: true,
-      batches: clean(batches),
+      batches: mergePortalBatchNames(clean(batches)),
       servicesOpted: clean(servicesOpted),
       qualifications: clean(qualifications),
       languageLevelOpted: clean(languageLevelOpted),

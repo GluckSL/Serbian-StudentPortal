@@ -51,6 +51,16 @@ import { environment } from '../../../environments/environment';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
+/** Question row fields used by parent/sub-part display helpers. */
+type QuestionRowData = {
+  type?: string;
+  question?: string;
+  options?: string[];
+  prompt?: string;
+  subQuestions?: unknown[];
+  attachmentUrl?: string;
+};
+
 interface VpChatMessage {
   id: string;
   role: 'tutor' | 'user';
@@ -3820,13 +3830,133 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     img.src = src;
   }
 
+  hasSubQuestions(data: QuestionRowData | null | undefined): boolean {
+    return Array.isArray(data?.subQuestions) && data!.subQuestions!.length > 0;
+  }
+
+  /** Parent is part 1; first sub-question is part 2, etc. */
+  getQuestionPartLabel(questionIndex: number, partNumber: number): string {
+    return `${questionIndex + 1}.${partNumber}`;
+  }
+
+  getParentPartNumber(data?: QuestionRowData | null): number {
+    return this.isParentAnswerPartEmpty(data) ? 0 : 1;
+  }
+
+  getSubQuestionPartNumber(
+    sqIndex: number,
+    data?: QuestionRowData | null
+  ): number {
+    return this.isParentAnswerPartEmpty(data) ? sqIndex + 1 : sqIndex + 2;
+  }
+
+  private htmlToPlainText(html: unknown): string {
+    return String(html ?? '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** Parent only carries shared context; answerable parts are all sub-questions. */
+  isParentAnswerPartEmpty(data: QuestionRowData | null | undefined): boolean {
+    if (!data || !this.hasSubQuestions(data)) return false;
+    const type = String(data.type || '').toLowerCase();
+    if (type === 'mcq') {
+      const q = this.htmlToPlainText(data.question);
+      const opts = Array.isArray(data.options)
+        ? data.options.some((o) => this.htmlToPlainText(o).length > 0)
+        : false;
+      return !q && !opts;
+    }
+    if (type === 'question-answer') {
+      return !this.htmlToPlainText(data.prompt) && !this.isTrueFalseQuestion(data);
+    }
+    return false;
+  }
+
+  shouldShowParentMcqPart(data: QuestionRowData | null | undefined): boolean {
+    if (!data || !this.hasSubQuestions(data)) return true;
+    if (String(data.type || '').toLowerCase() !== 'mcq') return true;
+    return !this.isParentAnswerPartEmpty(data);
+  }
+
+  /** Shared passage audio on the first sub-part (e.g. Q 24.1) when the parent row has no prompt. */
+  shouldShowPassageAudioOnFirstSub(
+    sqIndex: number,
+    parent: QuestionRowData | null | undefined
+  ): boolean {
+    return sqIndex === 0 && !!parent && this.isParentAnswerPartEmpty(parent) && this.hasAudioAttachment(parent);
+  }
+
+  hasAudioAttachment(data: QuestionRowData | null | undefined): boolean {
+    const att = String(data?.attachmentUrl || '').trim();
+    return !!att && this.getAttachmentType(att) === 'audio';
+  }
+
+  hasMediaAttachment(data: QuestionRowData | null | undefined): boolean {
+    const att = String(data?.attachmentUrl || '').trim();
+    return !!att && this.getAttachmentType(att) !== 'audio';
+  }
+
+  /** Audio on the parent row (e.g. Q 24.1) when the question has sub-parts. */
+  shouldShowParentPartAudio(data: QuestionRowData | null | undefined): boolean {
+    return (
+      !!data &&
+      this.hasSubQuestions(data) &&
+      this.hasAudioAttachment(data) &&
+      !this.isParentAnswerPartEmpty(data)
+    );
+  }
+
+  /** Shared panel above all parts — disabled; audio lives on the parent part card instead. */
+  shouldShowSharedPassageAudio(_data?: QuestionRowData | null): boolean {
+    return false;
+  }
+
+  /** @deprecated Use shouldShowParentPartAudio */
+  shouldShowPassageAudioAtTop(data: QuestionRowData | null | undefined): boolean {
+    return this.shouldShowParentPartAudio(data);
+  }
+
+  /** Per-part audio directly above the question/prompt. */
+  shouldShowInlineQuestionAudio(data: QuestionRowData | null | undefined): boolean {
+    return !!data && this.hasAudioAttachment(data) && !this.hasSubQuestions(data);
+  }
+
+  shouldShowQuestionAudio(data: QuestionRowData | null | undefined): boolean {
+    return this.shouldShowInlineQuestionAudio(data) || this.shouldShowParentPartAudio(data);
+  }
+
+  /** Sub-part has its own audio (not the same clip already shown on the parent part). */
+  hasSubQuestionOwnAudio(
+    parent: QuestionRowData | null | undefined,
+    sq: QuestionRowData | null | undefined
+  ): boolean {
+    const subAtt = String(sq?.attachmentUrl || '').trim();
+    if (!subAtt || this.getAttachmentType(subAtt) !== 'audio') return false;
+    const parentAtt = String(parent?.attachmentUrl || '').trim();
+    return !parentAtt || subAtt !== parentAtt;
+  }
+
+  /** Non-audio passage attachments stay below sub-questions (reading image, PDF, etc.). */
+  shouldShowPassageAttachmentAtBottom(data: QuestionRowData | null | undefined): boolean {
+    return !!data && this.hasSubQuestions(data) && this.hasMediaAttachment(data);
+  }
+
   getAttachmentType(url: string): 'image' | 'audio' | 'video' | 'pdf' | 'other' {
     if (!url) return 'other';
     const lower = url.toLowerCase().split('?')[0];
-    if (/\.(jpe?g|png|gif|webp|svg)$/.test(lower)) return 'image';
+    if (/\.(jpe?g|jpg|jfif|png|gif|webp|svg|avif|bmp)$/.test(lower)) return 'image';
     if (/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(lower)) return 'audio';
     if (/\.(mp4|mov|avi|mkv)$/.test(lower)) return 'video';
     if (/\.pdf$/.test(lower)) return 'pdf';
+    if (
+      (lower.includes('listening-media/') || lower.includes('exercise-attachments/')) &&
+      !/\.(jpe?g|png|gif|webp|svg|pdf|mp4|mov)$/.test(lower)
+    ) {
+      return 'audio';
+    }
     return 'other';
   }
 

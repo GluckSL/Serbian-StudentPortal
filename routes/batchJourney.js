@@ -19,6 +19,7 @@ const {
 } = require('../services/journeyDayCompletion.service');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -125,7 +126,9 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     const studentBatchNames = await User.distinct('batch', { role: 'STUDENT', batch: { $ne: null, $ne: '' } });
     const configBatchNames = await BatchConfig.distinct('batchName', { batchName: { $ne: null, $ne: '' } });
 
-    let allBatchNames = Array.from(new Set([...(studentBatchNames || []), ...(configBatchNames || [])]));
+    let allBatchNames = mergePortalBatchNames([
+      ...new Set([...(studentBatchNames || []), ...(configBatchNames || [])])
+    ]);
 
     if (req.user.role === 'TEACHER' || req.user.role === 'TEACHER_ADMIN') {
       const allowed = await buildTeacherAllowedBatchSet(req.user.id);
