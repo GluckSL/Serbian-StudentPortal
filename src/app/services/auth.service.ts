@@ -164,6 +164,28 @@ export class AuthService {
     );
   }
 
+  confirmWithdrawalStatus(data: {
+    studentId: string;
+    decision: 'YES' | 'NO';
+    loginAttemptTime: string;
+    keepSessionActive?: boolean;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/withdrawal-confirmation`, data).pipe(
+      tap((response: any) => {
+        if (response?.token) {
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, response.token);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (response?.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      })
+    );
+  }
+
   // Fetch user profile (with photo URL included)
   getUserProfile(): Observable<any> {
     return this.http.get(`${this.apiUrl}/auth/profile`, { withCredentials: true });

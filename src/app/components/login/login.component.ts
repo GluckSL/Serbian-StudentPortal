@@ -36,6 +36,14 @@ export class LoginComponent implements OnInit {
   /** Safe internal path to navigate to after successful login (from ?returnUrl query param). */
   pendingReturnUrl = '';
 
+  // Uncertain / Withdrawal confirmation modal
+  showWithdrawalModal = false;
+  withdrawalStudentInfo: { studentId: string; studentName: string; batch: string; studentStatus: string; email: string; regNo: string } | null = null;
+  loginAttemptTime = '';
+  confirmingDecision: 'YES' | 'NO' | null = null;
+  withdrawalDecisionError = '';
+  withdrawalAckMessage = '';
+
   /** Pupil offset in px (translate) for each eye */
   leftPupil = { x: 0, y: 0 };
   rightPupil = { x: 0, y: 0 };
@@ -162,6 +170,7 @@ export class LoginComponent implements OnInit {
 
   onSubmit(): void {
     this.errorMessage = '';
+    this.withdrawalAckMessage = '';
     this.showSessionExpiredNotice = false;
     this.loading = true;
 
@@ -173,12 +182,20 @@ export class LoginComponent implements OnInit {
 
     this.authService.login(user).subscribe({
       next: (response) => {
+        // ⚠️ Uncertain / Withdrawal batch — show confirmation modal
+        if (response?.requiresConfirmation) {
+          this.loading = false;
+          this.withdrawalStudentInfo = response.studentInfo;
+          this.loginAttemptTime = response.loginAttemptTime;
+          this.showWithdrawalModal = true;
+          return;
+        }
+
         this.authService.refreshUserProfile().subscribe({
           next: (profile) => {
             this.loading = false;
 
             const merged = profile || response.user;
-            // If the student was redirected here mid-flow, send them back.
             if (this.pendingReturnUrl) {
               this.router.navigateByUrl(this.pendingReturnUrl);
             } else {
@@ -206,6 +223,39 @@ export class LoginComponent implements OnInit {
         } else {
           this.errorMessage = 'Server error. Please try again later.';
         }
+      }
+    });
+  }
+
+  confirmWithdrawal(decision: 'YES' | 'NO'): void {
+    if (!this.withdrawalStudentInfo || this.confirmingDecision) return;
+
+    this.confirmingDecision = decision;
+    this.withdrawalDecisionError = '';
+
+    this.authService.confirmWithdrawalStatus({
+      studentId: this.withdrawalStudentInfo.studentId,
+      decision,
+      loginAttemptTime: this.loginAttemptTime,
+      keepSessionActive: this.keepSessionActive
+    }).subscribe({
+      next: (response) => {
+        this.confirmingDecision = null;
+        this.showWithdrawalModal = false;
+        this.authService.clearClientSession();
+        this.errorMessage = '';
+        this.regNo = '';
+        this.password = '';
+
+        this.withdrawalAckMessage =
+          response?.message ||
+          (decision === 'YES'
+            ? 'Our team will reach you within 24-72 hours. You cannot log in until your account status is updated by the Gluck Global team.'
+            : 'Thank you. Your response has been recorded and our team has been notified.');
+      },
+      error: () => {
+        this.confirmingDecision = null;
+        this.withdrawalDecisionError = 'Something went wrong. Please try again.';
       }
     });
   }

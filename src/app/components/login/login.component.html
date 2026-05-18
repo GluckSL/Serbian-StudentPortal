@@ -1,3 +1,51 @@
+<!-- Uncertain / Withdrawal confirmation modal -->
+<div *ngIf="showWithdrawalModal" class="wd-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="wd-modal-title">
+  <div class="wd-modal" (click)="$event.stopPropagation()">
+    <header class="wd-modal__header">
+      <div class="wd-modal__header-icon" aria-hidden="true"><i class="fas fa-user-clock"></i></div>
+      <div class="wd-modal__header-text">
+        <p class="wd-modal__header-tag">Gluck Global - Action Required</p>
+        <h2 class="wd-modal__header-title" id="wd-modal-title">Account Status Confirmation</h2>
+      </div>
+    </header>
+    <div class="wd-modal__body">
+      <p class="wd-modal__greeting">
+        Dear Candidate<ng-container *ngIf="withdrawalStudentInfo?.studentName">, <strong>{{ withdrawalStudentInfo?.studentName }}</strong></ng-container>,
+      </p>
+      <p class="wd-modal__message">
+        Our records indicate that you are currently listed as
+        <span class="wd-modal__status-pill">Uncertain / Withdrawn</span>
+        from the Gluck Global program. Before we proceed, we would like to confirm your intention directly from you.
+      </p>
+      <div class="wd-modal__question-box">
+        <p class="wd-modal__question-text">Do you wish to continue with Gluck Global?</p>
+      </div>
+      <ul class="wd-modal__choices" aria-label="Your options">
+        <li class="wd-modal__choice wd-modal__choice--yes">
+          <strong>YES</strong> - I want to remain active and continue my application/program.
+        </li>
+        <li class="wd-modal__choice wd-modal__choice--no">
+          <strong>NO</strong> - I confirm my withdrawal and no longer wish to be part of Gluck Global.
+        </li>
+      </ul>
+      <p class="wd-modal__sign">- Gluck Global Team</p>
+      <div *ngIf="withdrawalDecisionError" class="wd-modal__error" role="alert">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i> {{ withdrawalDecisionError }}
+      </div>
+    </div>
+    <footer class="wd-modal__footer">
+      <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="!!confirmingDecision" (click)="confirmWithdrawal('YES')">
+        <ng-container *ngIf="confirmingDecision !== 'YES'">YES</ng-container>
+        <ng-container *ngIf="confirmingDecision === 'YES'"><span class="wd-spinner"></span> Please wait...</ng-container>
+      </button>
+      <button type="button" class="wd-modal__btn wd-modal__btn--no" [disabled]="!!confirmingDecision" (click)="confirmWithdrawal('NO')">
+        <ng-container *ngIf="confirmingDecision !== 'NO'">NO</ng-container>
+        <ng-container *ngIf="confirmingDecision === 'NO'"><span class="wd-spinner wd-spinner--dark"></span> Please wait...</ng-container>
+      </button>
+    </footer>
+  </div>
+</div>
+
 <div class="login-page">
   <!-- Left: hero -->
   <aside class="login-hero">
@@ -170,6 +218,8 @@
             <i class="fas fa-times"></i>
           </button>
         </div>
+
+        <div *ngIf="withdrawalAckMessage" class="banner-success" role="status">{{ withdrawalAckMessage }}</div>
 
         <div *ngIf="errorMessage" class="banner-error" role="alert">{{ errorMessage }}</div>
 

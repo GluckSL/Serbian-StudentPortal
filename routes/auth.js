@@ -23,6 +23,18 @@ const {
   getRegNoSeed: sharedGetRegNoSeed,
   generatePassword: sharedGeneratePassword,
 } = require('../utils/userRegistration');
+const { studentRequiresWithdrawalConfirmation } = require('../utils/portalBatchPresets');
+const {
+  sendWithdrawalLoginAttemptEmail,
+  sendWithdrawalDecisionEmail,
+} = require('../services/withdrawalLoginNotification.service');
+
+function loginRequestMeta(req) {
+  return {
+    ip: req.headers['x-forwarded-for']?.toString()?.split(',')?.[0]?.trim() || req.ip || '',
+    userAgent: req.headers['user-agent'] || '',
+  };
+}
 
 //const auth = require("../middleware/auth");
 const { verifyToken, isAdmin, extractBearerToken } = require('../middleware/auth');
@@ -1141,15 +1153,32 @@ router.post("/login", async (req, res) => {
     const user = await User.findOne({ regNo });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
-    // ðŸ”´ BLOCK WITHDREW STUDENTS
-    if (user.role === "STUDENT" && user.studentStatus === "WITHDREW") {
-      return res.status(403).json({
-        msg: "Your student account has been withdrawn. Access denied."
-      });
-    }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
+
+    // ⚠️ Uncertain / Withdrawn — show confirmation modal instead of logging in
+    if (studentRequiresWithdrawalConfirmation(user)) {
+      const loginAttemptTime = new Date().toISOString();
+      sendWithdrawalLoginAttemptEmail(user, {
+        loginAttemptTime,
+        ...loginRequestMeta(req),
+      }).catch((err) => {
+        console.error('[withdrawal-alert] Login attempt email failed:', err?.message || err);
+      });
+
+      return res.json({
+        requiresConfirmation: true,
+        loginAttemptTime,
+        studentInfo: {
+          studentId: String(user._id),
+          studentName: user.name,
+          batch: user.batch,
+          studentStatus: user.studentStatus,
+          email: user.email,
+          regNo: user.regNo,
+        },
+      });
+    }
 
     // ✅ track last login + keep login history (best effort)
     try {
@@ -1200,6 +1229,48 @@ router.post("/login", async (req, res) => {
 });
 
 
+// ⚠️ Withdrawal Confirmation — called when uncertain/withdrawl student responds to the modal
+router.post("/withdrawal-confirmation", async (req, res) => {
+  try {
+    const { studentId, decision, loginAttemptTime, keepSessionActive } = req.body;
+
+    if (!studentId || !decision) {
+      return res.status(400).json({ msg: "studentId and decision are required" });
+    }
+
+    const user = await User.findById(studentId);
+    if (!user) return res.status(404).json({ msg: "Student not found" });
+
+    if (!['YES', 'NO'].includes(decision)) {
+      return res.status(400).json({ msg: "decision must be YES or NO" });
+    }
+
+    const emailResult = await sendWithdrawalDecisionEmail(user, {
+      decision,
+      loginAttemptTime,
+      responseAt: new Date(),
+      ...loginRequestMeta(req),
+    });
+
+    // Never issue a login token — admin must change batch/status to ONGOING (or similar) first
+    const messages = {
+      YES: 'Thank you. Our team will reach you within 24-72 hours. You cannot access the portal until your account status is updated by our team.',
+      NO: 'Thank you. Your withdrawal has been recorded. Our team has been notified.',
+    };
+
+    return res.json({
+      success: true,
+      decision,
+      emailSent: emailResult.ok,
+      message: messages[decision],
+    });
+
+  } catch (err) {
+    console.error("Withdrawal confirmation error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // âœ… Logout
 router.post("/logout", (req, res) => {
   // ✅ best-effort: record logout activity when token present
@@ -1238,6 +1309,14 @@ router.get("/profile", verifyToken, async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (studentRequiresWithdrawalConfirmation(user)) {
+      return res.status(403).json({
+        message:
+          'Portal access is not available until your account status is updated by the Gluck Global team.',
+        requiresReactivation: true,
+      });
     }
 
     res.json(user);
