@@ -14,7 +14,7 @@ const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/stud
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
 const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
-const { getJoinLogDataForMeeting } = require('../services/joinLogHelpers');
+const { getJoinLogDataForMeeting, getPortalJoinsForMeeting } = require('../services/joinLogHelpers');
 const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
 const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 const { attendanceDebug, attendanceWarn, attendanceDebugEnabled } = require('../utils/attendanceDebug');
@@ -2032,6 +2032,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     const joinData = await getJoinLogDataForMeeting(meeting._id);
     const joinLogMap = joinData.firstJoinByStudent;
     const joinPresence = joinData.hasJoin;
+    const portalJoins = await getPortalJoinsForMeeting(meeting._id, meeting.attendees);
 
     const zoomParts = zoomReport.participants || [];
     for (const p of zoomParts) {
@@ -2222,6 +2223,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         absentCount: attendanceData.filter(a => !a.attended).length,
         attendance: attendanceData,
         allParticipants: allParticipants,
+        portalJoins,
         matchingStats: matchingStats,
         summary: zoomReport.summary
       }

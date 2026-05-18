@@ -34,6 +34,67 @@ function normalizeParticipantName(name) {
     .trim();
 }
 
+/**
+ * Dedupe key for one Zoom past-meeting participant row.
+ * Prefer stable Zoom user ids over display name so distinct guests are not collapsed.
+ */
+function participantDedupeKey(p) {
+  const rawEmailInput = (p.user_email || p.email || '').trim();
+  const dedupeEmail = normalizeEmailForDedupe(rawEmailInput);
+  if (dedupeEmail) return `email:${dedupeEmail}`;
+
+  const zoomUserId = String(p.user_id || p.participant_user_id || '').trim();
+  if (zoomUserId) return `userid:${zoomUserId}`;
+
+  const normName = normalizeParticipantName(p.name || p.user_name || '');
+  if (normName) return `name:${normName}`;
+
+  const rowId = String(p.id || '').trim();
+  if (rowId) return `id:${rowId}`;
+
+  return `raw:${String(p.name || p.user_name || 'unknown')}`;
+}
+
+function mergeParticipantRows(existing, p, dedupeEmail, rawEmailInput) {
+  existing.duration += Number(p.duration) || 0;
+  existing.durationMinutes = Math.round(existing.duration / 60);
+  if (p.join_time && new Date(p.join_time) < new Date(existing.joinTime)) existing.joinTime = p.join_time;
+  if (p.leave_time && new Date(p.leave_time) > new Date(existing.leaveTime)) existing.leaveTime = p.leave_time;
+  existing.sessionCount = (existing.sessionCount || 1) + 1;
+  if (!existing.email && (dedupeEmail || rawEmailInput)) {
+    existing.email = dedupeEmail || rawEmailInput.toLowerCase();
+  }
+}
+
+function dedupeParticipantRows(rawParticipants) {
+  const participantMap = new Map();
+  for (const p of rawParticipants) {
+    const rawEmailInput = (p.user_email || p.email || '').trim();
+    const dedupeEmail = normalizeEmailForDedupe(rawEmailInput);
+    const key = participantDedupeKey(p);
+
+    if (participantMap.has(key)) {
+      mergeParticipantRows(participantMap.get(key), p, dedupeEmail, rawEmailInput);
+    } else {
+      participantMap.set(key, {
+        id: p.id,
+        userId: p.user_id,
+        name: p.name || p.user_name || '',
+        email: dedupeEmail || rawEmailInput.toLowerCase(),
+        joinTime: p.join_time,
+        leaveTime: p.leave_time,
+        duration: Number(p.duration) || 0,
+        durationMinutes: Math.round((Number(p.duration) || 0) / 60),
+        attentiveness_score: p.attentiveness_score,
+        status: p.status,
+        participantUserId: p.participant_user_id,
+        sessionCount: 1,
+      });
+    }
+  }
+  return Array.from(participantMap.values());
+}
+
 class ZoomService {
   constructor() {
     this.accessToken = null;
@@ -216,11 +277,46 @@ class ZoomService {
   }
 
   async fetchPastMeetingParticipants(token, pastMeetingRef) {
-    const response = await axios.get(
-      `${zoomConfig.apiBaseUrl}/past_meetings/${pastMeetingRef}/participants`,
-      { headers: { 'Authorization': `Bearer ${token}` }, params: { page_size: 300 } }
-    );
-    return response.data.participants || [];
+    const all = [];
+    let nextPageToken = '';
+
+    do {
+      const params = { page_size: 300 };
+      if (nextPageToken) params.next_page_token = nextPageToken;
+
+      const response = await axios.get(
+        `${zoomConfig.apiBaseUrl}/past_meetings/${pastMeetingRef}/participants`,
+        { headers: { 'Authorization': `Bearer ${token}` }, params }
+      );
+
+      const page = Array.isArray(response.data?.participants) ? response.data.participants : [];
+      all.push(...page);
+      nextPageToken = response.data?.next_page_token ? String(response.data.next_page_token) : '';
+    } while (nextPageToken);
+
+    return all;
+  }
+
+  /**
+   * Score a raw participant list; prefer higher counts and instances near the scheduled start.
+   */
+  scoreParticipantFetch(rawList, meta = {}) {
+    const count = rawList.length;
+    const duration = rawList.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
+    const metaCount = Number(meta.participantsCount) || 0;
+    const effectiveCount = Math.max(count, metaCount);
+    let score = effectiveCount * 100000 + duration;
+
+    if (meta.expectedStartMs != null && meta.instanceStartMs != null) {
+      const diff = Math.abs(meta.instanceStartMs - meta.expectedStartMs);
+      const sixHours = 6 * 60 * 60 * 1000;
+      const fortyEightHours = 48 * 60 * 60 * 1000;
+      if (diff <= sixHours) score += 25000;
+      else if (diff <= fortyEightHours) score += 5000;
+      else score -= 50000;
+    }
+
+    return score;
   }
 
   async getLatestPastMeetingUuid(token, meetingId) {
@@ -267,151 +363,110 @@ class ZoomService {
         ? new Date(options.expectedStartTime).getTime()
         : null;
       const hasExpectedStart = Number.isFinite(expectedStartMs);
-
-      const refsToTry = [];
-      if (encodedUuid) refsToTry.push(encodedUuid);
       const meetingIdRef = String(meetingId).trim();
 
-      let participants = [];
-      let lastError = null;
       const instances = await this.getPastMeetingInstances(token, meetingIdRef);
 
-      if (instances.length > 0) {
-        const sortedInstances = [...instances].sort((a, b) => {
-          if (hasExpectedStart) {
-            const aMs = a.startTime ? new Date(a.startTime).getTime() : null;
-            const bMs = b.startTime ? new Date(b.startTime).getTime() : null;
-            const aDiff = Number.isFinite(aMs) ? Math.abs(aMs - expectedStartMs) : Number.MAX_SAFE_INTEGER;
-            const bDiff = Number.isFinite(bMs) ? Math.abs(bMs - expectedStartMs) : Number.MAX_SAFE_INTEGER;
-            if (aDiff !== bDiff) return aDiff - bDiff;
-          }
-          const aCount = Number(a.participantsCount || 0);
-          const bCount = Number(b.participantsCount || 0);
-          return bCount - aCount;
-        });
+      /** @type {{ ref: string, source: string, participantsCount?: number, instanceStartMs?: number|null }[]} */
+      const refCandidates = [];
 
-        for (const instance of sortedInstances) {
-          if (!instance.uuid) continue;
-          refsToTry.push(this.encodeUuidForZoom(instance.uuid));
-        }
+      if (encodedUuid) {
+        refCandidates.push({ ref: encodedUuid, source: 'stored_uuid' });
       }
 
-      refsToTry.push(meetingIdRef);
-      const uniqueRefs = [...new Set(refsToTry.filter(Boolean))];
+      const sortedInstances = [...instances].sort((a, b) => {
+        const aCount = Number(a.participantsCount || 0);
+        const bCount = Number(b.participantsCount || 0);
+        if (bCount !== aCount) return bCount - aCount;
+        if (hasExpectedStart) {
+          const aMs = a.startTime ? new Date(a.startTime).getTime() : null;
+          const bMs = b.startTime ? new Date(b.startTime).getTime() : null;
+          const aDiff = Number.isFinite(aMs) ? Math.abs(aMs - expectedStartMs) : Number.MAX_SAFE_INTEGER;
+          const bDiff = Number.isFinite(bMs) ? Math.abs(bMs - expectedStartMs) : Number.MAX_SAFE_INTEGER;
+          if (aDiff !== bDiff) return aDiff - bDiff;
+        }
+        return 0;
+      });
 
-      for (const ref of uniqueRefs) {
-        if (!ref) continue;
+      for (const instance of sortedInstances) {
+        if (!instance.uuid) continue;
+        refCandidates.push({
+          ref: this.encodeUuidForZoom(instance.uuid),
+          source: 'instance',
+          participantsCount: instance.participantsCount,
+          instanceStartMs: instance.startTime ? new Date(instance.startTime).getTime() : null,
+        });
+      }
+
+      refCandidates.push({ ref: meetingIdRef, source: 'meeting_id' });
+
+      const seenRefs = new Set();
+      const uniqueCandidates = refCandidates.filter((c) => {
+        if (!c.ref || seenRefs.has(c.ref)) return false;
+        seenRefs.add(c.ref);
+        return true;
+      });
+
+      let bestRaw = [];
+      let bestScore = -1;
+      let bestSource = null;
+      let bestMetaCount = 0;
+
+      for (const candidate of uniqueCandidates) {
         try {
-          participants = await this.fetchPastMeetingParticipants(token, ref);
-          if (participants.length > 0) break;
-        } catch (error) {
-          lastError = error;
+          const rawList = await this.fetchPastMeetingParticipants(token, candidate.ref);
+          const score = this.scoreParticipantFetch(rawList, {
+            participantsCount: candidate.participantsCount,
+            expectedStartMs: hasExpectedStart ? expectedStartMs : null,
+            instanceStartMs: candidate.instanceStartMs,
+          });
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestRaw = rawList;
+            bestSource = candidate.source;
+            bestMetaCount = Number(candidate.participantsCount) || 0;
+          }
+        } catch {
           continue;
         }
       }
 
-      if (participants.length === 0) {
+      if (bestRaw.length === 0) {
         const latestUuid = await this.getLatestPastMeetingUuid(token, meetingId);
         if (latestUuid) {
           try {
-            participants = await this.fetchPastMeetingParticipants(
+            bestRaw = await this.fetchPastMeetingParticipants(
               token,
               this.encodeUuidForZoom(latestUuid)
             );
-          } catch (error) {
-            lastError = error;
+            bestSource = 'latest_instance';
+          } catch {
+            // fall through
           }
         }
       }
 
-      // Zoom sometimes returns an incomplete participant list for a meeting ID/instance.
-      // If we got 0-1 participants, probe all past instances and select the richest dataset.
-      if (participants.length <= 1) {
-        if (instances.length > 0) {
-          let bestParticipants = participants;
-          let bestScore = participants.length * 100000 + participants.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
-          let bestWithinWindowParticipants = null;
-          let bestWithinWindowScore = -1;
+      const rawCount = bestRaw.length;
+      const deduped = dedupeParticipantRows(bestRaw);
 
-          for (const instance of instances) {
-            if (!instance.uuid) continue;
-            try {
-              const instanceParticipants = await this.fetchPastMeetingParticipants(
-                token,
-                this.encodeUuidForZoom(instance.uuid)
-              );
-              const countScore = instanceParticipants.length * 100000;
-              const durationScore = instanceParticipants.reduce((sum, p) => sum + (Number(p.duration) || 0), 0);
-              const combinedScore = countScore + durationScore;
-
-              if (hasExpectedStart) {
-                const instanceStartMs = instance.startTime ? new Date(instance.startTime).getTime() : null;
-                const withinWindow =
-                  Number.isFinite(instanceStartMs) &&
-                  Math.abs(instanceStartMs - expectedStartMs) <= 24 * 60 * 60 * 1000;
-                if (withinWindow && instanceParticipants.length > 0) {
-                  if (combinedScore > bestWithinWindowScore) {
-                    bestWithinWindowScore = combinedScore;
-                    bestWithinWindowParticipants = instanceParticipants;
-                  }
-                }
-              }
-
-              if (combinedScore > bestScore) {
-                bestScore = combinedScore;
-                bestParticipants = instanceParticipants;
-              }
-            } catch (error) {
-              continue;
-            }
-          }
-
-          if (bestWithinWindowParticipants && bestWithinWindowParticipants.length > 0) {
-            participants = bestWithinWindowParticipants;
-          } else {
-            participants = bestParticipants;
-          }
-
-        }
+      if (rawCount > 0 && deduped.length < rawCount) {
+        console.log(
+          `ℹ️ Zoom participants deduped ${rawCount} → ${deduped.length} rows (source=${bestSource || 'unknown'})`
+        );
+      }
+      if (bestMetaCount > rawCount && rawCount > 0) {
+        console.warn(
+          `⚠️ Zoom instance metadata reports ${bestMetaCount} participants but API returned ${rawCount} (source=${bestSource || 'unknown'})`
+        );
+      }
+      if (bestRaw.length > 0) {
+        console.log(
+          `✅ Zoom participants selected: ${deduped.length} unique (${rawCount} raw, source=${bestSource || 'unknown'})`
+        );
       }
 
-      const participantMap = new Map();
-
-      participants.forEach(p => {
-        const rawEmailInput = (p.user_email || p.email || '').trim();
-        const dedupeEmail = normalizeEmailForDedupe(rawEmailInput);
-
-        // Deduplication key: normalised email (Gmail-aware) OR normalised display name.
-        let key;
-        if (dedupeEmail) {
-          key = `email:${dedupeEmail}`;
-        } else {
-          const normName = normalizeParticipantName(p.name || p.user_name || '');
-          key = normName ? `name:${normName}` : `raw:${String(p.name || p.user_name || p.id || Math.random())}`;
-        }
-
-        if (participantMap.has(key)) {
-          const existing = participantMap.get(key);
-          existing.duration += p.duration;
-          existing.durationMinutes = Math.round(existing.duration / 60);
-          if (new Date(p.join_time) < new Date(existing.joinTime)) existing.joinTime = p.join_time;
-          if (new Date(p.leave_time) > new Date(existing.leaveTime)) existing.leaveTime = p.leave_time;
-          existing.sessionCount = (existing.sessionCount || 1) + 1;
-        } else {
-          participantMap.set(key, {
-            id: p.id,
-            userId: p.user_id,
-            name: p.name || p.user_name || '',
-            email: dedupeEmail || rawEmailInput.toLowerCase(),
-            joinTime: p.join_time, leaveTime: p.leave_time,
-            duration: p.duration, durationMinutes: Math.round(p.duration / 60),
-            attentiveness_score: p.attentiveness_score, status: p.status,
-            participantUserId: p.participant_user_id, sessionCount: 1
-          });
-        }
-      });
-
-      return Array.from(participantMap.values());
+      return deduped;
     } catch (error) {
       if (error.response?.status === 404) {
         console.log('ℹ️ Meeting not found or hasn\'t ended yet');

@@ -261,7 +261,69 @@ import { ZoomService } from '../../services/zoom.service';
             </mat-card>
           </mat-tab>
 
-          <!-- TAB 2: All Zoom Participants -->
+          <!-- TAB 2: Portal join clicks (informational) -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <mat-icon class="tab-icon">touch_app</mat-icon>
+              Portal Join Clicks ({{ getPortalJoinCount() }})
+            </ng-template>
+
+            <mat-card class="table-card">
+              <div class="all-participants-header">
+                <h3>Portal Join Clicks</h3>
+                <p class="subtitle">
+                  Students who clicked Join in Glück for this class.
+                  Informational only — not used for attendance mapping. Compare with
+                  All Zoom Participants to spot students who clicked but did not reach Zoom.
+                </p>
+              </div>
+              <p class="portal-join-hint" *ngIf="getPortalJoinCount() === 0">
+                No portal join clicks recorded for this meeting yet.
+              </p>
+              <table
+                mat-table
+                [dataSource]="attendanceData.portalJoins || []"
+                class="attendance-table"
+                *ngIf="getPortalJoinCount() > 0">
+                <ng-container matColumnDef="pjName">
+                  <th mat-header-cell *matHeaderCellDef>Student Name</th>
+                  <td mat-cell *matCellDef="let j">{{ j.name }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pjEmail">
+                  <th mat-header-cell *matHeaderCellDef>Email</th>
+                  <td mat-cell *matCellDef="let j">{{ j.email }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pjJoinedAt">
+                  <th mat-header-cell *matHeaderCellDef>First Click</th>
+                  <td mat-cell *matCellDef="let j">{{ j.joinedAt ? formatTime(j.joinedAt) : '-' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pjLastJoined">
+                  <th mat-header-cell *matHeaderCellDef>Last Click</th>
+                  <td mat-cell *matCellDef="let j">{{ j.lastJoinedAt ? formatTime(j.lastJoinedAt) : '-' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pjJoinCount">
+                  <th mat-header-cell *matHeaderCellDef>Clicks</th>
+                  <td mat-cell *matCellDef="let j">{{ j.joinCount || 1 }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pjZoomName">
+                  <th mat-header-cell *matHeaderCellDef>Zoom Name Sent</th>
+                  <td mat-cell *matCellDef="let j">
+                    <span class="zoom-name">{{ j.zoomDisplayName || '-' }}</span>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="portalJoinColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: portalJoinColumns;"></tr>
+              </table>
+            </mat-card>
+          </mat-tab>
+
+          <!-- TAB 3: All Zoom Participants -->
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="tab-icon">groups</mat-icon>
@@ -700,6 +762,13 @@ import { ZoomService } from '../../services/zoom.service';
       margin: 0 0 16px 0;
     }
 
+    .portal-join-hint {
+      color: #666;
+      font-size: 14px;
+      margin: 0;
+      font-style: italic;
+    }
+
     .map-inline-form {
       display: flex;
       align-items: center;
@@ -749,6 +818,7 @@ export class MeetingAttendanceComponent implements OnInit {
   
   displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration', 'manualMark'];
   participantColumns: string[] = ['pName', 'pEmail', 'pJoinTime', 'pLeaveTime', 'pDuration', 'pMapped', 'pAction'];
+  portalJoinColumns: string[] = ['pjName', 'pjEmail', 'pjJoinedAt', 'pjLastJoined', 'pjJoinCount', 'pjZoomName'];
 
   // Mapping state
   mappingIndex: number = -1;
@@ -1017,6 +1087,10 @@ export class MeetingAttendanceComponent implements OnInit {
 
   getReviewCount(): number {
     return this.attendanceData?.attendance?.filter((item: any) => item.needsReview)?.length || 0;
+  }
+
+  getPortalJoinCount(): number {
+    return this.attendanceData?.portalJoins?.length || 0;
   }
 
   getAttendancePercent(record: any): number {
