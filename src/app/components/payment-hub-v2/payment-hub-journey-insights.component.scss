@@ -1,0 +1,32 @@
+.jou-header {
+  background: linear-gradient(125deg, #6d28d9 0%, #7c3aed 40%, #a855f7 100%);
+  box-shadow: 0 18px 48px rgba(124, 58, 237, 0.35);
+}
+
+.ph-warn {
+  color: #c2410c !important;
+}
+
+.ph-bullets {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #475569;
+  line-height: 1.65;
+  font-size: 14px;
+
+  li {
+    margin-bottom: 10px;
+  }
+}
+
+.ph-empty-note {
+  text-align: center;
+  color: #94a3b8;
+  padding: 48px 16px;
+  margin: 0;
+}
+
+.ph-filter {
+  min-width: 200px;
+  flex: 0 1 220px;
+}

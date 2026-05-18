@@ -1,0 +1,49 @@
+.rev-header {
+  background: linear-gradient(125deg, #0f766e 0%, #0d9488 45%, #14b8a6 100%);
+  box-shadow: 0 18px 48px rgba(13, 148, 136, 0.35);
+}
+
+.ph-c-emerald {
+  color: #059669 !important;
+}
+.ph-c-amber {
+  color: #d97706 !important;
+}
+.ph-c-sky {
+  color: #0284c7 !important;
+}
+.ph-c-rose {
+  color: #e11d48 !important;
+}
+
+.ph-chart-short {
+  height: 260px;
+}
+
+.ph-tableish {
+  margin-top: 8px;
+}
+
+.ph-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+
+  th,
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  th {
+    text-align: left;
+    color: #64748b;
+    font-weight: 650;
+  }
+
+  .ph-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+}

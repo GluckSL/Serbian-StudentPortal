@@ -1,0 +1,100 @@
+<div class="ph-insights-page">
+  <div class="ph-insights-header">
+    <div class="ph-insights-header-inner">
+      <a routerLink="/admin/payment-hub" class="ph-insights-back">
+        <mat-icon>arrow_back</mat-icon>
+        Back to hub
+      </a>
+      <h1 class="ph-insights-title">Batch payment overview</h1>
+      <p class="ph-insights-sub">
+        Collected totals per batch, plus average journey progress so finance and operations stay aligned.
+      </p>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <div class="ph-insights-filters">
+      <mat-form-field appearance="outline" class="ph-filter">
+        <mat-label>Level</mat-label>
+        <mat-select [(ngModel)]="filterLevel" (selectionChange)="applyFilter()">
+          <mat-option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <ng-container *ngIf="!loading; else spin">
+      <div class="ph-insights-cards">
+        <div class="ph-insight-card">
+          <div class="ph-insight-card-label">Batches</div>
+          <div class="ph-insight-card-value">{{ cardBatches }}</div>
+          <div class="ph-insight-card-hint">Distinct batch labels in view</div>
+        </div>
+        <div class="ph-insight-card">
+          <div class="ph-insight-card-label">Students</div>
+          <div class="ph-insight-card-value">{{ fmt(cardStudents) }}</div>
+          <div class="ph-insight-card-hint">Rows from payment profiles</div>
+        </div>
+        <div class="ph-insight-card ph-accent-violet">
+          <div class="ph-insight-card-label">Total received (sum)</div>
+          <div class="ph-insight-card-value">{{ fmt(cardTotalPaid) }}</div>
+          <div class="ph-insight-card-hint">Across every batch shown</div>
+        </div>
+        <div class="ph-insight-card">
+          <div class="ph-insight-card-label">Top batch by payments</div>
+          <div class="ph-insight-card-value ph-value-sm">{{ cardLargestBatch }}</div>
+          <div class="ph-insight-card-hint">Highest total paid in this filter</div>
+        </div>
+      </div>
+
+      <div class="ph-insights-split">
+        <div class="ph-insights-panel">
+          <h2 class="ph-insights-panel-title">Total payments received by batch</h2>
+          <div class="ph-insights-chart-wrap">
+            <canvas
+              *ngIf="batchRows.length"
+              baseChart
+              [data]="barChartData"
+              [options]="barChartOptions"
+              type="bar"
+            ></canvas>
+            <p *ngIf="!batchRows.length" class="ph-empty-note">No rows for this filter.</p>
+          </div>
+        </div>
+        <div class="ph-insights-panel">
+          <h2 class="ph-insights-panel-title">How to read this</h2>
+          <ul class="ph-bullets">
+            <li>Bars use approved payment totals already stored on each student profile.</li>
+            <li>Average journey columns use enrollment date and level-based total journey days.</li>
+            <li>Open the main hub to refine by batch, currency, or date, then revisit this tab.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ph-insights-table-wrap">
+        <table class="ph-insights-table">
+          <thead>
+            <tr>
+              <th>Batch</th>
+              <th class="ph-num">Students</th>
+              <th class="ph-num">Total paid</th>
+              <th class="ph-num">Avg current journey day</th>
+              <th class="ph-num">Avg total journey days</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of batchRows">
+              <td><strong>{{ r.batch }}</strong></td>
+              <td class="ph-num">{{ r.studentCount }}</td>
+              <td class="ph-num">{{ fmt(r.totalPaid) }}</td>
+              <td class="ph-num">{{ r.avgCurrentJourneyDay || '—' }}</td>
+              <td class="ph-num">{{ r.avgTotalJourneyDays }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-container>
+    <ng-template #spin>
+      <div class="ph-insights-spinner"><mat-spinner diameter="44"></mat-spinner></div>
+    </ng-template>
+  </div>
+</div>

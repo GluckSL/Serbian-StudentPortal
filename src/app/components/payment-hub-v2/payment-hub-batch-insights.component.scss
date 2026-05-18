@@ -1,0 +1,32 @@
+.ph-filter {
+  min-width: 200px;
+  flex: 0 1 220px;
+}
+
+.ph-value-sm {
+  font-size: 1.35rem !important;
+  word-break: break-word;
+}
+
+.ph-accent-violet .ph-insight-card-value {
+  color: #4f46e5;
+}
+
+.ph-bullets {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #475569;
+  line-height: 1.65;
+  font-size: 14px;
+
+  li {
+    margin-bottom: 10px;
+  }
+}
+
+.ph-empty-note {
+  text-align: center;
+  color: #94a3b8;
+  padding: 48px 16px;
+  margin: 0;
+}

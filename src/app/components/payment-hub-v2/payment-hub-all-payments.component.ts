@@ -19,6 +19,10 @@ import { StudentLogService } from '../../services/student-log.service';
 import { PaymentLegacyMapperDialogComponent } from './payment-legacy-mapper-dialog.component';
 import { PaymentBulkLanguagePaidDialogComponent } from './payment-bulk-language-paid-dialog.component';
 import { PaymentExcelImportDialogComponent } from './payment-excel-import-dialog.component';
+import {
+  currentJourneyDayFromEnrollment,
+  totalJourneyDaysForLevel,
+} from './payment-journey-metrics.util';
 
 @Component({
   selector: 'app-payment-hub-all-payments',
@@ -100,6 +104,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       },
       error: () => {
         this.loadingStats = false;
+        this.stats = null;
         this.snack.open('Could not load payment stats', 'Dismiss', { duration: 4000 });
       },
     });
@@ -316,8 +321,16 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   }
 
   studentDateJoined(row: StudentTableRow): string {
-    const d = row.studentId?.dateJoined || row.studentId?.createdAt;
+    const d = row.studentId?.dateJoined || row.studentId?.enrollmentDate || row.studentId?.createdAt;
     return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  }
+
+  totalJourneyDays(row: StudentTableRow): number {
+    return totalJourneyDaysForLevel(row.studentId?.level);
+  }
+
+  currentJourneyDay(row: StudentTableRow): number | null {
+    return currentJourneyDayFromEnrollment(row.studentId);
   }
 
   statusClass(status: string): string {
