@@ -66,6 +66,9 @@ interface FallingWord {
   /** Brief red shake after a wrong guess */
   wrongFlash?: boolean;
 
+  /** Cached timer percentage to avoid ExpressionChangedAfterItHasBeenCheckedError */
+  timeLeftPct?: number;
+
 }
 
 
@@ -172,7 +175,7 @@ const DEADLINE_Y = 88;
 
             <div class="sr__tile__timer" *ngIf="w.state === 'falling'">
 
-              <div class="sr__tile__timer-fill" [style.width.%]="getWordTimeLeftPercent(w)"></div>
+              <div class="sr__tile__timer-fill" [style.width.%]="w.timeLeftPct"></div>
 
             </div>
 
@@ -1234,7 +1237,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
   inputShake = false;
 
-
+  private submitting = false;
 
   fallingWords: FallingWord[] = [];
 
@@ -1484,7 +1487,11 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
       .map(w => {
         if (w.state !== 'falling') return w;
 
-        const fallStep = (DEADLINE_Y / this.getWordFallMs(w)) * dtMs;
+        const totalMs = this.getWordFallMs(w);
+        const remaining = w.deadlineAt - now;
+        w.timeLeftPct = Math.max(0, Math.min(100, (remaining / totalMs) * 100));
+
+        const fallStep = (DEADLINE_Y / totalMs) * dtMs;
         const timedOut = now >= w.deadlineAt;
         const newY = Math.min(DEADLINE_Y, w.y + fallStep);
 
@@ -1516,16 +1523,13 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
     const typed = this.typedWord.trim().toUpperCase();
 
-    if (!typed || this.phase !== 'playing') return;
-
-
+    if (!typed || this.phase !== 'playing' || this.submitting) return;
 
     const target = this.fallingWords.find(w => w.state === 'falling');
 
     if (!target) { this.typedWord = ''; return; }
 
-
-
+    this.submitting = true;
     this.svc.submitAnswer(this.attempt._id, {
 
       questionId: target.question._id,
@@ -1537,7 +1541,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     }).subscribe({
 
       next: (r) => {
-
+        this.submitting = false;
         this.typedWord = '';
 
         if (r.isCorrect) {
@@ -1552,7 +1556,10 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
       },
 
-      error: () => { this.typedWord = ''; }
+      error: () => {
+        this.submitting = false;
+        this.typedWord = '';
+      }
 
     });
 
@@ -1736,4 +1743,3 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
   }
 
 }
-

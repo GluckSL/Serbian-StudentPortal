@@ -50,7 +50,8 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
     }
     .dcw__head {
       display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 16px; padding: 0; flex-wrap: wrap; gap: 8px;
+      background: none;
     }
     .dcw__title {
       display: flex; align-items: center; gap: 8px;

@@ -94,10 +94,14 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
           <p *ngIf="!(periodLabel === 'all' && myStats?.gamesCompleted)">No completed games for this period yet. Play a game to appear here!</p>
         </div>
       </div>
+
+      <div class="lb__list lb__list--skel" *ngIf="loading">
+        <div class="lb__row lb__row--skel" *ngFor="let _ of [1,2,3]"></div>
+      </div>
     </div>
   `,
   styles: [`
-    .lb { max-width: 700px; margin: 0 auto; padding: 24px 16px; }
+    .lb { max-width: 850px; margin: 0 auto; padding: 24px 16px; }
     .lb__header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
     .lb__header h1 { display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 700; color: #405980; margin: 0; }
     .lb__header h1 mat-icon { font-size: 28px; width: 28px; height: 28px; }
@@ -133,6 +137,15 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
 
     .lb__empty { text-align: center; padding: 40px; color: #aaa; }
     .lb__empty mat-icon { font-size: 48px; width: 48px; height: 48px; opacity: .3; }
+
+    .lb__list--skel { }
+    .lb__row--skel {
+      height: 60px; cursor: default;
+      background: linear-gradient(90deg, #e8edf5 25%, #f5f7fa 50%, #e8edf5 75%);
+      background-size: 200% 100%;
+      animation: skel 1.4s infinite;
+    }
+    @keyframes skel { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   `]
 })
 export class GameLeaderboardComponent implements OnInit {

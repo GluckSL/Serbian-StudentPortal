@@ -25,6 +25,7 @@ import { StudentGameStats } from '../../glueck-arena.types';
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
       gap: 12px;
+      margin-bottom: 16px;
     }
     .gsb--hero .gsb__item {
       background: rgba(255, 255, 255, 0.12);
@@ -41,7 +42,7 @@ import { StudentGameStats } from '../../glueck-arena.types';
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 14px 16px;
+      padding: 10px 12px;
       border-radius: 14px;
       background: #fff;
       border: 1px solid #e8ecf4;
@@ -57,7 +58,14 @@ import { StudentGameStats } from '../../glueck-arena.types';
     .gsb__text { display: flex; flex-direction: column; min-width: 0; }
     .gsb__val { font-size: 20px; font-weight: 800; color: #1e3a5f; line-height: 1.1; letter-spacing: -0.02em; }
     .gsb__lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; margin-top: 2px; }
-    @media (max-width: 520px) {
+    @media (max-width: 920px) {
+      .gsb { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 620px) {
+      .gsb { grid-template-columns: repeat(3, 1fr); }
+      .gsb__val { font-size: 17px; }
+    }
+    @media (max-width: 420px) {
       .gsb { grid-template-columns: repeat(2, 1fr); }
       .gsb__val { font-size: 17px; }
     }

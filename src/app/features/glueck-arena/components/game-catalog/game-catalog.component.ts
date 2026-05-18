@@ -74,32 +74,41 @@ interface QuickLink {
               <input type="search" [(ngModel)]="filters.search" (ngModelChange)="onSearch()"
                 placeholder="Search by title or topic…" aria-label="Search games">
             </div>
-            <mat-form-field appearance="outline" class="arena-filters__select" subscriptSizing="dynamic">
-              <mat-label>Type</mat-label>
-              <mat-select [(ngModel)]="filters.gameType" (ngModelChange)="load()">
-                <mat-option value="">All types</mat-option>
-                <mat-option value="scramble_rush">Scramble Rush</mat-option>
-                <mat-option value="sentence_builder">Sentence Builder</mat-option>
-                <mat-option value="matching">Matching</mat-option>
-                <mat-option value="flashcards">Flashcards</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="arena-filters__select" subscriptSizing="dynamic">
-              <mat-label>Level</mat-label>
-              <mat-select [(ngModel)]="filters.level" (ngModelChange)="load()">
-                <mat-option value="">All levels</mat-option>
-                <mat-option *ngFor="let l of cefrLevels" [value]="l">{{ l }}</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="arena-filters__select" subscriptSizing="dynamic">
-              <mat-label>Difficulty</mat-label>
-              <mat-select [(ngModel)]="filters.difficulty" (ngModelChange)="load()">
-                <mat-option value="">All</mat-option>
-                <mat-option value="Beginner">Beginner</mat-option>
-                <mat-option value="Intermediate">Intermediate</mat-option>
-                <mat-option value="Advanced">Advanced</mat-option>
-              </mat-select>
-            </mat-form-field>
+            <div class="arena-filters__dropdown-wrap">
+              <div class="arena-filters__dropdown" (click)="typeOpen = !typeOpen">
+                <span>{{ getTypeLabel(filters.gameType) }}</span>
+                <mat-icon>expand_more</mat-icon>
+              </div>
+              <div class="arena-filters__dropdown-menu" *ngIf="typeOpen">
+                <div class="arena-filters__dropdown-item" (click)="setType('')">All types</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('scramble_rush')">Scramble Rush</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('matching')">Matching</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('flashcards')">Flashcards</div>
+              </div>
+            </div>
+            <div class="arena-filters__dropdown-wrap">
+              <div class="arena-filters__dropdown" (click)="levelOpen = !levelOpen">
+                <span>{{ getLevelLabel(filters.level) }}</span>
+                <mat-icon>expand_more</mat-icon>
+              </div>
+              <div class="arena-filters__dropdown-menu" *ngIf="levelOpen">
+                <div class="arena-filters__dropdown-item" (click)="setLevel('')">All levels</div>
+                <div class="arena-filters__dropdown-item" *ngFor="let l of cefrLevels" (click)="setLevel(l)">{{ l }}</div>
+              </div>
+            </div>
+            <div class="arena-filters__dropdown-wrap">
+              <div class="arena-filters__dropdown" (click)="diffOpen = !diffOpen">
+                <span>{{ getDiffLabel(filters.difficulty) }}</span>
+                <mat-icon>expand_more</mat-icon>
+              </div>
+              <div class="arena-filters__dropdown-menu" *ngIf="diffOpen">
+                <div class="arena-filters__dropdown-item" (click)="setDiff('')">All</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('Beginner')">Beginner</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('Intermediate')">Intermediate</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('Advanced')">Advanced</div>
+              </div>
+            </div>
           </div>
 
           <div *ngIf="loading" class="arena-grid">
@@ -221,9 +230,21 @@ interface QuickLink {
     .arena-hero__theme {
       border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.1);
       color: #fff; width: 44px; height: 44px; border-radius: 12px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
+      display: flex; align-items: center; justify-content: center; padding: 0;
     }
     .arena-hero__theme:hover { background: rgba(255,255,255,0.18); }
+    .arena-hero__theme mat-icon { font-size: 22px; width: 22px; height: 22px; }
+
+    .arena-hero .gsb { }
+    @media (max-width: 920px) {
+      .arena-hero .gsb { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 620px) {
+      .arena-hero .gsb { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .arena-hero .gsb { grid-template-columns: repeat(2, 1fr); }
+    }
 
     .arena-nav {
       display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;
@@ -266,7 +287,7 @@ interface QuickLink {
 
     .arena-filters {
       display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-      margin-bottom: 22px; padding: 14px 16px;
+      margin-bottom: 22px; padding: 14px 16px; position: relative;
       background: var(--arena-surface); border-radius: 16px;
       border: 1px solid var(--arena-border);
     }
@@ -282,6 +303,28 @@ interface QuickLink {
       font-size: 14px; color: var(--arena-text);
     }
     .arena-filters__select { width: 140px; margin: 0 !important; }
+    .arena-filters__dropdown-wrap { position: relative; }
+    .arena-filters__dropdown {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 0 14px; height: 48px; min-width: 130px; border-radius: 12px;
+      background: #f8fafc; border: 1px solid var(--arena-border); cursor: pointer;
+      font-size: 14px; color: var(--arena-text);
+    }
+    .arena[data-theme="dark"] .arena-filters__dropdown { background: #0f172a; }
+    .arena-filters__dropdown mat-icon { color: #94a3b8; transition: transform 0.2s; }
+    .arena-filters__dropdown:hover { border-color: #94a3b8; }
+    .arena-filters__dropdown-menu {
+      position: absolute; top: 100%; left: 0; z-index: 100; margin-top: 6px; min-width: 100%;
+      background: var(--arena-surface); border: 1px solid var(--arena-border);
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+      overflow: hidden;
+    }
+    .arena-filters__dropdown-item {
+      padding: 12px 16px; font-size: 14px; color: var(--arena-text); cursor: pointer;
+      transition: background 0.15s;
+    }
+    .arena-filters__dropdown-item:hover { background: #f1f5f9; }
+    .arena[data-theme="dark"] .arena-filters__dropdown-item:hover { background: #1e293b; }
 
     .arena-grid {
       display: grid;
@@ -399,6 +442,16 @@ export class GameCatalogComponent implements OnInit {
   searchTimeout: ReturnType<typeof setTimeout> | undefined;
   cefrLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   darkMode = false;
+  typeOpen = false;
+  levelOpen = false;
+  diffOpen = false;
+
+  getTypeLabel(v: string | undefined): string { return v ? this.formatType(v as GameType) : 'Type'; }
+  getLevelLabel(v: string | undefined): string { return v || 'Level'; }
+  getDiffLabel(v: string | undefined): string { return v || 'Difficulty'; }
+  setType(v: string) { this.filters.gameType = v as GameType; this.typeOpen = false; this.load(); }
+  setLevel(v: string) { this.filters.level = (v || undefined) as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | undefined; this.levelOpen = false; this.load(); }
+  setDiff(v: string) { this.filters.difficulty = v as 'Beginner' | 'Intermediate' | 'Advanced' | undefined; this.diffOpen = false; this.load(); }
 
   readonly quickLinks: QuickLink[] = [
     { route: '/glueck-arena/leaderboard', icon: 'leaderboard', label: 'Leaderboard' },

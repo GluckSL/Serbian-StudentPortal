@@ -52,7 +52,11 @@ async function validateAnswerSubmission(attempt, questionId, responseTimeMs) {
   }).lean();
 
   if (existing?.isCorrect) {
-    return { ok: false, message: 'Question already answered', duplicate: true };
+    return { ok: false, message: 'Question already answered', duplicate: true, existingAnswer: existing };
+  }
+
+  if (existing) {
+    return { ok: true, existingAnswer: existing };
   }
 
   return { ok: true };

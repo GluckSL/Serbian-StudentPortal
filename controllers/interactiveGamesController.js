@@ -359,8 +359,8 @@ exports.submitAnswer = async (req, res) => {
       }
     }
 
-    // Save answer record
-    await GameAnswer.create({
+    // Save answer record - update existing if wrong answer exists, else create new
+    const answerData = {
       attemptId: attempt._id,
       questionId: question._id,
       studentId: req.user.id,
@@ -369,7 +369,13 @@ exports.submitAnswer = async (req, res) => {
       responseTimeMs: responseTimeMs || 0,
       isCorrect,
       pointsEarned,
-    });
+    };
+
+    if (validation.existingAnswer) {
+      await GameAnswer.findByIdAndUpdate(validation.existingAnswer._id, answerData);
+    } else {
+      await GameAnswer.create(answerData);
+    }
 
     const attemptInc = {
       score: pointsEarned,
