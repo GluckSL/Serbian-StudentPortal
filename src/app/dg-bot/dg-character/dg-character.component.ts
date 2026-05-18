@@ -106,3 +106,11 @@ export class DgCharacterComponent implements OnInit {
     img.setAttribute('data-fallback', '1');
     img.src = fallback;
   }
+
+  private clearBlinkTimers(): void {
+    if (this.blinkChain) clearTimeout(this.blinkChain);
+    if (this.blinkOff) clearTimeout(this.blinkOff);
+    this.blinkChain = null;
+    this.blinkOff = null;
+  }
+}
