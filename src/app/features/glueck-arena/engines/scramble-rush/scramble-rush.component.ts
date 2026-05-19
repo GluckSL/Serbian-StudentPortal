@@ -256,41 +256,10 @@ const DEADLINE_Y = 88;
 
               <h2>{{ phase === 'complete' ? 'Level Complete!' : 'Game Over' }}</h2>
 
-              <div class="sr__overlay-stats">
-
-                <div class="sr__overlay-stat">
-
-                  <span class="sr__overlay-stat-val">{{ score }}</span>
-
-                  <span class="sr__overlay-stat-lbl">Score</span>
-
-                </div>
-
-                <div class="sr__overlay-stat">
-
-                  <span class="sr__overlay-stat-val">{{ accuracy }}%</span>
-
-                  <span class="sr__overlay-stat-lbl">Accuracy</span>
-
-                </div>
-
-                <div class="sr__overlay-stat">
-
-                  <span class="sr__overlay-stat-val">{{ wordsAnswered }}/{{ totalWords }}</span>
-
-                  <span class="sr__overlay-stat-lbl">Words</span>
-
-                </div>
-
+              <div class="sr__overlay-calc">
+                <mat-icon class="sr__overlay-spinner">hourglass_top</mat-icon>
+                <span>Calculating results…</span>
               </div>
-
-              <button mat-raised-button color="primary" class="sr__overlay-btn" (click)="onComplete.emit(buildResult())">
-
-                <mat-icon>stars</mat-icon>
-
-                Finish & Collect XP
-
-              </button>
 
             </div>
 
@@ -344,13 +313,11 @@ const DEADLINE_Y = 88;
 
         </div>
 
-      </div>
+        </div>
+
+        <app-xp-float [xp]="3" [trigger]="xpTrigger"></app-xp-float>
 
       </div>
-
-
-
-      <app-xp-float [xp]="3" [trigger]="xpTrigger"></app-xp-float>
 
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
 
@@ -361,7 +328,7 @@ const DEADLINE_Y = 88;
   styles: [`
 
     .sr {
-
+      position: relative;
       display: flex;
 
       flex-direction: column;
@@ -1153,15 +1120,9 @@ const DEADLINE_Y = 88;
 
 
 
-    .sr__overlay-btn {
-
-      border-radius: 14px !important;
-
-      padding: 0 24px !important;
-
-      height: 48px;
-
-    }
+    .sr__overlay-calc { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 0; font-size: 16px; font-weight: 600; color: #64748b; }
+    .sr__overlay-spinner { font-size: 28px !important; width: 28px !important; height: 28px !important; color: #6366f1; animation: sr-spin 1s linear infinite; }
+    @keyframes sr-spin { to { transform: rotate(360deg); } }
 
 
 
@@ -1914,6 +1875,8 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     if (this.countdownTimer) clearInterval(this.countdownTimer);
 
     this.fallingWords = [];
+
+    setTimeout(() => this.onComplete.emit(this.buildResult()), 800);
 
     if (result === 'complete') {
 

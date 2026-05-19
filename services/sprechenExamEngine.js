@@ -1,6 +1,7 @@
 'use strict';
 
 const SprechenExamSession = require('../models/SprechenExamSession');
+const { presignS3Url } = require('../config/presign');
 const { scoreTurn } = require('./sprechenEvaluatorService');
 const {
   answerStudentQuestion,
@@ -19,7 +20,39 @@ function botMsg(role, text, extras = {}) {
   };
 }
 
+/** Presign the imageUrl on a card object so it loads in the browser. */
+async function presignCard(card) {
+  if (!card || !card.imageUrl) return card;
+  const signed = await presignS3Url(card.imageUrl);
+  if (signed) card.imageUrl = signed;
+  return card;
+}
+
 // ─── Phase definitions ────────────────────────────────────────────────────────
+
+function makeSpellPhase(id, prompt) {
+  return {
+    id,
+    role: 'student',
+    teil: 1,
+    card: null,
+    turnType: 'teil1_spell',
+    evalTeil: 'teil1',
+    getData: async () => ({ botSpeech: prompt, card: null }),
+  };
+}
+
+function makeNumberPhase(id, prompt) {
+  return {
+    id,
+    role: 'student',
+    teil: 1,
+    card: null,
+    turnType: 'teil1_number',
+    evalTeil: 'teil1',
+    getData: async () => ({ botSpeech: prompt, card: null }),
+  };
+}
 
 /**
  * Build a flat, ordered array of phase descriptors from a module document.
@@ -85,33 +118,27 @@ function buildPhaseSequence(mod) {
     instructionEn: 'Please introduce yourself. You may use the card.',
   });
 
-  phases.push({
-    id: 'teil1_spell',
-    role: 'student',
-    teil: 1,
-    card: null,
-    turnType: 'teil1_spell',
-    evalTeil: 'teil1',
-    getData: async (module) => {
-      const prompts = module.teil1.spellPrompts || [];
-      const prompt = prompts[0] || 'Buchstabieren Sie bitte Ihren Nachnamen.';
-      return { botSpeech: prompt, card: null };
-    },
-  });
+  // Generate a phase for each spell prompt (e.g. "Buchstabieren Sie bitte Ihren Nachnamen.")
+  const spellPrompts = (mod && mod.teil1 && mod.teil1.spellPrompts) || [];
+  if (spellPrompts.length === 0) {
+    // Fallback single prompt when none configured
+    phases.push(makeSpellPhase('teil1_spell', 'Buchstabieren Sie bitte Ihren Nachnamen.'));
+  } else {
+    spellPrompts.forEach((prompt, i) => {
+      phases.push(makeSpellPhase(`teil1_spell${i > 0 ? `_${i}` : ''}`, prompt));
+    });
+  }
 
-  phases.push({
-    id: 'teil1_number',
-    role: 'student',
-    teil: 1,
-    card: null,
-    turnType: 'teil1_number',
-    evalTeil: 'teil1',
-    getData: async (module) => {
-      const prompts = module.teil1.numberPrompts || [];
-      const prompt = prompts[0] || 'Nennen Sie mir bitte Ihre Telefonnummer.';
-      return { botSpeech: prompt, card: null };
-    },
-  });
+  // Generate a phase for each number prompt (e.g. "Nennen Sie mir bitte Ihre Telefonnummer.")
+  const numberPrompts = (mod && mod.teil1 && mod.teil1.numberPrompts) || [];
+  if (numberPrompts.length === 0) {
+    // Fallback single prompt when none configured
+    phases.push(makeNumberPhase('teil1_number', 'Nennen Sie mir bitte Ihre Telefonnummer.'));
+  } else {
+    numberPrompts.forEach((prompt, i) => {
+      phases.push(makeNumberPhase(`teil1_number${i > 0 ? `_${i}` : ''}`, prompt));
+    });
+  }
 
   phases.push({
     id: 'teil1_close',
@@ -598,6 +625,18 @@ async function _runFromIndex(session, module, phases, startIdx, _prevBotSpeech, 
 
     // Student phase — stop here and wait
     const studentCard = getCard(phaseDef, module);
+
+    // If the phase has a getData function (e.g. spell/number prompts),
+    // generate the bot speech so the student hears the instruction.
+    if (typeof phaseDef.getData === 'function') {
+      const phaseData = await phaseDef.getData(module, session);
+      const botSpeech = phaseData.botSpeech;
+      const captionEn = phaseData.captionEn || '';
+      if (botSpeech) {
+        botMessages.push(botMsg('bot', botSpeech, { phase: phaseDef.id, captionEn }));
+      }
+    }
+
     session.state.phase = phaseDef.id;
     session.state.awaitingStudent = true;
     if (studentCard) {
@@ -619,6 +658,12 @@ async function _runFromIndex(session, module, phases, startIdx, _prevBotSpeech, 
           captionEn: phaseDef.instructionEn || '',
         }),
       );
+    }
+
+    // Presign the card image URL so it's fresh for the browser
+    if (finalCard && finalCard.imageUrl) {
+      const signed = await presignS3Url(finalCard.imageUrl);
+      if (signed) finalCard = { ...finalCard, imageUrl: signed };
     }
 
     await session.save();

@@ -4,7 +4,7 @@ import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../../../shared/material.module';
 import { InteractiveGameService } from '../../services/interactive-game.service';
-import { GameSet, StudentGameStats, CatalogFilters, GameType } from '../../glueck-arena.types';
+import { GameSet, StudentGameStats, CatalogFilters, GameType, LeaderboardEntry } from '../../glueck-arena.types';
 import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-stats-banner.component';
 import { DailyChallengesWidgetComponent } from '../../shared/daily-challenges-widget/daily-challenges-widget.component';
 
@@ -53,7 +53,49 @@ interface QuickLink {
         </header>
 
         <div class="arena-layout">
+        <div class="arena-left-col">
+          <div class="podium-card">
+            <div class="podium-heading">
+              <mat-icon>emoji_events</mat-icon> Top Students
+            </div>
+            <div class="podium">
+              <div class="podium__place podium__place--2">
+                <div class="podium__avatar">
+                  <img *ngIf="topPlayers[1]?.avatarUrl" [src]="topPlayers[1].avatarUrl" (error)="topPlayers[1]!.avatarUrl = undefined" />
+                  <span *ngIf="!topPlayers[1]?.avatarUrl">{{ topPlayers[1]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                </div>
+                <div class="podium__bar">
+                  🥈
+                  <span class="podium__xp">{{ topPlayers[1]?.totalXp ?? '-' }}</span>
+                </div>
+                <span class="podium__name">{{ topPlayers[1]?.name ?? '-' }}</span>
+              </div>
+              <div class="podium__place podium__place--1">
+                <div class="podium__avatar">
+                  <img *ngIf="topPlayers[0]?.avatarUrl" [src]="topPlayers[0].avatarUrl" (error)="topPlayers[0]!.avatarUrl = undefined" />
+                  <span *ngIf="!topPlayers[0]?.avatarUrl">{{ topPlayers[0]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                </div>
+                <div class="podium__bar">
+                  🥇
+                  <span class="podium__xp">{{ topPlayers[0]?.totalXp ?? '-' }}</span>
+                </div>
+                <span class="podium__name">{{ topPlayers[0]?.name ?? '-' }}</span>
+              </div>
+              <div class="podium__place podium__place--3">
+                <div class="podium__avatar">
+                  <img *ngIf="topPlayers[2]?.avatarUrl" [src]="topPlayers[2].avatarUrl" (error)="topPlayers[2]!.avatarUrl = undefined" />
+                  <span *ngIf="!topPlayers[2]?.avatarUrl">{{ topPlayers[2]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                </div>
+                <div class="podium__bar">
+                  🥉
+                  <span class="podium__xp">{{ topPlayers[2]?.totalXp ?? '-' }}</span>
+                </div>
+                <span class="podium__name">{{ topPlayers[2]?.name ?? '-' }}</span>
+              </div>
+            </div>
+          </div>
         <app-daily-challenges-widget></app-daily-challenges-widget>
+        </div>
 
         <!-- Games section -->
         <section class="arena-games">
@@ -242,6 +284,22 @@ interface QuickLink {
       grid-template-columns: 1fr;
     }
 
+    .arena-left-col { display: flex; flex-direction: column; gap: 16px; }
+
+    .podium-card { background: #fff; border: 1px solid #e8ecf4; border-radius: 16px; padding: 20px 12px 16px; }
+    .podium-heading { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #405980; margin-bottom: 16px; padding: 0 4px; }
+    .podium-heading mat-icon { font-size: 22px; width: 22px; height: 22px; color: #f59e0b; }
+    .podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; }
+    .podium__place { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .podium__avatar { width: 44px; height: 44px; border-radius: 50%; background: #e8edf5; color: #405980; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; overflow: hidden; flex-shrink: 0; }
+    .podium__avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .podium__bar { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 76px; border-radius: 10px 10px 0 0; font-size: 24px; padding: 6px 0; }
+    .podium__xp { font-size: 14px; font-weight: 800; color: #fff; }
+    .podium__name { font-size: 12px; font-weight: 600; color: #555; max-width: 80px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .podium__place--1 .podium__bar { height: 110px; background: linear-gradient(180deg,#ffd700,#ffb300); }
+    .podium__place--2 .podium__bar { height: 80px; background: linear-gradient(180deg,#b0bec5,#90a4ae); }
+    .podium__place--3 .podium__bar { height: 60px; background: linear-gradient(180deg,#cd7f32,#a0522d); }
+
     .arena-nav__link {
       display: flex; align-items: center; gap: 12px;
       padding: 10px 12px; border-radius: 14px;
@@ -415,6 +473,7 @@ interface QuickLink {
 export class GameCatalogComponent implements OnInit {
   sets: GameSet[] = [];
   myStats: StudentGameStats | null = null;
+  topPlayers: LeaderboardEntry[] = [];
   loading = false;
   hasArenaAccess = true;
   accessChecked = false;
@@ -447,6 +506,7 @@ export class GameCatalogComponent implements OnInit {
         if (this.hasArenaAccess) {
           this.load();
           this.svc.getMyStats().subscribe({ next: (res) => this.myStats = res.stats });
+          this.svc.getGlobalLeaderboard('all').subscribe({ next: (r) => this.topPlayers = (r.leaderboard || []).slice(0, 3) });
         }
       },
       error: () => {

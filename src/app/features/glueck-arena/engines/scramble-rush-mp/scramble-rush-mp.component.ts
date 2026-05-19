@@ -65,7 +65,7 @@ import {
     </div>
   `,
   styles: [`
-    .srmp { display: flex; flex-direction: column; gap: 12px; }
+    .srmp { position: relative; display: flex; flex-direction: column; gap: 12px; }
     .srmp__arena { position: relative; min-height: 220px; background: linear-gradient(180deg,#dbeeff,#eef4ff); border-radius: 20px; padding: 32px 24px; text-align: center; border: 2px solid #c8d8e8; }
     .srmp__round-badge { font-size: 13px; font-weight: 600; color: #666; margin-bottom: 12px; }
     .srmp__letters {

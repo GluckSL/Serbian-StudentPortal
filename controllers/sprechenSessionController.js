@@ -6,6 +6,7 @@ const {
   getStudentSprechenJourneyAccess,
   sprechenModuleUnlockedForStudentDay,
 } = require('../utils/sprechenStudentJourneyGate');
+const { presignS3Url } = require('../config/presign');
 const {
   initSession,
   advanceReady,
@@ -49,6 +50,12 @@ exports.start = async (req, res) => {
     // Initialise — saves session with welcome bot message
     const initResult = await initSession(session, mod);
 
+    // Presign the card image URL so it's fresh for this response
+    if (initResult.card && initResult.card.imageUrl) {
+      const signed = await presignS3Url(initResult.card.imageUrl);
+      if (signed) initResult.card.imageUrl = signed;
+    }
+
     res.status(201).json({
       sessionId: session._id,
       ...initResult,
@@ -78,6 +85,12 @@ exports.advance = async (req, res) => {
       result = await advanceReady(session, mod);
     } else {
       return res.status(400).json({ message: `Unknown action: ${action}` });
+    }
+
+    // Presign card image URL so it's fresh for the browser
+    if (result.card && result.card.imageUrl) {
+      const signed = await presignS3Url(result.card.imageUrl);
+      if (signed) result.card.imageUrl = signed;
     }
 
     res.json(result);
@@ -110,6 +123,12 @@ exports.turn = async (req, res) => {
     if (result.done && !session.completed) {
       const scores = await completeSession(session, mod);
       result.scores = scores;
+    }
+
+    // Presign card image URL so it's fresh for the browser
+    if (result.card && result.card.imageUrl) {
+      const signed = await presignS3Url(result.card.imageUrl);
+      if (signed) result.card.imageUrl = signed;
     }
 
     res.json(result);
@@ -145,8 +164,13 @@ exports.getState = async (req, res) => {
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
     const { state, scores, completed } = session;
+    let cardImageUrl = state.cardImageUrl || '';
+    if (cardImageUrl) {
+      const signed = await presignS3Url(cardImageUrl);
+      if (signed) cardImageUrl = signed;
+    }
     const card = state.cardContent
-      ? { type: state.cardType, content: state.cardContent, imageUrl: state.cardImageUrl }
+      ? { type: state.cardType, content: state.cardContent, imageUrl: cardImageUrl }
       : null;
 
     res.json({

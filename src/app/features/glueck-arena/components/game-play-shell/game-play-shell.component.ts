@@ -23,8 +23,18 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
     <div class="shell">
       <!-- Loading -->
       <div *ngIf="phase === 'loading'" class="shell__loading">
-        <mat-spinner diameter="48"></mat-spinner>
-        <p>Loading game…</p>
+        <div class="shell__loading-grid">
+          <div class="shell__loading-side">
+            <div class="shell__loading-block" style="height:120px"></div>
+            <div class="shell__loading-block" style="height:200px"></div>
+            <div class="shell__loading-block" style="height:100px"></div>
+          </div>
+          <div class="shell__loading-main">
+            <div class="shell__loading-block" style="height:180px"></div>
+            <div class="shell__loading-block" style="height:200px"></div>
+            <div class="shell__loading-block" style="height:80px"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Error -->
@@ -35,7 +45,7 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
       </div>
 
       <!-- Unified shell layout for intro and playing phases -->
-      <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing'">
+      <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
 
         <div class="shell-game-wrap__side">
 
@@ -155,6 +165,45 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
             <button mat-raised-button (click)="back()">Back to GlückArena</button>
           </div>
 
+          <!-- Results -->
+          <div *ngIf="phase === 'results'" class="shell__results">
+            <div class="shell__results__confetti">
+              <span class="shell__results__c" style="--h:10;--x:80px;--y:-60px;--d:0s">✦</span>
+              <span class="shell__results__c" style="--h:40;--x:-70px;--y:-50px;--d:0.3s">✦</span>
+              <span class="shell__results__c" style="--h:50;--x:60px;--y:60px;--d:0.6s">✦</span>
+              <span class="shell__results__c" style="--h:20;--x:-60px;--y:55px;--d:0.9s">✦</span>
+              <span class="shell__results__c" style="--h:0;--x:90px;--y:-20px;--d:1.2s">✦</span>
+              <span class="shell__results__c" style="--h:30;--x:-85px;--y:-10px;--d:1.5s">✦</span>
+              <span class="shell__results__c" style="--h:55;--x:40px;--y:-70px;--d:0.15s">✦</span>
+              <span class="shell__results__c" style="--h:15;--x:-40px;--y:70px;--d:0.45s">✦</span>
+              <span class="shell__results__c" style="--h:45;--x:30px;--y:-40px;--d:0.75s">✦</span>
+              <span class="shell__results__c" style="--h:5;--x:-30px;--y:-65px;--d:1.05s">✦</span>
+            </div>
+            <div class="shell__results__glow"></div>
+            <div class="shell__results__score-wrap">
+              <div class="shell__results__xp-sub">+{{ finalXp }} XP</div>
+              <div class="shell__results__score-main">{{ finalScore }} <span>Score</span></div>
+            </div>
+            <div class="shell__results__meta">
+              <mat-icon>timer</mat-icon>
+              <span>{{ formatTime(finalTimeSeconds) }}</span>
+              <span class="shell__results__dot">·</span>
+              <mat-icon>track_changes</mat-icon>
+              <span>{{ finalAccuracy }}%</span>
+            </div>
+            <div class="shell__results__actions">
+              <button class="shell__results__btn shell__results__btn--replay" (click)="replay()">
+                <mat-icon>replay</mat-icon> Play Again
+              </button>
+              <button class="shell__results__btn" routerLink="/glueck-arena/leaderboard">
+                <mat-icon>leaderboard</mat-icon> Leaderboard
+              </button>
+              <button class="shell__results__btn shell__results__btn--outline" routerLink="/glueck-arena">
+                <mat-icon>home</mat-icon> Back
+              </button>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -168,38 +217,17 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
         <button mat-icon-button (click)="newBadges = []"><mat-icon>close</mat-icon></button>
       </div>
 
-      <!-- Results -->
-      <div *ngIf="phase === 'results'" class="shell__results">
-        <mat-icon class="shell__results__icon">emoji_events</mat-icon>
-        <h2>Game Complete!</h2>
-        <div class="shell__results__stats">
-          <div class="shell__results__stat">
-            <span class="shell__results__val">{{ finalScore }}</span>
-            <span class="shell__results__lbl">Score</span>
-          </div>
-          <div class="shell__results__stat">
-            <span class="shell__results__val">{{ finalXp }}</span>
-            <span class="shell__results__lbl">XP Earned</span>
-          </div>
-          <div class="shell__results__stat">
-            <span class="shell__results__val">{{ finalAccuracy }}%</span>
-            <span class="shell__results__lbl">Accuracy</span>
-          </div>
-          <div class="shell__results__stat" *ngIf="finalTimeSeconds > 0">
-            <span class="shell__results__val">{{ formatTime(finalTimeSeconds) }}</span>
-            <span class="shell__results__lbl">Time</span>
-          </div>
-        </div>
-        <button mat-raised-button color="primary" routerLink="/glueck-arena/leaderboard">
-          <mat-icon>leaderboard</mat-icon> Leaderboard
-        </button>
-        <button mat-stroked-button routerLink="/glueck-arena">Back to Games</button>
-      </div>
     </div>
   `,
   styles: [`
     .shell { max-width: 1180px; margin: 0 auto; padding: 16px; }
-    .shell__loading, .shell__error { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 64px; text-align: center; }
+    .shell__loading { padding: 0; }
+    .shell__loading-grid { display: grid; grid-template-columns: 0.3fr 0.7fr; gap: 16px; max-width: 1200px; margin: 0 auto; padding: 16px; }
+    .shell__loading-side { display: flex; flex-direction: column; gap: 16px; }
+    .shell__loading-main { display: flex; flex-direction: column; gap: 16px; }
+    .shell__loading-block { border-radius: 20px; background: linear-gradient(90deg, #e8edf5 25%, #f5f7fa 50%, #e8edf5 75%); background-size: 200% 100%; animation: shell-skel 1.4s infinite; }
+    @keyframes shell-skel { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .shell__error { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 64px; text-align: center; }
     .shell__error mat-icon { font-size: 48px; width: 48px; height: 48px; color: #c62828; }
 
     .shell-game-wrap {
@@ -214,10 +242,13 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
       display: flex; flex-direction: column; gap: 16px;
     }
     .shell-game-wrap__main { min-width: 0; }
+    @media (min-width: 1000px) {
+      .shell-game-wrap { height: 85dvh; }
+    }
     @media (max-width: 1000px) {
       .shell-game-wrap { grid-template-columns: 1fr 1fr; }
     }
-    @media (max-width: 640px) {
+    @media (max-width: 900px) {
       .shell-game-wrap { grid-template-columns: 1fr; }
     }
 
@@ -520,13 +551,33 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
     .shell__placeholder { text-align: center; padding: 64px 16px; background: #fff; border-radius: 20px; }
     .shell__placeholder mat-icon { font-size: 64px; width: 64px; height: 64px; color: #888; }
 
-    .shell__results { text-align: center; padding: 48px 24px; background: #fff; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.1); display: flex; flex-direction: column; align-items: center; gap: 20px; }
-    .shell__results__icon { font-size: 72px; width: 72px; height: 72px; color: #ff8f00; }
-    .shell__results h2 { font-size: 26px; font-weight: 700; margin: 0; }
-    .shell__results__stats { display: flex; gap: 32px; }
-    .shell__results__stat { display: flex; flex-direction: column; align-items: center; }
-    .shell__results__val { font-size: 32px; font-weight: 800; color: #405980; }
-    .shell__results__lbl { font-size: 13px; color: #888; }
+    .shell__results { position: relative; text-align: center; padding: 48px 24px; background: #fff; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.1); display: flex; flex-direction: column; align-items: center; gap: 10px; overflow: hidden; }
+    .shell__results__glow { position: absolute; top: 50%; left: 50%; width: 300px; height: 300px; transform: translate(-50%,-50%); border-radius: 50%; background: radial-gradient(circle, rgba(245,158,11,.12) 0%, transparent 70%); pointer-events: none; }
+    .shell__results__confetti { position: absolute; inset: 0; pointer-events: none; }
+    .shell__results__c { position: absolute; top: 50%; left: 50%; font-size: 12px; color: hsl(calc(var(--h)*3.6), 100%, 60%); opacity: 0; animation: res-confetti-loop 2.5s ease-in-out infinite; animation-delay: var(--d); }
+    @keyframes res-confetti-loop {
+      0% { opacity: 0; transform: translate(-50%,-50%) scale(0) rotate(0); }
+      15% { opacity: 1; transform: translate(calc(-50% + var(--x)*0.3), calc(-50% + var(--y)*0.3)) scale(1.2) rotate(calc(var(--h)*10deg)); }
+      40% { opacity: 1; transform: translate(calc(-50% + var(--x)*0.7), calc(-50% + var(--y)*0.7)) scale(0.9) rotate(calc(var(--h)*20deg)); }
+      70% { opacity: 0.6; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(0.4) rotate(calc(var(--h)*40deg)); }
+      100% { opacity: 0; transform: translate(calc(-50% + var(--x)*1.3), calc(-50% + var(--y)*1.3)) scale(0) rotate(calc(var(--h)*60deg)); }
+    }
+    .shell__results__score-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .shell__results__xp-sub { font-size: 20px; font-weight: 800; background: linear-gradient(135deg,#f59e0b,#ffc107,#f59e0b); background-size: 200% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: res-shimmer 2s linear infinite; }
+    @keyframes res-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .shell__results__score-main { font-size: 56px; font-weight: 900; color: #0f172a; line-height: 1; letter-spacing: -0.03em; }
+    .shell__results__score-main span { display: block; font-size: 14px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+    .shell__results__meta { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: #64748b; }
+    .shell__results__meta mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; color: #6366f1; }
+    .shell__results__dot { color: #cbd5e1; font-weight: 800; }
+    .shell__results__actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+    .shell__results__btn { display: flex; align-items: center; gap: 6px; padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #1e3a5f, #2563eb); box-shadow: 0 4px 16px rgba(37,99,235,.3); transition: transform .15s, box-shadow .15s; text-decoration: none; }
+    .shell__results__btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.4); }
+    .shell__results__btn--replay { background: linear-gradient(135deg, #f59e0b, #ea580c); box-shadow: 0 4px 16px rgba(245,158,11,.35); }
+    .shell__results__btn--replay:hover { box-shadow: 0 8px 24px rgba(245,158,11,.45); }
+    .shell__results__btn--outline { background: transparent; color: #64748b; box-shadow: none; border: 2px solid #e2e8f0; }
+    .shell__results__btn--outline:hover { border-color: #94a3b8; color: #0f172a; box-shadow: none; }
+    .shell__results__btn mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
     .shell__badge-popup {
       position: fixed; bottom: 24px; right: 24px; z-index: 100;
       display: flex; align-items: flex-start; gap: 12px;
@@ -694,6 +745,8 @@ export class GamePlayShellComponent implements OnInit {
   }
 
   startPlay() { this.phase = 'playing'; }
+
+  replay() { window.location.reload(); }
 
   back() { this.router.navigate(['/glueck-arena']); }
 

@@ -158,6 +158,7 @@ export interface LeaderboardEntry {
   accuracy?: number;
   /** Completed runs contributing to this row (per-game leaderboard) */
   attempts?: number;
+  currentStreak?: number;
 }
 
 export interface LeaderboardResponse {

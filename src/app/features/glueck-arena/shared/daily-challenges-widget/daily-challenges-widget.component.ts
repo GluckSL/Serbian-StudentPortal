@@ -23,7 +23,10 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
         <article class="dcw__card" *ngFor="let c of challenges" [class.dcw__card--done]="c.isCompleted">
           <small class="dcw__progress-tag">{{ c.progress }} / {{ c.targetValue }}</small>
           <div class="dcw__ring" [style.--pct]="progressPct(c) + '%'">
-            <span class="dcw__ring-inner">{{ progressPct(c) }}%</span>
+            <span class="dcw__ring-inner">
+              <span *ngIf="!c.isClaimed">{{ progressPct(c) }}%</span>
+              <mat-icon *ngIf="c.isClaimed" class="dcw__ring-check">check_circle</mat-icon>
+            </span>
           </div>
           <div class="dcw__body">
             <h4>{{ c.title }}</h4>
@@ -33,7 +36,6 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
               +{{ c.xpReward }} XP
             </button>
           </div>
-          <span *ngIf="c.isClaimed" class="dcw__claimed"><mat-icon>check_circle</mat-icon></span>
         </article>
       </div>
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
@@ -82,6 +84,9 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
+    .dcw__card--done .dcw__ring {
+      background: conic-gradient(#16a34a var(--pct), #e2e8f0 0);
+    }
     .dcw__ring-inner {
       width: 40px; height: 40px; border-radius: 50%;
       background: #fff; display: flex; align-items: center; justify-content: center;
@@ -114,10 +119,7 @@ import { ConfettiBurstComponent } from '../confetti-burst/confetti-burst.compone
       white-space: nowrap;
     }
     .dcw__claim:hover { filter: brightness(1.05); }
-    .dcw__claimed {
-      position: absolute; top: 8px; right: 8px;
-    }
-    .dcw__claimed mat-icon { color: #16a34a; font-size: 28px; width: 28px; height: 28px; }
+    .dcw__ring-check { color: #16a34a; font-size: 22px; width: 22px; height: 22px; }
   `]
 })
 export class DailyChallengesWidgetComponent implements OnInit {

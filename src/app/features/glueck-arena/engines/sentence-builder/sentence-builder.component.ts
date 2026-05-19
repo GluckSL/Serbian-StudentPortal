@@ -89,23 +89,23 @@ export interface SBResult {
         </div>
 
         <div class="sb-complete" *ngIf="phase === 'complete'">
-          <mat-icon>emoji_events</mat-icon>
-          <h2>Session complete</h2>
-          <p>Score <strong>{{ score }}</strong> · Time <strong>{{ formatElapsed(sessionElapsedSeconds) }}</strong> · Accuracy <strong>{{ accuracy }}%</strong></p>
-          <button mat-raised-button color="primary" (click)="onComplete.emit(buildResult())">Collect XP</button>
+          <mat-icon class="sb-complete__spinner">hourglass_top</mat-icon>
+          <span class="sb-complete__calc">Calculating results…</span>
         </div>
       </main>
 
-    </div>
       <app-xp-float [xp]="xpPerAnswer" [trigger]="xpTrigger"></app-xp-float>
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
+    </div>
   `,
   styles: [`
     .sb-layout {
+      position: relative;
       margin: 0 auto;
     }
 
     .sb-play {
+      position: relative;
       background: #fff;
       border-radius: 20px;
       box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
@@ -277,8 +277,10 @@ export interface SBResult {
       color: #92400e; font-weight: 700; display: flex; align-items: center; gap: 8px;
     }
 
-    .sb-complete { text-align: center; padding: 48px 24px; }
-    .sb-complete mat-icon { font-size: 64px; width: 64px; height: 64px; color: #f59e0b; }
+    .sb-complete { text-align: center; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .sb-complete__spinner { font-size: 48px !important; width: 48px !important; height: 48px !important; color: #6366f1; animation: sb-spin 1s linear infinite; }
+    @keyframes sb-spin { to { transform: rotate(360deg); } }
+    .sb-complete__calc { font-size: 18px; font-weight: 600; color: #64748b; }
 
 
   `]
@@ -533,7 +535,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
   private onAllSlotsLockedLocal() {
     if (this.pendingAdvance) return;
     this.pendingAdvance = true;
-    this.triggerConfetti();
+    this.showConfetti = true; setTimeout(() => this.showConfetti = false, 2000);
     this.tryAdvanceAfterSync();
   }
 
@@ -552,6 +554,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
     if (this.currentIndex >= this.questions.length) {
       this.phase = 'complete';
       if (this.timerHandle) clearInterval(this.timerHandle);
+      setTimeout(() => this.onComplete.emit(this.buildResult()), 600);
     } else {
       this.loadQuestion();
     }
@@ -566,10 +569,5 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
       accuracy: this.accuracy,
       timeSpentSeconds: Math.round((Date.now() - this.sessionStartedAt) / 1000),
     };
-  }
-
-  triggerConfetti() {
-    this.showConfetti = true;
-    setTimeout(() => this.showConfetti = false, 2000);
   }
 }

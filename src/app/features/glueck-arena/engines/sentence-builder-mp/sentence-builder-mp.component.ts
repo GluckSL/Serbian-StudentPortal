@@ -62,7 +62,7 @@ import {
     </div>
   `,
   styles: [`
-    .sbmp { display: flex; flex-direction: column; gap: 12px; }
+    .sbmp { position: relative; display: flex; flex-direction: column; gap: 12px; }
     .sbmp__board { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.1); }
     .sbmp__counter { text-align: center; font-size: 13px; color: #888; font-weight: 600; }
     .sbmp__translation { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #555; background: #f8f9fa; padding: 8px 12px; border-radius: 10px; }

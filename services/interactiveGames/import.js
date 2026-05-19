@@ -214,6 +214,9 @@ async function commitImport(gameSetId, rows, importType, gameType) {
   }
 
   if (questionDocs.length > 0) {
+    // Delete existing questions for this set before inserting new ones,
+    // so the CSV upload fully replaces (not appends to) the current data.
+    await GameQuestion.deleteMany({ gameSetId: set._id, isDeleted: { $ne: true } });
     const insertedQuestions = await GameQuestion.insertMany(questionDocs);
     const count = await GameQuestion.countDocuments({ gameSetId: set._id, isDeleted: { $ne: true } });
     await GameSet.findByIdAndUpdate(set._id, { questionCount: count });
