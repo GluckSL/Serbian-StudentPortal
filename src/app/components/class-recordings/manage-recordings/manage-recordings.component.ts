@@ -53,6 +53,19 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   saving = false;
   selectedVideoFile: File | null = null;
   private manualUploadPollTimer: ReturnType<typeof setInterval> | null = null;
+  /** Modal upload/conversion progress (manual file create). */
+  uploadInProgress = false;
+  uploadPhase: 'uploading' | 'converting' | null = null;
+  uploadPercent = 0;
+  uploadLoadedBytes = 0;
+  uploadTotalBytes: number | null = null;
+  uploadEtaText = '';
+  uploadStatusLine = '';
+  private uploadStartedAtMs = 0;
+  private conversionStartedAtMs = 0;
+  private conversionEstimateSec = 20 * 60;
+  private modalConversionPollTimer: ReturnType<typeof setInterval> | null = null;
+  private modalConversionRecordingId: string | null = null;
 
   form = {
     title: '',
@@ -194,6 +207,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.stopBackfillPolling();
     this.stopProcessingClock();
     this.stopManualUploadPolling();
+    this.stopModalConversionPolling();
   }
 
   private startProcessingClock(): void {
@@ -314,10 +328,26 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   closeForm(): void {
+    if (this.uploadInProgress) return;
+    this.resetUploadProgress();
     this.showForm = false;
     this.editing = null;
     this.selectedVideoFile = null;
     this.saving = false;
+  }
+
+  private resetUploadProgress(): void {
+    this.uploadInProgress = false;
+    this.uploadPhase = null;
+    this.uploadPercent = 0;
+    this.uploadLoadedBytes = 0;
+    this.uploadTotalBytes = null;
+    this.uploadEtaText = '';
+    this.uploadStatusLine = '';
+    this.uploadStartedAtMs = 0;
+    this.conversionStartedAtMs = 0;
+    this.modalConversionRecordingId = null;
+    this.stopModalConversionPolling();
   }
 
   onVideoFileSelected(event: Event): void {
@@ -356,24 +386,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       if (uploadCourseDay != null) fd.append('courseDay', String(uploadCourseDay));
       fd.append('video', this.selectedVideoFile);
 
-      this.saving = true;
-      this.service.createFromUpload(fd).subscribe({
-        next: (res) => {
-          this.saving = false;
-          this.snackBar.open(
-            'Upload started — converting to HLS. When status is Ready, use Publish or the eye icon so students can see it.',
-            'Close',
-            { duration: 6000 }
-          );
-          this.closeForm();
-          this.loadRecordings();
-          if (res.recordingId) this.startManualUploadPolling(res.recordingId);
-        },
-        error: (err) => {
-          this.saving = false;
-          this.snackBar.open(err.error?.message || 'Upload failed', 'Close', { duration: 3000 });
-        }
-      });
+      this.beginFileUpload(fd, this.selectedVideoFile);
       return;
     }
 
@@ -399,6 +412,152 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         this.snackBar.open(err.error?.message || 'Error saving', 'Close', { duration: 3000 });
       }
     });
+  }
+
+  private beginFileUpload(fd: FormData, file: File): void {
+    this.saving = true;
+    this.uploadInProgress = true;
+    this.uploadPhase = 'uploading';
+    this.uploadPercent = 0;
+    this.uploadLoadedBytes = 0;
+    this.uploadTotalBytes = file.size > 0 ? file.size : null;
+    this.uploadEtaText = 'Calculating…';
+    this.uploadStatusLine = `Uploading ${file.name}`;
+    this.uploadStartedAtMs = Date.now();
+    this.conversionEstimateSec = this.estimateConversionSecondsForFile(file);
+
+    this.service.createFromUploadWithProgress(fd).subscribe({
+      next: (event) => {
+        if (event.kind === 'progress') {
+          this.uploadLoadedBytes = event.loaded;
+          if (event.total != null && event.total > 0) {
+            this.uploadTotalBytes = event.total;
+          }
+          this.uploadPercent = event.percent;
+          this.uploadEtaText = this.formatUploadEta(event.loaded, this.uploadTotalBytes);
+          const sizeHint = this.formatUploadSizeHint(event.loaded, this.uploadTotalBytes);
+          this.uploadStatusLine = `Uploading video${sizeHint ? ` · ${sizeHint}` : ''}`;
+          return;
+        }
+        if (event.kind === 'complete') {
+          this.uploadPercent = 100;
+          this.uploadEtaText = '';
+          this.startModalConversionPhase(event.body.recordingId);
+        }
+      },
+      error: (err) => {
+        this.saving = false;
+        this.resetUploadProgress();
+        this.snackBar.open(err.error?.message || 'Upload failed', 'Close', { duration: 4000 });
+      },
+    });
+  }
+
+  private startModalConversionPhase(recordingId: string): void {
+    if (!recordingId) {
+      this.finishUploadFlow(false, 'Upload finished but recording id was missing.');
+      return;
+    }
+    this.uploadPhase = 'converting';
+    this.conversionStartedAtMs = Date.now();
+    this.modalConversionRecordingId = recordingId;
+    this.uploadStatusLine = 'Converting video to HLS (this runs on the server)';
+    this.updateConversionProgressDisplay();
+    this.loadRecordings();
+    this.startModalConversionPolling(recordingId);
+  }
+
+  private startModalConversionPolling(recordingId: string): void {
+    this.stopModalConversionPolling();
+    const poll = () => {
+      this.service.getManualUploadStatus(recordingId).subscribe({
+        next: (s) => {
+          if (s.status === 'processing') {
+            this.updateConversionProgressDisplay();
+            return;
+          }
+          this.stopModalConversionPolling();
+          if (s.status === 'ready') {
+            this.uploadPercent = 100;
+            this.uploadEtaText = 'Complete';
+            this.finishUploadFlow(
+              true,
+              'Video converted to HLS and is ready. Use Publish Selected or the eye icon so students can see it.'
+            );
+            return;
+          }
+          this.finishUploadFlow(false, s.errorMessage || 'Video conversion failed.');
+        },
+        error: () => { /* keep polling */ },
+      });
+    };
+    poll();
+    this.modalConversionPollTimer = setInterval(poll, 3000);
+  }
+
+  private stopModalConversionPolling(): void {
+    if (this.modalConversionPollTimer) {
+      clearInterval(this.modalConversionPollTimer);
+      this.modalConversionPollTimer = null;
+    }
+  }
+
+  private finishUploadFlow(success: boolean, message: string): void {
+    this.saving = false;
+    this.uploadInProgress = false;
+    this.uploadPhase = null;
+    this.stopModalConversionPolling();
+    this.snackBar.open(message, 'Close', { duration: success ? 6000 : 7000 });
+    this.modalConversionRecordingId = null;
+    this.closeForm();
+    this.loadRecordings();
+  }
+
+  private updateConversionProgressDisplay(): void {
+    const elapsedSec = Math.max(
+      0,
+      Math.floor((Date.now() - this.conversionStartedAtMs) / 1000)
+    );
+    const estimate = Math.max(60, this.conversionEstimateSec);
+    const ratio = Math.min(0.95, elapsedSec / estimate);
+    this.uploadPercent = Math.max(this.uploadPercent, Math.round(ratio * 100));
+    const remaining = estimate - elapsedSec;
+    if (remaining <= 0) {
+      this.uploadEtaText = 'Finishing soon…';
+    } else {
+      this.uploadEtaText = `About ${this.formatClock(remaining)} remaining (estimated)`;
+    }
+  }
+
+  private formatUploadEta(loaded: number, total: number | null): string {
+    if (!total || total <= 0 || loaded <= 0) {
+      return 'Calculating time remaining…';
+    }
+    const elapsedSec = Math.max(0.5, (Date.now() - this.uploadStartedAtMs) / 1000);
+    const bytesPerSec = loaded / elapsedSec;
+    if (bytesPerSec < 1) return 'Calculating time remaining…';
+    const remainingSec = Math.ceil((total - loaded) / bytesPerSec);
+    if (remainingSec <= 0) return 'Almost done…';
+    return `About ${this.formatClock(remainingSec)} remaining`;
+  }
+
+  private formatUploadSizeHint(loaded: number, total: number | null): string {
+    if (!total || total <= 0) return `${this.formatBytes(loaded)} uploaded`;
+    return `${this.formatBytes(loaded)} / ${this.formatBytes(total)}`;
+  }
+
+  private estimateConversionSecondsForFile(file: File): number {
+    const sizeMb = file.size / (1024 * 1024);
+    if (sizeMb > 0) {
+      return Math.min(75 * 60, Math.max(5 * 60, Math.round(sizeMb * 45)));
+    }
+    return 20 * 60;
+  }
+
+  getUploadPhaseLabel(): string {
+    if (this.uploadPhase === 'uploading') return 'Step 1 of 2 — Uploading file';
+    if (this.uploadPhase === 'converting') return 'Step 2 of 2 — Converting to HLS';
+    return '';
   }
 
   private startManualUploadPolling(recordingId: string): void {

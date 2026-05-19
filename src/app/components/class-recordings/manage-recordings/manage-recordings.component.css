@@ -535,6 +535,69 @@
 
 .cr-modal__body { padding: 16px 20px; }
 
+.cr-modal__body--dimmed {
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+}
+
+.cr-upload-progress {
+  margin: 0 20px 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+  border: 1px solid #bfdbfe;
+}
+
+.cr-upload-progress__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.cr-upload-progress__phase {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e40af;
+  letter-spacing: 0.02em;
+}
+
+.cr-upload-progress__pct {
+  font-size: 18px;
+  font-weight: 800;
+  color: #005b96;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-upload-progress__track {
+  height: 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  overflow: hidden;
+}
+
+.cr-upload-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #005b96);
+  transition: width 0.25s ease;
+}
+
+.cr-upload-progress__status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #334155;
+}
+
+.cr-upload-progress__eta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0369a1;
+}
+
 .cr-modal__foot {
   display: flex;
   justify-content: flex-end;

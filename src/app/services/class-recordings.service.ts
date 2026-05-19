@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpEvent, HttpEventType } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { filter, map, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { getAuthToken } from './auth.service';
 import { StudentProgressService } from './student-progress.service';
@@ -54,6 +54,16 @@ export interface ManualUploadStatusResponse {
   hlsReady: boolean;
   createdAt: string;
 }
+
+export interface ManualUploadCreateResponse {
+  success: boolean;
+  message: string;
+  recordingId: string;
+}
+
+export type ManualUploadProgressEvent =
+  | { kind: 'progress'; percent: number; loaded: number; total: number | null }
+  | { kind: 'complete'; body: ManualUploadCreateResponse };
 
 export interface ZoomWebhookAuditRow {
   _id: string;
@@ -189,12 +199,33 @@ export class ClassRecordingsService {
     return this.http.post<any>(this.url, data);
   }
 
-  createFromUpload(formData: FormData): Observable<{
-    success: boolean;
-    message: string;
-    recordingId: string;
-  }> {
-    return this.http.post<any>(`${this.url}/upload`, formData);
+  createFromUpload(formData: FormData): Observable<ManualUploadCreateResponse> {
+    return this.http.post<ManualUploadCreateResponse>(`${this.url}/upload`, formData);
+  }
+
+  /** File upload with XMLHttpRequest progress events (percent + bytes). */
+  createFromUploadWithProgress(formData: FormData): Observable<ManualUploadProgressEvent> {
+    return this.http
+      .post<ManualUploadCreateResponse>(`${this.url}/upload`, formData, {
+        reportProgress: true,
+        observe: 'events',
+      })
+      .pipe(
+        map((event: HttpEvent<ManualUploadCreateResponse>): ManualUploadProgressEvent | null => {
+          if (event.type === HttpEventType.UploadProgress) {
+            const loaded = event.loaded ?? 0;
+            const total = event.total ?? null;
+            const percent =
+              total && total > 0 ? Math.min(100, Math.round((100 * loaded) / total)) : 0;
+            return { kind: 'progress', percent, loaded, total };
+          }
+          if (event.type === HttpEventType.Response && event.body) {
+            return { kind: 'complete', body: event.body };
+          }
+          return null;
+        }),
+        filter((e): e is ManualUploadProgressEvent => e != null)
+      );
   }
 
   update(id: string, data: any): Observable<{ success: boolean; recording: ClassRecording }> {

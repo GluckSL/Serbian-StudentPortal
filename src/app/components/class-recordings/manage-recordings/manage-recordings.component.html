@@ -242,31 +242,43 @@
 </div>
 
 <!-- ── Add / Edit Modal ── -->
-<div class="cr-overlay" *ngIf="showForm" (click)="closeForm()">
+<div class="cr-overlay" *ngIf="showForm" (click)="!uploadInProgress && closeForm()">
   <div class="cr-modal" (click)="$event.stopPropagation()">
     <div class="cr-modal__head">
       <h3>{{ editing ? 'Edit Recording' : 'Add Recording' }}</h3>
-      <button class="cr-modal__close" (click)="closeForm()">✕</button>
+      <button class="cr-modal__close" type="button" [disabled]="uploadInProgress" (click)="closeForm()">✕</button>
     </div>
-    <div class="cr-modal__body">
+    <div class="cr-upload-progress" *ngIf="uploadInProgress">
+      <div class="cr-upload-progress__head">
+        <span class="cr-upload-progress__phase">{{ getUploadPhaseLabel() }}</span>
+        <span class="cr-upload-progress__pct">{{ uploadPercent }}%</span>
+      </div>
+      <div class="cr-upload-progress__track" role="progressbar"
+           [attr.aria-valuenow]="uploadPercent" aria-valuemin="0" aria-valuemax="100">
+        <div class="cr-upload-progress__fill" [style.width.%]="uploadPercent"></div>
+      </div>
+      <p class="cr-upload-progress__status">{{ uploadStatusLine }}</p>
+      <p class="cr-upload-progress__eta" *ngIf="uploadEtaText">{{ uploadEtaText }}</p>
+    </div>
+    <div class="cr-modal__body" [class.cr-modal__body--dimmed]="uploadInProgress">
       <div class="cr-field">
         <label>Title *</label>
-        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3">
+        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3" [disabled]="uploadInProgress">
       </div>
       <div class="cr-field">
         <label>Upload Video <span class="cr-hint-inline">(MP4/MOV/M4V/WEBM/OGG)</span></label>
-        <input class="cr-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.ogg" (change)="onVideoFileSelected($event)" [disabled]="!!editing">
+        <input class="cr-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.ogg" (change)="onVideoFileSelected($event)" [disabled]="!!editing || uploadInProgress">
         <p class="cr-hint" *ngIf="selectedVideoFile">Selected: {{ selectedVideoFile.name }}</p>
         <p class="cr-hint" *ngIf="editing">Video file upload is available while creating new recordings.</p>
       </div>
       <div class="cr-field" *ngIf="!editing || editing.sourceType !== 'HLS_UPLOAD'">
         <label>Video URL <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
-        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=..." [disabled]="!!selectedVideoFile">
+        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=..." [disabled]="!!selectedVideoFile || uploadInProgress">
         <p class="cr-hint" *ngIf="selectedVideoFile">Video URL is ignored because a file upload is selected.</p>
       </div>
       <div class="cr-field">
         <label>Description</label>
-        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description"></textarea>
+        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description" [disabled]="uploadInProgress"></textarea>
       </div>
       <div class="cr-field-row">
         <div class="cr-field">
@@ -307,9 +319,14 @@
       </div>
     </div>
     <div class="cr-modal__foot">
-      <button class="cr-btn cr-btn--outline" (click)="closeForm()">Cancel</button>
-      <button class="cr-btn cr-btn--primary" (click)="save()" [disabled]="saving">
-        {{ saving ? 'Saving...' : (editing ? 'Update' : 'Create') }}
+      <button class="cr-btn cr-btn--outline" type="button" [disabled]="uploadInProgress" (click)="closeForm()">Cancel</button>
+      <button class="cr-btn cr-btn--primary" type="button" (click)="save()" [disabled]="saving">
+        <i class="fa fa-spinner fa-spin" *ngIf="uploadInProgress"></i>
+        {{
+          uploadInProgress
+            ? (uploadPhase === 'converting' ? 'Converting…' : 'Uploading…')
+            : (saving ? 'Saving...' : (editing ? 'Update' : 'Create'))
+        }}
       </button>
     </div>
   </div>
