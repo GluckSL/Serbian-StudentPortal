@@ -21,6 +21,8 @@ export class ExerciseAttemptDetailComponent implements OnInit {
   error = '';
   actionError = '';
   updatingQuestionIndex: number | null = null;
+  updatingSubQuestionIndex: number | null = null;
+  regrading = false;
   data: StaffAttemptReviewResponse | null = null;
 
   constructor(
@@ -83,20 +85,27 @@ export class ExerciseAttemptDetailComponent implements OnInit {
   }
 
   isUpdatingRow(row: AttemptReviewRow): boolean {
-    return this.updatingQuestionIndex === row.questionIndex;
+    return (
+      this.updatingQuestionIndex === row.questionIndex &&
+      (row.subQuestionIndex ?? null) === (this.updatingSubQuestionIndex ?? null)
+    );
   }
 
   markAsCorrect(row: AttemptReviewRow): void {
     if (!this.exerciseId || !this.attemptId || this.updatingQuestionIndex !== null) return;
     this.actionError = '';
     this.updatingQuestionIndex = row.questionIndex;
+    this.updatingSubQuestionIndex = row.subQuestionIndex ?? null;
+
+    const subIdx = row.isSubQuestion ? row.subQuestionIndex : undefined;
 
     this.exerciseService
-      .overrideAttemptQuestion(this.exerciseId, this.attemptId, row.questionIndex, true)
+      .overrideAttemptQuestion(this.exerciseId, this.attemptId, row.questionIndex, true, subIdx)
       .pipe(
         switchMap(() => this.exerciseService.getAttemptReviewForStaff(this.exerciseId, this.attemptId)),
         finalize(() => {
           this.updatingQuestionIndex = null;
+          this.updatingSubQuestionIndex = null;
         })
       )
       .subscribe({
@@ -106,6 +115,37 @@ export class ExerciseAttemptDetailComponent implements OnInit {
         },
         error: (err) => {
           this.actionError = err?.error?.error || 'Could not update this answer';
+        }
+      });
+  }
+
+  regradeAttempt(): void {
+    if (!this.exerciseId || !this.attemptId || this.regrading || this.updatingQuestionIndex !== null) return;
+    this.actionError = '';
+    this.regrading = true;
+
+    this.exerciseService
+      .regradeAttemptForStaff(this.exerciseId, this.attemptId)
+      .pipe(finalize(() => { this.regrading = false; }))
+      .subscribe({
+        next: (res) => {
+          if (this.data) {
+            this.data = {
+              ...this.data,
+              attempt: {
+                ...this.data.attempt,
+                earnedPoints: res.earnedPoints,
+                totalPoints: res.totalPoints,
+                scorePercentage: res.scorePercentage
+              },
+              summary: res.summary,
+              perQuestion: res.perQuestion
+            };
+          }
+          this.error = '';
+        },
+        error: (err) => {
+          this.actionError = err?.error?.error || 'Could not regrade this attempt';
         }
       });
   }

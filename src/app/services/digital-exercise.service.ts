@@ -280,7 +280,9 @@ export interface ExerciseAttempt {
 /** Per-question row from my-review / staff attempt detail APIs */
 export interface AttemptReviewRow {
   questionIndex: number;
-  displayIndex: number;
+  /** Present for "Questions with Same Context" sub-parts (e.g. 31.1). */
+  subQuestionIndex?: number | null;
+  displayIndex: number | string;
   type: string;
   promptSnippet: string;
   isCorrect: boolean;
@@ -288,6 +290,8 @@ export interface AttemptReviewRow {
   maxPoints: number;
   studentAnswer: string;
   expectedAnswer: string;
+  isSubQuestion?: boolean;
+  staffOverride?: boolean;
 }
 
 export interface ExerciseReviewSummary {
@@ -321,11 +325,22 @@ export interface StaffAttemptOverrideResponse {
   success: boolean;
   attemptId: string;
   questionIndex: number;
+  subQuestionIndex?: number | null;
   isCorrect: boolean;
   pointsEarned: number;
   earnedPoints: number;
   totalPoints: number;
   scorePercentage: number;
+}
+
+export interface StaffAttemptRegradeResponse {
+  success: boolean;
+  attemptId: string;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+  summary: ExerciseReviewSummary;
+  perQuestion: AttemptReviewRow[];
 }
 
 export interface QuestionResponse {
@@ -542,16 +557,30 @@ export class DigitalExerciseService {
     );
   }
 
-  /** Admin/Teacher: override grading for one submitted question in an attempt */
+  /** Admin/Teacher: override grading for one submitted question (or sub-question) in an attempt */
   overrideAttemptQuestion(
     exerciseId: string,
     attemptId: string,
     questionIndex: number,
-    isCorrect: boolean
+    isCorrect: boolean,
+    subQuestionIndex?: number | null
   ): Observable<StaffAttemptOverrideResponse> {
+    const body: { isCorrect: boolean; subQuestionIndex?: number } = { isCorrect };
+    if (subQuestionIndex !== undefined && subQuestionIndex !== null) {
+      body.subQuestionIndex = subQuestionIndex;
+    }
     return this.http.patch<StaffAttemptOverrideResponse>(
       `${this.apiUrl}/${exerciseId}/attempts/${attemptId}/questions/${questionIndex}/override`,
-      { isCorrect },
+      body,
+      { withCredentials: true }
+    );
+  }
+
+  /** Admin/Teacher: re-run auto-grading on a completed attempt */
+  regradeAttemptForStaff(exerciseId: string, attemptId: string): Observable<StaffAttemptRegradeResponse> {
+    return this.http.post<StaffAttemptRegradeResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}/regrade`,
+      {},
       { withCredentials: true }
     );
   }

@@ -25,6 +25,21 @@
   </div>
 
   <div class="detail-body" *ngIf="data && !loading">
+    <div class="toolbar-actions">
+      <button
+        type="button"
+        class="btn-regrade"
+        [disabled]="regrading || updatingQuestionIndex !== null"
+        (click)="regradeAttempt()"
+      >
+        <span class="material-icons">autorenew</span>
+        {{ regrading ? 'Regrading…' : 'Regrade attempt (auto-check)' }}
+      </button>
+      <p class="toolbar-hint">
+        Re-runs grading from saved answers (useful after fill-in-the-blank fixes). You can still mark individual rows below.
+      </p>
+    </div>
+
     <section class="overall-card" aria-labelledby="staff-overall-heading">
       <div class="overall-label" id="staff-overall-heading">Overall analytics (this attempt)</div>
       <div class="overall-inner">
@@ -82,9 +97,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let row of wrongRows(data.perQuestion)">
+            <tr *ngFor="let row of wrongRows(data.perQuestion)" [class.sub-q-row]="row.isSubQuestion">
               <td>{{ row.displayIndex }}</td>
-              <td class="prompt">{{ row.promptSnippet }}</td>
+              <td class="prompt">
+                <span class="sub-q-badge" *ngIf="row.isSubQuestion">Sub</span>
+                {{ row.promptSnippet }}
+              </td>
               <td class="answer wrong">{{ row.studentAnswer }}</td>
               <td class="answer expected">{{ row.expectedAnswer }}</td>
               <td class="action-cell">

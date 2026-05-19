@@ -47,6 +47,13 @@ const QuestionResponseSchema = new mongoose.Schema({
     textAnswer: String,
     fillBlankResponses: [String]
   }],
+  // Per sub-question grading (auto or staff override)
+  subQuestionGrades: [{
+    questionIndex: Number,
+    isCorrect: Boolean,
+    pointsEarned: Number,
+    staffOverride: { type: Boolean, default: false }
+  }],
   // Common
   isCorrect: { type: Boolean, default: false },
   pointsEarned: { type: Number, default: 0 }

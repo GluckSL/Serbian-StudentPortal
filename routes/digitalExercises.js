@@ -530,10 +530,17 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
     });
   }
 
+  const subQuestionGrades = subResults.map((sub) => ({
+    questionIndex: sub.questionIndex,
+    isCorrect: sub.isCorrect,
+    pointsEarned: sub.pointsEarned,
+    staffOverride: false
+  }));
+
   if (subResults.length) {
     correctAnswer = { ...(correctAnswer || {}), subResults };
   }
-  return { isCorrect, pointsEarned, correctAnswer, subResults };
+  return { isCorrect, pointsEarned, correctAnswer, subResults, subQuestionGrades };
 }
 
 /** Human-readable student submission for analytics / review UIs */
@@ -703,6 +710,59 @@ function questionPromptSnippet(q, idx) {
   return clipText(sanitizeQuestionPlainText(text), 100) || `Question ${idx + 1}`;
 }
 
+function subResponseToReviewShape(sq, subResp) {
+  const sub = subResp || {};
+  if (sq.type === 'fill-blank') return { fillBlankResponses: sub.fillBlankResponses || [] };
+  if (sq.type === 'mcq') return { selectedOptionIndex: sub.selectedOptionIndex };
+  if (sq.type === 'listening') return { listeningText: sub.textAnswer };
+  return { qaResponse: sub.textAnswer };
+}
+
+function gradeSubQuestionForReview(sq, subResp) {
+  const { rawScore } = gradeSubQuestionPart(sq, subResp);
+  if (isAdvancedGradingEnabled(sq)) {
+    const scoring = applyThresholdScoring(sq, rawScore);
+    return { isCorrect: scoring.isCorrect, pointsEarned: scoring.pointsEarned };
+  }
+  const isCorrect = rawScore >= 100;
+  return { isCorrect, pointsEarned: isCorrect ? (sq.points || 1) : 0 };
+}
+
+function getSubQuestionReviewGrade(q, r, sq, si, subResp) {
+  const stored = (r?.subQuestionGrades || []).find((g) => Number(g.questionIndex) === si);
+  if (stored && typeof stored.isCorrect === 'boolean') {
+    return {
+      isCorrect: !!stored.isCorrect,
+      pointsEarned: Number(stored.pointsEarned) || 0,
+      staffOverride: !!stored.staffOverride
+    };
+  }
+  const graded = gradeSubQuestionForReview(sq, subResp);
+  return { ...graded, staffOverride: false };
+}
+
+function getParentPartReviewGrade(q, r) {
+  if (!r) return { isCorrect: false, pointsEarned: 0 };
+  const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+  if (!subs.length) {
+    return { isCorrect: !!r.isCorrect, pointsEarned: Number(r.pointsEarned) || 0 };
+  }
+  const subPts = (r.subQuestionGrades || []).reduce((sum, g) => sum + (Number(g.pointsEarned) || 0), 0);
+  const parentPts = Math.max(0, (Number(r.pointsEarned) || 0) - subPts);
+  const { rawScore } = q.type === 'fill-blank'
+    ? gradeFillBlankRawScore(q, r.fillBlankResponses)
+    : { rawScore: r.isCorrect ? 100 : 0 };
+  let parentCorrect;
+  if (isAdvancedGradingEnabled(q)) {
+    parentCorrect = applyThresholdScoring(q, rawScore).isCorrect;
+  } else if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
+    parentCorrect = !!r.isCorrect;
+  } else {
+    parentCorrect = rawScore >= 100;
+  }
+  return { isCorrect: parentCorrect, pointsEarned: parentPts };
+}
+
 /**
  * @param {object} exercise — full DigitalExercise lean doc
  * @param {object} attempt — ExerciseAttempt lean doc with responses
@@ -711,20 +771,195 @@ function buildPerQuestionReview(exercise, attempt) {
   const questions = exercise.questions || [];
   const byIdx = {};
   (attempt.responses || []).forEach((r) => { byIdx[r.questionIndex] = r; });
-  return questions.map((q, i) => {
+  const rows = [];
+  let serial = 0;
+
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
     const r = byIdx[i];
-    return {
+    const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+    serial++;
+    const parentGrade = getParentPartReviewGrade(q, r);
+
+    rows.push({
       questionIndex: i,
-      displayIndex: i + 1,
+      subQuestionIndex: null,
+      displayIndex: serial,
       type: q.type,
       promptSnippet: questionPromptSnippet(q, i),
-      isCorrect: r ? !!r.isCorrect : false,
-      pointsEarned: r && typeof r.pointsEarned === 'number' ? r.pointsEarned : 0,
+      isCorrect: parentGrade.isCorrect,
+      pointsEarned: parentGrade.pointsEarned,
       maxPoints: q.points || 1,
       studentAnswer: formatStudentAnswerForReview(q, r),
-      expectedAnswer: formatCorrectAnswerForReview(q)
-    };
+      expectedAnswer: formatCorrectAnswerForReview(q),
+      isSubQuestion: false,
+      staffOverride: false
+    });
+
+    if (subs.length) {
+      const subResps = Array.isArray(r?.subQuestionResponses) ? r.subQuestionResponses : [];
+      for (let si = 0; si < subs.length; si++) {
+        const sq = subs[si];
+        const subResp = subResps.find((s) => Number(s.questionIndex) === si) || { questionIndex: si };
+        const subGrade = getSubQuestionReviewGrade(q, r, sq, si, subResp);
+        serial++;
+        rows.push({
+          questionIndex: i,
+          subQuestionIndex: si,
+          displayIndex: `${i + 1}.${si + 1}`,
+          type: sq.type,
+          promptSnippet: questionPromptSnippet(sq, si),
+          isCorrect: subGrade.isCorrect,
+          pointsEarned: subGrade.pointsEarned,
+          maxPoints: sq.points || 1,
+          studentAnswer: formatStudentAnswerForReview(sq, subResponseToReviewShape(sq, subResp)),
+          expectedAnswer: formatCorrectAnswerForReview(sq),
+          isSubQuestion: true,
+          staffOverride: !!subGrade.staffOverride
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+/** Recompute scores for a completed attempt from stored responses (e.g. after grading fixes). */
+async function regradeCompletedAttempt(exercise, attemptDoc) {
+  const responses = Array.isArray(attemptDoc.responses) ? attemptDoc.responses : [];
+  const qaScoreMap = {};
+  const qaPromises = exercise.questions.map((q, i) => {
+    if (q.type !== 'question-answer') return Promise.resolve();
+    if (!isAdvancedGradingEnabled(q)) return Promise.resolve();
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) return Promise.resolve();
+    const resp = responses.find((r) => r.questionIndex === i) || {};
+    const studentAns = (resp.qaResponse || '').trim();
+    if (!studentAns) return Promise.resolve();
+    return aiGradeAnswer(q.prompt || '', samples.filter(Boolean), studentAns)
+      .then((result) => { qaScoreMap[i] = result; });
   });
+  await Promise.all(qaPromises);
+
+  let earnedPoints = 0;
+  const gradedResponses = [];
+
+  for (let i = 0; i < exercise.questions.length; i++) {
+    const q = exercise.questions[i];
+    const resp = responses.find((r) => Number(r.questionIndex) === i) || { questionIndex: i };
+    const useAdvancedGrading = isAdvancedGradingEnabled(q);
+    let isCorrect = false;
+    let pointsEarned = 0;
+    let rawScore = 0;
+    let correctAnswer = null;
+
+    if (q.type === 'mcq') {
+      rawScore = resp.selectedOptionIndex === q.correctAnswerIndex ? 100 : 0;
+      correctAnswer = { correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation };
+    } else if (q.type === 'fill-blank') {
+      ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
+    } else if (q.type === 'question-answer') {
+      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+      const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+      if (isTrueFalse) {
+        const expected = parseTrueFalse(expectedRaw);
+        const given = parseTrueFalse(resp.qaResponse);
+        rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
+        correctAnswer = { sampleAnswers: samples };
+      } else if ((resp.qaResponse || '').trim()) {
+        if (useAdvancedGrading) {
+          rawScore = Math.max(0, Math.min(100, Number(qaScoreMap[i]?.score) || 0));
+        } else {
+          const normalizedStudent = normalizeTextForExactCompare(resp.qaResponse || '');
+          rawScore = samples.some((s) => normalizeTextForExactCompare(s) === normalizedStudent) ? 100 : 0;
+        }
+        correctAnswer = { sampleAnswers: samples.filter(Boolean) };
+      }
+    } else if (q.type === 'matching' || q.type === 'word_bank_fill' || q.type === 'singular_plural' ||
+      q.type === 'pronunciation' || q.type === 'video-pronunciation' || q.type === 'listening' ||
+      q.type === 'jumble-word' || q.type === 'rearrange' || q.type === 'image_pin_match') {
+      // Preserve prior outcome when we cannot cheaply replay full grading here.
+      isCorrect = !!resp.isCorrect;
+      pointsEarned = Number(resp.pointsEarned) || 0;
+      rawScore = isCorrect ? 100 : 0;
+    }
+
+    if (pointsEarned === 0 && !(q.type === 'matching' || q.type === 'word_bank_fill')) {
+      if (useAdvancedGrading && q.type !== 'pronunciation' && q.type !== 'video-pronunciation') {
+        const scoring = applyThresholdScoring(q, rawScore);
+        isCorrect = scoring.isCorrect;
+        pointsEarned = scoring.pointsEarned;
+      } else if (q.type === 'pronunciation') {
+        const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+        isCorrect = score >= 70;
+        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+      } else if (q.type === 'video-pronunciation') {
+        const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+        const threshold = normalizeThresholdForQuestion(q);
+        isCorrect = score >= threshold;
+        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+      } else if (q.type !== 'matching' && q.type !== 'word_bank_fill' && q.type !== 'singular_plural' &&
+        q.type !== 'listening' && q.type !== 'jumble-word' && q.type !== 'rearrange' && q.type !== 'image_pin_match') {
+        isCorrect = rawScore >= 100;
+        pointsEarned = isCorrect ? (q.points || 1) : 0;
+      }
+    }
+
+    let subQuestionGrades = [];
+    if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
+      const attached = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer);
+      isCorrect = attached.isCorrect;
+      pointsEarned = attached.pointsEarned;
+      correctAnswer = attached.correctAnswer;
+      subQuestionGrades = (attached.subQuestionGrades || []).map((g) => {
+        const prev = (resp.subQuestionGrades || []).find((x) => Number(x.questionIndex) === g.questionIndex);
+        if (prev?.staffOverride) {
+          return {
+            ...g,
+            isCorrect: !!prev.isCorrect,
+            pointsEarned: Number(prev.pointsEarned) || 0,
+            staffOverride: true
+          };
+        }
+        return g;
+      });
+    }
+
+    earnedPoints += pointsEarned;
+    gradedResponses.push({
+      questionIndex: i,
+      questionType: q.type,
+      selectedOptionIndex: resp.selectedOptionIndex,
+      matchingResponse: resp.matchingResponse,
+      fillBlankResponses: resp.fillBlankResponses,
+      wordBankAnswers: resp.wordBankAnswers,
+      singularPluralResponses: resp.singularPluralResponses,
+      spokenText: resp.spokenText,
+      pronunciationScore: resp.pronunciationScore,
+      qaResponse: resp.qaResponse,
+      listeningText: resp.listeningText,
+      jumbleWordResponse: resp.jumbleWordResponse,
+      rearrangeTextResponse: resp.rearrangeTextResponse,
+      rearrangeTokensResponse: resp.rearrangeTokensResponse,
+      imagePinAnswers: resp.imagePinAnswers,
+      subQuestionResponses: resp.subQuestionResponses,
+      subQuestionGrades,
+      isCorrect,
+      pointsEarned
+    });
+  }
+
+  attemptDoc.responses = gradedResponses;
+  attemptDoc.earnedPoints = earnedPoints;
+  attemptDoc.totalPoints = exerciseTotalPoints(exercise.questions);
+  attemptDoc.scorePercentage = attemptDoc.totalPoints > 0
+    ? Math.round((earnedPoints / attemptDoc.totalPoints) * 100)
+    : 0;
+  attemptDoc.markModified('responses');
+  return attemptDoc;
 }
 
 async function refreshExerciseCompletionStats(exerciseId) {
@@ -2026,10 +2261,12 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
+    let subQuestionGrades = [];
     ({
       isCorrect,
       pointsEarned,
-      correctAnswer
+      correctAnswer,
+      subQuestionGrades
     } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
 
     const gradedResp = {
@@ -2049,6 +2286,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       rearrangeTokensResponse: resp.rearrangeTokensResponse,
       imagePinAnswers: resp.imagePinAnswers,
       subQuestionResponses: resp.subQuestionResponses,
+      subQuestionGrades: subQuestionGrades || [],
       isCorrect,
       pointsEarned
     };
@@ -2343,10 +2581,12 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
       }
 
+      let subQuestionGrades = [];
       ({
         isCorrect,
         pointsEarned,
-        correctAnswer
+        correctAnswer,
+        subQuestionGrades
       } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
 
       earnedPoints += pointsEarned;
@@ -2368,6 +2608,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         rearrangeTokensResponse: resp.rearrangeTokensResponse,
         imagePinAnswers: resp.imagePinAnswers,
         subQuestionResponses: resp.subQuestionResponses,
+        subQuestionGrades: subQuestionGrades || [],
         isCorrect,
         pointsEarned
       });
@@ -2565,7 +2806,7 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
 });
 
 // PATCH /api/digital-exercises/:id/attempts/:attemptId/questions/:questionIndex/override
-// Staff override: manually mark a submitted question as correct/incorrect and recalculate score.
+// Staff override: manually mark a submitted question (or sub-question) and recalculate score.
 router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findOne({
@@ -2593,18 +2834,81 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
       return res.status(404).json({ error: 'No submitted answer found for this question' });
     }
 
+    const q = exercise.questions[idx];
     const shouldBeCorrect = typeof req.body?.isCorrect === 'boolean' ? req.body.isCorrect : true;
-    const maxPoints = Number(exercise.questions?.[idx]?.points) || 1;
+    const subQiRaw = req.body?.subQuestionIndex;
+    const hasSubIndex = subQiRaw !== undefined && subQiRaw !== null && subQiRaw !== '';
+    const subQi = hasSubIndex ? Number.parseInt(subQiRaw, 10) : null;
+    const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
 
-    targetResp.isCorrect = shouldBeCorrect;
-    targetResp.pointsEarned = shouldBeCorrect ? maxPoints : 0;
+    if (hasSubIndex) {
+      if (!Number.isFinite(subQi) || subQi < 0 || subQi >= subs.length) {
+        return res.status(400).json({ error: 'Invalid sub-question index' });
+      }
+      const sq = subs[subQi];
+      const maxSubPts = Number(sq?.points) || 1;
+      if (!Array.isArray(targetResp.subQuestionGrades)) targetResp.subQuestionGrades = [];
+      const existing = targetResp.subQuestionGrades.find((g) => Number(g.questionIndex) === subQi);
+      const gradeEntry = {
+        questionIndex: subQi,
+        isCorrect: shouldBeCorrect,
+        pointsEarned: shouldBeCorrect ? maxSubPts : 0,
+        staffOverride: true
+      };
+      if (existing) {
+        existing.isCorrect = gradeEntry.isCorrect;
+        existing.pointsEarned = gradeEntry.pointsEarned;
+        existing.staffOverride = true;
+      } else {
+        targetResp.subQuestionGrades.push(gradeEntry);
+      }
+
+      const parentGrade = getParentPartReviewGrade(q, targetResp);
+      const subTotal = targetResp.subQuestionGrades.reduce((sum, g) => sum + (Number(g.pointsEarned) || 0), 0);
+      targetResp.pointsEarned = parentGrade.pointsEarned + subTotal;
+      targetResp.isCorrect = parentGrade.isCorrect &&
+        targetResp.subQuestionGrades.every((g) => !!g.isCorrect);
+    } else {
+      const maxPoints = questionTotalPoints(q);
+      if (subs.length) {
+        if (!Array.isArray(targetResp.subQuestionGrades)) targetResp.subQuestionGrades = [];
+        for (let si = 0; si < subs.length; si++) {
+          const sq = subs[si];
+          const maxSubPts = Number(sq?.points) || 1;
+          const pts = shouldBeCorrect ? maxSubPts : 0;
+          const existing = targetResp.subQuestionGrades.find((g) => Number(g.questionIndex) === si);
+          const gradeEntry = {
+            questionIndex: si,
+            isCorrect: shouldBeCorrect,
+            pointsEarned: pts,
+            staffOverride: true
+          };
+          if (existing) {
+            existing.isCorrect = gradeEntry.isCorrect;
+            existing.pointsEarned = gradeEntry.pointsEarned;
+            existing.staffOverride = true;
+          } else {
+            targetResp.subQuestionGrades.push(gradeEntry);
+          }
+        }
+        const parentPts = shouldBeCorrect ? (Number(q.points) || 1) : 0;
+        targetResp.pointsEarned = parentPts + targetResp.subQuestionGrades.reduce(
+          (sum, g) => sum + (Number(g.pointsEarned) || 0),
+          0
+        );
+      } else {
+        targetResp.pointsEarned = shouldBeCorrect ? maxPoints : 0;
+      }
+      targetResp.isCorrect = shouldBeCorrect;
+    }
+
     attempt.markModified('responses');
 
     const earnedPoints = (attempt.responses || []).reduce((sum, r) => {
       const pts = Number(r?.pointsEarned);
       return sum + (Number.isFinite(pts) ? pts : 0);
     }, 0);
-    const totalPoints = (exercise.questions || []).reduce((sum, q) => sum + (Number(q?.points) || 1), 0);
+    const totalPoints = exerciseTotalPoints(exercise.questions);
     const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
 
     attempt.earnedPoints = earnedPoints;
@@ -2618,6 +2922,7 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
       success: true,
       attemptId: attempt._id,
       questionIndex: idx,
+      subQuestionIndex: hasSubIndex ? subQi : null,
       isCorrect: shouldBeCorrect,
       pointsEarned: targetResp.pointsEarned,
       earnedPoints: attempt.earnedPoints,
@@ -2630,6 +2935,54 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
       return res.status(code).json({ error: err.message });
     }
     console.error('PATCH /digital-exercises/:id/attempts/:attemptId/questions/:questionIndex/override error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/digital-exercises/:id/attempts/:attemptId/regrade
+// Re-run auto-grading on a completed attempt (e.g. after fixing sub-question fill-blank logic).
+router.post('/:id/attempts/:attemptId/regrade', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    await assertTeacherOwnsExercise(req.user, exercise);
+
+    const attempt = await ExerciseAttempt.findOne({
+      _id: req.params.attemptId,
+      exerciseId: req.params.id,
+      status: 'completed'
+    });
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+
+    await regradeCompletedAttempt(exercise, attempt);
+    await attempt.save();
+    await refreshExerciseCompletionStats(req.params.id);
+
+    const perQuestion = buildPerQuestionReview(exercise, attempt.toObject ? attempt.toObject() : attempt);
+
+    return res.json({
+      success: true,
+      attemptId: attempt._id,
+      earnedPoints: attempt.earnedPoints,
+      totalPoints: attempt.totalPoints,
+      scorePercentage: attempt.scorePercentage,
+      summary: {
+        totalQuestions: perQuestion.length,
+        correctCount: perQuestion.filter((r) => r.isCorrect).length,
+        wrongCount: perQuestion.filter((r) => !r.isCorrect).length
+      },
+      perQuestion
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    if (code !== 500) {
+      return res.status(code).json({ error: err.message });
+    }
+    console.error('POST /digital-exercises/:id/attempts/:attemptId/regrade error:', err);
     return res.status(500).json({ error: err.message });
   }
 });
