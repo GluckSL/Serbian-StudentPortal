@@ -2960,26 +2960,16 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-.tf-btn--true.active {
+/* Same highlight for both options — avoids red/green “right/wrong” cues during the test */
+.tf-btn.active {
   border-color: #16a34a;
   background: #22c55e;
   color: #fff;
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.35);
 }
-.tf-btn--true.active:hover:not(:disabled) {
+.tf-btn.active:hover:not(:disabled) {
   border-color: #15803d;
   background: #16a34a;
-  color: #fff;
-}
-.tf-btn--false.active {
-  border-color: #dc2626;
-  background: #ef4444;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
-}
-.tf-btn--false.active:hover:not(:disabled) {
-  border-color: #b91c1c;
-  background: #dc2626;
   color: #fff;
 }
 
