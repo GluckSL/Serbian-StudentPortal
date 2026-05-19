@@ -97,7 +97,10 @@ export class ExerciseAttemptDetailComponent implements OnInit {
     this.updatingQuestionIndex = row.questionIndex;
     this.updatingSubQuestionIndex = row.subQuestionIndex ?? null;
 
-    const subIdx = row.isSubQuestion ? row.subQuestionIndex : undefined;
+    const subIdx =
+      row.isSubQuestion && row.subQuestionIndex !== undefined && row.subQuestionIndex !== null
+        ? row.subQuestionIndex
+        : undefined;
 
     this.exerciseService
       .overrideAttemptQuestion(this.exerciseId, this.attemptId, row.questionIndex, true, subIdx)

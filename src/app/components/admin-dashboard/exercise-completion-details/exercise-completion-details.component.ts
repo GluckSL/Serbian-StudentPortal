@@ -64,6 +64,12 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
   uniqueStudents = 0;
   allAttempts: Attempt[] = [];
   selectedBatch = 'all';
+  regradingAll = false;
+  regradeAllMessage = '';
+  regradeAllError = '';
+  private autoRegradeDone = false;
+  private completionsLoaded = false;
+  private exerciseLoaded = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -84,8 +90,48 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
 
   loadExercise(): void {
     this.exerciseService.getExercise(this.exerciseId).subscribe({
-      next: (ex) => { this.exercise = ex; },
+      next: (ex) => {
+        this.exercise = ex;
+        this.exerciseLoaded = true;
+        this.tryAutoRegradeFillBlankAttempts();
+      },
       error: () => { this.exercise = null; }
+    });
+  }
+
+  exerciseHasMultipartFillBlank(): boolean {
+    return (this.exercise?.questions || []).some((q: any) => {
+      const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
+      return q?.type === 'fill-blank' && subs.some((sq: any) => sq?.type === 'fill-blank');
+    });
+  }
+
+  private tryAutoRegradeFillBlankAttempts(): void {
+    if (!this.completionsLoaded || !this.exerciseLoaded) return;
+    if (this.autoRegradeDone || this.regradingAll) return;
+    if (!this.exerciseId || !this.exerciseHasMultipartFillBlank() || !this.allAttempts.length) return;
+    this.autoRegradeDone = true;
+    this.regradeAllAttempts(false);
+  }
+
+  regradeAllAttempts(manual = true): void {
+    if (!this.exerciseId || this.regradingAll) return;
+    this.regradingAll = true;
+    this.regradeAllError = '';
+    this.regradeAllMessage = manual ? 'Updating scores…' : 'Auto-mapping fill-in-the-blank answers and updating scores…';
+
+    this.exerciseService.regradeAllAttemptsForStaff(this.exerciseId).subscribe({
+      next: (res) => {
+        this.regradingAll = false;
+        this.regradeAllMessage =
+          `Updated ${res.updated} of ${res.totalAttempts} attempt(s). Scores and progress records are refreshed.`;
+        this.loadCompletions();
+      },
+      error: (err) => {
+        this.regradingAll = false;
+        this.regradeAllMessage = '';
+        this.regradeAllError = err?.error?.error || 'Could not update all attempts';
+      }
     });
   }
 
@@ -96,6 +142,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         this.allAttempts = res.attempts || [];
         this.applyFilters();
         this.loading = false;
+        this.completionsLoaded = true;
+        this.tryAutoRegradeFillBlankAttempts();
       },
       error: () => {
         this.loading = false;

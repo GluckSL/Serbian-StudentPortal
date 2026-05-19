@@ -364,6 +364,78 @@
   opacity: 0.75;
 }
 
+.fill-blank-regrade-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 20px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+}
+
+.fill-blank-regrade-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 220px;
+  font-size: 0.9rem;
+  color: #4338ca;
+  line-height: 1.45;
+}
+
+.fill-blank-regrade-text .material-icons {
+  font-size: 22px;
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.btn-regrade-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-regrade-all:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.btn-regrade-all:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-regrade-all .material-icons {
+  font-size: 20px;
+}
+
+.regrade-all-msg {
+  margin: -8px 0 16px;
+  font-size: 0.88rem;
+}
+
+.regrade-all-msg.success {
+  color: #047857;
+}
+
+.regrade-all-msg.error {
+  color: #b91c1c;
+}
+
 @media (max-width: 768px) {
   .details-page { padding: 16px 16px 48px; }
   .summary-cards { grid-template-columns: 1fr; }

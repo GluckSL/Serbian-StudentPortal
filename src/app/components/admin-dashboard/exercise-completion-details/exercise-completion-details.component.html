@@ -39,6 +39,27 @@
       </div>
     </div>
 
+    <div class="fill-blank-regrade-bar" *ngIf="exerciseHasMultipartFillBlank()">
+      <div class="fill-blank-regrade-text">
+        <span class="material-icons">sync</span>
+        <span>
+          Fill-in-the-blank sub-questions use global blank order (<strong>Blank 1, Blank 2, …</strong>).
+          Opening this page auto-updates stored scores for previous attempts.
+        </span>
+      </div>
+      <button
+        type="button"
+        class="btn-regrade-all"
+        [disabled]="regradingAll || !allAttempts.length"
+        (click)="regradeAllAttempts(true)"
+      >
+        <span class="material-icons">autorenew</span>
+        {{ regradingAll ? 'Updating all scores…' : 'Update all student scores' }}
+      </button>
+    </div>
+    <p class="regrade-all-msg success" *ngIf="regradeAllMessage">{{ regradeAllMessage }}</p>
+    <p class="regrade-all-msg error" *ngIf="regradeAllError">{{ regradeAllError }}</p>
+
     <!-- Student Details -->
     <section class="section">
       <div class="section-head-row">

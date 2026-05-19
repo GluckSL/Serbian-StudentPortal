@@ -171,6 +171,8 @@ interface PlayerQuestion {
   subQuestionSpInputs?: Record<number, string[]>;
   /** Sub-question fill-blank answers */
   subQuestionFillBlankAnswers?: Record<number, string[]>;
+  /** Per sub-question correctness after grading */
+  subQuestionIsCorrect?: Record<number, boolean>;
   /** Sub-question matching (leftIndex -> rightIndex) */
   subQuestionMatching?: Record<number, Record<number, number>>;
   /** Sub-question matching selected left index */
@@ -1528,6 +1530,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.data._correctAnswers = res.correctAnswer.answers;
     }
     this.applySubQuestionGradingFromCorrectAnswer(pq, res.correctAnswer);
+    if (pq.data.type === 'fill-blank' && !pq.data._correctAnswers?.length && pq.data.answers?.length) {
+      pq.data._correctAnswers = pq.data.answers;
+    }
+    if (pq.data.subQuestions?.length) {
+      pq.data.subQuestions.forEach((sq: any) => {
+        if (sq.type === 'fill-blank' && !sq._correctAnswers?.length && sq.answers?.length) {
+          sq._correctAnswers = sq.answers;
+        }
+      });
+    }
     if ((pq.data.type as string) === 'word_bank_fill' && Array.isArray(res.correctAnswer?.items)) {
       pq.data._wordBankCorrectItems = res.correctAnswer.items;
     }
@@ -1856,17 +1868,124 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private applySubQuestionGradingFromCorrectAnswer(pq: PlayerQuestion, correctAnswer: any): void {
     const subResults = Array.isArray(correctAnswer?.subResults) ? correctAnswer.subResults : [];
     if (!subResults.length || !pq.data.subQuestions?.length) return;
+    if (!pq.subQuestionIsCorrect) pq.subQuestionIsCorrect = {};
     subResults.forEach((sub: any) => {
       const sqi = sub?.questionIndex;
       const sq = pq.data.subQuestions?.[sqi];
       if (!sq || sqi === undefined || sqi === null) return;
+      if (typeof sub.isCorrect === 'boolean') {
+        pq.subQuestionIsCorrect![sqi] = sub.isCorrect;
+      }
       if (sq.type === 'fill-blank' && Array.isArray(sub.correctAnswer?.answers)) {
         sq._correctAnswers = sub.correctAnswer.answers;
+      } else if (sq.type === 'fill-blank' && Array.isArray(sq.answers)) {
+        sq._correctAnswers = sq.answers;
       }
       if (sq.type === 'mcq' && sub.correctAnswer?.correctAnswerIndex !== undefined) {
         sq.correctAnswerIndex = sub.correctAnswer.correctAnswerIndex;
       }
     });
+  }
+
+  /** One row per blank across parent + fill-blank sub-parts (Blank 1, Blank 2, …). */
+  getFillBlankReviewItems(
+    pq: PlayerQuestion,
+    questionIndex: number
+  ): Array<{
+    globalIndex: number;
+    partLabel: string;
+    studentAnswer: string;
+    correctAnswer: string;
+    isCorrect: boolean;
+    answered: boolean;
+  }> {
+    const items: Array<{
+      globalIndex: number;
+      partLabel: string;
+      studentAnswer: string;
+      correctAnswer: string;
+      isCorrect: boolean;
+      answered: boolean;
+    }> = [];
+    let blankNum = 0;
+    const data = pq.data;
+
+    if (data.type === 'fill-blank' && countFillBlankRuns(data.sentence || '') > 0) {
+      const count = countFillBlankRuns(data.sentence || '');
+      const correctList = data._correctAnswers || data.answers || [];
+      const partLabel = `Q ${this.getQuestionPartLabel(questionIndex, this.getParentPartNumber(data))}`;
+      for (let bi = 0; bi < count; bi++) {
+        blankNum++;
+        const studentAnswer = String(pq.fillAnswers?.[bi] ?? '').trim();
+        const correctAnswer = String(correctList[bi] ?? '').trim();
+        items.push({
+          globalIndex: blankNum,
+          partLabel,
+          studentAnswer,
+          correctAnswer,
+          isCorrect: this.isFillCorrect(pq, bi),
+          answered: studentAnswer.length > 0
+        });
+      }
+    }
+
+    const subs = data.subQuestions || [];
+    for (let si = 0; si < subs.length; si++) {
+      const sq = subs[si];
+      if (sq.type !== 'fill-blank') continue;
+      const count = countFillBlankRuns(sq.sentence || '');
+      if (count <= 0) continue;
+      const correctList = sq._correctAnswers || sq.answers || [];
+      const partLabel = `Q ${this.getQuestionPartLabel(questionIndex, this.getSubQuestionPartNumber(si, data))}`;
+      for (let bi = 0; bi < count; bi++) {
+        blankNum++;
+        const studentAnswer = String(pq.subQuestionFillBlankAnswers?.[si]?.[bi] ?? '').trim();
+        const correctAnswer = String(correctList[bi] ?? '').trim();
+        items.push({
+          globalIndex: blankNum,
+          partLabel,
+          studentAnswer,
+          correctAnswer,
+          isCorrect: this.isSubFillCorrect(pq, si, bi),
+          answered: studentAnswer.length > 0
+        });
+      }
+    }
+
+    return items;
+  }
+
+  hasFillBlankReviewItems(pq: PlayerQuestion, questionIndex: number): boolean {
+    return this.getFillBlankReviewItems(pq, questionIndex).length > 0;
+  }
+
+  getSubQuestionIsCorrect(pq: PlayerQuestion, sqIndex: number): boolean {
+    if (pq.subQuestionIsCorrect?.[sqIndex] !== undefined) {
+      return !!pq.subQuestionIsCorrect[sqIndex];
+    }
+    const sq = pq.data.subQuestions?.[sqIndex];
+    if (sq?.type === 'fill-blank') {
+      const count = countFillBlankRuns(sq.sentence || '');
+      if (count <= 0) return false;
+      for (let bi = 0; bi < count; bi++) {
+        if (!this.isSubFillCorrect(pq, sqIndex, bi)) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  getSubCorrectAnswerText(pq: PlayerQuestion, sqIndex: number): string {
+    const sq = pq.data.subQuestions?.[sqIndex];
+    if (!sq) return '—';
+    if (sq.type === 'fill-blank') {
+      const list = sq._correctAnswers || sq.answers || [];
+      return list.length ? list.map((x: string) => String(x ?? '').trim()).filter(Boolean).join(' / ') : '—';
+    }
+    if (sq.type === 'mcq') {
+      return sq.options?.[sq.correctAnswerIndex] || '—';
+    }
+    return '—';
   }
 
   // ─── MCQ Interaction ─────────────────────────────────────────────────────────
@@ -3093,6 +3212,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           pq.data._correctAnswers = detail.correctAnswer.answers;
         }
         this.applySubQuestionGradingFromCorrectAnswer(pq, detail.correctAnswer);
+        if (pq.data.type === 'fill-blank' && !pq.data._correctAnswers?.length && pq.data.answers?.length) {
+          pq.data._correctAnswers = pq.data.answers;
+        }
+        if (pq.data.subQuestions?.length) {
+          pq.data.subQuestions.forEach((sq: any) => {
+            if (sq.type === 'fill-blank' && !sq._correctAnswers?.length && sq.answers?.length) {
+              sq._correctAnswers = sq.answers;
+            }
+          });
+        }
         if ((pq.data.type as string) === 'word_bank_fill' && Array.isArray(detail.correctAnswer?.items)) {
           pq.data._wordBankCorrectItems = detail.correctAnswer.items;
         }
@@ -3296,7 +3425,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return pairs.length ? pairs.join('; ') : '—';
     }
     if (pq.data.type === 'fill-blank') {
-      const ans = (pq.data._correctAnswers || []).join(', ');
+      const ans = (pq.data._correctAnswers || pq.data.answers || []).join(', ');
       return ans || '—';
     }
     if ((pq.data.type as string) === 'word_bank_fill') {
@@ -4781,7 +4910,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   isFillCorrect(pq: PlayerQuestion, blankIndex: number): boolean {
-    const correct = (pq.data._correctAnswers || [])[blankIndex];
+    const correctList = pq.data._correctAnswers || pq.data.answers || [];
+    const correct = correctList[blankIndex];
     const given = (pq.fillAnswers || [])[blankIndex];
     if (correct === undefined || given === undefined) return false;
     const a = this.normExercisePlainText(given);
@@ -4791,7 +4921,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   isSubFillCorrect(pq: PlayerQuestion, subIndex: number, blankIndex: number): boolean {
     const sq = pq.data.subQuestions?.[subIndex];
-    const correct = (sq?._correctAnswers || [])[blankIndex];
+    const correctList = sq?._correctAnswers || sq?.answers || [];
+    const correct = correctList[blankIndex];
     const given = (pq.subQuestionFillBlankAnswers?.[subIndex] || [])[blankIndex];
     if (correct === undefined || given === undefined) return false;
     const a = this.normExercisePlainText(given);
@@ -4802,7 +4933,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   getSubCorrectFillAnswer(pq: PlayerQuestion, subIndex: number, blankIndex: number): string {
     const sq = pq.data.subQuestions?.[subIndex];
-    return (sq?._correctAnswers || [])[blankIndex] || '';
+    const list = sq?._correctAnswers || sq?.answers || [];
+    return list[blankIndex] || '';
   }
 
   isWordBankItemCorrect(pq: PlayerQuestion, itemIndex: number): boolean {

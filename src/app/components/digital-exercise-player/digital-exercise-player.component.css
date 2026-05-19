@@ -7504,6 +7504,56 @@
   color: #dc2626;
 }
 
+.review-fill-blank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+.review-blank-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fafafa;
+}
+
+.review-blank-card.correct {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.review-blank-card.wrong {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.review-blank-card.unanswered {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.review-blank-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.review-blank-num {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: #4338ca;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.review-blank-part {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
 .review-sub-q-correct .review-value.correct {
   color: #059669;
 }

@@ -543,6 +543,326 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   return { isCorrect, pointsEarned, correctAnswer, subResults, subQuestionGrades };
 }
 
+function countFillBlankRuns(sentence) {
+  return (String(sentence || '').match(/_+/g) || []).length;
+}
+
+function getFillBlankPartsLayout(q) {
+  const parts = [];
+  if (q?.type === 'fill-blank' && countFillBlankRuns(q.sentence) > 0) {
+    parts.push({ kind: 'parent', subIndex: null, blankCount: countFillBlankRuns(q.sentence) });
+  }
+  const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
+  subs.forEach((sq, si) => {
+    if (sq?.type === 'fill-blank' && countFillBlankRuns(sq.sentence) > 0) {
+      parts.push({ kind: 'sub', subIndex: si, blankCount: countFillBlankRuns(sq.sentence) });
+    }
+  });
+  return parts;
+}
+
+function exerciseHasMultipartFillBlank(exercise) {
+  return (exercise?.questions || []).some((q) => {
+    const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+    return q.type === 'fill-blank' && subs.some((sq) => sq.type === 'fill-blank');
+  });
+}
+
+/**
+ * Map legacy stored answers onto parent + sub fillBlankResponses using global blank order
+ * (Blank 1 = parent, Blank 2+ = sub-parts left-to-right).
+ */
+function migrateFillBlankResponsesForQuestion(q, resp) {
+  const parts = getFillBlankPartsLayout(q);
+  if (!parts.length || !resp) return resp;
+
+  const out = { ...resp };
+  let subResps = Array.isArray(out.subQuestionResponses)
+    ? out.subQuestionResponses.map((s) => ({ ...s }))
+    : [];
+
+  const ensureSub = (si) => {
+    let s = subResps.find((x) => Number(x.questionIndex) === si);
+    if (!s) {
+      s = { questionIndex: si };
+      subResps.push(s);
+    }
+    return s;
+  };
+
+  for (const part of parts) {
+    if (part.kind !== 'sub') continue;
+    const sub = ensureSub(part.subIndex);
+    if (!Array.isArray(sub.fillBlankResponses) || !sub.fillBlankResponses.length) {
+      const text = String(sub.textAnswer ?? '').trim();
+      if (text) sub.fillBlankResponses = [text];
+    }
+  }
+
+  const totalBlanks = parts.reduce((sum, p) => sum + p.blankCount, 0);
+  const flat = Array.isArray(out.fillBlankResponses)
+    ? out.fillBlankResponses.map((x) => String(x ?? ''))
+    : [];
+  const parentPart = parts.find((p) => p.kind === 'parent');
+  const parentCount = parentPart ? parentPart.blankCount : 0;
+  const subsAlreadyFilled = parts
+    .filter((p) => p.kind === 'sub')
+    .some((p) => {
+      const sub = ensureSub(p.subIndex);
+      return Array.isArray(sub.fillBlankResponses) && sub.fillBlankResponses.some((x) => String(x).trim());
+    });
+
+  if (flat.length === totalBlanks && totalBlanks > 0 && !subsAlreadyFilled) {
+    let offset = 0;
+    if (parentPart) {
+      out.fillBlankResponses = flat.slice(offset, offset + parentCount);
+      offset += parentCount;
+    } else {
+      out.fillBlankResponses = [];
+    }
+    for (const part of parts) {
+      if (part.kind !== 'sub') continue;
+      const sub = ensureSub(part.subIndex);
+      sub.fillBlankResponses = flat.slice(offset, offset + part.blankCount);
+      offset += part.blankCount;
+    }
+  }
+
+  out.subQuestionResponses = subResps;
+  return out;
+}
+
+function migrateAttemptFillBlankResponses(exercise, responses) {
+  const questions = exercise.questions || [];
+  return (responses || []).map((resp) => {
+    const i = Number(resp.questionIndex);
+    const q = questions[i];
+    if (!q) return resp;
+    return migrateFillBlankResponsesForQuestion(q, resp);
+  });
+}
+
+/** Grade one question response (same rules as POST /submit). */
+function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap) {
+  const useAdvancedGrading = isAdvancedGradingEnabled(q);
+  let isCorrect = false;
+  let pointsEarned = 0;
+  let rawScore = 0;
+  let correctAnswer = null;
+
+  if (q.type === 'mcq') {
+    rawScore = resp.selectedOptionIndex === q.correctAnswerIndex ? 100 : 0;
+    correctAnswer = { correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation };
+  } else if (q.type === 'matching') {
+    const pairs = q.pairs || [];
+    const total = pairs.length;
+    if (total > 0 && Array.isArray(resp.matchingResponse)) {
+      const byLeft = {};
+      for (const m of resp.matchingResponse) byLeft[m.leftIndex] = m;
+      let correctCount = 0;
+      for (let li = 0; li < total; li++) {
+        const match = byLeft[li];
+        if (!match) continue;
+        const expectedRight = pairs[li]?.right;
+        const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
+        if (expectedRight !== undefined && givenRight !== undefined && matchingRightsEqual(expectedRight, givenRight)) {
+          correctCount += 1;
+        }
+      }
+      rawScore = useAdvancedGrading
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+    }
+    correctAnswer = {
+      pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: sanitizeQuestionPlainText(p.right) }))
+    };
+  } else if (q.type === 'fill-blank') {
+    ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
+  } else if (q.type === 'word_bank_fill') {
+    const rows = Array.isArray(q.items) ? q.items : [];
+    const total = rows.length;
+    if (total > 0 && Array.isArray(resp.wordBankAnswers)) {
+      const byIndex = {};
+      resp.wordBankAnswers.forEach((entry) => {
+        const key = Number(entry?.index);
+        if (Number.isInteger(key) && key >= 0 && key < total) byIndex[key] = entry?.value;
+      });
+      let correctCount = 0;
+      for (let idx = 0; idx < total; idx++) {
+        const given = normalizeWordBankValue(byIndex[idx]);
+        if (wordBankRowAcceptsGiven(given, rows[idx])) correctCount += 1;
+      }
+      rawScore = useAdvancedGrading
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+    }
+    correctAnswer = {
+      wordBank: (Array.isArray(q.wordBank) ? q.wordBank : []).map((w) => sanitizeQuestionPlainText(w)),
+      reusableWords: q.reusableWords !== false,
+      items: mapWordBankCorrectAnswerPayload(rows)
+    };
+  } else if (q.type === 'singular_plural') {
+    const rows = (q.pairs || []).filter((p) => p.singular && p.plural);
+    const total = rows.length;
+    if (total > 0 && Array.isArray(resp.singularPluralResponses)) {
+      let correctCount = 0;
+      for (let idx = 0; idx < total; idx++) {
+        const given = String(resp.singularPluralResponses[idx] ?? '').trim();
+        const expected = String(rows[idx].plural || '').trim();
+        if (
+          given.toLowerCase().replace(/\s+/g, ' ') ===
+          expected.toLowerCase().replace(/\s+/g, ' ')
+        ) {
+          correctCount += 1;
+        }
+      }
+      rawScore = useAdvancedGrading
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+    }
+    correctAnswer = { plurals: rows.map((row) => row.plural) };
+  } else if (q.type === 'pronunciation') {
+    rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+    correctAnswer = { word: q.word, phonetic: q.phonetic, acceptedVariants: q.acceptedVariants };
+  } else if (q.type === 'video-pronunciation') {
+    rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+    correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
+  } else if (q.type === 'question-answer') {
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) {
+      const expected = parseTrueFalse(expectedRaw);
+      const given = parseTrueFalse(resp.qaResponse);
+      rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
+      correctAnswer = { sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [] };
+    } else {
+      const filtered = Array.isArray(q.sampleAnswers) ? q.sampleAnswers.filter(Boolean) : [];
+      if (useAdvancedGrading) {
+        const aiResult = qaScoreMap[questionIndex];
+        rawScore = Math.max(0, Math.min(100, Number(aiResult?.score) || 0));
+      } else {
+        const normalizedStudent = normalizeTextForExactCompare(resp.qaResponse || '');
+        const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+        rawScore = exact ? 100 : 0;
+      }
+      correctAnswer = { sampleAnswers: filtered };
+    }
+  } else if (q.type === 'listening') {
+    const studentText = normalizeListeningAnswer(resp.listeningText || resp.qaResponse || '');
+    const expected = normalizeListeningAnswer(q.expectedTranscript || '');
+    rawScore = (expected && studentText && studentText === expected) ? 100 : 0;
+    correctAnswer = { expectedTranscript: q.expectedTranscript };
+  } else if (q.type === 'jumble-word') {
+    rawScore = jumbleWordRawScore(resp.jumbleWordResponse, q.expectedWord, useAdvancedGrading);
+    correctAnswer = { expectedWord: q.expectedWord };
+  } else if (q.type === 'rearrange') {
+    rawScore = rearrangeRawScore(q, resp, useAdvancedGrading);
+    correctAnswer = {
+      rearrangeTokens: Array.isArray(q.rearrangeTokens) ? q.rearrangeTokens : [],
+      rearrangeAnswer: q.rearrangeAnswer || ''
+    };
+  } else if (q.type === 'image_pin_match') {
+    const labels = Array.isArray(q.labels) ? q.labels : [];
+    const submitted = Array.isArray(resp.imagePinAnswers) ? resp.imagePinAnswers : [];
+    const byLabel = {};
+    submitted.forEach((entry) => {
+      const lid = String(entry?.labelId || '');
+      const pid = String(entry?.pinId || '');
+      if (lid && pid) byLabel[lid] = pid;
+    });
+    let correctCount = 0;
+    const total = labels.length;
+    for (const l of labels) {
+      if (String(byLabel[String(l.id)] || '') === String(l.correctPinId || '')) correctCount += 1;
+    }
+    rawScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    correctAnswer = {
+      labels: labels.map((l) => ({ id: l.id, text: l.text, correctPinId: l.correctPinId })),
+      pins: Array.isArray(q.pins) ? q.pins : []
+    };
+  }
+
+  if (useAdvancedGrading) {
+    const scoring = applyThresholdScoring(q, rawScore);
+    isCorrect = scoring.isCorrect;
+    pointsEarned = scoring.pointsEarned;
+    correctAnswer = {
+      ...(correctAnswer || {}),
+      threshold: scoring.threshold,
+      scoringMode: scoring.scoringMode,
+      score: scoring.score,
+      aiGradingEnabled: true
+    };
+  } else if (q.type === 'pronunciation') {
+    const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+    isCorrect = score >= 70;
+    pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+    correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
+  } else if (q.type === 'video-pronunciation') {
+    const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
+    const threshold = normalizeThresholdForQuestion(q);
+    isCorrect = score >= threshold;
+    pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+    correctAnswer = { ...(correctAnswer || {}), score, threshold, aiGradingEnabled: false };
+  } else {
+    isCorrect = rawScore >= 100;
+    pointsEarned = isCorrect ? (q.points || 1) : 0;
+    correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
+  }
+
+  let subQuestionGrades = [];
+  ({
+    isCorrect,
+    pointsEarned,
+    correctAnswer,
+    subQuestionGrades
+  } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+
+  if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
+    subQuestionGrades = (subQuestionGrades || []).map((g) => {
+      const prev = (resp.subQuestionGrades || []).find((x) => Number(x.questionIndex) === g.questionIndex);
+      if (prev?.staffOverride) {
+        return {
+          ...g,
+          isCorrect: !!prev.isCorrect,
+          pointsEarned: Number(prev.pointsEarned) || 0,
+          staffOverride: true
+        };
+      }
+      return g;
+    });
+  }
+
+  return {
+    isCorrect,
+    pointsEarned,
+    correctAnswer,
+    subQuestionGrades,
+    gradedResp: {
+      questionIndex,
+      questionType: q.type,
+      selectedOptionIndex: resp.selectedOptionIndex,
+      matchingResponse: resp.matchingResponse,
+      fillBlankResponses: resp.fillBlankResponses,
+      wordBankAnswers: resp.wordBankAnswers,
+      singularPluralResponses: resp.singularPluralResponses,
+      spokenText: resp.spokenText,
+      pronunciationScore: resp.pronunciationScore,
+      qaResponse: resp.qaResponse,
+      listeningText: resp.listeningText,
+      jumbleWordResponse: resp.jumbleWordResponse,
+      rearrangeTextResponse: resp.rearrangeTextResponse,
+      rearrangeTokensResponse: resp.rearrangeTokensResponse,
+      imagePinAnswers: resp.imagePinAnswers,
+      subQuestionResponses: resp.subQuestionResponses,
+      subQuestionGrades,
+      isCorrect,
+      pointsEarned
+    }
+  };
+}
+
 /** Human-readable student submission for analytics / review UIs */
 function formatStudentAnswerForReview(q, r) {
   if (!r) return '—';
@@ -769,8 +1089,9 @@ function getParentPartReviewGrade(q, r) {
  */
 function buildPerQuestionReview(exercise, attempt) {
   const questions = exercise.questions || [];
+  const responses = migrateAttemptFillBlankResponses(exercise, attempt.responses || []);
   const byIdx = {};
-  (attempt.responses || []).forEach((r) => { byIdx[r.questionIndex] = r; });
+  responses.forEach((r) => { byIdx[r.questionIndex] = r; });
   const rows = [];
   let serial = 0;
 
@@ -824,9 +1145,9 @@ function buildPerQuestionReview(exercise, attempt) {
   return rows;
 }
 
-/** Recompute scores for a completed attempt from stored responses (e.g. after grading fixes). */
+/** Recompute scores for a completed attempt (migrates legacy fill-blank layout, then full regrade). */
 async function regradeCompletedAttempt(exercise, attemptDoc) {
-  const responses = Array.isArray(attemptDoc.responses) ? attemptDoc.responses : [];
+  const migrated = migrateAttemptFillBlankResponses(exercise, attemptDoc.responses || []);
   const qaScoreMap = {};
   const qaPromises = exercise.questions.map((q, i) => {
     if (q.type !== 'question-answer') return Promise.resolve();
@@ -835,7 +1156,7 @@ async function regradeCompletedAttempt(exercise, attemptDoc) {
     const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
     const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
     if (isTrueFalse) return Promise.resolve();
-    const resp = responses.find((r) => r.questionIndex === i) || {};
+    const resp = migrated.find((r) => Number(r.questionIndex) === i) || {};
     const studentAns = (resp.qaResponse || '').trim();
     if (!studentAns) return Promise.resolve();
     return aiGradeAnswer(q.prompt || '', samples.filter(Boolean), studentAns)
@@ -848,108 +1169,10 @@ async function regradeCompletedAttempt(exercise, attemptDoc) {
 
   for (let i = 0; i < exercise.questions.length; i++) {
     const q = exercise.questions[i];
-    const resp = responses.find((r) => Number(r.questionIndex) === i) || { questionIndex: i };
-    const useAdvancedGrading = isAdvancedGradingEnabled(q);
-    let isCorrect = false;
-    let pointsEarned = 0;
-    let rawScore = 0;
-    let correctAnswer = null;
-
-    if (q.type === 'mcq') {
-      rawScore = resp.selectedOptionIndex === q.correctAnswerIndex ? 100 : 0;
-      correctAnswer = { correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation };
-    } else if (q.type === 'fill-blank') {
-      ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
-    } else if (q.type === 'question-answer') {
-      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
-      const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
-      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
-      if (isTrueFalse) {
-        const expected = parseTrueFalse(expectedRaw);
-        const given = parseTrueFalse(resp.qaResponse);
-        rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
-        correctAnswer = { sampleAnswers: samples };
-      } else if ((resp.qaResponse || '').trim()) {
-        if (useAdvancedGrading) {
-          rawScore = Math.max(0, Math.min(100, Number(qaScoreMap[i]?.score) || 0));
-        } else {
-          const normalizedStudent = normalizeTextForExactCompare(resp.qaResponse || '');
-          rawScore = samples.some((s) => normalizeTextForExactCompare(s) === normalizedStudent) ? 100 : 0;
-        }
-        correctAnswer = { sampleAnswers: samples.filter(Boolean) };
-      }
-    } else if (q.type === 'matching' || q.type === 'word_bank_fill' || q.type === 'singular_plural' ||
-      q.type === 'pronunciation' || q.type === 'video-pronunciation' || q.type === 'listening' ||
-      q.type === 'jumble-word' || q.type === 'rearrange' || q.type === 'image_pin_match') {
-      // Preserve prior outcome when we cannot cheaply replay full grading here.
-      isCorrect = !!resp.isCorrect;
-      pointsEarned = Number(resp.pointsEarned) || 0;
-      rawScore = isCorrect ? 100 : 0;
-    }
-
-    if (pointsEarned === 0 && !(q.type === 'matching' || q.type === 'word_bank_fill')) {
-      if (useAdvancedGrading && q.type !== 'pronunciation' && q.type !== 'video-pronunciation') {
-        const scoring = applyThresholdScoring(q, rawScore);
-        isCorrect = scoring.isCorrect;
-        pointsEarned = scoring.pointsEarned;
-      } else if (q.type === 'pronunciation') {
-        const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
-        isCorrect = score >= 70;
-        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
-      } else if (q.type === 'video-pronunciation') {
-        const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
-        const threshold = normalizeThresholdForQuestion(q);
-        isCorrect = score >= threshold;
-        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
-      } else if (q.type !== 'matching' && q.type !== 'word_bank_fill' && q.type !== 'singular_plural' &&
-        q.type !== 'listening' && q.type !== 'jumble-word' && q.type !== 'rearrange' && q.type !== 'image_pin_match') {
-        isCorrect = rawScore >= 100;
-        pointsEarned = isCorrect ? (q.points || 1) : 0;
-      }
-    }
-
-    let subQuestionGrades = [];
-    if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
-      const attached = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer);
-      isCorrect = attached.isCorrect;
-      pointsEarned = attached.pointsEarned;
-      correctAnswer = attached.correctAnswer;
-      subQuestionGrades = (attached.subQuestionGrades || []).map((g) => {
-        const prev = (resp.subQuestionGrades || []).find((x) => Number(x.questionIndex) === g.questionIndex);
-        if (prev?.staffOverride) {
-          return {
-            ...g,
-            isCorrect: !!prev.isCorrect,
-            pointsEarned: Number(prev.pointsEarned) || 0,
-            staffOverride: true
-          };
-        }
-        return g;
-      });
-    }
-
-    earnedPoints += pointsEarned;
-    gradedResponses.push({
-      questionIndex: i,
-      questionType: q.type,
-      selectedOptionIndex: resp.selectedOptionIndex,
-      matchingResponse: resp.matchingResponse,
-      fillBlankResponses: resp.fillBlankResponses,
-      wordBankAnswers: resp.wordBankAnswers,
-      singularPluralResponses: resp.singularPluralResponses,
-      spokenText: resp.spokenText,
-      pronunciationScore: resp.pronunciationScore,
-      qaResponse: resp.qaResponse,
-      listeningText: resp.listeningText,
-      jumbleWordResponse: resp.jumbleWordResponse,
-      rearrangeTextResponse: resp.rearrangeTextResponse,
-      rearrangeTokensResponse: resp.rearrangeTokensResponse,
-      imagePinAnswers: resp.imagePinAnswers,
-      subQuestionResponses: resp.subQuestionResponses,
-      subQuestionGrades,
-      isCorrect,
-      pointsEarned
-    });
+    const resp = migrated.find((r) => Number(r.questionIndex) === i) || { questionIndex: i };
+    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap);
+    earnedPoints += graded.pointsEarned;
+    gradedResponses.push(graded.gradedResp);
   }
 
   attemptDoc.responses = gradedResponses;
@@ -2983,6 +3206,59 @@ router.post('/:id/attempts/:attemptId/regrade', verifyToken, checkRole(['ADMIN',
       return res.status(code).json({ error: err.message });
     }
     console.error('POST /digital-exercises/:id/attempts/:attemptId/regrade error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/digital-exercises/:id/attempts/regrade-all
+// Re-map legacy fill-blank answers and regrade every completed attempt (updates stored scores).
+router.post('/:id/attempts/regrade-all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true }
+    }).lean();
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    await assertTeacherOwnsExercise(req.user, exercise);
+
+    const attempts = await ExerciseAttempt.find({
+      exerciseId: req.params.id,
+      status: 'completed'
+    });
+
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const attempt of attempts) {
+      try {
+        await regradeCompletedAttempt(exercise, attempt);
+        await attempt.save();
+        updated += 1;
+      } catch (e) {
+        skipped += 1;
+        errors.push({ attemptId: attempt._id, error: e?.message || 'regrade failed' });
+      }
+    }
+
+    await refreshExerciseCompletionStats(req.params.id);
+
+    return res.json({
+      success: true,
+      exerciseId: req.params.id,
+      totalAttempts: attempts.length,
+      updated,
+      skipped,
+      hasMultipartFillBlank: exerciseHasMultipartFillBlank(exercise),
+      errors: errors.slice(0, 20)
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    if (code !== 500) {
+      return res.status(code).json({ error: err.message });
+    }
+    console.error('POST /digital-exercises/:id/attempts/regrade-all error:', err);
     return res.status(500).json({ error: err.message });
   }
 });

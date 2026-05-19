@@ -405,11 +405,39 @@
 
             <div
               class="review-part-label"
-              *ngIf="hasSubQuestions(pq.data)"
+              *ngIf="hasSubQuestions(pq.data) && !hasFillBlankReviewItems(pq, i)"
             >
               Q {{ getQuestionPartLabel(i, getParentPartNumber()) }}
             </div>
 
+            <div class="review-fill-blank-list" *ngIf="hasFillBlankReviewItems(pq, i)">
+              <div
+                class="review-blank-card"
+                *ngFor="let blank of getFillBlankReviewItems(pq, i)"
+                [class.correct]="blank.isCorrect"
+                [class.wrong]="blank.answered && !blank.isCorrect"
+                [class.unanswered]="!blank.answered"
+              >
+                <div class="review-blank-head">
+                  <span class="review-blank-num">Blank {{ blank.globalIndex }}</span>
+                  <span class="review-blank-part">{{ blank.partLabel }}</span>
+                </div>
+                <div class="review-answer-row">
+                  <span class="review-label">Your answer:</span>
+                  <span
+                    class="review-value"
+                    [class.correct]="blank.isCorrect"
+                    [class.wrong]="blank.answered && !blank.isCorrect"
+                  >{{ blank.answered ? blank.studentAnswer : 'Not answered' }}</span>
+                </div>
+                <div class="review-answer-row">
+                  <span class="review-label">Correct answer:</span>
+                  <span class="review-value correct">{{ blank.correctAnswer || '—' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <ng-container *ngIf="!hasFillBlankReviewItems(pq, i)">
             <div class="review-answer-row">
               <span class="review-label">Your answer:</span>
               <span class="review-value" [class.wrong]="!pq.isCorrect">{{
@@ -422,6 +450,7 @@
                 getReviewCorrectText(pq)
               }}</span>
             </div>
+            </ng-container>
 
             <!-- Answer explanation (shown when present, highlighted for wrong answers) -->
             <div
@@ -460,13 +489,13 @@
                   <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
 
                   <!-- Sub-question answer -->
-                  <div class="review-sub-q-answer">
+                  <div class="review-sub-q-answer" *ngIf="sq.type !== 'fill-blank' || !hasFillBlankReviewItems(pq, i)">
                     <span class="review-label">Your answer:</span>
                     <span class="review-value">{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
                   </div>
-                  <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && sq._correctAnswers?.length">
-                    <span class="review-label">Correct:</span>
-                    <span class="review-value correct">{{ sq._correctAnswers.join(' / ') }}</span>
+                  <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && !hasFillBlankReviewItems(pq, i)">
+                    <span class="review-label">Correct answer:</span>
+                    <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
                   </div>
                   <div class="review-sub-q-correct" *ngIf="sq.type === 'mcq'">
                     <span class="review-label">Correct:</span>

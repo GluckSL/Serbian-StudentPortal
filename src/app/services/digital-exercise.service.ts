@@ -585,6 +585,27 @@ export class DigitalExerciseService {
     );
   }
 
+  /** Re-map legacy fill-blank answers and regrade all completed attempts for an exercise */
+  regradeAllAttemptsForStaff(exerciseId: string): Observable<{
+    success: boolean;
+    exerciseId: string;
+    totalAttempts: number;
+    updated: number;
+    skipped: number;
+    hasMultipartFillBlank: boolean;
+    errors?: Array<{ attemptId: string; error: string }>;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      exerciseId: string;
+      totalAttempts: number;
+      updated: number;
+      skipped: number;
+      hasMultipartFillBlank: boolean;
+      errors?: Array<{ attemptId: string; error: string }>;
+    }>(`${this.apiUrl}/${exerciseId}/attempts/regrade-all`, {}, { withCredentials: true });
+  }
+
   // ─── Analytics (Teacher/Admin) ────────────────────────────────────────────
 
   getExerciseCompletions(exerciseId: string, filters: { date?: string; studentId?: string; page?: number; limit?: number } = {}): Observable<any> {
