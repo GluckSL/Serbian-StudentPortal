@@ -10,10 +10,10 @@ const MeetingLink = require('../models/MeetingLink');
 const ZoomWebhookAudit = require('../models/ZoomWebhookAudit');
 const User = require('../models/User');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, HeadObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config/r2');
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
-const { processManualRecordingUpload } = require('../services/recordingProcessor');
+const { processManualRecordingUpload, processManualRecordingFromR2 } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
 const { markPendingAdvanceForStudentDay, checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
@@ -755,6 +755,135 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       return res.status(500).json({ success: false, message: error.message });
     }
   });
+});
+
+/**
+ * POST /api/class-recordings/upload/prepare
+ *
+ * Step 1 of the fast-upload flow: create the ClassRecording DB record and return
+ * a short-lived presigned R2 PUT URL so the browser can upload the raw video
+ * file directly to R2 (bypassing the Node.js server entirely).
+ * Body: { title, description, level, plan, batches, courseDay, filename, contentType }
+ * Returns: { recordingId, uploadUrl, r2RawKey }
+ */
+router.post('/upload/prepare', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    if (!R2_CONFIG_OK) {
+      return res.status(503).json({
+        success: false,
+        message: `R2 is not configured: ${r2ConfigIssues.join(', ')}`,
+      });
+    }
+
+    const { title, description = '', level, plan = 'ALL', courseDay, filename, contentType } = req.body || {};
+    const rawBatches = req.body?.batches;
+    const batches = Array.isArray(rawBatches)
+      ? rawBatches
+      : String(rawBatches || '').split(',').map((v) => v.trim()).filter(Boolean);
+
+    if (!title || !level || !batches.length || !filename || !contentType) {
+      return res.status(400).json({
+        success: false,
+        message: 'title, level, batches, filename, and contentType are required.',
+      });
+    }
+
+    let normalizedCourseDay = null;
+    if (courseDay !== null && courseDay !== '' && courseDay !== undefined) {
+      const n = parseInt(String(courseDay), 10);
+      normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+    }
+
+    const recording = await ClassRecording.create({
+      title: String(title).trim(),
+      description: String(description || '').trim(),
+      videoUrl: '',
+      batches,
+      level: String(level),
+      plan: String(plan || 'ALL'),
+      sourceType: 'HLS_UPLOAD',
+      status: 'processing',
+      courseDay: normalizedCourseDay,
+      hlsKey: null,
+      errorMessage: null,
+      uploadedBy: req.user.id,
+      isPublished: false,
+      publishedAt: null,
+    });
+
+    const safeFilename = String(filename)
+      .replace(/[^\w.\-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const r2RawKey = `uploads/raw/${recording._id}/${safeFilename}`;
+
+    const putCommand = new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: r2RawKey,
+      ContentType: String(contentType),
+    });
+    const uploadUrl = await getSignedUrl(r2Client, putCommand, { expiresIn: 3600 });
+
+    console.log(`[ManualUpload] Prepared direct upload: recordingId=${recording._id} key=${r2RawKey}`);
+    return res.json({ success: true, recordingId: recording._id, uploadUrl, r2RawKey });
+  } catch (error) {
+    console.error('Error preparing direct upload:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * POST /api/class-recordings/:id/start-processing
+ *
+ * Step 3 of the fast-upload flow: called after the browser has finished uploading
+ * the raw video directly to R2.  Kicks off the FFmpeg → HLS → R2 pipeline.
+ * Body: { r2RawKey }
+ */
+router.post('/:id/start-processing', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { r2RawKey } = req.body || {};
+
+    if (!r2RawKey) {
+      return res.status(400).json({ success: false, message: 'r2RawKey is required.' });
+    }
+
+    const recording = await ClassRecording.findById(id);
+    if (!recording) {
+      return res.status(404).json({ success: false, message: 'Recording not found.' });
+    }
+    if (recording.status !== 'processing') {
+      return res.status(400).json({ success: false, message: `Recording is already ${recording.status}.` });
+    }
+
+    res.status(202).json({ success: true, message: 'Processing started in background.' });
+
+    processManualRecordingFromR2(String(id), r2RawKey)
+      .then(async (result) => {
+        if (result?.success && result.hlsKey) {
+          await ClassRecording.findByIdAndUpdate(id, {
+            status: 'ready',
+            hlsKey: result.hlsKey,
+            duration: Number.isFinite(Number(result.duration)) ? Number(result.duration) : null,
+            errorMessage: null,
+          });
+          return;
+        }
+        await ClassRecording.findByIdAndUpdate(id, {
+          status: 'failed',
+          errorMessage: result?.error || 'Conversion failed',
+        });
+      })
+      .catch(async (err) => {
+        await ClassRecording.findByIdAndUpdate(id, {
+          status: 'failed',
+          errorMessage: err.message || 'Conversion failed',
+        });
+      });
+  } catch (error) {
+    console.error('Error starting processing:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 /**

@@ -825,6 +825,26 @@
   color: #475569;
 }
 
+.cr-upload-progress__actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cr-upload-progress__bg-hint {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin: 0;
+  flex: 1 0 100%;
+}
+
+.cr-btn--sm {
+  padding: 5px 12px;
+  font-size: 0.75rem;
+}
+
 .cr-field { margin-bottom: 14px; }
 
 .cr-field-row {

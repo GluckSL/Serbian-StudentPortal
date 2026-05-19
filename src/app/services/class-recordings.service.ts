@@ -252,6 +252,31 @@ export class ClassRecordingsService {
       );
   }
 
+  /**
+   * Step 1 of fast direct-upload flow: create the DB record server-side and
+   * receive a presigned R2 PUT URL so the browser can upload directly to R2.
+   */
+  prepareDirectUpload(data: {
+    title: string;
+    description: string;
+    level: string;
+    plan: string;
+    batches: string[];
+    courseDay: number | null;
+    filename: string;
+    contentType: string;
+  }): Observable<{ success: boolean; recordingId: string; uploadUrl: string; r2RawKey: string }> {
+    return this.http.post<any>(`${this.url}/upload/prepare`, data);
+  }
+
+  /**
+   * Step 3 of fast direct-upload flow: tell the server the file is now in R2
+   * at `r2RawKey` so it can start the FFmpeg → HLS pipeline in the background.
+   */
+  startProcessing(recordingId: string, r2RawKey: string): Observable<{ success: boolean }> {
+    return this.http.post<any>(`${this.url}/${recordingId}/start-processing`, { r2RawKey });
+  }
+
   update(id: string, data: any): Observable<{ success: boolean; recording: ClassRecording }> {
     return this.http.put<any>(`${this.url}/${id}`, data);
   }

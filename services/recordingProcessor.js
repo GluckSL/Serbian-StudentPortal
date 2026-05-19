@@ -10,6 +10,7 @@ const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const { Upload } = require('@aws-sdk/lib-storage');
+const { GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET } = require('../config/r2');
 const zoomService = require('./zoomService');
 const MeetingLink = require('../models/MeetingLink');
@@ -858,6 +859,70 @@ async function processManualRecordingUpload(recordingId, localFilePath) {
   }
 }
 
+/**
+ * Download a raw video from R2 (uploaded directly by the browser via presigned URL),
+ * convert it to HLS, upload the HLS segments back to R2, then delete the raw file.
+ * Returns the same shape as processManualRecordingUpload: { success, hlsKey, duration }.
+ */
+async function processManualRecordingFromR2(recordingId, r2RawKey) {
+  if (!recordingId) throw new Error('recordingId is required');
+  if (!r2RawKey) throw new Error('r2RawKey is required');
+
+  const hlsPrefix = `manual/${recordingId}/hls`;
+  const rawTmpDir = path.join(RECORDING_WORK_DIR, `raw-dl-${recordingId}-${Date.now()}`);
+  let localFilePath = null;
+  let hlsDir = null;
+  let durationSec = null;
+
+  try {
+    fs.mkdirSync(rawTmpDir, { recursive: true });
+    const ext = path.extname(r2RawKey) || '.mp4';
+    localFilePath = path.join(rawTmpDir, `input${ext}`);
+
+    console.log(`[ManualUpload] Downloading raw file from R2: ${r2RawKey}`);
+    const getRes = await r2Client.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: r2RawKey }));
+    await pipeline(getRes.Body, fs.createWriteStream(localFilePath));
+    console.log(`[ManualUpload] Download complete → ${localFilePath}`);
+
+    durationSec = await new Promise((resolve) => {
+      ffmpeg.ffprobe(localFilePath, (err, metadata) => {
+        if (err) return resolve(null);
+        const d = Number(metadata?.format?.duration || 0);
+        if (!Number.isFinite(d) || d <= 0) return resolve(null);
+        resolve(Math.round(d));
+      });
+    });
+
+    const result = await convertToHLS(localFilePath, `manual-${recordingId}`);
+    hlsDir = result.tmpDir;
+    const hlsKey = await uploadHlsToR2(hlsDir, result.files, hlsPrefix);
+
+    // Best-effort delete of the raw upload to free R2 storage
+    try {
+      await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: r2RawKey }));
+      console.log(`[ManualUpload] Deleted raw R2 file: ${r2RawKey}`);
+    } catch (e) {
+      console.warn(`⚠️  Could not delete raw R2 file ${r2RawKey}: ${e.message}`);
+    }
+
+    return { success: true, hlsKey, duration: durationSec };
+  } catch (err) {
+    console.error(`[ManualUpload] processManualRecordingFromR2 failed for ${recordingId}:`, err.message);
+    return { success: false, error: err.message || 'Manual upload processing from R2 failed' };
+  } finally {
+    if (rawTmpDir && fs.existsSync(rawTmpDir)) {
+      try { fs.rmSync(rawTmpDir, { recursive: true, force: true }); } catch (e) {
+        console.warn(`⚠️  Could not remove raw download dir ${rawTmpDir}: ${e.message}`);
+      }
+    }
+    if (hlsDir && fs.existsSync(hlsDir)) {
+      try { fs.rmSync(hlsDir, { recursive: true, force: true }); } catch (e) {
+        console.warn(`⚠️  Could not remove HLS temp dir ${hlsDir}: ${e.message}`);
+      }
+    }
+  }
+}
+
 // ── Startup orphan sweep + periodic maintenance ───────────────────────────────
 // Run once at boot so any temp files left by a previous crash are removed before
 // the first job starts, then repeat every 2 hours to prevent ENOSPC accumulation.
@@ -865,4 +930,4 @@ sweepOrphanedTempFiles();
 const _orphanSweepTimer = setInterval(() => sweepOrphanedTempFiles(), 2 * 60 * 60 * 1000);
 if (typeof _orphanSweepTimer.unref === 'function') _orphanSweepTimer.unref();
 
-module.exports = { processZoomRecording, processManualRecordingUpload };
+module.exports = { processZoomRecording, processManualRecordingUpload, processManualRecordingFromR2 };

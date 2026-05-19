@@ -74,6 +74,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   private conversionEstimateSec = 20 * 60;
   private modalConversionPollTimer: ReturnType<typeof setInterval> | null = null;
   private modalConversionRecordingId: string | null = null;
+  /** XHR used for direct-to-R2 upload so it can be aborted. */
+  private directUploadXhr: XMLHttpRequest | null = null;
 
   form = {
     title: '',
@@ -215,6 +217,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.stopProcessingClock();
     this.stopManualUploadPolling();
     this.stopModalConversionPolling();
+    if (this.directUploadXhr) { this.directUploadXhr.abort(); this.directUploadXhr = null; }
     if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
   }
 
@@ -423,12 +426,49 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   closeForm(): void {
-    if (this.uploadInProgress) return;
+    // Block close only while the file is actively transferring to the server/R2.
+    if (this.uploadPhase === 'uploading') return;
+    // During the server-side conversion phase, let the admin work elsewhere.
+    if (this.uploadPhase === 'converting') {
+      this.sendToBackground();
+      return;
+    }
     this.resetUploadProgress();
     this.showForm = false;
     this.editing = null;
     this.selectedVideoFile = null;
     this.saving = false;
+  }
+
+  /** Dismiss the modal while conversion runs server-side; notify via snackbar when done. */
+  sendToBackground(): void {
+    const rid = this.modalConversionRecordingId;
+    this.stopModalConversionPolling();
+    this.resetUploadProgress();
+    this.showForm = false;
+    this.editing = null;
+    this.selectedVideoFile = null;
+    this.saving = false;
+    if (rid) {
+      this.startManualUploadPolling(rid);
+    }
+    this.snackBar.open(
+      'Video conversion is running in the background. You\'ll be notified when it\'s ready.',
+      'OK',
+      { duration: 8000 }
+    );
+    this.loadRecordings();
+  }
+
+  /** Cancel an in-progress file upload (aborts the XHR). */
+  cancelUpload(): void {
+    if (this.directUploadXhr) {
+      this.directUploadXhr.abort();
+      this.directUploadXhr = null;
+    }
+    this.saving = false;
+    this.resetUploadProgress();
+    this.snackBar.open('Upload cancelled.', 'Close', { duration: 3000 });
   }
 
   private resetUploadProgress(): void {
@@ -442,6 +482,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.uploadStartedAtMs = 0;
     this.conversionStartedAtMs = 0;
     this.modalConversionRecordingId = null;
+    this.directUploadXhr = null;
     this.stopModalConversionPolling();
   }
 
@@ -509,6 +550,13 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Fast upload flow:
+   * 1. Ask server for a presigned R2 PUT URL (also creates the DB record).
+   * 2. PUT the file directly to R2 via XHR (progress events, no Node bottleneck).
+   * 3. Tell the server the file is ready → triggers FFmpeg in the background.
+   * 4. Close the modal automatically; conversion continues server-side.
+   */
   private beginFileUpload(fd: FormData, file: File): void {
     this.saving = true;
     this.uploadInProgress = true;
@@ -521,31 +569,94 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.uploadStartedAtMs = Date.now();
     this.conversionEstimateSec = this.estimateConversionSecondsForFile(file);
 
-    this.service.createFromUploadWithProgress(fd).subscribe({
-      next: (event) => {
-        if (event.kind === 'progress') {
-          this.uploadLoadedBytes = event.loaded;
-          if (event.total != null && event.total > 0) {
-            this.uploadTotalBytes = event.total;
-          }
-          this.uploadPercent = event.percent;
-          this.uploadEtaText = this.formatUploadEta(event.loaded, this.uploadTotalBytes);
-          const sizeHint = this.formatUploadSizeHint(event.loaded, this.uploadTotalBytes);
-          this.uploadStatusLine = `Uploading video${sizeHint ? ` · ${sizeHint}` : ''}`;
-          return;
-        }
-        if (event.kind === 'complete') {
-          this.uploadPercent = 100;
-          this.uploadEtaText = '';
-          this.startModalConversionPhase(event.body.recordingId);
-        }
+    // Extract scalar form fields from FormData for the prepare request.
+    const prepareData = {
+      title: fd.get('title') as string,
+      description: (fd.get('description') as string) || '',
+      level: fd.get('level') as string,
+      plan: (fd.get('plan') as string) || 'ALL',
+      batches: ((fd.get('batches') as string) || '').split(',').map((b) => b.trim()).filter(Boolean),
+      courseDay: fd.has('courseDay') ? Number(fd.get('courseDay')) || null : null,
+      filename: file.name,
+      contentType: file.type || 'video/mp4',
+    };
+
+    this.service.prepareDirectUpload(prepareData).subscribe({
+      next: ({ recordingId, uploadUrl, r2RawKey }) => {
+        this.uploadStatusLine = `Uploading video · ${this.formatBytes(0)} / ${this.formatBytes(file.size)}`;
+        this.uploadStartedAtMs = Date.now();
+        this.directUploadXhr = this.uploadFileToR2(uploadUrl, file, {
+          onProgress: (loaded, total) => {
+            this.uploadLoadedBytes = loaded;
+            this.uploadTotalBytes = total;
+            this.uploadPercent = total > 0 ? Math.min(99, Math.round((100 * loaded) / total)) : 0;
+            this.uploadEtaText = this.formatUploadEta(loaded, total);
+            const sizeHint = this.formatUploadSizeHint(loaded, total);
+            this.uploadStatusLine = `Uploading video${sizeHint ? ` · ${sizeHint}` : ''}`;
+          },
+          onComplete: () => {
+            this.uploadPercent = 100;
+            this.uploadEtaText = 'Upload complete — starting conversion…';
+            this.directUploadXhr = null;
+            this.service.startProcessing(recordingId, r2RawKey).subscribe({
+              next: () => this.startModalConversionPhase(recordingId),
+              error: (err) => {
+                this.saving = false;
+                this.resetUploadProgress();
+                this.snackBar.open(err.error?.message || 'Failed to start conversion', 'Close', { duration: 5000 });
+              },
+            });
+          },
+          onError: (status) => {
+            this.directUploadXhr = null;
+            this.saving = false;
+            this.resetUploadProgress();
+            this.snackBar.open(
+              status === 0 ? 'Upload cancelled.' : `Upload failed (HTTP ${status})`,
+              'Close',
+              { duration: 5000 }
+            );
+          },
+        });
       },
       error: (err) => {
         this.saving = false;
         this.resetUploadProgress();
-        this.snackBar.open(err.error?.message || 'Upload failed', 'Close', { duration: 4000 });
+        this.snackBar.open(err.error?.message || 'Failed to prepare upload', 'Close', { duration: 5000 });
       },
     });
+  }
+
+  /**
+   * PUT a file directly to a presigned URL using XMLHttpRequest.
+   * Returns the XHR instance so callers can abort it.
+   */
+  private uploadFileToR2(
+    presignedUrl: string,
+    file: File,
+    callbacks: {
+      onProgress: (loaded: number, total: number) => void;
+      onComplete: () => void;
+      onError: (status: number) => void;
+    }
+  ): XMLHttpRequest {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', presignedUrl, true);
+    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) callbacks.onProgress(e.loaded, e.total);
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        callbacks.onComplete();
+      } else {
+        callbacks.onError(xhr.status);
+      }
+    });
+    xhr.addEventListener('error', () => callbacks.onError(xhr.status));
+    xhr.addEventListener('abort', () => callbacks.onError(0));
+    xhr.send(file);
+    return xhr;
   }
 
   private startModalConversionPhase(recordingId: string): void {
@@ -556,10 +667,16 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.uploadPhase = 'converting';
     this.conversionStartedAtMs = Date.now();
     this.modalConversionRecordingId = recordingId;
-    this.uploadStatusLine = 'Converting video to HLS (this runs on the server)';
+    this.uploadStatusLine = 'File received — converting to HLS on the server (runs in background)';
     this.updateConversionProgressDisplay();
     this.loadRecordings();
     this.startModalConversionPolling(recordingId);
+    // Auto-send to background after 4 s so the admin can keep working.
+    setTimeout(() => {
+      if (this.uploadPhase === 'converting') {
+        this.sendToBackground();
+      }
+    }, 4000);
   }
 
   private startModalConversionPolling(recordingId: string): void {
