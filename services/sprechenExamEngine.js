@@ -30,27 +30,55 @@ async function presignCard(card) {
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 
-function makeSpellPhase(id, prompt) {
+/** Card shown during Teil 1 (intro image + keyword fallback). */
+function teil1StudentCard(module) {
+  const t1 = (module && module.teil1) || {};
   return {
-    id,
-    role: 'student',
+    type: 'keywords',
+    content: (t1.keywords || []).join(', '),
+    imageUrl: t1.introCardImageUrl || '',
+  };
+}
+
+function makeSpellAskPhase(id, prompt) {
+  return {
+    id: `${id}_ask`,
+    role: 'moderator',
     teil: 1,
     card: null,
-    turnType: 'teil1_spell',
-    evalTeil: 'teil1',
     getData: async () => ({ botSpeech: prompt, card: null }),
   };
 }
 
-function makeNumberPhase(id, prompt) {
+function makeSpellAnswerPhase(id) {
   return {
     id,
     role: 'student',
     teil: 1,
+    card: teil1StudentCard,
+    turnType: 'teil1_spell',
+    evalTeil: 'teil1',
+  };
+}
+
+function makeNumberAskPhase(id, prompt) {
+  return {
+    id: `${id}_ask`,
+    role: 'moderator',
+    teil: 1,
     card: null,
+    getData: async () => ({ botSpeech: prompt, card: null }),
+  };
+}
+
+function makeNumberAnswerPhase(id) {
+  return {
+    id,
+    role: 'student',
+    teil: 1,
+    card: teil1StudentCard,
     turnType: 'teil1_number',
     evalTeil: 'teil1',
-    getData: async () => ({ botSpeech: prompt, card: null }),
   };
 }
 
@@ -107,36 +135,35 @@ function buildPhaseSequence(mod) {
     id: 'teil1_card',
     role: 'student',
     teil: 1,
-    card: (module) => ({
-      type: 'keywords',
-      content: (module.teil1.keywords || []).join(', '),
-      imageUrl: (module.teil1 && module.teil1.introCardImageUrl) || '',
-    }),
+    card: teil1StudentCard,
     turnType: 'teil1_card',
     evalTeil: 'teil1',
     instruction: 'Stellen Sie sich bitte vor. Sie können die Karte benutzen.',
     instructionEn: 'Please introduce yourself. You may use the card.',
   });
 
-  // Generate a phase for each spell prompt (e.g. "Buchstabieren Sie bitte Ihren Nachnamen.")
+  // Each spell/number prompt: moderator asks, then student answers (same pattern as Teil 2).
   const spellPrompts = (mod && mod.teil1 && mod.teil1.spellPrompts) || [];
   if (spellPrompts.length === 0) {
-    // Fallback single prompt when none configured
-    phases.push(makeSpellPhase('teil1_spell', 'Buchstabieren Sie bitte Ihren Nachnamen.'));
+    phases.push(makeSpellAskPhase('teil1_spell', 'Buchstabieren Sie bitte Ihren Nachnamen.'));
+    phases.push(makeSpellAnswerPhase('teil1_spell'));
   } else {
     spellPrompts.forEach((prompt, i) => {
-      phases.push(makeSpellPhase(`teil1_spell${i > 0 ? `_${i}` : ''}`, prompt));
+      const id = `teil1_spell${i > 0 ? `_${i}` : ''}`;
+      phases.push(makeSpellAskPhase(id, prompt));
+      phases.push(makeSpellAnswerPhase(id));
     });
   }
 
-  // Generate a phase for each number prompt (e.g. "Nennen Sie mir bitte Ihre Telefonnummer.")
   const numberPrompts = (mod && mod.teil1 && mod.teil1.numberPrompts) || [];
   if (numberPrompts.length === 0) {
-    // Fallback single prompt when none configured
-    phases.push(makeNumberPhase('teil1_number', 'Nennen Sie mir bitte Ihre Telefonnummer.'));
+    phases.push(makeNumberAskPhase('teil1_number', 'Nennen Sie mir bitte Ihre Telefonnummer.'));
+    phases.push(makeNumberAnswerPhase('teil1_number'));
   } else {
     numberPrompts.forEach((prompt, i) => {
-      phases.push(makeNumberPhase(`teil1_number${i > 0 ? `_${i}` : ''}`, prompt));
+      const id = `teil1_number${i > 0 ? `_${i}` : ''}`;
+      phases.push(makeNumberAskPhase(id, prompt));
+      phases.push(makeNumberAnswerPhase(id));
     });
   }
 
@@ -626,17 +653,6 @@ async function _runFromIndex(session, module, phases, startIdx, _prevBotSpeech, 
     // Student phase — stop here and wait
     const studentCard = getCard(phaseDef, module);
 
-    // If the phase has a getData function (e.g. spell/number prompts),
-    // generate the bot speech so the student hears the instruction.
-    if (typeof phaseDef.getData === 'function') {
-      const phaseData = await phaseDef.getData(module, session);
-      const botSpeech = phaseData.botSpeech;
-      const captionEn = phaseData.captionEn || '';
-      if (botSpeech) {
-        botMessages.push(botMsg('bot', botSpeech, { phase: phaseDef.id, captionEn }));
-      }
-    }
-
     session.state.phase = phaseDef.id;
     session.state.awaitingStudent = true;
     if (studentCard) {
@@ -644,6 +660,13 @@ async function _runFromIndex(session, module, phases, startIdx, _prevBotSpeech, 
       session.state.cardContent = studentCard.content || '';
       session.state.cardImageUrl = studentCard.imageUrl || '';
       finalCard = studentCard;
+    } else if (phaseDef.teil === 1) {
+      // Keep Teil 1 intro card visible for spell/number turns when no per-phase card.
+      const t1Card = teil1StudentCard(module);
+      session.state.cardType = t1Card.type || '';
+      session.state.cardContent = t1Card.content || '';
+      session.state.cardImageUrl = t1Card.imageUrl || '';
+      if (t1Card.imageUrl || t1Card.content) finalCard = t1Card;
     } else {
       session.state.cardType = '';
       session.state.cardContent = '';

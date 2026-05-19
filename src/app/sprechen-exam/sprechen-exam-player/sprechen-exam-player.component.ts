@@ -21,6 +21,7 @@ import { DgCharacterStateService } from '../../dg-bot/dg-character-state.service
 import { DgTtsService } from '../../dg-bot/dg-tts.service';
 import { DgAudioPlayerService } from '../../dg-bot/dg-audio-player.service';
 import { dgWithOneRetry } from '../../dg-bot/dg-player.util';
+import { resolveMediaUrl } from '../../utils/media-url';
 import { ExamCardPanelComponent } from '../exam-card-panel/exam-card-panel.component';
 import { ExamProgressComponent } from '../exam-progress/exam-progress.component';
 import { ExamSummaryComponent } from '../exam-summary/exam-summary.component';
@@ -233,14 +234,9 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
 
     this.phase = result.phase;
     this.teilNumber = this._inferTeilFromPhase(result.phase);
+    this._syncCardFromResult(result);
 
-    if (result.card) {
-      this.currentCard = result.card;
-    } else if (!result.awaitingStudent) {
-      this.currentCard = null;
-    }
-
-    for (const msg of result.botMessages) {
+    for (const msg of result.botMessages || []) {
       await this._speakBotMessage(msg);
     }
 
@@ -342,6 +338,29 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
     if (phase.startsWith('teil2')) return 2;
     if (phase.startsWith('teil3')) return 3;
     return 0;
+  }
+
+  /** Keep Teil 1 intro card visible for the whole of Part 1 when the API omits card on later turns. */
+  private _syncCardFromResult(result: SprechenTurnResult): void {
+    if (result.card) {
+      this.currentCard = result.card;
+      return;
+    }
+    if (this._inferTeilFromPhase(result.phase) === 1 && result.awaitingStudent) {
+      const t1 = this.payload?.module?.teil1;
+      const imageUrl = resolveMediaUrl(t1?.introCardImageUrl);
+      if (imageUrl || (t1?.keywords?.length ?? 0) > 0) {
+        this.currentCard = {
+          type: 'keywords',
+          content: (t1?.keywords || []).join(', '),
+          imageUrl: imageUrl || undefined,
+        };
+        return;
+      }
+    }
+    if (!result.awaitingStudent) {
+      this.currentCard = null;
+    }
   }
 
   private _scrollChat(): void {
