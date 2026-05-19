@@ -251,7 +251,7 @@ interface QuickLink {
       letter-spacing: -0.03em; line-height: 1.15;
     }
     .arena-hero p { margin: 6px 0 0; font-size: 14px; color: var(--arena-muted); max-width: 360px; }
-    .arena-hero .gsb--hero { }
+    ::ng-deep .arena-hero .gsb--hero { margin-bottom: 0; }
     @media (min-width: 1700px) {
       .arena-hero .gsb--hero { grid-template-columns: repeat(7, 1fr) !important; margin-top: 30px; }
     }

@@ -97,26 +97,23 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
               *ngFor="let e of leaderboard"
               [class.lb__row--me]="isMe(e)"
             >
-              <span class="lb__rank"
-                [class.lb__rank--gold]="e.rank === 1"
-                [class.lb__rank--silver]="e.rank === 2"
-                [class.lb__rank--bronze]="e.rank === 3"
-              >{{ e.rank }}</span>
-              <div class="lb__avatar">{{ e.name.charAt(0).toUpperCase() }}</div>
-              <div class="lb__info">
-                <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">(You)</span></span>
-            <span class="lb__sub">
-              {{ e.gamesCompleted ?? 0 }} games · Best: {{ e.bestScore }} pts
-              <ng-container *ngIf="e.accuracy != null"> · {{ e.accuracy }}% accuracy</ng-container>
-              <ng-container *ngIf="e.currentStreak != null"> · 🔥 {{ e.currentStreak }} streak</ng-container>
-            </span>
-              </div>
-              <div class="lb__stats">
-                <span class="lb__stat"><mat-icon>bolt</mat-icon> {{ e.totalXp }}</span>
-                <span class="lb__stat"><mat-icon>sports_esports</mat-icon> {{ e.gamesCompleted ?? 0 }}</span>
-                <span class="lb__stat"><mat-icon>emoji_events</mat-icon> {{ e.bestScore }}</span>
-                <span class="lb__stat" *ngIf="e.accuracy != null"><mat-icon>track_changes</mat-icon> {{ e.accuracy }}%</span>
-                <span class="lb__stat" *ngIf="e.currentStreak"><mat-icon>local_fire_department</mat-icon> {{ e.currentStreak }}</span>
+              <div class="lb__row-top">
+                <span class="lb__rank"
+                  [class.lb__rank--gold]="e.rank === 1"
+                  [class.lb__rank--silver]="e.rank === 2"
+                  [class.lb__rank--bronze]="e.rank === 3"
+                >{{ e.rank }}</span>
+                <div class="lb__avatar">{{ e.name.charAt(0).toUpperCase() }}</div>
+                <div class="lb__info">
+                  <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">(You)</span></span>
+                  <div class="lb__stats">
+                    <span class="lb__stat"><mat-icon>bolt</mat-icon> {{ e.totalXp }}</span>
+                    <span class="lb__stat"><mat-icon>sports_esports</mat-icon> {{ e.gamesCompleted ?? 0 }}</span>
+                    <span class="lb__stat"><mat-icon>emoji_events</mat-icon> {{ e.bestScore }}</span>
+                    <span class="lb__stat" *ngIf="e.accuracy != null"><mat-icon>track_changes</mat-icon> {{ e.accuracy }}%</span>
+                    <span class="lb__stat" *ngIf="e.currentStreak"><mat-icon>local_fire_department</mat-icon> {{ e.currentStreak }}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -173,6 +170,9 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
     .lb__list { display: flex; flex-direction: column; gap: 8px; }
     .lb__row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: #e8edf5; border: 1px solid #d0d8e8; transition: background .2s; }
     .lb__row--me { background: #fff !important; border-color: #b8c4d8; box-shadow: 0 2px 8px rgba(64,89,128,.1); }
+    .lb__row-top { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+    .lb__row-top .lb__info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .lb__row-top .lb__stats { display: flex; align-items: center; gap: 12px; margin-left: auto; }
     .lb__rank { width: 30px; text-align: center; font-size: 15px; font-weight: 800; color: #888; flex-shrink: 0; }
     .lb__rank--gold { color: #ff8f00; }
     .lb__rank--silver { color: #90a4ae; }
@@ -180,9 +180,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
     .lb__avatar { width: 38px; height: 38px; border-radius: 50%; background: #405980; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0; }
     .lb__info { flex: 1; min-width: 0; }
     .lb__name { display: block; font-size: 14px; font-weight: 600; color: #2c3e50; }
-    .lb__sub { display: block; font-size: 12px; color: #888; }
     .lb__you { font-size: 11px; color: #405980; font-weight: 700; }
-    .lb__stats { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
     .lb__stat { display: flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 700; color: #405980; white-space: nowrap; }
     .lb__stat mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .lb__stat:nth-child(1) mat-icon { color: #f59e0b; }
@@ -206,8 +204,17 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
     @media (max-width: 1024px) {
       .lb__grid { grid-template-columns: 1fr 1fr; gap: 20px; }
     }
+    @media (max-width: 900px) {
+      .lb__row { flex-direction: column; align-items: stretch; gap: 6px; }
+      .lb__row-top { flex-wrap: wrap; }
+      .lb__row-top .lb__info { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .lb__row-top .lb__stats { margin-left: 0; }
+      .lb__stat { font-size: 13px; }
+      .lb__stat mat-icon { font-size: 17px; width: 17px; height: 17px; }
+    }
     @media (max-width: 768px) {
       .lb__grid { grid-template-columns: 1fr; gap: 16px; }
+      .lb__stats-card { display: none; }
       .lb__podium-card { padding: 20px 8px 12px; }
       .lb__podium__avatar { width: 38px; height: 38px; font-size: 15px; }
       .lb__podium__bar { width: 68px; font-size: 20px; }
