@@ -197,6 +197,14 @@
   font-size: 11px;
 }
 
+.ha-reg-no {
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
 .ha-batch {
   font-size: 12px;
   font-weight: 600;
@@ -288,6 +296,24 @@
 .ha-expand-content {
   padding: 16px 20px;
   border-top: 1px solid #bfdbfe;
+}
+
+.ha-expand-ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.ha-expand-ids i {
+  margin-right: 4px;
+  color: #64748b;
+}
+
+.ha-expand-ids strong {
+  color: #0f172a;
 }
 
 .ha-expand-content h4 {
@@ -403,6 +429,138 @@
 
 .ha-replybox textarea:focus {
   border-color: #011f4b;
+}
+
+/* ── Skeleton ── */
+@keyframes ha-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.ha-skeleton {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: ha-shimmer 1.2s ease-in-out infinite;
+}
+
+.ha-skeleton-kpi {
+  min-height: 58px;
+}
+
+.ha-skeleton--text-sm {
+  width: 60%;
+  height: 10px;
+  margin-bottom: 8px;
+}
+
+.ha-skeleton--text-lg {
+  width: 40%;
+  height: 22px;
+}
+
+.ha-skeleton-row td {
+  padding: 12px;
+}
+
+.ha-skeleton-row .ha-skeleton--cell {
+  width: 90%;
+  height: 14px;
+}
+
+.ha-skeleton-row .ha-skeleton--cell-sm {
+  width: 70%;
+  height: 10px;
+  margin-top: 6px;
+}
+
+.ha-skeleton-row .ha-skeleton--cell-wide {
+  width: 95%;
+  height: 14px;
+}
+
+.ha-skeleton-row .ha-skeleton--pill {
+  width: 56px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.ha-skeleton-row .ha-skeleton--icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.ha-table-wrap--skeleton .ha-table thead th {
+  opacity: 0.85;
+}
+
+/* ── Pagination ── */
+.ha-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.ha-pagination__label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ha-pagination__nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ha-pagination__pages {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  min-width: 100px;
+  text-align: center;
+}
+
+.ha-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ha-page-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.ha-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ha-page-size {
+  min-width: 110px;
+}
+
+.ha-refresh:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 /* ── States ── */

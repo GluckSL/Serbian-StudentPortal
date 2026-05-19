@@ -29,6 +29,11 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Staff who manage or preview class recordings (includes sub-admins with tab access). */
+function isClassRecordingStaff(role) {
+  return ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'].includes(role);
+}
+
 // R2 presigned GetObject URLs embedded in HLS segment lines. Browsers keep one
 // playlist; every segment line shares the same signature expiry. Must cover long
 // classes (e.g. 2h) and pauses; SigV4 max is 7 days — we default to that cap.
@@ -204,7 +209,7 @@ router.get('/', verifyToken, async (req, res) => {
   try {
     const { role } = req.user;
 
-    if (['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+    if (isClassRecordingStaff(role)) {
       const recordings = await ClassRecording.find({ active: true })
         .populate('uploadedBy', 'name')
         .sort({ createdAt: -1 }).lean();
@@ -316,85 +321,260 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/class-recordings/admin/all — Admin/Teacher: combined manual + zoom recordings
-router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
-  try {
-    // 1) Manual recordings (existing ClassRecording records)
-    const manualRecordings = await ClassRecording.find({ active: true })
-      .populate('uploadedBy', 'name')
-      .sort({ createdAt: -1 })
-      .lean();
+const ADMIN_READY_MEDIA_OR = [
+  { videoUrl: { $exists: true, $nin: [null, ''] } },
+  { hlsKey: { $exists: true, $nin: [null, ''] } },
+];
 
-    // 2) Zoom auto-recordings (ingested from webhook, stored in R2)
-    // Admin/teacher list includes all states so rows do not disappear while processing;
-    // publish flags control student visibility.
-    const zoomRecordings = await ZoomRecording.find({})
-      .select('meetingLinkId r2Key duration status createdAt zoomMeetingId isPublished publishedAt accessBatches accessLevel accessPlan')
-      .sort({ createdAt: -1 })
-      .lean();
+const ADMIN_READY_ZOOM_MEDIA_OR = [
+  { r2Key: { $exists: true, $nin: [null, ''] } },
+  { hlsKey: { $exists: true, $nin: [null, ''] } },
+];
 
-    const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
-    const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
+function adminReadyManualQuery() {
+  return {
+    active: true,
+    status: 'ready',
+    $or: ADMIN_READY_MEDIA_OR,
+  };
+}
+
+function adminReadyZoomQuery() {
+  return {
+    status: 'ready',
+    $or: ADMIN_READY_ZOOM_MEDIA_OR,
+  };
+}
+
+function mapZoomRecordingToAdminItem(z, meeting) {
+  const access = normalizeZoomAccessSettings(z, meeting);
+  return {
+    _id: `zoom-${z.meetingLinkId.toString()}`,
+    recordingType: 'ZOOM',
+    source: 'ZOOM_AUTO',
+    title: meeting?.topic || 'Zoom Class Recording',
+    description: '',
+    videoUrl: '',
+    level: access.level || '',
+    plan: access.plan || 'ALL',
+    batches: access.batches,
+    uploadedBy: { _id: null, name: 'Zoom Webhook' },
+    active: true,
+    createdAt: z.createdAt,
+    meetingLinkId: z.meetingLinkId,
+    zoomMeetingId: z.zoomMeetingId || null,
+    assignedTeacherId: meeting?.assignedTeacher?._id || null,
+    status: z.status,
+    isPublished: z.isPublished !== false,
+    publishedAt: z.publishedAt || null,
+    r2Key: z.r2Key,
+    hlsKey: z.hlsKey || null,
+    duration: z.duration,
+    classDate: meeting?.startTime || z.createdAt,
+    classDuration: meeting?.duration || null,
+    courseDay: meeting?.courseDay != null ? meeting.courseDay : null,
+  };
+}
+
+function mapManualRecordingToAdminItem(m) {
+  return {
+    ...m,
+    recordingType: 'MANUAL',
+    source: 'MANUAL_UPLOAD',
+    status: m.status || 'ready',
+    isPublished: m.isPublished !== false,
+    publishedAt: m.publishedAt || (m.isPublished !== false ? m.createdAt : null),
+    duration: m.duration ?? null,
+    classDate: m.createdAt,
+    classDuration: null,
+    meetingLinkId: null,
+    zoomMeetingId: null,
+    r2Key: null,
+    sourceType: m.sourceType || 'URL',
+    hlsKey: m.hlsKey || null,
+  };
+}
+
+/** Lightweight rows for sort/filter before hydrating a page of full records. */
+async function buildAdminRecordingRefs(filters = {}) {
+  const { level, batch, search } = filters;
+  const searchRe = search
+    ? new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    : null;
+
+  const manualQuery = { ...adminReadyManualQuery() };
+  if (level && level !== 'ALL') manualQuery.level = level;
+  if (batch && batch !== 'ALL') manualQuery.batches = batch;
+  if (searchRe) {
+    manualQuery.$and = manualQuery.$and || [];
+    manualQuery.$and.push({
+      $or: [
+        { title: searchRe },
+        { description: searchRe },
+      ],
+    });
+  }
+
+  const zoomQuery = { ...adminReadyZoomQuery() };
+  if (level && level !== 'ALL') zoomQuery.accessLevel = level;
+  if (batch && batch !== 'ALL') zoomQuery.accessBatches = batch;
+  if (searchRe) {
+    zoomQuery.$and = zoomQuery.$and || [];
+    zoomQuery.$and.push({
+      $or: [{ zoomMeetingId: searchRe }],
+    });
+  }
+
+  const [manualRows, zoomRows] = await Promise.all([
+    ClassRecording.find(manualQuery)
+      .select('_id title description level batches plan createdAt')
+      .lean(),
+    ZoomRecording.find(zoomQuery)
+      .select('meetingLinkId zoomMeetingId createdAt accessBatches accessLevel')
+      .lean(),
+  ]);
+
+  const meetingIds = zoomRows.map((z) => z.meetingLinkId);
+  const meetings = meetingIds.length
+    ? await MeetingLink.find({ _id: { $in: meetingIds } })
+      .select('_id topic batch startTime')
+      .lean()
+    : [];
+  const meetingMap = {};
+  meetings.forEach((m) => { meetingMap[m._id.toString()] = m; });
+
+  const refs = [];
+
+  manualRows.forEach((m) => {
+    refs.push({
+      kind: 'manual',
+      id: m._id,
+      sortAt: m.createdAt,
+      title: m.title || '',
+      description: m.description || '',
+      zoomMeetingId: '',
+    });
+  });
+
+  zoomRows.forEach((z) => {
+    const meeting = meetingMap[z.meetingLinkId.toString()] || {};
+    if (searchRe) {
+      const topic = String(meeting.topic || '');
+      const mid = String(z.zoomMeetingId || '');
+      if (!searchRe.test(topic) && !searchRe.test(mid)) return;
+    }
+    if (batch && batch !== 'ALL') {
+      const accessBatches = Array.isArray(z.accessBatches) ? z.accessBatches : [];
+      const meetingBatch = meeting.batch ? [String(meeting.batch)] : [];
+      const batches = accessBatches.length ? accessBatches : meetingBatch;
+      if (!batches.map(String).includes(String(batch))) return;
+    }
+    refs.push({
+      kind: 'zoom',
+      id: z.meetingLinkId,
+      sortAt: meeting.startTime || z.createdAt,
+      title: meeting.topic || '',
+      description: '',
+      zoomMeetingId: z.zoomMeetingId || '',
+    });
+  });
+
+  refs.sort((a, b) => new Date(b.sortAt) - new Date(a.sortAt));
+  return refs;
+}
+
+async function hydrateAdminRecordingRefs(refs) {
+  if (!refs.length) return [];
+
+  const manualIds = refs.filter((r) => r.kind === 'manual').map((r) => r.id);
+  const zoomMeetingIds = refs.filter((r) => r.kind === 'zoom').map((r) => r.id);
+
+  const [manualDocs, zoomDocs] = await Promise.all([
+    manualIds.length
+      ? ClassRecording.find({ _id: { $in: manualIds } }).populate('uploadedBy', 'name').lean()
+      : [],
+    zoomMeetingIds.length
+      ? ZoomRecording.find({ meetingLinkId: { $in: zoomMeetingIds } })
+        .select('meetingLinkId r2Key hlsKey duration status createdAt zoomMeetingId isPublished publishedAt accessBatches accessLevel accessPlan')
+        .lean()
+      : [],
+  ]);
+
+  const manualMap = {};
+  manualDocs.forEach((m) => { manualMap[m._id.toString()] = m; });
+
+  const meetingLinks = zoomMeetingIds.length
+    ? await MeetingLink.find({ _id: { $in: zoomMeetingIds } })
       .select('_id topic batch startTime duration assignedTeacher courseDay')
       .populate('assignedTeacher', 'name')
-      .lean();
+      .lean()
+    : [];
+  const meetingMap = {};
+  meetingLinks.forEach((m) => { meetingMap[m._id.toString()] = m; });
 
-    const meetingMap = {};
-    meetingLinks.forEach((m) => { meetingMap[m._id.toString()] = m; });
+  const zoomMap = {};
+  zoomDocs.forEach((z) => { zoomMap[z.meetingLinkId.toString()] = z; });
 
-    const zoomItems = zoomRecordings.map((z) => {
-      const meeting = meetingMap[z.meetingLinkId.toString()] || {};
-      const access = normalizeZoomAccessSettings(z, meeting);
-      return {
-        _id: `zoom-${z.meetingLinkId.toString()}`,
-        recordingType: 'ZOOM',
-        source: 'ZOOM_AUTO',
-        title: meeting.topic || 'Zoom Class Recording',
-        description: '',
-        videoUrl: '',
-        level: access.level || '',
-        plan: access.plan || 'ALL',
-        batches: access.batches,
-        uploadedBy: { _id: null, name: 'Zoom Webhook' },
-        active: true,
-        createdAt: z.createdAt,
-        // zoom-specific extras for admin UI
-        meetingLinkId: z.meetingLinkId,
-        zoomMeetingId: z.zoomMeetingId || null,
-        assignedTeacherId: meeting.assignedTeacher?._id || null,
-        status: z.status,
-        isPublished: z.isPublished !== false,
-        publishedAt: z.publishedAt || null,
-        r2Key: z.r2Key,
-        duration: z.duration,
-        classDate: meeting.startTime || z.createdAt,
-        classDuration: meeting.duration || null,
-        courseDay: meeting.courseDay != null ? meeting.courseDay : null,
-      };
+  return refs.map((ref) => {
+    if (ref.kind === 'manual') {
+      const m = manualMap[ref.id.toString()];
+      return m ? mapManualRecordingToAdminItem(m) : null;
+    }
+    const z = zoomMap[ref.id.toString()];
+    if (!z) return null;
+    const meeting = meetingMap[ref.id.toString()] || {};
+    return mapZoomRecordingToAdminItem(z, meeting);
+  }).filter(Boolean);
+}
+
+async function fetchAllAdminRecordings(filters = {}) {
+  const refs = await buildAdminRecordingRefs(filters);
+  return hydrateAdminRecordingRefs(refs);
+}
+
+// GET /api/class-recordings/admin/all — Admin/Teacher: combined manual + zoom recordings
+// Query: page, limit (optional — when set, returns one page + total). level, batch, search filters.
+router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const filters = {
+      level: req.query.level ? String(req.query.level) : 'ALL',
+      batch: req.query.batch ? String(req.query.batch) : 'ALL',
+      search: req.query.search ? String(req.query.search).trim() : '',
+    };
+
+    const hasPagination = req.query.page != null || req.query.limit != null;
+
+    if (!hasPagination) {
+      const recordings = await fetchAllAdminRecordings(filters);
+      return res.json({ success: true, recordings });
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit), 10) || 15));
+    const refs = await buildAdminRecordingRefs(filters);
+    const total = refs.length;
+    const skip = (page - 1) * limit;
+    const pageRefs = refs.slice(skip, skip + limit);
+    const recordings = await hydrateAdminRecordingRefs(pageRefs);
+
+    const [readyManualCount, readyZoomCount] = await Promise.all([
+      ClassRecording.countDocuments(adminReadyManualQuery()),
+      ZoomRecording.countDocuments(adminReadyZoomQuery()),
+    ]);
+
+    res.json({
+      success: true,
+      recordings,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      summary: {
+        readyTotal: readyManualCount + readyZoomCount,
+        readyManual: readyManualCount,
+        readyZoom: readyZoomCount,
+      },
     });
-
-    const manualItems = manualRecordings.map((m) => ({
-      ...m,
-      recordingType: 'MANUAL',
-      source: 'MANUAL_UPLOAD',
-      status: m.status || 'ready',
-      isPublished: m.isPublished !== false,
-      publishedAt: m.publishedAt || (m.isPublished !== false ? m.createdAt : null),
-      duration: null,
-      classDate: m.createdAt,
-      classDuration: null,
-      meetingLinkId: null,
-      zoomMeetingId: null,
-      r2Key: null,
-      sourceType: m.sourceType || 'URL',
-      hlsKey: m.hlsKey || null,
-    }));
-
-    const recordings = [...manualItems, ...zoomItems].sort(
-      (a, b) => new Date(b.classDate || b.createdAt) - new Date(a.classDate || a.createdAt)
-    );
-
-    res.json({ success: true, recordings });
   } catch (error) {
     console.error('Error fetching combined admin recordings:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -709,7 +889,7 @@ router.get('/:id/hls/playlist', verifyMediaToken, async (req, res) => {
       return res.status(500).json({ success: false, message: recording.errorMessage || 'Recording is not available.' });
     }
 
-    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
+    if (!isClassRecordingStaff(req.user.role)) {
       const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
       if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
       const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
@@ -761,7 +941,7 @@ router.post('/:id/view', verifyToken, async (req, res) => {
     if (!recording || !recording.active) {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
     }
-    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
+    if (!isClassRecordingStaff(req.user.role)) {
       const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
       if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
       const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
@@ -798,7 +978,7 @@ router.put('/view/:viewId', verifyToken, async (req, res) => {
     let newCourseDay = null;
     let previousCourseDay = null;
 
-    if (view?.recording && view?.student && !['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user?.role)) {
+    if (view?.recording && view?.student && !isClassRecordingStaff(req.user?.role)) {
       try {
         const recording = await ClassRecording.findById(view.recording)
           .select('active courseDay duration batches level plan')
@@ -846,7 +1026,7 @@ router.put('/:id/duration', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
     }
 
-    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
+    if (!isClassRecordingStaff(req.user.role)) {
       const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
       if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
       const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
@@ -885,7 +1065,7 @@ router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
   try {
     const { meetingLinkId } = req.params;
     const { role, id: userId } = req.user;
-    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+    if (!isClassRecordingStaff(role)) {
       const [meetingLink, zoomRecording, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
         ZoomRecording.findOne({ meetingLinkId }).select('accessBatches accessLevel accessPlan isPublished').lean(),
@@ -1137,7 +1317,7 @@ router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACH
 router.get('/zoom/my-batch', verifyToken, async (req, res) => {
   try {
     const { role, id: userId } = req.user;
-    const isStaff = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role);
+    const isStaff = isClassRecordingStaff(role);
     const student = isStaff
       ? null
       : await User.findById(userId).select('batch level subscription goStatus currentCourseDay').lean();
@@ -1664,7 +1844,7 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyMediaToken, async (req, re
     }
 
     // Student access control
-    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+    if (!isClassRecordingStaff(role)) {
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
         User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),
@@ -1716,7 +1896,7 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyMediaToken, async (req, re
  * For HLS recordings (hlsKey set) it also returns hlsMode:true so the client
  * knows to use the /hls/playlist endpoint instead of the MP4 URL.
  * Access rules:
- *  - ADMIN / TEACHER_ADMIN / TEACHER: always allowed
+ *  - ADMIN / TEACHER_ADMIN / TEACHER / SUB_ADMIN: always allowed
  *  - STUDENT: must belong to the same batch as the MeetingLink (attended or not)
  */
 router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
@@ -1746,7 +1926,7 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
     }
 
     // 2. Authorisation check for students — batch-based + published only
-    if (!['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(role)) {
+    if (!isClassRecordingStaff(role)) {
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
         User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),

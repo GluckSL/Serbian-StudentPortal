@@ -144,44 +144,48 @@ router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_AD
   try {
     const tickets = await SupportTicket.find()
       .sort({ createdAt: -1 })
-      .populate({ path: 'userId', select: 'batch email' });
+      .populate({ path: 'userId', select: 'batch email regNo' });
 
     const rows = tickets.map((doc) => {
       const o = doc.toObject();
       let batch = null;
+      let regNo = null;
       let userId = o.userId;
-      if (userId && typeof userId === 'object' && userId.batch) {
-        batch = userId.batch;
-        userId = userId._id;
-      } else if (userId && typeof userId === 'object') {
+      if (userId && typeof userId === 'object') {
+        batch = userId.batch || null;
+        regNo = userId.regNo || null;
         userId = userId._id;
       }
-      return { ...o, userId, batch: batch || null };
+      return { ...o, userId, batch, regNo };
     });
 
-    const emailsNeedingBatch = [
+    const emailsNeedingLookup = [
       ...new Set(
         rows
-          .filter((r) => !r.batch && r.email)
+          .filter((r) => r.email && (!r.batch || !r.regNo))
           .map((r) => String(r.email).trim().toLowerCase())
       )
     ];
 
-    if (emailsNeedingBatch.length) {
+    if (emailsNeedingLookup.length) {
       const users = await User.find({
-        $expr: { $in: [{ $toLower: '$email' }, emailsNeedingBatch] }
+        $expr: { $in: [{ $toLower: '$email' }, emailsNeedingLookup] }
       })
-        .select('email batch')
+        .select('email batch regNo')
         .lean();
-      const emailToBatch = new Map(
-        users.map((u) => [String(u.email || '').trim().toLowerCase(), u.batch || ''])
+      const emailToUser = new Map(
+        users.map((u) => [
+          String(u.email || '').trim().toLowerCase(),
+          { batch: u.batch || '', regNo: u.regNo || '' }
+        ])
       );
       for (const row of rows) {
-        if (!row.batch && row.email) {
-          const key = String(row.email).trim().toLowerCase();
-          const b = emailToBatch.get(key);
-          if (b) row.batch = b;
-        }
+        if (!row.email) continue;
+        const key = String(row.email).trim().toLowerCase();
+        const match = emailToUser.get(key);
+        if (!match) continue;
+        if (!row.batch && match.batch) row.batch = match.batch;
+        if (!row.regNo && match.regNo) row.regNo = match.regNo;
       }
     }
 

@@ -27,6 +27,12 @@ export class HelpAdminComponent implements OnInit {
   replyingId: string | null = null;
   replyError: string | null = null;
 
+  readonly pageSizeOptions = [10, 20, 50];
+  pageSize = 20;
+  currentPage = 1;
+  readonly skeletonKpis = Array.from({ length: 6 }, (_, i) => i);
+  readonly skeletonRows = Array.from({ length: 8 }, (_, i) => i);
+
   readonly statuses = ['open', 'in-progress', 'resolved', 'closed'];
 
   readonly categories = [
@@ -79,7 +85,8 @@ export class HelpAdminComponent implements OnInit {
         t.name?.toLowerCase().includes(q) ||
         t.email?.toLowerCase().includes(q) ||
         t.ticketNumber?.toLowerCase().includes(q) ||
-        (t.batch && String(t.batch).toLowerCase().includes(q))
+        (t.batch && String(t.batch).toLowerCase().includes(q)) ||
+        (t.regNo && String(t.regNo).toLowerCase().includes(q))
       );
     }
     if (this.filterStatus) {
@@ -89,6 +96,48 @@ export class HelpAdminComponent implements OnInit {
       result = result.filter(t => t.priority === this.filterPriority);
     }
     this.filteredTickets = result;
+    if (this.currentPage > this.totalPages) {
+      this.currentPage = this.totalPages;
+    }
+  }
+
+  get totalFiltered(): number {
+    return this.filteredTickets.length;
+  }
+
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.totalFiltered / this.pageSize));
+  }
+
+  get pagedTickets(): SupportTicket[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredTickets.slice(start, start + this.pageSize);
+  }
+
+  get paginationLabel(): string {
+    if (this.totalFiltered === 0) return 'No tickets to show';
+    const start = (this.currentPage - 1) * this.pageSize + 1;
+    const end = Math.min(this.currentPage * this.pageSize, this.totalFiltered);
+    return `Showing ${start}–${end} of ${this.totalFiltered}`;
+  }
+
+  onSearchOrFilterChange(): void {
+    this.currentPage = 1;
+    this.selectedTicket = null;
+    this.applyFilters();
+  }
+
+  onPageSizeChange(size: number | string): void {
+    this.pageSize = Number(size) || 20;
+    this.currentPage = 1;
+    this.selectedTicket = null;
+  }
+
+  goToPage(page: number): void {
+    const next = Math.min(Math.max(1, page), this.totalPages);
+    if (next === this.currentPage) return;
+    this.currentPage = next;
+    this.selectedTicket = null;
   }
 
   trackTicketById(_index: number, ticket: SupportTicket): string {
@@ -166,8 +215,12 @@ export class HelpAdminComponent implements OnInit {
             const updated = res.data;
             const idx = this.tickets.findIndex(t => t._id === updated._id);
             if (idx >= 0) {
-              const prevBatch = this.tickets[idx].batch;
-              this.tickets[idx] = { ...updated, batch: updated.batch ?? prevBatch ?? null };
+              const prev = this.tickets[idx];
+              this.tickets[idx] = {
+                ...updated,
+                batch: updated.batch ?? prev.batch ?? null,
+                regNo: updated.regNo ?? prev.regNo ?? null
+              };
             }
             this.applyFilters();
             this.selectedTicket = updated;

@@ -30,6 +30,8 @@ export interface SupportTicket {
   userId?: string;
   /** Set on admin list from linked User (by userId or email). */
   batch?: string | null;
+  /** Student registration number from linked User. */
+  regNo?: string | null;
 }
 
 @Component({

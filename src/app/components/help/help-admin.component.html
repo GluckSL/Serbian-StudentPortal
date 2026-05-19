@@ -5,13 +5,14 @@
       <h1><i class="fas fa-headset"></i> Support Tickets</h1>
       <p>Manage and respond to user support requests.</p>
     </div>
-    <button class="ha-refresh" (click)="loadTickets()">
-      <i class="fas fa-sync-alt"></i> Refresh
+    <button class="ha-refresh" (click)="loadTickets()" [disabled]="loading">
+      <i class="fas" [class.fa-sync-alt]="!loading" [class.fa-spinner]="loading" [class.fa-spin]="loading"></i>
+      {{ loading ? 'Refreshing…' : 'Refresh' }}
     </button>
   </div>
 
   <!-- KPI Strip -->
-  <div class="ha-kpis">
+  <div class="ha-kpis" *ngIf="!loading">
     <div class="ha-kpi">
       <span>Open</span>
       <strong>{{ openCount }}</strong>
@@ -38,28 +39,34 @@
     </div>
   </div>
 
+  <div class="ha-kpis" *ngIf="loading">
+    <div class="ha-kpi ha-skeleton-kpi" *ngFor="let _ of skeletonKpis">
+      <span class="ha-skeleton ha-skeleton--text-sm"></span>
+      <strong class="ha-skeleton ha-skeleton--text-lg"></strong>
+    </div>
+  </div>
+
   <!-- Filters -->
   <div class="ha-filters">
     <div class="ha-search-wrap">
       <i class="fas fa-search"></i>
-      <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilters()"
-             placeholder="Search by name, email, batch, subject or ticket number…">
+      <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="onSearchOrFilterChange()"
+             placeholder="Search by name, email, student ID, batch, subject or ticket number…"
+             [disabled]="loading">
     </div>
-    <select [(ngModel)]="filterStatus" (ngModelChange)="applyFilters()">
+    <select [(ngModel)]="filterStatus" (ngModelChange)="onSearchOrFilterChange()" [disabled]="loading">
       <option value="">All Statuses</option>
       <option *ngFor="let s of statuses" [value]="s">{{ s | titlecase }}</option>
     </select>
-    <select [(ngModel)]="filterPriority" (ngModelChange)="applyFilters()">
+    <select [(ngModel)]="filterPriority" (ngModelChange)="onSearchOrFilterChange()" [disabled]="loading">
       <option value="">All Priorities</option>
       <option value="high">High</option>
       <option value="medium">Medium</option>
       <option value="low">Low</option>
     </select>
-  </div>
-
-  <!-- Loading -->
-  <div *ngIf="loading" class="ha-state">
-    <i class="fas fa-spinner fa-spin"></i> Loading tickets…
+    <select class="ha-page-size" [ngModel]="pageSize" (ngModelChange)="onPageSizeChange($event)" [disabled]="loading">
+      <option *ngFor="let n of pageSizeOptions" [ngValue]="n">{{ n }} / page</option>
+    </select>
   </div>
 
   <!-- Error -->
@@ -67,19 +74,14 @@
     <i class="fas fa-exclamation-circle"></i> {{ error }}
   </div>
 
-  <!-- Empty -->
-  <div *ngIf="!loading && !error && filteredTickets.length === 0" class="ha-empty">
-    <i class="fas fa-inbox"></i>
-    <p>No tickets found.</p>
-  </div>
-
-  <!-- Tickets Table -->
-  <div *ngIf="!loading && filteredTickets.length > 0" class="ha-table-wrap">
+  <!-- Skeleton table -->
+  <div *ngIf="loading" class="ha-table-wrap ha-table-wrap--skeleton" aria-busy="true" aria-label="Loading tickets">
     <table class="ha-table">
       <thead>
         <tr>
           <th>Ticket #</th>
           <th>Submitter</th>
+          <th>Student ID</th>
           <th>Batch</th>
           <th>Subject</th>
           <th>Category</th>
@@ -90,90 +92,154 @@
         </tr>
       </thead>
       <tbody>
-        <ng-container *ngFor="let ticket of filteredTickets; trackBy: trackTicketById">
-          <tr [class.ha-row--selected]="selectedTicket?._id === ticket._id">
-            <td class="ha-ticket-num">{{ ticket.ticketNumber || '—' }}</td>
-            <td>
-              <div class="ha-submitter">
-                <strong>{{ ticket.name }}</strong>
-                <small>{{ ticket.email }}</small>
-              </div>
-            </td>
-            <td class="ha-batch">{{ ticket.batch || '—' }}</td>
-            <td class="ha-subject">{{ ticket.subject }}</td>
-            <td><span class="ha-cat-badge">{{ getCategoryLabel(ticket.category) }}</span></td>
-            <td>
-              <span class="priority-badge" [class]="getPriorityClass(ticket.priority)">
-                {{ ticket.priority | titlecase }}
-              </span>
-            </td>
-            <td>
-              <select class="ha-status-select" [class]="getStatusClass(ticket.status)"
-                      [ngModel]="ticket.status || 'open'"
-                      [ngModelOptions]="{ standalone: true }"
-                      (ngModelChange)="updateStatus(ticket, $event)"
-                      [disabled]="updatingId === ticket._id">
-                <option *ngFor="let s of statuses" [value]="s">{{ s | titlecase }}</option>
-              </select>
-            </td>
-            <td class="ha-date">{{ ticket.createdAt | date:'MMM d, y' }}</td>
-            <td>
-              <button class="ha-view-btn" (click)="viewTicket(ticket)"
-                      [class.active]="selectedTicket?._id === ticket._id">
-                <i class="fas" [class.fa-eye]="selectedTicket?._id !== ticket._id"
-                               [class.fa-eye-slash]="selectedTicket?._id === ticket._id"></i>
-              </button>
-            </td>
-          </tr>
-          <!-- Expanded Row -->
-          <tr *ngIf="selectedTicket?._id === ticket._id" class="ha-expand-row">
-            <td colspan="9">
-              <div class="ha-expand-content">
-                <h4>Description</h4>
-                <p>{{ ticket.description }}</p>
-
-                <div class="ha-shot" *ngIf="ticket.screenshot?.url">
-                  <h4 style="margin-top:14px;">Screenshot</h4>
-                  <a class="ha-shot__link" [href]="ticket.screenshot?.url" target="_blank" rel="noreferrer">
-                    <i class="fas fa-external-link-alt"></i> Open screenshot
-                    <span *ngIf="ticket.screenshot?.originalName">({{ ticket.screenshot?.originalName }})</span>
-                  </a>
-                  <img class="ha-shot__img" [src]="ticket.screenshot?.url" alt="Ticket screenshot">
-                </div>
-
-                <div class="ha-replies" *ngIf="ticket.replies?.length">
-                  <h4 style="margin-top:14px;">Replies</h4>
-                  <div class="ha-reply" *ngFor="let r of ticket.replies">
-                    <div class="ha-reply__meta">
-                      <strong>{{ r.authorRole }}</strong>
-                      <span *ngIf="r.createdAt">• {{ r.createdAt | date:'short' }}</span>
-                    </div>
-                    <div class="ha-reply__msg">{{ r.message }}</div>
-                  </div>
-                </div>
-
-                <div class="ha-replybox">
-                  <label>Reply to user</label>
-                  <div *ngIf="replyError" class="ha-error ha-error--inline" style="margin-bottom:8px;">
-                    <i class="fas fa-exclamation-circle"></i> {{ replyError }}
-                  </div>
-                  <textarea [(ngModel)]="replyDraft[ticket._id!]" rows="3" placeholder="Write a reply…"></textarea>
-                  <button class="ha-refresh" style="margin-top:10px;"
-                          (click)="sendReply(ticket)"
-                          [disabled]="replyingId === ticket._id || !(replyDraft[ticket._id!] || '').trim()">
-                    <span *ngIf="replyingId !== ticket._id"><i class="fas fa-paper-plane"></i> Send Reply</span>
-                    <span *ngIf="replyingId === ticket._id"><i class="fas fa-spinner fa-spin"></i> Sending…</span>
-                  </button>
-                </div>
-                <div class="ha-expand-meta">
-                  <span *ngIf="ticket.updatedAt"><i class="fas fa-edit"></i> Last updated: {{ ticket.updatedAt | date:'medium' }}</span>
-                </div>
-              </div>
-            </td>
-          </tr>
-        </ng-container>
+        <tr *ngFor="let _ of skeletonRows" class="ha-skeleton-row">
+          <td><span class="ha-skeleton ha-skeleton--cell"></span></td>
+          <td>
+            <span class="ha-skeleton ha-skeleton--cell"></span>
+            <span class="ha-skeleton ha-skeleton--cell-sm"></span>
+          </td>
+          <td><span class="ha-skeleton ha-skeleton--cell-sm"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--cell-sm"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--cell-wide"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--pill"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--pill"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--pill"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--cell-sm"></span></td>
+          <td><span class="ha-skeleton ha-skeleton--icon"></span></td>
+        </tr>
       </tbody>
     </table>
   </div>
+
+  <!-- Empty -->
+  <div *ngIf="!loading && !error && filteredTickets.length === 0" class="ha-empty">
+    <i class="fas fa-inbox"></i>
+    <p>No tickets found.</p>
+  </div>
+
+  <!-- Tickets Table -->
+  <ng-container *ngIf="!loading && filteredTickets.length > 0">
+    <div class="ha-table-wrap">
+      <table class="ha-table">
+        <thead>
+          <tr>
+            <th>Ticket #</th>
+            <th>Submitter</th>
+            <th>Student ID</th>
+            <th>Batch</th>
+            <th>Subject</th>
+            <th>Category</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let ticket of pagedTickets; trackBy: trackTicketById">
+            <tr [class.ha-row--selected]="selectedTicket?._id === ticket._id">
+              <td class="ha-ticket-num">{{ ticket.ticketNumber || '—' }}</td>
+              <td>
+                <div class="ha-submitter">
+                  <strong>{{ ticket.name }}</strong>
+                  <small>{{ ticket.email }}</small>
+                </div>
+              </td>
+              <td class="ha-reg-no">{{ ticket.regNo || '—' }}</td>
+              <td class="ha-batch">{{ ticket.batch || '—' }}</td>
+              <td class="ha-subject">{{ ticket.subject }}</td>
+              <td><span class="ha-cat-badge">{{ getCategoryLabel(ticket.category) }}</span></td>
+              <td>
+                <span class="priority-badge" [class]="getPriorityClass(ticket.priority)">
+                  {{ ticket.priority | titlecase }}
+                </span>
+              </td>
+              <td>
+                <select class="ha-status-select" [class]="getStatusClass(ticket.status)"
+                        [ngModel]="ticket.status || 'open'"
+                        [ngModelOptions]="{ standalone: true }"
+                        (ngModelChange)="updateStatus(ticket, $event)"
+                        [disabled]="updatingId === ticket._id">
+                  <option *ngFor="let s of statuses" [value]="s">{{ s | titlecase }}</option>
+                </select>
+              </td>
+              <td class="ha-date">{{ ticket.createdAt | date:'MMM d, y' }}</td>
+              <td>
+                <button class="ha-view-btn" (click)="viewTicket(ticket)"
+                        [class.active]="selectedTicket?._id === ticket._id">
+                  <i class="fas" [class.fa-eye]="selectedTicket?._id !== ticket._id"
+                                 [class.fa-eye-slash]="selectedTicket?._id === ticket._id"></i>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="selectedTicket?._id === ticket._id" class="ha-expand-row">
+              <td colspan="10">
+                <div class="ha-expand-content">
+                  <div class="ha-expand-ids" *ngIf="ticket.regNo || ticket.batch">
+                    <span *ngIf="ticket.regNo"><i class="fas fa-id-card"></i> Student ID: <strong>{{ ticket.regNo }}</strong></span>
+                    <span *ngIf="ticket.batch"><i class="fas fa-users"></i> Batch: <strong>{{ ticket.batch }}</strong></span>
+                  </div>
+                  <h4>Description</h4>
+                  <p>{{ ticket.description }}</p>
+
+                  <div class="ha-shot" *ngIf="ticket.screenshot?.url">
+                    <h4 style="margin-top:14px;">Screenshot</h4>
+                    <a class="ha-shot__link" [href]="ticket.screenshot?.url" target="_blank" rel="noreferrer">
+                      <i class="fas fa-external-link-alt"></i> Open screenshot
+                      <span *ngIf="ticket.screenshot?.originalName">({{ ticket.screenshot?.originalName }})</span>
+                    </a>
+                    <img class="ha-shot__img" [src]="ticket.screenshot?.url" alt="Ticket screenshot">
+                  </div>
+
+                  <div class="ha-replies" *ngIf="ticket.replies?.length">
+                    <h4 style="margin-top:14px;">Replies</h4>
+                    <div class="ha-reply" *ngFor="let r of ticket.replies">
+                      <div class="ha-reply__meta">
+                        <strong>{{ r.authorRole }}</strong>
+                        <span *ngIf="r.createdAt">• {{ r.createdAt | date:'short' }}</span>
+                      </div>
+                      <div class="ha-reply__msg">{{ r.message }}</div>
+                    </div>
+                  </div>
+
+                  <div class="ha-replybox">
+                    <label>Reply to user</label>
+                    <div *ngIf="replyError" class="ha-error ha-error--inline" style="margin-bottom:8px;">
+                      <i class="fas fa-exclamation-circle"></i> {{ replyError }}
+                    </div>
+                    <textarea [(ngModel)]="replyDraft[ticket._id!]" rows="3" placeholder="Write a reply…"></textarea>
+                    <button class="ha-refresh" style="margin-top:10px;"
+                            (click)="sendReply(ticket)"
+                            [disabled]="replyingId === ticket._id || !(replyDraft[ticket._id!] || '').trim()">
+                      <span *ngIf="replyingId !== ticket._id"><i class="fas fa-paper-plane"></i> Send Reply</span>
+                      <span *ngIf="replyingId === ticket._id"><i class="fas fa-spinner fa-spin"></i> Sending…</span>
+                    </button>
+                  </div>
+                  <div class="ha-expand-meta">
+                    <span *ngIf="ticket.updatedAt"><i class="fas fa-edit"></i> Last updated: {{ ticket.updatedAt | date:'medium' }}</span>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ha-pagination" *ngIf="totalFiltered > 0">
+      <span class="ha-pagination__label">{{ paginationLabel }}</span>
+      <div class="ha-pagination__nav">
+        <button type="button" class="ha-page-btn" (click)="goToPage(currentPage - 1)"
+                [disabled]="currentPage <= 1" aria-label="Previous page">
+          <i class="fas fa-chevron-left"></i> Prev
+        </button>
+        <span class="ha-pagination__pages">Page {{ currentPage }} of {{ totalPages }}</span>
+        <button type="button" class="ha-page-btn" (click)="goToPage(currentPage + 1)"
+                [disabled]="currentPage >= totalPages" aria-label="Next page">
+          Next <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </ng-container>
 
 </div>

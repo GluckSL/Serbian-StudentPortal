@@ -134,6 +134,30 @@ export class ClassRecordingsService {
     return this.http.get<any>(`${this.url}/admin/all`);
   }
 
+  getAdminRecordingsPage(params: {
+    page: number;
+    limit: number;
+    level?: string;
+    batch?: string;
+    search?: string;
+  }): Observable<{
+    success: boolean;
+    recordings: AdminClassRecording[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    summary?: { readyTotal: number; readyManual: number; readyZoom: number };
+  }> {
+    const qp = new URLSearchParams();
+    qp.set('page', String(params.page));
+    qp.set('limit', String(params.limit));
+    if (params.level && params.level !== 'ALL') qp.set('level', params.level);
+    if (params.batch && params.batch !== 'ALL') qp.set('batch', params.batch);
+    if (params.search?.trim()) qp.set('search', params.search.trim());
+    return this.http.get<any>(`${this.url}/admin/all?${qp.toString()}`);
+  }
+
   runZoomBackfill(payload: {
     batch?: string | null;
     limit?: number;

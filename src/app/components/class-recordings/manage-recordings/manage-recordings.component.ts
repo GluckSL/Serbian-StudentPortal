@@ -5,6 +5,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { MaterialModule } from '../../../shared/material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { PageEvent } from '@angular/material/paginator';
 import {
   ClassRecordingsService,
   ClassRecording,
@@ -22,8 +23,15 @@ import { forkJoin, of } from 'rxjs';
   styleUrls: ['./manage-recordings.component.css']
 })
 export class ManageRecordingsComponent implements OnInit, OnDestroy {
+  /** Current page rows from the server (not the full dataset). */
   recordings: AdminClassRecording[] = [];
-  filteredRecordings: AdminClassRecording[] = [];
+  totalCount = 0;
+  readyTotalCount = 0;
+  readonly skeletonRows = Array.from({ length: 10 });
+  pageIndex = 0;
+  pageSize = 15;
+  readonly pageSizeOptions = [10, 15, 25, 50];
+  tableLoading = false;
   availableBatches: string[] = [];
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   plans = [
@@ -33,7 +41,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     { value: 'VISA_DOC_ONLY', label: 'Visa & Doc Only' }
   ];
 
-  loading = false;
+  loading = true;
   backfillLoading = false;
   publishLoading = false;
   backfillStatusMessage = '';
@@ -112,7 +120,6 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadRecordings();
     this.loadBatches();
-    this.loadAnalytics();
     this.loadZoomTeachers();
     this.startProcessingClock();
   }
@@ -208,6 +215,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.stopProcessingClock();
     this.stopManualUploadPolling();
     this.stopModalConversionPolling();
+    if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
   }
 
   private startProcessingClock(): void {
@@ -249,33 +257,55 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.webhookAuditSummary = {};
   }
 
-  loadRecordings(): void {
-    this.loading = true;
-    this.service.getAdminAllRecordings().subscribe({
+  loadRecordings(resetPage = false): void {
+    if (resetPage) this.pageIndex = 0;
+    const isInitial = this.loading;
+    if (!isInitial) this.tableLoading = true;
+
+    this.service.getAdminRecordingsPage({
+      page: this.pageIndex + 1,
+      limit: this.pageSize,
+      level: this.filterLevel,
+      batch: this.filterBatch,
+      search: this.searchQuery,
+    }).subscribe({
       next: (res) => {
         this.recordings = (res.recordings || []).map((r: AdminClassRecording) => ({
           ...r,
           isPublished: r.isPublished !== false,
         }));
-        this.applyFilters();
-        const currentZoomIds = new Set(
-          this.recordings
-            .filter((r) => this.isZoomRecording(r) && r.meetingLinkId)
-            .map((r) => String(r.meetingLinkId))
-        );
-        this.selectedZoomMeetingIds = this.selectedZoomMeetingIds.filter((id) => currentZoomIds.has(id));
-        const currentManualIds = new Set(
-          this.recordings
-            .filter((r) => !this.isZoomRecording(r) && r._id)
-            .map((r) => String(r._id))
-        );
-        this.selectedManualRecordingIds = this.selectedManualRecordingIds.filter((id) =>
-          currentManualIds.has(id)
-        );
+        this.totalCount = res.total ?? this.recordings.length;
+        if (res.summary?.readyTotal != null) {
+          this.readyTotalCount = res.summary.readyTotal;
+        }
+        this.syncPublishSelectionWithCurrentPage();
+        if (isInitial) this.loadAnalytics();
         this.loading = false;
+        this.tableLoading = false;
       },
-      error: () => { this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 }); this.loading = false; }
+      error: () => {
+        this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 });
+        this.loading = false;
+        this.tableLoading = false;
+      },
     });
+  }
+
+  private syncPublishSelectionWithCurrentPage(): void {
+    const currentZoomIds = new Set(
+      this.recordings
+        .filter((r) => this.isZoomRecording(r) && r.meetingLinkId)
+        .map((r) => String(r.meetingLinkId))
+    );
+    this.selectedZoomMeetingIds = this.selectedZoomMeetingIds.filter((id) => currentZoomIds.has(id));
+    const currentManualIds = new Set(
+      this.recordings
+        .filter((r) => !this.isZoomRecording(r) && r._id)
+        .map((r) => String(r._id))
+    );
+    this.selectedManualRecordingIds = this.selectedManualRecordingIds.filter((id) =>
+      currentManualIds.has(id)
+    );
   }
 
   loadBatches(): void {
@@ -285,18 +315,83 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     });
   }
 
-  applyFilters(): void {
-    let list = [...this.recordings];
-    if (this.filterLevel !== 'ALL') list = list.filter(r => r.level === this.filterLevel);
-    if (this.filterBatch !== 'ALL') list = list.filter(r => (r.batches || []).includes(this.filterBatch));
-    if (this.searchQuery.trim()) {
-      const q = this.searchQuery.toLowerCase();
-      list = list.filter(r =>
-        (r.title || '').toLowerCase().includes(q) ||
-        (r.description || '').toLowerCase().includes(q)
-      );
+  /** Row has an ingested/stored video (not a Zoom webhook stub still processing). */
+  hasRecordingAsset(r: AdminClassRecording): boolean {
+    if (this.isZoomRecording(r)) {
+      return Boolean(r.r2Key || r.hlsKey);
     }
-    this.filteredRecordings = list;
+    if (r.sourceType === 'HLS_UPLOAD') {
+      return Boolean(r.hlsKey);
+    }
+    return Boolean((r.videoUrl || '').trim());
+  }
+
+  getMeetingIdDisplay(r: AdminClassRecording): string {
+    if (this.isZoomRecording(r)) {
+      return r.zoomMeetingId ? String(r.zoomMeetingId) : '—';
+    }
+    return '—';
+  }
+
+  get recordingsWithMediaCount(): number {
+    return this.readyTotalCount || this.totalCount;
+  }
+
+  get readyToPlayCount(): number {
+    return this.readyTotalCount || this.totalCount;
+  }
+
+  /** Shown in admin table: stored media and fully processed. */
+  isListableRecording(r: AdminClassRecording): boolean {
+    return this.hasRecordingAsset(r) && r.status === 'ready';
+  }
+
+  canPlayRecording(r: AdminClassRecording): boolean {
+    return this.isListableRecording(r);
+  }
+
+  getRecordingDurationSeconds(r: AdminClassRecording): number | null {
+    const videoSec = Number(r.duration);
+    if (Number.isFinite(videoSec) && videoSec > 0) return Math.round(videoSec);
+    const classMin = Number(r.classDuration);
+    if (Number.isFinite(classMin) && classMin > 0) return Math.round(classMin * 60);
+    return null;
+  }
+
+  getRecordingDurationDisplay(r: AdminClassRecording): string {
+    const sec = this.getRecordingDurationSeconds(r);
+    if (sec == null || sec < 1) return '—';
+    return this.formatClock(sec);
+  }
+
+  trackByRecording(_index: number, r: AdminClassRecording): string {
+    return String(r._id || r.meetingLinkId || _index);
+  }
+
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  onSearchInput(): void {
+    if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
+    this.searchDebounceTimer = setTimeout(() => this.applyFilters(), 350);
+  }
+
+  applyFilters(): void {
+    this.loadRecordings(true);
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.loadRecordings();
+  }
+
+  get paginationStart(): number {
+    if (!this.totalCount) return 0;
+    return this.pageIndex * this.pageSize + 1;
+  }
+
+  get paginationEnd(): number {
+    return Math.min((this.pageIndex + 1) * this.pageSize, this.totalCount);
   }
 
   openForm(recording?: ClassRecording): void {
@@ -724,6 +819,10 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   playRecordingAction(r: AdminClassRecording): void {
+    if (!this.canPlayRecording(r)) {
+      this.snackBar.open('Recording is not ready to play yet.', 'Close', { duration: 2500 });
+      return;
+    }
     if (this.isZoomRecording(r)) {
       if (!r.meetingLinkId) {
         this.snackBar.open('Meeting link not found for this recording.', 'Close', { duration: 3000 });
@@ -851,12 +950,11 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   canToggleStudentVisibility(r: AdminClassRecording): boolean {
-    if (r.status !== 'ready') return false;
-    if (this.isZoomRecording(r)) {
-      return !!r.meetingLinkId;
-    }
-    const id = String(r._id || '');
-    return Boolean(id && !id.startsWith('zoom-'));
+    return this.canPlayRecording(r) && (
+      this.isZoomRecording(r)
+        ? Boolean(r.meetingLinkId)
+        : Boolean(String(r._id || '') && !String(r._id).startsWith('zoom-'))
+    );
   }
 
   /** Stable key for disabling the eye button while a publish request is in flight. */
