@@ -15,7 +15,13 @@ async function sendNewTicketAlert(ticket) {
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: 'Selvaganesh@gluckglobal.com',
-    cc: ['sourav@gluckglobal.com', 'Languageschool@gluckglobal.com'],
+    cc: [
+      'sourav@gluckglobal.com',
+      'Languageschool@gluckglobal.com',
+      'faiqua@gluckglobal.com',
+      'techintern1@gluckglobal.com',
+      'aiswarya@gluckglobal.com'
+    ],
     subject: `[Support Ticket] ${ticket.ticketNumber} - ${ticket.subject}`,
     html: `
       <h3>New Support Ticket Received</h3>
