@@ -1341,7 +1341,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           .filter((x) => x.rightValue !== '');
         return { ...base, matchingSelections };
       }
-      if (typ === 'fill-blank') return { ...base, fillAnswers: [...(pq.fillAnswers || [])] };
+      if (typ === 'fill-blank') {
+        const item: DigitalExerciseDraftItem = { ...base, fillAnswers: [...(pq.fillAnswers || [])] };
+        if (pq.data.subQuestions?.length && pq.subQuestionFillBlankAnswers) {
+          item.subQuestionFillBlankAnswers = { ...pq.subQuestionFillBlankAnswers };
+        }
+        return item;
+      }
       if (typ === 'word_bank_fill') return { ...base, wordBankAnswers: [...(pq.wordBankAnswers || [])], activeBlankIndex: pq.activeBlankIndex };
       if (typ === 'singular_plural') return { ...base, singularPluralInputs: [...(pq.singularPluralInputs || [])] };
       if (typ === 'pronunciation') {
@@ -1411,6 +1417,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const n = pq.fillAnswers?.length || 0;
       for (let i = 0; i < n; i++) {
         if (item.fillAnswers[i] !== undefined) pq.fillAnswers![i] = item.fillAnswers[i];
+      }
+      if (item.subQuestionFillBlankAnswers) {
+        pq.subQuestionFillBlankAnswers = { ...item.subQuestionFillBlankAnswers };
       }
     } else if ((pq.data.type as string) === 'word_bank_fill' && item.wordBankAnswers?.length) {
       const rows = Array.isArray(pq.wordBankAnswers) ? pq.wordBankAnswers : [];
@@ -1507,6 +1516,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       resp.spokenText = pq.vpSpokenText || '';
       resp.pronunciationScore = pq.pronunciationScore || 0;
     }
+    const subResponses = this.buildSubQuestionResponses(pq);
+    if (subResponses) resp.subQuestionResponses = subResponses;
     return resp;
   }
 
@@ -1516,6 +1527,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
       pq.data._correctAnswers = res.correctAnswer.answers;
     }
+    this.applySubQuestionGradingFromCorrectAnswer(pq, res.correctAnswer);
     if ((pq.data.type as string) === 'word_bank_fill' && Array.isArray(res.correctAnswer?.items)) {
       pq.data._wordBankCorrectItems = res.correctAnswer.items;
     }
@@ -1569,6 +1581,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (it.selectedOption !== undefined && it.selectedOption !== null) return true;
     if (it.matchingSelections && it.matchingSelections.length > 0) return true;
     if (it.fillAnswers?.some((x) => String(x ?? '').trim() !== '')) return true;
+    if (it.subQuestionFillBlankAnswers) {
+      for (const arr of Object.values(it.subQuestionFillBlankAnswers)) {
+        if ((arr || []).some((x) => String(x ?? '').trim() !== '')) return true;
+      }
+    }
     if (it.wordBankAnswers?.some((x) => String(x?.value ?? '').trim() !== '')) return true;
     if (it.singularPluralInputs?.some((x) => String(x ?? '').trim() !== '')) return true;
     if (String(it.qaResponse ?? '').trim() !== '') return true;
@@ -1746,6 +1763,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   isQuestionAnswered(pq: PlayerQuestion): boolean {
     const q = pq.data;
+    const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+    if (subs.length > 0) {
+      for (let sqi = 0; sqi < subs.length; sqi++) {
+        if (!this.isSubQuestionAnswered(pq, sqi)) return false;
+      }
+    }
     if (q.type === 'mcq') return pq.selectedOption !== undefined && pq.selectedOption !== null;
     if (q.type === 'matching') return (pq.matchingLeft || []).every(l => l.matchedRightIndex !== null);
     if (q.type === 'fill-blank') return (pq.fillAnswers || []).every(a => a.trim() !== '');
@@ -1778,6 +1801,72 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
     return false;
+  }
+
+  private isSubQuestionAnswered(pq: PlayerQuestion, subIndex: number): boolean {
+    const sq = pq.data.subQuestions?.[subIndex];
+    if (!sq) return false;
+    if (sq.type === 'fill-blank') {
+      const count = countFillBlankRuns(sq.sentence || '');
+      const answers = pq.subQuestionFillBlankAnswers?.[subIndex] || [];
+      if (count <= 0) return false;
+      for (let i = 0; i < count; i++) {
+        if (!String(answers[i] ?? '').trim()) return false;
+      }
+      return true;
+    }
+    if (sq.type === 'mcq') {
+      return pq.subQuestionAnswers?.[subIndex] !== undefined && pq.subQuestionAnswers?.[subIndex] !== null;
+    }
+    if (sq.type === 'matching') {
+      const matches = pq.subQuestionMatching?.[subIndex];
+      const leftCount = Array.isArray(sq.leftItems) ? sq.leftItems.length : (sq.pairs?.length || 0);
+      if (!leftCount) return false;
+      for (let li = 0; li < leftCount; li++) {
+        if (matches?.[li] === undefined || matches?.[li] === null) return false;
+      }
+      return true;
+    }
+    if ((sq.type as string) === 'word_bank_fill') {
+      const items = this.getSubQuestionWordBankItems(sq);
+      const answers = pq.subQuestionWordBankAnswers?.[subIndex] || [];
+      return items.length > 0 && items.every((_x: unknown, ii: number) => String(answers[ii] ?? '').trim() !== '');
+    }
+    const ans = pq.subQuestionAnswers?.[subIndex];
+    return ans !== undefined && ans !== null && String(ans).trim() !== '';
+  }
+
+  private buildSubQuestionResponses(pq: PlayerQuestion): QuestionResponse['subQuestionResponses'] {
+    const subs = pq.data.subQuestions;
+    if (!subs?.length) return undefined;
+    return subs.map((sq: any, sqi: number) => {
+      const base = { questionIndex: sqi };
+      if (sq.type === 'mcq') {
+        const ans = pq.subQuestionAnswers?.[sqi];
+        return { ...base, selectedOptionIndex: ans !== undefined && ans !== null ? Number(ans) : null };
+      }
+      if (sq.type === 'fill-blank') {
+        return { ...base, fillBlankResponses: [...(pq.subQuestionFillBlankAnswers?.[sqi] || [])] };
+      }
+      const ans = pq.subQuestionAnswers?.[sqi];
+      return { ...base, textAnswer: ans !== undefined && ans !== null ? String(ans) : null };
+    });
+  }
+
+  private applySubQuestionGradingFromCorrectAnswer(pq: PlayerQuestion, correctAnswer: any): void {
+    const subResults = Array.isArray(correctAnswer?.subResults) ? correctAnswer.subResults : [];
+    if (!subResults.length || !pq.data.subQuestions?.length) return;
+    subResults.forEach((sub: any) => {
+      const sqi = sub?.questionIndex;
+      const sq = pq.data.subQuestions?.[sqi];
+      if (!sq || sqi === undefined || sqi === null) return;
+      if (sq.type === 'fill-blank' && Array.isArray(sub.correctAnswer?.answers)) {
+        sq._correctAnswers = sub.correctAnswer.answers;
+      }
+      if (sq.type === 'mcq' && sub.correctAnswer?.correctAnswerIndex !== undefined) {
+        sq.correctAnswerIndex = sub.correctAnswer.correctAnswerIndex;
+      }
+    });
   }
 
   // ─── MCQ Interaction ─────────────────────────────────────────────────────────
@@ -2900,15 +2989,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         resp.spokenText = pq.vpSpokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }
-      if (pq.data.subQuestions?.length) {
-        resp.subQuestionResponses = pq.data.subQuestions.map((sq: any, sqi: number) => {
-          const ans = pq.subQuestionAnswers?.[sqi];
-          if (sq.type === 'mcq') {
-            return { questionIndex: sqi, selectedOptionIndex: ans !== undefined ? ans : null };
-          }
-          return { questionIndex: sqi, textAnswer: ans !== undefined ? String(ans) : null };
-        });
-      }
+      const subResponses = this.buildSubQuestionResponses(pq);
+      if (subResponses) resp.subQuestionResponses = subResponses;
       return resp;
     });
   }
@@ -2978,6 +3060,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         resp.spokenText = pq.vpSpokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
       }
+      const subResponses = this.buildSubQuestionResponses(pq);
+      if (subResponses) resp.subQuestionResponses = subResponses;
       return resp;
     });
     this.submitting = true;
@@ -3008,6 +3092,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         if (pq.data.type === 'fill-blank' && detail.correctAnswer?.answers) {
           pq.data._correctAnswers = detail.correctAnswer.answers;
         }
+        this.applySubQuestionGradingFromCorrectAnswer(pq, detail.correctAnswer);
         if ((pq.data.type as string) === 'word_bank_fill' && Array.isArray(detail.correctAnswer?.items)) {
           pq.data._wordBankCorrectItems = detail.correctAnswer.items;
         }
@@ -3280,10 +3365,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** For review page: get sub-question answer text */
   getSubQuestionAnswerText(pq: PlayerQuestion, sqIndex: number): string {
+    const sq = pq.data.subQuestions?.[sqIndex];
+    if (sq?.type === 'fill-blank') {
+      const blanks = pq.subQuestionFillBlankAnswers?.[sqIndex] || [];
+      const filled = blanks.map((x) => String(x ?? '').trim()).filter(Boolean);
+      return filled.length ? filled.join(' / ') : 'Not answered';
+    }
     const answer = pq.subQuestionAnswers?.[sqIndex];
     if (answer === undefined || answer === null) return 'Not answered';
     if (typeof answer === 'number') {
-      const sq = pq.data.subQuestions?.[sqIndex];
       if (sq && sq.type === 'mcq' && sq.options) {
         return sq.options[answer] || String(answer);
       }
@@ -4697,6 +4787,22 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const a = this.normExercisePlainText(given);
     const b = this.normExercisePlainText(correct);
     return pq.data.caseSensitive ? a === b : a.toLowerCase() === b.toLowerCase();
+  }
+
+  isSubFillCorrect(pq: PlayerQuestion, subIndex: number, blankIndex: number): boolean {
+    const sq = pq.data.subQuestions?.[subIndex];
+    const correct = (sq?._correctAnswers || [])[blankIndex];
+    const given = (pq.subQuestionFillBlankAnswers?.[subIndex] || [])[blankIndex];
+    if (correct === undefined || given === undefined) return false;
+    const a = this.normExercisePlainText(given);
+    const b = this.normExercisePlainText(correct);
+    const caseSensitive = !!sq?.caseSensitive;
+    return caseSensitive ? a === b : a.toLowerCase() === b.toLowerCase();
+  }
+
+  getSubCorrectFillAnswer(pq: PlayerQuestion, subIndex: number, blankIndex: number): string {
+    const sq = pq.data.subQuestions?.[subIndex];
+    return (sq?._correctAnswers || [])[blankIndex] || '';
   }
 
   isWordBankItemCorrect(pq: PlayerQuestion, itemIndex: number): boolean {

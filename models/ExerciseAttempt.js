@@ -40,6 +40,13 @@ const QuestionResponseSchema = new mongoose.Schema({
     labelId: String,
     pinId: String
   }],
+  // Sub-questions (same context group)
+  subQuestionResponses: [{
+    questionIndex: Number,
+    selectedOptionIndex: Number,
+    textAnswer: String,
+    fillBlankResponses: [String]
+  }],
   // Common
   isCorrect: { type: Boolean, default: false },
   pointsEarned: { type: Number, default: 0 }

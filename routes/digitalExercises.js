@@ -432,6 +432,110 @@ function applyThresholdScoring(q, rawScore) {
   return { score, threshold, scoringMode, isCorrect, pointsEarned };
 }
 
+function questionTotalPoints(q) {
+  const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
+  const subPts = subs.reduce((sum, sq) => sum + (sq?.points || 1), 0);
+  return (q?.points || 1) + subPts;
+}
+
+function exerciseTotalPoints(questions) {
+  return (questions || []).reduce((sum, q) => sum + questionTotalPoints(q), 0);
+}
+
+function gradeFillBlankRawScore(q, fillBlankResponses) {
+  const answers = q.answers || [];
+  const total = answers.length;
+  const sanitizedAnswers = (answers || []).map((a) => sanitizeQuestionPlainText(a));
+  if (total <= 0 || !Array.isArray(fillBlankResponses)) {
+    return { rawScore: 0, correctAnswer: { answers: sanitizedAnswers } };
+  }
+  let correctCount = 0;
+  for (let i = 0; i < total; i++) {
+    const ans = String(fillBlankResponses[i] ?? '');
+    const correct = answers[i];
+    const ansNorm = sanitizeQuestionPlainText(ans);
+    const corrNorm = sanitizeQuestionPlainText(correct);
+    const ok = q.caseSensitive
+      ? ansNorm === corrNorm
+      : ansNorm.toLowerCase() === corrNorm.toLowerCase();
+    if (ok) correctCount += 1;
+  }
+  const useAdvanced = isAdvancedGradingEnabled(q);
+  const rawScore = useAdvanced
+    ? Math.round((correctCount / total) * 100)
+    : (correctCount === total ? 100 : 0);
+  return { rawScore, correctAnswer: { answers: sanitizedAnswers } };
+}
+
+function gradeSubQuestionPart(sq, subResp) {
+  const sub = subResp || {};
+  if (sq.type === 'fill-blank') {
+    return gradeFillBlankRawScore(sq, sub.fillBlankResponses);
+  }
+  if (sq.type === 'mcq') {
+    const correctIdx = typeof sq.correctAnswerIndex === 'number' ? sq.correctAnswerIndex : 0;
+    const rawScore = sub.selectedOptionIndex === correctIdx ? 100 : 0;
+    return {
+      rawScore,
+      correctAnswer: { correctAnswerIndex: correctIdx, explanation: sq.explanation }
+    };
+  }
+  return { rawScore: 0, correctAnswer: null };
+}
+
+/** Grade sub-questions attached to a parent; merges points and isCorrect with parent result. */
+function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned, parentCorrectAnswer) {
+  let isCorrect = parentIsCorrect;
+  let pointsEarned = parentPointsEarned;
+  let correctAnswer = parentCorrectAnswer;
+  const subResults = [];
+  const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+  if (!subs.length) {
+    return { isCorrect, pointsEarned, correctAnswer, subResults };
+  }
+
+  const subResps = Array.isArray(resp.subQuestionResponses) ? resp.subQuestionResponses : [];
+  for (let si = 0; si < subs.length; si++) {
+    const sq = subs[si];
+    const subResp = subResps.find((r) => r.questionIndex === si) || { questionIndex: si };
+    const { rawScore, correctAnswer: subCorrectAnswer } = gradeSubQuestionPart(sq, subResp);
+    let subIsCorrect;
+    let subPoints;
+    let subCorrectOut = subCorrectAnswer;
+
+    if (isAdvancedGradingEnabled(sq)) {
+      const subScoring = applyThresholdScoring(sq, rawScore);
+      subIsCorrect = subScoring.isCorrect;
+      subPoints = subScoring.pointsEarned;
+      subCorrectOut = {
+        ...(subCorrectAnswer || {}),
+        threshold: subScoring.threshold,
+        scoringMode: subScoring.scoringMode,
+        score: subScoring.score,
+        aiGradingEnabled: true
+      };
+    } else {
+      subIsCorrect = rawScore >= 100;
+      subPoints = subIsCorrect ? (sq.points || 1) : 0;
+      subCorrectOut = { ...(subCorrectAnswer || {}), score: rawScore, aiGradingEnabled: false };
+    }
+
+    if (!subIsCorrect) isCorrect = false;
+    pointsEarned += subPoints;
+    subResults.push({
+      questionIndex: si,
+      isCorrect: subIsCorrect,
+      pointsEarned: subPoints,
+      correctAnswer: subCorrectOut
+    });
+  }
+
+  if (subResults.length) {
+    correctAnswer = { ...(correctAnswer || {}), subResults };
+  }
+  return { isCorrect, pointsEarned, correctAnswer, subResults };
+}
+
 /** Human-readable student submission for analytics / review UIs */
 function formatStudentAnswerForReview(q, r) {
   if (!r) return '—';
@@ -1688,7 +1792,7 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
       studentId: req.user.id,
       exerciseId: req.params.id,
       attemptNumber: prevAttempts + 1,
-      totalPoints: exercise.questions.reduce((sum, q) => sum + (q.points || 1), 0)
+      totalPoints: exerciseTotalPoints(exercise.questions)
     });
     await attempt.save();
 
@@ -1922,6 +2026,12 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
+    ({
+      isCorrect,
+      pointsEarned,
+      correctAnswer
+    } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+
     const gradedResp = {
       questionIndex: idx,
       questionType: q.type,
@@ -1938,6 +2048,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       rearrangeTextResponse: resp.rearrangeTextResponse,
       rearrangeTokensResponse: resp.rearrangeTokensResponse,
       imagePinAnswers: resp.imagePinAnswers,
+      subQuestionResponses: resp.subQuestionResponses,
       isCorrect,
       pointsEarned
     };
@@ -1957,7 +2068,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       if (typeof r.pointsEarned === 'number') earnedPoints += r.pointsEarned;
     });
 
-    const totalPoints = exercise.questions.reduce((sum, qq) => sum + (qq.points || 1), 0);
+    const totalPoints = exerciseTotalPoints(exercise.questions);
     const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
     // Only treat the attempt as complete when every question has been submitted at least once.
     // (An 80 % threshold caused multi-clip exercises — e.g. 14 clips — to finish after 12, skipping the rest.)
@@ -2231,6 +2342,13 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         pointsEarned = isCorrect ? (q.points || 1) : 0;
         correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
       }
+
+      ({
+        isCorrect,
+        pointsEarned,
+        correctAnswer
+      } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+
       earnedPoints += pointsEarned;
 
       gradedResponses.push({
@@ -2249,6 +2367,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         rearrangeTextResponse: resp.rearrangeTextResponse,
         rearrangeTokensResponse: resp.rearrangeTokensResponse,
         imagePinAnswers: resp.imagePinAnswers,
+        subQuestionResponses: resp.subQuestionResponses,
         isCorrect,
         pointsEarned
       });
@@ -2262,7 +2381,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
       });
     }
 
-    const totalPoints = exercise.questions.reduce((sum, q) => sum + (q.points || 1), 0);
+    const totalPoints = exerciseTotalPoints(exercise.questions);
     const scorePercentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
 
     // Save graded attempt

@@ -464,6 +464,10 @@
                     <span class="review-label">Your answer:</span>
                     <span class="review-value">{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
                   </div>
+                  <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && sq._correctAnswers?.length">
+                    <span class="review-label">Correct:</span>
+                    <span class="review-value correct">{{ sq._correctAnswers.join(' / ') }}</span>
+                  </div>
                   <div class="review-sub-q-correct" *ngIf="sq.type === 'mcq'">
                     <span class="review-label">Correct:</span>
                     <span class="review-value correct">{{ sq.options?.[sq.correctAnswerIndex] || '-' }}</span>
@@ -3784,7 +3788,13 @@
                               [ngModel]="getSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi)"
                               (ngModelChange)="setSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi, $event)"
                               [disabled]="hasCurrentSubmitted"
-                              [placeholder]="'blank ' + (pi + 1)" />
+                              [placeholder]="'blank ' + (pi + 1)"
+                              [class.correct]="hasCurrentSubmitted && isSubFillCorrect(currentQuestion, sqIndex, pi)"
+                              [class.wrong]="hasCurrentSubmitted && !isSubFillCorrect(currentQuestion, sqIndex, pi)" />
+                            <span class="blank-correct-val"
+                              *ngIf="hasCurrentSubmitted && !isSubFillCorrect(currentQuestion, sqIndex, pi)">
+                              → {{ getSubCorrectFillAnswer(currentQuestion, sqIndex, pi) }}
+                            </span>
                           </span>
                         </ng-container>
                       </div>
