@@ -5,6 +5,7 @@ const {
   dgModuleUnlockedForStudentDay,
 } = require('../utils/dgStudentJourneyGate');
 const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
+const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 
 function pushLog(session, entry) {
   session.logs.push({
@@ -196,6 +197,23 @@ exports.complete = async (req, res) => {
     });
 
     await session.save();
+
+    let journeyAdvanced = false;
+    let newCourseDay = null;
+    let previousCourseDay = null;
+    if (req.user && req.user.role === 'STUDENT') {
+      try {
+        const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
+        if (advResult.advanced) {
+          journeyAdvanced = true;
+          previousCourseDay = advResult.previousDay;
+          newCourseDay = advResult.newDay;
+        }
+      } catch (advErr) {
+        console.error('[Instant Advance] DG session complete check failed (non-critical):', advErr.message);
+      }
+    }
+
     res.json({
       ok: true,
       session: {
@@ -208,6 +226,8 @@ exports.complete = async (req, res) => {
         moduleCompletionPercent: session.moduleCompletionPercent,
         moduleFullyComplete: session.moduleFullyComplete,
       },
+      journeyAdvanced,
+      ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
     });
   } catch (e) {
     res.status(500).json({ message: e.message || 'Complete failed' });

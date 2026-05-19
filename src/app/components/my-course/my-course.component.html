@@ -169,7 +169,7 @@
             </span>
             <p class="mc-day-promote-hint" *ngIf="showSilverDayCompletePromotion">
               <span class="material-icons mc-day-promote-hint__icon">rocket_launch</span>
-              You will be promoted to <strong>Day {{ nextJourneyPreviewDay }}</strong> on <strong>{{ promotionTomorrowDateLabel }}</strong>
+              Completing now — you'll be instantly promoted to <strong>Day {{ nextJourneyPreviewDay }}</strong>!
             </p>
           </ng-container>
           <button
@@ -188,7 +188,7 @@
         <p class="mc-side-card__eyebrow">Updates</p>
         <!-- Announcements are shown under Help & Support (messenger) → Announcements -->
 
-        <!-- Silver student: full day completion → promotion at midnight -->
+        <!-- Silver student: full day completion → instant promotion -->
         <div class="mc-update mc-update--silver-complete" *ngIf="showSilverDayCompletePromotion">
           <span class="mc-update__icon mc-update__icon--celebrate" aria-hidden="true">
             <span class="material-icons">celebration</span>
@@ -197,9 +197,8 @@
             <p class="mc-update__title">Day {{ journeyCourseDay }} Complete!</p>
             <p class="mc-update__text">
               You've finished all exercises, Gluck Buddy, and recordings for
-              <strong>Day {{ journeyCourseDay }}</strong>. At midnight on
-              <strong>{{ promotionTomorrowDateLabel }}</strong> you'll advance to
-              <strong>Day {{ nextJourneyPreviewDay }}</strong>. Keep going!
+              <strong>Day {{ journeyCourseDay }}</strong>. You'll be instantly promoted to
+              <strong>Day {{ nextJourneyPreviewDay }}</strong> as soon as the last item is saved. Keep going! 🚀
             </p>
           </div>
         </div>

@@ -8,6 +8,7 @@ const User = require('../models/User');
 const SessionRecord = require('../models/SessionRecord');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { getJourneyAccessForStudentId } = require('../utils/studentJourneyAccess');
+const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 
 // GET /api/learning-modules - Get all modules (with filtering and level-based access control)
 router.get('/', verifyToken, async (req, res) => {
@@ -698,11 +699,29 @@ router.post('/:id/complete', verifyToken, checkRole(['STUDENT', 'TEACHER', 'ADMI
     }
     
     console.log(`✅ Module marked as completed: ${module.title} (${sessionData?.timeSpentMinutes || 'N/A'} minutes)`);
-    
-    res.json({ 
-      message: 'Module marked as completed successfully', 
+
+    let journeyAdvanced = false;
+    let newCourseDay = null;
+    let previousCourseDay = null;
+    if (req.user.role === 'STUDENT') {
+      try {
+        const advResult = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
+        if (advResult.advanced) {
+          journeyAdvanced = true;
+          previousCourseDay = advResult.previousDay;
+          newCourseDay = advResult.newDay;
+        }
+      } catch (advErr) {
+        console.error('[Instant Advance] module complete check failed (non-critical):', advErr.message);
+      }
+    }
+
+    res.json({
+      message: 'Module marked as completed successfully',
       progress,
-      status: 'completed'
+      status: 'completed',
+      journeyAdvanced,
+      ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
     });
   } catch (error) {
     console.error('Error marking module as completed:', error);

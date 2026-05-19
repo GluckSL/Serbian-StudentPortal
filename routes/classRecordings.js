@@ -16,7 +16,7 @@ const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomR
 const { processManualRecordingUpload } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
-const { markPendingAdvanceForStudentDay } = require('../services/journeyDayAdvance.service');
+const { markPendingAdvanceForStudentDay, checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 const BatchConfig = require('../models/BatchConfig');
 const {
   computeJourneyDayCompletion,
@@ -787,12 +787,44 @@ router.post('/:id/view', verifyToken, async (req, res) => {
 // PUT /api/class-recordings/view/:viewId — Update watch duration (called periodically)
 router.put('/view/:viewId', verifyToken, async (req, res) => {
   try {
-    const { watchDuration } = req.body;
-    await RecordingView.findByIdAndUpdate(req.params.viewId, {
-      watchDuration: watchDuration || 0,
-      lastUpdatedAt: new Date()
-    });
-    res.json({ success: true });
+    const watchDurationSec = Math.max(0, Number(req.body?.watchDuration || 0));
+    const view = await RecordingView.findByIdAndUpdate(
+      req.params.viewId,
+      { watchDuration: watchDurationSec, lastUpdatedAt: new Date() },
+      { new: true, select: 'recording student watchDuration' }
+    );
+
+    let journeyAdvanced = false;
+    let newCourseDay = null;
+    let previousCourseDay = null;
+
+    if (view?.recording && view?.student && !['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user?.role)) {
+      try {
+        const recording = await ClassRecording.findById(view.recording)
+          .select('active courseDay duration batches level plan')
+          .lean();
+        const studentLean = await User.findById(view.student)
+          .select('batch goStatus subscription level currentCourseDay')
+          .lean();
+        const isSilverGo = isSilverGoStudent(studentLean);
+        const recDurationSec = Number(recording?.duration || 0);
+        const watchRatio = isSilverGo ? 0.9 : 0.75;
+        const watchedEnough = recDurationSec > 0 && watchDurationSec >= Math.ceil(recDurationSec * watchRatio);
+
+        if (recording?.active && watchedEnough) {
+          const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
+          if (advResult.advanced) {
+            journeyAdvanced = true;
+            previousCourseDay = advResult.previousDay;
+            newCourseDay = advResult.newDay;
+          }
+        }
+      } catch (advErr) {
+        console.error('[Instant Advance] manual recording view check failed (non-critical):', advErr.message);
+      }
+    }
+
+    res.json({ success: true, journeyAdvanced, ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {}) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -939,6 +971,7 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
             creditMeetings: meeting?._id ? [meeting._id] : [],
             includeRecordings: true,
             includeDg: true,
+            includeLearningModules: false,
             studentLevel: studentLean?.level,
             studentPlan: studentLean?.subscription,
             goStatus: studentLean?.goStatus,
@@ -963,14 +996,17 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
               }
             }
           );
-          if (!advancedNow?.modifiedCount) {
+          if (advancedNow?.modifiedCount) {
+            console.log(`🚀 [Instant Advance] Zoom recording Silver GO student ${view.student}: Day ${dayInt} → ${nextDay}`);
+            return res.json({ success: true, journeyAdvanced: true, previousCourseDay: dayInt, newCourseDay: nextDay });
+          } else {
             await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
           }
         }
       }
     }
 
-    res.json({ success: true });
+    res.json({ success: true, journeyAdvanced: false });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

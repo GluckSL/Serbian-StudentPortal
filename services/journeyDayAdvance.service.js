@@ -15,6 +15,60 @@ const {
   meetsStrictThreshold
 } = require('./journeyDayCompletion.service');
 
+/**
+ * Check if a Silver GO student has completed all tasks for their current journey day
+ * and, if so, instantly advance them to the next day without waiting for midnight.
+ *
+ * Safe to call from any completion endpoint (exercise submit, DG session complete,
+ * module complete, recording watch). No-ops for non-Silver-GO students.
+ *
+ * @param {string|import('mongoose').Types.ObjectId} studentId
+ * @returns {Promise<{ advanced: boolean, previousDay?: number, newDay?: number }>}
+ */
+async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
+  const student = await User.findById(studentId)
+    .select('role batch goStatus subscription level currentCourseDay')
+    .lean();
+  if (!student || student.role !== 'STUDENT') return { advanced: false };
+  if (!isSilverGoStudent(student)) return { advanced: false };
+
+  const keys = allStudentBatchStringsForContent(student);
+  if (!keys.length) return { advanced: false };
+
+  const currentDay = normalizeCourseDay(student.currentCourseDay);
+  if (currentDay >= 200) return { advanced: false };
+
+  const completion = await computeJourneyDayCompletion(studentId, keys, currentDay, {
+    includeRecordings: true,
+    includeDg: true,
+    includeLearningModules: false,
+    studentLevel: student.level,
+    studentPlan: student.subscription,
+    goStatus: student.goStatus,
+    subscription: student.subscription
+  });
+
+  if (!completion.complete) return { advanced: false };
+
+  const nextDay = Math.min(200, currentDay + 1);
+  const result = await User.updateOne(
+    { _id: studentId, role: 'STUDENT', currentCourseDay: currentDay },
+    {
+      $set: {
+        currentCourseDay: nextDay,
+        pendingJourneyDayAdvance: false,
+        pendingJourneyDayAdvanceForDay: null
+      }
+    }
+  );
+
+  if (result.modifiedCount) {
+    console.log(`🚀 [Instant Advance] Silver GO student ${studentId}: Day ${currentDay} → ${nextDay}`);
+    return { advanced: true, previousDay: currentDay, newDay: nextDay };
+  }
+  return { advanced: false };
+}
+
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -186,6 +240,7 @@ async function applyJourneyDayRollovers() {
       const completion = await computeJourneyDayCompletion(s._id, keys, cur, {
         includeRecordings: isSilverGoStudent(s),
         includeDg: isSilverGoStudent(s),
+        includeLearningModules: !isSilverGoStudent(s),
         studentLevel: s.level,
         studentPlan: s.subscription,
         goStatus: s.goStatus,
@@ -236,5 +291,6 @@ module.exports = {
   recomputePendingForStudent,
   applyJourneyDayRollovers,
   normalizeCourseDay,
-  markPendingAdvanceForStudentDay
+  markPendingAdvanceForStudentDay,
+  checkAndInstantlyAdvanceSilverGoStudent
 };

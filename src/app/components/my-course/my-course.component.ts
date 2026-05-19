@@ -180,6 +180,37 @@ export class MyCourseComponent implements OnInit {
       error: () => {}
     });
 
+    // Instant advance: Silver GO students promoted immediately after completing all day tasks.
+    this.progressService.journeyInstantAdvance$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => {
+        this.progressService.getStudentJourney().subscribe({
+          next: (j) => {
+            this.journey = j;
+            this.loadQuickAccess();
+            if (!this.journeyCongratsDialogRef) {
+              const data: JourneyPendingCelebrationData = {
+                currentDay: event.previousDay,
+                nextDay: event.newDay,
+                instant: true
+              };
+              const ref = this.dialog.open(JourneyPendingCelebrationDialogComponent, {
+                width: '420px',
+                maxWidth: '92vw',
+                disableClose: false,
+                autoFocus: 'first-tabbable',
+                data
+              });
+              this.journeyCongratsDialogRef = ref;
+              ref.afterClosed().subscribe(() => {
+                this.journeyCongratsDialogRef = null;
+              });
+            }
+          },
+          error: () => {}
+        });
+      });
+
     // Journey first: unlock the page as soon as progress API returns (fastest paint).
     // Meetings load in parallel and patch preview when ready — avoids waiting on the slower hop.
     this.progressService
@@ -560,13 +591,6 @@ export class MyCourseComponent implements OnInit {
       this.userProfile?.subscription || this.profile?.subscription || u?.subscription || ''
     ).toUpperCase();
     return goOk && sub === 'SILVER';
-  }
-
-  /** Tomorrow's date formatted for the promotion hint (e.g. "Wed, May 13"). */
-  get promotionTomorrowDateLabel(): string {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
 
   /**

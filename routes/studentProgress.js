@@ -223,8 +223,12 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
 
     if (student.role === 'STUDENT') {
       try {
-        const { recomputePendingForStudent } = require('../services/journeyDayAdvance.service');
+        const {
+          recomputePendingForStudent,
+          checkAndInstantlyAdvanceSilverGoStudent
+        } = require('../services/journeyDayAdvance.service');
         await recomputePendingForStudent(studentId);
+        await checkAndInstantlyAdvanceSilverGoStudent(studentId);
         student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
         if (!student) return res.status(404).json({ message: 'Student not found' });
       } catch (e) {

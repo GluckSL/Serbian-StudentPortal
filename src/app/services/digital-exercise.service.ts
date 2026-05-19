@@ -3,8 +3,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, from, of, throwError } from 'rxjs';
-import { switchMap, timeout } from 'rxjs/operators';
+import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { StudentProgressService } from './student-progress.service';
 
 export type QuestionType =
   | 'mcq'
@@ -406,7 +407,7 @@ export interface ExerciseFilters {
 export class DigitalExerciseService {
   private apiUrl = `${environment.apiUrl}/digital-exercises`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
   // ─── Student / Browse ─────────────────────────────────────────────────────
 
@@ -493,6 +494,15 @@ export class DigitalExerciseService {
       `${this.apiUrl}/${exerciseId}/submit`,
       { attemptId, responses, timeSpentSeconds },
       { withCredentials: true }
+    ).pipe(
+      tap((res: any) => {
+        if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
+          this.progressService.notifyJourneyAdvance({
+            previousDay: res.previousCourseDay,
+            newDay: res.newCourseDay
+          });
+        }
+      })
     );
   }
 

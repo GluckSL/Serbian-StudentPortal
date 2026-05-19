@@ -6,6 +6,8 @@ import { MatButtonModule } from '@angular/material/button';
 export interface JourneyPendingCelebrationData {
   currentDay: number;
   nextDay: number;
+  /** When true the student was promoted right now (instant); false = promoted at midnight. */
+  instant?: boolean;
 }
 
 @Component({
@@ -13,17 +15,31 @@ export interface JourneyPendingCelebrationData {
   standalone: true,
   imports: [CommonModule, MatDialogModule, MatButtonModule],
   template: `
-    <h2 mat-dialog-title class="jp-title">Congratulations!</h2>
+    <h2 mat-dialog-title class="jp-title">
+      {{ data.instant ? '🎉 Day Complete!' : 'Congratulations!' }}
+    </h2>
     <mat-dialog-content class="jp-body">
-      <p>
-        You attended your live class for <strong>Day {{ data.currentDay }}</strong>. You’re eligible to move on in your journey.
-      </p>
-      <p class="jp-hint">
-        Your journey day will advance to <strong>Day {{ data.nextDay }}</strong> at <strong>midnight</strong> (course timezone). Until then, keep practicing on Day {{ data.currentDay }}.
-      </p>
+      <ng-container *ngIf="data.instant; else pendingMode">
+        <p>
+          Amazing work! You've completed <strong>all tasks for Day {{ data.currentDay }}</strong>
+          — exercises, Gluck Buddy, and your class recording.
+        </p>
+        <p class="jp-hint jp-instant">
+          You've been instantly promoted to <strong>Day {{ data.nextDay }}</strong>!
+          Your new day's content is unlocked right now. Keep going! 🚀
+        </p>
+      </ng-container>
+      <ng-template #pendingMode>
+        <p>
+          You attended your live class for <strong>Day {{ data.currentDay }}</strong>. You're eligible to move on in your journey.
+        </p>
+        <p class="jp-hint">
+          Your journey day will advance to <strong>Day {{ data.nextDay }}</strong> at <strong>midnight</strong> (course timezone). Until then, keep practicing on Day {{ data.currentDay }}.
+        </p>
+      </ng-template>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-flat-button color="primary" (click)="close()">Got it</button>
+      <button mat-flat-button color="primary" (click)="close()">{{ data.instant ? "Let's go!" : 'Got it' }}</button>
     </mat-dialog-actions>
   `,
   styles: [
@@ -48,6 +64,12 @@ export interface JourneyPendingCelebrationData {
         border: 1px solid #c7d2fe;
         font-size: 0.88rem;
         color: #3730a3;
+      }
+      .jp-instant {
+        background: #f0fdf4;
+        border-color: #86efac;
+        color: #166534;
+        font-weight: 600;
       }
     `
   ]

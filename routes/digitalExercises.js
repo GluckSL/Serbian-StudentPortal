@@ -31,6 +31,7 @@ const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanit
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
+const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -2285,12 +2286,30 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
       averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
     });
 
+    let journeyAdvanced = false;
+    let newCourseDay = null;
+    let previousCourseDay = null;
+    if (req.user.role === 'STUDENT') {
+      try {
+        const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
+        if (advResult.advanced) {
+          journeyAdvanced = true;
+          previousCourseDay = advResult.previousDay;
+          newCourseDay = advResult.newDay;
+        }
+      } catch (advErr) {
+        console.error('[Instant Advance] exercise submit check failed (non-critical):', advErr.message);
+      }
+    }
+
     res.json({
       scorePercentage,
       earnedPoints,
       totalPoints,
       passed: scorePercentage >= 60,
-      answerDetails
+      answerDetails,
+      journeyAdvanced,
+      ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
     });
   } catch (err) {
     console.error('POST /digital-exercises/:id/submit error:', err);

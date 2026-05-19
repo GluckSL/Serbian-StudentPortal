@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { StudentProgressService } from '../services/student-progress.service';
 import type {
   DgCharacterDoc,
   DgConversationRequest,
@@ -67,7 +69,7 @@ export interface DgModuleSessionInsightsResponse {
 export class DgApiService {
   private readonly base = `${environment.apiUrl}/dg`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
   listStudentModules(): Observable<{ modules: DgModuleSummary[]; studentCourseDay?: number }> {
     return this.http.get<{ modules: DgModuleSummary[]; studentCourseDay?: number }>(
@@ -198,7 +200,16 @@ export class DgApiService {
       sessionId,
       finalScore,
       ...progress,
-    });
+    }).pipe(
+      tap((res: any) => {
+        if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
+          this.progressService.notifyJourneyAdvance({
+            previousDay: res.previousCourseDay,
+            newDay: res.newCourseDay
+          });
+        }
+      })
+    );
   }
 
   /** Initialise conversation state for a session (call once after session/start). */

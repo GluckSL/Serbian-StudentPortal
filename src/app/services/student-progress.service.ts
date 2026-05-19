@@ -2,8 +2,13 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { environment } from '../../environments/environment';
+
+export interface JourneyAdvanceEvent {
+  previousDay: number;
+  newDay: number;
+}
 
 export interface StudentProgress {
   _id: string;
@@ -83,7 +88,15 @@ export interface DashboardAnalytics {
 export class StudentProgressService {
   private apiUrl = `${environment.apiUrl}/student-progress`;
 
+  /** Emits when a Silver GO student is instantly advanced to the next journey day. */
+  readonly journeyInstantAdvance$ = new Subject<JourneyAdvanceEvent>();
+
   constructor(private http: HttpClient) {}
+
+  /** Call from any service/component that detects an instant journey advance in an API response. */
+  notifyJourneyAdvance(event: JourneyAdvanceEvent): void {
+    this.journeyInstantAdvance$.next(event);
+  }
 
   // Get student's progress across all modules
   getProgress(filters?: { status?: string; level?: string; category?: string }): Observable<{ progress: StudentProgress[]; stats: ProgressStats }> {

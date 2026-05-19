@@ -33,6 +33,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const creditMeetingIds = new Set((options.creditMeetings || []).map((id) => String(id)));
   const includeRecordings = options.includeRecordings === true;
   const includeDg = options.includeDg === true;
+  /** Silver GO journey uses exercises + DG + recordings only (learning modules hidden in My Course). */
+  const includeLearningModules = options.includeLearningModules !== false;
   const studentLevel = String(options.studentLevel || '').toUpperCase().trim();
   const studentPlan = String(options.studentPlan || '').toUpperCase().trim();
   const batchNames = Array.isArray(batchNameOrNames)
@@ -44,33 +46,41 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     ? new mongoose.Types.ObjectId(String(studentId))
     : null;
 
-  const modules = await LearningModule.find({
-    isDeleted: { $ne: true },
-    visibleToStudents: true,
-    courseDay: day
-  })
-    .select('_id title')
-    .lean();
-
-  const moduleIds = modules.map((m) => m._id);
-  const completedModuleIds = moduleIds.length
-    ? await StudentProgress.find({
-        studentId,
-        moduleId: { $in: moduleIds },
-        status: 'completed'
-      }).distinct('moduleId')
-    : [];
-
-  const completedModuleSet = new Set(completedModuleIds.map((id) => String(id)));
-  const moduleDone = completedModuleSet.size;
-  const moduleTotal = moduleIds.length;
-  const incompleteModules = modules
-    .filter((m) => !completedModuleSet.has(String(m._id)))
-    .map((m) => ({
-      kind: 'module',
-      title: m.title && String(m.title).trim() ? m.title : 'Module',
+  let modules = [];
+  let moduleDone = 0;
+  let moduleTotal = 0;
+  const incompleteModules = [];
+  if (includeLearningModules) {
+    modules = await LearningModule.find({
+      isDeleted: { $ne: true },
+      visibleToStudents: true,
       courseDay: day
-    }));
+    })
+      .select('_id title')
+      .lean();
+
+    const moduleIds = modules.map((m) => m._id);
+    const completedModuleIds = moduleIds.length
+      ? await StudentProgress.find({
+          studentId,
+          moduleId: { $in: moduleIds },
+          status: 'completed'
+        }).distinct('moduleId')
+      : [];
+
+    const completedModuleSet = new Set(completedModuleIds.map((id) => String(id)));
+    moduleDone = completedModuleSet.size;
+    moduleTotal = moduleIds.length;
+    for (const m of modules) {
+      if (!completedModuleSet.has(String(m._id))) {
+        incompleteModules.push({
+          kind: 'module',
+          title: m.title && String(m.title).trim() ? m.title : 'Module',
+          courseDay: day
+        });
+      }
+    }
+  }
 
   const exercises = await DigitalExercise.find({
     isDeleted: { $ne: true },

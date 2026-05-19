@@ -1,8 +1,10 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { getAuthToken } from './auth.service';
+import { StudentProgressService } from './student-progress.service';
 
 export interface ClassRecording {
   _id: string;
@@ -111,7 +113,7 @@ export interface BatchZoomRecording {
 export class ClassRecordingsService {
   private url = `${environment.apiUrl}/class-recordings`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
   getRecordings(): Observable<{ success: boolean; recordings: ClassRecording[] }> {
     const sep = this.url.includes('?') ? '&' : '?';
@@ -213,7 +215,16 @@ export class ClassRecordingsService {
   }
 
   updateViewDuration(viewId: string, watchDuration: number): Observable<any> {
-    return this.http.put<any>(`${this.url}/view/${viewId}`, { watchDuration });
+    return this.http.put<any>(`${this.url}/view/${viewId}`, { watchDuration }).pipe(
+      tap((res: any) => {
+        if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
+          this.progressService.notifyJourneyAdvance({
+            previousDay: res.previousCourseDay,
+            newDay: res.newCourseDay
+          });
+        }
+      })
+    );
   }
 
   updateManualDuration(recordingId: string, durationSeconds: number): Observable<{ success: boolean; duration: number }> {
@@ -284,7 +295,16 @@ export class ClassRecordingsService {
   }
 
   updateZoomViewDuration(viewId: string, watchDuration: number): Observable<any> {
-    return this.http.put<any>(`${this.url}/zoom/view/${viewId}`, { watchDuration });
+    return this.http.put<any>(`${this.url}/zoom/view/${viewId}`, { watchDuration }).pipe(
+      tap((res: any) => {
+        if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
+          this.progressService.notifyJourneyAdvance({
+            previousDay: res.previousCourseDay,
+            newDay: res.newCourseDay
+          });
+        }
+      })
+    );
   }
 
   /**
