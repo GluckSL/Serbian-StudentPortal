@@ -21,6 +21,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
+const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -586,11 +587,15 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const result = await User.updateMany(
       { role: 'STUDENT', batch: batchName },
       {
-        $set: {
-          currentCourseDay: targetDay,
-          pendingJourneyDayAdvance: false,
-          pendingJourneyDayAdvanceForDay: null
-        }
+        $set: withJourneyLevelInSet(
+          targetDay,
+          {
+            currentCourseDay: targetDay,
+            pendingJourneyDayAdvance: false,
+            pendingJourneyDayAdvanceForDay: null
+          },
+          { force: true }
+        )
       }
     );
 
@@ -685,7 +690,7 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
   try {
     const { force = false } = req.body || {};
     const student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
-      .select('name regNo batch currentCourseDay goStatus subscription').lean();
+      .select('name regNo batch currentCourseDay goStatus subscription level').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
     const batchKeys = allStudentBatchStringsForContent(student);
@@ -722,11 +727,15 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
 
     const nextDay = currentDay + 1;
     await User.findByIdAndUpdate(student._id, {
-      $set: {
-        currentCourseDay: nextDay,
-        pendingJourneyDayAdvance: false,
-        pendingJourneyDayAdvanceForDay: null
-      }
+      $set: withJourneyLevelInSet(
+        nextDay,
+        {
+          currentCourseDay: nextDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { student }
+      )
     });
 
     console.log(`✅ Student ${student.name} advanced from Day ${currentDay} → Day ${nextDay}${force ? ' (forced by admin)' : ''}`);
@@ -752,16 +761,25 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
     if (day === undefined || day === null) return res.status(400).json({ message: 'day is required' });
 
     const targetDay = clampDay(day);
+    const existing = await User.findOne({ _id: studentId, role: 'STUDENT' })
+      .select('goStatus batch subscription level')
+      .lean();
+    if (!existing) return res.status(404).json({ message: 'Student not found' });
+
     const student = await User.findOneAndUpdate(
       { _id: studentId, role: 'STUDENT' },
       {
-        $set: {
-          currentCourseDay: targetDay,
-          pendingJourneyDayAdvance: false,
-          pendingJourneyDayAdvanceForDay: null
-        }
+        $set: withJourneyLevelInSet(
+          targetDay,
+          {
+            currentCourseDay: targetDay,
+            pendingJourneyDayAdvance: false,
+            pendingJourneyDayAdvanceForDay: null
+          },
+          { student: existing }
+        )
       },
-      { new: true, select: 'name regNo batch currentCourseDay' }
+      { new: true, select: 'name regNo batch currentCourseDay level' }
     );
     if (!student) return res.status(404).json({ message: 'Student not found' });
 

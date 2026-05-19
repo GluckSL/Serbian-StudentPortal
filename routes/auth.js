@@ -1306,10 +1306,22 @@ router.get("/profile", verifyToken, async (req, res) => {
       // ðŸ‘† populate assignedTeacher with only name & email fields
     }
 
-    const user = await query;
+    let user = await query;
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === 'STUDENT') {
+      try {
+        const { ensureStudentLevelMatchesJourneyDay } = require('../services/journeyLevelSync.service');
+        const sync = await ensureStudentLevelMatchesJourneyDay(user._id);
+        if (sync.synced) {
+          user = await query;
+        }
+      } catch (e) {
+        console.warn('ensureStudentLevelMatchesJourneyDay:', e.message);
+      }
     }
 
     if (studentRequiresWithdrawalConfirmation(user)) {

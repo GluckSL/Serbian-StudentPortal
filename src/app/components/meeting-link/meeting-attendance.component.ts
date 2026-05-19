@@ -327,13 +327,29 @@ import { ZoomService } from '../../services/zoom.service';
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="tab-icon">groups</mat-icon>
-              All Zoom Participants ({{ attendanceData.allParticipants?.length || 0 }})
+              All Zoom Participants ({{ uniqueZoomParticipantCount }})
             </ng-template>
 
             <mat-card class="table-card">
               <div class="all-participants-header">
                 <h3>All Zoom Participants</h3>
-                <p class="subtitle">Everyone who joined this Zoom meeting, including unmatched participants. Use the "Mark Student" button to manually link a participant to a batch student.</p>
+                <div class="participants-stats-bar">
+                  <span class="stat-badge stat-unique" matTooltip="Distinct people after merging reconnect sessions">
+                    <mat-icon>person</mat-icon>
+                    {{ uniqueZoomParticipantCount }} unique
+                  </span>
+                  <span class="stat-badge stat-raw" matTooltip="Total individual Zoom sessions including reconnects">
+                    <mat-icon>repeat</mat-icon>
+                    {{ rawZoomSessionCount }} raw sessions
+                  </span>
+                  <span *ngIf="rawZoomSessionCount > uniqueZoomParticipantCount" class="stat-badge stat-reconnects">
+                    {{ rawZoomSessionCount - uniqueZoomParticipantCount }} reconnect sessions
+                  </span>
+                </div>
+                <p class="subtitle">
+                  Each row is one unique person — reconnect sessions are merged and counted in the
+                  <strong>Reconnects</strong> column. Use "Mark Student" to link an unmapped name to a batch student.
+                </p>
               </div>
 
               <table mat-table [dataSource]="attendanceData.allParticipants" class="attendance-table">
@@ -357,6 +373,21 @@ import { ZoomService } from '../../services/zoom.service';
                 <ng-container matColumnDef="pLeaveTime">
                   <th mat-header-cell *matHeaderCellDef>Leave Time</th>
                   <td mat-cell *matCellDef="let p">{{ p.leaveTime ? formatTime(p.leaveTime) : '-' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pSessions">
+                  <th mat-header-cell *matHeaderCellDef>Sessions</th>
+                  <td mat-cell *matCellDef="let p">
+                    <ng-container *ngIf="(p.sessionCount || 1) > 1; else singleSession">
+                      <span class="session-badge"
+                        [matTooltip]="(p.sessionCount || 1) + ' total sessions — ' + (p.reconnectCount || 0) + ' quick reconnects (gap < 10 min)'">
+                        {{ p.sessionCount }}×
+                      </span>
+                    </ng-container>
+                    <ng-template #singleSession>
+                      <span class="single-session">1</span>
+                    </ng-template>
+                  </td>
                 </ng-container>
 
                 <ng-container matColumnDef="pDuration">
@@ -612,6 +643,60 @@ import { ZoomService } from '../../services/zoom.service';
       color: #e65100;
     }
 
+    .participants-stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .stat-badge mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    .stat-unique {
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+
+    .stat-raw {
+      background: #f3e5f5;
+      color: #6a1b9a;
+    }
+
+    .stat-reconnects {
+      background: #fff3e0;
+      color: #e65100;
+    }
+
+    .session-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #fff3e0;
+      color: #e65100;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: default;
+    }
+
+    .single-session {
+      color: #9e9e9e;
+      font-size: 13px;
+    }
+
     mat-chip mat-icon {
       font-size: 18px;
       width: 18px;
@@ -817,7 +902,7 @@ export class MeetingAttendanceComponent implements OnInit {
   selectedTab: number = 0;
   
   displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration', 'manualMark'];
-  participantColumns: string[] = ['pName', 'pEmail', 'pJoinTime', 'pLeaveTime', 'pDuration', 'pMapped', 'pAction'];
+  participantColumns: string[] = ['pName', 'pEmail', 'pJoinTime', 'pLeaveTime', 'pSessions', 'pDuration', 'pMapped', 'pAction'];
   portalJoinColumns: string[] = ['pjName', 'pjEmail', 'pjJoinedAt', 'pjLastJoined', 'pjJoinCount', 'pjZoomName'];
 
   // Mapping state
@@ -991,6 +1076,17 @@ export class MeetingAttendanceComponent implements OnInit {
   }
 
   // --- Existing methods ---
+
+  get uniqueZoomParticipantCount(): number {
+    return this.attendanceData?.allParticipants?.length || 0;
+  }
+
+  get rawZoomSessionCount(): number {
+    return this.attendanceData?.rawZoomSessionCount
+      ?? (this.attendanceData?.allParticipants || []).reduce(
+           (sum: number, p: any) => sum + (p.sessionCount || 1), 0
+         );
+  }
 
   getAttendanceRate(): number {
     if (!this.attendanceData || this.attendanceData.totalStudents === 0) {

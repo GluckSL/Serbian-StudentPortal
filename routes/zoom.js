@@ -2189,14 +2189,22 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     }
 
     const normAttendStr = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
-    const allParticipants = (zoomReport.participants || []).map(p => ({
+    const participants = zoomReport.participants || [];
+
+    const allParticipants = participants.map(p => ({
       name: p.name || '',
       email: p.email || '',
-      joinTime: p.joinTime || null,
-      leaveTime: p.leaveTime || null,
+      // firstJoin / finalLeave — explicit session-boundary fields from merged deduplication.
+      firstJoin: p.firstJoin || p.joinTime || null,
+      finalLeave: p.finalLeave || p.leaveTime || null,
+      // Legacy names kept for backward compatibility.
+      joinTime: p.firstJoin || p.joinTime || null,
+      leaveTime: p.finalLeave || p.leaveTime || null,
       duration: p.duration || 0,
+      totalDuration: p.totalDuration || p.duration || 0,
       durationMinutes: p.durationMinutes || 0,
       sessionCount: p.sessionCount || 1,
+      reconnectCount: p.reconnectCount || 0,
       isMapped: attendanceData.some(a =>
         (a.zoomEmail && p.email && normAttendStr(a.zoomEmail) === normAttendStr(p.email)) ||
         (a.zoomName && p.name && normAttendStr(a.zoomName) === normAttendStr(p.name))
@@ -2210,6 +2218,9 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       })()
     }));
 
+    // Total raw Zoom session rows before deduplication (sum of per-person session counts).
+    const rawZoomSessionCount = participants.reduce((sum, p) => sum + (p.sessionCount || 1), 0);
+
     res.status(200).json({
       success: true,
       data: {
@@ -2222,7 +2233,8 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         attendedCount: attendanceData.filter(a => a.attended).length,
         absentCount: attendanceData.filter(a => !a.attended).length,
         attendance: attendanceData,
-        allParticipants: allParticipants,
+        allParticipants,
+        rawZoomSessionCount,
         portalJoins,
         matchingStats: matchingStats,
         summary: zoomReport.summary

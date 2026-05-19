@@ -23,6 +23,7 @@ const {
   meetsStrictThreshold
 } = require('../services/journeyDayCompletion.service');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 
 function escapeRegExp(str) {
@@ -1169,11 +1170,15 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
           const advancedNow = await User.updateOne(
             { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
             {
-              $set: {
-                currentCourseDay: nextDay,
-                pendingJourneyDayAdvance: false,
-                pendingJourneyDayAdvanceForDay: null
-              }
+              $set: withJourneyLevelInSet(
+                nextDay,
+                {
+                  currentCourseDay: nextDay,
+                  pendingJourneyDayAdvance: false,
+                  pendingJourneyDayAdvanceForDay: null
+                },
+                { student: studentLean }
+              )
             }
           );
           if (advancedNow?.modifiedCount) {

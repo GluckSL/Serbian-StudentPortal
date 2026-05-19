@@ -123,24 +123,52 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
 
     const now = new Date();
 
-    // Structured join log — always emitted (one entry per click; not noisy).
     const ua = req.get('user-agent') || '';
-    const isMobile = /Android|iPhone|iPad/i.test(ua);
-    const browser = /WhatsApp/i.test(ua) ? 'WhatsApp' :
-                    /Instagram/i.test(ua) ? 'Instagram' :
-                    /FBAN|FBAV/i.test(ua) ? 'Facebook' :
-                    /Telegram/i.test(ua) ? 'Telegram' :
-                    'other';
+    const clientIp = req.get('x-forwarded-for')?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const isMobileDevice = /Android|iPhone|iPad/i.test(ua);
+    const browser = /WhatsApp/i.test(ua) ? 'WhatsApp'
+      : /Instagram/i.test(ua) ? 'Instagram'
+      : /FBAN|FBAV/i.test(ua) ? 'Facebook'
+      : /Telegram/i.test(ua) ? 'Telegram'
+      : 'other';
+
+    // Check for recent join (reconnect detection) BEFORE upsert so we have the old timestamp.
+    const prevLog = await JoinLog.findOne({ meetingId: meeting._id, studentId: student._id })
+      .select('lastJoinedAt joinCount')
+      .lean();
+
+    const TWO_MIN_MS = 2 * 60 * 1000;
+    const isReconnect = !!(
+      prevLog &&
+      prevLog.lastJoinedAt &&
+      now.getTime() - new Date(prevLog.lastJoinedAt).getTime() < TWO_MIN_MS
+    );
+
     console.log('JOIN_CLICK', {
       studentId: String(student._id),
       meetingId: String(meeting._id),
       displayName,
-      userAgent: ua,
-      deviceType: isMobile ? 'mobile' : 'desktop',
+      ip: clientIp,
+      ua: ua.slice(0, 120),
+      deviceType: isMobileDevice ? 'mobile' : 'desktop',
       browser,
-      joinTime: now.toISOString(),
+      isReconnect,
+      ts: now.toISOString(),
     });
-    console.log('Joining Zoom as:', displayName);
+
+    if (isReconnect) {
+      console.warn('JOIN_RECONNECT', {
+        studentId: String(student._id),
+        meetingId: String(meeting._id),
+        ip: clientIp,
+        ua: ua.slice(0, 120),
+        prevJoinAt: prevLog.lastJoinedAt,
+        gapMs: now.getTime() - new Date(prevLog.lastJoinedAt).getTime(),
+        totalJoinCount: (prevLog.joinCount || 0) + 1,
+        ts: now.toISOString(),
+      });
+    }
+
     await JoinLog.findOneAndUpdate(
       { meetingId: meeting._id, studentId: student._id },
       {

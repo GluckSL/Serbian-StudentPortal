@@ -14,6 +14,7 @@ const {
   computeJourneyDayCompletion,
   meetsStrictThreshold
 } = require('./journeyDayCompletion.service');
+const { withJourneyLevelInSet } = require('./journeyLevelSync.service');
 
 /**
  * Check if a Silver GO student has completed all tasks for their current journey day
@@ -54,11 +55,15 @@ async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
   const result = await User.updateOne(
     { _id: studentId, role: 'STUDENT', currentCourseDay: currentDay },
     {
-      $set: {
-        currentCourseDay: nextDay,
-        pendingJourneyDayAdvance: false,
-        pendingJourneyDayAdvanceForDay: null
-      }
+      $set: withJourneyLevelInSet(
+        nextDay,
+        {
+          currentCourseDay: nextDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { student }
+      )
     }
   );
 
@@ -269,11 +274,15 @@ async function applyJourneyDayRollovers() {
     await User.updateOne(
       { _id: s._id },
       {
-        $set: {
-          currentCourseDay: next,
-          pendingJourneyDayAdvance: false,
-          pendingJourneyDayAdvanceForDay: null
-        }
+        $set: withJourneyLevelInSet(
+          next,
+          {
+            currentCourseDay: next,
+            pendingJourneyDayAdvance: false,
+            pendingJourneyDayAdvanceForDay: null
+          },
+          { student: s }
+        )
       }
     );
     advanced++;

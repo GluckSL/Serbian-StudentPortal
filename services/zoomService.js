@@ -36,18 +36,20 @@ function normalizeParticipantName(name) {
 
 /**
  * Dedupe key for one Zoom past-meeting participant row.
- * Prefer stable Zoom user ids over display name so distinct guests are not collapsed.
+ * - Email: stable signed-in Zoom users.
+ * - Normalized display name: merges disconnect/reconnect rows (guest user_id and row id change every session).
+ * - user_id only when name is missing (rare).
  */
 function participantDedupeKey(p) {
   const rawEmailInput = (p.user_email || p.email || '').trim();
   const dedupeEmail = normalizeEmailForDedupe(rawEmailInput);
   if (dedupeEmail) return `email:${dedupeEmail}`;
 
-  const zoomUserId = String(p.user_id || p.participant_user_id || '').trim();
-  if (zoomUserId) return `userid:${zoomUserId}`;
-
   const normName = normalizeParticipantName(p.name || p.user_name || '');
   if (normName) return `name:${normName}`;
+
+  const zoomUserId = String(p.user_id || p.participant_user_id || '').trim();
+  if (zoomUserId) return `userid:${zoomUserId}`;
 
   const rowId = String(p.id || '').trim();
   if (rowId) return `id:${rowId}`;
@@ -55,20 +57,61 @@ function participantDedupeKey(p) {
   return `raw:${String(p.name || p.user_name || 'unknown')}`;
 }
 
+/** Sessions joined within this gap are counted as reconnects rather than intentional re-joins. */
+const RECONNECT_GAP_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Merge a new Zoom session row into an already-seen participant entry.
+ * Tracks individual sessions so we can compute reconnect counts and gap analytics.
+ */
 function mergeParticipantRows(existing, p, dedupeEmail, rawEmailInput) {
-  existing.duration += Number(p.duration) || 0;
+  const sessionDuration = Number(p.duration) || 0;
+  const sessionJoinTime = p.join_time || null;
+  const sessionLeaveTime = p.leave_time || null;
+
+  // Gap from the last recorded leave to this session's join — determines reconnect vs re-join.
+  const prevSession = existing.sessions[existing.sessions.length - 1];
+  const prevLeaveTime = prevSession?.leaveTime;
+  const gapMs = (prevLeaveTime && sessionJoinTime)
+    ? new Date(sessionJoinTime).getTime() - new Date(prevLeaveTime).getTime()
+    : null;
+
+  existing.sessions.push({ joinTime: sessionJoinTime, leaveTime: sessionLeaveTime, duration: sessionDuration });
+  existing.sessionCount = existing.sessions.length;
+
+  if (gapMs !== null && gapMs >= 0 && gapMs < RECONNECT_GAP_MS) {
+    existing.reconnectCount = (existing.reconnectCount || 0) + 1;
+  }
+
+  existing.duration += sessionDuration;
+  existing.totalDuration = existing.duration;
   existing.durationMinutes = Math.round(existing.duration / 60);
-  if (p.join_time && new Date(p.join_time) < new Date(existing.joinTime)) existing.joinTime = p.join_time;
-  if (p.leave_time && new Date(p.leave_time) > new Date(existing.leaveTime)) existing.leaveTime = p.leave_time;
-  existing.sessionCount = (existing.sessionCount || 1) + 1;
+
+  // firstJoin = earliest join; finalLeave = latest leave across all sessions.
+  if (sessionJoinTime && (!existing.firstJoin || new Date(sessionJoinTime) < new Date(existing.firstJoin))) {
+    existing.firstJoin = sessionJoinTime;
+    existing.joinTime = sessionJoinTime;
+  }
+  if (sessionLeaveTime && (!existing.finalLeave || new Date(sessionLeaveTime) > new Date(existing.finalLeave))) {
+    existing.finalLeave = sessionLeaveTime;
+    existing.leaveTime = sessionLeaveTime;
+  }
+
   if (!existing.email && (dedupeEmail || rawEmailInput)) {
     existing.email = dedupeEmail || rawEmailInput.toLowerCase();
   }
 }
 
 function dedupeParticipantRows(rawParticipants) {
+  // Sort chronologically so sessions array within each participant is in join order.
+  const sorted = [...rawParticipants].sort((a, b) => {
+    const aT = a.join_time ? new Date(a.join_time).getTime() : 0;
+    const bT = b.join_time ? new Date(b.join_time).getTime() : 0;
+    return aT - bT;
+  });
+
   const participantMap = new Map();
-  for (const p of rawParticipants) {
+  for (const p of sorted) {
     const rawEmailInput = (p.user_email || p.email || '').trim();
     const dedupeEmail = normalizeEmailForDedupe(rawEmailInput);
     const key = participantDedupeKey(p);
@@ -76,19 +119,27 @@ function dedupeParticipantRows(rawParticipants) {
     if (participantMap.has(key)) {
       mergeParticipantRows(participantMap.get(key), p, dedupeEmail, rawEmailInput);
     } else {
+      const initDuration = Number(p.duration) || 0;
       participantMap.set(key, {
         id: p.id,
         userId: p.user_id,
         name: p.name || p.user_name || '',
         email: dedupeEmail || rawEmailInput.toLowerCase(),
-        joinTime: p.join_time,
-        leaveTime: p.leave_time,
-        duration: Number(p.duration) || 0,
-        durationMinutes: Math.round((Number(p.duration) || 0) / 60),
+        // firstJoin / finalLeave — explicit aliases kept consistent with merged records.
+        firstJoin: p.join_time || null,
+        finalLeave: p.leave_time || null,
+        // Legacy field names kept for backward compatibility.
+        joinTime: p.join_time || null,
+        leaveTime: p.leave_time || null,
+        duration: initDuration,
+        totalDuration: initDuration,
+        durationMinutes: Math.round(initDuration / 60),
         attentiveness_score: p.attentiveness_score,
         status: p.status,
         participantUserId: p.participant_user_id,
         sessionCount: 1,
+        reconnectCount: 0,
+        sessions: [{ joinTime: p.join_time || null, leaveTime: p.leave_time || null, duration: initDuration }],
       });
     }
   }

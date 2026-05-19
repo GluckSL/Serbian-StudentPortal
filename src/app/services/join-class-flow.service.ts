@@ -13,7 +13,12 @@ import {
 } from '../shared/in-app-browser-warning/in-app-browser-warning.component';
 
 const JOIN_DEBOUNCE_MS = 900;
-const SAFETY_RELEASE_JOIN_MS = 28000;
+/** How long the join lock holds after launching Zoom — prevents re-tapping within the same browser session. */
+const JOIN_LOCK_TIMEOUT_MS = 15_000;
+const SAFETY_RELEASE_JOIN_MS = JOIN_LOCK_TIMEOUT_MS + 3_000; // fallback a few ms after normal release
+
+/** sessionStorage key for persisting the per-meeting lock across mobile navigation (back button). */
+const JOIN_LOCK_STORAGE_KEY = 'gluck_join_lock';
 
 function meetingIdFromJoinClassUrl(joinUrl: string): string {
   const m = String(joinUrl).match(/join-class\/([a-f0-9]{24})/i);
@@ -68,6 +73,51 @@ interface JoinClassApiBody {
   msg?: string;
 }
 
+/** Extract student id from the current JWT for logging (no sensitive data exposed). */
+function getStudentIdFromJwt(): string {
+  const token = getAuthToken();
+  if (!token) return 'unknown';
+  try {
+    const decoded = jwtDecode<{ id?: string; sub?: string }>(token);
+    return decoded?.id || decoded?.sub || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Minimal, stable device context for join-flow logs. */
+function buildDeviceContext(): Record<string, unknown> {
+  const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
+  const mobile = /Android|iPhone|iPad|iPod/i.test(ua);
+  const inWebView = /wv\)|; wv;/i.test(ua);
+  const browser = /WhatsApp/i.test(ua) ? 'WhatsApp'
+    : /Instagram/i.test(ua) ? 'Instagram'
+    : /FBAN|FBAV/i.test(ua) ? 'Facebook'
+    : /Telegram/i.test(ua) ? 'Telegram'
+    : /Chrome/i.test(ua) ? 'Chrome'
+    : /Safari/i.test(ua) ? 'Safari'
+    : 'other';
+  return { mobile, inWebView, browser, ts: new Date().toISOString() };
+}
+
+/** Persist a per-meeting join lock that survives mobile back-navigation within the same tab. */
+function setJoinLock(meetingId: string): void {
+  try {
+    sessionStorage.setItem(JOIN_LOCK_STORAGE_KEY, JSON.stringify({ meetingId, lockedAt: Date.now() }));
+  } catch { /* ignore quota/CSP issues */ }
+}
+
+function getJoinLock(): { meetingId: string; lockedAt: number } | null {
+  try {
+    const raw = sessionStorage.getItem(JOIN_LOCK_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function clearJoinLock(): void {
+  try { sessionStorage.removeItem(JOIN_LOCK_STORAGE_KEY); } catch { /* ignore */ }
+}
+
 function joinFlowLog(event: string, detail?: Record<string, unknown>): void {
   const payload = detail ? { ...detail } : undefined;
   if (payload) {
@@ -106,6 +156,7 @@ export class JoinClassFlowService {
 
   private releaseJoinLock(): void {
     this.isJoining = false;
+    clearJoinLock();
   }
 
   private scheduleSafetyRelease(runId: number): void {
@@ -115,11 +166,29 @@ export class JoinClassFlowService {
     }, SAFETY_RELEASE_JOIN_MS);
   }
 
-  private shouldIgnoreDuplicateTap(): boolean {
+  /**
+   * Two-layer duplicate-join prevention:
+   * 1. In-memory `isJoining` flag — guards same Angular instance (concurrent taps, desktop).
+   * 2. sessionStorage per-meeting lock — survives mobile back-navigation within the same tab.
+   * 3. 900 ms UI debounce — swallows accidental double-taps.
+   */
+  private shouldIgnoreDuplicateTap(meetingId: string): boolean {
     if (this.isJoining) {
-      joinFlowLog('duplicate_join_prevented', { reason: 'already_joining' });
+      joinFlowLog('duplicate_join_prevented', { reason: 'already_joining', meetingId, ...buildDeviceContext() });
       return true;
     }
+
+    const lock = getJoinLock();
+    if (lock && lock.meetingId === meetingId && Date.now() - lock.lockedAt < JOIN_LOCK_TIMEOUT_MS) {
+      joinFlowLog('duplicate_join_prevented', {
+        reason: 'per_meeting_lock',
+        meetingId,
+        msSinceLock: Date.now() - lock.lockedAt,
+        ...buildDeviceContext(),
+      });
+      return true;
+    }
+
     const now = Date.now();
     if (this.lastJoinAttemptAt > 0 && now - this.lastJoinAttemptAt < JOIN_DEBOUNCE_MS) {
       joinFlowLog('duplicate_join_prevented', { reason: 'debounce', msSinceLast: now - this.lastJoinAttemptAt });
@@ -163,13 +232,18 @@ export class JoinClassFlowService {
       return;
     }
 
-    if (this.shouldIgnoreDuplicateTap()) {
+    if (this.shouldIgnoreDuplicateTap(meetingId)) {
       return;
     }
 
     this.isJoining = true;
     this.clearJoinTimers();
-    joinFlowLog('join_started', { meetingId });
+    joinFlowLog('join_started', {
+      meetingId,
+      studentId: getStudentIdFromJwt(),
+      ts: new Date().toISOString(),
+      ...buildDeviceContext(),
+    });
 
     if (isRestrictedInAppBrowser()) {
       // Social-media in-app browsers (WhatsApp, Instagram, etc.) — warn user to open in Chrome/Safari.
@@ -186,7 +260,7 @@ export class JoinClassFlowService {
           disableClose: false,
         });
         dialogRef.afterClosed().subscribe(() => {
-          this.launchZoomFromBody(body, onError, null);
+          this.launchZoomFromBody(body, onError, null, meetingId);
         });
       });
       return;
@@ -218,7 +292,7 @@ export class JoinClassFlowService {
     onOk: (body: JoinClassApiBody) => void,
   ): void {
     this.joinState$.next({ loading: true, message: '' });
-    joinFlowLog('join_fetch_started', { meetingId });
+    joinFlowLog('join_fetch_started', { meetingId, studentId: getStudentIdFromJwt() });
     const headers = new HttpHeaders({
       Accept: 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
@@ -263,7 +337,7 @@ export class JoinClassFlowService {
     preOpenedWin: Window | null,
   ): void {
     this.joinState$.next({ loading: true, message: '' });
-    joinFlowLog('join_fetch_started', { meetingId });
+    joinFlowLog('join_fetch_started', { meetingId, studentId: getStudentIdFromJwt() });
     const headers = new HttpHeaders({
       Accept: 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
@@ -274,7 +348,7 @@ export class JoinClassFlowService {
       })
       .subscribe({
         next: (body) => {
-          this.launchZoomFromBody(body, onError, preOpenedWin);
+          this.launchZoomFromBody(body, onError, preOpenedWin, meetingId);
         },
         error: (err) => {
           if (preOpenedWin && !preOpenedWin.closed) {
@@ -289,6 +363,7 @@ export class JoinClassFlowService {
     body: JoinClassApiBody,
     onError: ((msg: string) => void) | undefined,
     preOpenedWin: Window | null,
+    meetingId: string,
   ): void {
     const universalUrl = body?.zoomUniversalUrl || '';
     const webUrl = body?.zoomWebUrl || body?.redirectUrl || '';
@@ -301,7 +376,7 @@ export class JoinClassFlowService {
       onError?.(body?.message || body?.msg || 'Could not start join.');
       return;
     }
-    this.launchZoom(universalUrl, webUrl, onError, preOpenedWin);
+    this.launchZoom(universalUrl, webUrl, onError, preOpenedWin, meetingId);
   }
 
   /**
@@ -322,6 +397,7 @@ export class JoinClassFlowService {
     webUrl: string,
     onError: ((msg: string) => void) | undefined,
     preOpenedWin: Window | null,
+    meetingId: string,
   ): void {
     this.clearJoinTimers();
     this.activeLaunchRun += 1;
@@ -331,46 +407,57 @@ export class JoinClassFlowService {
     const inWebView = isAndroidWebView();
     const targetUrl = universalUrl || webUrl;
 
-    joinFlowLog('join_launch', { runId, mobile, inWebView, targetUrl });
+    // Persist the lock BEFORE navigating — survives back-button on mobile.
+    setJoinLock(meetingId);
+
+    joinFlowLog('join_launch', {
+      runId,
+      meetingId,
+      studentId: getStudentIdFromJwt(),
+      method: inWebView ? 'intent_webview' : mobile ? 'mobile_navigate' : 'desktop_tab',
+      targetUrl,
+      ts: new Date().toISOString(),
+      ...buildDeviceContext(),
+    });
 
     if (inWebView && universalUrl) {
-      // Android WebView: zoommtg:// is blocked; intent:// asks Android to open the Zoom app.
+      // Android WebView: zoommtg:// is blocked; intent:// hands off to the Zoom app package.
       this.joinState$.next({ loading: true, message: 'Opening Zoom app\u2026' });
       const intentUrl =
         'intent://' +
         universalUrl.replace(/^https?:\/\//, '') +
         '#Intent;scheme=https;package=us.zoom.videomeetings;end';
-      joinFlowLog('deep_link_attempted', { runId, method: 'intent_webview' });
       window.location.href = intentUrl;
 
     } else if (mobile) {
-      // Mobile browser: navigate current tab — no user-gesture restriction on plain HTTPS.
-      // App Links open the Zoom app when installed; zoom.us handles the fallback to web.
+      // Mobile browser: navigate current tab.
+      // iOS Universal Links / Android App Links open the Zoom app when installed.
       this.joinState$.next({ loading: true, message: 'Opening Zoom\u2026' });
-      joinFlowLog('mobile_navigate', { runId });
       window.location.href = targetUrl;
 
     } else {
-      // Desktop: use the pre-opened tab so popup-blockers never interfere.
+      // Desktop: navigate the pre-opened blank tab (opened synchronously on click,
+      // so popup-blockers never fire).
       this.joinState$.next({ loading: false, message: '' });
-      joinFlowLog('desktop_tab_navigate', { runId, preOpened: !!preOpenedWin });
       if (preOpenedWin && !preOpenedWin.closed) {
         preOpenedWin.location.href = targetUrl;
       } else {
         const win = window.open(targetUrl, '_blank');
         if (!win) {
-          // Last resort if popup was still blocked: use current tab.
-          joinFlowLog('popup_blocked_fallback', { runId });
+          // Last resort if popup was still blocked.
+          joinFlowLog('popup_blocked_fallback', { runId, meetingId });
           window.location.href = targetUrl;
         }
       }
     }
 
+    // Single cleanup timer — 15 s matches JOIN_LOCK_TIMEOUT_MS.
+    // Prevents re-join button from firing again within that window.
     this.scheduleJoinTimer(() => {
       if (runId !== this.activeLaunchRun) return;
       this.joinState$.next({ loading: false, message: '' });
       this.releaseJoinLock();
-    }, mobile || inWebView ? 4000 : 2000);
+    }, JOIN_LOCK_TIMEOUT_MS);
 
     this.scheduleSafetyRelease(runId);
   }

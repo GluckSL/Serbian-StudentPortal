@@ -18,6 +18,7 @@ const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
 const { getStudentDgJourneyAccess, dgModuleUnlockedForStudentDay } = require('../utils/dgStudentJourneyGate');
 
 const GO_BATCH_NAME = 'GO-SILVER';
@@ -211,11 +212,15 @@ router.post('/bulk-set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']),
         goStatus: 'GO'
       },
       {
-        $set: {
-          currentCourseDay: day,
-          pendingJourneyDayAdvance: false,
-          pendingJourneyDayAdvanceForDay: null
-        }
+        $set: withJourneyLevelInSet(
+          day,
+          {
+            currentCourseDay: day,
+            pendingJourneyDayAdvance: false,
+            pendingJourneyDayAdvanceForDay: null
+          },
+          { force: true }
+        )
       }
     );
 
@@ -327,11 +332,15 @@ router.post('/silver/bulk-set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
     };
 
     const result = await User.updateMany(query, {
-      $set: {
-        currentCourseDay: day,
-        pendingJourneyDayAdvance: false,
-        pendingJourneyDayAdvanceForDay: null
-      }
+      $set: withJourneyLevelInSet(
+        day,
+        {
+          currentCourseDay: day,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { force: true }
+      )
     });
 
     res.json({
@@ -406,11 +415,16 @@ router.patch('/:studentId/journey-day', verifyToken, checkRole(['ADMIN', 'TEACHE
     if (!student) return res.status(404).json({ message: 'GO student not found.' });
 
     student.currentCourseDay = day;
+    student.level = levelForJourneyDay(day);
     student.pendingJourneyDayAdvance = false;
     student.pendingJourneyDayAdvanceForDay = null;
     await student.save();
 
-    res.json({ message: 'Journey day updated.', currentCourseDay: day });
+    res.json({
+      message: 'Journey day updated.',
+      currentCourseDay: day,
+      level: student.level
+    });
   } catch (err) {
     console.error('go-students PATCH /:id/journey-day', err);
     res.status(500).json({ message: 'Failed to update journey day.', error: err.message });
