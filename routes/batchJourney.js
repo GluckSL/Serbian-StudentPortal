@@ -321,6 +321,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         batchStartDate: null,
         strictJourneyRule: false,
         strictJourneyThresholdPercent: 100,
+        autoRecordingEnabled: false,
         journeyActive: false
       };
       const activeBatchDay = computeBatchDay(cfg);
@@ -336,6 +337,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
+        autoRecordingEnabled: !!(cfg && cfg.autoRecordingEnabled),
         journeyActive: !!(cfg && cfg.journeyActive),
         studentCount: countMap[name] || 0,
         teacherId: teacherByBatch[name]?.teacherId ?? null,
@@ -507,7 +509,8 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         batchType: normalizeBatchType(cfg.batchType),
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
-          cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100
+          cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
+        autoRecordingEnabled: !!cfg.autoRecordingEnabled
       },
       teacher: { teacherId, teacherName },
       students: students.map(s => ({
@@ -615,6 +618,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       createOnly,
       strictJourneyRule,
       strictJourneyThresholdPercent,
+      autoRecordingEnabled,
       journeyActive,
       newBatchName
     } = req.body || {};
@@ -686,6 +690,9 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       if (cfg.strictJourneyRule && (cfg.strictJourneyThresholdPercent == null || cfg.strictJourneyThresholdPercent < 1)) {
         cfg.strictJourneyThresholdPercent = 100;
       }
+    }
+    if (autoRecordingEnabled !== undefined) {
+      cfg.autoRecordingEnabled = !!autoRecordingEnabled;
     }
     if (journeyActive !== undefined) {
       cfg.journeyActive = !!journeyActive;

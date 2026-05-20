@@ -23,6 +23,8 @@ interface BatchSummary {
   /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
   strictJourneyRule?: boolean;
   strictJourneyThresholdPercent?: number;
+  /** When true, Zoom webhook recordings are automatically saved for this batch. */
+  autoRecordingEnabled?: boolean;
   /** Shown on home table only when true; false batches appear under “upcoming”. */
   journeyActive?: boolean;
   studentCount: number;
@@ -509,6 +511,13 @@ interface TimelineDay {
             <span class="j-ro-card-value">{{ editBatchType === 'old' ? 'Old (live/recordings only)' : 'New (modules/exercises enabled)' }}</span>
           </div>
         </div>
+        <div class="j-ro-card">
+          <div class="j-ro-card-icon" [ngClass]="editAutoRecordingEnabled ? 'j-ro-card-icon--green' : 'j-ro-card-icon--muted'"><i class="fas fa-video"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Auto recording</span>
+            <span class="j-ro-card-value">{{ editAutoRecordingEnabled ? 'On — recordings saved automatically' : 'Off — backfill manually' }}</span>
+          </div>
+        </div>
         <div class="j-ro-card j-ro-card--wide" *ngIf="editNotes?.trim()">
           <div class="j-ro-card-icon j-ro-card-icon--muted"><i class="fas fa-sticky-note"></i></div>
           <div class="j-ro-card-body">
@@ -599,6 +608,20 @@ interface TimelineDay {
             <option value="new">New batch (modules + exercises + classes)</option>
             <option value="old">Old batch (classes + recordings only)</option>
           </select>
+        </div>
+
+        <div class="j-config-field j-config-field--strict">
+          <label>
+            Auto recording
+            <span class="j-label-hint">— Zoom webhook saves recordings automatically</span>
+          </label>
+          <div class="j-strict-controls">
+            <label class="j-switch">
+              <input type="checkbox" [(ngModel)]="editAutoRecordingEnabled" />
+              <span class="j-switch-slider" aria-hidden="true"></span>
+              <span class="j-switch-label">{{ editAutoRecordingEnabled ? 'On — recordings saved automatically via webhook' : 'Off (default) — recordings must be backfilled manually' }}</span>
+            </label>
+          </div>
         </div>
 
         <div class="j-config-field" style="flex:2">
@@ -3778,6 +3801,8 @@ export class JourneyManagementComponent implements OnInit {
   editStrictJourneyRule = false;
   /** 1–100; used when editStrictJourneyRule is true. */
   editStrictThresholdPercent = 100;
+  /** When true, recordings are auto-saved via Zoom webhook for this batch. */
+  editAutoRecordingEnabled = false;
 
   activeTab: 'students' | 'timeline' | 'progress' = 'students';
 
@@ -4679,6 +4704,7 @@ export class JourneyManagementComponent implements OnInit {
     this.editStrictJourneyRule = !!b.strictJourneyRule;
     this.editStrictThresholdPercent =
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
+    this.editAutoRecordingEnabled = !!b.autoRecordingEnabled;
     this.activeTab = 'students';
     this.batchStudents = [];
     this.studentsLoadedForBatch = null;
@@ -4752,6 +4778,8 @@ export class JourneyManagementComponent implements OnInit {
             r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
           this.selectedBatch.strictJourneyRule = this.editStrictJourneyRule;
           this.selectedBatch.strictJourneyThresholdPercent = this.editStrictThresholdPercent;
+          this.editAutoRecordingEnabled = !!r.config.autoRecordingEnabled;
+          this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
           this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
           this.selectedBatch.batchType = this.editBatchType;
         }
@@ -4829,7 +4857,8 @@ export class JourneyManagementComponent implements OnInit {
       notes: this.editNotes,
       batchType: this.editBatchType,
       strictJourneyRule: this.editStrictJourneyRule,
-      strictJourneyThresholdPercent: this.editStrictThresholdPercent
+      strictJourneyThresholdPercent: this.editStrictThresholdPercent,
+      autoRecordingEnabled: this.editAutoRecordingEnabled
     };
   }
 
@@ -4848,6 +4877,8 @@ export class JourneyManagementComponent implements OnInit {
     this.editBatchType = config.batchType === 'old' ? 'old' : 'new';
     this.editStrictThresholdPercent =
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
+    this.editAutoRecordingEnabled = !!config.autoRecordingEnabled;
+    this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
   }
 
   setStudentDay(s: StudentRow): void {

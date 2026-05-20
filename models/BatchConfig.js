@@ -64,6 +64,14 @@ const BatchConfigSchema = new mongoose.Schema({
     max: 100
   },
   /**
+   * When true, Zoom webhook recordings are automatically processed and saved for this batch.
+   * When false (default), recordings must be backfilled manually via the backfill tool.
+   */
+  autoRecordingEnabled: {
+    type: Boolean,
+    default: false
+  },
+  /**
    * When true, this batch appears on Journey Management (active list) and follows journey tooling.
    * Inactive batches stay in "upcoming" until an admin starts the journey.
    */

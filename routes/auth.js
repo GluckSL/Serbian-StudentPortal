@@ -602,17 +602,26 @@ async function runMondaySync() {
 
       const mondayId = updateData.crmExternalId;
       const existingUser = await findPortalUserForMondayRow(email, mondayId);
+      const portalUpdate = { ...updateData, email };
+
       if (existingUser) {
         const emailConflict = await findEmailConflictOwner(email, existingUser._id);
         if (emailConflict) {
-          console.error(
-            `  ❌ Cannot sync "${name}": email ${email} already used by ${emailConflict.name} (${emailConflict.regNo})`
+          // Monday email is on a different portal row than the stale crmExternalId link — update the email owner.
+          await User.updateOne({ _id: emailConflict._id }, { $set: portalUpdate });
+          if (String(emailConflict._id) !== String(existingUser._id)) {
+            await User.updateOne(
+              { _id: existingUser._id, crmExternalId: mondayId },
+              { $set: { crmExternalId: '' } }
+            );
+          }
+          console.log(
+            `  ↻ Monday row linked to ${emailConflict.regNo} (${email}); cleared stale crm link on ${existingUser.regNo}`
           );
-          errors++;
-          errorNames.push(name);
+          updated++;
+          updatedNames.push(name);
           continue;
         }
-        const portalUpdate = { ...updateData, email };
         await User.updateOne({ _id: existingUser._id }, { $set: portalUpdate });
         if (String(existingUser.email || '').toLowerCase() !== email) {
           console.log(
@@ -653,6 +662,7 @@ async function runMondaySync() {
         }
         created++;
         createdNames.push(name);
+        console.log(`  ✅ Created ${regNo} — ${name} (${email})`);
       }
     } catch (itemErr) {
       if (itemErr.code === 11000 && email && updateData) {
@@ -661,21 +671,20 @@ async function runMondaySync() {
           const existing = await findPortalUserForMondayRow(email, updateData.crmExternalId);
           if (existing) {
             const emailConflict = await findEmailConflictOwner(email, existing._id);
-            if (emailConflict) {
-              console.error(
-                `  ❌ Unique key conflict for "${item.name}": email ${email} owned by ${emailConflict.regNo}`
+            const targetId = emailConflict ? emailConflict._id : existing._id;
+            if (emailConflict && String(emailConflict._id) !== String(existing._id)) {
+              await User.updateOne(
+                { _id: existing._id, crmExternalId: updateData.crmExternalId },
+                { $set: { crmExternalId: '' } }
               );
-              errors++;
-              errorNames.push(item.name);
-              continue;
             }
-            await User.updateOne({ _id: existing._id }, { $set: { ...updateData, email } });
+            await User.updateOne({ _id: targetId }, { $set: { ...updateData, email } });
             updated++;
             updatedNames.push(item.name);
-            console.log(`  ↻ Unique key conflict resolved — updated ${existing.regNo} (${email})`);
+            console.log(`  ↻ Unique key conflict resolved — updated ${emailConflict?.regNo || existing.regNo} (${email})`);
             continue;
           }
-          if (dupField === 'regNo' && studentStatus !== undefined) {
+          if ((dupField === 'regNo' || dupField === 'crmExternalId') && studentStatus !== undefined) {
             const regNo = await allocStudentRegNo();
             const passwordPlain = await generatePassword('STUDENT', regNo);
             const hashedPassword = await bcrypt.hash(passwordPlain, 10);
@@ -706,7 +715,7 @@ async function runMondaySync() {
             }
             created++;
             createdNames.push(name);
-            console.log(`  ↻ regNo conflict resolved — created ${regNo} (${email})`);
+            console.log(`  ✅ Created ${regNo} (after ${dupField} conflict) — ${name} (${email})`);
             continue;
           }
         } catch (retryErr) {

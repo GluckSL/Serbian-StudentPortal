@@ -15,6 +15,7 @@ const { r2Client, R2_BUCKET } = require('../config/r2');
 const zoomService = require('./zoomService');
 const MeetingLink = require('../models/MeetingLink');
 const ZoomRecording = require('../models/ZoomRecording');
+const BatchConfig = require('../models/BatchConfig');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -613,6 +614,20 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
   if (!meetingLink) {
     console.warn(`⚠️  No MeetingLink for Zoom meeting ${zoomMeetingId} — skipping.`);
     return { success: false, error: 'No MeetingLink found for provided zoomMeetingId' };
+  }
+
+  // 1b. Check batch-level auto-recording toggle — skip webhook processing if disabled.
+  if (meetingLink.batch) {
+    const batchCfg = await BatchConfig.findOne({
+      batchName: new RegExp(`^${meetingLink.batch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+    }).select('autoRecordingEnabled').lean();
+    if (batchCfg && !batchCfg.autoRecordingEnabled) {
+      console.log(
+        `⏭️  Auto-recording is disabled for batch "${meetingLink.batch}" — skipping webhook save for meeting ${zoomMeetingId}. ` +
+        'Use the backfill tool to process this recording manually.'
+      );
+      return { success: false, skipped: true, error: `Auto-recording disabled for batch "${meetingLink.batch}"` };
+    }
   }
 
   const meetingLinkId = meetingLink._id.toString();
