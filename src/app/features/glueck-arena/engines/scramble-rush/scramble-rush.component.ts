@@ -205,7 +205,7 @@ const DEADLINE_Y = 88;
 
             <span
               class="sr__tile__letters"
-              [class.sr__tile__letters--long]="(w.question.scrambledLetters?.length || 0) > 8"
+              [class.sr__tile__letters--long]="w.question.scrambledLetters.length > 8"
             >{{ w.display }}</span>
 
             <span class="sr__tile__hint" *ngIf="w.question.hint">{{ w.question.hint }}</span>

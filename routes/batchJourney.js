@@ -185,7 +185,8 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     }
 
     const allRows = allBatchNames.map(name => {
-      const cfg = cfgForName(name) || {
+      const savedCfg = cfgForName(name);
+      const cfg = savedCfg || {
         batchName: name,
         journeyLength: 200,
         batchCurrentDay: 1,
@@ -199,6 +200,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       const activeBatchDay = computeBatchDay(cfg);
       return {
         batchName: name,
+        hasSavedConfig: !!savedCfg,
         journeyLength: cfg.journeyLength,
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,

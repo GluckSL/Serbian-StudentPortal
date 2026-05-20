@@ -97,6 +97,7 @@ export interface StudentTableRow {
     enrollmentDate?: string;
     dateJoined?: string;
     createdAt?: string;
+    currentCourseDay?: number;
   };
   totalPaid: number;
   pendingApprovalAmount: number;

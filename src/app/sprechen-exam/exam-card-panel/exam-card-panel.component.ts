@@ -32,9 +32,9 @@ import type { SprechenCard } from '../sprechen-exam.types';
         </ul>
       </div>
 
-      <p class="exam-card-panel__word" *ngIf="!hasImage && card?.type === 'keyword'">{{ card?.content }}</p>
-      <p class="exam-card-panel__word exam-card-panel__word--sm" *ngIf="!hasImage && card?.type === 'object'">
-        {{ card?.content }}
+      <p class="exam-card-panel__word" *ngIf="!hasImage && card.type === 'keyword'">{{ card.content }}</p>
+      <p class="exam-card-panel__word exam-card-panel__word--sm" *ngIf="!hasImage && card.type === 'object'">
+        {{ card.content }}
       </p>
     </div>
 

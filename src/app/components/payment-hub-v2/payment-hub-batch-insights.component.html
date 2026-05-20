@@ -7,13 +7,26 @@
       </a>
       <h1 class="ph-insights-title">Batch payment overview</h1>
       <p class="ph-insights-sub">
-        Collected totals per batch, plus average journey progress so finance and operations stay aligned.
+        Collected totals per batch, plus each batch’s current journey day and level-based total journey length.
       </p>
     </div>
   </div>
 
   <div class="ph-insights-body">
     <div class="ph-insights-filters">
+      <mat-form-field appearance="outline" class="ph-filter">
+        <mat-label>Batch</mat-label>
+        <mat-select [(ngModel)]="filterBatch" (selectionChange)="applyFilter()">
+          <mat-option value="">All batches</mat-option>
+          <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="ph-filter">
+        <mat-label>Batch type</mat-label>
+        <mat-select [(ngModel)]="filterBatchType" (selectionChange)="applyBatchTypeFilter()" [disabled]="loading">
+          <mat-option *ngFor="let opt of batchTypeOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
       <mat-form-field appearance="outline" class="ph-filter">
         <mat-label>Level</mat-label>
         <mat-select [(ngModel)]="filterLevel" (selectionChange)="applyFilter()">
@@ -64,8 +77,8 @@
           <h2 class="ph-insights-panel-title">How to read this</h2>
           <ul class="ph-bullets">
             <li>Bars use approved payment totals already stored on each student profile.</li>
-            <li>Average journey columns use enrollment date and level-based total journey days.</li>
-            <li>Open the main hub to refine by batch, currency, or date, then revisit this tab.</li>
+            <li>Current journey day comes from Journey batch config; total days follow the batch’s predominant level (A1→42, A2→84, B1→145, B2→200).</li>
+            <li><strong>Batch type</strong> only includes batches saved in Journey (e.g. 35, 36). Labels like “uncertain” or “completed” are hidden unless they have Journey config.</li>
           </ul>
         </div>
       </div>
@@ -77,8 +90,8 @@
               <th>Batch</th>
               <th class="ph-num">Students</th>
               <th class="ph-num">Total paid</th>
-              <th class="ph-num">Avg current journey day</th>
-              <th class="ph-num">Avg total journey days</th>
+              <th class="ph-num">Current journey day</th>
+              <th class="ph-num">Total journey days</th>
             </tr>
           </thead>
           <tbody>
@@ -86,8 +99,8 @@
               <td><strong>{{ r.batch }}</strong></td>
               <td class="ph-num">{{ r.studentCount }}</td>
               <td class="ph-num">{{ fmt(r.totalPaid) }}</td>
-              <td class="ph-num">{{ r.avgCurrentJourneyDay || '—' }}</td>
-              <td class="ph-num">{{ r.avgTotalJourneyDays }}</td>
+              <td class="ph-num">{{ r.currentJourneyDay ?? '—' }}</td>
+              <td class="ph-num">{{ r.totalJourneyDays ?? '—' }}</td>
             </tr>
           </tbody>
         </table>

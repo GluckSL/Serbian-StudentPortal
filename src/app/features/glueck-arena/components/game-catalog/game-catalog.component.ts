@@ -61,36 +61,36 @@ interface QuickLink {
             <div class="podium">
               <div class="podium__place podium__place--2">
                 <div class="podium__avatar">
-                  <img *ngIf="topPlayers[1]?.avatarUrl" [src]="topPlayers[1].avatarUrl" (error)="topPlayers[1]!.avatarUrl = undefined" />
-                  <span *ngIf="!topPlayers[1]?.avatarUrl">{{ topPlayers[1]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                  <img *ngIf="podiumPlayer(1)?.avatarUrl" [src]="podiumPlayer(1)!.avatarUrl" (error)="clearPodiumAvatar(podiumPlayer(1))" />
+                  <span *ngIf="!podiumPlayer(1)?.avatarUrl">{{ podiumInitial(podiumPlayer(1)) }}</span>
                 </div>
                 <div class="podium__bar">
                   🥈
-                  <span class="podium__xp">{{ topPlayers[1]?.totalXp ?? '-' }}</span>
+                  <span class="podium__xp">{{ podiumXp(podiumPlayer(1)) }}</span>
                 </div>
-                <span class="podium__name">{{ topPlayers[1]?.name ?? '-' }}</span>
+                <span class="podium__name">{{ podiumName(podiumPlayer(1)) }}</span>
               </div>
               <div class="podium__place podium__place--1">
                 <div class="podium__avatar">
-                  <img *ngIf="topPlayers[0]?.avatarUrl" [src]="topPlayers[0].avatarUrl" (error)="topPlayers[0]!.avatarUrl = undefined" />
-                  <span *ngIf="!topPlayers[0]?.avatarUrl">{{ topPlayers[0]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                  <img *ngIf="podiumPlayer(0)?.avatarUrl" [src]="podiumPlayer(0)!.avatarUrl" (error)="clearPodiumAvatar(podiumPlayer(0))" />
+                  <span *ngIf="!podiumPlayer(0)?.avatarUrl">{{ podiumInitial(podiumPlayer(0)) }}</span>
                 </div>
                 <div class="podium__bar">
                   🥇
-                  <span class="podium__xp">{{ topPlayers[0]?.totalXp ?? '-' }}</span>
+                  <span class="podium__xp">{{ podiumXp(podiumPlayer(0)) }}</span>
                 </div>
-                <span class="podium__name">{{ topPlayers[0]?.name ?? '-' }}</span>
+                <span class="podium__name">{{ podiumName(podiumPlayer(0)) }}</span>
               </div>
               <div class="podium__place podium__place--3">
                 <div class="podium__avatar">
-                  <img *ngIf="topPlayers[2]?.avatarUrl" [src]="topPlayers[2].avatarUrl" (error)="topPlayers[2]!.avatarUrl = undefined" />
-                  <span *ngIf="!topPlayers[2]?.avatarUrl">{{ topPlayers[2]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                  <img *ngIf="podiumPlayer(2)?.avatarUrl" [src]="podiumPlayer(2)!.avatarUrl" (error)="clearPodiumAvatar(podiumPlayer(2))" />
+                  <span *ngIf="!podiumPlayer(2)?.avatarUrl">{{ podiumInitial(podiumPlayer(2)) }}</span>
                 </div>
                 <div class="podium__bar">
                   🥉
-                  <span class="podium__xp">{{ topPlayers[2]?.totalXp ?? '-' }}</span>
+                  <span class="podium__xp">{{ podiumXp(podiumPlayer(2)) }}</span>
                 </div>
-                <span class="podium__name">{{ topPlayers[2]?.name ?? '-' }}</span>
+                <span class="podium__name">{{ podiumName(podiumPlayer(2)) }}</span>
               </div>
             </div>
           </div>
@@ -560,5 +560,26 @@ export class GameCatalogComponent implements OnInit {
       matching: 'Matching', flashcards: 'Flashcards'
     };
     return map[t] ?? t;
+  }
+
+  podiumPlayer(index: number): LeaderboardEntry | undefined {
+    return this.topPlayers[index];
+  }
+
+  podiumInitial(player: LeaderboardEntry | undefined): string {
+    const letter = player?.name?.charAt(0);
+    return letter ? letter.toUpperCase() : '-';
+  }
+
+  podiumXp(player: LeaderboardEntry | undefined): string | number {
+    return player?.totalXp ?? '-';
+  }
+
+  podiumName(player: LeaderboardEntry | undefined): string {
+    return player?.name ?? '-';
+  }
+
+  clearPodiumAvatar(player: LeaderboardEntry | undefined): void {
+    if (player) player.avatarUrl = undefined;
   }
 }
