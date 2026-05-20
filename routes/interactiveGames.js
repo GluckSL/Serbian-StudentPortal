@@ -130,18 +130,19 @@ router.get('/:id', verifyToken, interactiveGamesController.getGameDetail);
 // Per-game leaderboard
 router.get('/:id/leaderboard', verifyToken, interactiveGamesController.getGameLeaderboard);
 
-// Start attempt
-router.post('/:id/attempts', verifyToken, checkRole(['STUDENT']), interactiveGamesController.startAttempt);
+// Start attempt (students + admin preview)
+const arenaPlayRoles = ['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+router.post('/:id/attempts', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.startAttempt);
 
 // Submit a single answer during play
-router.post('/attempts/:attemptId/slots', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitSentenceSlot);
-router.post('/attempts/:attemptId/answers', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitAnswer);
+router.post('/attempts/:attemptId/slots', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitSentenceSlot);
+router.post('/attempts/:attemptId/answers', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitAnswer);
 
 // Finalize / complete the session
-router.post('/attempts/:attemptId/complete', verifyToken, checkRole(['STUDENT']), interactiveGamesController.completeAttempt);
+router.post('/attempts/:attemptId/complete', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.completeAttempt);
 
 // Abandon the session
-router.post('/attempts/:attemptId/abandon', verifyToken, checkRole(['STUDENT']), interactiveGamesController.abandonAttempt);
+router.post('/attempts/:attemptId/abandon', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.abandonAttempt);
 
 // Game set list + create
 router.get('/admin/sets', verifyToken, checkRole(adminRoles), interactiveGamesController.adminListSets);

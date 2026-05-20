@@ -19,7 +19,7 @@ interface BatchSummary {
   batchStartDate: string | null;
   autoDay: boolean;
   notes: string;
-  batchType?: 'new' | 'old';
+  batchType?: 'general' | 'new' | 'old';
   /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
   strictJourneyRule?: boolean;
   strictJourneyThresholdPercent?: number;
@@ -347,7 +347,7 @@ interface TimelineDay {
               <label>Batch type</label>
               <select class="j-select" [(ngModel)]="filterBatchType">
                 <option value="all">All</option>
-                <option value="new">New batches (no students yet)</option>
+                <option value="general">General batches (no students yet)</option>
                 <option value="existing">Existing batches (has students)</option>
               </select>
             </div>
@@ -506,7 +506,7 @@ interface TimelineDay {
           <div class="j-ro-card-icon j-ro-card-icon--blue"><i class="fas fa-toggle-on"></i></div>
           <div class="j-ro-card-body">
             <span class="j-ro-card-label">Batch type</span>
-            <span class="j-ro-card-value">{{ editBatchType === 'old' ? 'Old (live/recordings only)' : 'New (modules/exercises enabled)' }}</span>
+            <span class="j-ro-card-value">{{ editBatchType === 'new' ? 'New (modules/exercises enabled)' : editBatchType === 'general' ? 'General (no modules)' : 'Old (live/recordings only)' }}</span>
           </div>
         </div>
         <div class="j-ro-card j-ro-card--wide" *ngIf="editNotes?.trim()">
@@ -596,8 +596,9 @@ interface TimelineDay {
             <span class="j-label-hint">— default: new</span>
           </label>
           <select class="j-input" [(ngModel)]="editBatchType">
-            <option value="new">New batch (modules + exercises + classes)</option>
-            <option value="old">Old batch (classes + recordings only)</option>
+            <option value="old">Old batch (live classes & recordings only)</option>
+            <option value="general">General batch (no modules; live & recordings)</option>
+            <option value="new">New batch (modules + exercises + live classes)</option>
           </select>
         </div>
 
@@ -3773,7 +3774,7 @@ export class JourneyManagementComponent implements OnInit {
   editBatchDay = 1;
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
-  editBatchType: 'new' | 'old' = 'new';
+  editBatchType: 'general' | 'new' | 'old' = 'old';
   /** When false, daily rollover advances students without requiring day tasks. */
   editStrictJourneyRule = false;
   /** 1–100; used when editStrictJourneyRule is true. */
@@ -4675,7 +4676,7 @@ export class JourneyManagementComponent implements OnInit {
       ? new Date(b.batchStartDate).toISOString().slice(0, 10)
       : '';
     this.editNotes = b.notes;
-    this.editBatchType = b.batchType === 'old' ? 'old' : 'new';
+    this.editBatchType = (b.batchType === 'new' ? 'new' : b.batchType === 'general' ? 'general' : 'old') as 'general' | 'new' | 'old';
     this.editStrictJourneyRule = !!b.strictJourneyRule;
     this.editStrictThresholdPercent =
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
@@ -4752,7 +4753,7 @@ export class JourneyManagementComponent implements OnInit {
             r.config.strictJourneyThresholdPercent != null ? r.config.strictJourneyThresholdPercent : 100;
           this.selectedBatch.strictJourneyRule = this.editStrictJourneyRule;
           this.selectedBatch.strictJourneyThresholdPercent = this.editStrictThresholdPercent;
-          this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
+          this.editBatchType = (r.config.batchType === 'new' ? 'new' : r.config.batchType === 'general' ? 'general' : 'old') as 'general' | 'new' | 'old';
           this.selectedBatch.batchType = this.editBatchType;
         }
         if (this.selectedBatch?.batchName === batchName) {
@@ -4840,12 +4841,12 @@ export class JourneyManagementComponent implements OnInit {
     this.selectedBatch.batchStartDate = config.batchStartDate || null;
     this.selectedBatch.autoDay = !!config.batchStartDate;
     this.selectedBatch.notes = config.notes;
-    this.selectedBatch.batchType = config.batchType === 'old' ? 'old' : 'new';
+    this.selectedBatch.batchType = (config.batchType === 'new' ? 'new' : config.batchType === 'general' ? 'general' : 'old') as 'general' | 'new' | 'old';
     this.selectedBatch.strictJourneyRule = !!config.strictJourneyRule;
     this.selectedBatch.strictJourneyThresholdPercent =
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editStrictJourneyRule = !!config.strictJourneyRule;
-    this.editBatchType = config.batchType === 'old' ? 'old' : 'new';
+    this.editBatchType = (config.batchType === 'new' ? 'new' : config.batchType === 'general' ? 'general' : 'old') as 'general' | 'new' | 'old';
     this.editStrictThresholdPercent =
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
   }

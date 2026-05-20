@@ -141,16 +141,16 @@
           >
             <p class="filter-section-label"><span class="filter-section-dot"></span> Search &amp; course</p>
             <div class="row g-3 align-items-end filter-row-full">
-              <!-- Student Name Filter -->
+              <!-- Student search: name, reg no, or email -->
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Student name</label>
+                <label class="form-label">Student name, ID or email</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
                     type="text" 
                     matInput 
                     [formControl]="studentNameControl"
                     [matAutocomplete]="autoStudentName"
-                    placeholder="Search..."
+                    placeholder="Name, reg no, or email..."
                     (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoStudentName="matAutocomplete" (optionSelected)="onStudentNameSelected($event.option.value)">

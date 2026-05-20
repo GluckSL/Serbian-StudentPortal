@@ -22,6 +22,7 @@ const {
   generateRegNo: sharedGenerateRegNo,
   getRegNoSeed: sharedGetRegNoSeed,
   generatePassword: sharedGeneratePassword,
+  createRegNoAllocator,
 } = require('../utils/userRegistration');
 const { studentRequiresWithdrawalConfirmation } = require('../utils/portalBatchPresets');
 const {
@@ -277,6 +278,42 @@ function normalizeMondayEmail(raw) {
   if (!s) return '';
   const match = s.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/);
   return match ? match[0] : '';
+}
+
+function escapeRegexForEmail(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Find portal user for a Monday row — by normalized email, case-insensitive email, or Monday item id.
+ * Handles email changes on Monday when crmExternalId already links an older portal record.
+ */
+async function findPortalUserForMondayRow(email, crmExternalId) {
+  const normalized = normalizeMondayEmail(email) || String(email || '').trim().toLowerCase();
+  if (normalized) {
+    const exact = await User.findOne({ email: normalized });
+    if (exact) return exact;
+    const ci = await User.findOne({
+      email: new RegExp(`^${escapeRegexForEmail(normalized)}$`, 'i'),
+    });
+    if (ci) return ci;
+  }
+  const mondayId = String(crmExternalId || '').trim();
+  if (mondayId) {
+    const byCrm = await User.findOne({ crmExternalId: mondayId });
+    if (byCrm) return byCrm;
+  }
+  return null;
+}
+
+/** Another portal user already owns this email (blocks Monday email change onto linked row). */
+async function findEmailConflictOwner(email, excludeUserId) {
+  const normalized = normalizeMondayEmail(email) || String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  return User.findOne({
+    _id: { $ne: excludeUserId },
+    email: new RegExp(`^${escapeRegexForEmail(normalized)}$`, 'i'),
+  });
 }
 
 /** Lightweight row for sync preview drill-down tables. */
@@ -546,6 +583,7 @@ async function runMondaySync() {
 
   let created = 0, updated = 0, skipped = 0, errors = 0;
   const createdNames = [], updatedNames = [], errorNames = [];
+  const allocStudentRegNo = createRegNoAllocator('STUDENT');
 
   for (const item of syncItems) {
     let email = '';
@@ -563,13 +601,29 @@ async function runMondaySync() {
       updateData = mapped.updateData;
       studentStatus = mapped.studentStatus;
 
-      const existingUser = await User.findOne({ email });
+      const mondayId = updateData.crmExternalId;
+      const existingUser = await findPortalUserForMondayRow(email, mondayId);
       if (existingUser) {
-        await User.updateOne({ email }, { $set: updateData });
+        const emailConflict = await findEmailConflictOwner(email, existingUser._id);
+        if (emailConflict) {
+          console.error(
+            `  ❌ Cannot sync "${name}": email ${email} already used by ${emailConflict.name} (${emailConflict.regNo})`
+          );
+          errors++;
+          errorNames.push(name);
+          continue;
+        }
+        const portalUpdate = { ...updateData, email };
+        await User.updateOne({ _id: existingUser._id }, { $set: portalUpdate });
+        if (String(existingUser.email || '').toLowerCase() !== email) {
+          console.log(
+            `  ↻ Monday row linked — email updated: ${existingUser.email} → ${email} (${existingUser.regNo})`
+          );
+        }
         updated++;
         updatedNames.push(name);
       } else {
-        const regNo = await generateRegNo('STUDENT');
+        const regNo = await allocStudentRegNo();
         const passwordPlain = await generatePassword('STUDENT', regNo);
         const hashedPassword = await bcrypt.hash(passwordPlain, 10);
         const createFields = ensureStudentCreateFields({
@@ -604,11 +658,58 @@ async function runMondaySync() {
     } catch (itemErr) {
       if (itemErr.code === 11000 && email && updateData) {
         try {
-          await User.updateOne({ email }, { $set: updateData });
-          updated++;
-          updatedNames.push(item.name);
-          console.log(`  ↻ Duplicate email resolved via update: ${email}`);
-          continue;
+          const dupField = itemErr.keyPattern ? Object.keys(itemErr.keyPattern)[0] : '';
+          const existing = await findPortalUserForMondayRow(email, updateData.crmExternalId);
+          if (existing) {
+            const emailConflict = await findEmailConflictOwner(email, existing._id);
+            if (emailConflict) {
+              console.error(
+                `  ❌ Unique key conflict for "${item.name}": email ${email} owned by ${emailConflict.regNo}`
+              );
+              errors++;
+              errorNames.push(item.name);
+              continue;
+            }
+            await User.updateOne({ _id: existing._id }, { $set: { ...updateData, email } });
+            updated++;
+            updatedNames.push(item.name);
+            console.log(`  ↻ Unique key conflict resolved — updated ${existing.regNo} (${email})`);
+            continue;
+          }
+          if (dupField === 'regNo' && studentStatus !== undefined) {
+            const regNo = await allocStudentRegNo();
+            const passwordPlain = await generatePassword('STUDENT', regNo);
+            const hashedPassword = await bcrypt.hash(passwordPlain, 10);
+            const createFields = ensureStudentCreateFields({
+              ...updateData,
+              email,
+              regNo,
+              password: hashedPassword,
+              role: 'STUDENT',
+              registeredAt: updateData.enrollmentDate || new Date(),
+              createdAt: new Date(),
+            });
+            const newUser = new User(createFields);
+            await newUser.save();
+            if (studentStatus !== 'WITHDREW') {
+              try {
+                await transporter.sendMail({
+                  from: process.env.EMAIL_USER,
+                  to: email,
+                  subject: 'Welcome to Gluck Global Student Portal',
+                  html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p></div>`,
+                });
+                newUser.lastCredentialsEmailSent = new Date();
+                await newUser.save();
+              } catch (emailErr) {
+                console.error(`  ⚠️ Failed to send email to ${email}:`, emailErr.message);
+              }
+            }
+            created++;
+            createdNames.push(name);
+            console.log(`  ↻ regNo conflict resolved — created ${regNo} (${email})`);
+            continue;
+          }
         } catch (retryErr) {
           console.error(`  ❌ Retry update failed for "${item.name}":`, retryErr.message);
         }
@@ -755,13 +856,14 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       };
       drillDown.uniqueEmailsToSync.push(syncRow);
 
-      const existingUser = await User.findOne({ email }).lean();
+      const existingUser = await findPortalUserForMondayRow(email, updateData.crmExternalId);
+      const existingLean = existingUser ? existingUser.toObject() : null;
 
-      if (existingUser) {
+      if (existingLean) {
         const changes = [];
         for (const field of previewScalarFields) {
           const mondayVal = updateData[field];
-          let portalVal = existingUser[field];
+          let portalVal = existingLean[field];
           if (field === 'medium') {
             portalVal = Array.isArray(portalVal) ? portalVal.join(', ') : String(portalVal || '');
             const mVal = Array.isArray(mondayVal) ? mondayVal.join(', ') : String(mondayVal || '');
@@ -777,12 +879,22 @@ router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
           }
         }
 
-        drillDown.matchedInPortal.push({ ...syncRow, regNo: existingUser.regNo });
+        const emailChanged =
+          String(existingLean.email || '').toLowerCase() !== String(email || '').toLowerCase();
+        if (emailChanged) {
+          changes.unshift({
+            field: 'email',
+            portalValue: existingLean.email || '(empty)',
+            mondayValue: email || '(empty)',
+          });
+        }
+
+        drillDown.matchedInPortal.push({ ...syncRow, regNo: existingLean.regNo });
 
         if (changes.length > 0) {
-          updatedStudents.push({ name, email, regNo: existingUser.regNo, changes });
+          updatedStudents.push({ name, email, regNo: existingLean.regNo, changes });
         } else {
-          drillDown.noChanges.push({ ...syncRow, regNo: existingUser.regNo });
+          drillDown.noChanges.push({ ...syncRow, regNo: existingLean.regNo });
         }
       } else {
         drillDown.missingFromPortal.push(syncRow);

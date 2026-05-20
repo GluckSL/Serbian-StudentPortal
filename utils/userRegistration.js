@@ -18,8 +18,16 @@ const REGNO_PREFIX = {
   TEACHER_ADMIN: 'TA',
 };
 
+/** Format numeric suffix: STUD001–STUD999 (3 digits), STUD1000+ (4+ digits). */
+function formatRegNo(prefix, num) {
+  const n = Number(num);
+  if (!Number.isFinite(n) || n < 1) throw new Error('Invalid regNo number');
+  const minDigits = n >= 1000 ? 4 : 3;
+  return prefix + String(n).padStart(minDigits, '0');
+}
+
 /**
- * Find the highest existing regNo for `role` and return the next integer seed.
+ * Find the highest numeric regNo suffix for `role` (string sort breaks after STUD999).
  * Returns `{ prefix, nextNumber }`.
  */
 async function getRegNoSeed(role) {
@@ -27,30 +35,58 @@ async function getRegNoSeed(role) {
   if (!roleKey) throw new Error('Role is required to generate regNo');
 
   const prefix = REGNO_PREFIX[roleKey] || roleKey.substring(0, 2).toUpperCase();
+  const suffixLenExpr = { $subtract: [{ $strLenCP: '$regNo' }, prefix.length] };
 
-  const lastUser = await User.findOne({
-    role: roleKey,
-    regNo: { $regex: `^${prefix}\\d+$` },
-  })
-    .sort({ regNo: -1 })
-    .lean();
+  const rows = await User.aggregate([
+    { $match: { role: roleKey, regNo: { $regex: `^${prefix}\\d+$` } } },
+    {
+      $project: {
+        num: {
+          $convert: {
+            input: { $substrCP: ['$regNo', prefix.length, suffixLenExpr] },
+            to: 'int',
+            onError: null,
+            onNull: null,
+          },
+        },
+      },
+    },
+    { $match: { num: { $ne: null } } },
+    { $group: { _id: null, maxNum: { $max: '$num' } } },
+  ]);
 
-  let nextNumber = 1;
-  if (lastUser?.regNo) {
-    const match = lastUser.regNo.match(new RegExp(`^${prefix}(\\d+)$`));
-    if (match) nextNumber = parseInt(match[1], 10) + 1;
-  }
-
-  return { prefix, nextNumber };
+  const maxNum = rows[0]?.maxNum || 0;
+  return { prefix, nextNumber: maxNum + 1 };
 }
 
 /**
  * Generate a unique regNo for `role`.
- * On rare race conditions the caller should retry with `getRegNoSeed` + offset.
+ * On rare race conditions the caller should retry with a fresh allocator.
  */
 async function generateRegNo(role) {
   const { prefix, nextNumber } = await getRegNoSeed(role);
-  return prefix + String(nextNumber).padStart(3, '0');
+  return formatRegNo(prefix, nextNumber);
+}
+
+/**
+ * In-memory sequence for bulk creates (e.g. Monday sync) so each row gets STUD1001, STUD1002, …
+ */
+function createRegNoAllocator(role) {
+  let prefix;
+  let next;
+  let initialized = false;
+
+  return async function allocRegNo() {
+    if (!initialized) {
+      const seed = await getRegNoSeed(role);
+      prefix = seed.prefix;
+      next = seed.nextNumber;
+      initialized = true;
+    }
+    const regNo = formatRegNo(prefix, next);
+    next += 1;
+    return regNo;
+  };
 }
 
 // ─── Password generation ──────────────────────────────────────────────────────
@@ -91,7 +127,9 @@ function normalizePhone(value) {
 
 module.exports = {
   getRegNoSeed,
+  formatRegNo,
   generateRegNo,
+  createRegNoAllocator,
   generatePassword,
   normalizePhone,
 };

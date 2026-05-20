@@ -12,13 +12,15 @@ interface BatchRow {
   batchStartDate: string | null;
   autoDay: boolean;
   notes: string;
-  batchType: 'new' | 'old';
+  batchType: 'general' | 'new' | 'old';
   strictJourneyRule: boolean;
   strictJourneyThresholdPercent: number;
   journeyActive: boolean;
   studentCount: number;
   teacherName: string | null;
   hasSavedConfig?: boolean;
+  level?: string | null;
+  levelCounts?: Record<string, number>;
 }
 
 interface BatchStudent {
@@ -41,6 +43,8 @@ interface SearchStudent {
   level: string;
 }
 
+type BatchTab = 'all' | 'upcoming';
+
 @Component({
   selector: 'app-batch-management',
   standalone: true,
@@ -54,13 +58,26 @@ export class BatchManagementComponent implements OnInit {
 
   loading = true;
   saving = false;
-  batches: BatchRow[] = [];
+  allBatches: BatchRow[] = [];
+  upcomingBatches: BatchRow[] = [];
+  activeTab: BatchTab = 'all';
   batchSearch = '';
+  filterLevel = '';
+  filterBatchType = '';
   selectedBatch: BatchRow | null = null;
+
+  readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  readonly levelLabels = ['All levels', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  readonly batchTypeOptions: { value: string; label: string }[] = [
+    { value: '', label: 'All types' },
+    { value: 'general', label: 'General' },
+    { value: 'new', label: 'New' },
+    { value: 'old', label: 'Old' }
+  ];
 
   editForm = {
     batchName: '',
-    batchType: 'new' as 'new' | 'old',
+    batchType: 'old' as 'general' | 'new' | 'old',
     notes: '',
     journeyLength: 200,
     batchCurrentDay: 1,
@@ -95,10 +112,25 @@ export class BatchManagementComponent implements OnInit {
     this.loadBatches();
   }
 
+  get tabBatches(): BatchRow[] {
+    return this.activeTab === 'upcoming' ? this.upcomingBatches : this.allBatches;
+  }
+
   get filteredBatches(): BatchRow[] {
     const q = this.batchSearch.trim().toLowerCase();
-    if (!q) return this.batches;
-    return this.batches.filter((b) => b.batchName.toLowerCase().includes(q));
+    return this.tabBatches.filter((b) => {
+      if (q && !b.batchName.toLowerCase().includes(q)) return false;
+      if (this.filterBatchType && b.batchType !== this.filterBatchType) return false;
+      if (this.filterLevel) {
+        const counts = b.levelCounts || {};
+        if (!(counts[this.filterLevel] > 0)) return false;
+      }
+      return true;
+    });
+  }
+
+  get hasActiveFilters(): boolean {
+    return !!(this.batchSearch.trim() || this.filterLevel || this.filterBatchType);
   }
 
   get filteredStudents(): BatchStudent[] {
@@ -116,28 +148,52 @@ export class BatchManagementComponent implements OnInit {
     return this.students.filter((s) => s.selected).map((s) => s._id);
   }
 
+  setTab(tab: BatchTab): void {
+    this.activeTab = tab;
+    if (this.selectedBatch && !this.filteredBatches.some((b) => b.batchName === this.selectedBatch!.batchName)) {
+      this.selectedBatch = null;
+    }
+  }
+
+  clearFilters(): void {
+    this.batchSearch = '';
+    this.filterLevel = '';
+    this.filterBatchType = '';
+  }
+
+  levelSummary(batch: BatchRow): string {
+    const counts = batch.levelCounts || {};
+    const parts = Object.entries(counts)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([lv, n]) => `${lv}: ${n}`);
+    return parts.length ? parts.join(', ') : '—';
+  }
+
   loadBatches(): void {
     this.loading = true;
     this.http
       .get<{ batches: BatchRow[]; upcomingBatches: BatchRow[] }>(this.api, { withCredentials: true })
       .subscribe({
         next: (res) => {
-          const all = [...(res.batches || []), ...(res.upcomingBatches || [])];
-          const byKey = new Map<string, BatchRow>();
-          for (const b of all) {
-            const key = b.batchName.trim().toLowerCase();
-            if (!byKey.has(key)) byKey.set(key, b);
-          }
-          this.batches = Array.from(byKey.values()).sort((a, b) =>
-            a.batchName.localeCompare(b.batchName, undefined, { sensitivity: 'base', numeric: true })
-          );
+          this.allBatches = this.sortBatches(res.batches || []);
+          this.upcomingBatches = this.sortBatches(res.upcomingBatches || []);
           this.loading = false;
           if (this.selectedBatch) {
-            const refreshed = this.batches.find(
+            const pool = [...this.allBatches, ...this.upcomingBatches];
+            const refreshed = pool.find(
               (b) => b.batchName.toLowerCase() === this.selectedBatch!.batchName.toLowerCase()
             );
-            if (refreshed) this.selectBatch(refreshed);
-            else this.selectedBatch = null;
+            if (refreshed) {
+              const wasUpcoming = !this.selectedBatch.journeyActive;
+              const nowUpcoming = !refreshed.journeyActive;
+              if (wasUpcoming !== nowUpcoming) {
+                this.activeTab = nowUpcoming ? 'upcoming' : 'all';
+              }
+              this.selectBatch(refreshed);
+            } else {
+              this.selectedBatch = null;
+            }
           }
         },
         error: (err) => {
@@ -147,11 +203,17 @@ export class BatchManagementComponent implements OnInit {
       });
   }
 
+  private sortBatches(list: BatchRow[]): BatchRow[] {
+    return [...list].sort((a, b) =>
+      a.batchName.localeCompare(b.batchName, undefined, { sensitivity: 'base', numeric: true })
+    );
+  }
+
   selectBatch(batch: BatchRow): void {
     this.selectedBatch = batch;
     this.editForm = {
       batchName: batch.batchName,
-      batchType: batch.batchType || 'new',
+      batchType: (batch.batchType || 'old') as 'general' | 'new' | 'old',
       notes: batch.notes || '',
       journeyLength: batch.journeyLength || 200,
       batchCurrentDay: batch.batchCurrentDay || 1,
@@ -243,7 +305,7 @@ export class BatchManagementComponent implements OnInit {
         {
           createOnly: true,
           journeyLength: this.newJourneyLength,
-          batchType: 'new',
+          batchType: 'old',
           notes: ''
         },
         { withCredentials: true }
@@ -254,6 +316,7 @@ export class BatchManagementComponent implements OnInit {
           this.showCreateModal = false;
           this.newBatchName = '';
           this.notify.success(`Batch "${name}" created`);
+          this.activeTab = 'upcoming';
           this.loadBatches();
         },
         error: (err) => {
@@ -364,7 +427,17 @@ export class BatchManagementComponent implements OnInit {
       });
   }
 
+  batchTypeDisplay(type: string | undefined | null): string {
+    const t = String(type || '').toLowerCase();
+    if (t === 'new') return 'New';
+    if (t === 'general') return 'General';
+    return 'Old';
+  }
+
   batchTypeLabel(type: string): string {
-    return type === 'old' ? 'Old (live only)' : 'New (full content)';
+    const t = String(type || '').toLowerCase();
+    if (t === 'old') return 'Old (live classes & recordings only)';
+    if (t === 'new') return 'New (modules, exercises & live classes)';
+    return 'General (no module content; live classes & recordings)';
   }
 }

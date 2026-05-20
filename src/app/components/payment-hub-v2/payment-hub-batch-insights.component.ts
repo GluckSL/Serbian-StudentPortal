@@ -18,12 +18,13 @@ import { totalJourneyDaysForLevel } from './payment-journey-metrics.util';
 interface BatchJourneySummary {
   batchName: string;
   batchCurrentDay: number;
-  batchType?: 'new' | 'old';
+  batchType?: 'general' | 'old' | 'new';
   hasSavedConfig?: boolean;
 }
 
 export interface BatchPaymentRow extends CurrencyPaidTotals {
   batch: string;
+  batchType: 'general' | 'new' | 'old';
   level: string | null;
   levelSummary: string;
   studentCount: number;
@@ -70,15 +71,16 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
 
   private summaryRows: BatchPaymentSummaryRow[] = [];
   private batchDayByKey = new Map<string, number>();
-  private batchTypeByKey = new Map<string, 'new' | 'old'>();
+  private batchTypeByKey = new Map<string, 'general' | 'new' | 'old'>();
   private batchLabelByKey = new Map<string, string>();
 
   readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly levelLabels = ['All levels', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly batchTypeOptions: { value: string; label: string }[] = [
-    { value: '', label: 'All batch types' },
-    { value: 'new', label: 'New batch (modular)' },
-    { value: 'old', label: 'Old batch (classes only)' },
+    { value: '', label: 'All types' },
+    { value: 'general', label: 'General' },
+    { value: 'new', label: 'New' },
+    { value: 'old', label: 'Old' },
   ];
 
   barChartData: ChartConfiguration<'bar'>['data'] = { labels: [], datasets: [] };
@@ -165,15 +167,28 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
       const key = normBatchKey(label);
       this.batchLabelByKey.set(key, label);
       this.batchDayByKey.set(key, b.batchCurrentDay);
-      if (b.hasSavedConfig) {
-        this.batchTypeByKey.set(key, b.batchType === 'old' ? 'old' : 'new');
-      }
+      this.batchTypeByKey.set(key, this.normalizeBatchTypeValue(b.batchType));
     }
+  }
+
+  private normalizeBatchTypeValue(type?: string | null): 'general' | 'new' | 'old' {
+    const t = String(type || '').toLowerCase();
+    if (t === 'old') return 'old';
+    if (t === 'new') return 'new';
+    if (t === 'general') return 'general';
+    return 'old';
   }
 
   private batchMatchesTypeFilter(batchLabel: string): boolean {
     if (!this.filterBatchType) return true;
-    return this.batchTypeByKey.get(normBatchKey(batchLabel)) === this.filterBatchType;
+    const type = this.batchTypeByKey.get(normBatchKey(batchLabel)) ?? 'old';
+    return type === this.filterBatchType;
+  }
+
+  batchTypeLabel(type: 'general' | 'new' | 'old'): string {
+    if (type === 'new') return 'New';
+    if (type === 'general') return 'General';
+    return 'Old';
   }
 
   private applySummaryToView(): void {
@@ -191,8 +206,10 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
       const batchLevel = this.dominantLevel(levelCounts);
       const key = normBatchKey(batch);
       const currentJourneyDay = this.batchDayByKey.get(key) ?? row.maxStudentDay;
+      const batchType: 'general' | 'new' | 'old' = this.batchTypeByKey.get(key) ?? 'old';
       rows.push({
         batch,
+        batchType,
         level: batchLevel,
         levelSummary: this.formatLevelSummary(levelCounts),
         studentCount: row.studentCount,

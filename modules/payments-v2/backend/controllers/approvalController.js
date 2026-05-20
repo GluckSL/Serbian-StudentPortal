@@ -129,4 +129,37 @@ const moveToUnderReview = async (req, res) => {
   }
 };
 
-module.exports = { getApprovalQueue, getSubmissionDetail, approvePayment, rejectPayment, requestReupload, moveToUnderReview };
+// ─── Correct approved amount (admin data entry mistake) ─────────────────────
+const correctApprovedAmount = async (req, res) => {
+  try {
+    const newPaidAmount = Number(req.body.newPaidAmount);
+    if (newPaidAmount < 0 || Number.isNaN(newPaidAmount)) {
+      return res.status(400).json({ success: false, message: 'newPaidAmount must be a non-negative number' });
+    }
+    const adminId = getAuthUserId(req);
+    const result = await paymentService.correctApprovedSubmissionAmount({
+      submissionId: req.params.submissionId,
+      newPaidAmount,
+      adminId,
+      adminRole: req.user.role,
+      adminRemarks: req.body.adminRemarks,
+    });
+    res.json({
+      success: true,
+      data: result,
+      message: `Payment amount corrected from ${result.previousAmount} to ${result.newPaidAmount}.`,
+    });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+};
+
+module.exports = {
+  getApprovalQueue,
+  getSubmissionDetail,
+  approvePayment,
+  rejectPayment,
+  requestReupload,
+  moveToUnderReview,
+  correctApprovedAmount,
+};

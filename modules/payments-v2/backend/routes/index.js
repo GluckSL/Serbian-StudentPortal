@@ -30,6 +30,7 @@ router.get('/batches/:batch/students', ctrl.getBatchStudentsPaymentDetail);
 
 // ─── Admin: Student payment history ─────────────────────────────────────────
 router.get('/students/:studentId/history', ctrl.getStudentPaymentHistory);
+router.patch('/students/:studentId/correct-total-paid', requireFinanceAdmin, ctrl.correctStudentTotalPaid);
 
 // ─── Admin: Payment Requests ─────────────────────────────────────────────────
 router.get('/requests', ctrl.getAllRequests);
@@ -49,6 +50,7 @@ router.patch('/approvals/:submissionId/approve', requireFinanceAdmin, approvalCt
 router.patch('/approvals/:submissionId/reject', requireFinanceAdmin, approvalCtrl.rejectPayment);
 router.patch('/approvals/:submissionId/reupload', requireFinanceAdmin, approvalCtrl.requestReupload);
 router.patch('/approvals/:submissionId/under-review', approvalCtrl.moveToUnderReview);
+router.patch('/approvals/:submissionId/correct-amount', requireFinanceAdmin, approvalCtrl.correctApprovedAmount);
 
 // ─── Legacy manual payment mapping ───────────────────────────────────────────
 router.post('/legacy/map-payment', requireFinanceAdmin, legacyCtrl.mapLegacyPaymentsHandler);

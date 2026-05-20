@@ -320,4 +320,168 @@ const getPaymentDashboardStats = async () => {
   };
 };
 
-module.exports = { createPaymentRequests, submitPayment, approveSubmission, rejectSubmission, requestReupload, addInternalNote, archiveRequest, detectAndMarkOverdue, recalculateStudentProfile, getPaymentDashboardStats, logAudit, getUser };
+// ─── CORRECT APPROVED AMOUNT (admin mistake) ─────────────────────────────────
+
+const correctApprovedSubmissionAmount = async ({ submissionId, newPaidAmount, adminId, adminRole, adminRemarks }) => {
+  const amount = Number(newPaidAmount);
+  if (!amount || amount < 0 || Number.isNaN(amount)) throw new Error('newPaidAmount must be a non-negative number');
+
+  const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId');
+  if (!submission) throw new Error('Submission not found');
+  if (submission.status !== 'APPROVED') throw new Error('Only approved payments can be corrected');
+  if (submission.isArchived) throw new Error('Submission is archived');
+
+  const request = submission.paymentRequestId;
+  if (!request) throw new Error('Linked payment request not found');
+
+  const otherApproved = await PaymentFlowSubmission.find({
+    paymentRequestId: request._id,
+    status: 'APPROVED',
+    isArchived: false,
+    _id: { $ne: submission._id },
+  }).lean();
+  const otherTotal = otherApproved.reduce((s, sub) => s + sub.paidAmount, 0);
+  if (otherTotal + amount > request.amount + 0.01) {
+    throw new Error(`Corrected amount cannot exceed request total (${request.currency} ${request.amount})`);
+  }
+
+  const previousAmount = submission.paidAmount;
+  submission.paidAmount = amount;
+  if (adminRemarks?.trim()) {
+    submission.adminRemarks = submission.adminRemarks
+      ? `${submission.adminRemarks} | Correction: ${adminRemarks.trim()}`
+      : `Correction: ${adminRemarks.trim()}`;
+  }
+  await submission.save();
+
+  await installmentService.recalculateRequestFromApprovedSubmissions(request._id);
+  await recalculateStudentProfile(submission.studentId);
+
+  await logAudit({
+    entityType: 'PaymentFlowSubmission',
+    entityId: submission._id,
+    action: 'AMOUNT_CORRECTED',
+    performedBy: adminId,
+    performedByRole: adminRole,
+    previousState: { paidAmount: previousAmount },
+    newState: { paidAmount: amount },
+    studentId: submission.studentId,
+    metadata: { adminRemarks, requestId: request._id },
+  });
+
+  return { submission: submission.toObject(), previousAmount, newPaidAmount: amount };
+};
+
+const correctStudentTotalPaid = async ({ studentId, currency, correctedTotalPaid, adminId, adminRole, adminRemarks }) => {
+  const target = Number(correctedTotalPaid);
+  if (target < 0 || Number.isNaN(target)) throw new Error('correctedTotalPaid must be a non-negative number');
+  const ccy = String(currency || 'LKR').toUpperCase();
+  if (!['LKR', 'INR', 'USD'].includes(ccy)) throw new Error('currency must be LKR, INR, or USD');
+
+  const subs = await PaymentFlowSubmission.find({
+    studentId,
+    currency: ccy,
+    status: 'APPROVED',
+    isArchived: false,
+  }).sort({ approvedAt: -1 });
+
+  const currentTotal = subs.reduce((s, sub) => s + sub.paidAmount, 0);
+  let delta = target - currentTotal;
+  if (Math.abs(delta) < 0.01) {
+    return { currentTotal, correctedTotalPaid: target, changed: false };
+  }
+
+  const affectedRequestIds = new Set();
+  const reason = adminRemarks?.trim() || 'Admin correction';
+
+  if (delta < 0) {
+    for (const sub of subs) {
+      if (delta >= -0.01) break;
+      const reduction = Math.min(sub.paidAmount, -delta);
+      if (reduction <= 0) continue;
+      const prev = sub.paidAmount;
+      sub.paidAmount = prev - reduction;
+      sub.adminRemarks = sub.adminRemarks
+        ? `${sub.adminRemarks} | Correction: ${reason}`
+        : `Correction: ${reason}`;
+      await sub.save();
+      delta += reduction;
+      affectedRequestIds.add(String(sub.paymentRequestId));
+      await logAudit({
+        entityType: 'PaymentFlowSubmission',
+        entityId: sub._id,
+        action: 'AMOUNT_CORRECTED',
+        performedBy: adminId,
+        performedByRole: adminRole,
+        previousState: { paidAmount: prev },
+        newState: { paidAmount: sub.paidAmount },
+        studentId,
+        metadata: { adminRemarks: reason, currency: ccy },
+      });
+    }
+    if (delta < -0.01) {
+      throw new Error('Could not apply full reduction — check approved payments for this currency');
+    }
+  } else {
+    const sub = subs[0];
+    if (!sub) throw new Error(`No approved ${ccy} payments found for this student`);
+    const request = await PaymentRequest.findById(sub.paymentRequestId);
+    if (!request) throw new Error('Linked payment request not found');
+    const onRequest = await PaymentFlowSubmission.find({
+      paymentRequestId: request._id,
+      status: 'APPROVED',
+      isArchived: false,
+    }).lean();
+    const requestPaid = onRequest.reduce((s, x) => s + x.paidAmount, 0);
+    if (requestPaid + delta > request.amount + 0.01) {
+      throw new Error(`Increase would exceed request amount (${request.currency} ${request.amount})`);
+    }
+    const prev = sub.paidAmount;
+    sub.paidAmount = prev + delta;
+    sub.adminRemarks = sub.adminRemarks
+      ? `${sub.adminRemarks} | Correction: ${reason}`
+      : `Correction: ${reason}`;
+    await sub.save();
+    affectedRequestIds.add(String(sub.paymentRequestId));
+    await logAudit({
+      entityType: 'PaymentFlowSubmission',
+      entityId: sub._id,
+      action: 'AMOUNT_CORRECTED',
+      performedBy: adminId,
+      performedByRole: adminRole,
+      previousState: { paidAmount: prev },
+      newState: { paidAmount: sub.paidAmount },
+      studentId,
+      metadata: { adminRemarks: reason, currency: ccy },
+    });
+  }
+
+  for (const rid of affectedRequestIds) {
+    await installmentService.recalculateRequestFromApprovedSubmissions(rid);
+  }
+  await recalculateStudentProfile(studentId);
+
+  return {
+    currentTotal,
+    correctedTotalPaid: target,
+    changed: true,
+    affectedRequestIds: [...affectedRequestIds],
+  };
+};
+
+module.exports = {
+  createPaymentRequests,
+  submitPayment,
+  approveSubmission,
+  rejectSubmission,
+  requestReupload,
+  addInternalNote,
+  archiveRequest,
+  detectAndMarkOverdue,
+  recalculateStudentProfile,
+  getPaymentDashboardStats,
+  logAudit,
+  getUser,
+  correctApprovedSubmissionAmount,
+  correctStudentTotalPaid,
+};

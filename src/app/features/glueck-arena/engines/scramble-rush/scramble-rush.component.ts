@@ -1456,6 +1456,9 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
   private usedQuestionIds = new Set<string>();
 
+  /** Words to clear per level — scaled so every question in the set can appear. */
+  private wordsRequiredByLevel = new Map<number, number>();
+
 
 
   xpTrigger = 0;
@@ -1468,7 +1471,11 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
 
 
-  get totalWords(): number { return this.currentLevel?.wordsRequired ?? 5; }
+  get totalWords(): number {
+    const mapped = this.wordsRequiredByLevel.get(this.currentLevelNum);
+    if (mapped != null) return mapped;
+    return this.currentLevel?.wordsRequired ?? (this.questionPool.length || 5);
+  }
 
   get accuracy(): number {
 
@@ -1527,6 +1534,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     this.audio.loadMutePreference();
 
     this.questionPool = [...this.questions];
+    this.prepareWordsRequiredByLevel();
 
     const lvl = this.currentLevel;
 
@@ -1565,6 +1573,38 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
   }
 
 
+
+  /** Spread all questions across levels (last level absorbs any remainder). */
+  private prepareWordsRequiredByLevel() {
+    this.wordsRequiredByLevel.clear();
+    const total = this.questionPool.length;
+    if (!total) return;
+
+    const sorted = [...this.levels].sort((a, b) => a.levelNumber - b.levelNumber);
+    if (!sorted.length) {
+      this.wordsRequiredByLevel.set(1, total);
+      return;
+    }
+
+    let remaining = total;
+    sorted.forEach((lvl, index) => {
+      const isLast = index === sorted.length - 1;
+      const base = Math.max(1, lvl.wordsRequired ?? 5);
+      const words = isLast
+        ? remaining
+        : Math.min(base, Math.max(1, remaining - (sorted.length - index - 1)));
+      this.wordsRequiredByLevel.set(lvl.levelNumber, words);
+      remaining -= words;
+    });
+  }
+
+  private remainingQuestions(): number {
+    return this.questionPool.filter(q => !this.usedQuestionIds.has(q._id)).length;
+  }
+
+  private allQuestionsAnswered(): boolean {
+    return this.questionPool.length > 0 && this.remainingQuestions() === 0;
+  }
 
   focusInput() {
 
@@ -1651,7 +1691,12 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
     const available = this.questionPool.filter(q => !this.usedQuestionIds.has(q._id));
 
-    if (!available.length) return;
+    if (!available.length) {
+      if (this.allQuestionsAnswered()) {
+        setTimeout(() => this.endGame('complete'), 300);
+      }
+      return;
+    }
 
     const q = available[Math.floor(Math.random() * available.length)];
 
@@ -1799,7 +1844,9 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
     setTimeout(() => {
       this.fallingWords = this.fallingWords.filter(w => w.id !== fw.id);
-      if (this.wordsAnswered >= this.totalWords) {
+      if (this.allQuestionsAnswered()) {
+        this.endGame('complete');
+      } else if (this.wordsAnswered >= this.totalWords) {
         this.advanceLevel();
       } else {
         this.trySpawnNextWord();
@@ -1825,7 +1872,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
     const nextLevel = this.levels.find(l => l.levelNumber === nextLevelNum);
 
-    if (!nextLevel) {
+    if (!nextLevel || this.allQuestionsAnswered()) {
 
       this.endGame('complete');
 

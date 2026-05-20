@@ -155,6 +155,9 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let s">
+              <button mat-icon-button matTooltip="Play preview" [routerLink]="['/admin/glueck-arena', s._id, 'play']" color="primary">
+                <mat-icon>play_circle</mat-icon>
+              </button>
               <button mat-icon-button matTooltip="Edit" [routerLink]="['/admin/glueck-arena', s._id, 'edit']">
                 <mat-icon>edit</mat-icon>
               </button>

@@ -991,6 +991,37 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
   }
 };
 
+const correctStudentTotalPaid = async (req, res) => {
+  try {
+    const { currency, correctedTotalPaid, adminRemarks } = req.body;
+    const target = Number(correctedTotalPaid);
+    if (target < 0 || Number.isNaN(target)) {
+      return res.status(400).json({ success: false, message: 'correctedTotalPaid must be a non-negative number' });
+    }
+    if (!adminRemarks?.trim()) {
+      return res.status(400).json({ success: false, message: 'adminRemarks (reason) is required' });
+    }
+    const adminId = getAuthUserId(req);
+    const result = await paymentService.correctStudentTotalPaid({
+      studentId: req.params.studentId,
+      currency,
+      correctedTotalPaid: target,
+      adminId,
+      adminRole: req.user.role,
+      adminRemarks,
+    });
+    res.json({
+      success: true,
+      data: result,
+      message: result.changed
+        ? `Total received updated to ${target} ${currency || 'LKR'}.`
+        : 'No change — total already matches.',
+    });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+};
+
 module.exports = {
   createRequests,
   getAllRequests,
@@ -1008,4 +1039,5 @@ module.exports = {
   studentSubmitPayment,
   studentGetOwnRequests,
   updateInstallmentSchedule,
+  correctStudentTotalPaid,
 };

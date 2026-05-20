@@ -1,5 +1,6 @@
 const BatchConfig = require('../models/BatchConfig');
 const { allStudentBatchStringsForContent, normalizeBatch } = require('./effectiveStudentBatch');
+const { BATCH_TYPE_OLD, normalizeBatchType, isLearningEnabled } = require('./batchType');
 
 function normalizeJourneyDay(rawDay) {
   if (rawDay != null && Number.isFinite(Number(rawDay))) {
@@ -13,10 +14,12 @@ function normalizeJourneyDay(rawDay) {
  * - GO students always have journey content access.
  * - Non-GO students require at least one active BatchConfig (journeyActive=true)
  *   matching their effective batch keys.
+ * Only 'new' batch type enables modules and exercises.
+ * 'general' and 'old' allow live/recordings only (no module content).
  */
 async function getJourneyAccessForStudent(student) {
   if (!student || String(student.role || '').toUpperCase() !== 'STUDENT') {
-    return { enabled: true, learningEnabled: true, courseDay: 1, batchKeys: [], batchType: 'new' };
+    return { enabled: true, learningEnabled: true, courseDay: 1, batchKeys: [], batchType: BATCH_TYPE_OLD };
   }
 
   const courseDay = normalizeJourneyDay(student.currentCourseDay);
@@ -24,10 +27,10 @@ async function getJourneyAccessForStudent(student) {
   const batchKeys = allStudentBatchStringsForContent(student);
 
   if (isGoStudent) {
-    return { enabled: true, learningEnabled: true, courseDay, batchKeys, batchType: 'new', reason: 'GO_STUDENT' };
+    return { enabled: true, learningEnabled: true, courseDay, batchKeys, batchType: BATCH_TYPE_OLD, reason: 'GO_STUDENT' };
   }
   if (!batchKeys.length) {
-    return { enabled: false, learningEnabled: false, courseDay, batchKeys, batchType: 'new', reason: 'NO_BATCH' };
+    return { enabled: false, learningEnabled: false, courseDay, batchKeys, batchType: BATCH_TYPE_OLD, reason: 'NO_BATCH' };
   }
 
   const activeBatchConfigs = await BatchConfig.find({ journeyActive: true })
@@ -43,10 +46,10 @@ async function getJourneyAccessForStudent(student) {
     .map((key) => activeMap.get(normalizeBatch(key)))
     .filter(Boolean);
   const enabled = matchedConfigs.length > 0;
-  const hasNewBatchType = matchedConfigs.some((cfg) => String(cfg.batchType || 'new').toLowerCase() !== 'old');
-  const learningEnabled = enabled && hasNewBatchType;
+  const hasLearningType = matchedConfigs.some((cfg) => isLearningEnabled(cfg.batchType));
+  const learningEnabled = enabled && hasLearningType;
   const primaryCfg = matchedConfigs[0] || null;
-  const batchType = primaryCfg ? String(primaryCfg.batchType || 'new').toLowerCase() : 'new';
+  const batchType = primaryCfg ? normalizeBatchType(primaryCfg.batchType) : BATCH_TYPE_OLD;
 
   return {
     enabled,
@@ -66,7 +69,7 @@ async function getJourneyAccessForStudentId(UserModel, studentId) {
   const student = await UserModel.findById(studentId)
     .select('role batch goStatus subscription currentCourseDay')
     .lean();
-  if (!student) return { enabled: false, learningEnabled: false, courseDay: 1, batchKeys: [], batchType: 'new', reason: 'STUDENT_NOT_FOUND' };
+  if (!student) return { enabled: false, learningEnabled: false, courseDay: 1, batchKeys: [], batchType: BATCH_TYPE_OLD, reason: 'STUDENT_NOT_FOUND' };
   return getJourneyAccessForStudent(student);
 }
 

@@ -69,4 +69,42 @@ const markOverdueInstallments = async () => {
 const getInstallmentsForRequest = (requestId) =>
   PaymentInstallment.find({ paymentRequestId: requestId }).sort({ installmentNumber: 1 }).lean();
 
-module.exports = { initializeInstallments, applyPaymentToInstallments, markOverdueInstallments, getInstallmentsForRequest };
+/** Re-apply all approved submissions after an admin corrects paidAmount. */
+const recalculateRequestFromApprovedSubmissions = async (requestId) => {
+  const request = await PaymentRequest.findById(requestId);
+  if (!request) return;
+
+  const PaymentFlowSubmission = require('../models/PaymentSubmission');
+  const approvedSubs = await PaymentFlowSubmission.find({
+    paymentRequestId: requestId,
+    status: 'APPROVED',
+    isArchived: false,
+  })
+    .sort({ approvedAt: 1 })
+    .lean();
+
+  const installments = await PaymentInstallment.find({ paymentRequestId: requestId }).sort({ installmentNumber: 1 });
+  for (const inst of installments) {
+    inst.paidAmount = 0;
+    inst.remainingAmount = inst.requestedAmount;
+    inst.status = 'PENDING';
+    inst.submissionIds = [];
+    await inst.save();
+  }
+
+  request.amountRemaining = request.amount;
+  request.status = installments.length ? 'REQUESTED' : 'REQUESTED';
+  await request.save();
+
+  for (const sub of approvedSubs) {
+    await applyPaymentToInstallments(requestId, sub._id, sub.paidAmount);
+  }
+};
+
+module.exports = {
+  initializeInstallments,
+  applyPaymentToInstallments,
+  markOverdueInstallments,
+  getInstallmentsForRequest,
+  recalculateRequestFromApprovedSubmissions,
+};

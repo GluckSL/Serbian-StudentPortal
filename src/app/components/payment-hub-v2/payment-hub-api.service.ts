@@ -507,4 +507,24 @@ export class PaymentHubApiService {
       body,
     );
   }
+
+  correctStudentTotalPaid(
+    studentId: string,
+    body: { currency: string; correctedTotalPaid: number; adminRemarks: string },
+  ): Observable<{ success: boolean; message: string; data: unknown }> {
+    return this.http.patch<{ success: boolean; message: string; data: unknown }>(
+      `${this.base}/students/${studentId}/correct-total-paid`,
+      body,
+    );
+  }
+
+  correctSubmissionAmount(
+    submissionId: string,
+    body: { newPaidAmount: number; adminRemarks?: string },
+  ): Observable<{ success: boolean; message: string; data: unknown }> {
+    return this.http.patch<{ success: boolean; message: string; data: unknown }>(
+      `${this.base}/approvals/${submissionId}/correct-amount`,
+      body,
+    );
+  }
 }

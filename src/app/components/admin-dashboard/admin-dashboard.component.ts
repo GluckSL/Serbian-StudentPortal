@@ -280,11 +280,8 @@ export class AdminDashboardComponent implements OnInit {
           this.selectAll = false;
           this.selectedStudentIds.clear();
           
-          // Extract student names for autocomplete
-          this.allStudentNames = this.students
-            .map(s => s.name)
-            .filter((name, index, self) => name && self.indexOf(name) === index)
-            .sort();
+          // Hints for autocomplete (name, reg no, email on current result set)
+          this.allStudentNames = this.buildStudentSearchHints(this.students);
           
           // Setup autocomplete filtering
           this.filteredStudentNames = this.studentNameControl.valueChanges.pipe(
@@ -467,10 +464,20 @@ export class AdminDashboardComponent implements OnInit {
     return Math.min(this.currentPage * this.pageSize, this.totalStudents);
   }
   
+  private buildStudentSearchHints(students: Student[]): string[] {
+    const hints = new Set<string>();
+    for (const s of students) {
+      if (s.name?.trim()) hints.add(s.name.trim());
+      if (s.regNo?.trim()) hints.add(s.regNo.trim());
+      if (s.email?.trim()) hints.add(s.email.trim());
+    }
+    return Array.from(hints).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
   private _filterStudentNames(value: string): string[] {
     const filterValue = value.toLowerCase();
-    return this.allStudentNames.filter(name => 
-      name.toLowerCase().includes(filterValue)
+    return this.allStudentNames.filter(hint =>
+      hint.toLowerCase().includes(filterValue)
     );
   }
   

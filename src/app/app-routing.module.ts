@@ -544,6 +544,12 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
   {
+    path: 'admin/glueck-arena/:id/play',
+    loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], arenaPreview: true }
+  },
+  {
     path: 'admin/glueck-arena/analytics',
     loadComponent: () => import('./features/glueck-arena/components/admin/admin-analytics-dashboard/admin-analytics-dashboard.component').then(m => m.AdminAnalyticsDashboardComponent),
     canActivate: [AuthGuard, RoleGuard],

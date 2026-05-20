@@ -69,6 +69,10 @@
       <mat-icon>table_chart</mat-icon>
       Import from Excel
     </button>
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openCorrectReceived()" [disabled]="selectedCount !== 1" matTooltip="Fix wrong approved amount for one selected student (updates student portal too)">
+      <mat-icon>edit</mat-icon>
+      Correct total received
+    </button>
     <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openBulkLanguagePaid()" [disabled]="selectedCount === 0" matTooltip="Record full language fee for selected students (legacy approved rows)">
       <mat-icon>account_balance_wallet</mat-icon>
       Set balance to zero

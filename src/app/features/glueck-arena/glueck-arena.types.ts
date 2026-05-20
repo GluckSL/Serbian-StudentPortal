@@ -130,6 +130,7 @@ export interface CompleteResult {
   xpBonus: number;
   accuracy: number;
   newAchievements?: AchievementDto[];
+  preview?: boolean;
 }
 
 export interface StartAttemptResult {
@@ -138,6 +139,7 @@ export interface StartAttemptResult {
   questions: GameQuestion[];
   levels: GameLevel[];
   set: GameSet;
+  preview?: boolean;
 }
 
 export interface CatalogResponse {

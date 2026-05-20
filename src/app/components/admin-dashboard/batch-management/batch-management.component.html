@@ -16,6 +16,54 @@
 
   <div class="bm-layout" *ngIf="!loading; else loadingTpl">
     <aside class="bm-sidebar">
+      <nav class="bm-tabs" role="tablist">
+        <button
+          type="button"
+          class="bm-tab"
+          role="tab"
+          [class.active]="activeTab === 'all'"
+          [attr.aria-selected]="activeTab === 'all'"
+          (click)="setTab('all')"
+        >
+          All batches
+          <span class="bm-tab-count">{{ allBatches.length }}</span>
+        </button>
+        <button
+          type="button"
+          class="bm-tab"
+          role="tab"
+          [class.active]="activeTab === 'upcoming'"
+          [attr.aria-selected]="activeTab === 'upcoming'"
+          (click)="setTab('upcoming')"
+        >
+          Upcoming
+          <span class="bm-tab-count bm-tab-count--upcoming">{{ upcomingBatches.length }}</span>
+        </button>
+      </nav>
+
+      <div class="bm-filters">
+        <label class="bm-filter">
+          <span class="bm-filter-label">Level</span>
+          <select class="bm-select" [(ngModel)]="filterLevel">
+            <option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</option>
+          </select>
+        </label>
+        <label class="bm-filter">
+          <span class="bm-filter-label">Batch type</span>
+          <select class="bm-select" [(ngModel)]="filterBatchType">
+            <option *ngFor="let opt of batchTypeOptions" [value]="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="bm-btn bm-btn-ghost bm-btn-sm"
+          *ngIf="hasActiveFilters"
+          (click)="clearFilters()"
+        >
+          <i class="fas fa-times"></i> Clear all
+        </button>
+      </div>
+
       <div class="bm-search-wrap">
         <i class="fas fa-search"></i>
         <input
@@ -26,6 +74,14 @@
           autocomplete="off"
         />
       </div>
+
+      <p class="bm-list-meta">
+        Showing {{ filteredBatches.length }} of {{ tabBatches.length }}
+        <span *ngIf="activeTab === 'upcoming'">upcoming</span>
+        <span *ngIf="activeTab === 'all'">active</span>
+        batches
+      </p>
+
       <ul class="bm-batch-list">
         <li
           *ngFor="let b of filteredBatches"
@@ -33,20 +89,53 @@
           [class.active]="selectedBatch?.batchName === b.batchName"
           (click)="selectBatch(b)"
         >
-          <span class="bm-batch-name">{{ b.batchName }}</span>
-          <span class="bm-batch-meta">
-            <span class="bm-pill" [class.bm-pill--old]="b.batchType === 'old'">{{ b.batchType }}</span>
-            <span class="bm-count">{{ b.studentCount }} students</span>
-          </span>
+          <div class="bm-batch-item-top">
+            <span class="bm-batch-name">{{ b.batchName }}</span>
+            <span class="bm-pill"
+              [class.bm-pill--old]="b.batchType === 'old' || !b.batchType"
+              [class.bm-pill--new]="b.batchType === 'new'"
+              [class.bm-pill--general]="b.batchType === 'general'"
+            >{{ batchTypeDisplay(b.batchType) }}</span>
+          </div>
+          <div class="bm-batch-meta">
+            <span class="bm-level-pill" *ngIf="b.level">{{ b.level }}</span>
+            <span class="bm-level-pill bm-level-pill--muted" *ngIf="!b.level && b.studentCount === 0">No level</span>
+            <span class="bm-count">
+              <i class="fas fa-users"></i> {{ b.studentCount }}
+            </span>
+          </div>
+          <div class="bm-batch-hint" *ngIf="b.levelCounts && (b.studentCount || 0) > 0" [title]="levelSummary(b)">
+            {{ levelSummary(b) }}
+          </div>
         </li>
-        <li *ngIf="filteredBatches.length === 0" class="bm-empty">No batches match your search.</li>
+        <li *ngIf="filteredBatches.length === 0" class="bm-empty">
+          <i class="fas fa-inbox"></i>
+          <span *ngIf="hasActiveFilters">No batches match your filters.</span>
+          <span *ngIf="!hasActiveFilters && activeTab === 'upcoming'">No upcoming batches. New batches appear here until journey is activated.</span>
+          <span *ngIf="!hasActiveFilters && activeTab === 'all'">No active batches yet.</span>
+        </li>
       </ul>
     </aside>
 
     <main class="bm-main" *ngIf="selectedBatch; else pickBatchTpl">
       <div class="bm-main-header">
-        <h2>{{ editForm.batchName || selectedBatch.batchName }}</h2>
-        <span class="bm-pill bm-pill--journey" *ngIf="editForm.journeyActive">Journey active</span>
+        <div>
+          <h2>{{ editForm.batchName || selectedBatch.batchName }}</h2>
+          <p class="bm-main-sub" *ngIf="selectedBatch.level || selectedBatch.studentCount">
+            <span class="bm-level-pill" *ngIf="selectedBatch.level">{{ selectedBatch.level }}</span>
+            {{ selectedBatch.studentCount }} student{{ selectedBatch.studentCount === 1 ? '' : 's' }}
+            <span class="bm-muted-inline" *ngIf="levelSummary(selectedBatch) !== '—'"> · {{ levelSummary(selectedBatch) }}</span>
+          </p>
+        </div>
+        <div class="bm-main-badges">
+          <span class="bm-pill"
+            [class.bm-pill--old]="editForm.batchType === 'old' || !editForm.batchType"
+            [class.bm-pill--new]="editForm.batchType === 'new'"
+            [class.bm-pill--general]="editForm.batchType === 'general'"
+          >{{ batchTypeDisplay(editForm.batchType) }}</span>
+          <span class="bm-pill bm-pill--journey" *ngIf="editForm.journeyActive">Journey active</span>
+          <span class="bm-pill bm-pill--upcoming" *ngIf="!editForm.journeyActive">Upcoming</span>
+        </div>
       </div>
 
       <section class="bm-card">
@@ -59,8 +148,9 @@
           <label class="bm-field">
             <span>Batch type</span>
             <select class="bm-input" [(ngModel)]="editForm.batchType">
-              <option value="new">New — modules, exercises & live classes</option>
               <option value="old">Old — live classes & recordings only</option>
+              <option value="general">General — no modules; live classes & recordings</option>
+              <option value="new">New — modules, exercises & live classes</option>
             </select>
             <small class="bm-hint">{{ batchTypeLabel(editForm.batchType) }}</small>
           </label>
@@ -145,7 +235,7 @@
                   <div class="bm-muted">{{ s.email }}</div>
                 </td>
                 <td>{{ s.regNo || '—' }}</td>
-                <td>{{ s.level || '—' }}</td>
+                <td><span class="bm-level-pill bm-level-pill--sm" *ngIf="s.level">{{ s.level }}</span><span *ngIf="!s.level">—</span></td>
                 <td>{{ s.studentStatus || '—' }}</td>
                 <td>{{ s.currentCourseDay || 1 }}</td>
               </tr>
@@ -160,7 +250,11 @@
 
     <ng-template #pickBatchTpl>
       <main class="bm-main bm-main--empty">
-        <p>Select a batch from the list to edit settings and students.</p>
+        <div class="bm-empty-state">
+          <i class="fas fa-layer-group"></i>
+          <h3>Select a batch</h3>
+          <p>Choose a batch from the list to edit settings and manage students.</p>
+        </div>
       </main>
     </ng-template>
   </div>
@@ -186,6 +280,7 @@
         <span>Journey length</span>
         <input class="bm-input" type="number" min="1" max="200" [(ngModel)]="newJourneyLength" />
       </label>
+      <p class="bm-hint bm-hint--block">New batches start as <strong>upcoming</strong> until you enable “Journey active” in settings.</p>
     </div>
     <div class="bm-modal-footer">
       <button type="button" class="bm-btn bm-btn-outline" (click)="showCreateModal = false">Cancel</button>

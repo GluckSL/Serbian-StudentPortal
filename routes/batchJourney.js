@@ -28,6 +28,12 @@ const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentB
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
+const {
+  BATCH_TYPE_OLD,
+  normalizeBatchType,
+  isValidBatchTypeInput
+} = require('../utils/batchType');
+// normalizeBatchType now passes 'general'|'new'|'old' through unchanged
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -235,6 +241,20 @@ function computeBatchDay(cfg) {
   return Math.min(cfg.journeyLength, Math.max(1, elapsed + 1));
 }
 
+function dominantLevel(levelCounts) {
+  if (!levelCounts || typeof levelCounts !== 'object') return null;
+  let best = null;
+  let max = 0;
+  for (const [lv, n] of Object.entries(levelCounts)) {
+    const count = Number(n) || 0;
+    if (count > max) {
+      max = count;
+      best = lv;
+    }
+  }
+  return best;
+}
+
 async function checkDayCompletion(studentId, batchNameOrNames, day) {
   return computeJourneyDayCompletion(studentId, batchNameOrNames, day);
 }
@@ -267,6 +287,20 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
     ]);
     const countMap = {};
     counts.forEach(c => { countMap[c._id] = c.count; });
+
+    const levelAgg = await User.aggregate([
+      { $match: { role: 'STUDENT', batch: { $in: allBatchNames }, ...EXCLUDE_TEST } },
+      { $group: { _id: { batch: '$batch', level: '$level' }, count: { $sum: 1 } } }
+    ]);
+    const levelCountsByBatch = {};
+    for (const row of levelAgg) {
+      const batch = row._id?.batch;
+      if (!batch) continue;
+      const lv = String(row._id?.level || '').trim().toUpperCase();
+      if (!lv) continue;
+      if (!levelCountsByBatch[batch]) levelCountsByBatch[batch] = {};
+      levelCountsByBatch[batch][lv] = (levelCountsByBatch[batch][lv] || 0) + row.count;
+    }
 
     // Most common assigned teacher per batch (from students' assignedTeacher)
     const teacherByBatch = {};
@@ -312,7 +346,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         journeyLength: 200,
         batchCurrentDay: 1,
         notes: '',
-        batchType: 'new',
+        batchType: BATCH_TYPE_OLD,
         batchStartDate: null,
         strictJourneyRule: false,
         strictJourneyThresholdPercent: 100,
@@ -327,12 +361,14 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         batchStartDate: cfg.batchStartDate || null,
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
-        batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
+        batchType: normalizeBatchType(cfg.batchType),
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
         journeyActive: !!(cfg && cfg.journeyActive),
         studentCount: countMap[name] || 0,
+        levelCounts: levelCountsByBatch[name] || {},
+        level: dominantLevel(levelCountsByBatch[name]),
         teacherId: teacherByBatch[name]?.teacherId ?? null,
         teacherName: teacherByBatch[name]?.teacherName ?? null
       };
@@ -499,7 +535,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         batchStartDate: cfg.batchStartDate || null,
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes,
-        batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
+        batchType: normalizeBatchType(cfg.batchType),
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100
@@ -662,11 +698,10 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       cfg.notes = String(notes).substring(0, 500);
     }
     if (batchType !== undefined) {
-      const normalizedType = String(batchType || '').trim().toLowerCase();
-      if (normalizedType !== 'new' && normalizedType !== 'old') {
-        return res.status(400).json({ message: 'batchType must be "new" or "old"' });
+      if (!isValidBatchTypeInput(batchType)) {
+        return res.status(400).json({ message: 'batchType must be "general", "new", or "old"' });
       }
-      cfg.batchType = normalizedType;
+      cfg.batchType = normalizeBatchType(batchType);
     }
     if (strictJourneyRule !== undefined) {
       cfg.strictJourneyRule = !!strictJourneyRule;
@@ -695,7 +730,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       config: {
         ...cfg.toObject(),
         batchName: effectiveBatchName,
-        batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
+        batchType: normalizeBatchType(cfg.batchType),
         batchCurrentDay: activeBatchDay,
         autoDay: !!cfg.batchStartDate,
         journeyActive: !!cfg.journeyActive

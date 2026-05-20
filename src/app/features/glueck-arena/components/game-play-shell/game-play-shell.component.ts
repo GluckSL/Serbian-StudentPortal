@@ -44,6 +44,11 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
         <button mat-raised-button (click)="back()">Go Back</button>
       </div>
 
+      <div class="shell-preview-banner" *ngIf="isAdminPreview">
+        <mat-icon>visibility</mat-icon>
+        <span>Admin preview — scores and XP are not saved to student leaderboards.</span>
+      </div>
+
       <!-- Unified shell layout for intro and playing phases -->
       <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
 
@@ -198,7 +203,7 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
               <button class="shell__results__btn" routerLink="/glueck-arena/leaderboard">
                 <mat-icon>leaderboard</mat-icon> Leaderboard
               </button>
-              <button class="shell__results__btn shell__results__btn--outline" routerLink="/glueck-arena">
+              <button class="shell__results__btn shell__results__btn--outline" (click)="back()">
                 <mat-icon>home</mat-icon> Back
               </button>
             </div>
@@ -221,6 +226,12 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
   `,
   styles: [`
     .shell { max-width: 1180px; margin: 0 auto; padding: 16px; }
+    .shell-preview-banner {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
+      border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
+      font-size: 14px; font-weight: 600;
+    }
+    .shell-preview-banner mat-icon { color: #2563eb; }
     .shell__loading { padding: 0; }
     .shell__loading-grid { display: grid; grid-template-columns: 0.3fr 0.7fr; gap: 16px; max-width: 1200px; margin: 0 auto; padding: 16px; }
     .shell__loading-side { display: flex; flex-direction: column; gap: 16px; }
@@ -639,6 +650,7 @@ export class GamePlayShellComponent implements OnInit {
   lbLoading = false;
 
   similarGames: GameSet[] = [];
+  isAdminPreview = false;
 
   constructor(
     private svc: InteractiveGameService,
@@ -647,6 +659,10 @@ export class GamePlayShellComponent implements OnInit {
     private router: Router,
     private auth: AuthService
   ) {}
+
+  private get arenaExitPath(): string {
+    return this.isAdminPreview ? '/admin/glueck-arena' : '/glueck-arena';
+  }
 
   get studentBatchLabel(): string {
     const b = this.auth.getSnapshotUser()?.batch;
@@ -660,7 +676,10 @@ export class GamePlayShellComponent implements OnInit {
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
-    this.loadLeaderboard();
+    this.isAdminPreview = !!this.route.snapshot.data['arenaPreview'];
+    if (!this.isAdminPreview) {
+      this.loadLeaderboard();
+    }
     this.svc.startAttempt(id).subscribe({
       next: (r) => {
         this.set = r.set;
@@ -668,8 +687,11 @@ export class GamePlayShellComponent implements OnInit {
         this.questions = r.questions;
         this.levels = r.levels || [];
         this.phase = 'intro';
-        this.fetchGameLeaderboard(id);
-        this.loadSimilarGames();
+        if (r.preview) this.isAdminPreview = true;
+        if (!this.isAdminPreview) {
+          this.fetchGameLeaderboard(id);
+          this.loadSimilarGames();
+        }
       },
       error: (err) => {
         this.error = err?.error?.message || 'Could not start game';
@@ -748,7 +770,7 @@ export class GamePlayShellComponent implements OnInit {
 
   replay() { window.location.reload(); }
 
-  back() { this.router.navigate(['/glueck-arena']); }
+  back() { this.router.navigate([this.arenaExitPath]); }
 
   asSentenceQuestions(): SentenceQuestion[] { return this.questions as SentenceQuestion[]; }
   asScrambleQuestions(): ScrambleQuestion[] { return this.questions as ScrambleQuestion[]; }
@@ -770,7 +792,11 @@ export class GamePlayShellComponent implements OnInit {
         this.finalXp = r.xpBonus ?? 0;
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
-        this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
       },
       error: () => { this.phase = 'results'; }
     });
@@ -790,7 +816,11 @@ export class GamePlayShellComponent implements OnInit {
         this.finalXp = r.xpBonus ?? 0;
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
-        this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
       },
       error: () => { this.phase = 'results'; }
     });

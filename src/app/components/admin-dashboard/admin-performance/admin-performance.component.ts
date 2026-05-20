@@ -32,7 +32,7 @@ interface JourneyActiveBatch {
   studentCount: number;
   teacherName: string | null;
   journeyActive?: boolean;
-  batchType?: 'new' | 'old';
+  batchType?: 'general' | 'new' | 'old';
 }
 
 interface OverviewStudent {

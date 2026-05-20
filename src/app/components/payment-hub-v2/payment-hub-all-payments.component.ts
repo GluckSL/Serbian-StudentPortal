@@ -21,6 +21,7 @@ import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdu
 import { StudentLogService } from '../../services/student-log.service';
 import { PaymentLegacyMapperDialogComponent } from './payment-legacy-mapper-dialog.component';
 import { PaymentBulkLanguagePaidDialogComponent } from './payment-bulk-language-paid-dialog.component';
+import { PaymentCorrectReceivedDialogComponent } from './payment-correct-received-dialog.component';
 import { PaymentExcelImportDialogComponent } from './payment-excel-import-dialog.component';
 import {
   currentJourneyDayFromStudent,
@@ -225,6 +226,28 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       else next.delete(id);
     }
     this.selectedStudentIds = next;
+  }
+
+  openCorrectReceived(): void {
+    const picked = this.rows.filter((r) => this.isRowSelected(r));
+    if (picked.length !== 1) {
+      this.snack.open('Select exactly one student to correct total received.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+    const ref = this.dialog.open(PaymentCorrectReceivedDialogComponent, {
+      width: '520px',
+      maxWidth: '100vw',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: false,
+      data: { row: picked[0] },
+    });
+    ref.afterClosed().subscribe((saved) => {
+      if (saved) {
+        this.selectedStudentIds = new Set();
+        this.loadStats();
+        this.loadTable();
+      }
+    });
   }
 
   openBulkLanguagePaid(): void {

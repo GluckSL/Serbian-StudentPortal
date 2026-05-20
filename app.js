@@ -239,6 +239,8 @@ async function connectMongoDb() {
   await ensureDefaultAchievements();
   await ensureDefaultQuests();
   await ensurePortalBatches();
+  const { migrateBatchTypesFromGeneralToNew } = require('./services/migrateBatchTypes');
+  await migrateBatchTypesFromGeneralToNew();
 }
 
 // API Routes

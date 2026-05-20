@@ -15,6 +15,7 @@ const MeetingLink = require('../models/MeetingLink');
 const { crmTokenAuth } = require('../middleware/crmTokenAuth');
 const { toStudentDto } = require('../services/crmStudentExport');
 const { upsertStudentFromCrm } = require('../services/crmStudentUpsert');
+const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 
 async function batchParticipantsAndSchedules(batchName) {
   const name = String(batchName || '').trim();
@@ -216,7 +217,7 @@ router.get('/students', async (req, res) => {
     if (plan) query.subscription = String(plan).trim().toUpperCase();
     if (batch) query.batch = String(batch).trim();
     if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
-    if (studentName) query.name = { $regex: new RegExp(String(studentName).trim(), 'i') };
+    applyStudentNameFilter(query, studentName);
     if (servicesOpted) query.servicesOpted = String(servicesOpted).trim();
     if (qualifications) query.qualifications = String(qualifications).trim();
     if (languageLevelOpted) query.languageLevelOpted = String(languageLevelOpted).trim();

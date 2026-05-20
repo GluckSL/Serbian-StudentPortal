@@ -31,6 +31,11 @@ const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flas
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
+const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+
+function isArenaStaff(role) {
+  return ARENA_STAFF_ROLES.includes(role);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -154,15 +159,15 @@ exports.getGameDetail = async (req, res) => {
 
 exports.startAttempt = async (req, res) => {
   try {
-    const set = await GameSet.findOne({
-      _id: req.params.id,
-      isPublished: true,
-      isDeleted: { $ne: true },
-    }).lean();
+    const staffPreview = isArenaStaff(req.user.role);
+    const setFilter = { _id: req.params.id, isDeleted: { $ne: true } };
+    if (!staffPreview) setFilter.isPublished = true;
+
+    const set = await GameSet.findOne(setFilter).lean();
 
     if (!set) return notFound(res, 'Game not found');
 
-    // Check journey gate for students
+    // Check journey gate for students only
     if (req.user.role === 'STUDENT') {
       const gated = await journeyFilterService.isGated(req.user.id, set);
       if (gated) return res.status(403).json({ success: false, message: 'This game is not yet unlocked for your level.' });
@@ -214,7 +219,14 @@ exports.startAttempt = async (req, res) => {
 
     await resignMediaInObject(set);
 
-    res.json({ success: true, attempt, questions: sanitized, levels, set });
+    res.json({
+      success: true,
+      attempt,
+      questions: sanitized,
+      levels,
+      set,
+      preview: staffPreview,
+    });
   } catch (err) {
     serverError(res, err);
   }
@@ -394,7 +406,7 @@ exports.submitAnswer = async (req, res) => {
 
     await GameAttempt.findByIdAndUpdate(attempt._id, { $inc: attemptInc });
 
-    if (isCorrect) {
+    if (isCorrect && !isArenaStaff(req.user.role)) {
       const xpAmount = scoringService.perAnswerXp(attempt.gameType);
       await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
     }
@@ -425,7 +437,8 @@ exports.completeAttempt = async (req, res) => {
       : 0;
 
     const set = await GameSet.findById(attempt.gameSetId).lean();
-    const xpBonus = scoringService.completionXpBonus(set, accuracy);
+    const staffPreview = isArenaStaff(req.user.role);
+    const xpBonus = staffPreview ? 0 : scoringService.completionXpBonus(set, accuracy);
 
     const updated = await GameAttempt.findByIdAndUpdate(attempt._id, {
       status: 'completed',
@@ -434,31 +447,34 @@ exports.completeAttempt = async (req, res) => {
       livesRemaining: livesRemaining ?? attempt.livesRemaining,
       currentLevel: currentLevel ?? attempt.currentLevel,
       accuracy,
-      xpEarned: attempt.xpEarned + xpBonus,
+      xpEarned: staffPreview ? 0 : (attempt.xpEarned + xpBonus),
     }, { new: true });
 
-    // Award completion bonus XP
-    if (xpBonus > 0) {
-      await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'game_completed', xpBonus);
+    let newAchievements = [];
+    if (!staffPreview) {
+      // Award completion bonus XP
+      if (xpBonus > 0) {
+        await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'game_completed', xpBonus);
+      }
+
+      // Update student stats
+      await xpService.updateStudentStats(req.user.id, updated, set);
+
+      await dailyChallengesService.updateProgressFromAttempt(req.user.id, updated, updated.xpEarned);
+      await questsService.updateFromAttempt(req.user.id, updated, updated.xpEarned);
+      newAchievements = await achievementsService.checkAndUnlock(req.user.id, { attempt: updated });
+
+      try {
+        const antiCheatService = require('../services/interactiveGames/antiCheat');
+        const adaptiveLearningService = require('../services/interactiveGames/adaptiveLearning');
+        await antiCheatService.detectXpFraud(req.user.id);
+        adaptiveLearningService.analyzeStudent(req.user.id).catch(() => {});
+      } catch { /* non-blocking */ }
+
+      await cacheService.del('ga:lb:*');
     }
 
-    // Update student stats
-    await xpService.updateStudentStats(req.user.id, updated, set);
-
-    await dailyChallengesService.updateProgressFromAttempt(req.user.id, updated, updated.xpEarned);
-    await questsService.updateFromAttempt(req.user.id, updated, updated.xpEarned);
-    const newAchievements = await achievementsService.checkAndUnlock(req.user.id, { attempt: updated });
-
-    try {
-      const antiCheatService = require('../services/interactiveGames/antiCheat');
-      const adaptiveLearningService = require('../services/interactiveGames/adaptiveLearning');
-      await antiCheatService.detectXpFraud(req.user.id);
-      adaptiveLearningService.analyzeStudent(req.user.id).catch(() => {});
-    } catch { /* non-blocking */ }
-
-    await cacheService.del('ga:lb:*');
-
-    res.json({ success: true, attempt: updated, xpBonus, accuracy, newAchievements });
+    res.json({ success: true, attempt: updated, xpBonus, accuracy, newAchievements, preview: staffPreview });
   } catch (err) {
     serverError(res, err);
   }

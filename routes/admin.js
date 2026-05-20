@@ -9,6 +9,7 @@ const MeetingLink = require('../models/MeetingLink');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
+const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 
 /** Whitelist: API key → User schema path (advanced filter + distinct values) */
 const ADV_STUDENT_FILTER_FIELDS = {
@@ -140,7 +141,7 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     if (plan) query.subscription = String(plan).trim().toUpperCase();
     if (batch) query.batch = String(batch).trim();
     if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
-    if (studentName) query.name = { $regex: new RegExp(String(studentName).trim(), 'i') };
+    applyStudentNameFilter(query, studentName);
     if (servicesOpted) query.servicesOpted = String(servicesOpted).trim();
     if (qualifications) query.qualifications = String(qualifications).trim();
     if (languageLevelOpted) query.languageLevelOpted = String(languageLevelOpted).trim();

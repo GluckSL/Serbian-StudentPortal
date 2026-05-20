@@ -16,6 +16,7 @@ const DGSession = require('../models/DGSession');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const MeetingLink = require('../models/MeetingLink');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { BATCH_TYPE_OLD, normalizeBatchType } = require('../utils/batchType');
 
 // Helper: build documents list cross-referencing requirements with uploads
 async function buildDocumentsList(studentId, servicesOpted) {
@@ -239,7 +240,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     }
     const journeyAccess = student.role === 'STUDENT'
       ? await getJourneyAccessForStudent({ ...student, role: 'STUDENT' })
-      : { enabled: true, learningEnabled: true, batchType: 'new' };
+      : { enabled: true, learningEnabled: true, batchType: BATCH_TYPE_OLD };
 
     // Level progression
     const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -367,7 +368,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         subscription: student.subscription || '',
         journeyAccessEnabled: journeyAccess.enabled !== false,
         learningContentEnabled: journeyAccess.learningEnabled !== false,
-        batchType: String(journeyAccess.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
+        batchType: normalizeBatchType(journeyAccess.batchType),
         pendingJourneyDayAdvance: !!student.pendingJourneyDayAdvance,
         pendingJourneyDayAdvanceForDay:
           student.pendingJourneyDayAdvanceForDay != null

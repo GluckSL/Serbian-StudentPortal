@@ -15,7 +15,6 @@ import { PaymentHubApiService, PaymentRequestItem as PaymentRequest, StudentCata
 import { PaymentUploadDialogComponent } from './payment-upload-dialog.component';
 import { AuthService } from '../../services/auth.service';
 import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml } from '../../utils/invoice-pdf.util';
-import { PaymentCurrencyAmountComponent } from './payment-currency-amount.component';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 @Component({
   selector: 'app-payment-hub-student-portal',
@@ -33,7 +32,6 @@ import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.compon
     MatDialogModule,
     MatIconModule,
     MatTooltipModule,
-    PaymentCurrencyAmountComponent,
     PaymentCurrencyTotalsComponent,
   ],
   templateUrl: './payment-hub-student-portal.component.html',
