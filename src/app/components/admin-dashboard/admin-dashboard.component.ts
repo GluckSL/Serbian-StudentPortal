@@ -91,6 +91,40 @@ interface StudentListResponse {
   };
 }
 
+interface StudentDataIssueRow {
+  _id: string;
+  regNo: string;
+  name: string;
+  email: string;
+  batch: string;
+  level: string;
+  subscription: string;
+  studentStatus: string;
+  crmExternalId: string;
+  issueTypes: string[];
+  issueDetail: string;
+  severity: 'danger' | 'warning';
+}
+
+interface StudentDataIssuesResponse {
+  success: boolean;
+  students: StudentDataIssueRow[];
+  summary: {
+    totalIssueRows: number;
+    dangerCount: number;
+    warningCount: number;
+    byType: Record<string, number>;
+  };
+  reconciliation: {
+    portalTotal: number;
+    crmUniqueEmails: number;
+    portalMatchedCrm: number;
+    portalExtraNotOnCrm: number;
+    mondayBoardRows: number;
+  } | null;
+  mondayError: string | null;
+}
+
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
@@ -303,6 +337,24 @@ export class AdminDashboardComponent implements OnInit {
 
   portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0 };
 
+  dataIssuesPanelOpen = false;
+  dataIssuesLoading = false;
+  dataIssuesError = '';
+  dataIssuesStudents: StudentDataIssueRow[] = [];
+  dataIssuesSummary: StudentDataIssuesResponse['summary'] | null = null;
+  dataIssuesReconciliation: StudentDataIssuesResponse['reconciliation'] | null = null;
+  dataIssuesMondayError: string | null = null;
+  dataIssuesTypeFilter = '';
+
+  readonly dataIssueTypeLabels: Record<string, string> = {
+    duplicate_email: 'Duplicate email',
+    duplicate_crm_id: 'Duplicate CRM id',
+    missing_email: 'Missing email',
+    placeholder_email: 'Placeholder email',
+    no_crm_link: 'No CRM link',
+    portal_only: 'Not on CRM board'
+  };
+
   fetchFilterOptions(): void {
     this.http
       .get<{
@@ -422,6 +474,55 @@ export class AdminDashboardComponent implements OnInit {
       f.level || f.plan || f.batch || f.studentStatus || f.studentName || f.teacherName ||
       f.servicesOpted || f.qualifications || f.languageLevelOpted
     );
+  }
+
+  get filteredDataIssuesStudents(): StudentDataIssueRow[] {
+    if (!this.dataIssuesTypeFilter) return this.dataIssuesStudents;
+    return this.dataIssuesStudents.filter((s) => s.issueTypes.includes(this.dataIssuesTypeFilter));
+  }
+
+  toggleDataIssuesPanel(): void {
+    this.dataIssuesPanelOpen = !this.dataIssuesPanelOpen;
+    if (this.dataIssuesPanelOpen && !this.dataIssuesStudents.length && !this.dataIssuesLoading) {
+      this.loadDataIssues();
+    }
+  }
+
+  loadDataIssues(): void {
+    this.dataIssuesLoading = true;
+    this.dataIssuesError = '';
+    this.http
+      .get<StudentDataIssuesResponse>(`${apiUrl}/admin/students/data-issues`, { withCredentials: true })
+      .subscribe({
+        next: (res) => {
+          this.dataIssuesLoading = false;
+          if (!res.success) {
+            this.dataIssuesError = 'Scan failed';
+            return;
+          }
+          this.dataIssuesStudents = res.students || [];
+          this.dataIssuesSummary = res.summary || null;
+          this.dataIssuesReconciliation = res.reconciliation || null;
+          this.dataIssuesMondayError = res.mondayError || null;
+        },
+        error: (err) => {
+          this.dataIssuesLoading = false;
+          this.dataIssuesError = err.error?.message || 'Failed to load data issues';
+        }
+      });
+  }
+
+  closeDataIssuesPanel(): void {
+    this.dataIssuesPanelOpen = false;
+    this.dataIssuesTypeFilter = '';
+  }
+
+  issueTypeLabel(type: string): string {
+    return this.dataIssueTypeLabels[type] || type;
+  }
+
+  filterDataIssuesByType(type: string): void {
+    this.dataIssuesTypeFilter = this.dataIssuesTypeFilter === type ? '' : type;
   }
 
   crmCellDisplay(student: any, field: string): string {

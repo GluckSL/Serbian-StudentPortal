@@ -10,6 +10,7 @@ const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
+const { computeStudentDataIssues } = require('../services/studentDataIssues');
 
 /** Whitelist: API key → User schema path (advanced filter + distinct values) */
 const ADV_STUDENT_FILTER_FIELDS = {
@@ -104,6 +105,17 @@ router.get('/students/distinct/:fieldKey', verifyToken, isAdmin, async (req, res
     res.json({ success: true, fieldKey, values: clean });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Students with data-quality issues (duplicate email, portal-only vs CRM, etc.)
+router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const result = await computeStudentDataIssues();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[admin] GET /students/data-issues', err);
+    res.status(500).json({ success: false, message: err.message || 'Failed to scan student data issues' });
   }
 });
 
