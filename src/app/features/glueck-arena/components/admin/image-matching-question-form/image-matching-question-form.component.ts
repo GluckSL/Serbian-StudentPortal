@@ -6,12 +6,12 @@ import { InteractiveGameService } from '../../../services/interactive-game.servi
 import { NotificationService } from '../../../../../services/notification.service';
 import { AdminImageMatchingQuestion } from '../../../glueck-arena.types';
 
-/** Strip presigned S3 query params so only the stable object URL is stored in the form. */
+/** Strip presigned query params so only the stable object URL is stored in the form. */
 function canonicalImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
     const u = new URL(url);
-    if (u.hostname.includes('.amazonaws.com')) {
+    if (u.hostname.includes('.amazonaws.com') || u.search) {
       return `${u.origin}${u.pathname}`;
     }
   } catch { /* not a valid URL — return as-is */ }
@@ -341,14 +341,18 @@ export class ImageMatchingQuestionFormComponent implements OnInit {
         );
 
         for (let qIdx = 0; qIdx < this.questions.length; qIdx++) {
-          const qCtrl = this.questions.at(qIdx);
-          const order = qCtrl.value.order ?? qIdx;
+          const order = qIdx;
           const saved = idMap.get(String(order));
           if (!saved?._id) continue;
           for (let pIdx = 0; pIdx < (this.pendingPairImages[qIdx]?.length || 0); pIdx++) {
             const file = this.pendingPairImages[qIdx]?.[pIdx];
             if (file) {
-              await this.uploadPairImage(saved._id, pIdx, file);
+              const ok = await this.uploadPairImage(saved._id, qIdx, pIdx, file);
+              if (!ok) {
+                this.saving = false;
+                this.notify.error(`Failed to upload image for question ${qIdx + 1}, pair ${pIdx + 1}`);
+                return;
+              }
             }
           }
         }
@@ -364,11 +368,30 @@ export class ImageMatchingQuestionFormComponent implements OnInit {
     });
   }
 
-  private uploadPairImage(questionId: string, pairIndex: number, file: File): Promise<void> {
+  private uploadPairImage(
+    questionId: string,
+    qIdx: number,
+    pairIndex: number,
+    file: File
+  ): Promise<boolean> {
     return new Promise((resolve) => {
       this.svc.adminUploadPairImage(questionId, pairIndex, file).subscribe({
-        next: () => resolve(),
-        error: () => resolve(),
+        next: (r) => {
+          const displayUrl = r.url || r.canonicalUrl;
+          const storedUrl = canonicalImageUrl(r.canonicalUrl || r.url);
+          if (displayUrl) {
+            this.pairImageUrls[qIdx][pairIndex] = displayUrl;
+          }
+          if (storedUrl) {
+            this.getPairs(qIdx).at(pairIndex)?.patchValue({ imageUrl: storedUrl });
+          }
+          this.pendingPairImages[qIdx][pairIndex] = null;
+          resolve(true);
+        },
+        error: (err) => {
+          console.error('[image-matching] pair upload failed', err);
+          resolve(false);
+        },
       });
     });
   }

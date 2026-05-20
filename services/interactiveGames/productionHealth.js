@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const gaConfig = require('../../config/glueckArena');
 const cacheService = require('./cache');
 const multiplayerService = require('./multiplayer');
+const { isExerciseR2Configured } = require('../exerciseMediaR2');
 
 const startTime = Date.now();
 
@@ -17,6 +18,11 @@ function validateEnvironment() {
     warnings.push('OPENAI_API_KEY not set — AI generation uses mock provider');
   }
   if (!process.env.REDIS_URL) warnings.push('REDIS_URL not set — using in-memory cache');
+  if (!isExerciseR2Configured() && !process.env.S3_BUCKET) {
+    warnings.push('R2/S3 not configured — GlückArena image uploads (e.g. image matching) will fail');
+  } else if (!isExerciseR2Configured()) {
+    warnings.push('R2 not configured — arena images use S3 fallback; set R2_* env for Cloudflare R2');
+  }
   return { ok: errors.length === 0, errors, warnings };
 }
 
