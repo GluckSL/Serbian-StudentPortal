@@ -25,31 +25,43 @@ import { CommonModule } from '@angular/common';
     .exam-prog {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 0;
-      padding: 0 8px;
+      margin-top: 8px;
+      position: relative;
+    }
+
+    .exam-prog::before {
+      content: '';
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 2px;
+      background: #e8eaf6;
+      z-index: 0;
     }
 
     .exam-prog__step {
       display: flex;
       align-items: center;
       gap: 6px;
-      flex: 1;
+      width: fit-content;
       position: relative;
+      z-index: 1;
+      padding-right: 16px;
+      background: #fff;
+      border-radius: 20px;
+      transition: all .2s;
     }
 
-    .exam-prog__step + .exam-prog__step::before {
-      content: '';
-      position: absolute;
-      left: -16px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 20px;
-      height: 2px;
-      background: #c5cae9;
+    .exam-prog__step--done {
+      background: #e8f5e9;
     }
 
-    .exam-prog__step--done .exam-prog__step + .exam-prog__step::before {
-      background: #3949ab;
+    .exam-prog__step--active {
+      background: #e8eaf6;
     }
 
     .exam-prog__dot {
