@@ -103,7 +103,6 @@ function buildImageUploader() {
     s3: s3Client,
     bucket: process.env.S3_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
-    acl: 'public-read',
     key: (_req, file, cb) => {
       const ext = path.extname(file.originalname) || '.jpg';
       const prefix = process.env.S3_PREFIX || 'uploads';
