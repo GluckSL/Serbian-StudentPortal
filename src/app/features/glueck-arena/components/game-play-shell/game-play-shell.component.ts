@@ -7,17 +7,25 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet, CatalogFilters,
-  SentenceQuestion, ScrambleQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
+import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
+
+export interface IMResult {
+  score: number;
+  xpEarned: number;
+  accuracy: number;
+  timeSpentSeconds: number;
+}
 
 @Component({
   selector: 'app-game-play-shell',
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent
   ],
   template: `
     <div class="shell">
@@ -161,6 +169,15 @@ import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scr
             [levels]="levels"
             (onComplete)="handleScrambleComplete($event)"
           ></app-scramble-rush>
+
+          <app-image-matching
+            *ngIf="phase === 'playing' && set?.gameType === 'image_matching' && attempt"
+            [attempt]="attempt!"
+            [questions]="asImageMatchingQuestions()"
+            [shuffledWords]="shuffledWords"
+            [gameSet]="set!"
+            (onComplete)="handleImageMatchComplete($event)"
+          ></app-image-matching>
 
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
@@ -636,6 +653,7 @@ export class GamePlayShellComponent implements OnInit {
   set: GameSet | null = null;
   attempt: GameAttempt | null = null;
   questions: GameQuestion[] = [];
+  shuffledWords: string[] = [];
   levels: GameLevel[] = [];
   finalScore = 0;
   finalXp = 0;
@@ -685,6 +703,7 @@ export class GamePlayShellComponent implements OnInit {
         this.set = r.set;
         this.attempt = r.attempt;
         this.questions = r.questions;
+        this.shuffledWords = r.shuffledWords || [];
         this.levels = r.levels || [];
         this.phase = 'intro';
         if (r.preview) this.isAdminPreview = true;
@@ -774,6 +793,7 @@ export class GamePlayShellComponent implements OnInit {
 
   asSentenceQuestions(): SentenceQuestion[] { return this.questions as SentenceQuestion[]; }
   asScrambleQuestions(): ScrambleQuestion[] { return this.questions as ScrambleQuestion[]; }
+  asImageMatchingQuestions(): ImageMatchingQuestion[] { return this.questions as ImageMatchingQuestion[]; }
 
   isPlaceholderType(): boolean {
     return ['matching', 'flashcards'].includes(this.set?.gameType ?? '');
@@ -826,6 +846,25 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleImageMatchComplete(result: IMResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -835,7 +874,7 @@ export class GamePlayShellComponent implements OnInit {
   formatType(t: string): string {
     const map: Record<string, string> = {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
-      matching: 'Matching', flashcards: 'Flashcards',
+      matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
     };
     return map[t] ?? t;
   }
@@ -844,6 +883,7 @@ export class GamePlayShellComponent implements OnInit {
     const map: Record<string, string> = {
       scramble_rush: 'linear-gradient(135deg,#1565c0,#42a5f5)',
       sentence_builder: 'linear-gradient(135deg,#2e7d32,#66bb6a)',
+      image_matching: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }

@@ -13,7 +13,7 @@ const GameQuestionSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching'],
     required: true,
   },
 
@@ -28,6 +28,14 @@ const GameQuestionSchema = new mongoose.Schema({
   difficultyLevel: { type: Number, min: 1, max: 5, default: 1 },
   /** Seconds for this word to reach the deadline line (admin-controlled fall speed) */
   fallDurationSeconds: { type: Number, min: 2, max: 30, default: 5 },
+
+  // ── Image Matching fields ────────────────────────────────────────────────────
+  pairs: [{
+    word: { type: String, default: '' },
+    hint: { type: String, default: '' },
+    imageUrl: { type: String, default: null },
+    audioUrl: { type: String, default: null },
+  }],
 
   // ── Sentence Builder fields ──────────────────────────────────────────────────
   // correct sentence — NOT sent to client until answer submitted

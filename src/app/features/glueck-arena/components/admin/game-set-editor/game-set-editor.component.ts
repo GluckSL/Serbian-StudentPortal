@@ -9,6 +9,7 @@ import { InteractiveGameService } from '../../../services/interactive-game.servi
 import { NotificationService } from '../../../../../services/notification.service';
 import { environment } from '../../../../../../environments/environment';
 import { GameSet, GameType, AdminGameQuestion, GameLevel } from '../../../glueck-arena.types';
+import { ImageMatchingQuestionFormComponent } from '../image-matching-question-form/image-matching-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -23,7 +24,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
   imports: [
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule, MaterialModule,
     ScrambleQuestionFormComponent, SentenceQuestionFormComponent, SimpleQuestionFormComponent,
-    LevelEditorComponent, GameImportPanelComponent
+    LevelEditorComponent, GameImportPanelComponent, ImageMatchingQuestionFormComponent
   ],
   template: `
     <div class="ga-editor">
@@ -49,11 +50,12 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
 
               <mat-form-field appearance="outline" class="ga-editor__field">
                 <mat-label>Game Type *</mat-label>
-                <mat-select formControlName="gameType" (selectionChange)="onTypeChange()">
+                <mat-select formControlName="gameType">
                   <mat-option value="scramble_rush">Scramble Rush</mat-option>
                   <mat-option value="sentence_builder">Sentence Builder</mat-option>
                   <mat-option value="matching">Matching</mat-option>
                   <mat-option value="flashcards">Flashcards</mat-option>
+                  <mat-option value="image_matching">Image Matching</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -200,29 +202,18 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
         </mat-tab>
 
         <!-- Tab 2: Questions -->
-        <mat-tab [label]="questionsLabel" [disabled]="!setId">
-          <ng-container [ngSwitch]="form.get('gameType')?.value">
-            <app-scramble-question-form
-              #scrambleForm
-              *ngSwitchCase="'scramble_rush'"
-              [gameSetId]="setId!"
-            ></app-scramble-question-form>
-            <app-sentence-question-form
-              #sentenceForm
-              *ngSwitchCase="'sentence_builder'"
-              [gameSetId]="setId!"
-            ></app-sentence-question-form>
-            <app-simple-question-form
-              #simpleForm
-              *ngSwitchCase="['matching', 'flashcards'].includes(form.get('gameType')?.value) ? form.get('gameType')?.value : '___never___'"
-              [gameSetId]="setId!"
-              [gameType]="form.get('gameType')?.value"
-            ></app-simple-question-form>
+        <mat-tab [label]="questionsLabel">
+          <div [ngSwitch]="form.get('gameType')?.value">
+            <app-scramble-question-form *ngSwitchCase="'scramble_rush'" #scrambleForm [gameSetId]="setId || ''"></app-scramble-question-form>
+            <app-sentence-question-form *ngSwitchCase="'sentence_builder'" #sentenceForm [gameSetId]="setId || ''"></app-sentence-question-form>
+            <app-simple-question-form *ngSwitchCase="'matching'" #simpleForm [gameSetId]="setId || ''" gameType="matching"></app-simple-question-form>
+            <app-simple-question-form *ngSwitchCase="'flashcards'" #simpleForm [gameSetId]="setId || ''" gameType="flashcards"></app-simple-question-form>
+            <app-image-matching-question-form *ngSwitchCase="'image_matching'" #imageMatchForm [gameSetId]="setId || ''" gameType="image_matching"></app-image-matching-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
             </div>
-          </ng-container>
+          </div>
         </mat-tab>
 
         <!-- Tab 3: Levels (Scramble Rush only) -->
@@ -230,10 +221,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
           <app-level-editor *ngIf="setId" [gameSetId]="setId!"></app-level-editor>
         </mat-tab>
 
-        <mat-tab label="Import" [disabled]="!setId">
-          <app-game-import-panel 
-            *ngIf="setId" 
-            [gameSetId]="setId!" 
+        <mat-tab label="Import">
+          <app-game-import-panel
+            [gameSetId]="setId || ''"
             [gameType]="form.get('gameType')?.value"
             (imported)="refreshQuestions()"
           ></app-game-import-panel>
@@ -250,6 +240,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     .ga-editor__field { flex: 1; min-width: 180px; }
     .ga-editor__field--wide { flex: 2; }
     .ga-editor__field--full { width: 100%; }
+    ::ng-deep .mat-mdc-select-panel { max-height: 300px !important; }
     .ga-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #888; margin: 20px 0 8px; }
     .ga-toggle-group { display: flex; flex-direction: column; gap: 12px; justify-content: center; padding: 8px 0; }
     .ga-thumb-row { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
@@ -273,6 +264,7 @@ export class GameSetEditorComponent implements OnInit {
   @ViewChild('scrambleForm') scrambleForm?: ScrambleQuestionFormComponent;
   @ViewChild('sentenceForm') sentenceForm?: SentenceQuestionFormComponent;
   @ViewChild('simpleForm') simpleForm?: SimpleQuestionFormComponent;
+  @ViewChild('imageMatchForm') imageMatchForm?: ImageMatchingQuestionFormComponent;
 
   form!: FormGroup;
   isEdit = false;
@@ -317,6 +309,7 @@ export class GameSetEditorComponent implements OnInit {
     this.scrambleForm?.load();
     this.sentenceForm?.load();
     this.simpleForm?.load();
+    this.imageMatchForm?.load();
     if (this.setId) this.loadSet(this.setId);
   }
 

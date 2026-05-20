@@ -1,6 +1,6 @@
 // GlückArena shared TypeScript types
 
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -72,7 +72,21 @@ export interface SentenceQuestion {
   correctTokens: string[];
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion;
+export interface ImageMatchPair {
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+// Image Matching question (client-safe — no word field in pairs)
+export interface ImageMatchingQuestion {
+  _id: string;
+  gameType: 'image_matching';
+  order: number;
+  pairs: ImageMatchPair[];
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -82,7 +96,17 @@ export interface AdminSentenceQuestion extends SentenceQuestion {
   correctSentence: string;
   tokens: string[];
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion;
+export interface AdminImageMatchPair {
+  word: string;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface AdminImageMatchingQuestion extends ImageMatchingQuestion {
+  pairs: AdminImageMatchPair[];
+}
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -137,6 +161,7 @@ export interface StartAttemptResult {
   success: boolean;
   attempt: GameAttempt;
   questions: GameQuestion[];
+  shuffledWords?: string[];
   levels: GameLevel[];
   set: GameSet;
   preview?: boolean;
@@ -186,6 +211,7 @@ export interface StudentGameStats {
   byGameType: {
     scramble_rush: { gamesCompleted: number; bestScore: number; totalXp: number };
     sentence_builder: { gamesCompleted: number; bestScore: number; totalXp: number };
+    image_matching: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 

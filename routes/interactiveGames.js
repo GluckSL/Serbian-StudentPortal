@@ -135,8 +135,9 @@ const arenaPlayRoles = ['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
 router.post('/:id/attempts', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.startAttempt);
 
 // Submit a single answer during play
-router.post('/attempts/:attemptId/slots', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitSentenceSlot);
-router.post('/attempts/:attemptId/answers', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitAnswer);
+router.post('/attempts/:attemptId/slots', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitSentenceSlot);
+router.post('/attempts/:attemptId/image-match', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitImageMatchSlot);
+router.post('/attempts/:attemptId/answers', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitAnswer);
 
 // Finalize / complete the session
 router.post('/attempts/:attemptId/complete', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.completeAttempt);
@@ -173,5 +174,11 @@ router.post('/admin/sets/:id/import/commit', verifyToken, checkRole(adminRoles),
 
 // Question audio upload
 router.post('/admin/questions/:qid/audio', verifyToken, checkRole(adminRoles), interactiveGamesController.adminUploadQuestionAudio);
+
+// Question image upload
+router.post('/admin/questions/:qid/image', verifyToken, checkRole(adminRoles), interactiveGamesController.adminUploadQuestionImage);
+
+// Image matching pair image upload (targets a specific pair index within a question)
+router.post('/admin/questions/:qid/pair-image/:pairIndex', verifyToken, checkRole(adminRoles), interactiveGamesController.adminUploadPairImage);
 
 module.exports = router;
