@@ -107,8 +107,8 @@
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  background: #fef3c7;
-  color: #92400e;
+  background: #dbeafe;
+  color: #1d4ed8;
   font-weight: 700;
   font-size: 11px;
   text-transform: capitalize;
@@ -121,12 +121,6 @@
   &--new {
     background: #dcfce7;
     color: #15803d;
-  }
-
-  &--general {
-    background: #f1f5f9;
-    color: #475569;
-    border: 1px solid #cbd5e1;
   }
 }
 

@@ -83,7 +83,7 @@
           <ul class="ph-bullets">
             <li>Select batches with checkboxes, then <strong>Show details</strong> for a focused card + table view.</li>
             <li><strong>Show students</strong> opens a full student payment table for that batch (A1/A2 paid, journey day, status).</li>
-            <li><strong>Batch type:</strong> New = full modules; General / Old = live & recordings only (no modules).</li>
+            <li><strong>Batch type:</strong> New = full modules; Old = live classes & recordings only.</li>
             <li>Level column shows the main level; hover the breakdown for all levels in the batch.</li>
           </ul>
         </div>
@@ -114,7 +114,6 @@
               <span class="ph-batch-type-pill"
                 [class.ph-batch-type-pill--old]="r.batchType === 'old'"
                 [class.ph-batch-type-pill--new]="r.batchType === 'new'"
-                [class.ph-batch-type-pill--general]="r.batchType === 'general'"
               >{{ batchTypeLabel(r.batchType) }}</span>
               <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
             </div>
@@ -159,7 +158,6 @@
                   <span class="ph-batch-type-pill"
                     [class.ph-batch-type-pill--old]="r.batchType === 'old'"
                     [class.ph-batch-type-pill--new]="r.batchType === 'new'"
-                    [class.ph-batch-type-pill--general]="r.batchType === 'general'"
                   >{{ batchTypeLabel(r.batchType) }}</span>
                 </td>
                 <td>
@@ -220,7 +218,6 @@
                 <span class="ph-batch-type-pill"
                   [class.ph-batch-type-pill--old]="r.batchType === 'old'"
                   [class.ph-batch-type-pill--new]="r.batchType === 'new'"
-                  [class.ph-batch-type-pill--general]="r.batchType === 'general'"
                 >{{ batchTypeLabel(r.batchType) }}</span>
               </td>
               <td>

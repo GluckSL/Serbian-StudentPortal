@@ -1,6 +1,5 @@
 /**
- * One-time style migration: batches incorrectly stored as "general" after the
- * new→general rename should be restored to "new" (full journey content).
+ * Cleanup: remove legacy "general" batch type (map to "new").
  */
 const BatchConfig = require('../models/BatchConfig');
 
@@ -11,7 +10,7 @@ async function migrateBatchTypesFromGeneralToNew() {
   );
   const n = result.modifiedCount ?? result.nModified ?? 0;
   if (n > 0) {
-    console.log(`[migrateBatchTypes] Restored ${n} batch(es) from general → new`);
+    console.log(`[migrateBatchTypes] Converted ${n} batch(es) from general → new`);
   }
   return n;
 }

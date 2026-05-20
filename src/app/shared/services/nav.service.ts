@@ -43,9 +43,6 @@ export class NavService {
     journey: [
       '/admin/journey'
     ],
-    'batch-management': [
-      '/admin/batch-management'
-    ],
     'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
     'go-students': [
       '/admin/go-students'
@@ -92,7 +89,6 @@ export class NavService {
       group: 'Classes & Attendance',
       items: [
         { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings',    subGroup: null },
-        { id: 'batch-management', label: 'Batch Management', icon: 'inventory_2', route: '/admin/batch-management', subGroup: null },
         { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports',   subGroup: null },
         { id: 'import-meeting', label: 'Import Meeting', icon: 'link', route: '/admin/external-meetings', subGroup: null },
         { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }

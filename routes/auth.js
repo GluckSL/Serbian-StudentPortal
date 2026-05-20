@@ -64,7 +64,6 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "journey",
   "go-students",
   "manage-classes",
-  "batch-management",
   "attendance",
   "import-meeting",
   "class-recordings",

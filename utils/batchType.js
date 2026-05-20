@@ -1,21 +1,20 @@
-const BATCH_TYPE_GENERAL = 'general';
 const BATCH_TYPE_NEW = 'new';
 const BATCH_TYPE_OLD = 'old';
 
-const VALID_BATCH_TYPES = [BATCH_TYPE_GENERAL, BATCH_TYPE_NEW, BATCH_TYPE_OLD];
+const VALID_BATCH_TYPES = [BATCH_TYPE_NEW, BATCH_TYPE_OLD];
 
-/** Unknown / missing values default to old. */
 function normalizeBatchType(type) {
   const t = String(type || '').trim().toLowerCase();
-  if (VALID_BATCH_TYPES.includes(t)) return t;
-  return BATCH_TYPE_OLD;
+  if (t === BATCH_TYPE_OLD) return BATCH_TYPE_OLD;
+  if (t === 'general') return BATCH_TYPE_NEW;
+  return BATCH_TYPE_NEW;
 }
 
 function isValidBatchTypeInput(type) {
-  return VALID_BATCH_TYPES.includes(String(type || '').trim().toLowerCase());
+  const t = String(type || '').trim().toLowerCase();
+  return t === BATCH_TYPE_NEW || t === BATCH_TYPE_OLD || t === 'general';
 }
 
-/** Only "new" batches get modules + exercises; general and old do not. */
 function isLearningEnabled(type) {
   return normalizeBatchType(type) === BATCH_TYPE_NEW;
 }
@@ -24,19 +23,11 @@ function isOldBatchType(type) {
   return normalizeBatchType(type) === BATCH_TYPE_OLD;
 }
 
-function isNewBatchType(type) {
-  return normalizeBatchType(type) === BATCH_TYPE_NEW;
-}
-
 function batchTypeLabel(type) {
-  const t = normalizeBatchType(type);
-  if (t === BATCH_TYPE_OLD) return 'Old (live classes & recordings only)';
-  if (t === BATCH_TYPE_NEW) return 'New (modules, exercises & live classes)';
-  return 'General (no module content; live classes & recordings)';
+  return isOldBatchType(type) ? 'Old (live only)' : 'New (full content)';
 }
 
 module.exports = {
-  BATCH_TYPE_GENERAL,
   BATCH_TYPE_NEW,
   BATCH_TYPE_OLD,
   VALID_BATCH_TYPES,
@@ -44,6 +35,5 @@ module.exports = {
   isValidBatchTypeInput,
   isLearningEnabled,
   isOldBatchType,
-  isNewBatchType,
   batchTypeLabel
 };
