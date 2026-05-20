@@ -87,7 +87,7 @@
                 <th>Email</th>
                 <th>Level</th>
                 <th>Plan</th>
-                <th class="col-num">Total Paid</th>
+                <th class="col-num">Total received</th>
                 <th class="col-num">Balance</th>
                 <th>Status</th>
                 <th></th>
@@ -107,7 +107,15 @@
                 <td class="col-email">{{ row.email }}</td>
                 <td><span class="pill pill-grey">{{ row.level || '—' }}</span></td>
                 <td>{{ planLabel(row.subscription) }}</td>
-                <td class="col-num">{{ fmt(row.totalPaid) }}</td>
+                <td class="col-num ph-paid-cell">
+                  <app-payment-currency-totals
+                    [lkr]="row.totalPaidLKR"
+                    [inr]="row.totalPaidINR"
+                    [usd]="row.totalPaidUSD"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
                 <td class="col-num" [class.overdue-text]="row.balanceDue > 0">{{ fmt(row.balanceDue) }}</td>
                 <td><span class="pill" [ngClass]="overallStatusClass(row.overallStatus)">{{ row.overallStatus }}</span></td>
                 <td>

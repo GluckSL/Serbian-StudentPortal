@@ -89,10 +89,16 @@
           <mat-icon>check_circle</mat-icon>
         </div>
         <div class="sp-analytics-content">
-          <span class="sp-analytics-label">Total Paid</span>
-          <ng-container *ngIf="paidFiltered.length; else noPaid">
-            <span class="sp-analytics-value sp-analytics-green" *ngFor="let p of paidFiltered">{{ p.currency }} {{ fmt(p.amount) }}</span>
-          </ng-container>
+          <span class="sp-analytics-label">Total received</span>
+          <div class="sp-paid-by-ccy" *ngIf="hasAnyPaid; else noPaid">
+            <app-payment-currency-totals
+              [lkr]="paidFiltered[0].amount"
+              [inr]="paidFiltered[1].amount"
+              [usd]="paidFiltered[2].amount"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </div>
           <ng-template #noPaid>
             <span class="sp-analytics-value sp-analytics-muted">—</span>
           </ng-template>

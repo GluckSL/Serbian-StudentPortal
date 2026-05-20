@@ -7,7 +7,7 @@
       </a>
       <h1 class="ph-insights-title">Revenue & collections</h1>
       <p class="ph-insights-sub">
-        Snapshot of what is already collected, awaiting approval, and overdue — with a clear currency comparison.
+        Snapshot of what is already collected, awaiting approval, and overdue — LKR, INR, and Euro shown separately.
       </p>
     </div>
   </div>
@@ -15,21 +15,41 @@
   <div class="ph-insights-body">
     <ng-container *ngIf="!loading && stats; else spin">
       <div class="ph-insights-cards">
-        <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Received (LKR)</div>
-          <div class="ph-insight-card-value ph-c-emerald">{{ fmt(stats.totalReceivedLKR) }}</div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Total received</div>
+          <app-payment-currency-totals
+            [lkr]="stats.totalReceivedLKR"
+            [inr]="stats.totalReceivedINR"
+            [usd]="stats.totalReceivedUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
         </div>
-        <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Pending approval (LKR)</div>
-          <div class="ph-insight-card-value ph-c-amber">{{ fmt(stats.pendingApprovalAmountLKR) }}</div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Pending approval</div>
+          <app-payment-currency-totals
+            [lkr]="stats.pendingApprovalAmountLKR"
+            [inr]="stats.pendingApprovalAmountINR"
+            [usd]="stats.pendingApprovalAmountUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
         </div>
-        <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Expected this month (LKR)</div>
-          <div class="ph-insight-card-value ph-c-sky">{{ fmt(stats.totalExpectedThisMonthLKR) }}</div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Expected this month</div>
+          <app-payment-currency-totals
+            [lkr]="stats.totalExpectedThisMonthLKR"
+            [inr]="stats.totalExpectedThisMonthINR"
+            [usd]="stats.totalExpectedThisMonthUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
         </div>
-        <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Overdue (LKR)</div>
-          <div class="ph-insight-card-value ph-c-rose">{{ fmt(stats.totalOverdueLKR) }}</div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Overdue</div>
+          <app-payment-currency-totals
+            [lkr]="stats.totalOverdueLKR"
+            [inr]="stats.totalOverdueINR"
+            [usd]="stats.totalOverdueUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
           <div class="ph-insight-card-hint">{{ stats.overdueCount }} requests</div>
         </div>
       </div>
@@ -57,7 +77,7 @@
               <th></th>
               <th class="ph-num">LKR</th>
               <th class="ph-num">INR</th>
-              <th class="ph-num">USD</th>
+              <th class="ph-num">Euro</th>
             </tr>
           </thead>
           <tbody>

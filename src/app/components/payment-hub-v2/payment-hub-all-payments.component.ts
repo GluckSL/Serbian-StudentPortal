@@ -15,6 +15,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { PaymentHubApiService, DashboardStats, StudentTableRow } from './payment-hub-api.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
+import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
 import { StudentLogService } from '../../services/student-log.service';
 import { PaymentLegacyMapperDialogComponent } from './payment-legacy-mapper-dialog.component';
 import { PaymentBulkLanguagePaidDialogComponent } from './payment-bulk-language-paid-dialog.component';
@@ -43,6 +46,9 @@ import {
     MatTooltipModule,
     MatDialogModule,
     MatCheckboxModule,
+    PaymentCurrencyTotalsComponent,
+    PaymentCurrencyPendingTotalsComponent,
+    PaymentCurrencyOverdueTotalsComponent,
   ],
   templateUrl: './payment-hub-all-payments.component.html',
   styleUrls: ['./payment-hub-all-payments.component.scss'],

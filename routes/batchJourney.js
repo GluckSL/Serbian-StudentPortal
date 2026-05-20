@@ -9,10 +9,16 @@ const LearningModule = require('../models/LearningModule');
 const DigitalExercise = require('../models/DigitalExercise');
 const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
+const TimeTable = require('../models/TimeTable');
+const Reminder = require('../models/Reminder');
+const Announcement = require('../models/Announcement');
+const TeacherResource = require('../models/TeacherResource');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
+const GameSet = require('../models/GameSet');
+const SprechenExamModule = require('../models/SprechenExamModule');
 const {
   computeJourneyDayCompletion,
   meetsStrictThreshold
@@ -95,6 +101,121 @@ async function getOrCreateConfig(batchName) {
     cfg = await BatchConfig.create({ batchName: bn });
   }
   return cfg;
+}
+
+function batchNameRegex(name) {
+  return new RegExp(`^${escapeRegExp(String(name || '').trim())}$`, 'i');
+}
+
+/** Rename a batch across configs, users, and content that references batch strings. */
+async function renameBatchAcrossSystem(oldName, newName) {
+  const oldBn = String(oldName || '').trim();
+  const newBn = String(newName || '').trim();
+  if (!oldBn || !newBn) throw new Error('Both old and new batch names are required');
+  if (normBatchKey(oldBn) === normBatchKey(newBn)) return { batchName: newBn, renamed: false };
+
+  const oldRx = batchNameRegex(oldBn);
+  const newRx = batchNameRegex(newBn);
+
+  const conflictCfg = await BatchConfig.findOne({ batchName: newRx }).select('_id').lean();
+  const conflictStudents = await User.exists({ role: 'STUDENT', batch: newRx });
+  if (conflictCfg || conflictStudents) {
+    const err = new Error(`Batch "${newBn}" already exists`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const cfg = await BatchConfig.findOne({ batchName: oldRx });
+  if (cfg) {
+    cfg.batchName = newBn;
+    await cfg.save();
+  } else {
+    await BatchConfig.create({ batchName: newBn });
+  }
+
+  const studentsResult = await User.updateMany(
+    { role: 'STUDENT', batch: oldRx },
+    { $set: { batch: newBn } }
+  );
+
+  const teachers = await User.find({
+    role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+    assignedBatches: { $exists: true, $ne: [] }
+  }).select('assignedBatches');
+  let teachersUpdated = 0;
+  for (const t of teachers) {
+    let changed = false;
+    const updated = (t.assignedBatches || []).map((b) => {
+      if (normBatchKey(b) === normBatchKey(oldBn)) {
+        changed = true;
+        return newBn;
+      }
+      return b;
+    });
+    if (changed) {
+      await User.updateOne({ _id: t._id }, { $set: { assignedBatches: [...new Set(updated)] } });
+      teachersUpdated += 1;
+    }
+  }
+
+  const [meetings, timetables, reminders, resources] = await Promise.all([
+    MeetingLink.updateMany({ batch: oldRx }, { $set: { batch: newBn } }),
+    TimeTable.updateMany({ batch: oldRx }, { $set: { batch: newBn } }),
+    Reminder.updateMany({ targetBatch: oldRx }, { $set: { targetBatch: newBn } }),
+    TeacherResource.updateMany({ batch: oldRx }, { $set: { batch: newBn } })
+  ]);
+
+  const recordings = await ClassRecording.find({ batches: oldRx }).select('batches').lean();
+  let recordingsUpdated = 0;
+  for (const rec of recordings) {
+    const batches = (rec.batches || []).map((b) =>
+      normBatchKey(b) === normBatchKey(oldBn) ? newBn : b
+    );
+    await ClassRecording.updateOne({ _id: rec._id }, { $set: { batches: [...new Set(batches)] } });
+    recordingsUpdated += 1;
+  }
+
+  const announcements = await Announcement.find({ targetBatches: oldRx }).select('targetBatches').lean();
+  let announcementsUpdated = 0;
+  for (const ann of announcements) {
+    const targetBatches = (ann.targetBatches || []).map((b) =>
+      normBatchKey(b) === normBatchKey(oldBn) ? newBn : b
+    );
+    await Announcement.updateOne({ _id: ann._id }, { $set: { targetBatches: [...new Set(targetBatches)] } });
+    announcementsUpdated += 1;
+  }
+
+  const arrayBatchModels = [
+    { Model: LearningModule, field: 'targetBatchKeys' },
+    { Model: DGModule, field: 'targetBatchKeys' },
+    { Model: GameSet, field: 'targetBatchKeys' },
+    { Model: SprechenExamModule, field: 'targetBatchKeys' }
+  ];
+  let contentDocsUpdated = 0;
+  for (const { Model, field } of arrayBatchModels) {
+    const docs = await Model.find({ [field]: oldRx }).select(field).lean();
+    for (const doc of docs) {
+      const keys = (doc[field] || []).map((b) =>
+        normBatchKey(b) === normBatchKey(oldBn) ? newBn : b
+      );
+      await Model.updateOne({ _id: doc._id }, { $set: { [field]: [...new Set(keys)] } });
+      contentDocsUpdated += 1;
+    }
+  }
+
+  return {
+    batchName: newBn,
+    renamed: true,
+    studentsUpdated: studentsResult.modifiedCount,
+    teachersUpdated,
+    meetingsUpdated: meetings.modifiedCount,
+    timetablesUpdated: timetables.modifiedCount,
+    remindersUpdated: reminders.modifiedCount,
+    resourcesUpdated: resources.modifiedCount,
+    recordingsUpdated,
+    announcementsUpdated,
+    contentDocsUpdated
+  };
 }
 
 /**
@@ -347,14 +468,15 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     if (!(await teacherCanAccessBatch(req, batchName))) {
       return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
-    const students = await User.find({ role: 'STUDENT', batch: batchName })
-      .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount')
+    const batchRx = batchNameRegex(batchName);
+    const students = await User.find({ role: 'STUDENT', batch: batchRx })
+      .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount batch')
       .sort({ name: 1 })
       .lean();
 
     // most common assigned teacher for this batch
     const teacherAgg = await User.aggregate([
-      { $match: { role: 'STUDENT', batch: batchName, assignedTeacher: { $ne: null } } },
+      { $match: { role: 'STUDENT', batch: batchRx, assignedTeacher: { $ne: null } } },
       { $group: { _id: '$assignedTeacher', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 1 }
@@ -487,7 +609,9 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       batchType,
       createOnly,
       strictJourneyRule,
-      strictJourneyThresholdPercent
+      strictJourneyThresholdPercent,
+      journeyActive,
+      newBatchName
     } = req.body || {};
 
     const bn = String(batchName || '').trim();
@@ -504,6 +628,14 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
 
     let cfg = await getOrCreateConfig(bn);
     if (!cfg) return res.status(500).json({ message: 'Failed to create batch config' });
+
+    let effectiveBatchName = cfg.batchName;
+    if (newBatchName !== undefined && String(newBatchName).trim()) {
+      const renameResult = await renameBatchAcrossSystem(cfg.batchName, String(newBatchName).trim());
+      effectiveBatchName = renameResult.batchName;
+      cfg = await BatchConfig.findOne({ batchName: batchNameRegex(effectiveBatchName) });
+      if (!cfg) return res.status(500).json({ message: 'Failed to load batch after rename' });
+    }
 
     if (journeyLength !== undefined) {
       cfg.journeyLength = Math.min(200, Math.max(1, clampDay(journeyLength)));
@@ -546,19 +678,27 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       }
       cfg.strictJourneyThresholdPercent = p;
     }
-    if (cfg.strictJourneyRule && (cfg.strictJourneyThresholdPercent == null || cfg.strictJourneyThresholdPercent < 1)) {
-      cfg.strictJourneyThresholdPercent = 100;
+    if (strictJourneyRule !== undefined || strictJourneyThresholdPercent !== undefined) {
+      if (cfg.strictJourneyRule && (cfg.strictJourneyThresholdPercent == null || cfg.strictJourneyThresholdPercent < 1)) {
+        cfg.strictJourneyThresholdPercent = 100;
+      }
+    }
+    if (journeyActive !== undefined) {
+      cfg.journeyActive = !!journeyActive;
     }
     await cfg.save();
 
     const activeBatchDay = computeBatchDay(cfg);
     res.json({
       message: createOnly ? 'Batch created' : 'Batch config updated',
+      batchName: effectiveBatchName,
       config: {
         ...cfg.toObject(),
+        batchName: effectiveBatchName,
         batchType: String(cfg.batchType || 'new').toLowerCase() === 'old' ? 'old' : 'new',
         batchCurrentDay: activeBatchDay,
-        autoDay: !!cfg.batchStartDate
+        autoDay: !!cfg.batchStartDate,
+        journeyActive: !!cfg.journeyActive
       }
     });
   } catch (err) {
@@ -1708,6 +1848,79 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
   } catch (err) {
     console.error('batch-journey GET /student/:id/full-progress', err);
     res.status(500).json({ message: 'Failed to fetch student full progress', error: err.message });
+  }
+});
+
+// ─── PATCH /api/batch-journey/:batchName/rename ─────────────────────────────
+router.patch('/:batchName/rename', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const oldName = String(req.params.batchName || '').trim();
+    const newName = String(req.body?.newBatchName || '').trim();
+    if (!oldName) return res.status(400).json({ message: 'batchName is required' });
+    if (!newName) return res.status(400).json({ message: 'newBatchName is required' });
+    if (newName.length > 120) return res.status(400).json({ message: 'newBatchName is too long' });
+
+    const result = await renameBatchAcrossSystem(oldName, newName);
+    res.json({
+      message: result.renamed ? `Batch renamed to "${result.batchName}"` : 'Batch name unchanged',
+      ...result
+    });
+  } catch (err) {
+    if (err.statusCode === 409) return res.status(409).json({ message: err.message });
+    console.error('batch-journey PATCH /:batch/rename', err);
+    res.status(500).json({ message: 'Failed to rename batch', error: err.message });
+  }
+});
+
+// ─── PUT /api/batch-journey/:batchName/students ─────────────────────────────
+// Add or remove students from a batch (uses canonical batch name from BatchConfig).
+router.put('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const raw = String(req.params.batchName || '').trim();
+    if (!raw) return res.status(400).json({ message: 'batchName is required' });
+
+    const cfg = await getOrCreateConfig(raw);
+    const canonicalName = cfg.batchName;
+    const batchRx = batchNameRegex(canonicalName);
+
+    const addIds = Array.isArray(req.body?.addStudentIds) ? req.body.addStudentIds : [];
+    const removeIds = Array.isArray(req.body?.removeStudentIds) ? req.body.removeStudentIds : [];
+
+    if (!addIds.length && !removeIds.length) {
+      return res.status(400).json({ message: 'addStudentIds or removeStudentIds is required' });
+    }
+
+    let added = 0;
+    let removed = 0;
+
+    if (addIds.length) {
+      const addResult = await User.updateMany(
+        { _id: { $in: addIds }, role: 'STUDENT' },
+        { $set: { batch: canonicalName } }
+      );
+      added = addResult.modifiedCount;
+    }
+
+    if (removeIds.length) {
+      const removeResult = await User.updateMany(
+        { _id: { $in: removeIds }, role: 'STUDENT', batch: batchRx },
+        { $set: { batch: 'Unassigned' } }
+      );
+      removed = removeResult.modifiedCount;
+    }
+
+    const studentCount = await User.countDocuments({ role: 'STUDENT', batch: batchRx, ...EXCLUDE_TEST });
+
+    res.json({
+      message: 'Batch students updated',
+      batchName: canonicalName,
+      studentsAdded: added,
+      studentsRemoved: removed,
+      studentCount
+    });
+  } catch (err) {
+    console.error('batch-journey PUT /:batch/students', err);
+    res.status(500).json({ message: 'Failed to update batch students', error: err.message });
   }
 });
 

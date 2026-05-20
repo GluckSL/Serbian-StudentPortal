@@ -20,6 +20,7 @@ import {
 } from './payment-hub-api.service';
 import { AuthService } from '../../services/auth.service';
 import { PaymentImportHistoryService } from './payment-import-history.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 
 export interface ExcelImportRow {
   name: string;
@@ -96,6 +97,7 @@ function pickByAliases(row: Record<string, unknown>, aliases: string[], normaliz
     MatProgressBarModule,
     MatSnackBarModule,
     MatTooltipModule,
+    PaymentCurrencyTotalsComponent,
   ],
   templateUrl: './payment-excel-import-dialog.component.html',
   styleUrls: ['./payment-excel-import-dialog.component.scss'],

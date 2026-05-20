@@ -1,0 +1,159 @@
+<div class="ph-insights-page">
+  <div class="ph-insights-header">
+    <div class="ph-insights-header-inner">
+      <a routerLink="/admin/payment-hub/insights/batches" class="ph-insights-back">
+        <mat-icon>arrow_back</mat-icon>
+        Back to batch overview
+      </a>
+      <h1 class="ph-insights-title">Batch {{ batch }} — students</h1>
+      <p class="ph-insights-sub">
+        Payment breakdown per student — amounts show currency badge (LKR / INR / Euro).
+      </p>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <ng-container *ngIf="!loading; else skeleton">
+      <div class="ph-batch-stu-summary" *ngIf="rows.length">
+        <span><strong>{{ rows.length }}</strong> students</span>
+        <span class="ph-batch-stu-totals">
+          Total received:
+          <app-payment-currency-totals
+            [lkr]="totalPaidSum().totalPaidLKR"
+            [inr]="totalPaidSum().totalPaidINR"
+            [usd]="totalPaidSum().totalPaidUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
+        </span>
+      </div>
+
+      <div class="ph-insights-table-wrap ph-batch-stu-table-wrap" *ngIf="rows.length; else empty">
+        <table class="ph-insights-table ph-batch-stu-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Email</th>
+              <th>Level</th>
+              <th class="ph-num">Journey day</th>
+              <th class="ph-num">Total journey</th>
+              <th class="ph-num" *ngFor="let lv of levelCols">{{ lv }} paid</th>
+              <th class="ph-num">Docs</th>
+              <th class="ph-num">Visa</th>
+              <th class="ph-num">Other</th>
+              <th class="ph-num">Total received</th>
+              <th>Last payment</th>
+              <th class="ph-num">Pending</th>
+              <th>Status</th>
+              <th class="ph-col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of rows">
+              <td><strong>{{ r.name }}</strong></td>
+              <td class="ph-email-cell">{{ r.email }}</td>
+              <td><span class="ph-level-pill">{{ r.level }}</span></td>
+              <td class="ph-num">{{ r.currentJourneyDay ?? '—' }}</td>
+              <td class="ph-num ph-muted-num">{{ totalJourneyDays(r) }}</td>
+              <td class="ph-num ph-paid-cell" *ngFor="let lv of levelCols">
+                <app-payment-currency-totals
+                  [lkr]="levelPaidTotals(r, lv).totalPaidLKR"
+                  [inr]="levelPaidTotals(r, lv).totalPaidINR"
+                  [usd]="levelPaidTotals(r, lv).totalPaidUSD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </td>
+              <td class="ph-num ph-paid-cell">
+                <app-payment-currency-totals
+                  [lkr]="bucketTotals(r.docsPaidByCurrency).totalPaidLKR"
+                  [inr]="bucketTotals(r.docsPaidByCurrency).totalPaidINR"
+                  [usd]="bucketTotals(r.docsPaidByCurrency).totalPaidUSD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </td>
+              <td class="ph-num ph-paid-cell">
+                <app-payment-currency-totals
+                  [lkr]="bucketTotals(r.visaPaidByCurrency).totalPaidLKR"
+                  [inr]="bucketTotals(r.visaPaidByCurrency).totalPaidINR"
+                  [usd]="bucketTotals(r.visaPaidByCurrency).totalPaidUSD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </td>
+              <td class="ph-num ph-paid-cell">
+                <app-payment-currency-totals
+                  [lkr]="bucketTotals(r.otherPaidByCurrency).totalPaidLKR"
+                  [inr]="bucketTotals(r.otherPaidByCurrency).totalPaidINR"
+                  [usd]="bucketTotals(r.otherPaidByCurrency).totalPaidUSD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </td>
+              <td class="ph-num ph-val-green ph-paid-cell">
+                <app-payment-currency-totals
+                  [lkr]="r.totalPaidLKR"
+                  [inr]="r.totalPaidINR"
+                  [usd]="r.totalPaidUSD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </td>
+              <td>
+                <ng-container *ngIf="r.lastPaymentDate; else noPay">
+                  {{ fmtDate(r.lastPaymentDate) }}
+                  <span class="ph-muted-inline" *ngIf="r.lastPaymentAmount">
+                    ·
+                    <app-payment-currency-amount
+                      [currency]="r.lastPaymentCurrency || r.inferredCurrency || 'LKR'"
+                      [amount]="r.lastPaymentAmount"
+                    ></app-payment-currency-amount>
+                  </span>
+                </ng-container>
+                <ng-template #noPay>—</ng-template>
+              </td>
+              <td class="ph-num ph-val-amber ph-paid-cell">
+                <app-payment-currency-pending-totals
+                  [lkr]="r.pendingApprovalAmountLKR"
+                  [inr]="r.pendingApprovalAmountINR"
+                  [usd]="r.pendingApprovalAmountUSD"
+                  [compact]="true"
+                ></app-payment-currency-pending-totals>
+              </td>
+              <td><span class="ph-pill" [ngClass]="statusClass(r.overallStatus)">{{ r.overallStatus }}</span></td>
+              <td class="ph-col-actions">
+                <a mat-stroked-button color="primary" class="ph-btn-row" [routerLink]="studentDetailLink(r.studentId)">
+                  <mat-icon>open_in_new</mat-icon> Full history
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ng-template #empty>
+        <p class="ph-empty-note">No students found for batch “{{ batch }}”.</p>
+      </ng-template>
+    </ng-container>
+
+    <ng-template #skeleton>
+      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading students">
+        <div class="ph-batch-stu-summary ph-skeleton-summary">
+          <div class="ph-sk ph-sk--line" style="width: 140px"></div>
+          <div class="ph-sk ph-sk--line" style="width: 180px"></div>
+        </div>
+        <div class="ph-insights-table-wrap ph-skeleton-table">
+          <div class="ph-sk ph-sk--thead"></div>
+          <div class="ph-skeleton-stu-row" *ngFor="let _ of skeletonRows">
+            <div class="ph-sk ph-sk--cell"></div>
+            <div class="ph-sk ph-sk--cell"></div>
+            <div class="ph-sk ph-sk--cell ph-sk--short"></div>
+            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
+            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
+            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
+            <div class="ph-sk ph-sk--cell ph-sk--btn"></div>
+          </div>
+        </div>
+      </div>
+    </ng-template>
+  </div>
+</div>

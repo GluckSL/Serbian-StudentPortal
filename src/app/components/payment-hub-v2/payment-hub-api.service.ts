@@ -64,7 +64,31 @@ export interface DashboardStats {
 }
 
 /** Row returned by GET /students/browse — User-primary with optional profile data */
-export interface StudentBrowseRow {
+export interface CurrencyPaidTotals {
+  totalPaidLKR: number;
+  totalPaidINR: number;
+  totalPaidUSD: number;
+}
+
+export interface CurrencyBucket {
+  LKR: number;
+  INR: number;
+  USD: number;
+}
+
+export interface CurrencyPendingTotals {
+  pendingApprovalAmountLKR: number;
+  pendingApprovalAmountINR: number;
+  pendingApprovalAmountUSD: number;
+}
+
+export interface CurrencyOverdueTotals {
+  overdueAmountLKR: number;
+  overdueAmountINR: number;
+  overdueAmountUSD: number;
+}
+
+export interface StudentBrowseRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
   _id: string;
   name: string;
   email: string;
@@ -85,7 +109,7 @@ export interface StudentBrowseRow {
 }
 
 /** Legacy table row (profile-primary, All Payments hub) */
-export interface StudentTableRow {
+export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
   _id: string;
   studentId: {
     _id: string;
@@ -242,9 +266,69 @@ export interface MapLegacyPaymentsResult {
   custom: { requestId: string; submissionId: string }[];
 }
 
+export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
+  studentId: string;
+  name: string;
+  email: string;
+  batch?: string;
+  level: string;
+  currentJourneyDay: number | null;
+  totalPaid: number;
+  pendingApprovalAmount: number;
+  overdueAmount: number;
+  overallStatus: string;
+  levelPaid: Record<string, CurrencyBucket>;
+  docsPaidByCurrency: CurrencyBucket;
+  visaPaidByCurrency: CurrencyBucket;
+  otherPaidByCurrency: CurrencyBucket;
+  lastPaymentDate?: string | null;
+  lastPaymentAmount?: number;
+  lastPaymentCurrency?: string;
+  inferredCurrency?: string;
+  openRequestCount: number;
+}
+
+export interface BatchStudentsPaymentDetail {
+  batch: string;
+  students: BatchStudentPaymentRow[];
+}
+
+export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
+  batch: string;
+  studentCount: number;
+  totalPaid: number;
+  levelCounts: Record<string, number>;
+  maxStudentDay: number | null;
+}
+
+export interface BatchPaymentSummary {
+  batches: BatchPaymentSummaryRow[];
+  totalStudents: number;
+  batchNames: string[];
+}
+
 export interface StudentHistory {
   student: { _id: string; name: string; email: string; batch?: string; level?: string; subscription?: string; enrollmentDate?: string; createdAt?: string; };
-  profile: { totalPaid: number; pendingApprovalAmount: number; overdueAmount: number; expectedAmount?: number; overdueCount: number; overallStatus: string; lastPaymentDate?: string; lastPaymentAmount?: number; lastPaymentCurrency?: string; } | null;
+  profile: ({
+    totalPaid: number;
+    totalPaidLKR?: number;
+    totalPaidINR?: number;
+    totalPaidUSD?: number;
+    pendingApprovalAmount: number;
+    pendingApprovalAmountLKR?: number;
+    pendingApprovalAmountINR?: number;
+    pendingApprovalAmountUSD?: number;
+    overdueAmount: number;
+    overdueAmountLKR?: number;
+    overdueAmountINR?: number;
+    overdueAmountUSD?: number;
+    expectedAmount?: number;
+    overdueCount: number;
+    overallStatus: string;
+    lastPaymentDate?: string;
+    lastPaymentAmount?: number;
+    lastPaymentCurrency?: string;
+  }) | null;
   requests: PaymentRequestItem[];
   total: number;
   page: number;
@@ -289,6 +373,22 @@ export class PaymentHubApiService {
 
   getStudentTable(params: Record<string, string | number | boolean | undefined | null>): Observable<PagedResponse<StudentTableRow>> {
     return this.http.get<PagedResponse<StudentTableRow>>(`${this.base}/students/table`, { params: this.toParams(params) });
+  }
+
+  getBatchPaymentSummary(
+    params?: Record<string, string | number | boolean | undefined | null>,
+  ): Observable<{ success: boolean; data: BatchPaymentSummary }> {
+    return this.http.get<{ success: boolean; data: BatchPaymentSummary }>(
+      `${this.base}/batches/summary`,
+      { params: params ? this.toParams(params) : undefined },
+    );
+  }
+
+  getBatchStudentsPaymentDetail(batch: string): Observable<{ success: boolean; data: BatchStudentsPaymentDetail }> {
+    const encoded = encodeURIComponent(batch);
+    return this.http.get<{ success: boolean; data: BatchStudentsPaymentDetail }>(
+      `${this.base}/batches/${encoded}/students`,
+    );
   }
 
   // ── Student browse (Send Request tab — User-primary) ───────────────────

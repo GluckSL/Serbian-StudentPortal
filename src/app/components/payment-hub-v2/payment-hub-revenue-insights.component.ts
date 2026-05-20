@@ -6,11 +6,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { PaymentHubApiService, DashboardStats } from './payment-hub-api.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 
 @Component({
   selector: 'app-payment-hub-revenue-insights',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, MatProgressSpinnerModule, NgChartsModule],
+  imports: [CommonModule, RouterModule, MatIconModule, MatProgressSpinnerModule, NgChartsModule, PaymentCurrencyTotalsComponent],
   templateUrl: './payment-hub-revenue-insights.component.html',
   styleUrls: ['./payment-hub-insights-page.scss', './payment-hub-revenue-insights.component.scss'],
 })
@@ -75,7 +76,7 @@ export class PaymentHubRevenueInsightsComponent implements OnInit {
     };
 
     this.currencyBarData = {
-      labels: ['LKR', 'INR', 'USD'],
+      labels: ['LKR', 'INR', 'Euro'],
       datasets: [
         {
           label: 'Total received',

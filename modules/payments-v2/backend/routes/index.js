@@ -22,6 +22,12 @@ router.get('/students/browse', ctrl.browseStudents);
 // ─── Admin: Student table (legacy, for All Payments hub) ────────────────────
 router.get('/students/table', ctrl.getStudentTable);
 
+// ─── Admin: Batch payment aggregates (Payment Hub batch overview) ─────────────
+router.get('/batches/summary', ctrl.getBatchPaymentSummary);
+
+// ─── Admin: Batch students payment breakdown (Payment Hub insights) ─────────
+router.get('/batches/:batch/students', ctrl.getBatchStudentsPaymentDetail);
+
 // ─── Admin: Student payment history ─────────────────────────────────────────
 router.get('/students/:studentId/history', ctrl.getStudentPaymentHistory);
 

@@ -17,6 +17,9 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PaymentHubApiService, StudentHistory, PaymentRequestItem, ApprovalQueueItem, InstallmentRow } from './payment-hub-api.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { PaymentCurrencyAmountComponent } from './payment-currency-amount.component';
+import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
 import { ReqForPaymentDialogComponent } from './req-for-payment-dialog.component';
 import { InstallmentScheduleEditDialogComponent } from './installment-schedule-edit-dialog.component';
 import { buildStudentInstallmentView } from './installment-visibility.util';
@@ -41,6 +44,9 @@ import { buildStudentInstallmentView } from './installment-visibility.util';
     MatDialogModule,
     MatChipsModule,
     MatTooltipModule,
+    PaymentCurrencyTotalsComponent,
+    PaymentCurrencyAmountComponent,
+    PaymentCurrencyPendingTotalsComponent,
   ],
   templateUrl: './payment-hub-request-student-page.component.html',
   styleUrls: ['./payment-hub-request-student-page.component.scss'],

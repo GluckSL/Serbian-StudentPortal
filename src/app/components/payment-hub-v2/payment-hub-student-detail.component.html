@@ -38,19 +38,36 @@
 
       <!-- Summary -->
       <div class="sd-summary-row">
-        <div class="sd-summary-item">
-          <span class="sd-summary-label">Total Paid</span>
-          <span class="sd-summary-val sd-val-green">{{ fmt(history.profile?.totalPaid) }}</span>
+        <div class="sd-summary-item sd-summary-item--currency">
+          <span class="sd-summary-label">Total received</span>
+          <app-payment-currency-totals
+            [lkr]="history.profile?.totalPaidLKR ?? 0"
+            [inr]="history.profile?.totalPaidINR ?? 0"
+            [usd]="history.profile?.totalPaidUSD ?? 0"
+            [compact]="true"
+          ></app-payment-currency-totals>
         </div>
         <div class="sd-summary-div"></div>
-        <div class="sd-summary-item">
-          <span class="sd-summary-label">Pending Approval</span>
-          <span class="sd-summary-val sd-val-amber">{{ fmt(history.profile?.pendingApprovalAmount) }}</span>
+        <div class="sd-summary-item sd-summary-item--currency">
+          <span class="sd-summary-label">Pending approval</span>
+          <app-payment-currency-pending-totals
+            [lkr]="history.profile?.pendingApprovalAmountLKR ?? 0"
+            [inr]="history.profile?.pendingApprovalAmountINR ?? 0"
+            [usd]="history.profile?.pendingApprovalAmountUSD ?? 0"
+            [compact]="true"
+            [hideZero]="false"
+          ></app-payment-currency-pending-totals>
         </div>
         <div class="sd-summary-div"></div>
-        <div class="sd-summary-item">
+        <div class="sd-summary-item sd-summary-item--currency">
           <span class="sd-summary-label">Overdue</span>
-          <span class="sd-summary-val sd-val-red">{{ fmt(history.profile?.overdueAmount) }}</span>
+          <app-payment-currency-overdue-totals
+            [lkr]="history.profile?.overdueAmountLKR ?? 0"
+            [inr]="history.profile?.overdueAmountINR ?? 0"
+            [usd]="history.profile?.overdueAmountUSD ?? 0"
+            [compact]="true"
+            [hideZero]="false"
+          ></app-payment-currency-overdue-totals>
         </div>
         <div class="sd-summary-div"></div>
         <div class="sd-summary-item">
@@ -92,8 +109,15 @@
                 <strong>{{ formatPaymentType(req.paymentType, req.customType) }}</strong>
                 <span *ngIf="isLegacy(req)" class="sd-legacy-badge" title="Legacy imported record">Imported</span>
               </td>
-              <td class="sd-num">{{ fmt(req.amount) }}</td>
-              <td class="sd-num sd-val-green">{{ fmt(req.amount - req.amountRemaining) }}</td>
+              <td class="sd-num">
+                <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+              </td>
+              <td class="sd-num sd-val-green">
+                <app-payment-currency-amount
+                  [currency]="req.currency"
+                  [amount]="req.amount - req.amountRemaining"
+                ></app-payment-currency-amount>
+              </td>
               <td>{{ req.currency }}</td>
               <td><span class="sd-pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
               <td>{{ fmtDate(req.dueDate) }}</td>
@@ -115,7 +139,8 @@
         <div *ngIf="hasSubmissions(req)" class="sd-req-block">
           <div class="sd-req-label">
             {{ formatPaymentType(req.paymentType, req.customType) }}
-            &bull; {{ req.currency }} {{ fmt(req.amount) }}
+            &bull;
+            <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
             &bull; Due {{ fmtDate(req.dueDate) }}
             <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
           </div>
@@ -128,7 +153,9 @@
               </div>
               <div class="sd-sub-item">
                 <span class="sd-sub-label">Paid</span>
-                <span class="sd-val-green">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</span>
+                <span class="sd-val-green">
+                  <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
+                </span>
               </div>
               <div class="sd-sub-item">
                 <span class="sd-sub-label">Method</span>

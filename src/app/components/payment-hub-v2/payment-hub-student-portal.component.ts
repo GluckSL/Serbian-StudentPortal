@@ -15,6 +15,8 @@ import { PaymentHubApiService, PaymentRequestItem as PaymentRequest, StudentCata
 import { PaymentUploadDialogComponent } from './payment-upload-dialog.component';
 import { AuthService } from '../../services/auth.service';
 import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml } from '../../utils/invoice-pdf.util';
+import { PaymentCurrencyAmountComponent } from './payment-currency-amount.component';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 @Component({
   selector: 'app-payment-hub-student-portal',
   standalone: true,
@@ -31,6 +33,8 @@ import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml } from '../../utils
     MatDialogModule,
     MatIconModule,
     MatTooltipModule,
+    PaymentCurrencyAmountComponent,
+    PaymentCurrencyTotalsComponent,
   ],
   templateUrl: './payment-hub-student-portal.component.html',
   styleUrls: ['./payment-hub-student-portal.component.scss'],
@@ -185,16 +189,17 @@ export class PaymentHubStudentPortalComponent implements OnInit {
    * Prefer effective inferred currency; if that bucket is empty but other paid amounts exist
    * (edge case), show those so the card does not flash empty.
    */
+  /** Always show LKR / INR / Euro separately — never one combined total. */
   get paidFiltered(): { currency: string; amount: number }[] {
     const map = this.buildPaidByCurrency();
-    const inferred = this.normalizeCurrency(this.inferredCurrency);
-    const amount = map.get(inferred) ?? 0;
-    if (amount > 0) return [{ currency: inferred, amount }];
-    const rest = [...map.entries()]
-      .filter(([, a]) => a > 0)
-      .map(([currency, amt]) => ({ currency, amount: amt }))
-      .sort((a, b) => a.currency.localeCompare(b.currency));
-    return rest;
+    return (['LKR', 'INR', 'USD'] as const).map((code) => ({
+      currency: code,
+      amount: map.get(code) ?? 0,
+    }));
+  }
+
+  get hasAnyPaid(): boolean {
+    return this.paidFiltered.some((p) => p.amount > 0);
   }
 
   /** Balance (catalog - approved) for the catalog fee currency only */

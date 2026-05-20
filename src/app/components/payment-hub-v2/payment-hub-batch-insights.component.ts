@@ -1,21 +1,19 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatButtonModule } from '@angular/material/button';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
-import { forkJoin } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { PaymentHubApiService, StudentTableRow } from './payment-hub-api.service';
-import {
-  currentJourneyDayFromStudent,
-  totalJourneyDaysForLevel,
-} from './payment-journey-metrics.util';
+import { BatchPaymentSummaryRow, CurrencyPaidTotals, PaymentHubApiService } from './payment-hub-api.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { totalJourneyDaysForLevel } from './payment-journey-metrics.util';
 
 interface BatchJourneySummary {
   batchName: string;
@@ -24,8 +22,10 @@ interface BatchJourneySummary {
   hasSavedConfig?: boolean;
 }
 
-export interface BatchPaymentRow {
+export interface BatchPaymentRow extends CurrencyPaidTotals {
   batch: string;
+  level: string | null;
+  levelSummary: string;
   studentCount: number;
   totalPaid: number;
   currentJourneyDay: number | null;
@@ -46,23 +46,31 @@ function normBatchKey(name: string): string {
     MatIconModule,
     MatFormFieldModule,
     MatSelectModule,
-    MatProgressSpinnerModule,
+    MatCheckboxModule,
+    MatButtonModule,
     NgChartsModule,
+    PaymentCurrencyTotalsComponent,
   ],
   templateUrl: './payment-hub-batch-insights.component.html',
   styleUrls: ['./payment-hub-insights-page.scss', './payment-hub-batch-insights.component.scss'],
 })
 export class PaymentHubBatchInsightsComponent implements OnInit {
   loading = true;
-  rows: StudentTableRow[] = [];
+  totalStudents = 0;
   batchRows: BatchPaymentRow[] = [];
   filterLevel = '';
   filterBatch = '';
   filterBatchType = '';
   batchOptions: string[] = [];
+  selectedBatches = new Set<string>();
+  showDetailsPanel = false;
+
+  readonly skeletonCards = [1, 2, 3, 4];
+  readonly skeletonTableRows = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  private summaryRows: BatchPaymentSummaryRow[] = [];
   private batchDayByKey = new Map<string, number>();
   private batchTypeByKey = new Map<string, 'new' | 'old'>();
-  /** Canonical batch label from Journey (for display / lookup). */
   private batchLabelByKey = new Map<string, string>();
 
   readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -77,18 +85,21 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
   barChartOptions: ChartConfiguration<'bar'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-    },
+    plugins: { legend: { display: true, position: 'bottom' } },
     scales: {
-      x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0 } },
-      y: { grid: { color: 'rgba(148,163,184,0.2)' }, ticks: { callback: (v) => Number(v).toLocaleString('en-IN') } },
+      x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0 } },
+      y: {
+        stacked: true,
+        grid: { color: 'rgba(148,163,184,0.2)' },
+        ticks: { callback: (v) => Number(v).toLocaleString('en-IN') },
+      },
     },
   };
 
   constructor(
     private readonly api: PaymentHubApiService,
     private readonly http: HttpClient,
+    private readonly router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -97,34 +108,51 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    const params: Record<string, string | number> = { page: 1, limit: 9999, sort: '-paid' };
+    const params: Record<string, string> = {};
     if (this.filterLevel) params['level'] = this.filterLevel;
     if (this.filterBatch) params['batch'] = this.filterBatch;
 
-    forkJoin({
-      students: this.api.getStudentTable(params),
-      journey: this.http.get<{ batches: BatchJourneySummary[]; upcomingBatches?: BatchJourneySummary[] }>(
-        `${environment.apiUrl}/batch-journey`,
-        { withCredentials: true },
-      ),
-    }).subscribe({
-      next: ({ students, journey }) => {
-        this.rows = students.data || [];
-        this.ingestJourneyBatches([...(journey.batches || []), ...(journey.upcomingBatches || [])]);
-        this.refreshBatchOptions();
-        this.rebuild();
+    this.api.getBatchPaymentSummary(params).subscribe({
+      next: (summary) => {
+        this.summaryRows = summary.data?.batches || [];
+        this.totalStudents = summary.data?.totalStudents ?? 0;
+        this.applySummaryToView();
+        this.pruneSelection();
         this.loading = false;
+        this.loadJourneyMeta();
       },
       error: () => {
-        this.rows = [];
+        this.summaryRows = [];
+        this.totalStudents = 0;
+        this.batchRows = [];
+        this.batchOptions = [];
         this.batchDayByKey.clear();
         this.batchTypeByKey.clear();
         this.batchLabelByKey.clear();
-        this.batchOptions = [];
-        this.rebuild();
+        this.selectedBatches.clear();
+        this.showDetailsPanel = false;
         this.loading = false;
       },
     });
+  }
+
+  /** Journey config loads after the table — updates batch day + type without blocking UI. */
+  private loadJourneyMeta(): void {
+    this.http
+      .get<{ batches: BatchJourneySummary[]; upcomingBatches?: BatchJourneySummary[] }>(
+        `${environment.apiUrl}/batch-journey`,
+        { withCredentials: true },
+      )
+      .subscribe({
+        next: (journey) => {
+          this.ingestJourneyBatches([...(journey.batches || []), ...(journey.upcomingBatches || [])]);
+          this.applySummaryToView();
+          this.pruneSelection();
+        },
+        error: () => {
+          /* Table still usable from payment summary alone */
+        },
+      });
   }
 
   private ingestJourneyBatches(list: BatchJourneySummary[]): void {
@@ -143,102 +171,81 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
     }
   }
 
-  private refreshBatchOptions(): void {
-    const keys = new Set<string>();
-    for (const r of this.rows) {
-      const label = (r.studentId?.batch || '').trim();
-      if (label) keys.add(normBatchKey(label));
+  private batchMatchesTypeFilter(batchLabel: string): boolean {
+    if (!this.filterBatchType) return true;
+    return this.batchTypeByKey.get(normBatchKey(batchLabel)) === this.filterBatchType;
+  }
+
+  private applySummaryToView(): void {
+    const optionSet = new Set<string>();
+    let rows: BatchPaymentRow[] = [];
+
+    for (const row of this.summaryRows) {
+      const batch = (row.batch || '—').trim() || '—';
+      if (!this.batchMatchesTypeFilter(batch)) continue;
+      if (batch !== '—') optionSet.add(batch);
+
+      const levelCounts = new Map<string, number>(
+        Object.entries(row.levelCounts || {}).filter(([k]) => k),
+      );
+      const batchLevel = this.dominantLevel(levelCounts);
+      const key = normBatchKey(batch);
+      const currentJourneyDay = this.batchDayByKey.get(key) ?? row.maxStudentDay;
+      rows.push({
+        batch,
+        level: batchLevel,
+        levelSummary: this.formatLevelSummary(levelCounts),
+        studentCount: row.studentCount,
+        totalPaid: row.totalPaid,
+        totalPaidLKR: row.totalPaidLKR ?? 0,
+        totalPaidINR: row.totalPaidINR ?? 0,
+        totalPaidUSD: row.totalPaidUSD ?? 0,
+        currentJourneyDay,
+        totalJourneyDays: batchLevel ? totalJourneyDaysForLevel(batchLevel) : null,
+      });
     }
-    const labels: string[] = [];
-    for (const key of keys) {
-      if (this.filterBatchType && this.batchTypeByKey.get(key) !== this.filterBatchType) {
-        continue;
-      }
-      labels.push(this.batchLabelByKey.get(key) || this.findRowBatchLabel(key) || key);
-    }
-    this.batchOptions = [...new Set(labels)].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true }),
-    );
+
+    rows.sort((a, b) => b.totalPaidLKR - a.totalPaidLKR || b.totalPaidINR - a.totalPaidINR);
+    this.batchRows = rows;
+    this.batchOptions = [...optionSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     if (this.filterBatch && !this.batchOptions.includes(this.filterBatch)) {
       this.filterBatch = '';
     }
-  }
-
-  private findRowBatchLabel(key: string): string | null {
-    for (const r of this.rows) {
-      const label = (r.studentId?.batch || '').trim();
-      if (label && normBatchKey(label) === key) return label;
-    }
-    return null;
-  }
-
-  /** Students whose batch matches the Journey batch-type filter. */
-  private rowsForView(): StudentTableRow[] {
-    if (!this.filterBatchType) return this.rows;
-    return this.rows.filter((r) => {
-      const key = normBatchKey(r.studentId?.batch || '');
-      return this.batchTypeByKey.get(key) === this.filterBatchType;
-    });
-  }
-
-  private batchMatchesTypeFilter(batchLabel: string): boolean {
-    if (!this.filterBatchType) return true;
-    const key = normBatchKey(batchLabel);
-    return this.batchTypeByKey.get(key) === this.filterBatchType;
-  }
-
-  private rebuild(): void {
-    const sourceRows = this.rowsForView();
-    const byBatch = new Map<
-      string,
-      { totalPaid: number; count: number; levelCounts: Map<string, number>; maxStudentDay: number | null }
-    >();
-
-    for (const r of sourceRows) {
-      const b = (r.studentId?.batch || '—').trim() || '—';
-      if (!this.batchMatchesTypeFilter(b)) continue;
-      if (!byBatch.has(b)) {
-        byBatch.set(b, { totalPaid: 0, count: 0, levelCounts: new Map(), maxStudentDay: null });
-      }
-      const agg = byBatch.get(b)!;
-      agg.totalPaid += r.totalPaid || 0;
-      agg.count += 1;
-      const lv = (r.studentId?.level || '').toUpperCase().trim();
-      if (lv) agg.levelCounts.set(lv, (agg.levelCounts.get(lv) || 0) + 1);
-      const day = currentJourneyDayFromStudent(r.studentId);
-      if (day != null) {
-        agg.maxStudentDay = agg.maxStudentDay == null ? day : Math.max(agg.maxStudentDay, day);
-      }
-    }
-
-    this.batchRows = [...byBatch.entries()]
-      .map(([batch, a]) => {
-        const key = normBatchKey(batch);
-        const batchLevel = this.dominantLevel(a.levelCounts);
-        const currentJourneyDay = this.batchDayByKey.get(key) ?? a.maxStudentDay;
-        const totalJourneyDays = batchLevel ? totalJourneyDaysForLevel(batchLevel) : null;
-        return {
-          batch,
-          studentCount: a.count,
-          totalPaid: a.totalPaid,
-          currentJourneyDay,
-          totalJourneyDays,
-        };
-      })
-      .sort((x, y) => y.totalPaid - x.totalPaid);
 
     const top = this.batchRows.slice(0, 14);
     this.barChartData = {
       labels: top.map((t) => t.batch),
       datasets: [
         {
-          data: top.map((t) => t.totalPaid),
-          backgroundColor: top.map((_, i) => `hsl(${250 - i * 8}, 72%, ${52 - i}%)`),
-          borderRadius: 10,
+          label: 'LKR',
+          data: top.map((t) => t.totalPaidLKR),
+          backgroundColor: 'rgba(16, 185, 129, 0.85)',
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: 'INR',
+          data: top.map((t) => t.totalPaidINR),
+          backgroundColor: 'rgba(59, 130, 246, 0.85)',
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: 'Euro',
+          data: top.map((t) => t.totalPaidUSD),
+          backgroundColor: 'rgba(139, 92, 246, 0.85)',
+          borderRadius: 6,
           borderSkipped: false,
         },
       ],
     };
+  }
+
+  private formatLevelSummary(counts: Map<string, number>): string {
+    const parts = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([lv, n]) => `${lv}: ${n}`);
+    return parts.length ? parts.join(', ') : '—';
   }
 
   private dominantLevel(counts: Map<string, number>): string | null {
@@ -253,13 +260,67 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
     return best;
   }
 
+  private pruneSelection(): void {
+    const visible = new Set(this.batchRows.map((r) => r.batch));
+    for (const b of [...this.selectedBatches]) {
+      if (!visible.has(b)) this.selectedBatches.delete(b);
+    }
+    if (!this.selectedBatches.size) this.showDetailsPanel = false;
+  }
+
+  get selectedBatchRows(): BatchPaymentRow[] {
+    return this.batchRows.filter((r) => this.selectedBatches.has(r.batch));
+  }
+
+  get allVisibleSelected(): boolean {
+    return this.batchRows.length > 0 && this.batchRows.every((r) => this.selectedBatches.has(r.batch));
+  }
+
+  get someVisibleSelected(): boolean {
+    const n = this.batchRows.filter((r) => this.selectedBatches.has(r.batch)).length;
+    return n > 0 && n < this.batchRows.length;
+  }
+
+  isBatchSelected(batch: string): boolean {
+    return this.selectedBatches.has(batch);
+  }
+
+  toggleBatch(batch: string, checked: boolean): void {
+    if (checked) this.selectedBatches.add(batch);
+    else this.selectedBatches.delete(batch);
+    if (!this.selectedBatches.size) this.showDetailsPanel = false;
+  }
+
+  toggleSelectAllVisible(checked: boolean): void {
+    if (checked) {
+      for (const r of this.batchRows) this.selectedBatches.add(r.batch);
+    } else {
+      this.selectedBatches.clear();
+      this.showDetailsPanel = false;
+    }
+  }
+
+  showSelectedDetails(): void {
+    if (!this.selectedBatches.size) return;
+    this.showDetailsPanel = true;
+  }
+
+  clearSelection(): void {
+    this.selectedBatches.clear();
+    this.showDetailsPanel = false;
+  }
+
+  openBatchStudents(batch: string): void {
+    this.router.navigate(['/admin/payment-hub/insights/batches', encodeURIComponent(batch), 'students']);
+  }
+
   applyFilter(): void {
     this.load();
   }
 
   applyBatchTypeFilter(): void {
-    this.refreshBatchOptions();
-    this.rebuild();
+    this.applySummaryToView();
+    this.pruneSelection();
   }
 
   fmt(n: number): string {
@@ -267,19 +328,31 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
   }
 
   get cardBatches(): number {
-    return this.batchRows.length;
+    return this.showDetailsPanel ? this.selectedBatchRows.length : this.batchRows.length;
   }
 
   get cardStudents(): number {
-    return this.rowsForView().length;
+    if (this.showDetailsPanel) {
+      return this.selectedBatchRows.reduce((s, r) => s + r.studentCount, 0);
+    }
+    return this.totalStudents;
   }
 
-  get cardTotalPaid(): number {
-    return this.batchRows.reduce((s, r) => s + r.totalPaid, 0);
+  get cardTotals(): CurrencyPaidTotals {
+    const rows = this.showDetailsPanel ? this.selectedBatchRows : this.batchRows;
+    return rows.reduce(
+      (acc, r) => ({
+        totalPaidLKR: acc.totalPaidLKR + (r.totalPaidLKR || 0),
+        totalPaidINR: acc.totalPaidINR + (r.totalPaidINR || 0),
+        totalPaidUSD: acc.totalPaidUSD + (r.totalPaidUSD || 0),
+      }),
+      { totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0 },
+    );
   }
 
   get cardLargestBatch(): string {
-    if (!this.batchRows.length) return '—';
-    return this.batchRows[0].batch;
+    const rows = this.showDetailsPanel ? this.selectedBatchRows : this.batchRows;
+    if (!rows.length) return '—';
+    return rows[0].batch;
   }
 }

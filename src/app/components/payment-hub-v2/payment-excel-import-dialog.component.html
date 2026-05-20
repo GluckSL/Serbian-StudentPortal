@@ -105,9 +105,12 @@
         </div>
 
         <div class="ei-currency-strip">
-          <div class="ei-ccy"><span>LKR</span><strong>{{ fmt(currencyTotalsPreview.LKR) }}</strong></div>
-          <div class="ei-ccy"><span>INR</span><strong>{{ fmt(currencyTotalsPreview.INR) }}</strong></div>
-          <div class="ei-ccy"><span>USD</span><strong>{{ fmt(currencyTotalsPreview.USD) }}</strong></div>
+          <app-payment-currency-totals
+            [lkr]="currencyTotalsPreview.LKR"
+            [inr]="currencyTotalsPreview.INR"
+            [usd]="currencyTotalsPreview.USD"
+            [compact]="true"
+          ></app-payment-currency-totals>
           <button type="button" class="ei-btn ei-btn-ghost ei-export-fail" (click)="downloadFailedRows()">
             <mat-icon>table_view</mat-icon>
             FailedRows.xlsx

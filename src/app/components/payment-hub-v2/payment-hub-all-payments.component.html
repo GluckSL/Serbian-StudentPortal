@@ -85,9 +85,11 @@
         <span>Total Received</span>
       </div>
       <mat-card-content class="ph-card-body">
-        <div class="ph-currency-row"><span class="ph-currency-label">LKR</span><span class="ph-currency-value">{{ fmt(stats.totalReceivedLKR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">INR</span><span class="ph-currency-value">{{ fmt(stats.totalReceivedINR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">USD</span><span class="ph-currency-value">{{ fmt(stats.totalReceivedUSD) }}</span></div>
+        <app-payment-currency-totals
+          [lkr]="stats.totalReceivedLKR"
+          [inr]="stats.totalReceivedINR"
+          [usd]="stats.totalReceivedUSD"
+        ></app-payment-currency-totals>
       </mat-card-content>
       <div class="ph-card-footer">All approved payments</div>
     </mat-card>
@@ -98,9 +100,12 @@
         <span>Pending Approval</span>
       </div>
       <mat-card-content class="ph-card-body">
-        <div class="ph-currency-row"><span class="ph-currency-label">LKR</span><span class="ph-currency-value">{{ fmt(stats.pendingApprovalAmountLKR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">INR</span><span class="ph-currency-value">{{ fmt(stats.pendingApprovalAmountINR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">USD</span><span class="ph-currency-value">{{ fmt(stats.pendingApprovalAmountUSD) }}</span></div>
+        <app-payment-currency-pending-totals
+          [lkr]="stats.pendingApprovalAmountLKR"
+          [inr]="stats.pendingApprovalAmountINR"
+          [usd]="stats.pendingApprovalAmountUSD"
+          [hideZero]="false"
+        ></app-payment-currency-pending-totals>
       </mat-card-content>
       <div class="ph-card-footer">Submitted, not yet approved</div>
     </mat-card>
@@ -111,9 +116,11 @@
         <span>Expected This Month</span>
       </div>
       <mat-card-content class="ph-card-body">
-        <div class="ph-currency-row"><span class="ph-currency-label">LKR</span><span class="ph-currency-value">{{ fmt(stats.totalExpectedThisMonthLKR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">INR</span><span class="ph-currency-value">{{ fmt(stats.totalExpectedThisMonthINR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">USD</span><span class="ph-currency-value">{{ fmt(stats.totalExpectedThisMonthUSD) }}</span></div>
+        <app-payment-currency-totals
+          [lkr]="stats.totalExpectedThisMonthLKR"
+          [inr]="stats.totalExpectedThisMonthINR"
+          [usd]="stats.totalExpectedThisMonthUSD"
+        ></app-payment-currency-totals>
       </mat-card-content>
       <div class="ph-card-footer">Due by end of current month</div>
     </mat-card>
@@ -124,9 +131,12 @@
         <span>Overdue</span>
       </div>
       <mat-card-content class="ph-card-body">
-        <div class="ph-currency-row"><span class="ph-currency-label">LKR</span><span class="ph-currency-value">{{ fmt(stats.totalOverdueLKR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">INR</span><span class="ph-currency-value">{{ fmt(stats.totalOverdueINR) }}</span></div>
-        <div class="ph-currency-row"><span class="ph-currency-label">USD</span><span class="ph-currency-value">{{ fmt(stats.totalOverdueUSD) }}</span></div>
+        <app-payment-currency-overdue-totals
+          [lkr]="stats.totalOverdueLKR"
+          [inr]="stats.totalOverdueINR"
+          [usd]="stats.totalOverdueUSD"
+          [hideZero]="false"
+        ></app-payment-currency-overdue-totals>
       </mat-card-content>
       <div class="ph-card-footer">Past due date, not paid ({{ stats.overdueCount }} requests)</div>
     </mat-card>
@@ -172,7 +182,7 @@
           <th>Date joined</th>
           <th class="ph-num ph-col-compact">Total journey days</th>
           <th class="ph-num ph-col-compact">Current journey day</th>
-          <th class="ph-num">Total paid</th>
+          <th class="ph-num">Total received</th>
           <th class="ph-num">Pending</th>
           <th class="ph-num">Overdue</th>
           <th>Status</th>
@@ -191,9 +201,31 @@
           <td>{{ studentDateJoined(row) }}</td>
           <td class="ph-num ph-col-compact ph-muted-num">{{ totalJourneyDays(row) }}</td>
           <td class="ph-num ph-col-compact"><span class="ph-day-badge">{{ currentJourneyDay(row) ?? '—' }}</span></td>
-          <td class="ph-num ph-val-green">{{ fmt(row.totalPaid) }}</td>
-          <td class="ph-num ph-val-amber">{{ fmt(row.pendingApprovalAmount) }}</td>
-          <td class="ph-num ph-val-red">{{ fmt(row.overdueAmount) }}</td>
+          <td class="ph-num ph-val-green ph-paid-cell">
+            <app-payment-currency-totals
+              [lkr]="row.totalPaidLKR"
+              [inr]="row.totalPaidINR"
+              [usd]="row.totalPaidUSD"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </td>
+          <td class="ph-num ph-val-amber ph-paid-cell">
+            <app-payment-currency-pending-totals
+              [lkr]="row.pendingApprovalAmountLKR"
+              [inr]="row.pendingApprovalAmountINR"
+              [usd]="row.pendingApprovalAmountUSD"
+              [compact]="true"
+            ></app-payment-currency-pending-totals>
+          </td>
+          <td class="ph-num ph-val-red ph-paid-cell">
+            <app-payment-currency-overdue-totals
+              [lkr]="row.overdueAmountLKR"
+              [inr]="row.overdueAmountINR"
+              [usd]="row.overdueAmountUSD"
+              [compact]="true"
+            ></app-payment-currency-overdue-totals>
+          </td>
           <td><span class="ph-pill" [ngClass]="statusClass(row.overallStatus)">{{ row.overallStatus || '—' }}</span></td>
           <td class="ph-col-actions">
             <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(row)">

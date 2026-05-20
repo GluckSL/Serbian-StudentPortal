@@ -189,6 +189,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ph-paid-cell {
+  min-width: 140px;
+  vertical-align: top;
+  white-space: normal !important;
+}
+
 .ph-card-footer {
   padding: 8px 18px 14px;
   font-size: 11px;

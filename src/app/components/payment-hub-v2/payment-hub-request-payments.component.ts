@@ -17,6 +17,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PaymentHubApiService, StudentBrowseRow, ApprovalQueueItem } from './payment-hub-api.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
 
 @Component({
   selector: 'app-payment-hub-request-payments',
@@ -39,6 +41,8 @@ import { PaymentHubApiService, StudentBrowseRow, ApprovalQueueItem } from './pay
     MatIconModule,
     MatChipsModule,
     MatTooltipModule,
+    PaymentCurrencyTotalsComponent,
+    PaymentCurrencyPendingTotalsComponent,
   ],
   templateUrl: './payment-hub-request-payments.component.html',
   styleUrls: ['./payment-hub-request-payments.component.scss'],

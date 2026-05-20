@@ -36,10 +36,14 @@
             <mat-icon>paid</mat-icon>
           </div>
           <div class="card-body">
-            <div class="card-label">Total Paid</div>
-            <div class="card-value green">
-              {{ history.profile?.lastPaymentCurrency || '' }}
-              {{ fmt(history.profile?.totalPaid) }}
+            <div class="card-label">Total received</div>
+            <div class="card-value green card-value--currency">
+              <app-payment-currency-totals
+                [lkr]="history.profile?.totalPaidLKR ?? 0"
+                [inr]="history.profile?.totalPaidINR ?? 0"
+                [usd]="history.profile?.totalPaidUSD ?? 0"
+                [compact]="true"
+              ></app-payment-currency-totals>
             </div>
             <div class="card-sub" *ngIf="history.profile?.lastPaymentDate">
               Last: {{ fmtDate(history.profile?.lastPaymentDate) }}
@@ -56,7 +60,9 @@
           <div class="card-body">
             <div class="card-label">Next Payment</div>
             <ng-container *ngIf="nextPayment; else noNext">
-              <div class="card-value blue">{{ nextPayment.currency }} {{ fmt(nextPayment.amount) }}</div>
+              <div class="card-value blue">
+                <app-payment-currency-amount [currency]="nextPayment.currency" [amount]="nextPayment.amount"></app-payment-currency-amount>
+              </div>
               <div class="card-sub">Due: {{ fmtDate(nextPayment.dueDate) }}</div>
             </ng-container>
             <ng-template #noNext>
@@ -126,8 +132,12 @@
                     </span>
                     <span *ngIf="!req.remarks" class="no-remarks">—</span>
                   </td>
-                  <td class="col-num">{{ req.currency }} {{ fmt(req.amount) }}</td>
-                  <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">{{ req.currency }} {{ fmt(req.amountRemaining) }}</td>
+                  <td class="col-num">
+                    <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+                  </td>
+                  <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">
+                    <app-payment-currency-amount [currency]="req.currency" [amount]="req.amountRemaining"></app-payment-currency-amount>
+                  </td>
                   <td>{{ fmtDate(req.dueDate) }}</td>
                   <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
                   <td class="col-submissions">
@@ -148,15 +158,19 @@
                     Part {{ inst.installmentNumber }}
                   </td>
                   <td><span class="no-remarks">—</span></td>
-                  <td class="col-num">{{ inst.currency }} {{ fmt(inst.requestedAmount) }}</td>
-                  <td class="col-num" [class.overdue-num]="inst.status === 'OVERDUE'">{{ inst.currency }} {{ fmt(inst.remainingAmount) }}</td>
+                  <td class="col-num">
+                    <app-payment-currency-amount [currency]="inst.currency" [amount]="inst.requestedAmount"></app-payment-currency-amount>
+                  </td>
+                  <td class="col-num" [class.overdue-num]="inst.status === 'OVERDUE'">
+                    <app-payment-currency-amount [currency]="inst.currency" [amount]="inst.remainingAmount"></app-payment-currency-amount>
+                  </td>
                   <td>{{ fmtDate(inst.dueDate) }}</td>
                   <td><span class="pill pill-sm" [ngClass]="statusClass(inst.status)">{{ inst.status }}</span></td>
                   <td class="col-submissions">
                     <ng-container *ngIf="submissionsForInstallment(req, inst).length">
                       <div *ngFor="let sub of submissionsForInstallment(req, inst)" class="submission-row">
                         <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
-                          {{ sub.currency }} {{ fmt(sub.paidAmount) }}
+                          <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
                         </span>
                         <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
                           (click)="viewSubmissionProof(sub)"
@@ -183,15 +197,19 @@
                   </span>
                   <span *ngIf="!req.remarks" class="no-remarks">—</span>
                 </td>
-                <td class="col-num">{{ req.currency }} {{ fmt(req.amount) }}</td>
-                <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">{{ req.currency }} {{ fmt(req.amountRemaining) }}</td>
+                <td class="col-num">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+                </td>
+                <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="req.amountRemaining"></app-payment-currency-amount>
+                </td>
                 <td>{{ fmtDate(req.dueDate) }}</td>
                 <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
                 <td class="col-submissions">
                   <ng-container *ngIf="hasSubmissions(req)">
                     <div *ngFor="let sub of req.submissions" class="submission-row">
                       <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
-                        {{ sub.currency }} {{ fmt(sub.paidAmount) }}
+                        <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
                       </span>
                       <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
                         (click)="viewSubmissionProof(sub)"

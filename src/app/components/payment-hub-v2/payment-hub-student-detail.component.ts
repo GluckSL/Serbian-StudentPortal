@@ -8,6 +8,10 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { PaymentHubApiService, StudentHistory, PaymentRequestItem as PaymentRequest, ApprovalQueueItem } from './payment-hub-api.service';
+import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
+import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
+import { PaymentCurrencyAmountComponent } from './payment-currency-amount.component';
 
 @Component({
   selector: 'app-payment-hub-student-detail',
@@ -21,6 +25,10 @@ import { PaymentHubApiService, StudentHistory, PaymentRequestItem as PaymentRequ
     MatSnackBarModule,
     MatIconModule,
     MatChipsModule,
+    PaymentCurrencyTotalsComponent,
+    PaymentCurrencyPendingTotalsComponent,
+    PaymentCurrencyOverdueTotalsComponent,
+    PaymentCurrencyAmountComponent,
   ],
   templateUrl: './payment-hub-student-detail.component.html',
   styleUrls: ['./payment-hub-student-detail.component.scss'],

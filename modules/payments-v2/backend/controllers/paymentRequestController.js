@@ -14,6 +14,17 @@ const timelineService = require('../services/timelineService');
 const { getAuthUserId } = require('../helpers/authUserId');
 const proofR2 = require('../services/paymentProofR2Service');
 const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
+const {
+  paidTotalsFromBreakdown,
+  pendingTotalsFromBreakdown,
+  overdueTotalsFromBreakdown,
+  enrichProfileCurrencyTotals,
+  mongoPaidFieldsFromProfile,
+  mongoPendingFieldsFromProfile,
+  mongoOverdueFieldsFromProfile,
+  emptyCurrencyBucket,
+  addToCurrencyBucket,
+} = require('../utils/currencyBreakdownHelper');
 
 // ─── Helper to get admin name from user model ──────────────────────────────
 const getAdminName = async (userId) => {
@@ -244,6 +255,9 @@ const getStudentTable = async (req, res) => {
                 createdAt: '$createdAt',
               },
               totalPaid: { $ifNull: ['$profile.totalPaid', 0] },
+              ...mongoPaidFieldsFromProfile('$profile.currencyBreakdown'),
+              ...mongoPendingFieldsFromProfile('$profile.currencyBreakdown'),
+              ...mongoOverdueFieldsFromProfile('$profile.currencyBreakdown'),
               pendingApprovalAmount: { $ifNull: ['$profile.pendingApprovalAmount', 0] },
               overdueAmount: { $ifNull: ['$profile.overdueAmount', 0] },
               overallStatus: '$effectiveStatus',
@@ -318,7 +332,13 @@ const getStudentPaymentHistory = async (req, res) => {
       success: true,
       data: {
         student: studentDoc || profile?.studentId || null,
-        profile: profile || null,
+        profile: enrichProfileCurrencyTotals(
+          profile
+            ? typeof profile.toObject === 'function'
+              ? profile.toObject()
+              : profile
+            : null,
+        ),
         requests: combined,
         total,
         page: Number(page),
@@ -545,6 +565,9 @@ const browseStudents = async (req, res) => {
           createdAt: 1,
           phoneNumber: 1,
           totalPaid: { $ifNull: ['$profile.totalPaid', 0] },
+          ...mongoPaidFieldsFromProfile('$profile.currencyBreakdown'),
+          ...mongoPendingFieldsFromProfile('$profile.currencyBreakdown'),
+          ...mongoOverdueFieldsFromProfile('$profile.currencyBreakdown'),
           pendingApprovalAmount: { $ifNull: ['$profile.pendingApprovalAmount', 0] },
           overdueAmount: { $ifNull: ['$profile.overdueAmount', 0] },
           balanceDue: {
@@ -720,12 +743,262 @@ const studentGetOwnRequests = async (req, res) => {
   }
 };
 
+const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+function detectLevelFromPaymentRequest(req) {
+  const hay = [req.customType, req.remarks, req.paymentType]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+  for (const lv of CEFR_LEVELS) {
+    if (hay.includes(lv)) return lv;
+  }
+  return null;
+}
+
+// ─── Batch payment summary (aggregated — no per-student payload) ─────────────
+const getBatchPaymentSummary = async (req, res) => {
+  try {
+    const { batch, level } = req.query;
+    const userMatch = { role: 'STUDENT' };
+    if (batch && String(batch).trim()) userMatch.batch = String(batch).trim();
+    if (level && String(level).trim()) userMatch.level = String(level).trim();
+
+    const grouped = await mongoose.model('User').aggregate([
+      { $match: userMatch },
+      {
+        $lookup: {
+          from: 'studentpaymentprofiles',
+          localField: '_id',
+          foreignField: 'studentId',
+          as: 'profileArr',
+        },
+      },
+      { $addFields: { profile: { $arrayElemAt: ['$profileArr', 0] } } },
+      { $addFields: mongoPaidFieldsFromProfile('$profile.currencyBreakdown') },
+      {
+        $addFields: {
+          batchLabel: {
+            $let: {
+              vars: { b: { $trim: { input: { $ifNull: ['$batch', ''] } } } },
+              in: { $cond: [{ $eq: ['$$b', ''] }, '—', '$$b'] },
+            },
+          },
+          levelKey: { $toUpper: { $trim: { input: { $ifNull: ['$level', ''] } } } },
+        },
+      },
+      {
+        $group: {
+          _id: '$batchLabel',
+          studentCount: { $sum: 1 },
+          totalPaid: { $sum: { $ifNull: ['$profile.totalPaid', 0] } },
+          totalPaidLKR: { $sum: '$totalPaidLKR' },
+          totalPaidINR: { $sum: '$totalPaidINR' },
+          totalPaidUSD: { $sum: '$totalPaidUSD' },
+          levels: { $push: '$levelKey' },
+          maxStudentDay: { $max: '$currentCourseDay' },
+        },
+      },
+      { $sort: { totalPaidLKR: -1, totalPaidINR: -1, totalPaidUSD: -1 } },
+    ]);
+
+    const batches = grouped.map((row) => {
+      const levelCounts = {};
+      for (const lv of row.levels || []) {
+        if (!lv) continue;
+        levelCounts[lv] = (levelCounts[lv] || 0) + 1;
+      }
+      let maxDay = row.maxStudentDay;
+      if (maxDay != null && Number.isFinite(Number(maxDay))) {
+        maxDay = Math.min(200, Math.max(1, Math.floor(Number(maxDay))));
+      } else {
+        maxDay = null;
+      }
+      return {
+        batch: row._id,
+        studentCount: row.studentCount,
+        totalPaid: row.totalPaid,
+        totalPaidLKR: row.totalPaidLKR || 0,
+        totalPaidINR: row.totalPaidINR || 0,
+        totalPaidUSD: row.totalPaidUSD || 0,
+        levelCounts,
+        maxStudentDay: maxDay,
+      };
+    });
+
+    const totalStudents = batches.reduce((s, b) => s + b.studentCount, 0);
+    const batchNames = batches.map((b) => b.batch).filter((n) => n && n !== '—');
+
+    res.json({
+      success: true,
+      data: { batches, totalStudents, batchNames },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ─── Batch students: payment breakdown for Payment Hub batch insights ───────
+const getBatchStudentsPaymentDetail = async (req, res) => {
+  try {
+    const batchRaw = decodeURIComponent(String(req.params.batch || '').trim());
+    if (!batchRaw) {
+      return res.status(400).json({ success: false, message: 'Batch name is required' });
+    }
+
+    const User = mongoose.model('User');
+    const PaymentFlowSubmission = require('../models/PaymentSubmission');
+    const batchRegex = new RegExp(`^${batchRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+    const students = await User.find({
+      role: 'STUDENT',
+      batch: batchRegex,
+    })
+      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay')
+      .sort({ name: 1 })
+      .lean();
+
+    if (!students.length) {
+      return res.json({ success: true, data: { batch: batchRaw, students: [] } });
+    }
+
+    const studentIds = students.map((s) => s._id);
+    const [profiles, requests, submissions] = await Promise.all([
+      StudentPaymentProfile.find({ studentId: { $in: studentIds } }).lean(),
+      PaymentRequest.find({ studentId: { $in: studentIds }, isArchived: false }).lean(),
+      PaymentFlowSubmission.find({
+        studentId: { $in: studentIds },
+        status: 'APPROVED',
+      })
+        .select('studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate')
+        .lean(),
+    ]);
+
+    const profileByStudent = {};
+    for (const p of profiles) {
+      profileByStudent[String(p.studentId)] = p;
+    }
+
+    const requestsByStudent = {};
+    for (const r of requests) {
+      const sid = String(r.studentId);
+      if (!requestsByStudent[sid]) requestsByStudent[sid] = [];
+      requestsByStudent[sid].push(r);
+    }
+
+    const requestById = {};
+    for (const r of requests) {
+      requestById[String(r._id)] = r;
+    }
+
+    const subsByStudent = {};
+    for (const sub of submissions) {
+      const sid = String(sub.studentId);
+      if (!subsByStudent[sid]) subsByStudent[sid] = [];
+      subsByStudent[sid].push(sub);
+    }
+
+    const rows = students.map((student) => {
+      const sid = String(student._id);
+      const profile = profileByStudent[sid] || null;
+      const studentRequests = requestsByStudent[sid] || [];
+      const studentSubs = subsByStudent[sid] || [];
+      const levelPaid = Object.fromEntries(CEFR_LEVELS.map((l) => [l, emptyCurrencyBucket()]));
+      const docsPaidByCurrency = emptyCurrencyBucket();
+      const visaPaidByCurrency = emptyCurrencyBucket();
+      const otherPaidByCurrency = emptyCurrencyBucket();
+      let lastPaymentDate = profile?.lastPaymentDate || null;
+      let lastPaymentAmount = profile?.lastPaymentAmount || 0;
+      let lastPaymentCurrency = profile?.lastPaymentCurrency || '';
+
+      for (const sub of studentSubs) {
+        const paid = Number(sub.paidAmount) || 0;
+        if (paid <= 0) continue;
+        const req = requestById[String(sub.paymentRequestId)];
+        const payDate = sub.approvedAt || sub.paymentDate || sub.submittedAt;
+        if (payDate && (!lastPaymentDate || new Date(payDate) > new Date(lastPaymentDate))) {
+          lastPaymentDate = payDate;
+          lastPaymentAmount = paid;
+          lastPaymentCurrency = sub.currency || lastPaymentCurrency;
+        }
+
+        const ccy = sub.currency || req?.currency || 'LKR';
+
+        if (!req) {
+          addToCurrencyBucket(otherPaidByCurrency, ccy, paid);
+          continue;
+        }
+
+        const pt = String(req.paymentType || '').toUpperCase();
+        if (pt === 'DOCS_PAYMENT') {
+          addToCurrencyBucket(docsPaidByCurrency, ccy, paid);
+          continue;
+        }
+        if (pt === 'VISA_PAYMENT') {
+          addToCurrencyBucket(visaPaidByCurrency, ccy, paid);
+          continue;
+        }
+
+        const lv =
+          detectLevelFromPaymentRequest(req) ||
+          (pt === 'LANGUAGE_FEE' ? String(student.level || '').toUpperCase().trim() : null);
+        if (lv && levelPaid[lv] != null) {
+          addToCurrencyBucket(levelPaid[lv], ccy, paid);
+        } else {
+          addToCurrencyBucket(otherPaidByCurrency, ccy, paid);
+        }
+      }
+
+      const currentDay = student.currentCourseDay != null
+        ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+        : null;
+
+      return {
+        studentId: sid,
+        name: student.name,
+        email: student.email,
+        batch: student.batch,
+        level: student.level || '—',
+        currentJourneyDay: currentDay,
+        totalPaid: profile?.totalPaid ?? 0,
+        ...paidTotalsFromBreakdown(profile?.currencyBreakdown),
+        ...pendingTotalsFromBreakdown(profile?.currencyBreakdown),
+        ...overdueTotalsFromBreakdown(profile?.currencyBreakdown),
+        pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
+        overdueAmount: profile?.overdueAmount ?? 0,
+        overallStatus: profile?.overallStatus || 'NO_REQUESTS',
+        levelPaid,
+        docsPaidByCurrency,
+        visaPaidByCurrency,
+        otherPaidByCurrency,
+        lastPaymentDate,
+        lastPaymentAmount,
+        lastPaymentCurrency,
+        inferredCurrency: inferCurrencyFromPhone(student.phoneNumber),
+        openRequestCount: studentRequests.filter((r) => !['PAID', 'CANCELLED'].includes(String(r.status))).length,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        batch: batchRaw,
+        students: rows,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 module.exports = {
   createRequests,
   getAllRequests,
   getDashboardStats,
   getStudentTable,
   browseStudents,
+  getBatchPaymentSummary,
+  getBatchStudentsPaymentDetail,
   getStudentPaymentHistory,
   getRequestTimeline,
   addInternalNote,
