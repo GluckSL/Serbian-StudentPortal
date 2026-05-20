@@ -46,7 +46,7 @@ interface DisplayPair {
 
         <div class="im-board" *ngIf="phase === 'playing' && currentPairs.length">
           <div class="im-board__prompt">
-            <p>Drag each word to its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
+            <p>Drag each word onto its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
             <div class="im-progress-chips">
               <span class="im-progress-chips__label">{{ matchedCount }} / {{ currentPairs.length }} matched</span>
             </div>
@@ -66,28 +66,29 @@ interface DisplayPair {
             </div>
           </div>
 
-          <!-- Image grid -->
+          <!-- Image grid — drop words directly onto images -->
           <div class="im-grid">
             <div *ngFor="let pair of currentPairs" class="im-card">
-              <div class="im-card__image">
-                <img [src]="pair.imageUrl" alt="">
-              </div>
               <div
-                class="im-card__slot"
-                [class.im-card__slot--matched]="pair.matched"
+                class="im-card__target"
+                [class.im-card__target--matched]="pair.matched"
+                [class.im-card__target--placed]="!pair.matched && slotData[pair.slotId].length"
                 [id]="pair.slotId"
                 cdkDropList
-                [cdkDropListData]="slotData[pair.slotId] || []"
+                cdkDropListSortingDisabled
+                [cdkDropListData]="slotData[pair.slotId]"
                 [cdkDropListConnectedTo]="['word-pool']"
-                [cdkDropListDisabled]="pair.matched || pair.validating"
+                [cdkDropListDisabled]="isSlotDisabled(pair)"
                 (cdkDropListDropped)="onSlotDrop($event, pair)">
-                <span *ngIf="!pair.matched && !(slotData[pair.slotId]?.length)" class="im-card__empty">
-                  Drop word here
-                </span>
-                <span *ngIf="pair.matched" class="im-card__word im-card__word--correct">{{ pair.matchedWord }}</span>
-                <span *ngIf="!pair.matched && slotData[pair.slotId]?.length" class="im-card__word im-card__word--placed">
-                  {{ slotData[pair.slotId][0] }}
-                </span>
+                <img [src]="pair.imageUrl" alt="" draggable="false">
+                <div class="im-card__overlay" *ngIf="pair.matched || slotData[pair.slotId]?.length">
+                  <span
+                    class="im-card__word"
+                    [class.im-card__word--correct]="pair.matched"
+                    [class.im-card__word--placed]="!pair.matched">
+                    {{ pair.matched ? pair.matchedWord : slotData[pair.slotId][0] }}
+                  </span>
+                </div>
               </div>
               <mat-icon *ngIf="pair.matched" class="im-card__check">check_circle</mat-icon>
             </div>
@@ -172,77 +173,65 @@ interface DisplayPair {
 
     .im-card {
       position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
     }
-    .im-card__image {
+
+    /* Image is the drop target */
+    .im-card__target {
+      position: relative;
       width: 100%;
       aspect-ratio: 1;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid #e2e8f0;
       background: #f1f5f9;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      cursor: default;
     }
-    .im-card__image img { width: 100%; height: 100%; object-fit: cover; }
-
-    /* Drop slot — same visual weight as a word pill */
-    .im-card__slot {
+    .im-card__target img {
       width: 100%;
-      min-height: 46px;
-      border-radius: 999px;
-      border: 2px dashed #cbd5e1;
-      background: #f1f5f9;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: border-color 0.2s, background 0.2s;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      display: block;
     }
-    .im-card__slot.cdk-drop-list-dragging,
-    .im-card__slot.cdk-drop-list-receiving {
+    .im-pool.cdk-drop-list-dragging .im-card__target:not(.im-card__target--matched):not(.im-card__target--placed) {
+      border-color: #a5b4fc;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+    .im-card__target.cdk-drop-list-receiving {
       border-color: #6366f1;
-      background: rgba(99, 102, 241, 0.08);
-    }
-    .im-card__slot.cdk-drop-list-receiving,
-    .im-card__slot.cdk-drag-over {
       border-style: solid;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
     }
-    /* Hide "Drop word here" text in all slots whenever a drag is active in the pool */
-    .im-pool.cdk-drop-list-dragging ~ .im-grid .im-card__empty {
-      display: none;
-    }
-    /* Hide CDK's internal drop-placeholder elements inside slots */
-    .im-card__slot .cdk-drag-placeholder,
-    .im-card__slot .cdk-drop-list-enter {
-      display: none;
-    }
-    /* Once a word is matched, remove the slot's dashed border and gray bg */
-    .im-card__slot--matched {
-      border: none !important;
-      background: transparent !important;
+    .im-card__target--matched {
+      border-color: #22c55e;
+      box-shadow: 0 4px 18px rgba(34, 197, 94, 0.35);
     }
 
-    .im-card__empty {
-      font-size: 12px;
-      color: #94a3b8;
-      font-weight: 500;
+    .im-card__overlay {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 8px;
+      display: flex;
+      justify-content: center;
+      background: linear-gradient(transparent, rgba(15, 23, 42, 0.55));
+      pointer-events: none;
     }
 
-    /* Word placed in slot (before server confirms) */
     .im-card__word {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 10px 18px;
+      padding: 8px 16px;
       border-radius: 999px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       user-select: none;
     }
     .im-card__word--placed {
-      background: #e2e8f0;
-      color: #64748b;
+      background: rgba(255, 255, 255, 0.92);
+      color: #475569;
     }
     .im-card__word--correct {
       background: linear-gradient(145deg, #22c55e, #15803d) !important;
@@ -259,6 +248,7 @@ interface DisplayPair {
       font-size: 24px !important;
       width: 24px !important;
       height: 24px !important;
+      z-index: 2;
     }
 
     .im-complete { text-align: center; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -362,17 +352,27 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
     return result;
   }
 
+  isSlotDisabled(pair: DisplayPair): boolean {
+    return pair.matched || pair.validating || (this.slotData[pair.slotId]?.length ?? 0) > 0;
+  }
+
   onWordPoolDrop(event: CdkDragDrop<string[]>) {
     if (event.previousContainer === event.container) return;
-    // Word dropped back into pool — no-op (can happen with auto-return)
+    transferArrayItem(
+      event.previousContainer.data,
+      event.container.data,
+      event.previousIndex,
+      event.currentIndex,
+    );
   }
 
   onSlotDrop(event: CdkDragDrop<string[]>, pair: DisplayPair) {
-    if (pair.matched || pair.validating) return;
-    const word = event.item.data;
+    if (event.previousContainer === event.container) return;
+    if (this.isSlotDisabled(pair)) return;
+
+    const word = event.item.data as string;
     if (!word) return;
 
-    // Visually place the word in the slot immediately
     pair.validating = true;
     transferArrayItem(
       event.previousContainer.data,

@@ -1,0 +1,151 @@
+<div class="student-agreements-container">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h2>Agreements</h2>
+      <p *ngIf="studentName">{{ studentName }} &bull; {{ studentEmail }}</p>
+    </div>
+    <div class="header-actions">
+      <a mat-stroked-button routerLink="/admin/agreements/templates" target="_blank">
+        <mat-icon>library_books</mat-icon> Manage Templates
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Share new agreement ── -->
+  <mat-card class="share-card">
+    <mat-card-header>
+      <mat-card-title>Share New Agreement</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+
+      <!-- Template selector -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Select Template</mat-label>
+        <mat-select [(ngModel)]="selectedTemplate" (ngModelChange)="onTemplateSelect()" [compareWith]="compareTemplates">
+          <mat-option *ngFor="let t of templates" [value]="t">{{ t.name }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Dynamic fields form -->
+      <ng-container *ngIf="selectedTemplate">
+        <div class="fields-form">
+          <mat-form-field appearance="outline" *ngFor="let f of templateFields()" class="field-input">
+            <mat-label>{{ f.label }}</mat-label>
+            <input matInput [(ngModel)]="fieldValues[f.id]" [placeholder]="f.sampleText || f.label" [required]="f.required" />
+            <mat-hint>Page {{ f.page }}</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="full-width" style="margin-top:8px">
+          <mat-label>Agreement Name (shown in checklist)</mat-label>
+          <input matInput [(ngModel)]="displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
+        </mat-form-field>
+
+        <div class="share-options">
+          <mat-checkbox [(ngModel)]="sendEmail">Send agreement to student email with PDF attachment</mat-checkbox>
+        </div>
+
+        <div class="share-actions">
+          <button mat-stroked-button (click)="previewPdf()" [disabled]="previewing">
+            <mat-spinner *ngIf="previewing" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+            <mat-icon *ngIf="!previewing">visibility</mat-icon>
+            Preview PDF
+          </button>
+          <button mat-raised-button color="primary" (click)="share()" [disabled]="sharing">
+            <mat-spinner *ngIf="sharing" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+            <mat-icon *ngIf="!sharing">send</mat-icon>
+            {{ sharing ? 'Sharing…' : 'Share Agreement' }}
+          </button>
+        </div>
+
+        <!-- Inline preview iframe -->
+        <div *ngIf="previewUrl" class="preview-section">
+          <h4>PDF Preview</h4>
+          <iframe [src]="previewUrl" class="preview-iframe" title="Agreement Preview"></iframe>
+        </div>
+      </ng-container>
+
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── Existing agreements ── -->
+  <mat-card class="list-card" style="margin-top:24px">
+    <mat-card-header>
+      <mat-card-title>Shared Agreements</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="loadingAgreements" class="center-spinner"><mat-spinner diameter="32"></mat-spinner></div>
+
+      <div *ngIf="!loadingAgreements && agreements.length === 0" class="empty-msg">
+        No agreements shared yet.
+      </div>
+
+      <table *ngIf="!loadingAgreements && agreements.length > 0" class="agreements-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Template</th>
+            <th>Status</th>
+            <th>Sent</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let a of agreements">
+            <td>{{ a.displayName }}</td>
+            <td>{{ a.templateName }}</td>
+            <td>
+              <span class="status-chip" [ngClass]="statusClass(a.status)">{{ statusLabel(a.status) }}</span>
+            </td>
+            <td>{{ a.sentAt | date:'dd MMM yyyy' }}</td>
+            <td class="actions-cell">
+              <button mat-icon-button matTooltip="Download generated PDF" (click)="downloadGenerated(a)">
+                <mat-icon>download</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Download signed copy" (click)="downloadSigned(a)"
+                [disabled]="!a.signedFile">
+                <mat-icon>draw</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Verify / Reject" color="primary"
+                (click)="openVerifyDialog(a)"
+                [disabled]="a.status === 'SENT'">
+                <mat-icon>verified</mat-icon>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── Verify dialog overlay ── -->
+  <div class="dialog-backdrop" *ngIf="verifyDialogAgreement" (click)="closeVerifyDialog()"></div>
+  <div class="verify-dialog" *ngIf="verifyDialogAgreement">
+    <h3>Verify Agreement</h3>
+    <p>{{ verifyDialogAgreement.displayName }}</p>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Decision</mat-label>
+      <mat-select [(ngModel)]="verifyStatus">
+        <mat-option value="VERIFIED">Verified</mat-option>
+        <mat-option value="REJECTED">Rejected</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Notes (optional)</mat-label>
+      <textarea matInput [(ngModel)]="verifyNotes" rows="3"></textarea>
+    </mat-form-field>
+
+    <div class="dialog-actions">
+      <button mat-stroked-button (click)="closeVerifyDialog()">Cancel</button>
+      <button mat-raised-button color="primary" [disabled]="verifying" (click)="submitVerify()">
+        <mat-spinner *ngIf="verifying" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+        Confirm
+      </button>
+    </div>
+  </div>
+
+</div>

@@ -20,6 +20,10 @@ import {
   ClassRecording,
   BatchZoomRecording,
 } from '../../../services/class-recordings.service';
+import {
+  GoRecordingResourceService,
+  GoRecordingResourceType,
+} from '../../../services/go-recording-resource.service';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import Hls, { ErrorData } from 'hls.js';
@@ -115,6 +119,12 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private zoomDurationInterval: any = null;
   private currentPlayingRecording: DisplayRecording | null = null;
 
+  // Resources modal
+  showResourceModal = false;
+  resourceRecording: DisplayRecording | null = null;
+  resources: any[] = [];
+  loadingResources = false;
+
   // Signed-URL cache: meetingLinkId → { url, expiresAt }
   // Stores either the HLS playlist URL (if hlsMode) or MP4 URL (legacy).
   private readonly zoomUrlCache = new Map<string, { url: string; hlsMode: boolean; expiresAt: number }>();
@@ -124,6 +134,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   constructor(
     private service: ClassRecordingsService,
+    private goResourceService: GoRecordingResourceService,
     private sanitizer: DomSanitizer,
     private authService: AuthService,
     private router: Router
@@ -304,6 +315,50 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   // ── Row actions ───────────────────────────────────────────────────────────
+
+  openResources(recording: DisplayRecording): void {
+    this.resourceRecording = recording;
+    this.showResourceModal = true;
+    this.loadingResources = true;
+    const type: GoRecordingResourceType = recording.type === 'zoom' ? 'zoom' : 'manual';
+    const id = recording.type === 'zoom' ? String(recording.meetingLinkId || recording.id) : recording.id;
+    this.goResourceService.list(type, id).subscribe({
+      next: (res) => {
+        this.resources = res.data || [];
+        this.loadingResources = false;
+      },
+      error: () => {
+        this.resources = [];
+        this.loadingResources = false;
+      },
+    });
+  }
+
+  closeResourceModal(): void {
+    this.showResourceModal = false;
+    this.resourceRecording = null;
+    this.resources = [];
+  }
+
+  viewResource(r: { fileUrl?: string }): void {
+    this.goResourceService.openInBrowser(r.fileUrl || '');
+  }
+
+  downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
+    this.goResourceService.downloadResource(r);
+  }
+
+  formatFileSize(bytes: number): string {
+    if (!bytes) return '—';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  formatResourceDate(d: string | Date | null): string {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
 
   playRecording(recording: DisplayRecording): void {
     if (!getAuthToken()) {

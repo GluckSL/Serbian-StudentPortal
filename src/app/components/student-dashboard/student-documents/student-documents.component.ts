@@ -1,7 +1,7 @@
 // src/app/components/student-dashboard/student-documents/student-documents.component.ts
 // Component for student document upload and management
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { 
@@ -10,6 +10,7 @@ import {
   StudentDocument,
   DocumentStats 
 } from '../../../services/student-documents.service';
+import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
 import { NotificationService } from '../../../services/notification.service';
 
 @Component({
@@ -49,10 +50,21 @@ export class StudentDocumentsComponent implements OnInit {
   successMessage: string = '';
   errorMessage: string = '';
 
-  constructor(private documentService: StudentDocumentsService, private notify: NotificationService) {}
+  // Agreements
+  agreements: StudentAgreement[] = [];
+  loadingAgreements = false;
+  uploadingAgreementId: string | null = null;
+  @ViewChild('signedFileInput') signedFileInput!: ElementRef<HTMLInputElement>;
+
+  constructor(
+    private documentService: StudentDocumentsService,
+    private agreementService: AgreementService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     this.loadData();
+    this.loadAgreements();
   }
 
   async loadData(): Promise<void> {
@@ -102,6 +114,61 @@ export class StudentDocumentsComponent implements OnInit {
     } catch (error) {
       console.error('Error loading stats:', error);
     }
+  }
+
+  loadAgreements(): void {
+    this.loadingAgreements = true;
+    this.agreementService.getInstances().subscribe({
+      next: r => { this.agreements = r.agreements || []; this.loadingAgreements = false; },
+      error: () => { this.loadingAgreements = false; }
+    });
+  }
+
+  viewAgreement(a: StudentAgreement): void {
+    window.open(this.agreementService.getDownloadUrl(a._id, 'generated'), '_blank');
+  }
+
+  triggerSignedUpload(agreementId: string): void {
+    this.uploadingAgreementId = agreementId;
+    this.signedFileInput.nativeElement.click();
+  }
+
+  onSignedFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !this.uploadingAgreementId) return;
+    const id = this.uploadingAgreementId;
+    this.agreementService.uploadSigned(id, file).subscribe({
+      next: () => {
+        this.showSuccess('Signed agreement uploaded successfully!');
+        this.loadAgreements();
+        this.uploadingAgreementId = null;
+        input.value = '';
+      },
+      error: e => {
+        this.showError(e.error?.message || 'Upload failed');
+        this.uploadingAgreementId = null;
+        input.value = '';
+      }
+    });
+  }
+
+  agreementStatusLabel(s: string): string {
+    const map: Record<string, string> = {
+      SENT: 'Awaiting Your Signature',
+      SIGNED_PENDING: 'Under Review',
+      VERIFIED: 'Verified',
+      REJECTED: 'Rejected'
+    };
+    return map[s] || s;
+  }
+
+  agreementStatusClass(s: string): string {
+    const map: Record<string, string> = {
+      SENT: 'status-pending', SIGNED_PENDING: 'status-pending',
+      VERIFIED: 'status-verified', REJECTED: 'status-rejected'
+    };
+    return map[s] || '';
   }
 
   // Document type selection - auto-fill document name

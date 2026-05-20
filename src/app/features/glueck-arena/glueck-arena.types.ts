@@ -233,11 +233,28 @@ export interface AnalyticsKpis {
   avgSessionSeconds: number;
   rageQuitPercent: number;
   leaderboardEngagedPlayers: number;
+  uniqueStudents?: number;
+  studentsInBatch?: number | null;
+}
+
+export interface StudentArenaStat {
+  studentId: string;
+  name: string;
+  batch: string;
+  attempts: number;
+  completed: number;
+  totalTimeSeconds: number;
+  totalXp: number;
+  totalScore: number;
+  avgAccuracy: number;
+  lastActivity: string | null;
 }
 
 export interface AdminAnalyticsResponse {
   success: boolean;
   kpis: AnalyticsKpis;
+  studentStats: StudentArenaStat[];
+  filters?: { batch: string | null; gameType: string | null };
   mostPlayedGames: { gameSetId: string; title: string; gameType: string; plays: number; completed: number }[];
   hardestQuestions: { questionId: string; word?: string; correctSentence?: string; errorRate: number }[];
   dailyActivePlayers: { date: string; count: number }[];

@@ -314,3 +314,21 @@
 .full-width {
   width: 100%;
 }
+
+/* Agreement row styling */
+.agreement-row td {
+  background: #f0f4ff;
+}
+.agreement-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 10px;
+  background: #1a237e;
+  color: white;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

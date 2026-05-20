@@ -1,0 +1,55 @@
+.student-agreements-container { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+.page-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 24px;
+}
+.page-header h2 { margin: 0 0 4px; font-size: 1.5rem; color: #1a237e; }
+.page-header p { margin: 0; color: #666; font-size: 0.9rem; }
+.header-actions { display: flex; gap: 8px; }
+
+.share-card {}
+.full-width { width: 100%; }
+
+.fields-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.field-input { width: 100%; }
+
+.share-options { margin: 12px 0; }
+.share-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+
+.preview-section { margin-top: 20px; }
+.preview-section h4 { margin-bottom: 8px; color: #1a237e; }
+.preview-iframe { width: 100%; height: 500px; border: 1px solid #e0e0e0; border-radius: 4px; }
+
+.center-spinner { display: flex; justify-content: center; padding: 32px; }
+.empty-msg { text-align: center; color: #aaa; padding: 24px; }
+
+.agreements-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.agreements-table th {
+  background: #1a237e; color: white; padding: 10px 14px; text-align: left;
+}
+.agreements-table td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.agreements-table tr:hover td { background: #f5f7ff; }
+
+.status-chip {
+  display: inline-block; padding: 3px 10px; border-radius: 12px;
+  font-size: 0.78rem; font-weight: 600;
+}
+.status-pending { background: #fff3e0; color: #e65100; }
+.status-verified { background: #e8f5e9; color: #2e7d32; }
+.status-rejected { background: #fce4ec; color: #c62828; }
+
+.actions-cell { display: flex; align-items: center; gap: 2px; }
+
+/* Verify dialog */
+.dialog-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200;
+}
+.verify-dialog {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: white; border-radius: 8px; padding: 28px; z-index: 201;
+  width: min(480px, 95vw); box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.verify-dialog h3 { margin: 0 0 6px; color: #1a237e; }
+.verify-dialog p { margin: 0 0 16px; color: #666; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }

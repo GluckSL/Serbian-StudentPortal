@@ -59,10 +59,18 @@
     <article class="sr-rec-card" *ngFor="let r of filteredRecordings">
       <div class="sr-rec-card__head">
         <h3 class="sr-rec-card__title">{{ r.title }}</h3>
-        <div class="sr-rec-card__actions">
+          <div class="sr-rec-card__actions">
           <span class="sr-rec-card__att">
             <span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span>
           </span>
+          <button
+            type="button"
+            class="sr-rec-card__res"
+            (click)="openResources(r)"
+            title="Class resources"
+            aria-label="Class resources">
+            <i class="fa fa-folder-open" aria-hidden="true"></i>
+          </button>
           <button
             type="button"
             class="sr-rec-card__play"
@@ -122,6 +130,14 @@
           <td><span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span></td>
           <td class="sr-col-action">
             <div class="sr-actions">
+              <button
+                type="button"
+                class="sr-icon-btn sr-icon-btn--resource"
+                (click)="openResources(r)"
+                title="Class resources"
+                aria-label="Class resources">
+                <i class="fa fa-folder-open"></i>
+              </button>
               <!--
                 (mouseenter) fires on hover — silently pre-fetches the signed URL
                 so the cache is warm by the time the user clicks (~200 ms later).
@@ -227,6 +243,42 @@
     </div>
     <div class="sr-player-foot" *ngIf="!playerLoading && !playerError">
       Use the fullscreen button in the player controls to maximize.
+    </div>
+  </div>
+</div>
+
+<!-- Resources modal -->
+<div class="sr-overlay" *ngIf="showResourceModal" (click)="closeResourceModal()">
+  <div class="sr-resource-modal" (click)="$event.stopPropagation()">
+    <div class="sr-resource-head">
+      <div class="sr-resource-head__row">
+        <h3><i class="fa fa-folder-open"></i> Class resources</h3>
+        <button
+          type="button"
+          class="sr-resource-close"
+          (click)="closeResourceModal()"
+          aria-label="Close">&#10005;</button>
+      </div>
+      <span class="sr-resource-sub" *ngIf="resourceRecording">{{ resourceRecording.title }}</span>
+    </div>
+    <div class="sr-resource-body">
+      <div class="sr-resource-loading" *ngIf="loadingResources">Loading resources…</div>
+      <div *ngIf="!loadingResources">
+        <p class="sr-resource-empty" *ngIf="resources.length === 0">No resources shared for this class yet.</p>
+        <div class="sr-resource-row" *ngFor="let r of resources">
+          <div class="sr-resource-info">
+            <i class="fa fa-file"></i>
+            <div>
+              <div class="sr-resource-name">{{ r.originalName }}</div>
+              <div class="sr-resource-meta">{{ formatFileSize(r.fileSize) }} · {{ formatResourceDate(r.uploadedAt) }}</div>
+            </div>
+          </div>
+          <div class="sr-resource-actions">
+            <button type="button" class="sr-resource-pill" (click)="viewResource(r)">View</button>
+            <button type="button" class="sr-resource-pill sr-resource-pill--dl" (click)="downloadResource(r)">Download</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

@@ -377,4 +377,53 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Agreements Section ── -->
+  <div class="agreements-section">
+    <div class="section-header">
+      <h2><i class="fas fa-file-signature"></i> Agreements</h2>
+      <p class="section-subtitle">Agreements sent by your advisor. Review, download, and upload your signed copy.</p>
+    </div>
+
+    <div *ngIf="loadingAgreements" class="loading-state">
+      <i class="fas fa-spinner fa-spin"></i> Loading agreements…
+    </div>
+
+    <div *ngIf="!loadingAgreements && agreements.length === 0" class="empty-agreements">
+      <i class="fas fa-file-contract fa-2x"></i>
+      <p>No agreements have been shared with you yet.</p>
+    </div>
+
+    <div class="agreements-list" *ngIf="!loadingAgreements && agreements.length > 0">
+      <div class="agreement-card" *ngFor="let a of agreements">
+        <div class="agreement-icon"><i class="fas fa-file-pdf"></i></div>
+        <div class="agreement-info">
+          <h4>{{ a.displayName }}</h4>
+          <p class="agreement-meta">{{ a.templateName }} &bull; Sent {{ a.sentAt | date:'dd MMM yyyy' }}</p>
+          <span class="agreement-status-chip" [ngClass]="agreementStatusClass(a.status)">
+            {{ agreementStatusLabel(a.status) }}
+          </span>
+          <p *ngIf="a.verificationNotes && a.status === 'REJECTED'" class="rejection-note">
+            <i class="fas fa-exclamation-circle"></i> {{ a.verificationNotes }}
+          </p>
+        </div>
+        <div class="agreement-actions">
+          <button class="btn btn-outline-primary btn-sm" (click)="viewAgreement(a)" title="View / download agreement PDF">
+            <i class="fas fa-eye"></i> View
+          </button>
+          <button class="btn btn-primary btn-sm"
+            *ngIf="a.status === 'SENT' || a.status === 'REJECTED'"
+            (click)="triggerSignedUpload(a._id)"
+            [disabled]="uploadingAgreementId === a._id">
+            <i class="fas fa-upload"></i>
+            {{ uploadingAgreementId === a._id ? 'Uploading…' : 'Upload Signed Copy' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden file input for signed copies -->
+    <input #signedFileInput type="file" accept=".pdf,.jpg,.jpeg,.png"
+      style="display:none" (change)="onSignedFileSelected($event)" />
+  </div>
 </div>

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StudentDocumentsService } from '../../../services/student-documents.service';
+import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
 import { MaterialModule } from '../../../shared/material.module';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
@@ -16,6 +17,11 @@ interface StudentDocRow {
   uploadedAt: Date | null;
   remarks: string;
   selectedStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  // Agreement-specific fields
+  isAgreement?: boolean;
+  agreementId?: string;
+  agreementStatus?: string;
+  hasSignedCopy?: boolean;
 }
 
 @Component({
@@ -51,7 +57,8 @@ export class StudentDocumentProfileComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private documentService: StudentDocumentsService
+    private documentService: StudentDocumentsService,
+    private agreementService: AgreementService
   ) {}
 
   ngOnInit(): void {
@@ -96,9 +103,20 @@ export class StudentDocumentProfileComponent implements OnInit {
                   this.student.isTestAccount = base.isTestAccount;
                 }
               }
-              this.rows = this.createRows(this.documents);
+              // Also load agreement rows then build merged table
+              this.agreementService.getInstances(this.studentId).subscribe({
+                next: (agRes) => {
+                  this.rows = this.createRows(this.documents, agRes.agreements || []);
+                  this.loading = false;
+                },
+                error: () => {
+                  this.rows = this.createRows(this.documents, []);
+                  this.loading = false;
+                }
+              });
+            } else {
+              this.loading = false;
             }
-            this.loading = false;
           },
           error: () => {
             this.loading = false;
@@ -111,7 +129,21 @@ export class StudentDocumentProfileComponent implements OnInit {
     });
   }
 
-  createRows(studentDocs: any[]): StudentDocRow[] {
+  openAgreementWorkspace(): void {
+    const url = this.router.createUrlTree(
+      ['/admin/agreements/student', this.studentId],
+      { queryParams: {
+        name: this.student.name,
+        email: this.student.email,
+        studentStatus: this.student.studentStatus,
+        subscription: this.student.subscription,
+        servicesOpted: this.student.servicesOpted
+      } }
+    ).toString();
+    window.open(url, '_blank');
+  }
+
+  createRows(studentDocs: any[], agreements: StudentAgreement[] = []): StudentDocRow[] {
     const docs = Array.isArray(studentDocs) ? studentDocs : [];
     const rows: StudentDocRow[] = [];
 
@@ -152,7 +184,43 @@ export class StudentDocumentProfileComponent implements OnInit {
         });
       }
     }
+
+    // Merge agreement rows
+    for (const ag of agreements) {
+      const agStatus = this.mapAgreementStatus(ag.status);
+      rows.push({
+        type: `AGREEMENT_${ag._id}`,
+        label: ag.displayName,
+        requirementId: undefined,
+        required: false,
+        status: agStatus,
+        doc: ag.studentDocumentId ? { _id: ag.studentDocumentId, documentCategory: 'AGREEMENT', agreementId: ag._id, fileName: ag.generatedFile?.fileName, filePath: '' } : null,
+        uploadedAt: ag.sentAt ? new Date(ag.sentAt) : null,
+        remarks: ag.verificationNotes || '',
+        selectedStatus: (agStatus === 'NOT_UPLOADED' ? 'PENDING' : agStatus) as 'PENDING' | 'VERIFIED' | 'REJECTED',
+        isAgreement: true,
+        agreementId: ag._id,
+        agreementStatus: ag.status,
+        hasSignedCopy: !!ag.signedFile
+      });
+    }
+
     return rows;
+  }
+
+  private mapAgreementStatus(agStatus: string): 'PENDING' | 'VERIFIED' | 'REJECTED' | 'NOT_UPLOADED' {
+    switch (agStatus) {
+      case 'VERIFIED': return 'VERIFIED';
+      case 'REJECTED': return 'REJECTED';
+      case 'SIGNED_PENDING': return 'PENDING';
+      case 'SENT': return 'PENDING';
+      default: return 'NOT_UPLOADED';
+    }
+  }
+
+  downloadAgreement(agreementId: string, type: 'generated' | 'signed'): void {
+    const url = this.agreementService.getDownloadUrl(agreementId, type);
+    window.open(url, '_blank');
   }
 
   openDocumentInNewTab(doc: any): void {

@@ -74,6 +74,7 @@ const upgradeRequestsRoutes = require('./routes/upgradeRequests');
 const studentLogRoutes = require('./routes/studentLog');
 const studentDocumentsRoutes = require('./routes/studentDocuments');
 const documentRequirementsRoutes = require('./routes/documentRequirements');
+const agreementsRoutes = require('./routes/agreements');
 
 const assignmentRoutes = require('./routes/assignments');
 const assignmentTemplatesRoutes = require('./routes/assignmentTemplates');
@@ -274,6 +275,7 @@ app.use('/api/upgrade-requests', upgradeRequestsRoutes);
 app.use('/api/studentLog', studentLogRoutes);
 app.use('/api/student-documents', studentDocumentsRoutes);
 app.use('/api/document-requirements', documentRequirementsRoutes);
+app.use('/api/agreements', agreementsRoutes);
 
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/assignment-templates', assignmentTemplatesRoutes);
@@ -327,6 +329,9 @@ app.use('/api/portal-analytics', analyticsRouter);
 
 const classResourceRoutes = require('./routes/classResources');
 app.use('/api/class-resources', classResourceRoutes);
+
+const goRecordingResourceRoutes = require('./routes/goRecordingResources');
+app.use('/api/go-recording-resources', goRecordingResourceRoutes);
 
 const classDoubtRoutes = require('./routes/classDoubts');
 app.use('/api/class-doubts', classDoubtRoutes);

@@ -5,6 +5,10 @@
       <p>Complete document checklist, status, and actions</p>
     </div>
     <div class="header-actions">
+      <button mat-raised-button color="accent" (click)="openAgreementWorkspace()">
+        <mat-icon>description</mat-icon>
+        Agreement
+      </button>
       <button mat-raised-button color="primary" class="export-btn" (click)="exportStudentDocumentDetails()">
         <mat-icon>download</mat-icon>
         Export Details
@@ -49,9 +53,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let row of rows">
+            <tr *ngFor="let row of rows" [class.agreement-row]="row['isAgreement']">
               <td>
-                <div class="req-title">{{ row.label }}</div>
+                <div class="req-title">
+                  {{ row.label }}
+                  <span class="agreement-badge" *ngIf="row['isAgreement']">Agreement</span>
+                </div>
                 <small class="req-meta">{{ row.required ? 'Required' : 'Optional' }}</small>
               </td>
               <td>
@@ -63,23 +70,34 @@
                 </ng-template>
               </td>
               <td class="status-cell">
-                <ng-container *ngIf="row.doc; else notUploadedStatus">
-                  <select
-                    class="status-dropdown"
-                    [ngClass]="getStatusToneClass(row.selectedStatus || row.status)"
-                    [(ngModel)]="row.selectedStatus"
-                    (change)="updateRowStatus(row)">
-                    <option value="PENDING">Pending Review</option>
-                    <option value="VERIFIED">Verified</option>
-                    <option value="REJECTED">Request Re-upload</option>
-                  </select>
-                </ng-container>
-                <ng-template #notUploadedStatus>
+                <!-- Agreement rows use status badge only; verify via Agreement workspace -->
+                <ng-container *ngIf="row['isAgreement']">
                   <span [class]="getStatusBadgeClass(row.status)">
                     <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
-                    {{ getStatusLabel(row.status) }}
+                    {{ row['agreementStatus'] === 'SENT' ? 'Sent – Awaiting Signature' :
+                       row['agreementStatus'] === 'SIGNED_PENDING' ? 'Signed – Pending Review' :
+                       getStatusLabel(row.status) }}
                   </span>
-                </ng-template>
+                </ng-container>
+                <ng-container *ngIf="!row['isAgreement']">
+                  <ng-container *ngIf="row.doc; else notUploadedStatus">
+                    <select
+                      class="status-dropdown"
+                      [ngClass]="getStatusToneClass(row.selectedStatus || row.status)"
+                      [(ngModel)]="row.selectedStatus"
+                      (change)="updateRowStatus(row)">
+                      <option value="PENDING">Pending Review</option>
+                      <option value="VERIFIED">Verified</option>
+                      <option value="REJECTED">Request Re-upload</option>
+                    </select>
+                  </ng-container>
+                  <ng-template #notUploadedStatus>
+                    <span [class]="getStatusBadgeClass(row.status)">
+                      <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
+                      {{ getStatusLabel(row.status) }}
+                    </span>
+                  </ng-template>
+                </ng-container>
               </td>
               <td>{{ formatDate(row.uploadedAt) }}</td>
               <td>
@@ -87,41 +105,65 @@
                 <ng-template #noReason><span class="muted">-</span></ng-template>
               </td>
               <td class="actions-cell">
-                <div class="actions" *ngIf="row.doc; else uploadOnlyAction">
-                  <button mat-icon-button class="action-btn action-view"
-                          (click)="openDocumentInNewTab(row.doc)"
-                          [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
-                          matTooltip="View in new tab">
-                    <mat-icon>open_in_new</mat-icon>
-                  </button>
-                  <button mat-icon-button class="action-btn action-download"
-                          (click)="downloadDocument(row.doc)"
-                          [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
-                          matTooltip="Download">
-                    <mat-icon>download</mat-icon>
-                  </button>
-                  <button mat-icon-button class="action-btn action-replace"
-                          (click)="replaceDocument(row.doc)"
-                          matTooltip="Replace">
-                    <mat-icon>sync_alt</mat-icon>
-                  </button>
-                  <button mat-icon-button class="action-btn action-reupload"
-                          (click)="openReuploadDialog(row.doc)"
-                          matTooltip="Request re-upload">
-                    <mat-icon>assignment_return</mat-icon>
-                  </button>
-                  <button mat-icon-button class="action-btn action-upload"
-                          (click)="uploadForStudent(row)"
-                          matTooltip="Upload for student">
-                    <mat-icon>cloud_upload</mat-icon>
-                  </button>
-                </div>
-                <ng-template #uploadOnlyAction>
-                  <button mat-raised-button color="primary" class="upload-only-btn" (click)="uploadForStudent(row)">
-                    <mat-icon>cloud_upload</mat-icon>
-                    Upload Document
-                  </button>
-                </ng-template>
+                <!-- Agreement actions -->
+                <ng-container *ngIf="row['isAgreement']">
+                  <div class="actions">
+                    <button mat-icon-button class="action-btn action-view"
+                            (click)="row['agreementId'] && downloadAgreement(row['agreementId']!, 'generated')"
+                            matTooltip="Download generated agreement">
+                      <mat-icon>download</mat-icon>
+                    </button>
+                    <button mat-icon-button class="action-btn action-download"
+                            (click)="row['agreementId'] && downloadAgreement(row['agreementId']!, 'signed')"
+                            [disabled]="!row['hasSignedCopy']"
+                            matTooltip="Download signed copy">
+                      <mat-icon>draw</mat-icon>
+                    </button>
+                    <button mat-icon-button class="action-btn action-view"
+                            (click)="openAgreementWorkspace()"
+                            matTooltip="Open agreement workspace">
+                      <mat-icon>open_in_new</mat-icon>
+                    </button>
+                  </div>
+                </ng-container>
+                <!-- Regular document actions -->
+                <ng-container *ngIf="!row['isAgreement']">
+                  <div class="actions" *ngIf="row.doc; else uploadOnlyAction">
+                    <button mat-icon-button class="action-btn action-view"
+                            (click)="openDocumentInNewTab(row.doc)"
+                            [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
+                            matTooltip="View in new tab">
+                      <mat-icon>open_in_new</mat-icon>
+                    </button>
+                    <button mat-icon-button class="action-btn action-download"
+                            (click)="downloadDocument(row.doc)"
+                            [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
+                            matTooltip="Download">
+                      <mat-icon>download</mat-icon>
+                    </button>
+                    <button mat-icon-button class="action-btn action-replace"
+                            (click)="replaceDocument(row.doc)"
+                            matTooltip="Replace">
+                      <mat-icon>sync_alt</mat-icon>
+                    </button>
+                    <button mat-icon-button class="action-btn action-reupload"
+                            (click)="openReuploadDialog(row.doc)"
+                            matTooltip="Request re-upload">
+                      <mat-icon>assignment_return</mat-icon>
+                    </button>
+                    <button mat-icon-button class="action-btn action-upload"
+                            (click)="uploadForStudent(row)"
+                            matTooltip="Upload for student">
+                      <mat-icon>cloud_upload</mat-icon>
+                    </button>
+                  </div>
+                  <ng-template #uploadOnlyAction>
+                    <button mat-raised-button color="primary" class="upload-only-btn" (click)="uploadForStudent(row)">
+                      <mat-icon>cloud_upload</mat-icon>
+                      Upload Document
+                    </button>
+                  </ng-template>
+                </ng-container>
               </td>
             </tr>
           </tbody>

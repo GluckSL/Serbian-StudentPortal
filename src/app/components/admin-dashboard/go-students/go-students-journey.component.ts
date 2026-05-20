@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
+import { GoRecordingResourceService } from '../../../services/go-recording-resource.service';
 
 interface TimelineDay {
   day: number;
@@ -244,6 +245,9 @@ interface PickerItem {
               <span *ngIf="rec.isPublished === false" class="gs-badge gs-badge-draft">Draft</span>
               <span class="gs-content-title">{{ rec.title }}</span>
               <div class="gs-item-actions">
+                <button type="button" class="gs-mini-btn gs-mini-btn-resource" (click)="openRecordingResources(rec, $event)" title="Upload / manage resources">
+                  <i class="fas fa-folder-open"></i> Resources
+                </button>
                 <button type="button" class="gs-mini-btn" (click)="editTimelineItem('recordings', rec._id, d.day, $event)">Edit</button>
                 <button type="button" class="gs-mini-btn gs-mini-btn-danger" (click)="deleteTimelineItem('recordings', rec._id, $event)">Delete</button>
               </div>
@@ -331,6 +335,47 @@ interface PickerItem {
                 Add
               </button>
               <span *ngIf="addType === 'recordings' && !canLinkRecording(item)" class="gs-readonly-pill">Zoom only</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recording resources modal -->
+  <div class="gs-modal-backdrop" *ngIf="showResourceModal" (click)="closeResourceModal()">
+    <div class="gs-modal gs-modal--resources" (click)="$event.stopPropagation()">
+      <div class="gs-modal-header">
+        <h3><i class="fas fa-folder-open"></i> Class resources</h3>
+        <button type="button" class="gs-modal-close" (click)="closeResourceModal()">×</button>
+      </div>
+      <div class="gs-modal-body">
+        <p class="gs-resource-sub" *ngIf="resourceRecording">{{ resourceRecording.title }}</p>
+        <div class="gs-resource-upload">
+          <p class="gs-resource-hint">Share worksheets, PDFs, slides, or other files with GO students (max 20 MB each).</p>
+          <label class="gs-resource-pick">
+            <i class="fas fa-cloud-upload-alt"></i>
+            {{ uploadingFiles ? 'Uploading…' : 'Choose files' }}
+            <input type="file" multiple hidden (change)="onResourceFilesSelected($event)" [disabled]="uploadingFiles" />
+          </label>
+        </div>
+        <div class="gs-list-loading" *ngIf="loadingResources">
+          <div class="spinner-border spinner-border-sm text-primary"></div> Loading…
+        </div>
+        <div *ngIf="!loadingResources">
+          <div class="gs-list-empty" *ngIf="recordingResources.length === 0">No resources uploaded yet.</div>
+          <div class="gs-resource-row" *ngFor="let r of recordingResources">
+            <div class="gs-resource-info">
+              <i class="fas fa-file"></i>
+              <div>
+                <div class="gs-resource-name">{{ r.originalName }}</div>
+                <div class="gs-resource-meta">{{ formatFileSize(r.fileSize) }} · {{ formatResourceDate(r.uploadedAt) }}</div>
+              </div>
+            </div>
+            <div class="gs-resource-actions">
+              <button type="button" class="gs-mini-btn" (click)="viewResource(r)">View</button>
+              <button type="button" class="gs-mini-btn" (click)="downloadResource(r)">Download</button>
+              <button type="button" class="gs-mini-btn gs-mini-btn-danger" (click)="deleteResource(r)">Delete</button>
             </div>
           </div>
         </div>
@@ -732,6 +777,55 @@ interface PickerItem {
       font-size: 11px;
       font-weight: 600;
     }
+    .gs-mini-btn-resource {
+      border-color: #2563eb;
+      color: #1d4ed8;
+      background: #eff6ff;
+    }
+    .gs-mini-btn-resource:hover { background: #dbeafe; }
+    .gs-modal--resources { max-width: 560px; }
+    .gs-resource-sub { margin: 0 0 12px; font-size: 13px; color: #64748b; }
+    .gs-resource-upload {
+      margin-bottom: 14px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 10px;
+    }
+    .gs-resource-hint { margin: 0 0 10px; font-size: 12px; color: #64748b; }
+    .gs-resource-pick {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .gs-resource-pick input { display: none; }
+    .gs-resource-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .gs-resource-row:last-child { border-bottom: none; }
+    .gs-resource-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      min-width: 0;
+    }
+    .gs-resource-info .fa-file { color: #2563eb; margin-top: 2px; }
+    .gs-resource-name { font-size: 13px; font-weight: 600; color: #0f172a; word-break: break-word; }
+    .gs-resource-meta { font-size: 11px; color: #64748b; }
+    .gs-resource-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
   `]
 })
 export class GoStudentsJourneyComponent implements OnInit {
@@ -773,6 +867,12 @@ export class GoStudentsJourneyComponent implements OnInit {
   pickerRecordings: PickerItem[] = [];
   pickerExercises: PickerItem[] = [];
   pickerModules: PickerItem[] = [];
+
+  showResourceModal = false;
+  resourceRecording: { _id: string; title: string } | null = null;
+  recordingResources: any[] = [];
+  loadingResources = false;
+  uploadingFiles = false;
 
   get totalModules(): number {
     return this.timelineDays.reduce((s, d) => s + d.modules.length, 0);
@@ -835,7 +935,8 @@ export class GoStudentsJourneyComponent implements OnInit {
 
   constructor(
     private http: HttpClient,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private goResourceService: GoRecordingResourceService
   ) {}
 
   ngOnInit(): void {
@@ -1248,5 +1349,85 @@ export class GoStudentsJourneyComponent implements OnInit {
         this.notify.error('Failed to load recording classes.');
       }
     });
+  }
+
+  openRecordingResources(rec: { _id: string; title: string }, event?: Event): void {
+    event?.stopPropagation();
+    this.resourceRecording = rec;
+    this.showResourceModal = true;
+    this.loadRecordingResources(rec._id);
+  }
+
+  closeResourceModal(): void {
+    this.showResourceModal = false;
+    this.resourceRecording = null;
+    this.recordingResources = [];
+  }
+
+  private loadRecordingResources(recordingId: string): void {
+    this.loadingResources = true;
+    this.goResourceService.list('manual', recordingId).subscribe({
+      next: (res) => {
+        this.recordingResources = res.data || [];
+        this.loadingResources = false;
+      },
+      error: () => {
+        this.recordingResources = [];
+        this.loadingResources = false;
+      }
+    });
+  }
+
+  onResourceFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length || !this.resourceRecording) return;
+    const files = Array.from(input.files);
+    this.uploadingFiles = true;
+    this.goResourceService.upload('manual', this.resourceRecording._id, files).subscribe({
+      next: (res) => {
+        this.uploadingFiles = false;
+        const n = Array.isArray(res?.data) ? res.data.length : files.length;
+        this.notify.success(n === 1 ? 'File uploaded.' : `${n} files uploaded.`);
+        this.loadRecordingResources(this.resourceRecording!._id);
+        input.value = '';
+      },
+      error: (err) => {
+        this.uploadingFiles = false;
+        this.notify.error(err?.error?.message || 'Upload failed.');
+      }
+    });
+  }
+
+  viewResource(r: { fileUrl?: string }): void {
+    this.goResourceService.openInBrowser(r.fileUrl || '');
+  }
+
+  downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
+    this.goResourceService.downloadResource(r);
+  }
+
+  deleteResource(r: { _id: string; originalName?: string }): void {
+    if (!confirm(`Delete "${r.originalName || 'this file'}"?`)) return;
+    this.goResourceService.delete(r._id).subscribe({
+      next: () => {
+        this.recordingResources = this.recordingResources.filter((x) => x._id !== r._id);
+        this.notify.success('Resource removed.');
+      },
+      error: (err) => {
+        this.notify.error(err?.error?.message || 'Could not delete file.');
+      }
+    });
+  }
+
+  formatFileSize(bytes: number): string {
+    if (!bytes) return '—';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  formatResourceDate(d: string | Date | null): string {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 }
