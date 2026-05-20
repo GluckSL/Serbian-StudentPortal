@@ -58,12 +58,13 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <span>{{ getTypeLabel(filterGameType) }}</span>
             <mat-icon>expand_more</mat-icon>
           </div>
-          <div class="ga-toolbar__dropdown-menu" *ngIf="typeOpen">
+          <div class="ga-toolbar__dropdown-menu" *ngIf="typeOpen" (click)="$event.stopPropagation()">
             <div class="ga-toolbar__dropdown-item" (click)="setType('')">All types</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('scramble_rush')">Scramble Rush</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('matching')">Matching</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('flashcards')">Flashcards</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('image_matching')">Image Matching</div>
           </div>
         </div>
         <div class="ga-toolbar__dropdown-wrap">
@@ -237,7 +238,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
     .ga-toolbar__dropdown mat-icon { color: #94a3b8; transition: transform 0.2s; }
     .ga-toolbar__dropdown:hover { border-color: #94a3b8; }
     .ga-toolbar__dropdown-menu {
-      position: absolute; top: 100%; left: 0; z-index: 100; margin-top: 6px; min-width: 100%;
+      position: absolute; top: 100%; left: 0; z-index: 1000; margin-top: 6px; min-width: 100%;
       background: #fff; border: 1px solid #e8ecf4;
       border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
       overflow: hidden;
@@ -352,7 +353,7 @@ export class GameSetListComponent implements OnInit {
   formatType(t: GameType): string {
     const map: Record<string, string> = {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
-      matching: 'Matching', flashcards: 'Flashcards'
+      matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching'
     };
     return map[t] ?? t;
   }

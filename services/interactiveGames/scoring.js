@@ -6,6 +6,7 @@ const BASE_POINTS = {
   sentence_builder: 15,
   matching: 10,
   flashcards: 5,
+  image_matching: 10,
 };
 
 const PER_ANSWER_XP = {
@@ -13,6 +14,7 @@ const PER_ANSWER_XP = {
   sentence_builder: 5,
   matching: 3,
   flashcards: 2,
+  image_matching: 3,
 };
 
 /**

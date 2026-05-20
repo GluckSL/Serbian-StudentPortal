@@ -98,4 +98,63 @@ function uploadQuestionAudio(req, res) {
   });
 }
 
-module.exports = { uploadThumbnail, uploadQuestionAudio };
+function buildImageUploader() {
+  const storage = multerS3({
+    s3: s3Client,
+    bucket: process.env.S3_BUCKET,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    acl: 'public-read',
+    key: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const prefix = process.env.S3_PREFIX || 'uploads';
+      cb(null, `${prefix}/game-images/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    },
+  });
+
+  return multer({
+    storage,
+    fileFilter: (_req, file, cb) => {
+      if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) return cb(null, true);
+      cb(new Error('Only image files allowed (jpeg, png, webp, gif)'));
+    },
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }).single('image');
+}
+
+const imageUploader = buildImageUploader();
+
+function uploadQuestionImage(req, res) {
+  return new Promise((resolve) => {
+    imageUploader(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return resolve(null);
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No image file provided' });
+        return resolve(null);
+      }
+      const rawUrl = req.file.location || req.file.path || '';
+      resolve(canonicalizeMediaUrl(rawUrl));
+    });
+  });
+}
+
+function uploadPairImage(req, res) {
+  return new Promise((resolve) => {
+    imageUploader(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return resolve(null);
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No image file provided' });
+        return resolve(null);
+      }
+      const rawUrl = req.file.location || req.file.path || '';
+      resolve(canonicalizeMediaUrl(rawUrl));
+    });
+  });
+}
+
+module.exports = { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage };

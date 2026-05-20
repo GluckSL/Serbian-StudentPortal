@@ -71,6 +71,22 @@ export class InteractiveGameService {
     return this.http.post<any>(`${this.base}/attempts/${attemptId}/slots`, payload);
   }
 
+  submitImageMatchSlot(attemptId: string, payload: {
+    questionId: string;
+    pairIndex: number;
+    word: string;
+    responseTimeMs?: number;
+  }): Observable<{
+    success: boolean;
+    isCorrect: boolean;
+    pointsEarned: number;
+    questionComplete: boolean;
+    correctMatches: number;
+    totalMatches: number;
+  }> {
+    return this.http.post<any>(`${this.base}/attempts/${attemptId}/image-match`, payload);
+  }
+
   completeAttempt(attemptId: string, payload: {
     timeSpentSeconds: number;
     livesRemaining?: number;
@@ -147,6 +163,18 @@ export class InteractiveGameService {
 
   adminDeleteQuestion(qid: string): Observable<any> {
     return this.http.delete<any>(`${this.base}/admin/questions/${qid}`);
+  }
+
+  adminUploadQuestionImage(qid: string, file: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('image', file);
+    return this.http.post<any>(`${this.base}/admin/questions/${qid}/image`, fd);
+  }
+
+  adminUploadPairImage(qid: string, pairIndex: number, file: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('image', file);
+    return this.http.post<any>(`${this.base}/admin/questions/${qid}/pair-image/${pairIndex}`, fd);
   }
 
   adminGetLevels(gameSetId: string): Observable<{ success: boolean; levels: GameLevel[] }> {

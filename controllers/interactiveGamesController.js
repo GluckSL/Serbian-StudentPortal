@@ -1,6 +1,7 @@
 // controllers/interactiveGamesController.js
 // GlückArena — delegates to service layer in services/interactiveGames/
 
+const mongoose = require('mongoose');
 const GameSet = require('../models/GameSet');
 const GameQuestion = require('../models/GameQuestion');
 const GameLevel = require('../models/GameLevel');
@@ -13,9 +14,10 @@ const journeyFilterService = require('../services/interactiveGames/journeyFilter
 const scoringService = require('../services/interactiveGames/scoring');
 const scrambleRushService = require('../services/interactiveGames/scrambleRush');
 const sentenceBuilderService = require('../services/interactiveGames/sentenceBuilder');
+const imageMatchingService = require('../services/interactiveGames/imageMatching');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
-const { uploadThumbnail, uploadQuestionAudio } = require('../services/interactiveGames/mediaUpload');
+const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
 const { presignS3Url, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
@@ -27,7 +29,7 @@ const cacheService = require('../services/interactiveGames/cache');
 const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -42,6 +44,18 @@ function notFound(res, msg = 'Not found') { return res.status(404).json({ succes
 function serverError(res, err) {
   console.error('[glueck-arena]', err);
   return res.status(500).json({ success: false, message: err.message || 'Server error' });
+}
+
+/** Count total image-word pairs across all questions in a game set */
+async function getTotalImageMatchPairs(gameSetId) {
+  const questions = await GameQuestion.find({
+    gameSetId, gameType: 'image_matching', isDeleted: { $ne: true },
+  }).lean();
+  let count = 0;
+  questions.forEach(q => {
+    if (q.pairs) count += q.pairs.length;
+  });
+  return count;
 }
 
 // ── STUDENT — Arena access (nav visibility) ───────────────────────────────────
@@ -202,6 +216,19 @@ exports.startAttempt = async (req, res) => {
         const { correctSentence: _cs, tokens: _t, __v: _v, ...safe } = q;
         return { ...safe, shuffledTokens, correctTokens };
       }
+      if (set.gameType === 'image_matching') {
+        // Hide pair word from client; expose sanitized pairs with imageUrl/hint only
+        const safe = { ...q };
+        if (safe.pairs) {
+          safe.pairs = safe.pairs.map(p => {
+            const { word: _w, ...safePair } = p;
+            return safePair;
+          });
+        }
+        // Strip legacy root-level fields that existed before pairs schema
+        const { word: _w, imageUrl: _img, hint: _h, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...rest } = safe;
+        return rest;
+      }
       const { __v: _v, ...safe } = q;
       return safe;
     });
@@ -212,9 +239,28 @@ exports.startAttempt = async (req, res) => {
       levels = await GameLevel.find({ gameSetId: set._id }).sort({ levelNumber: 1 }).lean();
     }
 
-    await resignMediaInObject(set);
+    // For image_matching, send shuffled words for drag-drop UI
+    let shuffledWords = [];
+    if (set.gameType === 'image_matching') {
+      const allWords = [];
+      questions.forEach(q => {
+        if (q.pairs) {
+          q.pairs.forEach(p => {
+            if (p.word) allWords.push(p.word);
+          });
+        }
+      });
+      shuffledWords = imageMatchingService.shuffleWords(allWords);
+    }
 
-    res.json({ success: true, attempt, questions: sanitized, levels, set });
+    // Presign any S3 media URLs in both the set and the sanitized questions
+    // (pairs[].imageUrl, etc.) so the browser can load them even if the bucket is private.
+    await Promise.all([
+      resignMediaInObject(set),
+      resignMediaInObject(sanitized),
+    ]);
+
+    res.json({ success: true, attempt, questions: sanitized, shuffledWords, levels, set });
   } catch (err) {
     serverError(res, err);
   }
@@ -311,6 +357,121 @@ exports.submitSentenceSlot = async (req, res) => {
   }
 };
 
+// ── STUDENT — Image matching slot (instant per-match) ─────────────────────────
+
+exports.submitImageMatchSlot = async (req, res) => {
+  try {
+    const attempt = await GameAttempt.findById(req.params.attemptId);
+    if (!attempt) return notFound(res, 'Attempt not found');
+    if (String(attempt.studentId) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (attempt.gameType !== 'image_matching') {
+      return badRequest(res, 'Invalid game type for image matching');
+    }
+
+    const { questionId, pairIndex, word, responseTimeMs } = req.body;
+    if (!questionId || pairIndex === undefined || pairIndex === null || !word) {
+      return badRequest(res, 'questionId, pairIndex and word required');
+    }
+
+    // Validate attempt is active (skip full validateAnswerSubmission which blocks
+    // multiple answers per question — image_matching needs one answer per pair)
+    const active = securityService.validateAttemptActive(attempt);
+    if (!active.ok) {
+      return res.status(400).json({ success: false, message: active.message });
+    }
+
+    const question = await GameQuestion.findOne({
+      _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
+    });
+    if (!question) return notFound(res, 'Question not found');
+
+    const result = imageMatchingService.evaluateMatch(question, word, pairIndex);
+    let pointsEarned = 0;
+    let questionComplete = false;
+
+    if (!result.isCorrect) {
+      const correctMatches = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
+      return res.json({
+        success: true,
+        isCorrect: false,
+        pointsEarned: 0,
+        questionComplete: false,
+        correctMatches,
+        totalMatches: totalPairs,
+      });
+    }
+
+    // Check if this pair was already matched
+    const existingAnswer = await GameAnswer.findOne({
+      attemptId: attempt._id,
+      questionId: question._id,
+      slotIndex: pairIndex,
+    });
+    if (existingAnswer) {
+      const correctMatches = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
+      return res.json({
+        success: true,
+        isCorrect: true,
+        alreadyMatched: true,
+        pointsEarned: 0,
+        questionComplete: false,
+        correctMatches,
+        totalMatches: totalPairs,
+      });
+    }
+
+    pointsEarned = result.points;
+
+    // Record the answer — use pairIndex as slotIndex so the unique compound index
+    // (attemptId + questionId + slotIndex) supports multiple pairs per question
+    await GameAnswer.create({
+      attemptId: attempt._id,
+      questionId: question._id,
+      studentId: req.user.id,
+      typedWord: String(word).toUpperCase().trim(),
+      slotIndex: pairIndex,
+      responseTimeMs: responseTimeMs || 0,
+      isCorrect: true,
+      pointsEarned,
+    });
+
+    const correctMatches = await GameAnswer.countDocuments({
+      attemptId: attempt._id, isCorrect: true,
+    });
+    const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
+    questionComplete = correctMatches >= totalPairs;
+
+    if (questionComplete) {
+      await GameAttempt.findByIdAndUpdate(attempt._id, {
+        $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+      });
+      const xpAmount = scoringService.perAnswerXp('image_matching');
+      await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
+    } else {
+      await GameAttempt.findByIdAndUpdate(attempt._id, { $inc: { score: pointsEarned } });
+    }
+
+    res.json({
+      success: true,
+      isCorrect: true,
+      pointsEarned,
+      questionComplete,
+      correctMatches,
+      totalMatches: totalPairs,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
 // ── STUDENT — Submit answer ────────────────────────────────────────────────────
 
 exports.submitAnswer = async (req, res) => {
@@ -363,6 +524,14 @@ exports.submitAnswer = async (req, res) => {
         const limitSec = set?.timerSettings?.perQuestionSeconds || 30;
         speedBonus = scoringService.sentenceSpeedBonus(questionElapsedMs || responseTimeMs || 0, limitSec);
         pointsEarned += speedBonus;
+      }
+    } else if (attempt.gameType === 'image_matching') {
+      // Image matching uses submitImageMatchSlot for instant feedback; this is fallback
+      const result = imageMatchingService.evaluateMatch(question, typedWord);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
+        correctAnswer.word = question.pairs[result.pairIndex].word;
       }
     }
 
@@ -687,6 +856,7 @@ exports.adminGetQuestions = async (req, res) => {
   try {
     const questions = await GameQuestion.find({ gameSetId: req.params.id, isDeleted: { $ne: true } })
       .sort({ order: 1 }).lean();
+    await resignMediaInObject(questions);
     res.json({ success: true, questions });
   } catch (err) {
     serverError(res, err);
@@ -715,6 +885,14 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.sentenceAudioUrl = q.sentenceAudioUrl || null;
         doc.randomizeWords = q.randomizeWords !== false;
         doc.tokens = doc.correctSentence.trim().split(/\s+/).filter(Boolean);
+      } else if (set.gameType === 'image_matching') {
+        // Store pairs array instead of single word/hint
+        doc.pairs = (q.pairs || []).map(p => ({
+          word: String(p.word || '').trim().toUpperCase(),
+          hint: p.hint || '',
+          imageUrl: p.imageUrl || null,
+          audioUrl: p.audioUrl || null,
+        }));
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.word = String(q.word || '').trim().toUpperCase();
@@ -740,13 +918,27 @@ exports.adminUpsertQuestions = async (req, res) => {
       return { insertOne: { document: doc } };
     });
 
-    await GameQuestion.bulkWrite(ops);
+    const result = await GameQuestion.bulkWrite(ops);
+
+    // Soft-delete questions the client removed from the array
+    const incomingIds = questions.filter(q => q._id).map(q => String(q._id));
+    const newIds = Object.values(result.insertedIds || {}).map(id => String(id));
+    const keepIds = [...incomingIds, ...newIds].filter(Boolean);
+    if (keepIds.length > 0) {
+      const keepObjectIds = keepIds.map(id => new mongoose.Types.ObjectId(id));
+      await GameQuestion.updateMany(
+        { gameSetId: set._id, _id: { $nin: keepObjectIds }, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true } }
+      );
+    }
 
     const count = await GameQuestion.countDocuments({ gameSetId: set._id, isDeleted: { $ne: true } });
     await GameSet.findByIdAndUpdate(set._id, { questionCount: count, updatedBy: req.user.id });
 
     const updated = await GameQuestion.find({ gameSetId: set._id, isDeleted: { $ne: true } })
       .sort({ order: 1 }).lean();
+
+    await resignMediaInObject(updated);
 
     res.json({ success: true, questions: updated });
   } catch (err) {
@@ -949,6 +1141,52 @@ exports.adminUploadQuestionAudio = async (req, res) => {
     if (!question) return notFound(res, 'Question not found');
     const url = await presignS3Url(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
+exports.adminUploadQuestionImage = async (req, res) => {
+  try {
+    const canonicalUrl = await uploadQuestionImage(req, res);
+    if (!canonicalUrl) return;
+
+    const question = await GameQuestion.findByIdAndUpdate(
+      req.params.qid,
+      { imageUrl: canonicalUrl },
+      { new: true }
+    );
+    if (!question) return notFound(res, 'Question not found');
+    const url = await presignS3Url(canonicalUrl);
+    res.json({ success: true, url, canonicalUrl, question });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
+exports.adminUploadPairImage = async (req, res) => {
+  try {
+    const canonicalUrl = await uploadPairImage(req, res);
+    if (!canonicalUrl) return;
+
+    const pairIndex = parseInt(req.params.pairIndex, 10);
+    if (isNaN(pairIndex) || pairIndex < 0) {
+      return badRequest(res, 'Invalid pair index');
+    }
+
+    const question = await GameQuestion.findById(req.params.qid);
+    if (!question) return notFound(res, 'Question not found');
+    if (!question.pairs || pairIndex >= question.pairs.length) {
+      return badRequest(res, 'Pair index out of range');
+    }
+
+    const setPath = `pairs.${pairIndex}.imageUrl`;
+    await GameQuestion.findByIdAndUpdate(req.params.qid, {
+      $set: { [setPath]: canonicalUrl },
+    });
+
+    const url = await presignS3Url(canonicalUrl);
+    res.json({ success: true, url, canonicalUrl, pairIndex });
   } catch (err) {
     serverError(res, err);
   }
