@@ -237,6 +237,7 @@ const getStudentTable = async (req, res) => {
                 batch: '$batch',
                 level: '$level',
                 phoneNumber: '$phoneNumber',
+                currentCourseDay: '$currentCourseDay',
                 enrollmentDate: '$enrollmentDate',
                 dateJoined: '$enrollmentDate',
                 registeredAt: '$registeredAt',

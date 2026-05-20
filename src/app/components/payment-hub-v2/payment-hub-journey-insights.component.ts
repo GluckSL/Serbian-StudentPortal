@@ -10,7 +10,7 @@ import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { PaymentHubApiService, StudentTableRow } from './payment-hub-api.service';
 import {
-  currentJourneyDayFromEnrollment,
+  currentJourneyDayFromStudent,
   journeyDayRemaining,
   journeyProgressRatio,
   totalJourneyDaysForLevel,
@@ -107,7 +107,7 @@ export class PaymentHubJourneyInsightsComponent implements OnInit {
     }
     this.views = list.map((row) => {
       const totalDays = totalJourneyDaysForLevel(row.studentId?.level);
-      const currentDay = currentJourneyDayFromEnrollment(row.studentId);
+      const currentDay = currentJourneyDayFromStudent(row.studentId);
       const remaining = journeyDayRemaining(currentDay, totalDays);
       const progress = journeyProgressRatio(currentDay, totalDays);
       return { row, totalDays, currentDay, remaining, progress };

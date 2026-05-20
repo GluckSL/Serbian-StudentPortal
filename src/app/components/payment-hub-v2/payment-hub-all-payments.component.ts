@@ -20,7 +20,7 @@ import { PaymentLegacyMapperDialogComponent } from './payment-legacy-mapper-dial
 import { PaymentBulkLanguagePaidDialogComponent } from './payment-bulk-language-paid-dialog.component';
 import { PaymentExcelImportDialogComponent } from './payment-excel-import-dialog.component';
 import {
-  currentJourneyDayFromEnrollment,
+  currentJourneyDayFromStudent,
   totalJourneyDaysForLevel,
 } from './payment-journey-metrics.util';
 
@@ -330,7 +330,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   }
 
   currentJourneyDay(row: StudentTableRow): number | null {
-    return currentJourneyDayFromEnrollment(row.studentId);
+    return currentJourneyDayFromStudent(row.studentId);
   }
 
   statusClass(status: string): string {

@@ -1005,29 +1005,45 @@ router.post('/admin/send-email', verifyToken, checkRole(['ADMIN']), async (req, 
       return res.status(400).json({ success: false, message: 'to, subject, and message are required' });
     }
 
-    const transporter = require('../config/emailConfig');
+    const {
+      getDocumentTransporter,
+      getDocumentFromAddress,
+      getDocumentCc,
+      isDocumentEmailConfigured,
+    } = require('../config/documentEmailConfig');
+
+    if (!isDocumentEmailConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Document email is not configured. Set DOCS_EMAIL_USER and DOCS_EMAIL_PASS in .env',
+      });
+    }
+
+    const transporter = getDocumentTransporter();
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: getDocumentFromAddress(),
       to,
+      cc: getDocumentCc(),
       subject,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #1a237e; color: white; padding: 20px; text-align: center;">
-            <h2>Glück Global</h2>
+            <h2 style="margin:0;">Glück Global</h2>
           </div>
           <div style="padding: 20px; background: #f5f5f5;">
-            <div style="white-space: pre-wrap;">${message}</div>
+            <div style="white-space: pre-wrap; color:#1f2937;">${message}</div>
           </div>
-          <div style="padding: 10px; text-align: center; color: #666; font-size: 12px;">
-            <p>Glück Global Language School</p>
+          <div style="padding: 16px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e5e7eb;">
+            <p style="margin:0 0 4px 0;"><strong>Glück Global</strong></p>
+            <p style="margin:0;">info@gluckglobal.com · www.gluckglobal.com</p>
           </div>
         </div>
-      `
+      `,
     });
 
     res.json({ success: true, message: 'Email sent successfully' });
   } catch (error) {
-    console.error('❌ Error sending email:', error.message);
+    console.error('❌ Error sending document email:', error.message);
     res.status(500).json({ success: false, message: 'Failed to send email' });
   }
 });

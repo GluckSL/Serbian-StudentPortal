@@ -33,36 +33,36 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
             <div class="lb__podium">
               <div class="lb__podium__place lb__podium__place--2">
                 <div class="lb__podium__avatar">
-                  <img *ngIf="leaderboard[1]?.avatarUrl" [src]="leaderboard[1].avatarUrl" (error)="leaderboard[1]!.avatarUrl = undefined" />
-                  <span *ngIf="!leaderboard[1]?.avatarUrl">{{ leaderboard[1]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                  <img *ngIf="podiumPlayer(1)?.avatarUrl" [src]="podiumPlayer(1)!.avatarUrl" (error)="clearPodiumAvatar(podiumPlayer(1))" />
+                  <span *ngIf="!podiumPlayer(1)?.avatarUrl">{{ podiumInitial(podiumPlayer(1)) }}</span>
                 </div>
                 <div class="lb__podium__bar">
                   🥈
-                  <span class="lb__podium__xp">{{ leaderboard[1]?.totalXp ?? '-' }}</span>
+                  <span class="lb__podium__xp">{{ podiumXp(podiumPlayer(1)) }}</span>
                 </div>
-                <span class="lb__podium__name">{{ leaderboard[1]?.name ?? '-' }}</span>
+                <span class="lb__podium__name">{{ podiumName(podiumPlayer(1)) }}</span>
               </div>
               <div class="lb__podium__place lb__podium__place--1">
                 <div class="lb__podium__avatar">
-                  <img *ngIf="leaderboard[0]?.avatarUrl" [src]="leaderboard[0].avatarUrl" (error)="leaderboard[0]!.avatarUrl = undefined" />
-                  <span *ngIf="!leaderboard[0]?.avatarUrl">{{ leaderboard[0]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                  <img *ngIf="podiumPlayer(0)?.avatarUrl" [src]="podiumPlayer(0)!.avatarUrl" (error)="clearPodiumAvatar(podiumPlayer(0))" />
+                  <span *ngIf="!podiumPlayer(0)?.avatarUrl">{{ podiumInitial(podiumPlayer(0)) }}</span>
                 </div>
                 <div class="lb__podium__bar">
                   🥇
-                  <span class="lb__podium__xp">{{ leaderboard[0]?.totalXp ?? '-' }}</span>
+                  <span class="lb__podium__xp">{{ podiumXp(podiumPlayer(0)) }}</span>
                 </div>
-                <span class="lb__podium__name">{{ leaderboard[0]?.name ?? '-' }}</span>
+                <span class="lb__podium__name">{{ podiumName(podiumPlayer(0)) }}</span>
               </div>
               <div class="lb__podium__place lb__podium__place--3">
                 <div class="lb__podium__avatar">
-                  <img *ngIf="leaderboard[2]?.avatarUrl" [src]="leaderboard[2].avatarUrl" (error)="leaderboard[2]!.avatarUrl = undefined" />
-                  <span *ngIf="!leaderboard[2]?.avatarUrl">{{ leaderboard[2]?.name?.charAt(0)?.toUpperCase() ?? '-' }}</span>
+                  <img *ngIf="podiumPlayer(2)?.avatarUrl" [src]="podiumPlayer(2)!.avatarUrl" (error)="clearPodiumAvatar(podiumPlayer(2))" />
+                  <span *ngIf="!podiumPlayer(2)?.avatarUrl">{{ podiumInitial(podiumPlayer(2)) }}</span>
                 </div>
                 <div class="lb__podium__bar">
                   🥉
-                  <span class="lb__podium__xp">{{ leaderboard[2]?.totalXp ?? '-' }}</span>
+                  <span class="lb__podium__xp">{{ podiumXp(podiumPlayer(2)) }}</span>
                 </div>
-                <span class="lb__podium__name">{{ leaderboard[2]?.name ?? '-' }}</span>
+                <span class="lb__podium__name">{{ podiumName(podiumPlayer(2)) }}</span>
               </div>
             </div>
           </div>
@@ -269,5 +269,26 @@ export class GameLeaderboardComponent implements OnInit {
   isMe(e: LeaderboardEntry): boolean {
     if (!this.myStats?.studentId) return false;
     return String(e.studentId) === String(this.myStats.studentId);
+  }
+
+  podiumPlayer(index: number): LeaderboardEntry | undefined {
+    return this.leaderboard[index];
+  }
+
+  podiumInitial(player: LeaderboardEntry | undefined): string {
+    const letter = player?.name?.charAt(0);
+    return letter ? letter.toUpperCase() : '-';
+  }
+
+  podiumXp(player: LeaderboardEntry | undefined): string | number {
+    return player?.totalXp ?? '-';
+  }
+
+  podiumName(player: LeaderboardEntry | undefined): string {
+    return player?.name ?? '-';
+  }
+
+  clearPodiumAvatar(player: LeaderboardEntry | undefined): void {
+    if (player) player.avatarUrl = undefined;
   }
 }
