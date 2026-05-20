@@ -23,7 +23,7 @@ const {
 } = require('../services/agreementR2Service');
 const { extractPagesText, generateFilledPdf } = require('../services/agreementPdfService');
 const { suggestDynamicFields } = require('../services/agreementAiService');
-const { detectRedDynamicFields } = require('../services/agreementRedFieldDetector');
+const { detectRedDynamicFields, locateTextInPdf } = require('../services/agreementRedFieldDetector');
 const {
   isAllowedTemplateUpload,
   normalizeTemplateUploadToPdf
@@ -147,7 +147,7 @@ router.post('/templates/upload', verifyToken, checkRole(['ADMIN']), memUpload.si
     res.json({ success: true, tempId, r2Key, pageCount, convertedFrom: sourceType, conversion });
   } catch (err) {
     console.error('❌ template upload:', err);
-    const status = /LibreOffice|Word conversion|Only PDF/i.test(err.message) ? 400 : 500;
+    const status = /LibreOffice|Microsoft Word|Save As|Only PDF|formatting/i.test(err.message) ? 400 : 500;
     res.status(status).json({ success: false, message: err.message });
   }
 });
@@ -237,6 +237,41 @@ router.post('/templates/:id/analyze', verifyToken, checkRole(['ADMIN']), async (
     res.json({ success: true, suggestions, fields: [], source: 'ai' });
   } catch (err) {
     console.error('❌ template analyze:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/agreements/templates/:id/locate-text — find field coords from selected PDF text
+router.post('/templates/:id/locate-text', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { sampleText } = req.body;
+    if (!sampleText || !String(sampleText).trim()) {
+      return res.status(400).json({ success: false, message: 'sampleText is required' });
+    }
+    const template = await AgreementTemplate.findById(req.params.id);
+    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!isAgreementR2Configured()) {
+      return res.status(503).json({ success: false, message: 'R2 not configured' });
+    }
+    const buf = await getAgreementTemplateBuffer(template.r2Key);
+    const hit = await locateTextInPdf(buf, sampleText);
+    if (!hit) {
+      return res.status(404).json({ success: false, message: 'Text not found in PDF. Try a shorter phrase or check spelling.' });
+    }
+    res.json({
+      success: true,
+      field: {
+        page: hit.page,
+        x: hit.xNorm,
+        y: hit.yNorm,
+        width: hit.widthNorm,
+        height: hit.heightNorm,
+        sampleText: hit.str,
+        fontSize: hit.fontSize
+      }
+    });
+  } catch (err) {
+    console.error('❌ locate-text:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

@@ -1,8 +1,10 @@
 // Converts uploaded agreement templates (PDF or Word) to a PDF buffer for storage and field overlay.
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
-const mammoth = require('mammoth');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const execFileAsync = promisify(execFile);
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx']);
 const WORD_MIMES = new Set([
@@ -12,12 +14,9 @@ const WORD_MIMES = new Set([
   'application/octet-stream'
 ]);
 
-let libreConvertAsync = null;
+let libreConvert = null;
 try {
-  const libre = require('libreoffice-convert');
-  if (typeof libre.convert === 'function') {
-    libreConvertAsync = promisify(libre.convert.bind(libre));
-  }
+  libreConvert = require('libreoffice-convert');
 } catch (e) {
   console.warn('[agreements] libreoffice-convert not loaded:', e.message);
 }
@@ -37,10 +36,6 @@ function isWordFile(mimetype, originalname) {
   return WORD_MIMES.has(mimetype) && (ext === '.doc' || ext === '.docx');
 }
 
-function isDocxFile(originalname) {
-  return extFromName(originalname) === '.docx';
-}
-
 function isAllowedTemplateUpload(mimetype, originalname) {
   const ext = extFromName(originalname);
   if (ALLOWED_EXTENSIONS.has(ext)) return true;
@@ -49,105 +44,104 @@ function isAllowedTemplateUpload(mimetype, originalname) {
   return false;
 }
 
-/** Build a readable PDF from plain text (used when LibreOffice is not installed). */
-async function docxToPdfViaMammoth(buffer) {
-  const result = await mammoth.extractRawText({ buffer });
-  const text = String(result.value || '').trim();
-  if (!text) {
-    throw new Error('Could not read text from the Word file. Try saving as PDF and uploading that.');
-  }
-
-  const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontSize = 11;
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const margin = 50;
-  const maxWidth = pageWidth - margin * 2;
-  const lineHeight = fontSize * 1.4;
-  const charsPerLine = Math.max(40, Math.floor(maxWidth / (fontSize * 0.52)));
-
-  const wrapParagraph = (para) => {
-    const words = para.split(/\s+/).filter(Boolean);
-    if (!words.length) return [''];
-    const lines = [];
-    let line = '';
-    for (const w of words) {
-      const next = line ? `${line} ${w}` : w;
-      if (next.length > charsPerLine) {
-        if (line) lines.push(line);
-        line = w.length > charsPerLine ? w.slice(0, charsPerLine) : w;
-      } else {
-        line = next;
-      }
-    }
-    if (line) lines.push(line);
-    return lines;
-  };
-
-  let page = pdfDoc.addPage([pageWidth, pageHeight]);
-  let y = pageHeight - margin;
-
-  const blocks = text.split(/\n+/);
-  for (const block of blocks) {
-    const lines = wrapParagraph(block.trim() || ' ');
-    for (const line of lines) {
-      if (y < margin + lineHeight) {
-        page = pdfDoc.addPage([pageWidth, pageHeight]);
-        y = pageHeight - margin;
-      }
-      page.drawText(line, {
-        x: margin,
-        y: y - fontSize,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0),
-        maxWidth
-      });
-      y -= lineHeight;
-    }
-    y -= lineHeight * 0.35;
-  }
-
-  const pdfBytes = await pdfDoc.save();
-  return Buffer.from(pdfBytes);
+function libreOfficeOptions(originalname) {
+  const ext = extFromName(originalname) || '.docx';
+  const options = { fileName: `source${ext}` };
+  const custom = process.env.LIBRE_OFFICE_EXE || process.env.SOFFICE_PATH;
+  if (custom) options.sofficeBinaryPaths = [custom];
+  return options;
 }
 
-async function convertWordWithLibreOffice(buffer) {
-  if (!libreConvertAsync) return null;
+/** LibreOffice headless — keeps logos, colors, headers/footers. */
+function convertWordWithLibreOffice(buffer, originalname) {
+  if (!libreConvert?.convertWithOptions) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    libreConvert.convertWithOptions(
+      buffer,
+      '.pdf',
+      undefined,
+      libreOfficeOptions(originalname),
+      (err, result) => {
+        if (err) {
+          console.warn('[agreements] LibreOffice conversion failed:', err.message);
+          return resolve(null);
+        }
+        if (!result?.length) return resolve(null);
+        resolve(Buffer.from(result));
+      }
+    );
+  });
+}
+
+/** Windows + Microsoft Word — full-fidelity PDF (same as Save as PDF in Word). */
+async function convertWordWithMsWord(buffer, originalname) {
+  if (process.platform !== 'win32') return null;
+
+  const ext = extFromName(originalname) || '.docx';
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agreement-word-'));
+  const inputPath = path.join(tmpDir, `source${ext}`);
+  const outputPath = path.join(tmpDir, 'output.pdf');
+
   try {
-    const pdfBuf = await libreConvertAsync(buffer, '.pdf', undefined);
-    if (!pdfBuf || pdfBuf.length === 0) return null;
-    return Buffer.from(pdfBuf);
+    fs.writeFileSync(inputPath, buffer);
+
+    const psScript = [
+      '$ErrorActionPreference = "Stop"',
+      '$word = $null',
+      '$doc = $null',
+      'try {',
+      '  $word = New-Object -ComObject Word.Application',
+      '  $word.Visible = $false',
+      '  $word.DisplayAlerts = 0',
+      `  $doc = $word.Documents.Open(${JSON.stringify(inputPath)}, $false, $true)`,
+      `  $doc.SaveAs2(${JSON.stringify(outputPath)}, 17)`,
+      '  $doc.Close([ref]0)',
+      '  [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc)',
+      '  $word.Quit([ref]0)',
+      '[void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($word)',
+      '} catch {',
+      '  if ($doc) { try { $doc.Close([ref]0) } catch {} }',
+      '  if ($word) { try { $word.Quit([ref]0) } catch {} }',
+      '  throw',
+      '}'
+    ].join('\n');
+
+    const scriptPath = path.join(tmpDir, 'convert.ps1');
+    fs.writeFileSync(scriptPath, psScript, 'utf8');
+
+    await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
+      { timeout: 180000, windowsHide: true }
+    );
+
+    if (!fs.existsSync(outputPath)) return null;
+    const stat = fs.statSync(outputPath);
+    if (!stat.size) return null;
+    return fs.readFileSync(outputPath);
   } catch (err) {
-    console.warn('[agreements] LibreOffice conversion failed:', err.message);
+    console.warn('[agreements] MS Word conversion failed:', err.message);
     return null;
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (_) { /* ignore */ }
   }
 }
+
+const FORMATTING_ERROR =
+  'Could not convert Word to PDF with full formatting. ' +
+  'On this server: install LibreOffice, or use Windows with Microsoft Word. ' +
+  'Easiest option: open your file in Word → File → Save As → PDF, then upload the PDF here.';
 
 async function convertWordToPdf(buffer, originalname) {
-  const ext = extFromName(originalname);
+  const viaLo = await convertWordWithLibreOffice(buffer, originalname);
+  if (viaLo) return { pdfBuffer: viaLo, conversion: 'libreoffice' };
 
-  if (ext === '.doc') {
-    const viaLo = await convertWordWithLibreOffice(buffer);
-    if (viaLo) return { pdfBuffer: viaLo, conversion: 'libreoffice' };
-    throw new Error(
-      'Legacy .doc files need LibreOffice on the server, or open the file in Word and save as DOCX or PDF.'
-    );
-  }
+  const viaWord = await convertWordWithMsWord(buffer, originalname);
+  if (viaWord) return { pdfBuffer: viaWord, conversion: 'msword' };
 
-  // DOCX: prefer LibreOffice (keeps layout), fall back to mammoth + pdf-lib (text layout)
-  const viaLo = await convertWordWithLibreOffice(buffer);
-  if (viaLo) {
-    return { pdfBuffer: viaLo, conversion: 'libreoffice' };
-  }
-
-  if (!isDocxFile(originalname) && ext !== '.docx') {
-    throw new Error('Only DOCX is supported without LibreOffice. Save your file as .docx or PDF.');
-  }
-
-  const pdfBuffer = await docxToPdfViaMammoth(buffer);
-  return { pdfBuffer, conversion: 'mammoth' };
+  throw new Error(FORMATTING_ERROR);
 }
 
 /**

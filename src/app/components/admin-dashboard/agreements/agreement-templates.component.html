@@ -34,7 +34,7 @@
           </div>
         </mat-card-content>
         <mat-card-actions>
-          <button mat-button color="primary" [routerLink]="['/admin/agreements/templates', t._id, 'edit']">
+          <button mat-button color="primary" (click)="editTemplate(t)">
             <mat-icon>edit</mat-icon> Edit Fields
           </button>
           <button mat-button color="warn" (click)="deleteTemplate(t._id)">
@@ -73,7 +73,10 @@
           <p>Drag & drop a PDF or Word file here, or</p>
           <button mat-stroked-button (click)="fileInputRef.nativeElement.click()">Browse</button>
           <input #fileInput type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" (change)="onFileSelect($event)" />
-          <p class="upload-hint">Supported: PDF, DOCX (recommended), or DOC. Word files are converted to PDF automatically on upload.</p>
+          <p class="upload-hint">
+            <strong>Best quality:</strong> Save from Word as <strong>PDF</strong> (File → Save As → PDF) and upload that — keeps logos, colors, and footers exactly.
+            DOCX upload uses Microsoft Word or LibreOffice on the server to preserve layout.
+          </p>
           <p *ngIf="selectedFile" class="selected-file"><mat-icon>check_circle</mat-icon> {{ selectedFile.name }}</p>
         </div>
       </mat-card-content>
@@ -109,6 +112,10 @@
             <span class="page-info" *ngIf="totalPages">{{ totalPages }} pages · {{ fields.length }}/7 fields</span>
           </div>
 
+          <p class="pdf-select-hint" *ngIf="pdfPreviewUrl">
+            <mat-icon>info</mat-icon>
+            Select text in the PDF preview below, copy it, then paste into <strong>Sample Text</strong> and click <strong>Locate in PDF</strong>.
+          </p>
           <iframe *ngIf="pdfPreviewUrl" [src]="pdfPreviewUrl" class="pdf-iframe" title="PDF Preview"></iframe>
           <div *ngIf="!pdfPreviewUrl" class="pdf-placeholder">
             <mat-spinner diameter="32"></mat-spinner>
@@ -186,13 +193,20 @@
                 <input matInput type="number" [(ngModel)]="newField.page" min="1" [max]="totalPages || 99" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Sample Text</mat-label>
-                <input matInput [(ngModel)]="newField.sampleText" placeholder="John Doe" />
+                <mat-label>Sample Text (from PDF)</mat-label>
+                <input matInput [(ngModel)]="newField.sampleText" placeholder="Paste text you selected in the PDF" />
               </mat-form-field>
             </div>
-            <button mat-stroked-button color="primary" (click)="addField()">
-              <mat-icon>add</mat-icon> Add Field
-            </button>
+            <div class="manual-field-actions">
+              <button mat-stroked-button color="accent" [disabled]="!newField.sampleText || locatingText" (click)="locateFromSampleText()">
+                <mat-spinner *ngIf="locatingText" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+                <mat-icon *ngIf="!locatingText">my_location</mat-icon>
+                Locate in PDF
+              </button>
+              <button mat-stroked-button color="primary" (click)="addField()">
+                <mat-icon>add</mat-icon> Add Field
+              </button>
+            </div>
           </mat-card-content>
         </mat-card>
 

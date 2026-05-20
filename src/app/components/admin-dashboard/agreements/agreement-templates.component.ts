@@ -77,6 +77,7 @@ export class AgreementTemplatesComponent implements OnInit {
   templateName = '';
   templateDescription = '';
   saving = false;
+  locatingText = false;
 
   constructor(
     private svc: AgreementService,
@@ -144,12 +145,10 @@ export class AgreementTemplatesComponent implements OnInit {
       next: r => {
         this.uploadResult = r;
         this.totalPages = r.pageCount;
-        if (r.conversion === 'mammoth') {
-          this.snack.open(
-            'Word file converted to PDF (text layout). For exact formatting, upload a PDF export from Word.',
-            'Close',
-            { duration: 6000 }
-          );
+        if (r.conversion === 'libreoffice') {
+          this.snack.open('Converted with LibreOffice — layout preserved.', 'Close', { duration: 4000 });
+        } else if (r.conversion === 'msword') {
+          this.snack.open('Converted with Microsoft Word — layout preserved.', 'Close', { duration: 4000 });
         }
         const name = this.templateName || this.selectedFile!.name.replace(/\.(pdf|docx?)$/i, '');
         this.svc.createTemplate({ name, description: this.templateDescription, r2Key: r.r2Key, pageCount: r.pageCount, tempId: r.tempId }).subscribe({
@@ -249,6 +248,39 @@ export class AgreementTemplatesComponent implements OnInit {
     });
   }
 
+  locateFromSampleText(): void {
+    if (!this.createdTemplateId || !this.newField.sampleText?.trim()) return;
+    this.locatingText = true;
+    this.svc.locateTextInTemplate(this.createdTemplateId, this.newField.sampleText.trim()).subscribe({
+      next: r => {
+        this.locatingText = false;
+        const f = r.field;
+        if (f.page) this.newField.page = f.page;
+        if (f.x != null) this.newField.x = f.x;
+        if (f.y != null) this.newField.y = f.y;
+        if (f.width != null) this.newField.width = f.width;
+        if (f.height != null) this.newField.height = f.height;
+        if (f.fontSize) this.newField.fontSize = f.fontSize;
+        if (f.sampleText) this.newField.sampleText = f.sampleText;
+        if (!this.newField.label) this.newField.label = f.sampleText || this.newField.sampleText;
+        if (!this.newField.id) this.newField.id = this.slugifyFieldId(this.newField.label);
+        this.snack.open('Position found in PDF', 'Close', { duration: 2500 });
+      },
+      error: e => {
+        this.locatingText = false;
+        this.snack.open(e.error?.message || 'Could not locate text in PDF', 'Close', { duration: 4000 });
+      }
+    });
+  }
+
+  private slugifyFieldId(label: string): string {
+    const words = String(label).trim().replace(/[^a-zA-Z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return 'field';
+    return words
+      .map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
+      .join('');
+  }
+
   addField(): void {
     if (this.fields.length >= 7) { this.snack.open('Maximum 7 fields allowed', 'Close', { duration: 2000 }); return; }
     if (!this.newField.id || !this.newField.label) { this.snack.open('Field ID and label are required', 'Close', { duration: 2000 }); return; }
@@ -274,6 +306,17 @@ export class AgreementTemplatesComponent implements OnInit {
       },
       error: e => { this.saving = false; this.snack.open(e.error?.message || 'Save failed', 'Close', { duration: 3000 }); }
     });
+  }
+
+  editTemplate(t: AgreementTemplate): void {
+    this.createdTemplateId = t._id;
+    this.templateName = t.name;
+    this.templateDescription = t.description || '';
+    this.totalPages = t.pageCount;
+    this.fields = (t.dynamicFields || []).map(fieldDraftFromDynamic);
+    this.step = 'preview';
+    this.pdfPreviewUrl = null;
+    this.loadPdfPreview(t._id);
   }
 
   deleteTemplate(id: string): void {
