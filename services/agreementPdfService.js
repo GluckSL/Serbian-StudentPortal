@@ -2,6 +2,7 @@
 // Uses pdf-lib to overlay filled values on a template PDF, and pdf-parse for text extraction.
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const pdfParse = require('pdf-parse');
+const { sanitizeForWinAnsi } = require('./agreementPdfText');
 
 /**
  * Extract text from each page of a PDF buffer.
@@ -61,9 +62,10 @@ async function generateFilledPdf(templateBuffer, fields, values) {
 
     // Draw replacement text — simple single-line; truncate to fit
     const maxChars = Math.floor(absW / (fontSize * 0.55));
-    const displayValue = String(value).length > maxChars
-      ? String(value).slice(0, maxChars - 1) + '…'
-      : String(value);
+    const safeValue = sanitizeForWinAnsi(String(value));
+    const displayValue = safeValue.length > maxChars
+      ? safeValue.slice(0, maxChars - 3) + '...'
+      : safeValue;
 
     page.drawText(displayValue, {
       x: absX + 2,

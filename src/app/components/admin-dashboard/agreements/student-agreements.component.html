@@ -53,10 +53,15 @@
             <mat-icon *ngIf="!previewing">visibility</mat-icon>
             Preview PDF
           </button>
-          <button mat-raised-button color="primary" (click)="share()" [disabled]="sharing">
-            <mat-spinner *ngIf="sharing" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
-            <mat-icon *ngIf="!sharing">send</mat-icon>
-            {{ sharing ? 'Sharing…' : 'Share Agreement' }}
+          <button mat-raised-button style="background:#1565c0;color:#fff" (click)="share(false)" [disabled]="sharing">
+            <mat-spinner *ngIf="sharing && !sendEmail" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+            <mat-icon *ngIf="!sharing || sendEmail">save</mat-icon>
+            {{ sharing && !sendEmail ? 'Saving…' : 'Save PDF' }}
+          </button>
+          <button mat-raised-button color="primary" (click)="share(true)" [disabled]="sharing">
+            <mat-spinner *ngIf="sharing && sendEmail" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+            <mat-icon *ngIf="!sharing || !sendEmail">email</mat-icon>
+            {{ sharing && sendEmail ? 'Sending…' : 'Save & Send Email' }}
           </button>
         </div>
 

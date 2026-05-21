@@ -102,22 +102,23 @@ export class StudentAgreementsComponent implements OnInit {
     });
   }
 
-  share(): void {
+  share(sendEmail = this.sendEmail): void {
     if (!this.selectedTemplate || !this.displayName) {
       this.snack.open('Select a template and enter an agreement name', 'Close', { duration: 3000 });
       return;
     }
+    this.sendEmail = sendEmail;
     this.sharing = true;
     this.svc.shareInstance({
       templateId: this.selectedTemplate._id,
       studentId: this.studentId,
       fieldValues: this.fieldValues,
       displayName: this.displayName,
-      sendEmail: this.sendEmail
+      sendEmail
     }).subscribe({
       next: r => {
         this.sharing = false;
-        this.snack.open('Agreement shared!', 'Close', { duration: 3000 });
+        this.snack.open(sendEmail ? 'Agreement saved and emailed!' : 'Agreement saved!', 'Close', { duration: 3000 });
         // Trigger browser download
         const dlUrl = this.svc.getDownloadUrl(r.agreement._id);
         window.open(dlUrl, '_blank');

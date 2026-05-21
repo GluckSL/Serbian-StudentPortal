@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { PageEvent } from '@angular/material/paginator';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { StudentDocumentsService } from '../../../services/student-documents.service';
+import { AgreementService, AgreementTemplate } from '../../../services/agreement.service';
 import { NotificationService } from '../../../services/notification.service';
 import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -194,6 +195,7 @@ export class DocumentVerificationComponent implements OnInit {
     { value: 'PROFESSIONAL', label: 'Professional' },
     { value: 'LEGAL', label: 'Legal' },
     { value: 'VISA', label: 'Visa' },
+    { value: 'AGREEMENT', label: 'Agreement' },
     { value: 'OTHER', label: 'Other' }
   ];
 
@@ -201,6 +203,25 @@ export class DocumentVerificationComponent implements OnInit {
   showEmailDialog = false;
   emailForm = { to: '', studentName: '', subject: '', message: '' };
   sendingEmail = false;
+
+  // Agreement generate dialog
+  showAgreementDialog = false;
+  agreementStudentControl = new FormControl('');
+  agreementFilteredStudents: any[] = [];
+  agreementTemplates: AgreementTemplate[] = [];
+  agreementTemplatesLoading = false;
+  agreementSelectedTemplate: AgreementTemplate | null = null;
+  agreementForm = {
+    studentId: '',
+    studentName: '',
+    studentEmail: '',
+    templateId: '',
+    fieldValues: {} as Record<string, string>,
+    displayName: ''
+  };
+  agreementPreviewUrl: SafeResourceUrl | null = null;
+  agreementPreviewing = false;
+  agreementSaving = false;
 
   // ========== EXPORT CSV ==========
 
@@ -279,6 +300,7 @@ export class DocumentVerificationComponent implements OnInit {
 
   constructor(
     private documentService: StudentDocumentsService,
+    private agreementService: AgreementService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
@@ -307,6 +329,134 @@ export class DocumentVerificationComponent implements OnInit {
     ).subscribe(filtered => {
       this.markVerifiedFilteredStudents = filtered;
     });
+
+    this.agreementStudentControl.valueChanges.pipe(
+      startWith(''),
+      map(value => this._filterStudents(value || ''))
+    ).subscribe(filtered => {
+      this.agreementFilteredStudents = filtered;
+    });
+  }
+
+  openAgreementTemplates(): void {
+    this.router.navigate(['/admin/agreements/templates']);
+  }
+
+  openAgreementDialog(): void {
+    this.loadStudents();
+    this.loadAgreementTemplates();
+    this.agreementStudentControl.setValue('');
+    this.agreementForm = {
+      studentId: '',
+      studentName: '',
+      studentEmail: '',
+      templateId: '',
+      fieldValues: {},
+      displayName: ''
+    };
+    this.agreementSelectedTemplate = null;
+    this.agreementPreviewUrl = null;
+    this.showAgreementDialog = true;
+  }
+
+  closeAgreementDialog(): void {
+    this.showAgreementDialog = false;
+    this.agreementPreviewUrl = null;
+  }
+
+  loadAgreementTemplates(): void {
+    this.agreementTemplatesLoading = true;
+    this.agreementService.getTemplates().subscribe({
+      next: r => {
+        this.agreementTemplates = r.templates.filter(t => t.isActive !== false);
+        this.agreementTemplatesLoading = false;
+      },
+      error: () => {
+        this.agreementTemplatesLoading = false;
+        this.snackBar.open('Failed to load agreement templates', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  selectAgreementStudent(student: any): void {
+    this.agreementForm.studentId = this.getStudentId(student);
+    this.agreementForm.studentName = this.getStudentName(student);
+    this.agreementForm.studentEmail = this.getStudentEmail(student);
+    this.agreementStudentControl.setValue(
+      `${this.agreementForm.studentName} (${this.agreementForm.studentEmail})`
+    );
+    this.onAgreementTemplateChange();
+  }
+
+  onAgreementTemplateChange(): void {
+    const tpl = this.agreementTemplates.find(t => t._id === this.agreementForm.templateId) || null;
+    this.agreementSelectedTemplate = tpl;
+    this.agreementPreviewUrl = null;
+    if (!tpl) return;
+
+    const prefill: Record<string, string> = {
+      studentName: this.agreementForm.studentName,
+      studentEmail: this.agreementForm.studentEmail,
+      name: this.agreementForm.studentName,
+      email: this.agreementForm.studentEmail
+    };
+    const values: Record<string, string> = {};
+    for (const f of tpl.dynamicFields) {
+      values[f.id] = prefill[f.id] || '';
+    }
+    this.agreementForm.fieldValues = values;
+    if (this.agreementForm.studentName) {
+      this.agreementForm.displayName = `${tpl.name} – ${this.agreementForm.studentName}`;
+    } else {
+      this.agreementForm.displayName = tpl.name;
+    }
+  }
+
+  previewAgreementPdf(): void {
+    if (!this.agreementForm.templateId) return;
+    this.agreementPreviewing = true;
+    this.agreementService.previewInstance(this.agreementForm.templateId, this.agreementForm.fieldValues).subscribe({
+      next: (blob: Blob) => {
+        const url = URL.createObjectURL(blob);
+        this.agreementPreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        this.agreementPreviewing = false;
+      },
+      error: e => {
+        this.agreementPreviewing = false;
+        this.snackBar.open(e.error?.message || 'Preview failed', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  saveAgreement(sendEmail: boolean): void {
+    if (!this.agreementForm.studentId || !this.agreementForm.templateId || !this.agreementForm.displayName) {
+      this.snackBar.open('Select a student, template, and agreement name', 'Close', { duration: 3000 });
+      return;
+    }
+    this.agreementSaving = true;
+    this.agreementService.shareInstance({
+      templateId: this.agreementForm.templateId,
+      studentId: this.agreementForm.studentId,
+      fieldValues: this.agreementForm.fieldValues,
+      displayName: this.agreementForm.displayName,
+      sendEmail
+    }).subscribe({
+      next: r => {
+        this.agreementSaving = false;
+        this.snackBar.open(
+          sendEmail ? 'Agreement saved and emailed to student' : 'Agreement saved successfully',
+          'Close',
+          { duration: 4000 }
+        );
+        window.open(this.agreementService.getDownloadUrl(r.agreement._id), '_blank');
+        this.closeAgreementDialog();
+        this.loadDocuments();
+      },
+      error: e => {
+        this.agreementSaving = false;
+        this.snackBar.open(e.error?.message || 'Failed to save agreement', 'Close', { duration: 4000 });
+      }
+    });
   }
   
   private _filterStudents(value: string): any[] {
@@ -330,7 +480,7 @@ export class DocumentVerificationComponent implements OnInit {
     );
   }
 
-  private getStudentName(student: any): string {
+  getStudentName(student: any): string {
     const name =
       student?.name ??
       student?.studentName ??
@@ -342,7 +492,7 @@ export class DocumentVerificationComponent implements OnInit {
     return String(name).trim();
   }
 
-  private getStudentEmail(student: any): string {
+  getStudentEmail(student: any): string {
     return String(student?.email ?? student?.studentEmail ?? student?.mail ?? '').trim();
   }
 

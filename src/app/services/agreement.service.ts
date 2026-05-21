@@ -85,6 +85,10 @@ export class AgreementService {
     return this.http.post<any>(`${this.base}/templates/${id}/detect-red-fields`, {});
   }
 
+  locateTextInTemplate(id: string, sampleText: string): Observable<{ success: boolean; field: Partial<DynamicField> }> {
+    return this.http.post<any>(`${this.base}/templates/${id}/locate-text`, { sampleText });
+  }
+
   analyzeTemplate(id: string): Observable<{ success: boolean; suggestions: AiSuggestion[]; fields?: DynamicField[]; source?: string }> {
     return this.http.post<any>(`${this.base}/templates/${id}/analyze`, {});
   }

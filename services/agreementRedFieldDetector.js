@@ -197,4 +197,12 @@ async function detectRedDynamicFields(pdfBuffer) {
   return matchCandidatesToFields(candidates, pagesData);
 }
 
-module.exports = { detectRedDynamicFields, extractRedTextCandidates };
+/** Find coordinates for a text snippet the admin selected or pasted from the PDF. */
+async function locateTextInPdf(pdfBuffer, sampleText) {
+  const sample = String(sampleText || '').trim();
+  if (!sample) return null;
+  const pagesData = await getTextItemsByPage(pdfBuffer);
+  return findTextItem(pagesData, sample);
+}
+
+module.exports = { detectRedDynamicFields, extractRedTextCandidates, locateTextInPdf };

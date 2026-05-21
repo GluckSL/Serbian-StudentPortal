@@ -28,6 +28,14 @@
             <mat-icon>download</mat-icon>
             Export CSV
           </button>
+          <button mat-raised-button class="agreement-templates-btn" (click)="openAgreementTemplates()">
+            <mat-icon>description</mat-icon>
+            Agreement Templates
+          </button>
+          <button mat-raised-button class="agreement-generate-btn" (click)="openAgreementDialog()">
+            <mat-icon>assignment</mat-icon>
+            Generate Agreement
+          </button>
         </div>
 
         <!-- Statistics Cards -->
@@ -894,6 +902,85 @@
       <button mat-raised-button color="primary" (click)="sendEmail()" [disabled]="sendingEmail">
         <mat-icon>{{ sendingEmail ? 'hourglass_empty' : 'send' }}</mat-icon>
         {{ sendingEmail ? 'Sending...' : 'Send Email' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Agreement Dialog -->
+<div class="verification-dialog-overlay" *ngIf="showAgreementDialog" (click)="closeAgreementDialog()">
+  <div class="verification-dialog agreement-dialog" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <h3>
+        <mat-icon style="color: #5e35b1;">assignment</mat-icon>
+        Generate Agreement for Student
+      </h3>
+      <button mat-icon-button (click)="closeAgreementDialog()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="dialog-content">
+      <p class="info-text">
+        Select a student and agreement template, fill in the dynamic fields, then save the PDF or save and email it to the student.
+        <a class="template-link" (click)="openAgreementTemplates(); $event.preventDefault()">Manage templates</a>
+      </p>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Search Student</mat-label>
+        <input matInput
+               [formControl]="agreementStudentControl"
+               [matAutocomplete]="autoAgreementStudent"
+               placeholder="Type name, email, or reg no...">
+        <mat-icon matSuffix>search</mat-icon>
+        <mat-autocomplete #autoAgreementStudent="matAutocomplete" (optionSelected)="selectAgreementStudent($event.option.value)">
+          <mat-option *ngFor="let student of agreementFilteredStudents" [value]="student">
+            <div class="student-option">
+              <strong>{{ getStudentName(student) }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
+              <small>{{ getStudentEmail(student) }}</small>
+            </div>
+          </mat-option>
+        </mat-autocomplete>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Agreement Template</mat-label>
+        <mat-select [(ngModel)]="agreementForm.templateId" (ngModelChange)="onAgreementTemplateChange()" [disabled]="agreementTemplatesLoading">
+          <mat-option *ngFor="let t of agreementTemplates" [value]="t._id">{{ t.name }} ({{ t.dynamicFields.length }} fields)</mat-option>
+        </mat-select>
+        <mat-hint *ngIf="agreementTemplates.length === 0 && !agreementTemplatesLoading">No templates yet — create one via Agreement Templates</mat-hint>
+      </mat-form-field>
+
+      <ng-container *ngIf="agreementSelectedTemplate">
+        <mat-form-field appearance="outline" class="full-width" *ngFor="let f of agreementSelectedTemplate.dynamicFields">
+          <mat-label>{{ f.label }}</mat-label>
+          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" [placeholder]="f.sampleText || f.label" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Agreement Name</mat-label>
+          <input matInput [(ngModel)]="agreementForm.displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
+        </mat-form-field>
+
+        <div *ngIf="agreementPreviewUrl" class="agreement-preview-wrap">
+          <iframe [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="dialog-actions">
+      <button mat-button (click)="closeAgreementDialog()">Cancel</button>
+      <button mat-stroked-button (click)="previewAgreementPdf()" [disabled]="agreementPreviewing || !agreementForm.templateId">
+        <mat-icon>visibility</mat-icon>
+        Preview
+      </button>
+      <button mat-raised-button style="background:#1565c0;color:#fff" (click)="saveAgreement(false)" [disabled]="agreementSaving">
+        <mat-icon>save</mat-icon>
+        {{ agreementSaving ? 'Saving…' : 'Save PDF' }}
+      </button>
+      <button mat-raised-button color="primary" (click)="saveAgreement(true)" [disabled]="agreementSaving">
+        <mat-icon>email</mat-icon>
+        {{ agreementSaving ? 'Sending…' : 'Save & Send Email' }}
       </button>
     </div>
   </div>
