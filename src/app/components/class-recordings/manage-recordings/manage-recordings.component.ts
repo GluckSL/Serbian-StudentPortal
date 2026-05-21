@@ -150,16 +150,16 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       limit: 200,
       includeFailed: true,
       meetingIds,
-      // Re-queue recordings that are already "ready" so they run through the
-      // current pipeline (HLS) instead of staying on legacy MP4-only objects.
-      force: true,
+      // Targeted IDs: skip meetings that already have a ready recording in the portal.
+      // Bulk backfill (no IDs): force reprocess so legacy MP4-only objects can move to HLS.
+      force: meetingIds.length === 0,
     }).subscribe({
       next: () => {
         // Server responds 202 immediately — begin polling for completion.
         this.backfillStatusMessage = 'Backfill running in background…';
         this.snackBar.open(
           meetingIds.length
-            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s).`
+            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s) — already-ready recordings will be skipped.`
             : 'Backfill started (force) — reprocessing may take a while; old MP4 → HLS where Zoom still has the file',
           'Close',
           { duration: 7000 }
