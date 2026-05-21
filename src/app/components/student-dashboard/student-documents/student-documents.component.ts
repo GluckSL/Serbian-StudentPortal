@@ -124,8 +124,51 @@ export class StudentDocumentsComponent implements OnInit {
     });
   }
 
+  isAgreementRequirement(req: DocumentRequirement): boolean {
+    return req.category === 'AGREEMENT' || String(req.type || '').startsWith('AGREEMENT_');
+  }
+
+  /** Link checklist row to shared agreement instance. */
+  getAgreementForRequirement(req: DocumentRequirement): StudentAgreement | null {
+    const latest = this.getLatestDocumentForType(req.type);
+    if (latest) {
+      const byDoc = this.agreements.find(
+        (a) => a.studentDocumentId && String(a.studentDocumentId) === String(latest._id)
+      );
+      if (byDoc) return byDoc;
+    }
+    const byName = this.agreements.find(
+      (a) => latest && (a.displayName === latest.documentName || a.templateName === req.label)
+    );
+    if (byName) return byName;
+    if (this.agreements.length === 1 && this.isAgreementRequirement(req)) return this.agreements[0];
+    return null;
+  }
+
+  canUploadSignedAgreement(a: StudentAgreement): boolean {
+    return a.status === 'SENT' || a.status === 'REJECTED' || a.status === 'SIGNED_PENDING';
+  }
+
+  downloadAgreement(a: StudentAgreement, type: 'generated' | 'signed' = 'generated'): void {
+    const name =
+      type === 'signed' && a.signedFile?.fileName
+        ? a.signedFile.fileName
+        : a.generatedFile?.fileName || `${a.displayName || 'agreement'}.pdf`;
+    this.agreementService.downloadInstance(a._id, type).subscribe({
+      next: (blob) => this.documentService.triggerFileDownload(blob, name),
+      error: (e) => this.showError(e.error?.message || 'Download failed')
+    });
+  }
+
   viewAgreement(a: StudentAgreement): void {
-    window.open(this.agreementService.getDownloadUrl(a._id, 'generated'), '_blank');
+    this.agreementService.downloadInstance(a._id, 'generated').subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      },
+      error: (e) => this.showError(e.error?.message || 'Could not open agreement')
+    });
   }
 
   triggerSignedUpload(agreementId: string): void {
@@ -140,8 +183,10 @@ export class StudentDocumentsComponent implements OnInit {
     const id = this.uploadingAgreementId;
     this.agreementService.uploadSigned(id, file).subscribe({
       next: () => {
-        this.showSuccess('Signed agreement uploaded successfully!');
+        this.showSuccess('Signed agreement uploaded! Admin will review it shortly.');
         this.loadAgreements();
+        this.loadDocuments();
+        this.loadStats();
         this.uploadingAgreementId = null;
         input.value = '';
       },

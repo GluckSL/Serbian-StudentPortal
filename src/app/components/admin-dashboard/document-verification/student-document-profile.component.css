@@ -242,6 +242,35 @@
   color: #6d28d9;
 }
 
+.action-approve {
+  background: #2e7d32 !important;
+  color: #fff !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin-right: 4px;
+}
+
+.action-reject {
+  background: #c62828 !important;
+  color: #fff !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin-right: 8px;
+}
+
+.verification-dialog {
+  max-width: 520px;
+}
+
+.reject-hint {
+  font-size: 0.85rem;
+  color: #5d4037;
+  background: #fff8e1;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 0 0 12px;
+}
+
 .action-reupload {
   color: #be123c;
 }

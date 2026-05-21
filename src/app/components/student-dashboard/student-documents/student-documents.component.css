@@ -803,6 +803,14 @@
 }
 
 /* ── Agreements Section ── */
+.agreement-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: #5c6bc0;
+  line-height: 1.4;
+}
+
 .agreements-section {
   margin-top: 40px;
   padding-top: 24px;

@@ -1,199 +1,195 @@
-<div class="student-document-profile-container">
-  <div class="header">
-    <div>
-      <h2>Student Document Profile</h2>
-      <p>Complete document checklist, status, and actions</p>
-    </div>
-    <div class="header-actions">
-      <button mat-raised-button color="accent" (click)="openAgreementWorkspace()">
-        <mat-icon>description</mat-icon>
-        Agreement
-      </button>
-      <button mat-raised-button color="primary" class="export-btn" (click)="exportStudentDocumentDetails()">
-        <mat-icon>download</mat-icon>
-        Export Details
-      </button>
-      <button mat-stroked-button color="primary" (click)="goBack()">
-        <mat-icon>arrow_back</mat-icon>
-        Back to Verification
-      </button>
-    </div>
-  </div>
-
-  <mat-card class="student-meta">
-    <mat-card-content>
-      <div class="meta-grid">
-        <div><strong>Name:</strong> {{ student.name || '-' }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div>
-        <div><strong>Email:</strong> {{ student.email || '-' }}</div>
-        <div><strong>CRM Status:</strong> {{ student.studentStatus || '-' }}</div>
-        <div><strong>Package:</strong> {{ student.subscription || '-' }}</div>
-        <div><strong>Service:</strong> {{ student.servicesOpted || '-' }}</div>
-        <div><strong>Qualification:</strong> {{ student.qualifications || '-' }}</div>
-      </div>
-    </mat-card-content>
-  </mat-card>
-
-  <mat-card class="table-card">
-    <mat-card-content>
-      <div *ngIf="loading" class="loading">
-        <mat-spinner diameter="38"></mat-spinner>
-        <p>Loading student documents...</p>
-      </div>
-
-      <div *ngIf="!loading" class="table-container">
-        <table class="documents-table">
-          <thead>
-            <tr>
-              <th>Required Document</th>
-              <th>Uploaded File</th>
-              <th>Status</th>
-              <th>Uploaded At</th>
-              <th>Re-upload Reason</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let row of rows" [class.agreement-row]="row['isAgreement']">
-              <td>
-                <div class="req-title">
-                  {{ row.label }}
-                  <span class="agreement-badge" *ngIf="row['isAgreement']">Agreement</span>
-                </div>
-                <small class="req-meta">{{ row.required ? 'Required' : 'Optional' }}</small>
-              </td>
-              <td>
-                <ng-container *ngIf="row.doc; else notUploadedCell">
-                  {{ row.doc.documentName || row.doc.fileName }}
-                </ng-container>
-                <ng-template #notUploadedCell>
-                  <span class="muted">Not uploaded</span>
-                </ng-template>
-              </td>
-              <td class="status-cell">
-                <!-- Agreement rows use status badge only; verify via Agreement workspace -->
-                <ng-container *ngIf="row['isAgreement']">
-                  <span [class]="getStatusBadgeClass(row.status)">
-                    <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
-                    {{ row['agreementStatus'] === 'SENT' ? 'Sent – Awaiting Signature' :
-                       row['agreementStatus'] === 'SIGNED_PENDING' ? 'Signed – Pending Review' :
-                       getStatusLabel(row.status) }}
-                  </span>
-                </ng-container>
-                <ng-container *ngIf="!row['isAgreement']">
-                  <ng-container *ngIf="row.doc; else notUploadedStatus">
-                    <select
-                      class="status-dropdown"
-                      [ngClass]="getStatusToneClass(row.selectedStatus || row.status)"
-                      [(ngModel)]="row.selectedStatus"
-                      (change)="updateRowStatus(row)">
-                      <option value="PENDING">Pending Review</option>
-                      <option value="VERIFIED">Verified</option>
-                      <option value="REJECTED">Request Re-upload</option>
-                    </select>
-                  </ng-container>
-                  <ng-template #notUploadedStatus>
-                    <span [class]="getStatusBadgeClass(row.status)">
-                      <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
-                      {{ getStatusLabel(row.status) }}
-                    </span>
-                  </ng-template>
-                </ng-container>
-              </td>
-              <td>{{ formatDate(row.uploadedAt) }}</td>
-              <td>
-                <span class="reason" *ngIf="row.status === 'REJECTED' && row.remarks; else noReason">{{ row.remarks }}</span>
-                <ng-template #noReason><span class="muted">-</span></ng-template>
-              </td>
-              <td class="actions-cell">
-                <!-- Agreement actions -->
-                <ng-container *ngIf="row['isAgreement']">
-                  <div class="actions">
-                    <button mat-icon-button class="action-btn action-view"
-                            (click)="row['agreementId'] && downloadAgreement(row['agreementId']!, 'generated')"
-                            matTooltip="Download generated agreement">
-                      <mat-icon>download</mat-icon>
-                    </button>
-                    <button mat-icon-button class="action-btn action-download"
-                            (click)="row['agreementId'] && downloadAgreement(row['agreementId']!, 'signed')"
-                            [disabled]="!row['hasSignedCopy']"
-                            matTooltip="Download signed copy">
-                      <mat-icon>draw</mat-icon>
-                    </button>
-                    <button mat-icon-button class="action-btn action-view"
-                            (click)="openAgreementWorkspace()"
-                            matTooltip="Open agreement workspace">
-                      <mat-icon>open_in_new</mat-icon>
-                    </button>
-                  </div>
-                </ng-container>
-                <!-- Regular document actions -->
-                <ng-container *ngIf="!row['isAgreement']">
-                  <div class="actions" *ngIf="row.doc; else uploadOnlyAction">
-                    <button mat-icon-button class="action-btn action-view"
-                            (click)="openDocumentInNewTab(row.doc)"
-                            [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
-                            matTooltip="View in new tab">
-                      <mat-icon>open_in_new</mat-icon>
-                    </button>
-                    <button mat-icon-button class="action-btn action-download"
-                            (click)="downloadDocument(row.doc)"
-                            [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
-                            matTooltip="Download">
-                      <mat-icon>download</mat-icon>
-                    </button>
-                    <button mat-icon-button class="action-btn action-replace"
-                            (click)="replaceDocument(row.doc)"
-                            matTooltip="Replace">
-                      <mat-icon>sync_alt</mat-icon>
-                    </button>
-                    <button mat-icon-button class="action-btn action-reupload"
-                            (click)="openReuploadDialog(row.doc)"
-                            matTooltip="Request re-upload">
-                      <mat-icon>assignment_return</mat-icon>
-                    </button>
-                    <button mat-icon-button class="action-btn action-upload"
-                            (click)="uploadForStudent(row)"
-                            matTooltip="Upload for student">
-                      <mat-icon>cloud_upload</mat-icon>
-                    </button>
-                  </div>
-                  <ng-template #uploadOnlyAction>
-                    <button mat-raised-button color="primary" class="upload-only-btn" (click)="uploadForStudent(row)">
-                      <mat-icon>cloud_upload</mat-icon>
-                      Upload Document
-                    </button>
-                  </ng-template>
-                </ng-container>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </mat-card-content>
-  </mat-card>
-
-  <div class="overlay" *ngIf="showReuploadDialog" (click)="closeReuploadDialog()">
-    <div class="dialog" (click)="$event.stopPropagation()">
-      <div class="dialog-header">
-        <h3>Request Re-upload</h3>
-        <button mat-icon-button (click)="closeReuploadDialog()">
-          <mat-icon>close</mat-icon>
-        </button>
-      </div>
-      <div class="dialog-body">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Reason (e.g., blur image, missing page)</mat-label>
-          <textarea matInput [(ngModel)]="reuploadReason" rows="4"></textarea>
-        </mat-form-field>
-      </div>
-      <div class="dialog-actions">
-        <button mat-button (click)="closeReuploadDialog()">Cancel</button>
-        <button mat-raised-button color="warn"
-                [disabled]="!reuploadReason.trim()"
-                (click)="submitReuploadRequest()">
-          Send Re-upload Request
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+<div class="student-document-profile-container">
+
+  <div class="header">
+    <div>
+      <h2>Student Document Profile</h2>
+      <p>Review uploads, approve or reject with notes — students are emailed on rejection</p>
+    </div>
+    <div class="header-actions">
+      <button mat-raised-button color="accent" (click)="openAgreementWorkspace()">
+        <mat-icon>description</mat-icon>
+        Agreement
+      </button>
+      <button mat-raised-button color="primary" class="export-btn" (click)="exportStudentDocumentDetails()">
+        <mat-icon>download</mat-icon>
+        Export Details
+      </button>
+      <button mat-stroked-button color="primary" (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+        Back to Verification
+      </button>
+    </div>
+  </div>
+
+  <mat-card class="student-meta">
+    <mat-card-content>
+      <div class="meta-grid">
+        <div><strong>Name:</strong> {{ student.name || '-' }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div>
+        <div><strong>Email:</strong> {{ student.email || '-' }}</div>
+        <div><strong>CRM Status:</strong> {{ student.studentStatus || '-' }}</div>
+        <div><strong>Package:</strong> {{ student.subscription || '-' }}</div>
+        <div><strong>Service:</strong> {{ student.servicesOpted || '-' }}</div>
+        <div><strong>Qualification:</strong> {{ student.qualifications || '-' }}</div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="table-card">
+    <mat-card-content>
+      <div *ngIf="loading" class="loading">
+        <mat-spinner diameter="38"></mat-spinner>
+        <p>Loading student documents...</p>
+      </div>
+
+      <div *ngIf="!loading" class="table-container">
+        <table class="documents-table">
+          <thead>
+            <tr>
+              <th>Required Document</th>
+              <th>Uploaded File</th>
+              <th>Status</th>
+              <th>Uploaded At</th>
+              <th>Re-upload Reason</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows" [class.agreement-row]="row.isAgreement">
+              <td>
+                <div class="req-title">
+                  {{ row.label }}
+                  <span class="agreement-badge" *ngIf="row.isAgreement">Agreement</span>
+                </div>
+                <small class="req-meta">{{ row.required ? 'Required' : 'Optional' }}</small>
+              </td>
+              <td>
+                <ng-container *ngIf="row.doc; else notUploadedCell">
+                  {{ row.doc.documentName || row.doc.fileName }}
+                </ng-container>
+                <ng-template #notUploadedCell>
+                  <span class="muted">Not uploaded</span>
+                </ng-template>
+              </td>
+              <td class="status-cell">
+                <span [class]="getStatusBadgeClass(row.status)">
+                  <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
+                  <ng-container *ngIf="row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy">
+                    Sent – awaiting signature
+                  </ng-container>
+                  <ng-container *ngIf="row.isAgreement && row.agreementStatus === 'SIGNED_PENDING'">
+                    Signed – pending review
+                  </ng-container>
+                  <ng-container *ngIf="!row.isAgreement || (row.agreementStatus !== 'SENT' && row.agreementStatus !== 'SIGNED_PENDING')">
+                    {{ getStatusLabel(row.status) }}
+                  </ng-container>
+                </span>
+              </td>
+              <td>{{ formatDate(row.uploadedAt) }}</td>
+              <td>
+                <span class="reason" *ngIf="row.status === 'REJECTED' && row.remarks; else noReason">{{ row.remarks }}</span>
+                <ng-template #noReason><span class="muted">-</span></ng-template>
+              </td>
+              <td class="actions-cell">
+                <div class="actions" *ngIf="row.doc; else uploadOnlyAction">
+                  <!-- Review: Approve / Reject -->
+                  <ng-container *ngIf="canReviewRow(row)">
+                    <button mat-mini-fab class="action-approve" color="primary"
+                            (click)="openVerifyDialog(row, 'VERIFIED')"
+                            matTooltip="Approve / Verify">
+                      <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-mini-fab class="action-reject" color="warn"
+                            (click)="openVerifyDialog(row, 'REJECTED')"
+                            matTooltip="Reject and email student to re-upload">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </ng-container>
+
+                  <button mat-icon-button class="action-btn action-view"
+                          (click)="row.isAgreement && row.agreementId ? downloadAgreement(row.agreementId, 'generated', row.label + '.pdf') : openDocumentInNewTab(row.doc)"
+                          [disabled]="!row.isAgreement && row.doc.fileName === 'NO_FILE_UPLOADED'"
+                          matTooltip="View / download original">
+                    <mat-icon>{{ row.isAgreement ? 'download' : 'open_in_new' }}</mat-icon>
+                  </button>
+
+                  <button mat-icon-button class="action-btn action-download"
+                          *ngIf="!row.isAgreement"
+                          (click)="downloadDocument(row.doc)"
+                          [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'"
+                          matTooltip="Download">
+                    <mat-icon>download</mat-icon>
+                  </button>
+
+                  <button mat-icon-button class="action-btn action-download"
+                          *ngIf="row.isAgreement && row.agreementId"
+                          (click)="downloadAgreement(row.agreementId!, 'signed', row.doc.fileName)"
+                          [disabled]="!row.hasSignedCopy"
+                          matTooltip="Download signed copy">
+                    <mat-icon>draw</mat-icon>
+                  </button>
+
+                  <button mat-icon-button class="action-btn action-replace"
+                          *ngIf="!row.isAgreement"
+                          (click)="replaceDocument(row.doc)"
+                          matTooltip="Replace file">
+                    <mat-icon>sync_alt</mat-icon>
+                  </button>
+
+                  <button mat-icon-button class="action-btn action-upload"
+                          (click)="uploadForStudent(row)"
+                          matTooltip="Upload for student">
+                    <mat-icon>cloud_upload</mat-icon>
+                  </button>
+                </div>
+                <ng-template #uploadOnlyAction>
+                  <button mat-raised-button color="primary" class="upload-only-btn" (click)="uploadForStudent(row)">
+                    <mat-icon>cloud_upload</mat-icon>
+                    Upload Document
+                  </button>
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Verify / Reject dialog (same flow as Document Verification) -->
+  <div class="overlay" *ngIf="showVerificationDialog" (click)="closeVerificationDialog()">
+    <div class="dialog verification-dialog" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <h3>
+          <mat-icon [color]="verificationAction === 'VERIFIED' ? 'primary' : 'warn'">
+            {{ verificationAction === 'VERIFIED' ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+          {{ verificationAction === 'VERIFIED' ? 'Approve document' : 'Reject & request re-upload' }}
+        </h3>
+        <button mat-icon-button (click)="closeVerificationDialog()"><mat-icon>close</mat-icon></button>
+      </div>
+      <div class="dialog-body" *ngIf="verifyTarget">
+        <p><strong>Student:</strong> {{ student.name }}</p>
+        <p><strong>Document:</strong> {{ verifyTarget.label }}</p>
+        <p class="reject-hint" *ngIf="verificationAction === 'REJECTED'">
+          The student will receive an email with your reason and a link to upload again in <strong>My Documents</strong>.
+        </p>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ verificationAction === 'VERIFIED' ? 'Notes (optional)' : 'Reason for rejection (required)' }}</mat-label>
+          <textarea matInput [(ngModel)]="verificationNotes" rows="4"
+            [placeholder]="verificationAction === 'VERIFIED' ? 'Optional verification note…' : 'e.g. Signature missing, blurry scan, wrong page…'"></textarea>
+        </mat-form-field>
+      </div>
+      <div class="dialog-actions">
+        <button mat-button (click)="closeVerificationDialog()" [disabled]="verifying">Cancel</button>
+        <button mat-raised-button
+                [color]="verificationAction === 'VERIFIED' ? 'primary' : 'warn'"
+                [disabled]="verifying || (verificationAction === 'REJECTED' && !verificationNotes.trim())"
+                (click)="confirmVerification()">
+          <mat-spinner *ngIf="verifying" diameter="16" style="display:inline-block;margin-right:6px"></mat-spinner>
+          {{ verificationAction === 'VERIFIED' ? 'Approve' : 'Reject & notify student' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+

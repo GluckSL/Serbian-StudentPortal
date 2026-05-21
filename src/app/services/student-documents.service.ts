@@ -273,6 +273,7 @@ export class StudentDocumentsService {
     success: boolean;
     message: string;
     document: StudentDocument;
+    emailSent?: boolean;
   }> {
     return this.http.put<{
       success: boolean;

@@ -954,7 +954,8 @@
       <ng-container *ngIf="agreementSelectedTemplate">
         <mat-form-field appearance="outline" class="full-width" *ngFor="let f of agreementSelectedTemplate.dynamicFields">
           <mat-label>{{ f.label }}</mat-label>
-          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" [placeholder]="f.sampleText || f.label" />
+          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" (ngModelChange)="onAgreementFieldChange()"
+                 [placeholder]="f.sampleText || f.label" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
@@ -962,8 +963,12 @@
           <input matInput [(ngModel)]="agreementForm.displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
         </mat-form-field>
 
-        <div *ngIf="agreementPreviewUrl" class="agreement-preview-wrap">
-          <iframe [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
+        <div class="agreement-preview-wrap" *ngIf="agreementSelectedTemplate">
+          <p class="agreement-preview-note" *ngIf="!agreementPreviewUrl && !agreementPreviewing">
+            Preview updates as you type — your values replace the red placeholders.
+          </p>
+          <p class="agreement-preview-note" *ngIf="agreementPreviewing">Updating preview…</p>
+          <iframe *ngIf="agreementPreviewUrl" [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
         </div>
       </ng-container>
     </div>

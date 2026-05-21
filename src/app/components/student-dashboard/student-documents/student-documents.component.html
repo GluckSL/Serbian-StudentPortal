@@ -156,6 +156,39 @@
     </div>
   </div>
 
+  <!-- Agreements (also listed under requirements when shared) -->
+  <div class="agreements-section" *ngIf="agreements.length > 0">
+    <div class="section-header">
+      <h2><i class="fas fa-file-signature"></i> Agreements</h2>
+      <p class="section-subtitle">Download, sign, and upload your signed agreement for admin approval.</p>
+    </div>
+    <div class="agreements-list">
+      <div class="agreement-card" *ngFor="let a of agreements">
+        <div class="agreement-icon"><i class="fas fa-file-pdf"></i></div>
+        <div class="agreement-info">
+          <h4>{{ a.displayName }}</h4>
+          <p class="agreement-meta">{{ a.templateName }} &bull; Sent {{ a.sentAt | date:'dd MMM yyyy' }}</p>
+          <span class="agreement-status-chip" [ngClass]="agreementStatusClass(a.status)">
+            {{ agreementStatusLabel(a.status) }}
+          </span>
+          <p *ngIf="a.verificationNotes && a.status === 'REJECTED'" class="rejection-note">
+            <i class="fas fa-exclamation-circle"></i> {{ a.verificationNotes }} — please upload again.
+          </p>
+        </div>
+        <div class="agreement-actions">
+          <button class="btn btn-outline-primary btn-sm" (click)="viewAgreement(a)"><i class="fas fa-eye"></i> View</button>
+          <button class="btn btn-outline-success btn-sm" (click)="downloadAgreement(a, 'generated')"><i class="fas fa-download"></i> Download</button>
+          <button class="btn btn-primary btn-sm" *ngIf="canUploadSignedAgreement(a)" (click)="triggerSignedUpload(a._id)" [disabled]="uploadingAgreementId === a._id">
+            <i class="fas fa-upload"></i> {{ uploadingAgreementId === a._id ? 'Uploading…' : 'Upload Signed' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for signed agreement uploads -->
+  <input #signedFileInput type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" (change)="onSignedFileSelected($event)" />
+
   <!-- Document Requirements Checklist -->
   <div class="requirements-section">
     <h3><i class="fas fa-clipboard-list"></i> Document Requirements</h3>
@@ -179,6 +212,9 @@
           <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Not Uploaded</span>
         </div>
         <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+        <small class="agreement-hint" *ngIf="isAgreementRequirement(req)">
+          <i class="fas fa-info-circle"></i> Download the agreement, sign it, then use <strong>Upload Signed</strong> so admin can approve.
+        </small>
         <div class="req-card-body" *ngIf="getLatestDocumentForType(req.type) as latestDoc">
           <div class="req-card-status">
             <span class="badge" [ngClass]="getRequirementStatusBadgeClass(req.type)">
@@ -190,25 +226,50 @@
           </div>
         </div>
         <div class="req-card-actions">
-          <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyActionMobile">
-            <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentDetails(latestDoc)">
+          <!-- Agreement: download PDF + upload signed copy for admin approval -->
+          <ng-container *ngIf="isAgreementRequirement(req) && getAgreementForRequirement(req) as ag; else standardReqActions">
+            <button class="btn btn-sm btn-outline-primary" (click)="viewAgreement(ag)" title="Open agreement PDF">
               <i class="fas fa-eye"></i> View
             </button>
-            <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(latestDoc)">
+            <button class="btn btn-sm btn-outline-success" (click)="downloadAgreement(ag, 'generated')" title="Download agreement to sign">
               <i class="fas fa-download"></i> Download
             </button>
-            <button class="btn btn-sm btn-outline-danger"
-                    (click)="uploadFromRequirementRow(req, true)"
-                    [disabled]="uploadingRequirementType === req.type">
-              <i class="fas fa-sync-alt"></i> Replace
+            <button class="btn btn-sm btn-primary"
+                    *ngIf="canUploadSignedAgreement(ag)"
+                    (click)="triggerSignedUpload(ag._id)"
+                    [disabled]="uploadingAgreementId === ag._id"
+                    title="Upload your signed PDF or photo">
+              <i class="fas fa-upload"></i>
+              {{ uploadingAgreementId === ag._id ? 'Uploading…' : 'Upload Signed' }}
+            </button>
+            <button class="btn btn-sm btn-outline-secondary"
+                    *ngIf="ag.signedFile && ag.status !== 'SENT'"
+                    (click)="downloadAgreement(ag, 'signed')"
+                    title="Download your uploaded signed copy">
+              <i class="fas fa-file-download"></i> My Signed Copy
             </button>
           </ng-container>
-          <ng-template #uploadOnlyActionMobile>
-            <button class="btn btn-sm btn-outline-primary"
-                    (click)="uploadFromRequirementRow(req)"
-                    [disabled]="uploadingRequirementType === req.type">
-              <i class="fas fa-upload"></i> {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
-            </button>
+          <ng-template #standardReqActions>
+            <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyActionMobile">
+              <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentDetails(latestDoc)">
+                <i class="fas fa-eye"></i> View
+              </button>
+              <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(latestDoc)">
+                <i class="fas fa-download"></i> Download
+              </button>
+              <button class="btn btn-sm btn-outline-danger"
+                      (click)="uploadFromRequirementRow(req, true)"
+                      [disabled]="uploadingRequirementType === req.type">
+                <i class="fas fa-sync-alt"></i> Replace
+              </button>
+            </ng-container>
+            <ng-template #uploadOnlyActionMobile>
+              <button class="btn btn-sm btn-outline-primary"
+                      (click)="uploadFromRequirementRow(req)"
+                      [disabled]="uploadingRequirementType === req.type">
+                <i class="fas fa-upload"></i> {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
+              </button>
+            </ng-template>
           </ng-template>
         </div>
       </div>
@@ -378,52 +439,4 @@
     </div>
   </div>
 
-  <!-- ── Agreements Section ── -->
-  <div class="agreements-section">
-    <div class="section-header">
-      <h2><i class="fas fa-file-signature"></i> Agreements</h2>
-      <p class="section-subtitle">Agreements sent by your advisor. Review, download, and upload your signed copy.</p>
-    </div>
-
-    <div *ngIf="loadingAgreements" class="loading-state">
-      <i class="fas fa-spinner fa-spin"></i> Loading agreements…
-    </div>
-
-    <div *ngIf="!loadingAgreements && agreements.length === 0" class="empty-agreements">
-      <i class="fas fa-file-contract fa-2x"></i>
-      <p>No agreements have been shared with you yet.</p>
-    </div>
-
-    <div class="agreements-list" *ngIf="!loadingAgreements && agreements.length > 0">
-      <div class="agreement-card" *ngFor="let a of agreements">
-        <div class="agreement-icon"><i class="fas fa-file-pdf"></i></div>
-        <div class="agreement-info">
-          <h4>{{ a.displayName }}</h4>
-          <p class="agreement-meta">{{ a.templateName }} &bull; Sent {{ a.sentAt | date:'dd MMM yyyy' }}</p>
-          <span class="agreement-status-chip" [ngClass]="agreementStatusClass(a.status)">
-            {{ agreementStatusLabel(a.status) }}
-          </span>
-          <p *ngIf="a.verificationNotes && a.status === 'REJECTED'" class="rejection-note">
-            <i class="fas fa-exclamation-circle"></i> {{ a.verificationNotes }}
-          </p>
-        </div>
-        <div class="agreement-actions">
-          <button class="btn btn-outline-primary btn-sm" (click)="viewAgreement(a)" title="View / download agreement PDF">
-            <i class="fas fa-eye"></i> View
-          </button>
-          <button class="btn btn-primary btn-sm"
-            *ngIf="a.status === 'SENT' || a.status === 'REJECTED'"
-            (click)="triggerSignedUpload(a._id)"
-            [disabled]="uploadingAgreementId === a._id">
-            <i class="fas fa-upload"></i>
-            {{ uploadingAgreementId === a._id ? 'Uploading…' : 'Upload Signed Copy' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Hidden file input for signed copies -->
-    <input #signedFileInput type="file" accept=".pdf,.jpg,.jpeg,.png"
-      style="display:none" (change)="onSignedFileSelected($event)" />
-  </div>
 </div>

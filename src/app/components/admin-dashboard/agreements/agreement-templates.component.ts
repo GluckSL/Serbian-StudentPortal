@@ -18,11 +18,15 @@ interface FieldDraft {
   width: number;
   height: number;
   sampleText: string;
+  placeholderToken?: string;
   fontSize: number;
   required: boolean;
 }
 
+const MAX_FIELDS = 20;
+
 function fieldDraftFromDynamic(f: DynamicField): FieldDraft {
+  const token = f.placeholderToken || f.sampleText || '';
   return {
     id: f.id,
     label: f.label,
@@ -31,7 +35,8 @@ function fieldDraftFromDynamic(f: DynamicField): FieldDraft {
     y: f.y,
     width: f.width,
     height: f.height,
-    sampleText: f.sampleText ?? f.label ?? '',
+    sampleText: f.sampleText ?? token ?? f.label ?? '',
+    placeholderToken: token || undefined,
     fontSize: f.fontSize ?? 11,
     required: f.required !== false
   };
@@ -49,20 +54,34 @@ function emptyFieldDraft(): FieldDraft {
   styleUrls: ['./agreement-templates.component.css']
 })
 export class AgreementTemplatesComponent implements OnInit {
+  readonly placeholderExample = '{{level}}';
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfCanvas') pdfCanvasRef!: ElementRef<HTMLCanvasElement>;
 
   templates: AgreementTemplate[] = [];
   loading = false;
+  deletingId: string | null = null;
+  menuContext: AgreementTemplate | null = null;
+  templateSearch = '';
   step: WizardStep = 'list';
 
   // Upload step state
   selectedFile: File | null = null;
   uploading = false;
-  uploadResult: { tempId: string; r2Key: string; pageCount: number } | null = null;
+  uploadResult: {
+    tempId: string;
+    r2Key: string | null;
+    docxR2Key?: string;
+    fillMode?: 'docx' | 'overlay';
+    pageCount: number;
+    warning?: string;
+  } | null = null;
 
   // Preview / field step state
   createdTemplateId = '';
+  editingFillMode: 'docx' | 'overlay' = 'overlay';
+  upgradingDocx = false;
+  docxUpgradeFile: File | null = null;
   pdfPreviewUrl: SafeResourceUrl | null = null;
   pdfBlobUrl: string | null = null;
   currentPage = 1;
@@ -145,19 +164,42 @@ export class AgreementTemplatesComponent implements OnInit {
       next: r => {
         this.uploadResult = r;
         this.totalPages = r.pageCount;
-        if (r.conversion === 'libreoffice') {
-          this.snack.open('Converted with LibreOffice — layout preserved.', 'Close', { duration: 4000 });
+        if (r.warning) {
+          this.snack.open(r.warning, 'Close', { duration: 10000 });
+        }
+        if (r.fillMode === 'docx') {
+          this.snack.open('DOCX saved — placeholders will be replaced as real text (not white boxes).', 'Close', { duration: 6000 });
+        } else if (r.conversion === 'libreoffice') {
+          this.snack.open('Converted with LibreOffice. For real text editing, upload DOCX instead of PDF.', 'Close', { duration: 5000 });
         } else if (r.conversion === 'msword') {
-          this.snack.open('Converted with Microsoft Word — layout preserved.', 'Close', { duration: 4000 });
+          this.snack.open('Converted with Word. For real text editing, upload DOCX instead of PDF.', 'Close', { duration: 5000 });
         }
         const name = this.templateName || this.selectedFile!.name.replace(/\.(pdf|docx?)$/i, '');
-        this.svc.createTemplate({ name, description: this.templateDescription, r2Key: r.r2Key, pageCount: r.pageCount, tempId: r.tempId }).subscribe({
+        if (!r.r2Key && !r.docxR2Key) {
+          this.uploading = false;
+          this.snack.open('Upload failed — no file stored', 'Close', { duration: 4000 });
+          return;
+        }
+        this.svc.createTemplate({
+          name,
+          description: this.templateDescription,
+          r2Key: r.r2Key || '',
+          docxR2Key: r.docxR2Key,
+          fillMode: r.fillMode,
+          pageCount: r.pageCount,
+          tempId: r.tempId
+        }).subscribe({
           next: cr => {
             this.createdTemplateId = cr.template._id;
             this.templateName = cr.template.name;
             this.uploading = false;
+            this.editingFillMode = cr.template.fillMode === 'docx' || !!cr.template.docxR2Key ? 'docx' : 'overlay';
             this.step = 'preview';
-            this.loadPdfPreview(cr.template._id);
+            if (cr.template.r2Key) this.loadPdfPreview(cr.template._id);
+            else if (this.editingFillMode === 'docx') {
+              this.snack.open('Word file saved. PDF preview unavailable until LibreOffice/Word conversion works — use field preview on Share screen.', 'Close', { duration: 8000 });
+              this.autoDetectPlaceholders();
+            }
           },
           error: e => { this.uploading = false; this.snack.open(e.error?.message || 'Create failed', 'Close', { duration: 3000 }); }
         });
@@ -171,39 +213,49 @@ export class AgreementTemplatesComponent implements OnInit {
       next: r => {
         if (this.pdfBlobUrl) URL.revokeObjectURL(this.pdfBlobUrl);
         this.pdfPreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(r.url);
-        this.autoDetectRedFields();
+        this.autoDetectPlaceholders();
       },
       error: () => this.snack.open('Could not load PDF preview', 'Close', { duration: 3000 })
     });
   }
 
-  /** Words shown in red in the PDF are treated as dynamic placeholders. */
-  autoDetectRedFields(): void {
+  /** Detect {{fieldName}} markers first; falls back to red text. */
+  autoDetectPlaceholders(): void {
     if (!this.createdTemplateId) return;
     this.analyzing = true;
-    this.svc.detectRedFields(this.createdTemplateId).subscribe({
+    this.svc.detectPlaceholders(this.createdTemplateId).subscribe({
       next: r => {
         this.analyzing = false;
         if (r.fields?.length) {
           this.fields = r.fields.map(fieldDraftFromDynamic);
-          this.snack.open(
-            `Detected ${r.fields.length} red placeholder field(s): ${r.fields.map((f) => f.label).join(', ')}`,
-            'Close',
-            { duration: 5000 }
-          );
+          const hint =
+            r.source === 'docx'
+              ? `Found in DOCX: ${r.fields.map((f) => f.sampleText || f.id).join(', ')}`
+              : r.source === 'brace'
+                ? `Found {{placeholders}}: ${r.fields.map((f) => f.sampleText || f.id).join(', ')}`
+                : `Detected ${r.fields.length} field(s) (PDF overlay mode)`;
+          this.snack.open(hint, 'Close', { duration: 6000 });
         } else {
           this.snack.open(
-            'No red text detected. Mark placeholders in red in Word/PDF, or use AI Suggest Fields.',
+            'No {{placeholders}} found. In Word use {{studentName}}, {{date}}, etc., then re-upload as PDF.',
             'Close',
-            { duration: 5000 }
+            { duration: 7000 }
           );
         }
       },
       error: e => {
         this.analyzing = false;
-        this.snack.open(e.error?.message || 'Red field detection failed', 'Close', { duration: 4000 });
+        const msg =
+          e.error?.message ||
+          (typeof e.error === 'string' ? e.error : null) ||
+          'Placeholder detection failed. Restart the server and try again.';
+        this.snack.open(msg, 'Close', { duration: 6000 });
       }
     });
+  }
+
+  autoDetectRedFields(): void {
+    this.autoDetectPlaceholders();
   }
 
   runAiAnalysis(): void {
@@ -230,7 +282,7 @@ export class AgreementTemplatesComponent implements OnInit {
   }
 
   applySuggestion(s: AiSuggestion): void {
-    if (this.fields.length >= 7) { this.snack.open('Maximum 7 fields allowed', 'Close', { duration: 2000 }); return; }
+    if (this.fields.length >= MAX_FIELDS) { this.snack.open(`Maximum ${MAX_FIELDS} fields allowed`, 'Close', { duration: 2000 }); return; }
     const exists = this.fields.find(f => f.id === s.id);
     if (exists) return;
     const withCoords = s as AiSuggestion & Partial<DynamicField>;
@@ -248,10 +300,35 @@ export class AgreementTemplatesComponent implements OnInit {
     });
   }
 
-  locateFromSampleText(): void {
+  onNewFieldIdChange(): void {
+    const id = (this.newField.id || '').trim();
+    if (!id) return;
+    if (!this.newField.sampleText?.includes('{{')) {
+      this.newField.placeholderToken = `{{${id}}}`;
+      this.newField.sampleText = this.newField.placeholderToken;
+    }
+    if (!this.newField.label) {
+      this.newField.label = id.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+    }
+  }
+
+  /** Set {{id}} from Field ID, locate in PDF, then add to list. */
+  locateAndAddPlaceholder(): void {
+    const id = (this.newField.id || '').trim();
+    if (!id) {
+      this.snack.open('Enter a Field ID first (e.g. level)', 'Close', { duration: 3000 });
+      return;
+    }
+    this.newField.sampleText = `{{${id}}}`;
+    this.newField.placeholderToken = this.newField.sampleText;
+    this.locateFromSampleText(true);
+  }
+
+  locateFromSampleText(andAdd = false): void {
     if (!this.createdTemplateId || !this.newField.sampleText?.trim()) return;
     this.locatingText = true;
-    this.svc.locateTextInTemplate(this.createdTemplateId, this.newField.sampleText.trim()).subscribe({
+    const query = this.newField.sampleText.trim();
+    this.svc.locateTextInTemplate(this.createdTemplateId, query).subscribe({
       next: r => {
         this.locatingText = false;
         const f = r.field;
@@ -261,14 +338,21 @@ export class AgreementTemplatesComponent implements OnInit {
         if (f.width != null) this.newField.width = f.width;
         if (f.height != null) this.newField.height = f.height;
         if (f.fontSize) this.newField.fontSize = f.fontSize;
-        if (f.sampleText) this.newField.sampleText = f.sampleText;
-        if (!this.newField.label) this.newField.label = f.sampleText || this.newField.sampleText;
-        if (!this.newField.id) this.newField.id = this.slugifyFieldId(this.newField.label);
-        this.snack.open('Position found in PDF', 'Close', { duration: 2500 });
+        if (f.sampleText) {
+          this.newField.sampleText = f.sampleText;
+          this.newField.placeholderToken = f.sampleText;
+        }
+        if (!this.newField.label) this.newField.label = this.newField.id || f.sampleText || '';
+        this.snack.open(`Found "${f.sampleText || query}" in PDF`, 'Close', { duration: 2500 });
+        if (andAdd) this.addField();
       },
       error: e => {
         this.locatingText = false;
-        this.snack.open(e.error?.message || 'Could not locate text in PDF', 'Close', { duration: 4000 });
+        this.snack.open(
+          e.error?.message || `Could not find "${query}" in PDF. Check spelling/capital letters match the PDF.`,
+          'Close',
+          { duration: 5000 }
+        );
       }
     });
   }
@@ -282,8 +366,12 @@ export class AgreementTemplatesComponent implements OnInit {
   }
 
   addField(): void {
-    if (this.fields.length >= 7) { this.snack.open('Maximum 7 fields allowed', 'Close', { duration: 2000 }); return; }
+    if (this.fields.length >= MAX_FIELDS) { this.snack.open(`Maximum ${MAX_FIELDS} fields allowed`, 'Close', { duration: 2000 }); return; }
     if (!this.newField.id || !this.newField.label) { this.snack.open('Field ID and label are required', 'Close', { duration: 2000 }); return; }
+    if (!this.newField.sampleText?.includes('{{')) {
+      this.newField.placeholderToken = `{{${this.newField.id}}}`;
+      this.newField.sampleText = this.newField.placeholderToken;
+    }
     this.fields.push({ ...this.newField });
     this.newField = emptyFieldDraft();
   }
@@ -296,7 +384,12 @@ export class AgreementTemplatesComponent implements OnInit {
     if (!this.createdTemplateId) return;
     if (this.fields.length === 0) { this.snack.open('Add at least one field', 'Close', { duration: 2000 }); return; }
     this.saving = true;
-    this.svc.saveFields(this.createdTemplateId, this.fields as DynamicField[]).subscribe({
+    const payload = this.fields.map((f) => ({
+      ...f,
+      placeholderToken: f.placeholderToken || (f.sampleText?.includes('{{') ? f.sampleText : `{{${f.id}}}`),
+      sampleText: f.sampleText || f.placeholderToken || `{{${f.id}}}`
+    })) as DynamicField[];
+    this.svc.saveFields(this.createdTemplateId, payload).subscribe({
       next: () => {
         this.saving = false;
         this.snack.open('Template saved successfully!', 'Close', { duration: 3000 });
@@ -313,17 +406,111 @@ export class AgreementTemplatesComponent implements OnInit {
     this.templateName = t.name;
     this.templateDescription = t.description || '';
     this.totalPages = t.pageCount;
+    this.editingFillMode = t.fillMode === 'docx' || !!t.docxR2Key ? 'docx' : 'overlay';
     this.fields = (t.dynamicFields || []).map(fieldDraftFromDynamic);
     this.step = 'preview';
     this.pdfPreviewUrl = null;
+    this.docxUpgradeFile = null;
     this.loadPdfPreview(t._id);
   }
 
-  deleteTemplate(id: string): void {
-    if (!confirm('Deactivate this template? Existing agreements will not be affected.')) return;
-    this.svc.deleteTemplate(id).subscribe({
-      next: () => { this.snack.open('Template deactivated', 'Close', { duration: 2000 }); this.loadTemplates(); },
-      error: e => this.snack.open(e.error?.message || 'Delete failed', 'Close', { duration: 3000 })
+  onDocxUpgradeSelect(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const f = input.files?.[0];
+    if (!f) return;
+    if (!/\.docx$/i.test(f.name)) {
+      this.snack.open('Please select a .docx file (Word document)', 'Close', { duration: 4000 });
+      input.value = '';
+      return;
+    }
+    this.docxUpgradeFile = f;
+  }
+
+  uploadDocxSource(): void {
+    if (!this.createdTemplateId || !this.docxUpgradeFile) return;
+    this.upgradingDocx = true;
+    this.svc.uploadTemplateDocx(this.createdTemplateId, this.docxUpgradeFile).subscribe({
+      next: r => {
+        this.upgradingDocx = false;
+        this.editingFillMode = 'docx';
+        this.docxUpgradeFile = null;
+        if (r.template?.pageCount) this.totalPages = r.template.pageCount;
+        if (r.fields?.length) this.fields = r.fields.map(fieldDraftFromDynamic);
+        if (r.warning) this.snack.open(r.warning, 'Close', { duration: 10000 });
+        if (r.template?.r2Key) this.loadPdfPreview(this.createdTemplateId);
+        this.snack.open(r.message || 'DOCX attached — real text editing enabled', 'Close', { duration: 6000 });
+        this.loadTemplates();
+      },
+      error: e => {
+        this.upgradingDocx = false;
+        this.snack.open(e.error?.message || 'DOCX upload failed', 'Close', { duration: 5000 });
+      }
+    });
+  }
+
+  get filteredTemplates(): AgreementTemplate[] {
+    const q = this.templateSearch.trim().toLowerCase();
+    if (!q) return this.templates;
+    return this.templates.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        t.dynamicFields?.some((f) => f.label.toLowerCase().includes(q) || f.id.toLowerCase().includes(q))
+    );
+  }
+
+  get templateStats(): { total: number; word: number; overlay: number } {
+    const word = this.templates.filter((t) => t.fillMode === 'docx' || t.docxR2Key).length;
+    return { total: this.templates.length, word, overlay: this.templates.length - word };
+  }
+
+  isWordMode(t: AgreementTemplate): boolean {
+    return t.fillMode === 'docx' || !!t.docxR2Key;
+  }
+
+  visibleFieldLabels(t: AgreementTemplate, max = 6): string[] {
+    return (t.dynamicFields || []).slice(0, max).map((f) => f.label || f.id);
+  }
+
+  extraFieldCount(t: AgreementTemplate, max = 6): number {
+    return Math.max(0, (t.dynamicFields?.length || 0) - max);
+  }
+
+  hideTemplate(t: AgreementTemplate, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`Hide "${t.name}" from the list? Files stay in storage; you can still use existing student agreements.`)) return;
+    this.deletingId = t._id;
+    this.svc.deleteTemplate(t._id, { soft: true }).subscribe({
+      next: () => {
+        this.deletingId = null;
+        this.snack.open('Template hidden', 'Close', { duration: 2500 });
+        this.loadTemplates();
+      },
+      error: (e) => {
+        this.deletingId = null;
+        this.snack.open(e.error?.message || 'Failed to hide template', 'Close', { duration: 4000 });
+      }
+    });
+  }
+
+  deleteTemplatePermanent(t: AgreementTemplate, event?: Event): void {
+    event?.stopPropagation();
+    const msg =
+      `Permanently delete "${t.name}"?\n\n` +
+      'This removes the template from the database and deletes PDF/DOCX files from R2 storage. ' +
+      'Cannot be undone.';
+    if (!confirm(msg)) return;
+    this.deletingId = t._id;
+    this.svc.deleteTemplate(t._id).subscribe({
+      next: (r) => {
+        this.deletingId = null;
+        this.snack.open(r.message || 'Template deleted', 'Close', { duration: 3500 });
+        this.loadTemplates();
+      },
+      error: (e) => {
+        this.deletingId = null;
+        this.snack.open(e.error?.message || 'Delete failed', 'Close', { duration: 5000 });
+      }
     });
   }
 
@@ -347,5 +534,8 @@ export class AgreementTemplatesComponent implements OnInit {
     this.templateName = '';
     this.templateDescription = '';
     this.saving = false;
+    this.editingFillMode = 'overlay';
+    this.docxUpgradeFile = null;
+    this.upgradingDocx = false;
   }
 }

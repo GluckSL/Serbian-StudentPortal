@@ -14,11 +14,25 @@
 .fields-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 8px; }
 .field-input { width: 100%; }
 
+.fill-mode-warn {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: #fff8e1;
+  border-left: 4px solid #ff9800;
+  font-size: 0.85rem;
+  color: #5d4037;
+  border-radius: 4px;
+}
+.fill-mode-warn p { margin: 0 0 10px; }
+.fill-mode-warn a { margin-top: 4px; }
+
 .share-options { margin: 12px 0; }
 .share-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 
 .preview-section { margin-top: 20px; }
 .preview-section h4 { margin-bottom: 8px; color: #1a237e; }
+.preview-hint { font-size: 0.8rem; font-weight: normal; color: #666; }
+.preview-note { font-size: 0.85rem; color: #666; margin: 0 0 8px; }
 .preview-iframe { width: 100%; height: 500px; border: 1px solid #e0e0e0; border-radius: 4px; }
 
 .center-spinner { display: flex; justify-content: center; padding: 32px; }
