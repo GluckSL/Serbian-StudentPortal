@@ -19,7 +19,7 @@ const DGSession = require('../models/DGSession');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
-const { getStudentDgJourneyAccess, dgModuleUnlockedForStudentDay } = require('../utils/dgStudentJourneyGate');
+const { getStudentDgJourneyAccess, dgModuleUnlockedForAccess } = require('../utils/dgStudentJourneyGate');
 
 const GO_BATCH_NAME = 'GO-SILVER';
 
@@ -682,9 +682,9 @@ router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
 
       dgModules = (allDg || []).map((m) => {
         const dayLocked =
-          !dgModuleUnlockedForStudentDay(m.courseDay, currentDay) ||
           !dgAccess.enabled ||
-          dgAccess.learningEnabled === false;
+          dgAccess.dgBotEnabled === false ||
+          !dgModuleUnlockedForAccess(dgAccess, m.courseDay);
         const completed = dgCompletedSet.has(String(m._id));
         const started = dgAnySet.has(String(m._id));
         let status = 'not_started';

@@ -46,6 +46,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   activeTab: HubTab = 'new';
   studentCourseDay = 1;
+  unlockMode: 'daily' | 'weekly' | 'none' = 'daily';
+  dgUnlockedWeek = 1;
+  apiWeekHint: string | null = null;
 
   searchQuery = '';
   selectedLevel = '';
@@ -104,6 +107,12 @@ export class DgBotHubComponent implements OnInit, OnChanges {
         if (Number.isFinite(d) && d >= 1) {
           this.studentCourseDay = Math.min(200, Math.floor(d));
         }
+        this.unlockMode = r?.unlockMode === 'weekly' ? 'weekly' : r?.unlockMode === 'none' ? 'none' : 'daily';
+        const w = Number(r?.dgUnlockedWeek);
+        if (Number.isFinite(w) && w >= 1) {
+          this.dgUnlockedWeek = Math.floor(w);
+        }
+        this.apiWeekHint = r?.dgWeekHint?.trim() || null;
         this.applyDayScope();
         this.loading = false;
       },
@@ -215,9 +224,19 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   }
 
   get journeyWeekHint(): string {
+    if (this.apiWeekHint) return this.apiWeekHint;
+    if (this.unlockMode === 'weekly') {
+      const start = (this.dgUnlockedWeek - 1) * 7 + 1;
+      const end = this.dgUnlockedWeek * 7;
+      return `Week ${this.dgUnlockedWeek}: journey days ${start}–${end}. Complete all modules in this week to unlock the next.`;
+    }
     const a = this.studentCourseDay;
     const b = Math.min(200, a + 6);
     return `Journey days ${a}–${b}: “New” is tied to your current journey day.`;
+  }
+
+  get showWeeklyHint(): boolean {
+    return this.unlockMode === 'weekly' && !this.journeyFixedDay;
   }
 
   get levelOptions(): string[] {

@@ -33,6 +33,8 @@ interface StudentMeeting {
   attendanceStatus?: string | null;
 }
 
+type ClassTab = 'upcoming' | 'live' | 'attempted';
+
 @Component({
   selector: 'app-student-meetings',
   standalone: true,
@@ -44,21 +46,31 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
   @ViewChild('submissionFileInput') private submissionFileRef?: ElementRef<HTMLInputElement>;
 
-  allMeetings: StudentMeeting[] = [];
+  /** Current page slice for each tab (server-paginated). */
   upcomingMeetings: StudentMeeting[] = [];
   ongoingMeetings: StudentMeeting[] = [];
-  pastMeetings: StudentMeeting[] = [];
   attemptedMeetings: StudentMeeting[] = [];
-  activeTab: 'upcoming' | 'live' | 'attempted' = 'upcoming';
+
+  /** Tab totals from server (includeTabCounts). */
+  upcomingTotal = 0;
+  liveTotal = 0;
+  attemptedTotal = 0;
+
+  activeTab: ClassTab = 'upcoming';
 
   readonly classesPageSize = 7;
   upcomingPage = 1;
   livePage = 1;
   attemptedPage = 1;
 
+  /** Skeleton row placeholders while a tab page loads. */
+  readonly skeletonClassRows = [0, 1, 2, 3, 4, 5, 6];
+
   loading = false;
+  tabLoading = false;
   error = '';
   private meetingsRefreshId: ReturnType<typeof setInterval> | null = null;
+  private initialTabResolved = false;
 
   // Resources modal
   showResourceModal = false;
@@ -94,89 +106,136 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.loadMeetings();
-    this.meetingsRefreshId = setInterval(() => this.loadMeetings(), 60000);
+    this.loadInitial();
+    this.meetingsRefreshId = setInterval(() => this.refreshCurrentTab(), 60000);
   }
 
   ngOnDestroy(): void {
     if (this.meetingsRefreshId) { clearInterval(this.meetingsRefreshId); this.meetingsRefreshId = null; }
   }
 
+  /** Retry button in error state (template). */
   loadMeetings(): void {
+    this.loadInitial();
+  }
+
+  private loadInitial(): void {
     this.loading = true;
     this.error = '';
-    this.zoomService.getStudentMeetings().subscribe({
+    this.fetchTab('upcoming', 1, true, true);
+  }
+
+  private refreshCurrentTab(): void {
+    if (this.loading || this.tabLoading) return;
+    const page = this.getPageForTab(this.activeTab);
+    this.fetchTab(this.activeTab, page, false, true);
+  }
+
+  private fetchTab(tab: ClassTab, page: number, resolveInitialTab: boolean, includeCounts: boolean): void {
+    this.tabLoading = true;
+    if (resolveInitialTab) this.loading = true;
+    this.zoomService.getStudentMeetings({
+      tab,
+      page,
+      limit: this.classesPageSize,
+      includeTabCounts: includeCounts
+    }).subscribe({
       next: (response) => {
-        if (response.success) { this.allMeetings = response.data; this.categorizeMeetings(); }
-        else { this.error = response.message || 'Failed to load meetings'; }
+        if (!response?.success) {
+          this.error = response?.message || 'Failed to load meetings';
+          this.loading = false;
+          this.tabLoading = false;
+          return;
+        }
+        if (response.tabCounts) {
+          this.upcomingTotal = Number(response.tabCounts.upcoming) || 0;
+          this.liveTotal = Number(response.tabCounts.live) || 0;
+          this.attemptedTotal = Number(response.tabCounts.attempted) || 0;
+        }
+        const items: StudentMeeting[] = Array.isArray(response.data) ? response.data : [];
+        const total = Number(response.totalCount ?? response.pagination?.totalItems ?? items.length);
+        this.setTabMeetings(tab, items, page, total);
+
+        if (resolveInitialTab && !this.initialTabResolved) {
+          this.initialTabResolved = true;
+          if (this.liveTotal > 0) {
+            this.activeTab = 'live';
+            if (tab !== 'live') this.fetchTab('live', 1, false, false);
+          } else if (this.upcomingTotal > 0) {
+            this.activeTab = 'upcoming';
+            if (tab !== 'upcoming') this.fetchTab('upcoming', 1, false, false);
+          } else {
+            this.activeTab = 'attempted';
+            if (tab !== 'attempted') this.fetchTab('attempted', 1, false, false);
+          }
+        }
+
         this.loading = false;
+        this.tabLoading = false;
       },
-      error: (err) => { console.error('Error loading meetings:', err); this.error = 'Failed to load your meetings'; this.loading = false; }
+      error: (err) => {
+        console.error('Error loading meetings:', err);
+        this.error = 'Failed to load your meetings';
+        this.loading = false;
+        this.tabLoading = false;
+      }
     });
   }
 
-  categorizeMeetings(): void {
-    const byStartAsc = (a: StudentMeeting, b: StudentMeeting) =>
-      new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-    const byStartDesc = (a: StudentMeeting, b: StudentMeeting) =>
-      new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-
-    this.ongoingMeetings = this.allMeetings
-      .filter((m) => m.isOngoing || (!!m.canJoin && !m.hasEnded && Number(m.timeUntilStart) <= 0))
-      .sort(byStartAsc);
-    this.upcomingMeetings = this.allMeetings
-      .filter((m) => !this.ongoingMeetings.some((live) => live._id === m._id) && !m.hasEnded)
-      .sort(byStartAsc);
-    this.pastMeetings = this.allMeetings.filter((m) => m.hasEnded).sort(byStartDesc);
-    this.attemptedMeetings = this.pastMeetings;
-    this.clampClassPages();
-    if (this.ongoingMeetings.length > 0) this.activeTab = 'live';
-    else if (this.upcomingMeetings.length > 0) this.activeTab = 'upcoming';
-    else this.activeTab = 'attempted';
+  private setTabMeetings(tab: ClassTab, items: StudentMeeting[], page: number, total: number): void {
+    if (tab === 'upcoming') {
+      this.upcomingMeetings = items;
+      this.upcomingPage = page;
+      this.upcomingTotal = total;
+    } else if (tab === 'live') {
+      this.ongoingMeetings = items;
+      this.livePage = page;
+      this.liveTotal = total;
+    } else {
+      this.attemptedMeetings = items;
+      this.attemptedPage = page;
+      this.attemptedTotal = total;
+    }
   }
 
-  private clampClassPages(): void {
-    this.upcomingPage = this.clampPage(this.upcomingPage, this.upcomingMeetings.length);
-    this.livePage = this.clampPage(this.livePage, this.ongoingMeetings.length);
-    this.attemptedPage = this.clampPage(this.attemptedPage, this.attemptedMeetings.length);
+  private getPageForTab(tab: ClassTab): number {
+    if (tab === 'upcoming') return this.upcomingPage;
+    if (tab === 'live') return this.livePage;
+    return this.attemptedPage;
   }
 
-  private clampPage(page: number, totalItems: number): number {
-    const totalPages = this.totalPagesFor(totalItems);
-    return Math.min(Math.max(1, page), totalPages);
+  private getTotalForTab(tab: ClassTab): number {
+    if (tab === 'upcoming') return this.upcomingTotal;
+    if (tab === 'live') return this.liveTotal;
+    return this.attemptedTotal;
+  }
+
+  get paginatedUpcomingMeetings(): StudentMeeting[] {
+    return this.upcomingMeetings;
+  }
+
+  get paginatedOngoingMeetings(): StudentMeeting[] {
+    return this.ongoingMeetings;
+  }
+
+  get paginatedAttemptedMeetings(): StudentMeeting[] {
+    return this.attemptedMeetings;
+  }
+
+  get upcomingTotalPages(): number {
+    return this.totalPagesFor(this.upcomingTotal);
+  }
+
+  get liveTotalPages(): number {
+    return this.totalPagesFor(this.liveTotal);
+  }
+
+  get attemptedTotalPages(): number {
+    return this.totalPagesFor(this.attemptedTotal);
   }
 
   private totalPagesFor(totalItems: number): number {
     return Math.max(1, Math.ceil(totalItems / this.classesPageSize));
-  }
-
-  get paginatedUpcomingMeetings(): StudentMeeting[] {
-    return this.slicePage(this.upcomingMeetings, this.upcomingPage);
-  }
-
-  get paginatedOngoingMeetings(): StudentMeeting[] {
-    return this.slicePage(this.ongoingMeetings, this.livePage);
-  }
-
-  get paginatedAttemptedMeetings(): StudentMeeting[] {
-    return this.slicePage(this.attemptedMeetings, this.attemptedPage);
-  }
-
-  get upcomingTotalPages(): number {
-    return this.totalPagesFor(this.upcomingMeetings.length);
-  }
-
-  get liveTotalPages(): number {
-    return this.totalPagesFor(this.ongoingMeetings.length);
-  }
-
-  get attemptedTotalPages(): number {
-    return this.totalPagesFor(this.attemptedMeetings.length);
-  }
-
-  private slicePage(list: StudentMeeting[], page: number): StudentMeeting[] {
-    const start = (page - 1) * this.classesPageSize;
-    return list.slice(start, start + this.classesPageSize);
   }
 
   getClassPageNumbers(totalPages: number, currentPage: number): number[] {
@@ -188,15 +247,21 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   changeUpcomingPage(page: number): void {
-    this.upcomingPage = this.clampPage(page, this.upcomingMeetings.length);
+    const p = Math.min(Math.max(1, page), this.upcomingTotalPages);
+    if (p === this.upcomingPage && !this.tabLoading) return;
+    this.fetchTab('upcoming', p, false, false);
   }
 
   changeLivePage(page: number): void {
-    this.livePage = this.clampPage(page, this.ongoingMeetings.length);
+    const p = Math.min(Math.max(1, page), this.liveTotalPages);
+    if (p === this.livePage && !this.tabLoading) return;
+    this.fetchTab('live', p, false, false);
   }
 
   changeAttemptedPage(page: number): void {
-    this.attemptedPage = this.clampPage(page, this.attemptedMeetings.length);
+    const p = Math.min(Math.max(1, page), this.attemptedTotalPages);
+    if (p === this.attemptedPage && !this.tabLoading) return;
+    this.fetchTab('attempted', p, false, false);
   }
 
   classPageRangeLabel(page: number, totalItems: number): string {
@@ -204,6 +269,12 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     const start = (page - 1) * this.classesPageSize + 1;
     const end = Math.min(page * this.classesPageSize, totalItems);
     return `Showing ${start}–${end} of ${totalItems}`;
+  }
+
+  setTab(tab: ClassTab): void {
+    if (this.activeTab === tab) return;
+    this.activeTab = tab;
+    this.fetchTab(tab, this.getPageForTab(tab), false, false);
   }
 
   joinMeeting(meeting: StudentMeeting): void {
@@ -234,7 +305,6 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return { head: t, rest: null };
   }
 
-  /** First name (first word) on one line, surname / rest on the next — fits long names on mobile cards. */
   splitTeacherDisplayName(name: string | null | undefined): { first: string; second: string | null } {
     const raw = (name ?? '').trim();
     if (!raw) return { first: '—', second: null };
@@ -281,12 +351,10 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return Math.max(0, Math.min(100, Math.round((attended / total) * 100)));
   }
 
-  /** Scheduled class length in minutes (denominator for progress). */
   getTotalClassMinutes(meeting: StudentMeeting): number {
     return Math.max(0, Math.round(Number(meeting.duration || 0)));
   }
 
-  /** Minutes the student was present (capped at class duration). */
   getAttendedMinutesDisplay(meeting: StudentMeeting): number {
     const total = this.getTotalClassMinutes(meeting);
     if (!meeting.hasEnded || total <= 0) return 0;
@@ -295,7 +363,6 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return Math.max(0, Math.min(total, attended));
   }
 
-  /** e.g. "55/60" — attended minutes / total class minutes */
   getProgressMinutesLabel(meeting: StudentMeeting): string {
     const total = this.getTotalClassMinutes(meeting);
     if (total <= 0) return '—';
@@ -317,16 +384,11 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return 'badge-missed';
   }
 
-  setTab(tab: 'upcoming' | 'live' | 'attempted'): void {
-    this.activeTab = tab;
-  }
-
   copyMeetingInfo(meeting: StudentMeeting): void {
     const info = `Meeting: ${meeting.topic}\nDate: ${this.formatDate(meeting.startTime)}\nTime: ${this.formatTime(meeting.startTime)}\nDuration: ${this.formatDuration(meeting.duration)}\nJoin URL: ${meeting.joinUrl}\nPassword: ${meeting.password}`;
     navigator.clipboard.writeText(info).then(() => this.notify.success('Copied!'));
   }
 
-  // ── Resources Modal ──
   openResources(m: StudentMeeting): void {
     this.resourceMeeting = m;
     this.showResourceModal = true;
@@ -359,7 +421,6 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
-  // ── Doubts Modal ──
   openDoubts(m: StudentMeeting): void {
     this.doubtMeeting = m;
     this.showDoubtModal = true;
@@ -399,7 +460,6 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return m.hasEnded || m.status === 'ended';
   }
 
-  // ── Submissions Modal ──
   openSubmissions(m: StudentMeeting): void {
     this.submissionMeeting = m;
     this.showSubmissionModal = true;

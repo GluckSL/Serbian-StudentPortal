@@ -12,6 +12,7 @@ import {
   AdminClassRecording,
   ZoomWebhookAuditRow,
 } from '../../../services/class-recordings.service';
+import { RecordingAccessRequestService } from '../../../services/recording-access-request.service';
 import { NotificationService } from '../../../services/notification.service';
 import { forkJoin, of } from 'rxjs';
 
@@ -111,12 +112,16 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   };
   viewsMeta: { totalStudents?: number; watchedCount?: number; notWatchedCount?: number; totalWatchSeconds?: number; videoSizeBytes?: number } = {};
 
+  // ── Recording access requests (count badge; full UI in new tab) ─────────────
+  pendingCount = 0;
+
   constructor(
     private service: ClassRecordingsService,
     private snackBar: MatSnackBar,
     private sanitizer: DomSanitizer,
     private notify: NotificationService,
-    private router: Router
+    private router: Router,
+    private recordingReqService: RecordingAccessRequestService
   ) {}
 
   ngOnInit(): void {
@@ -124,6 +129,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.loadBatches();
     this.loadZoomTeachers();
     this.startProcessingClock();
+    this.loadPendingCount();
   }
 
   loadZoomTeachers(): void {
@@ -1220,5 +1226,21 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     if (mb < 1024) return `${mb.toFixed(1)} MB`;
     const gb = mb / 1024;
     return `${gb.toFixed(2)} GB`;
+  }
+
+  // ── Recording access request approval ───────────────────────────────────────
+
+  loadPendingCount(): void {
+    this.recordingReqService.getPendingCount().subscribe({
+      next: (res) => { this.pendingCount = res.count || 0; },
+      error: () => {}
+    });
+  }
+
+  openApprovalInNewTab(): void {
+    const tree = this.router.createUrlTree(['/class-recordings/approval-requests']);
+    const url = `${window.location.origin}${this.router.serializeUrl(tree)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    this.loadPendingCount();
   }
 }

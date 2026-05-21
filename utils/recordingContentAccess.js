@@ -1,4 +1,5 @@
 const { allStudentBatchStringsForContent, batchesAlign } = require('./effectiveStudentBatch');
+const RecordingAccessRequest = require('../models/RecordingAccessRequest');
 
 function allowedRecordingPlansForStudent(student) {
   const sub = String(student?.subscription || '').toUpperCase();
@@ -77,7 +78,18 @@ function canUserAccessZoomRecording(zoomRecording, meetingLink, student) {
   return allowed.map((p) => String(p).toUpperCase()).includes(plan);
 }
 
+/** True when a student has an approved per-student recording grant for this class. */
+async function hasApprovedRecordingGrant(studentId, meetingLinkId) {
+  if (!studentId || !meetingLinkId) return false;
+  return !!(await RecordingAccessRequest.exists({
+    studentId,
+    meetingLinkId,
+    status: 'APPROVED',
+  }));
+}
+
 module.exports = {
   canUserAccessManualRecording,
-  canUserAccessZoomRecording
+  canUserAccessZoomRecording,
+  hasApprovedRecordingGrant,
 };

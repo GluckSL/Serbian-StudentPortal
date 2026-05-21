@@ -464,7 +464,8 @@
   font-size: 12px;
 }
 
-.dg-hub__journey-hint {
+.dg-hub__journey-hint,
+.dg-hub__week-banner {
   font-size: 0.82rem;
   font-weight: 600;
   color: #4338ca;
@@ -474,6 +475,11 @@
   padding: 8px 12px;
   line-height: 1.35;
   max-width: 320px;
+}
+
+.dg-hub__week-banner {
+  max-width: none;
+  margin: 0 0 12px;
 }
 
 .dg-hub__clear-filters {

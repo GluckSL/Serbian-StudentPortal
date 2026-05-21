@@ -17,6 +17,14 @@
           <i class="fa fa-upload"></i>
           {{ publishLoading ? 'Publishing…' : ('Publish (' + selectedPublishCount() + ')') }}
         </button>
+        <button
+          class="cr-btn cr-btn--req-approval"
+          [class.cr-btn--req-approval--pending]="pendingCount > 0"
+          type="button"
+          (click)="openApprovalInNewTab()">
+          <i class="fa fa-inbox"></i>
+          Req approval<span *ngIf="pendingCount > 0" class="cr-req-approval-count"> ({{ pendingCount }})</span>
+        </button>
         <button class="cr-btn cr-btn--ghost" (click)="openWebhookAudit()">
           <i class="fa fa-wave-square"></i> Webhook Audit
         </button>

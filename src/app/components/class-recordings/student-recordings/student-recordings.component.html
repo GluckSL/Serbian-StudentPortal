@@ -1,8 +1,8 @@
-<div class="sr" [class.sr--embedded]="embedded" *ngIf="!loading; else loadingTpl">
+<div class="sr" [class.sr--embedded]="embedded">
   <div class="sr-header" *ngIf="!embedded">
     <div class="sr-header__text">
       <h2 class="sr-header__title">Class Recordings</h2>
-      <p class="sr-header__sub">{{ filteredRecordings.length }} recording{{ filteredRecordings.length !== 1 ? 's' : '' }} available for your batch</p>
+      <p class="sr-header__sub">{{ recordingsTotal }} recording{{ recordingsTotal !== 1 ? 's' : '' }} available for your batch</p>
     </div>
     <button
       type="button"
@@ -31,6 +31,15 @@
       aria-label="Filter recordings">
       Filter
     </button>
+    <button
+      *ngIf="embedded && isPlatinumStudent"
+      type="button"
+      class="sr-req-rec-btn"
+      (click)="reqRecordingClick.emit()"
+      aria-label="Request recording access for past classes">
+      <span class="material-icons sr-req-rec-btn__icon">video_library</span>
+      Req recording
+    </button>
   </div>
 
   <mat-menu #srFilterMenu="matMenu" xPosition="after" panelClass="sr-recordings-filter-menu">
@@ -42,20 +51,37 @@
     <button mat-menu-item (click)="setRecordingFilter('date_oldest')">Date · Oldest first</button>
   </mat-menu>
 
-  <div *ngIf="!filteredRecordings.length" class="sr-empty">
+  <div *ngIf="!loading && !filteredRecordings.length" class="sr-empty">
     <span class="sr-empty__icon">&#127909;</span>
-    <h3 *ngIf="!allRecordings.length">No recordings available yet</h3>
-    <h3 *ngIf="journeyDayFilterActive && allRecordings.length">No class recordings for Day {{ courseDayFilter }}</h3>
-    <h3 *ngIf="!journeyDayFilterActive && allRecordings.length">No matching recordings</h3>
-    <p *ngIf="journeyDayFilterActive && allRecordings.length">Recordings must have a journey day tag to appear here. Use <strong>My class</strong> to browse all recordings.</p>
+    <h3 *ngIf="recordingsTotal === 0 && !searchQuery.trim() && recordingFilter === 'all'">No recordings available yet</h3>
+    <h3 *ngIf="journeyDayFilterActive && recordingsTotal > 0">No class recordings for Day {{ courseDayFilter }}</h3>
+    <h3 *ngIf="!journeyDayFilterActive && recordingsTotal > 0">No matching recordings</h3>
+    <p *ngIf="journeyDayFilterActive && recordingsTotal > 0">Recordings must have a journey day tag to appear here. Use <strong>My class</strong> to browse all recordings.</p>
     <p *ngIf="searchQuery.trim()">Try a different search term.</p>
-    <p *ngIf="!searchQuery.trim() && recordingFilter !== 'all' && allRecordings.length && !journeyDayFilterActive">No recordings match this filter.</p>
-    <p *ngIf="!searchQuery.trim() && recordingFilter === 'all' && !allRecordings.length">Your teacher hasn't uploaded any recordings for your batch and level yet.</p>
+    <p *ngIf="!searchQuery.trim() && recordingFilter !== 'all' && recordingsTotal > 0 && !journeyDayFilterActive">No recordings match this filter.</p>
+    <p *ngIf="!searchQuery.trim() && recordingFilter === 'all' && recordingsTotal === 0">Your teacher hasn't uploaded any recordings for your batch and level yet.</p>
     <button *ngIf="recordingFilter !== 'all' && !journeyDayFilterActive" type="button" class="sr-empty__clear" (click)="setRecordingFilter('all')">Clear filter</button>
   </div>
 
+  <!-- Skeleton (first page / page changes) -->
+  <div class="sr-cards sr-cards--skeleton" *ngIf="loading">
+    <article class="sr-rec-card sr-rec-card--sk" *ngFor="let _ of skeletonRecordingRows">
+      <div class="sr-sk-line sr-sk-line--title"></div>
+      <div class="sr-sk-line sr-sk-line--meta"></div>
+    </article>
+  </div>
+  <div class="sr-table-wrap sr-table-wrap--skeleton" *ngIf="loading">
+    <table class="sr-table">
+      <tbody>
+        <tr *ngFor="let _ of skeletonRecordingRows">
+          <td colspan="5"><div class="sr-sk-line sr-sk-line--row"></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- Mobile: stacked cards (title + play only in header; meta grid below) -->
-  <div class="sr-cards" *ngIf="filteredRecordings.length">
+  <div class="sr-cards" *ngIf="!loading && filteredRecordings.length">
     <article class="sr-rec-card" *ngFor="let r of filteredRecordings">
       <div class="sr-rec-card__head">
         <h3 class="sr-rec-card__title">{{ r.title }}</h3>
@@ -73,7 +99,18 @@
           </button>
           <button
             type="button"
+            class="sr-rec-card__pending"
+            *ngIf="isPendingApproval(r)"
+            disabled
+            title="Pending approval"
+            aria-label="Pending approval">
+            <span class="material-icons">hourglass_top</span>
+          </button>
+          <span class="sr-status-pill sr-status-pill--declined" *ngIf="isDeclinedRequest(r)">Declined</span>
+          <button
+            type="button"
             class="sr-rec-card__play"
+            *ngIf="canPlayRecording(r)"
             (click)="playRecording(r)"
             (mouseenter)="onPlayButtonHover(r)"
             (touchstart)="onPlayButtonHover(r)"
@@ -101,7 +138,7 @@
     </article>
   </div>
 
-  <div class="sr-table-wrap" *ngIf="filteredRecordings.length">
+  <div class="sr-table-wrap" *ngIf="!loading && filteredRecordings.length">
     <table class="sr-table">
       <thead>
         <tr>
@@ -143,10 +180,27 @@
                 so the cache is warm by the time the user clicks (~200 ms later).
               -->
               <button
+                type="button"
+                class="sr-icon-btn sr-icon-btn--pending"
+                *ngIf="isPendingApproval(r)"
+                disabled
+                title="Pending approval"
+                aria-label="Pending approval">
+                <span class="material-icons">hourglass_top</span>
+              </button>
+              <span
+                class="sr-status-pill sr-status-pill--declined"
+                *ngIf="isDeclinedRequest(r)"
+                title="Request declined"
+              >Declined</span>
+              <button
+                type="button"
                 class="sr-icon-btn sr-icon-btn--play"
+                *ngIf="canPlayRecording(r)"
                 (click)="playRecording(r)"
                 (mouseenter)="onPlayButtonHover(r)"
-                title="Play">
+                title="Play recording"
+                aria-label="Play recording">
                 <i class="fa fa-play"></i>
               </button>
             </div>
@@ -154,6 +208,25 @@
         </tr>
       </tbody>
     </table>
+  </div>
+
+  <div class="sr-pagination" *ngIf="!loading && recordingsTotal > recordingsPageSize">
+    <span class="sr-pagination__label">{{ recordingsPageRangeLabel() }}</span>
+    <div class="sr-pagination__controls">
+      <button type="button" class="sr-pagination__btn" [disabled]="recordingsPage === 1" (click)="changeRecordingsPage(recordingsPage - 1)" aria-label="Previous page">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <button
+        type="button"
+        class="sr-pagination__num"
+        *ngFor="let p of getRecordingsPageNumbers()"
+        [class.sr-pagination__num--active]="p === recordingsPage"
+        (click)="changeRecordingsPage(p)"
+      >{{ p }}</button>
+      <button type="button" class="sr-pagination__btn" [disabled]="recordingsPage === recordingsTotalPages" (click)="changeRecordingsPage(recordingsPage + 1)" aria-label="Next page">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -283,9 +356,3 @@
   </div>
 </div>
 
-<ng-template #loadingTpl>
-  <div class="sr sr--loading">
-    <div class="sr-spinner"></div>
-    <p>Loading recordings...</p>
-  </div>
-</ng-template>

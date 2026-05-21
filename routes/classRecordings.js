@@ -25,6 +25,17 @@ const {
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
+const RecordingAccessRequest = require('../models/RecordingAccessRequest');
+
+/** Returns true when a student has an APPROVED recording-access grant for a class. */
+async function hasApprovedGrant(studentId, meetingLinkId) {
+  if (!studentId || !meetingLinkId) return false;
+  return !!(await RecordingAccessRequest.exists({
+    studentId,
+    meetingLinkId,
+    status: 'APPROVED',
+  }));
+}
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -318,6 +329,379 @@ router.get('/', verifyToken, async (req, res) => {
     res.json({ success: true, recordings: enrichedRecordings });
   } catch (error) {
     console.error('Error fetching class recordings:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * GET /api/class-recordings/student-feed
+ * Paginated merged manual + Zoom recordings for students (newest first by default).
+ * Query: page (default 1), limit (default 7), search, filter (all|attended|not_attended|date_newest|date_oldest), courseDay
+ */
+router.get('/student-feed', verifyToken, async (req, res) => {
+  try {
+    const { role, id: userId } = req.user;
+    if (isClassRecordingStaff(role)) {
+      return res.status(403).json({ success: false, message: 'Students only.' });
+    }
+
+    const student = await User.findById(userId)
+      .select('batch level subscription goStatus currentCourseDay').lean();
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+    if (!journeyAccess.enabled) {
+      return res.json({
+        success: true,
+        recordings: [],
+        total: 0,
+        page: 1,
+        limit: 7,
+        totalPages: 1
+      });
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit), 10) || 7));
+    const search = String(req.query.search || '').trim().toLowerCase();
+    const filter = String(req.query.filter || 'all').trim().toLowerCase();
+    const courseDayParam = req.query.courseDay;
+    const courseDayFilter =
+      courseDayParam != null && Number.isFinite(Number(courseDayParam))
+        ? Math.min(200, Math.max(1, Math.floor(Number(courseDayParam))))
+        : null;
+
+    const studentLevel = String(student.level || 'A1').toUpperCase();
+    const batchKeys = allStudentBatchStringsForContent(student);
+
+    const manualBase = await ClassRecording.find({
+      active: true,
+      isPublished: { $ne: false },
+      level: studentLevel,
+      plan: { $in: allowedRecordingPlansForStudent(student) }
+    })
+      .populate('uploadedBy', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const manualFiltered = batchKeys.length
+      ? manualBase.filter(
+          (r) =>
+            Array.isArray(r.batches) &&
+            r.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b))) &&
+            journeyCourseDayUnlockedForStudent(r, student)
+        )
+      : [];
+
+    let watchedSecondsByRecording = new Map();
+    if (manualFiltered.length) {
+      const recIds = manualFiltered.map((r) => r._id).filter(Boolean);
+      const watchAgg = await RecordingView.aggregate([
+        {
+          $match: {
+            student: new mongoose.Types.ObjectId(String(userId)),
+            recording: { $in: recIds },
+            watchDuration: { $gt: 0 }
+          }
+        },
+        {
+          $group: {
+            _id: '$recording',
+            maxWatchSeconds: { $max: '$watchDuration' }
+          }
+        }
+      ]);
+      watchedSecondsByRecording = new Map(
+        watchAgg.map((row) => [
+          String(row._id),
+          Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0)))
+        ])
+      );
+    }
+
+    const manualItems = manualFiltered.map((r) => ({
+      type: 'manual',
+      id: String(r._id),
+      title: r.title,
+      description: r.description || '',
+      date: r.createdAt,
+      duration: Number.isFinite(Number(r.duration)) ? Number(r.duration) : null,
+      batch: (r.batches || []).join(', '),
+      teacherName: r.uploadedBy?.name || 'Teacher',
+      attempted: null,
+      attendanceStatus: 'N/A',
+      videoUrl: r.videoUrl,
+      level: r.level,
+      plan: r.plan,
+      uploadedBy: r.uploadedBy?.name,
+      manualSourceType: r.sourceType || 'URL',
+      manualStatus: r.status || 'ready',
+      manualErrorMessage: r.errorMessage || null,
+      courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
+      watchedSeconds: watchedSecondsByRecording.get(String(r._id)) ?? 0
+    }));
+
+    const zoomRecordings = await ZoomRecording.find({
+      status: 'ready',
+      isPublished: { $ne: false }
+    })
+      .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
+      .lean();
+
+    const approvedGrants = await RecordingAccessRequest.find({
+      studentId: userId,
+      status: 'APPROVED'
+    }).select('meetingLinkId').lean();
+    const grantedMeetingLinkIds = approvedGrants.map((g) => String(g.meetingLinkId));
+    const grantedSet = new Set(grantedMeetingLinkIds);
+
+    if (grantedMeetingLinkIds.length) {
+      const grantedRecs = await ZoomRecording.find({
+        meetingLinkId: { $in: grantedMeetingLinkIds },
+        status: 'ready',
+        isPublished: false
+      })
+        .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
+        .lean();
+      const existingIds = new Set(zoomRecordings.map((z) => String(z.meetingLinkId)));
+      for (const gr of grantedRecs) {
+        if (!existingIds.has(String(gr.meetingLinkId))) zoomRecordings.push(gr);
+      }
+    }
+
+    const accessRequests = await RecordingAccessRequest.find({
+      studentId: userId,
+      status: { $in: ['PENDING', 'APPROVED', 'DECLINED'] },
+    })
+      .select('meetingLinkId status classTopic classDate studentBatch requestedAt')
+      .lean();
+
+    const requestStatusPriority = { APPROVED: 3, PENDING: 2, DECLINED: 1 };
+    const requestStatusByMeeting = new Map();
+    for (const ar of accessRequests) {
+      const mid = String(ar.meetingLinkId);
+      const prev = requestStatusByMeeting.get(mid);
+      const nextPri = requestStatusPriority[ar.status] || 0;
+      const prevPri = prev ? (requestStatusPriority[prev] || 0) : 0;
+      if (!prev || nextPri > prevPri) requestStatusByMeeting.set(mid, ar.status);
+    }
+
+    const zoomRecByMeeting = new Map();
+    for (const z of zoomRecordings) {
+      zoomRecByMeeting.set(String(z.meetingLinkId), z);
+    }
+    if (accessRequests.length) {
+      const requestMeetingIds = accessRequests.map((a) => a.meetingLinkId);
+      const requestZoomRecs = await ZoomRecording.find({
+        meetingLinkId: { $in: requestMeetingIds },
+        status: 'ready',
+      })
+        .select('meetingLinkId r2Key duration status createdAt isPublished')
+        .lean();
+      for (const z of requestZoomRecs) {
+        const mid = String(z.meetingLinkId);
+        if (!zoomRecByMeeting.has(mid)) zoomRecByMeeting.set(mid, z);
+      }
+    }
+
+    let zoomItems = [];
+    if (zoomRecordings.length) {
+      const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
+      const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
+        .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
+        .populate('assignedTeacher', 'name')
+        .lean();
+      const watchedByMeeting = new Map();
+      const watchAgg = await ZoomRecordingView.aggregate([
+        {
+          $match: {
+            student: new mongoose.Types.ObjectId(String(userId)),
+            meetingLinkId: { $in: meetingLinkIds },
+            watchDuration: { $gt: 0 }
+          }
+        },
+        {
+          $group: {
+            _id: '$meetingLinkId',
+            maxWatchSeconds: { $max: '$watchDuration' }
+          }
+        }
+      ]);
+      for (const row of watchAgg) {
+        watchedByMeeting.set(String(row._id), Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0) / 60)));
+      }
+      const meetingMap = {};
+      meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
+
+      zoomItems = zoomRecordings
+        .filter((rec) => {
+          const meeting = meetingMap[String(rec.meetingLinkId)];
+          if (!meeting) return false;
+          if (grantedSet.has(String(rec.meetingLinkId))) return true;
+          return canUserAccessZoomRecording(rec, meeting, student);
+        })
+        .map((rec) => {
+          const meeting = meetingMap[String(rec.meetingLinkId)] || {};
+          const startTime = meeting.startTime ? new Date(meeting.startTime) : null;
+          const durationMinutes = Number(meeting.duration || 0);
+          const computedEnd = startTime && durationMinutes > 0
+            ? new Date(startTime.getTime() + durationMinutes * 60 * 1000)
+            : null;
+          const attempted = meeting.status === 'ended' || (computedEnd ? Date.now() >= computedEnd.getTime() : false);
+          const myAttendance = Array.isArray(meeting.attendance)
+            ? meeting.attendance.find((a) => String(a?.studentId || '') === String(userId))
+            : null;
+          const attendanceStatus = myAttendance
+            ? (
+                myAttendance.attended === true ||
+                myAttendance.status === 'attended' ||
+                Number(myAttendance.attendancePercent || 0) >= 75
+                  ? 'Attended'
+                  : (attempted ? 'Not Attended' : 'Pending')
+              )
+            : (attempted ? 'Not Attempted' : 'Pending');
+
+          return {
+            type: 'zoom',
+            id: String(rec.meetingLinkId),
+            title: meeting.topic || 'Class Recording',
+            description: '',
+            date: meeting.startTime || rec.createdAt,
+            duration: Number.isFinite(Number(rec.duration))
+              ? Number(rec.duration)
+              : (Number.isFinite(Number(meeting.duration)) ? Number(meeting.duration) * 60 : null),
+            batch: normalizeZoomAccessSettings(rec, meeting).batches.join(', '),
+            teacherName: meeting.assignedTeacher?.name || 'Teacher',
+            attempted: typeof attempted === 'boolean' ? attempted : null,
+            attendanceStatus,
+            meetingLinkId: String(rec.meetingLinkId),
+            courseDay: meeting.courseDay != null ? meeting.courseDay : null,
+            watchedSeconds: (watchedByMeeting.get(String(rec.meetingLinkId)) ?? 0) * 60
+          };
+        });
+    }
+
+    let merged = [...manualItems, ...zoomItems];
+
+    merged = merged.map((r) => {
+      if (r.type !== 'zoom') {
+        return { ...r, accessRequestStatus: null, canPlay: true };
+      }
+      const mid = String(r.meetingLinkId || r.id);
+      const reqSt = requestStatusByMeeting.get(mid);
+      if (reqSt === 'PENDING') {
+        return { ...r, accessRequestStatus: 'PENDING', canPlay: false };
+      }
+      if (reqSt === 'DECLINED') {
+        return { ...r, accessRequestStatus: 'DECLINED', canPlay: false };
+      }
+      if (reqSt === 'APPROVED') {
+        const zoomRec = zoomRecByMeeting.get(mid);
+        return {
+          ...r,
+          accessRequestStatus: 'APPROVED',
+          canPlay: !!(zoomRec && zoomRec.status === 'ready'),
+        };
+      }
+      return { ...r, accessRequestStatus: null, canPlay: true };
+    });
+
+    const mergedZoomIds = new Set(
+      merged.filter((r) => r.type === 'zoom').map((r) => String(r.meetingLinkId || r.id))
+    );
+    const missingRequests = accessRequests.filter(
+      (ar) => !mergedZoomIds.has(String(ar.meetingLinkId))
+    );
+
+    if (missingRequests.length) {
+      const missingIds = missingRequests.map((ar) => ar.meetingLinkId);
+      const extraMeetings = await MeetingLink.find({ _id: { $in: missingIds } })
+        .select('_id topic batch startTime duration assignedTeacher courseDay')
+        .populate('assignedTeacher', 'name')
+        .lean();
+      const extraMeetingMap = {};
+      extraMeetings.forEach((m) => { extraMeetingMap[String(m._id)] = m; });
+
+      for (const ar of missingRequests) {
+        const mid = String(ar.meetingLinkId);
+        const meeting = extraMeetingMap[mid] || {};
+        const zoomRec = zoomRecByMeeting.get(mid);
+        merged.push({
+          type: 'zoom',
+          id: mid,
+          title: ar.classTopic || meeting.topic || 'Class',
+          description: '',
+          date: ar.classDate || meeting.startTime || ar.requestedAt,
+          duration: Number.isFinite(Number(zoomRec?.duration))
+            ? Number(zoomRec.duration)
+            : (Number.isFinite(Number(meeting.duration)) ? Number(meeting.duration) * 60 : null),
+          batch: meeting.batch || ar.studentBatch || '',
+          teacherName: meeting.assignedTeacher?.name || 'Teacher',
+          attempted: true,
+          attendanceStatus: 'N/A',
+          meetingLinkId: mid,
+          courseDay: meeting.courseDay != null ? meeting.courseDay : null,
+          watchedSeconds: 0,
+          accessRequestStatus: ar.status,
+          canPlay:
+            ar.status === 'APPROVED' && !!(zoomRec && zoomRec.status === 'ready'),
+        });
+      }
+    }
+
+    if (courseDayFilter != null) {
+      merged = merged.filter((r) => Number(r.courseDay) === courseDayFilter);
+    }
+
+    if (search) {
+      merged = merged.filter(
+        (r) =>
+          String(r.title || '').toLowerCase().includes(search) ||
+          String(r.description || '').toLowerCase().includes(search) ||
+          String(r.batch || '').toLowerCase().includes(search)
+      );
+    }
+
+    const attendanceNorm = (r) => String(r.attendanceStatus || '').trim().toLowerCase();
+    if (filter === 'attended') {
+      merged = merged.filter((r) => attendanceNorm(r) === 'attended');
+    } else if (filter === 'not_attended') {
+      merged = merged.filter((r) => {
+        const a = attendanceNorm(r);
+        return a !== 'attended' && a !== 'n/a' && a !== '';
+      });
+    }
+
+    if (filter === 'date_oldest') {
+      merged.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    } else {
+      merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+
+    const total = merged.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const skip = (page - 1) * limit;
+    const recordings = merged.slice(skip, skip + limit);
+
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.json({
+      success: true,
+      recordings,
+      total,
+      page,
+      limit,
+      totalPages,
+      pagination: {
+        page,
+        limit,
+        totalItems: total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching student recording feed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1210,7 +1594,8 @@ router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
         });
       }
       student.journeyAccessEnabled = journeyAccess.enabled;
-      if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
+      const granted = await hasApprovedGrant(userId, meetingLinkId);
+      if (!granted && !canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
         return res.status(403).json({
           success: false,
           message: 'This recording is not available for your profile.',
@@ -1472,6 +1857,34 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const zoomRecordings = await ZoomRecording.find(query)
       .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
       .lean();
+
+    // Also include unpublished recordings where student has an approved grant
+    let grantedMeetingLinkIds = [];
+    if (!isStaff) {
+      const approvedGrants = await RecordingAccessRequest.find({
+        studentId: userId,
+        status: 'APPROVED',
+      }).select('meetingLinkId').lean();
+      grantedMeetingLinkIds = approvedGrants.map((g) => String(g.meetingLinkId));
+
+      if (grantedMeetingLinkIds.length) {
+        const grantedRecs = await ZoomRecording.find({
+          meetingLinkId: { $in: grantedMeetingLinkIds },
+          status: 'ready',
+          isPublished: false,
+        })
+          .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
+          .lean();
+        // Merge without duplicates (don't add if already in published list)
+        const existingIds = new Set(zoomRecordings.map((z) => String(z.meetingLinkId)));
+        for (const gr of grantedRecs) {
+          if (!existingIds.has(String(gr.meetingLinkId))) {
+            zoomRecordings.push(gr);
+          }
+        }
+      }
+    }
+
     if (!zoomRecordings.length) return res.json({ success: true, recordings: [] });
 
     const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
@@ -1504,12 +1917,15 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const meetingMap = {};
     meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
 
+    const grantedSet = new Set(grantedMeetingLinkIds);
     const batchQuery = req.query.batch ? String(req.query.batch).trim() : '';
     const recordings = zoomRecordings
       .filter((rec) => {
         const meeting = meetingMap[String(rec.meetingLinkId)];
         if (!meeting) return false;
         if (!isStaff) {
+          // Approved-grant recordings bypass the standard publish/batch/level checks
+          if (grantedSet.has(String(rec.meetingLinkId))) return true;
           return canUserAccessZoomRecording(rec, meeting, student);
         }
         if (!batchQuery) return true;
@@ -1977,7 +2393,7 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyMediaToken, async (req, re
       return res.status(500).json({ success: false, message: 'Recording is not available.' });
     }
 
-    // Student access control
+    // Student access control — standard batch/publish rules or approved grant
     if (!isClassRecordingStaff(role)) {
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
@@ -1992,7 +2408,8 @@ router.get('/zoom/:meetingLinkId/hls/playlist', verifyMediaToken, async (req, re
         });
       }
       student.journeyAccessEnabled = journeyAccess.enabled;
-      if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
+      const granted = await hasApprovedGrant(userId, meetingLinkId);
+      if (!granted && !canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
         return res.status(403).json({
           success: false,
           message: 'This recording is not available for your profile.',
@@ -2059,13 +2476,16 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
       return res.status(500).json({ success: false, message: 'Recording processing failed. Please contact support.' });
     }
 
-    // 2. Authorisation check for students — batch-based + published only
+    // 2. Authorisation check for students — batch-based + published only, or approved grant
     if (!isClassRecordingStaff(role)) {
       const [meetingLink, student] = await Promise.all([
         MeetingLink.findById(meetingLinkId).select('batch courseDay').lean(),
         User.findById(userId).select('batch level goStatus subscription currentCourseDay').lean(),
       ]);
       if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+      if (!meetingLink) {
+        return res.status(404).json({ success: false, message: 'Class not found.' });
+      }
       const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
       if (!journeyAccess.enabled) {
         return res.status(403).json({
@@ -2074,10 +2494,8 @@ router.get('/zoom/:meetingLinkId', verifyToken, async (req, res) => {
         });
       }
       student.journeyAccessEnabled = journeyAccess.enabled;
-      if (!meetingLink) {
-        return res.status(404).json({ success: false, message: 'Class not found.' });
-      }
-      if (!canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
+      const granted = await hasApprovedGrant(userId, meetingLinkId);
+      if (!granted && !canUserAccessZoomRecording(zoomRecording, meetingLink, student)) {
         return res.status(403).json({
           success: false,
           message: 'This recording is not available for your profile.',

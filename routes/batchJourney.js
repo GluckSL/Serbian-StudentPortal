@@ -33,8 +33,10 @@ const {
 } = require('../services/journeyLevelSync.service');
 const {
   BATCH_TYPE_NEW,
+  BATCH_TYPE_OLD,
   normalizeBatchType,
-  isValidBatchTypeInput
+  isValidBatchTypeInput,
+  isOldBatchType
 } = require('../utils/batchType');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -320,7 +322,8 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         journeyLength: 200,
         batchCurrentDay: 1,
         notes: '',
-        batchType: BATCH_TYPE_NEW,
+        batchType: BATCH_TYPE_OLD,
+        oldBatchDgBotAccess: false,
         batchStartDate: null,
         strictJourneyRule: false,
         strictJourneyThresholdPercent: 100,
@@ -337,6 +340,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
         batchType: normalizeBatchType(cfg.batchType),
+        oldBatchDgBotAccess: !!(cfg && cfg.oldBatchDgBotAccess),
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
@@ -511,6 +515,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes,
         batchType: normalizeBatchType(cfg.batchType),
+        oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
@@ -619,6 +624,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       batchStartDate,
       notes,
       batchType,
+      oldBatchDgBotAccess,
       createOnly,
       strictJourneyRule,
       strictJourneyThresholdPercent,
@@ -679,6 +685,16 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         return res.status(400).json({ message: 'batchType must be "new" or "old"' });
       }
       cfg.batchType = normalizeBatchType(batchType);
+      if (!isOldBatchType(cfg.batchType)) {
+        cfg.oldBatchDgBotAccess = false;
+      }
+    }
+    if (oldBatchDgBotAccess !== undefined) {
+      if (isOldBatchType(cfg.batchType)) {
+        cfg.oldBatchDgBotAccess = !!oldBatchDgBotAccess;
+      } else {
+        cfg.oldBatchDgBotAccess = false;
+      }
     }
     if (strictJourneyRule !== undefined) {
       cfg.strictJourneyRule = !!strictJourneyRule;
@@ -711,6 +727,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         ...cfg.toObject(),
         batchName: effectiveBatchName,
         batchType: normalizeBatchType(cfg.batchType),
+        oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
         batchCurrentDay: activeBatchDay,
         autoDay: !!cfg.batchStartDate,
         journeyActive: !!cfg.journeyActive

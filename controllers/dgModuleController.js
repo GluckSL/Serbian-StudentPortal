@@ -4,9 +4,11 @@ const DGSession = require('../models/DGSession');
 const LearningModule = require('../models/LearningModule');
 const {
   getStudentDgJourneyAccess,
-  dgModuleUnlockedForStudentDay,
+  dgModuleUnlockedForAccess,
+  dgWeekLockMessage,
 } = require('../utils/dgStudentJourneyGate');
-const { normalizeBatchKeys } = require('../utils/batchTargeting');
+const { normalizeBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
+const { weekDayRange } = require('../utils/oldBatchDgWeekAccess');
 const {
   buildDgModulePayloadFromLearning,
   resolveDefaultCharacterId,
@@ -210,16 +212,26 @@ exports.listAdmin = async (req, res) => {
 exports.listStudent = async (req, res) => {
   try {
     const access = await getStudentDgJourneyAccess(req.user.id);
-    if (!access.enabled || access.learningEnabled === false) {
-      return res.json({ modules: [] });
+    if (!access.enabled || access.dgBotEnabled === false) {
+      return res.json({
+        modules: [],
+        studentCourseDay: access.courseDay ?? 1,
+        unlockMode: access.unlockMode || 'none',
+        dgUnlockedWeek: access.dgUnlockedWeek ?? 0,
+      });
     }
     const studentDay = Number.isFinite(Number(access.courseDay))
       ? Math.min(200, Math.max(1, Math.floor(Number(access.courseDay))))
       : 1;
 
+    const batchFilter =
+      access.batchKeys && access.batchKeys.length
+        ? moduleTargetingQuery(access.batchKeys)
+        : {};
     const modules = await DGModule.find({
       isActive: true,
       visibleToStudents: true,
+      ...batchFilter,
     })
       .populate('characterId')
       .select(
@@ -228,7 +240,7 @@ exports.listStudent = async (req, res) => {
       .sort({ title: 1 })
       .lean();
     const unlockedForDay = (modules || []).filter((m) =>
-      dgModuleUnlockedForStudentDay(m?.courseDay, studentDay)
+      dgModuleUnlockedForAccess(access, m?.courseDay)
     );
     const sanitized = unlockedForDay.map((m) => ({
       ...m,
@@ -280,7 +292,22 @@ exports.listStudent = async (req, res) => {
       },
     }));
 
-    res.json({ modules: out, studentCourseDay: studentDay });
+    const unlockedRange =
+      access.unlockMode === 'weekly'
+        ? weekDayRange(access.dgUnlockedWeek ?? 1)
+        : null;
+    const dgWeekHint =
+      access.unlockMode === 'weekly' && unlockedRange
+        ? `Week ${access.dgUnlockedWeek}: journey days ${unlockedRange.start}–${unlockedRange.end}. Complete all modules in this week to unlock the next.`
+        : null;
+
+    res.json({
+      modules: out,
+      studentCourseDay: studentDay,
+      unlockMode: access.unlockMode || 'daily',
+      dgUnlockedWeek: access.dgUnlockedWeek ?? 1,
+      dgWeekHint,
+    });
   } catch (e) {
     res.status(500).json({ message: e.message || 'List failed' });
   }
@@ -309,13 +336,17 @@ exports.getPlay = async (req, res) => {
           code: 'JOURNEY_NOT_ACTIVE',
         });
       }
-      if (access.learningEnabled === false) {
+      if (access.dgBotEnabled === false) {
         return res.status(403).json({
           message: 'DG modules are not available for your batch.',
           code: 'LEARNING_CONTENT_DISABLED',
         });
       }
-      if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
+      if (!dgModuleUnlockedForAccess(access, mod.courseDay)) {
+        const weekLock = dgWeekLockMessage(access, mod.courseDay);
+        if (weekLock) {
+          return res.status(403).json(weekLock);
+        }
         return res.status(403).json({
           message: 'This module unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',

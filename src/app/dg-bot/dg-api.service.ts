@@ -71,7 +71,13 @@ export class DgApiService {
 
   constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
-  listStudentModules(): Observable<{ modules: DgModuleSummary[]; studentCourseDay?: number }> {
+  listStudentModules(): Observable<{
+    modules: DgModuleSummary[];
+    studentCourseDay?: number;
+    unlockMode?: 'daily' | 'weekly' | 'none';
+    dgUnlockedWeek?: number;
+    dgWeekHint?: string | null;
+  }> {
     return this.http.get<{ modules: DgModuleSummary[]; studentCourseDay?: number }>(
       `${this.base}/modules/student`,
     );

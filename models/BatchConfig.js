@@ -37,14 +37,22 @@ const BatchConfigSchema = new mongoose.Schema({
   },
   /**
    * Batch type controls student learning-content visibility.
-   * - new: modules + exercises + live/recordings are available (default)
-   * - old: only live classes + recordings are available to students
+   * - new: modules + exercises + live/recordings are available
+   * - old: only live classes + recordings (default for new configs)
    */
   batchType: {
     type: String,
     enum: ['new', 'old'],
-    default: 'new',
+    default: 'old',
     index: true
+  },
+  /**
+   * When batchType is old: if true, students get DG Bot modules released in 7-day journey weeks
+   * (days 1–7, then 8–14 after week 1 is fully completed, etc.).
+   */
+  oldBatchDgBotAccess: {
+    type: Boolean,
+    default: false
   },
   /**
    * When false (default), students move to the next journey day on the daily rollover

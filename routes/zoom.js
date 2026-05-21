@@ -973,19 +973,142 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
   }
 });
 
+/** Pull saved attendance row for this student (same data as teacher/admin attendance report). */
+function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
+  const list = Array.isArray(meetingDoc.attendance) ? meetingDoc.attendance : [];
+  const idStr = sid.toString();
+  let row = list.find(
+    (a) => a && a.studentId && a.studentId.toString() === idStr
+  );
+  if (!row && studentEmail) {
+    const em = String(studentEmail).toLowerCase().trim();
+    row = list.find(
+      (a) => a && a.email && String(a.email).toLowerCase().trim() === em
+    );
+  }
+  if (!row) {
+    return {
+      attended: false,
+      durationMinutes: 0,
+      attendanceRowStatus: null
+    };
+  }
+  let mins = row.durationMinutes;
+  if (mins == null && row.duration != null && Number.isFinite(Number(row.duration))) {
+    mins = Math.round(Number(row.duration) / 60);
+  }
+  mins = Number.isFinite(Number(mins)) ? Math.max(0, Number(mins)) : 0;
+  const attended =
+    row.attended === true ||
+    row.status === 'attended' ||
+    row.status === 'late';
+  return {
+    attended,
+    durationMinutes: mins,
+    attendanceRowStatus: row.status || null
+  };
+}
+
+function mapStudentMeetingRow(req, meeting, studentId, studentEmail, studentDay) {
+  const now = new Date();
+  const meetingStart = new Date(meeting.startTime);
+  const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
+  const rawCd = meeting.courseDay;
+  const journeyLocked =
+    rawCd != null &&
+    Number.isFinite(Number(rawCd)) &&
+    Number(rawCd) > studentDay;
+
+  let currentStatus = meeting.status;
+  let canJoin = false;
+  const timeUntilStart = meetingStart - now;
+
+  if (now >= meetingStart && now <= meetingEnd && meeting.status === 'scheduled') {
+    currentStatus = 'ongoing';
+  } else if (now > meetingEnd) {
+    currentStatus = 'ended';
+  }
+
+  if (!journeyLocked) {
+    if (currentStatus === 'ongoing') {
+      canJoin = true;
+    } else if (currentStatus !== 'ended' && now >= new Date(meetingStart.getTime() - 10 * 60000)) {
+      canJoin = true;
+    }
+  }
+
+  const joinUrl = buildJoinClassProxyUrl(req, meeting._id);
+  const att = studentAttendanceFromMeeting(meeting, studentId, studentEmail);
+
+  return {
+    _id: meeting._id,
+    topic: meeting.topic,
+    batch: meeting.batch,
+    plan: meeting.plan,
+    startTime: meeting.startTime,
+    duration: meeting.duration,
+    courseDay: meeting.courseDay != null ? meeting.courseDay : null,
+    journeyLocked,
+    attended: att.attended,
+    durationMinutes: att.durationMinutes,
+    attendedDurationMinutes: att.durationMinutes,
+    attendanceStatus: att.attendanceRowStatus,
+    teacher: {
+      name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
+      email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
+    },
+    joinUrl,
+    password: resolveMeetingJoinPwd(meeting),
+    status: meeting.status,
+    currentStatus,
+    canJoin,
+    isOngoing: currentStatus === 'ongoing',
+    hasEnded: currentStatus === 'ended',
+    timeUntilStart,
+    agenda: meeting.agenda,
+    isPersonalUrl: false
+  };
+}
+
+function studentMeetingsBaseAndClauses(student) {
+  const batchKeys = allStudentBatchStringsForContent(student);
+  if (!batchKeys.length) return { batchKeys, baseAnd: null };
+  const batchOr = batchKeys.map((k) => ({
+    batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+  }));
+  return {
+    batchKeys,
+    baseAnd: [
+      { plan: { $in: [student.subscription, 'ALL'] } },
+      { $or: batchOr }
+    ]
+  };
+}
+
+function studentTabToLifecycle(tab) {
+  const t = String(tab || '').trim().toLowerCase();
+  if (t === 'upcoming') return 'scheduled';
+  if (t === 'live') return 'ongoing';
+  if (t === 'attempted') return 'ended';
+  return null;
+}
+
 /**
  * Get meetings for a specific student
  * GET /api/zoom/student-meetings
- * Returns all meetings where the logged-in student is an attendee
+ * Returns all meetings where the logged-in student is an attendee.
+ *
+ * Paginated mode (faster My Course tabs):
+ *   ?tab=upcoming|live|attempted&page=1&limit=7&includeTabCounts=true
  */
 router.get('/student-meetings', verifyToken, async (req, res) => {
   try {
     const studentId = req.user.id;
 
     const student = await User.findById(studentId)
-    .select('batch subscription currentCourseDay email goStatus');
+      .select('batch subscription currentCourseDay email goStatus');
 
-    if(!student) {
+    if (!student) {
       return res.status(404).json({
         success: false,
         message: 'Student not found'
@@ -996,129 +1119,105 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
       : 1;
 
-    const batchKeys = allStudentBatchStringsForContent(student);
-    let meetings = [];
-    if (batchKeys.length) {
-      const batchOr = batchKeys.map((k) => ({
-        batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
-      }));
-      meetings = await MeetingLink.find({
-        $and: [
-          { plan: { $in: [student.subscription, 'ALL'] } },
-          { $or: batchOr }
-        ]
-      })
-        .populate('createdBy', 'name email')
-        .populate('assignedTeacher', 'name email')
-        .sort({ startTime: -1 });
+    const { batchKeys, baseAnd } = studentMeetingsBaseAndClauses(student);
+    const tabRaw = String(req.query.tab || '').trim().toLowerCase();
+    const lifecycleFromTab = studentTabToLifecycle(tabRaw);
+    const lifecycleRaw = String(req.query.lifecycle || '').trim().toLowerCase();
+    const lifecycle = lifecycleFromTab ||
+      (['scheduled', 'ongoing', 'ended'].includes(lifecycleRaw) ? lifecycleRaw : null);
+    const hasPagination = req.query.page != null || req.query.limit != null || !!lifecycle;
+    const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 7, 1), 50);
+    const skip = (pageNum - 1) * pageSize;
+    const includeTabCounts = String(req.query.includeTabCounts || '').toLowerCase() === 'true';
+
+    if (!baseAnd) {
+      const emptyPayload = {
+        success: true,
+        count: 0,
+        data: [],
+        ...(hasPagination
+          ? {
+              totalCount: 0,
+              pagination: {
+                page: pageNum,
+                limit: pageSize,
+                totalItems: 0,
+                totalPages: 1,
+                hasNext: false,
+                hasPrev: false
+              }
+            }
+          : {})
+      };
+      if (includeTabCounts) {
+        emptyPayload.tabCounts = { upcoming: 0, live: 0, attempted: 0 };
+      }
+      return res.status(200).json(emptyPayload);
     }
 
-    /** Pull saved attendance row for this student (same data as teacher/admin attendance report). */
-    function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
-      const list = Array.isArray(meetingDoc.attendance) ? meetingDoc.attendance : [];
-      const idStr = sid.toString();
-      let row = list.find(
-        (a) => a && a.studentId && a.studentId.toString() === idStr
+    if (hasPagination && lifecycle) {
+      const andClauses = [...baseAnd];
+      const lc = lifecycleExprClause(lifecycle);
+      if (lc) andClauses.push(lc);
+      const query = { $and: andClauses };
+      const sortOrder = lifecycle === 'ended' ? -1 : 1;
+
+      const [totalCount, meetings, tabCounts] = await Promise.all([
+        MeetingLink.countDocuments(query),
+        MeetingLink.find(query)
+          .populate('createdBy', 'name email')
+          .populate('assignedTeacher', 'name email')
+          .sort({ startTime: sortOrder })
+          .skip(skip)
+          .limit(pageSize),
+        includeTabCounts
+          ? Promise.all([
+              MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('scheduled'))),
+              MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('ongoing'))),
+              MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('ended')))
+            ]).then(([upcoming, live, attempted]) => ({ upcoming, live, attempted }))
+          : Promise.resolve(null)
+      ]);
+
+      const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+      const data = meetings.map((m) =>
+        mapStudentMeetingRow(req, m, studentId, student.email, studentDay)
       );
-      if (!row && studentEmail) {
-        const em = String(studentEmail).toLowerCase().trim();
-        row = list.find(
-          (a) => a && a.email && String(a.email).toLowerCase().trim() === em
-        );
-      }
-      if (!row) {
-        return {
-          attended: false,
-          durationMinutes: 0,
-          attendanceRowStatus: null
-        };
-      }
-      let mins = row.durationMinutes;
-      if (mins == null && row.duration != null && Number.isFinite(Number(row.duration))) {
-        mins = Math.round(Number(row.duration) / 60);
-      }
-      mins = Number.isFinite(Number(mins)) ? Math.max(0, Number(mins)) : 0;
-      const attended =
-        row.attended === true ||
-        row.status === 'attended' ||
-        row.status === 'late';
-      return {
-        attended,
-        durationMinutes: mins,
-        attendanceRowStatus: row.status || null
+
+      const payload = {
+        success: true,
+        count: data.length,
+        totalCount,
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1
+        },
+        data
       };
+      if (tabCounts) payload.tabCounts = tabCounts;
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      return res.status(200).json(payload);
     }
 
-    // Calculate meeting status for each meeting
-    const now = new Date();
-    const meetingsWithStatus = meetings.map(meeting => {
-      const meetingStart = new Date(meeting.startTime);
-      const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
-      const rawCd = meeting.courseDay;
-      const journeyLocked =
-        rawCd != null &&
-        Number.isFinite(Number(rawCd)) &&
-        Number(rawCd) > studentDay;
+    const meetings = await MeetingLink.find({ $and: baseAnd })
+      .populate('createdBy', 'name email')
+      .populate('assignedTeacher', 'name email')
+      .sort({ startTime: -1 });
 
-      let currentStatus = meeting.status;
-      let canJoin = false;
-      let timeUntilStart = meetingStart - now;
-
-      if (now >= meetingStart && now <= meetingEnd && meeting.status === 'scheduled') {
-        currentStatus = 'ongoing';
-      } else if (now > meetingEnd) {
-        currentStatus = 'ended';
-      }
-
-      if (!journeyLocked) {
-        if (currentStatus === 'ongoing') {
-          canJoin = true;
-        } else if (currentStatus !== 'ended' && now >= new Date(meetingStart.getTime() - 10 * 60000)) {
-          canJoin = true;
-        }
-      }
-
-      // Authenticated join redirect (injects portal display name + JoinLog); do not expose raw Zoom joinUrl to students
-      const joinUrl = buildJoinClassProxyUrl(req, meeting._id);
-
-      const att = studentAttendanceFromMeeting(meeting, studentId, student.email);
-
-      return {
-        _id: meeting._id,
-        topic: meeting.topic,
-        batch: meeting.batch,
-        plan: meeting.plan,
-        startTime: meeting.startTime,
-        duration: meeting.duration,
-        courseDay: meeting.courseDay != null ? meeting.courseDay : null,
-        journeyLocked,
-        attended: att.attended,
-        durationMinutes: att.durationMinutes,
-        attendedDurationMinutes: att.durationMinutes,
-        attendanceStatus: att.attendanceRowStatus,
-        teacher: {
-          name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
-          email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
-        },
-        joinUrl,
-        password: resolveMeetingJoinPwd(meeting),
-        status: meeting.status,
-        currentStatus: currentStatus,
-        canJoin: canJoin,
-        isOngoing: currentStatus === 'ongoing',
-        hasEnded: currentStatus === 'ended',
-        timeUntilStart: timeUntilStart,
-        agenda: meeting.agenda,
-        isPersonalUrl: false
-      };
-    });
+    const meetingsWithStatus = meetings.map((meeting) =>
+      mapStudentMeetingRow(req, meeting, studentId, student.email, studentDay)
+    );
 
     res.status(200).json({
       success: true,
       count: meetingsWithStatus.length,
       data: meetingsWithStatus
     });
-
   } catch (error) {
     console.error('❌ Error fetching student meetings:', error);
     res.status(500).json({

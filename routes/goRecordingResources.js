@@ -14,7 +14,8 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const { presignStoredS3Url, presignS3DownloadUrl } = require('../config/presign');
 const {
   canUserAccessManualRecording,
-  canUserAccessZoomRecording
+  canUserAccessZoomRecording,
+  hasApprovedRecordingGrant,
 } = require('../utils/recordingContentAccess');
 
 const DANGEROUS_EXT = /\.(exe|bat|cmd|com|scr|msi|dll|vbs|ps1|pif|cpl|inf|reg|hta|iso)$/i;
@@ -84,7 +85,8 @@ async function assertRecordingAccess(recordingType, recordingId, student, staff)
 
   const ctx = await resolveZoomContext(recordingId);
   if (!ctx) return { ok: false, status: 404, message: 'Recording not found' };
-  if (!canUserAccessZoomRecording(ctx.zoomRecording, ctx.meetingLink, student)) {
+  const granted = await hasApprovedRecordingGrant(student._id || student.id, recordingId);
+  if (!granted && !canUserAccessZoomRecording(ctx.zoomRecording, ctx.meetingLink, student)) {
     return { ok: false, status: 403, message: 'Recording not available for your account' };
   }
   return { ok: true, ...ctx };

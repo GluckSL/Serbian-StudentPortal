@@ -324,6 +324,9 @@ app.use('/api/listening-worksheets', listeningWorksheetRoutes);
 
 const classRecordingRoutes = require('./routes/classRecordings');
 app.use('/api/class-recordings', classRecordingRoutes);
+
+const recordingAccessRequestRoutes = require('./routes/recordingAccessRequests');
+app.use('/api/recording-access-requests', recordingAccessRequestRoutes);
 app.use('/api/portal', portalRouter);
 app.use('/api/portal-analytics', analyticsRouter);
 

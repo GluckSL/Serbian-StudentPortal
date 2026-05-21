@@ -6,6 +6,8 @@ import {
   OnChanges,
   SimpleChanges,
   Input,
+  Output,
+  EventEmitter,
   ViewChild,
   ElementRef,
 } from '@angular/core';
@@ -15,17 +17,11 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { MaterialModule } from '../../../shared/material.module';
 import { AuthService, getAuthToken } from '../../../services/auth.service';
-import {
-  ClassRecordingsService,
-  ClassRecording,
-  BatchZoomRecording,
-} from '../../../services/class-recordings.service';
+import { ClassRecordingsService } from '../../../services/class-recordings.service';
 import {
   GoRecordingResourceService,
   GoRecordingResourceType,
 } from '../../../services/go-recording-resource.service';
-import { forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
 import Hls, { ErrorData } from 'hls.js';
 import { hlsAuthXhrSetup } from '../../../utils/hls-auth-xhr';
 
@@ -61,6 +57,10 @@ export interface DisplayRecording {
   courseDay?: number | null;
   /** Student watch time for this class recording (minutes), when backend provides it. */
   watchedSeconds?: number | null;
+  /** Platinum recording-access request state for this class. */
+  accessRequestStatus?: 'PENDING' | 'APPROVED' | 'DECLINED' | null;
+  /** When false, show pending UI instead of play (backend-driven). */
+  canPlay?: boolean;
 }
 
 @Component({
@@ -74,12 +74,21 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   @Input() embedded = false;
   /** When set (1–200), only list recordings tagged with this journey `courseDay` (Journey tab / GO). */
   @Input() courseDayFilter: number | null = null;
+  /** Platinum students can request access to batch class recordings. */
+  @Input() isPlatinumStudent = false;
+  /** Increment from parent to reload the list (e.g. after submitting a request). */
+  @Input() refreshToken = 0;
+  @Output() reqRecordingClick = new EventEmitter<void>();
 
   @ViewChild('srVideoEl') srVideoEl?: ElementRef<HTMLVideoElement>;
 
-  allRecordings: DisplayRecording[] = [];
   filteredRecordings: DisplayRecording[] = [];
+  readonly recordingsPageSize = 7;
+  recordingsPage = 1;
+  recordingsTotal = 0;
+  recordingsTotalPages = 1;
   loading = false;
+  readonly skeletonRecordingRows = [0, 1, 2, 3, 4, 5, 6];
   searchQuery = '';
   /** Filter / sort mode for the recordings list (see filter menu in template). */
   recordingFilter: RecordingListFilter = 'all';
@@ -147,70 +156,119 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['courseDayFilter'] && this.allRecordings.length) {
-      this.applyListFilters();
+    if (changes['courseDayFilter'] || changes['refreshToken']) {
+      this.recordingsPage = 1;
+      this.loadRecordingsPage(1);
     }
   }
 
   ngOnInit(): void {
-    this.loading = true;
     this.currentUserBatch = String(this.serviceUserBatch() || '');
     this.isSilverStudent = this.resolveIsSilverStudent();
+    this.loadRecordingsPage(1);
+  }
 
-    forkJoin({
-      manual: this.service.getRecordings().pipe(catchError(() => of({ success: false, recordings: [] as ClassRecording[] }))),
-      zoom:   this.service.getMyBatchZoomRecordings().pipe(catchError(() => of({ success: false, recordings: [] as BatchZoomRecording[] }))),
-    }).subscribe(({ manual, zoom }) => {
-      const manualItems: DisplayRecording[] = (manual.recordings || []).map((r: ClassRecording) => ({
-        type: 'manual',
-        id: r._id,
-        title: r.title,
-        description: r.description || '',
-        date: r.createdAt,
-        duration: Number.isFinite(Number(r.duration)) ? Number(r.duration) : null,
-        batch: (r.batches || []).join(', '),
-        teacherName: r.uploadedBy?.name || 'Teacher',
-        attempted: null,
-        attendanceStatus: 'N/A',
-        videoUrl: r.videoUrl,
-        level: r.level,
-        plan: r.plan,
-        uploadedBy: r.uploadedBy?.name,
-        manualSourceType: r.sourceType || 'URL',
-        manualStatus: r.status || 'ready',
-        manualErrorMessage: r.errorMessage || null,
-        courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
-        watchedSeconds: Number.isFinite(Number((r as any).watchedSeconds)) ? Number((r as any).watchedSeconds) : 0,
-      }));
+  loadRecordingsPage(page: number): void {
+    this.loading = true;
+    const courseDay = this.journeyDayFilterActive ? Number(this.courseDayFilter) : null;
+    this.service
+      .getStudentRecordingsFeed({
+        page,
+        limit: this.recordingsPageSize,
+        search: this.searchQuery,
+        filter: this.recordingFilter,
+        courseDay,
+      })
+      .subscribe({
+        next: (res) => {
+          const rows = Array.isArray(res?.recordings) ? res.recordings : [];
+          this.filteredRecordings = rows.map((r) => this.mapFeedRow(r));
+          this.recordingsPage = Number(res?.page) || page;
+          this.recordingsTotal = Number(res?.total) || 0;
+          this.recordingsTotalPages = Math.max(
+            1,
+            Number(res?.totalPages) || Math.ceil(this.recordingsTotal / this.recordingsPageSize)
+          );
+          this.prefetchFirst5Zoom();
+          this.loading = false;
+        },
+        error: () => {
+          this.filteredRecordings = [];
+          this.recordingsTotal = 0;
+          this.recordingsTotalPages = 1;
+          this.loading = false;
+        },
+      });
+  }
 
-      const zoomItems: DisplayRecording[] = (zoom.recordings || []).map((r: BatchZoomRecording) => ({
-        type: 'zoom',
-        id: r.meetingLinkId,
-        title: r.topic,
-        description: '',
-        date: r.classDate,
-        // Prefer recording runtime (seconds); fallback to scheduled meeting duration (minutes → seconds)
-        duration: Number.isFinite(Number(r.duration))
-          ? Number(r.duration)
-          : (Number.isFinite(Number(r.meetingDuration)) ? Number(r.meetingDuration) * 60 : null),
-        batch: r.batch,
-        teacherName: r.teacherName || 'Teacher',
-        attempted: typeof r.attempted === 'boolean' ? r.attempted : null,
-        attendanceStatus: r.attendanceStatus || 'Pending',
-        meetingLinkId: r.meetingLinkId,
-        courseDay: r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? Number(r.courseDay) : null,
-        watchedSeconds: this.extractWatchedSeconds(r),
-      }));
+  private mapFeedRow(r: Record<string, unknown>): DisplayRecording {
+    const type = r['type'] === 'zoom' ? 'zoom' : 'manual';
+    return {
+      type,
+      id: String(r['id'] ?? ''),
+      title: String(r['title'] ?? ''),
+      description: String(r['description'] ?? ''),
+      date: String(r['date'] ?? ''),
+      duration: Number.isFinite(Number(r['duration'])) ? Number(r['duration']) : null,
+      batch: String(r['batch'] ?? ''),
+      teacherName: String(r['teacherName'] ?? 'Teacher'),
+      attempted: typeof r['attempted'] === 'boolean' ? r['attempted'] : null,
+      attendanceStatus: (r['attendanceStatus'] as DisplayRecording['attendanceStatus']) || 'N/A',
+      videoUrl: r['videoUrl'] as string | undefined,
+      level: r['level'] as string | undefined,
+      plan: r['plan'] as string | undefined,
+      uploadedBy: r['uploadedBy'] as string | undefined,
+      meetingLinkId: r['meetingLinkId'] as string | undefined,
+      manualSourceType: r['manualSourceType'] as DisplayRecording['manualSourceType'],
+      manualStatus: r['manualStatus'] as DisplayRecording['manualStatus'],
+      manualErrorMessage: (r['manualErrorMessage'] as string | null) ?? null,
+      courseDay: r['courseDay'] != null && Number.isFinite(Number(r['courseDay'])) ? Number(r['courseDay']) : null,
+      watchedSeconds: Number.isFinite(Number(r['watchedSeconds'])) ? Number(r['watchedSeconds']) : 0,
+      accessRequestStatus: (r['accessRequestStatus'] as DisplayRecording['accessRequestStatus']) || null,
+      canPlay: r['canPlay'] !== false,
+    };
+  }
 
-      // Batch visibility is already enforced by backend endpoints for students.
-      // Avoid a second client-side batch filter that can hide valid recordings
-      // when batch labels differ in formatting.
-      const merged = [...manualItems, ...zoomItems];
-      this.allRecordings = merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      this.applyListFilters();
-      this.prefetchFirst5Zoom();
-      this.loading = false;
-    });
+  /** Reload list from page 1 (called by parent after recording request submit). */
+  reloadRecordings(): void {
+    this.recordingsPage = 1;
+    this.loadRecordingsPage(1);
+  }
+
+  canPlayRecording(r: DisplayRecording): boolean {
+    if (r.accessRequestStatus === 'PENDING' || r.accessRequestStatus === 'DECLINED') return false;
+    return r.canPlay !== false;
+  }
+
+  isPendingApproval(r: DisplayRecording): boolean {
+    return r.accessRequestStatus === 'PENDING' || (r.accessRequestStatus === 'APPROVED' && r.canPlay === false);
+  }
+
+  isDeclinedRequest(r: DisplayRecording): boolean {
+    return r.accessRequestStatus === 'DECLINED';
+  }
+
+  changeRecordingsPage(page: number): void {
+    const p = Math.min(Math.max(1, page), this.recordingsTotalPages);
+    if (p === this.recordingsPage && !this.loading) return;
+    this.loadRecordingsPage(p);
+  }
+
+  getRecordingsPageNumbers(): number[] {
+    const total = this.recordingsTotalPages;
+    const current = this.recordingsPage;
+    const start = Math.max(1, current - 2);
+    const end = Math.min(total, current + 2);
+    const pages: number[] = [];
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }
+
+  recordingsPageRangeLabel(): string {
+    if (this.recordingsTotal === 0) return '';
+    const start = (this.recordingsPage - 1) * this.recordingsPageSize + 1;
+    const end = Math.min(this.recordingsPage * this.recordingsPageSize, this.recordingsTotal);
+    return `Showing ${start}–${end} of ${this.recordingsTotal}`;
   }
 
   ngAfterViewChecked(): void {
@@ -232,72 +290,14 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   // ── Search ────────────────────────────────────────────────────────────────
 
   applySearch(): void {
-    this.applyListFilters();
-  }
-
-  /** Apply search text + recording filter / date sort to `filteredRecordings`. */
-  applyListFilters(): void {
-    let list = [...this.allRecordings];
-    const q = this.searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (r) =>
-          r.title.toLowerCase().includes(q) ||
-          r.description.toLowerCase().includes(q) ||
-          r.batch.toLowerCase().includes(q)
-      );
-    }
-    switch (this.recordingFilter) {
-      case 'attended':
-        list = list.filter((r) => this.matchesAttendedFilter(r));
-        break;
-      case 'not_attended':
-        list = list.filter((r) => this.matchesNotAttendedFilter(r));
-        break;
-      case 'date_newest':
-        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        break;
-      case 'date_oldest':
-        list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        break;
-      default:
-        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        break;
-    }
-    if (this.journeyDayFilterActive) {
-      const day = Number(this.courseDayFilter);
-      list = list.filter((r) => Number(r.courseDay) === day);
-    }
-    this.filteredRecordings = list;
+    this.recordingsPage = 1;
+    this.loadRecordingsPage(1);
   }
 
   setRecordingFilter(mode: RecordingListFilter): void {
     this.recordingFilter = mode;
-    this.applyListFilters();
-  }
-
-  /** Normalized attendance label for filtering (API may vary casing). */
-  private readAttendanceNorm(r: DisplayRecording): string {
-    return (r.attendanceStatus || '').trim().toLowerCase();
-  }
-
-  /** Filter: attended classes only. */
-  private matchesAttendedFilter(r: DisplayRecording): boolean {
-    return this.readAttendanceNorm(r) === 'attended';
-  }
-
-  /**
-   * Filter: not attended / not completed — everything except "Attended" and bare N/A
-   * (manual-only rows stay in "All" only).
-   */
-  private matchesNotAttendedFilter(r: DisplayRecording): boolean {
-    const a = this.readAttendanceNorm(r);
-    if (a === 'attended' || a === 'n/a' || a === '') return false;
-    return (
-      a === 'not attended' ||
-      a === 'not attempted' ||
-      a === 'pending'
-    );
+    this.recordingsPage = 1;
+    this.loadRecordingsPage(1);
   }
 
   // ── Hover prefetch ────────────────────────────────────────────────────────
@@ -361,6 +361,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   playRecording(recording: DisplayRecording): void {
+    if (!this.canPlayRecording(recording)) return;
     if (!getAuthToken()) {
       this.playerError = 'Session expired. Please login again.';
       void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
@@ -656,7 +657,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   private prefetchFirst5Zoom(): void {
-    this.allRecordings
+    this.filteredRecordings
       .filter((r) => r.type === 'zoom' && !!r.meetingLinkId)
       .slice(0, 5)
       .forEach((r) => {
@@ -822,22 +823,6 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private resolveIsSilverStudent(): boolean {
     const user = this.authService.getSnapshotUser();
     return String(user?.subscription || '').toUpperCase() === 'SILVER';
-  }
-
-  private extractWatchedSeconds(r: BatchZoomRecording): number | null {
-    const raw = r as any;
-    const candidates = [
-      raw?.watchedSeconds,
-      Number.isFinite(Number(raw?.attendedDurationMinutes)) ? Number(raw?.attendedDurationMinutes) * 60 : null,
-      Number.isFinite(Number(raw?.durationMinutes)) ? Number(raw?.durationMinutes) * 60 : null,
-      Number.isFinite(Number(raw?.watchedMinutes)) ? Number(raw?.watchedMinutes) * 60 : null,
-      Number.isFinite(Number(raw?.watchDurationMinutes)) ? Number(raw?.watchDurationMinutes) * 60 : null
-    ];
-    for (const value of candidates) {
-      const n = Number(value);
-      if (Number.isFinite(n) && n >= 0) return n;
-    }
-    return null;
   }
 
   private normalizeBatch(value: string): string {
