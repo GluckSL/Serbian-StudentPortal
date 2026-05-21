@@ -1,0 +1,134 @@
+<div class="room-stage">
+  <div *ngIf="loading && !livekitConnected" class="loading-shade"><mat-spinner diameter="40"></mat-spinner></div>
+
+  <mat-card *ngIf="error && !loading && !livekitConnected" class="error-card">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="goBack()">Go Back</button>
+  </mat-card>
+
+  <ng-container *ngIf="session && !error">
+    <div class="room-layout" *ngIf="livekitConnected; else infoView">
+      <div class="main-area">
+        <div class="main-video-container">
+          <video #mainVideo autoplay playsinline class="main-video" [class.hidden]="!mainParticipant?.hasVideo"></video>
+          <div class="main-placeholder" *ngIf="!mainParticipant?.hasVideo && mainParticipant">
+            <div class="main-avatar">{{ mainParticipantInitials }}</div>
+            <div class="main-name">{{ mainParticipantName }}</div>
+          </div>
+          <div class="screen-share-badge" *ngIf="isMainScreenShare">
+            <mat-icon>present_to_all</mat-icon> Sharing Screen
+          </div>
+        </div>
+
+        <div class="self-view" [class.hidden]="!isCamOn || !selfViewStream">
+          <video #selfVideo autoplay playsinline muted class="self-video"></video>
+          <div class="self-label">You</div>
+        </div>
+
+        <div class="controls-bar">
+          <button mat-mini-fab [class.active]="isMicOn" (click)="toggleMic()" class="ctrl-btn">
+            <mat-icon>{{ isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
+          </button>
+          <button mat-mini-fab [class.active]="isCamOn" (click)="toggleCam()" class="ctrl-btn">
+            <mat-icon>{{ isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+          </button>
+          <button mat-mini-fab [class.active]="showParticipantList" (click)="toggleParticipantList()" class="ctrl-btn">
+            <mat-icon>people</mat-icon>
+          </button>
+          <button mat-mini-fab *ngIf="!isStudent" [class.active]="isScreenSharing" (click)="toggleScreenShare()" class="ctrl-btn">
+            <mat-icon>present_to_all</mat-icon>
+          </button>
+          <span class="timer">{{ formatTime(elapsedSeconds) }}</span>
+          <button mat-mini-fab *ngIf="isHostUser" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
+            <mat-icon>call_end</mat-icon>
+          </button>
+          <button mat-mini-fab (click)="leave()" class="ctrl-btn leave-btn">
+            <mat-icon>logout</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar">
+        <div class="camera-grid" *ngIf="!showParticipantList">
+          <div class="tile" *ngFor="let p of topFiveParticipants" [attr.data-participant]="p.identity">
+            <video #tileVideo autoplay playsinline muted class="tile-video" [class.hidden]="!p.hasVideo"></video>
+            <div class="tile-placeholder" *ngIf="!p.hasVideo">
+              <div class="tile-avatar">{{ getParticipantInitials(p) }}</div>
+            </div>
+            <div class="tile-overlay">
+              <span class="tile-name">{{ p.name }}</span>
+              <mat-icon class="tile-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="14">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
+              <mat-icon class="tile-cam" [class.off]="!p.isCamOn" [style.font-size.px]="14">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+            </div>
+          </div>
+        </div>
+
+        <div class="participant-list" *ngIf="showParticipantList">
+          <div class="list-header" *ngIf="canModerate">
+            <span class="header-title">Participants ({{ allParticipants.length }})</span>
+            <div class="header-actions">
+              <button mat-stroked-button size="small" (click)="muteAll()">
+                <mat-icon fontSet="material-icons-outlined" [style.font-size.px]="16">mic_off</mat-icon> Mute All
+              </button>
+              <button mat-stroked-button size="small" (click)="disableAllCams()">
+                <mat-icon fontSet="material-icons-outlined" [style.font-size.px]="16">videocam_off</mat-icon> Cams Off
+              </button>
+            </div>
+          </div>
+          <div class="list-scroll">
+            <div class="participant-row" *ngFor="let p of allParticipants">
+              <div class="row-avatar">{{ getParticipantInitials(p) }}</div>
+              <div class="row-info">
+                <span class="row-name">{{ p.name }}</span>
+                <span class="row-role" *ngIf="isSelf(p)">(You)</span>
+              </div>
+              <mat-icon class="row-icon" [class.muted]="!p.isMicOn" [style.font-size.px]="18">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
+              <mat-icon class="row-icon" [class.off]="!p.isCamOn" [style.font-size.px]="18">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+              <div class="row-actions" *ngIf="canModerate && !isSelf(p)">
+                <button mat-icon-button matTooltip="Mute" (click)="muteParticipant(p.identity)">
+                  <mat-icon [style.font-size.px]="18">mic_off</mat-icon>
+                </button>
+                <button mat-icon-button matTooltip="Disable Camera" (click)="disableCamera(p.identity)">
+                  <mat-icon [style.font-size.px]="18">videocam_off</mat-icon>
+                </button>
+                <button mat-icon-button matTooltip="Remove" color="warn" (click)="removeParticipant(p.identity)">
+                  <mat-icon [style.font-size.px]="18">remove_circle</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #infoView>
+      <div class="info-view-wrapper" *ngIf="!loading && !error">
+        <button mat-icon-button (click)="goBack()" class="back-btn"><mat-icon>arrow_back</mat-icon></button>
+        <mat-card class="session-info-card">
+          <mat-card-header>
+            <mat-card-title>{{ session.sessionName }}</mat-card-title>
+            <mat-card-subtitle>
+              <span class="status-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">
+                {{ statusLabel(session.status) }}
+              </span>
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="info-grid">
+              <div class="info-item"><mat-icon>person</mat-icon><span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span></div>
+              <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
+              <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
+              <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
+            </div>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <button *ngIf="session.status === 'scheduled' && isHostUser" mat-raised-button color="primary" disabled>
+              Waiting to start...
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </div>
+    </ng-template>
+  </ng-container>
+</div>

@@ -164,6 +164,14 @@ export const routes: Routes = [
 
   { path: 'teacher/my-classes', redirectTo: '/teacher-dashboard/my-classes', pathMatch: 'full' },
 
+  // Gluck Room Routes
+  { path: 'gluck-room', loadComponent: () => import('./components/gluck-room-list/gluck-room-list.component').then(m => m.GluckRoomListComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'gluck-room/create', loadComponent: () => import('./components/gluck-room-create/gluck-room-create.component').then(m => m.GluckRoomCreateComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'gluck-room/:id/edit', loadComponent: () => import('./components/gluck-room-create/gluck-room-create.component').then(m => m.GluckRoomCreateComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'gluck-room/:id', loadComponent: () => import('./components/gluck-room/gluck-room.component').then(m => m.GluckRoomRoomComponent), canActivate: [AuthGuard] },
+  { path: 'gluck-room/recording/:recordingId', loadComponent: () => import('./components/gluck-room-recording/gluck-room-recording.component').then(m => m.GluckRoomRecordingComponent), canActivate: [AuthGuard] },
+  { path: 'student/gluck-room', loadComponent: () => import('./components/gluck-room-list/gluck-room-list.component').then(m => m.GluckRoomListComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT'] } },
+
   // Zoom Meetings Routes (New System)
   { path: 'teacher/meetings', loadComponent: () => import('./components/meeting-link/meetings-list.component').then(m => m.MeetingsListComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'teacher/meetings/create', loadComponent: () => import('./components/meeting-link/create-zoom-meeting.component').then(m => m.CreateZoomMeetingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },

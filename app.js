@@ -94,6 +94,7 @@ const crmStudentPortalRoutes = require('./routes/crmStudentPortal');
 const reminderRoutes = require('./routes/reminders');
 const crmPortalRoutes = require('./routes/crmPortal');
 const testAccountRoutes = require('./routes/testAccounts');
+const gluckRoomRoutes = require('./routes/gluckRoom');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -163,6 +164,7 @@ const { ensureDefaultAchievements } = require('./services/interactiveGames/achie
 const { ensureDefaultQuests } = require('./services/interactiveGames/quests');
 const { scheduleGlueckArenaJobs } = require('./jobs/glueckArenaDailyReset');
 const { initGlueckArenaSockets } = require('./sockets/glueckArenaMultiplayer');
+const { initGluckRoomControls } = require('./sockets/gluckRoomControls');
 const http = require('http');
 const { ensurePortalBatches } = require('./services/ensurePortalBatches');
 
@@ -297,6 +299,7 @@ app.use('/api/allreminders', allRemindersRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/crm-student-portal', crmStudentPortalRoutes);
+app.use('/api/gluckroom', gluckRoomRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -422,6 +425,7 @@ connectMongoDb()
 
     httpServer = http.createServer(app);
     initGlueckArenaSockets(httpServer);
+    initGluckRoomControls(httpServer);
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
 

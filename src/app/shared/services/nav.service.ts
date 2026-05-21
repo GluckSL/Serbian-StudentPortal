@@ -40,6 +40,7 @@ export class NavService {
     'manage-classes': [
       '/teacher/meetings'
     ],
+    'gluck-room': ['/gluck-room'],
     journey: [
       '/admin/journey'
     ],
@@ -89,6 +90,7 @@ export class NavService {
       group: 'Classes & Attendance',
       items: [
         { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings',    subGroup: null },
+        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/gluck-room', subGroup: null },
         { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports',   subGroup: null },
         { id: 'import-meeting', label: 'Import Meeting', icon: 'link', route: '/admin/external-meetings', subGroup: null },
         { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }
@@ -190,6 +192,7 @@ export class NavService {
       group: 'Classes & Attendance',
       items: [
         { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings', subGroup: null },
+        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/gluck-room', subGroup: null },
         { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports', subGroup: null },
         { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }
       ]
@@ -240,6 +243,7 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
+        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
         { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
         { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }

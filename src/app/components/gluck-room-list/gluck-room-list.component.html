@@ -1,0 +1,129 @@
+<div class="gluck-room-list">
+  <div class="header">
+    <h1>Gluck Room</h1>
+    <div class="header-actions">
+      <button *ngIf="canManage()" mat-raised-button color="primary" (click)="createSession()">
+        <mat-icon>add</mat-icon> Create Session
+      </button>
+    </div>
+  </div>
+
+  <mat-card class="filters-card">
+    <div class="filters">
+      <mat-form-field appearance="outline">
+        <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Search sessions...">
+        <mat-icon matPrefix>search</mat-icon>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Batch</mat-label>
+        <mat-select [(ngModel)]="batchFilter" (ngModelChange)="onBatchFilterChange()">
+          <mat-option value="all">All Batches</mat-option>
+          <mat-option *ngFor="let b of availableBatches" [value]="b">{{ b }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </mat-card>
+
+  <mat-card *ngIf="error && !loading" class="error-card">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadSessions()"><mat-icon>refresh</mat-icon> Retry</button>
+  </mat-card>
+
+  <mat-tab-group [selectedIndex]="tabIndex" (selectedIndexChange)="onTabIndexChange($event)" animationDuration="200ms">
+    <mat-tab label="Upcoming"></mat-tab>
+    <mat-tab label="Live"></mat-tab>
+    <mat-tab label="Completed"></mat-tab>
+  </mat-tab-group>
+
+  <div *ngIf="loading" class="loading-shade">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <ng-container *ngIf="!loading && !error">
+    <mat-card *ngIf="sessions.length === 0" class="empty-card">
+      <mat-icon>event_busy</mat-icon>
+      <h3>No {{ statusLabel(statusTab).toLowerCase() }} sessions</h3>
+      <p *ngIf="statusTab === 'scheduled' && canManage()">Create a session to get started.</p>
+    </mat-card>
+
+    <div *ngIf="sessions.length > 0" class="table-wrap">
+      <table mat-table [dataSource]="sessions" class="gluck-table mat-elevation-z1">
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Status</th>
+          <td mat-cell *matCellDef="let s">
+            <mat-chip selected class="status-chip" [class.live]="s.status === 'active'" [class.ended]="s.status === 'ended'" [class.cancelled]="s.status === 'cancelled'">
+              {{ statusLabel(s.status) }}
+            </mat-chip>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="sessionName">
+          <th mat-header-cell *matHeaderCellDef>Session</th>
+          <td mat-cell *matCellDef="let s">{{ s.sessionName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="host">
+          <th mat-header-cell *matHeaderCellDef>Host</th>
+          <td mat-cell *matCellDef="let s">{{ s.hostId?.name || 'Unknown' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="batch">
+          <th mat-header-cell *matHeaderCellDef>Batch</th>
+          <td mat-cell *matCellDef="let s"><span class="batch-pill">{{ s.batch }}</span></td>
+        </ng-container>
+
+        <ng-container matColumnDef="dateTime">
+          <th mat-header-cell *matHeaderCellDef>Date &amp; Time</th>
+          <td mat-cell *matCellDef="let s">{{ formatDate(s.scheduledStartTime) }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="duration">
+          <th mat-header-cell *matHeaderCellDef>Duration</th>
+          <td mat-cell *matCellDef="let s">{{ formatDuration(s.maxDurationMinutes) }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="participants">
+          <th mat-header-cell *matHeaderCellDef>Participants</th>
+          <td mat-cell *matCellDef="let s">{{ s.participantCount || 0 }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef class="col-actions">Actions</th>
+          <td mat-cell *matCellDef="let s" class="col-actions">
+            <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-flat-button color="primary" (click)="startSession(s._id, $event)">
+              Start
+            </button>
+            <button *ngIf="s.status === 'active'" mat-flat-button class="join-btn" (click)="joinSession(s._id, $event)">
+              Join
+            </button>
+            <button *ngIf="s.status === 'active' && isHost(s)" mat-flat-button color="warn" (click)="endSession(s._id, $event)">
+              End
+            </button>
+            <button *ngIf="s.status === 'ended'" mat-stroked-button (click)="openRecording(s._id)">
+              <mat-icon>play_circle</mat-icon> Recording
+            </button>
+            <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-icon-button matTooltip="Edit" (click)="editSession(s._id, $event)">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-icon-button matTooltip="Cancel" (click)="deleteSession(s._id, $event)">
+              <mat-icon color="warn">delete</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="View details" (click)="viewSession(s._id)">
+              <mat-icon>visibility</mat-icon>
+            </button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['status','sessionName','host','batch','dateTime','duration','participants','actions']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['status','sessionName','host','batch','dateTime','duration','participants','actions'];" class="session-row" (click)="viewSession(row._id)"></tr>
+      </table>
+    </div>
+
+    <mat-paginator *ngIf="totalCount > 0"
+      [length]="totalCount" [pageIndex]="pageIndex" [pageSize]="pageSize"
+      [pageSizeOptions]="[10,15,25,50]" [showFirstLastButtons]="true"
+      (page)="onPageChange($event)">
+    </mat-paginator>
+  </ng-container>
+</div>

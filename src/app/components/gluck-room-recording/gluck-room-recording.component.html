@@ -1,0 +1,66 @@
+<div class="recording-container">
+  <div class="header">
+    <button mat-icon-button (click)="goBack()"><mat-icon>arrow_back</mat-icon></button>
+    <h1>Recording</h1>
+  </div>
+
+  <div *ngIf="loading" class="loading-shade"><mat-spinner diameter="40"></mat-spinner></div>
+
+  <mat-card *ngIf="error && !loading" class="error-card">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="goBack()">Go Back</button>
+  </mat-card>
+
+  <ng-container *ngIf="!loading && !error">
+    <mat-card class="session-summary" *ngIf="session">
+      <mat-card-content>
+        <h2>{{ session.sessionName }}</h2>
+        <div class="meta">
+          <span><strong>Batch:</strong> {{ session.batch }}</span>
+          <span *ngIf="session.level"><strong>Level:</strong> {{ session.level }}</span>
+          <span><strong>Date:</strong> {{ formatDate(session.actualStartTime || session.scheduledStartTime) }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="player-card" *ngIf="playbackUrl">
+      <mat-card-content>
+        <video controls class="video-player" [src]="playbackUrl" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="no-recording-card" *ngIf="!playbackUrl && !loading">
+      <mat-card-content class="placeholder-content">
+        <mat-icon>videocam_off</mat-icon>
+        <h3>No recording available</h3>
+        <p>This session either has no recording or it is still being processed.</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="recording-info" *ngIf="recording">
+      <mat-card-content>
+        <div class="info-row">
+          <span><strong>Status:</strong>
+            <mat-chip selected [class.ready]="recording.status === 'ready'" [class.failed]="recording.status === 'failed'">
+              {{ recording.status }}
+            </mat-chip>
+          </span>
+          <span *ngIf="recording.duration"><strong>Duration:</strong> {{ recording.duration }}s</span>
+          <span><strong>Published:</strong> {{ recording.isPublished ? 'Yes' : 'No' }}</span>
+        </div>
+      </mat-card-content>
+      <mat-card-actions *ngIf="canManage()" class="manage-actions">
+        <button mat-stroked-button (click)="togglePublish()" [disabled]="togglingPublish">
+          <mat-icon>{{ recording.isPublished ? 'visibility_off' : 'visibility' }}</mat-icon>
+          {{ recording.isPublished ? 'Unpublish' : 'Publish' }}
+        </button>
+        <button mat-stroked-button color="warn" (click)="deleteRecording()">
+          <mat-icon>delete</mat-icon> Delete
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </ng-container>
+</div>

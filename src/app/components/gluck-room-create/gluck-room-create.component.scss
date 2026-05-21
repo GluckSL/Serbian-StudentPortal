@@ -1,0 +1,23 @@
+:host { display: block; font-family: 'Inter', system-ui, sans-serif; }
+
+.create-container { padding: 14px; max-width: 720px; margin: 0 auto; }
+
+.header {
+  display: flex; align-items: center; gap: 8px;
+  background: #b3cde0; color: #011f4b;
+  padding: 10px 18px; border-radius: 14px; margin-bottom: 10px;
+  h1 { margin: 0; font-size: 15px; font-weight: 700; }
+  button { color: #011f4b; }
+}
+
+.form-card { padding: 16px; border-radius: 12px; }
+.form-row { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+.full-width { width: 100%; }
+.half-width { flex: 1; min-width: 200px; }
+
+.error-msg {
+  padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+  background: #fff5f5; color: #c62828; font-size: 13px; margin-top: 8px;
+}
+
+.btn-spinner { display: inline-block; margin-right: 6px; }

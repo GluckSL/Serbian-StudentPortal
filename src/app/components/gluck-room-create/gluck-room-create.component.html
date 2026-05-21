@@ -1,0 +1,94 @@
+<div class="create-container">
+  <div class="header">
+    <button mat-icon-button (click)="cancel()"><mat-icon>arrow_back</mat-icon></button>
+    <h1>{{ isEditMode ? 'Edit Session' : 'Create Session' }}</h1>
+  </div>
+
+  <mat-card class="form-card">
+    <mat-card-content>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Session Name</mat-label>
+          <input matInput [(ngModel)]="sessionName" placeholder="e.g. B1 Grammar Class" required>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Batch</mat-label>
+          <mat-select [(ngModel)]="batch" (selectionChange)="onBatchChange()" required>
+            <mat-option *ngFor="let b of allBatches" [value]="b">{{ b }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Max Duration</mat-label>
+          <mat-select [(ngModel)]="maxDurationMinutes">
+            <mat-option *ngFor="let d of durationOptions" [value]="d">{{ d }} min</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Scheduled Start</mat-label>
+          <input matInput type="datetime-local" [(ngModel)]="scheduledStartTime" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Course Day (optional)</mat-label>
+          <input matInput type="number" [(ngModel)]="courseDay" min="1" max="200" placeholder="1-200">
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Level (optional)</mat-label>
+          <mat-select [(ngModel)]="level">
+            <mat-option [value]="null">None</mat-option>
+            <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Access Type</mat-label>
+          <mat-select [(ngModel)]="accessType">
+            <mat-option value="batch">Batch Access</mat-option>
+            <mat-option value="manual">Manual Selection</mat-option>
+            <mat-option value="open">Open Access</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row" *ngIf="accessType === 'batch'">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Allowed Batches</mat-label>
+          <mat-select [(ngModel)]="allowedBatches" multiple>
+            <mat-option *ngFor="let b of allBatches" [value]="b">{{ b }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row" *ngIf="accessType === 'manual'">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Allowed Students (IDs)</mat-label>
+          <input matInput [(ngModel)]="allowedStudents" placeholder="Comma-separated student IDs">
+        </mat-form-field>
+      </div>
+
+      <mat-card *ngIf="error" class="error-msg">
+        <mat-icon color="warn">error</mat-icon> {{ error }}
+      </mat-card>
+    </mat-card-content>
+
+    <mat-card-actions align="end">
+      <button mat-stroked-button (click)="cancel()">Cancel</button>
+      <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="submitting">
+        <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner"></mat-spinner>
+        <span *ngIf="!submitting">{{ isEditMode ? 'Update Session' : 'Create Session' }}</span>
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</div>
