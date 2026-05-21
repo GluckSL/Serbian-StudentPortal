@@ -1,6 +1,14 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  OnDestroy,
+  HostListener,
+  ChangeDetectorRef,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DragDropModule, CdkDragDrop, transferArrayItem } from '@angular/cdk/drag-drop';
 import { MaterialModule } from '../../../../shared/material.module';
 import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
@@ -22,12 +30,13 @@ interface DisplayPair {
   matched: boolean;
   matchedWord: string;
   validating: boolean;
+  wrongFlash: boolean;
 }
 
 @Component({
   selector: 'app-image-matching',
   standalone: true,
-  imports: [CommonModule, DragDropModule, MaterialModule, XpFloatComponent, ConfettiBurstComponent],
+  imports: [CommonModule, MaterialModule, XpFloatComponent, ConfettiBurstComponent],
   template: `
     <div class="im-layout">
       <main class="im-play">
@@ -44,7 +53,10 @@ interface DisplayPair {
           <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause"><mat-icon>pause</mat-icon></button>
         </header>
 
-        <div class="im-board" *ngIf="phase === 'playing' && currentPairs.length">
+        <div
+          class="im-board"
+          [class.im-board--dragging]="!!draggingWord"
+          *ngIf="phase === 'playing' && currentPairs.length">
           <div class="im-board__prompt">
             <p>Drag each word onto its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
             <div class="im-progress-chips">
@@ -52,36 +64,29 @@ interface DisplayPair {
             </div>
           </div>
 
-          <!-- Word pool -->
-          <div
-            class="im-pool"
-            cdkDropList
-            id="word-pool"
-            [cdkDropListData]="availableWords"
-            [cdkDropListConnectedTo]="slotIds"
-            (cdkDropListDropped)="onWordPoolDrop($event)">
-            <div *ngFor="let word of availableWords" class="im-pool__word" cdkDrag [cdkDragData]="word">
+          <div class="im-pool">
+            <button
+              type="button"
+              *ngFor="let word of availableWords"
+              class="im-pool__word"
+              [class.im-pool__word--dragging]="draggingWord === word"
+              (pointerdown)="startDrag($event, word)">
               <span class="im-pool__pill">{{ word }}</span>
-              <div *cdkDragPlaceholder class="im-pool__placeholder"></div>
-            </div>
+            </button>
           </div>
 
-          <!-- Image grid — drop words directly onto images -->
           <div class="im-grid">
             <div *ngFor="let pair of currentPairs" class="im-card">
               <div
                 class="im-card__target"
-                [class.im-card__target--matched]="pair.matched"
-                [class.im-card__target--placed]="!pair.matched && slotData[pair.slotId].length"
                 [id]="pair.slotId"
-                cdkDropList
-                cdkDropListSortingDisabled
-                [cdkDropListData]="slotData[pair.slotId]"
-                [cdkDropListConnectedTo]="['word-pool']"
-                [cdkDropListDisabled]="isSlotDisabled(pair)"
-                (cdkDropListDropped)="onSlotDrop($event, pair)">
+                [class.im-card__target--matched]="pair.matched"
+                [class.im-card__target--placed]="!pair.matched && slotHasWord(pair)"
+                [class.im-card__target--hover]="hoveredSlotId === pair.slotId"
+                [class.im-card__target--wrong]="pair.wrongFlash"
+                (pointerup)="onTargetPointerUp($event, pair)">
                 <img [src]="pair.imageUrl" alt="" draggable="false">
-                <div class="im-card__overlay" *ngIf="pair.matched || slotData[pair.slotId]?.length">
+                <div class="im-card__overlay" *ngIf="pair.matched || slotHasWord(pair)">
                   <span
                     class="im-card__word"
                     [class.im-card__word--correct]="pair.matched"
@@ -101,26 +106,51 @@ interface DisplayPair {
         </div>
       </main>
 
+      <!-- Floating drag label follows the pointer (no CDK) -->
+      <div
+        class="im-ghost"
+        *ngIf="draggingWord"
+        [style.left.px]="ghostX"
+        [style.top.px]="ghostY">
+        <span class="im-pool__pill">{{ draggingWord }}</span>
+      </div>
+
       <app-xp-float [xp]="xpPerMatch" [trigger]="xpTrigger"></app-xp-float>
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
     </div>
   `,
   styles: [`
     .im-layout { position: relative; margin: 0 auto; }
-    .im-play { position: relative; background: #fff; border-radius: 20px; box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1); overflow: hidden; border: 1px solid #e2e8f0; }
-    .im-play__top { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .im-play {
+      position: relative;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
+      border: 1px solid #e2e8f0;
+    }
+    .im-play__top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      border-radius: 20px 20px 0 0;
+    }
     .im-play__score { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 800; color: #f59e0b; }
     .im-play__progress { flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #64748b; }
     .im-play__timer { display: flex; align-items: center; gap: 4px; font-weight: 700; color: #1e3a5f; padding: 6px 12px; background: #e0f2fe; border-radius: 999px; font-size: 14px; }
 
-    .im-board { padding: 24px 22px 28px; }
+    .im-board { padding: 24px 22px 28px; touch-action: none; user-select: none; }
+    .im-board--dragging .im-card__target:not(.im-card__target--matched):not(.im-card__target--placed) {
+      pointer-events: auto;
+    }
     .im-board__prompt { padding: 16px 18px; margin-bottom: 20px; background: linear-gradient(135deg, #eff6ff, #f0fdf4); border-radius: 14px; border: 1px solid #dbeafe; }
     .im-board__prompt p { margin: 0 0 8px; color: #334155; font-size: 15px; }
     .im-hint__green { color: #22c55e; font-weight: 700; }
     .im-progress-chips { text-align: center; }
     .im-progress-chips__label { font-size: 12px; font-weight: 700; color: #405980; background: rgba(64, 89, 128, 0.08); padding: 4px 12px; border-radius: 999px; }
 
-    /* Word pool */
     .im-pool {
       display: flex;
       flex-wrap: wrap;
@@ -133,16 +163,19 @@ interface DisplayPair {
       border-radius: 14px;
       border: 2px solid #e2e8f0;
     }
-    .im-pool.cdk-drop-list-dragging .im-pool__word:not(.cdk-drag-placeholder) {
-      transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+    .im-pool__word {
+      border: none;
+      background: transparent;
+      padding: 0;
+      cursor: grab;
+      touch-action: none;
     }
-    .im-pool__word { cursor: grab; }
     .im-pool__word:active { cursor: grabbing; }
+    .im-pool__word--dragging { opacity: 0.35; }
 
     .im-pool__pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
       padding: 10px 18px;
       border-radius: 999px;
       font-size: 15px;
@@ -151,41 +184,35 @@ interface DisplayPair {
       color: #fff;
       box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
       user-select: none;
-      transition: box-shadow 0.15s ease;
-    }
-    .im-pool__placeholder {
-      width: 80px;
-      height: 42px;
-      border: 2px dashed #94a3b8;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.5);
+      pointer-events: none;
     }
 
-    /* Image grid */
     .im-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       gap: 20px;
-      max-width: 860px;
+      max-width: 560px;
       margin: 0 auto;
     }
-    @media (max-width: 700px) { .im-grid { grid-template-columns: repeat(2, 1fr); } }
 
     .im-card {
       position: relative;
+      flex: 0 1 calc(50% - 10px);
+      min-width: 140px;
+      max-width: 260px;
     }
 
-    /* Image is the drop target */
     .im-card__target {
       position: relative;
+      display: block;
       width: 100%;
       aspect-ratio: 1;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid #e2e8f0;
       background: #f1f5f9;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      cursor: default;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
     .im-card__target img {
       width: 100%;
@@ -194,18 +221,19 @@ interface DisplayPair {
       pointer-events: none;
       display: block;
     }
-    .im-pool.cdk-drop-list-dragging .im-card__target:not(.im-card__target--matched):not(.im-card__target--placed) {
-      border-color: #a5b4fc;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-    }
-    .im-card__target.cdk-drop-list-receiving {
+    .im-card__target--hover:not(.im-card__target--matched):not(.im-card__target--placed) {
       border-color: #6366f1;
-      border-style: solid;
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25);
+      border-width: 3px;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.35);
     }
     .im-card__target--matched {
       border-color: #22c55e;
       box-shadow: 0 4px 18px rgba(34, 197, 94, 0.35);
+    }
+    .im-card__target--wrong {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.25);
+      animation: im-shake 0.35s ease;
     }
 
     .im-card__overlay {
@@ -213,10 +241,10 @@ interface DisplayPair {
       left: 0;
       right: 0;
       bottom: 0;
-      padding: 10px 8px;
+      padding: 12px 10px;
       display: flex;
       justify-content: center;
-      background: linear-gradient(transparent, rgba(15, 23, 42, 0.55));
+      background: linear-gradient(transparent, rgba(15, 23, 42, 0.6));
       pointer-events: none;
     }
 
@@ -230,11 +258,11 @@ interface DisplayPair {
       user-select: none;
     }
     .im-card__word--placed {
-      background: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.95);
       color: #475569;
     }
     .im-card__word--correct {
-      background: linear-gradient(145deg, #22c55e, #15803d) !important;
+      background: linear-gradient(145deg, #22c55e, #15803d);
       color: #fff;
       box-shadow: 0 4px 18px rgba(34, 197, 94, 0.5);
       animation: pill-pop 0.18s ease-out;
@@ -251,6 +279,14 @@ interface DisplayPair {
       z-index: 2;
     }
 
+    .im-ghost {
+      position: fixed;
+      z-index: 10000;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      margin: 0;
+    }
+
     .im-complete { text-align: center; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .im-complete__spinner { font-size: 48px !important; width: 48px !important; height: 48px !important; color: #6366f1; animation: im-spin 1s linear infinite; }
     @keyframes im-spin { to { transform: rotate(360deg); } }
@@ -260,6 +296,11 @@ interface DisplayPair {
       0% { transform: scale(0.92); }
       60% { transform: scale(1.08); }
       100% { transform: scale(1); }
+    }
+    @keyframes im-shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
     }
   `]
 })
@@ -275,6 +316,10 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   currentPairs: DisplayPair[] = [];
   availableWords: string[] = [];
   slotData: Record<string, string[]> = {};
+  hoveredSlotId: string | null = null;
+  draggingWord: string | null = null;
+  ghostX = 0;
+  ghostY = 0;
   score = 0;
   correctCount = 0;
   phase: 'playing' | 'complete' = 'playing';
@@ -284,6 +329,9 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   showConfetti = false;
   private timerHandle: ReturnType<typeof setInterval> | null = null;
   private sessionStartedAt = Date.now();
+  private activePointerId: number | null = null;
+  private dropCommitted = false;
+  private readonly dropHitPadding = 20;
 
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.questions.length / this.pageSize));
@@ -293,11 +341,10 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
     return this.currentPairs.filter(p => p.matched).length;
   }
 
-  get slotIds(): string[] {
-    return this.currentPairs.map(p => p.slotId);
-  }
-
-  constructor(private svc: InteractiveGameService) {}
+  constructor(
+    private svc: InteractiveGameService,
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit() {
     this.sessionStartedAt = Date.now();
@@ -308,6 +355,7 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     if (this.timerHandle) clearInterval(this.timerHandle);
+    this.cancelDrag();
   }
 
   loadPage(index: number) {
@@ -317,16 +365,17 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
       return;
     }
     this.currentPageIndex = index;
+    this.hoveredSlotId = null;
+    this.cancelDrag();
     const start = index * this.pageSize;
     const end = Math.min(start + this.pageSize, this.questions.length);
     const pageQuestions = this.questions.slice(start, end);
 
-    let pairIndex = 0;
     this.currentPairs = [];
     this.slotData = {};
     pageQuestions.forEach(q => {
-      if (!q.pairs) return;
-      q.pairs.forEach(p => {
+      if (!q.pairs?.length) return;
+      q.pairs.forEach((p, pairIndex) => {
         const slotId = `slot-${q._id}-${pairIndex}`;
         this.currentPairs.push({
           questionId: q._id,
@@ -336,11 +385,19 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
           matched: false,
           matchedWord: '',
           validating: false,
+          wrongFlash: false,
         });
         this.slotData[slotId] = [];
-        pairIndex++;
       });
     });
+  }
+
+  slotHasWord(pair: DisplayPair): boolean {
+    return (this.slotData[pair.slotId]?.length ?? 0) > 0;
+  }
+
+  canAcceptDrop(pair: DisplayPair): boolean {
+    return !pair.matched && !pair.validating && !this.slotHasWord(pair);
   }
 
   private shuffle<T>(arr: T[]): T[] {
@@ -352,36 +409,120 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
     return result;
   }
 
-  isSlotDisabled(pair: DisplayPair): boolean {
-    return pair.matched || pair.validating || (this.slotData[pair.slotId]?.length ?? 0) > 0;
+  /** Hit-test using each image's on-screen box (with padding for easier drops). */
+  private slotIdAtPoint(clientX: number, clientY: number): string | null {
+    const pad = this.dropHitPadding;
+    let bestId: string | null = null;
+    let bestArea = Infinity;
+
+    for (const pair of this.currentPairs) {
+      if (!this.canAcceptDrop(pair)) continue;
+      const el = document.getElementById(pair.slotId);
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (
+        clientX < r.left - pad ||
+        clientX > r.right + pad ||
+        clientY < r.top - pad ||
+        clientY > r.bottom + pad
+      ) {
+        continue;
+      }
+      const area = r.width * r.height;
+      if (area < bestArea) {
+        bestArea = area;
+        bestId = pair.slotId;
+      }
+    }
+    return bestId;
   }
 
-  onWordPoolDrop(event: CdkDragDrop<string[]>) {
-    if (event.previousContainer === event.container) return;
-    transferArrayItem(
-      event.previousContainer.data,
-      event.container.data,
-      event.previousIndex,
-      event.currentIndex,
-    );
+  startDrag(event: PointerEvent, word: string) {
+    if (this.phase !== 'playing' || !word || event.button !== 0) return;
+    event.preventDefault();
+
+    this.dropCommitted = false;
+    this.draggingWord = word;
+    this.activePointerId = event.pointerId;
+    this.ghostX = event.clientX;
+    this.ghostY = event.clientY;
+    this.hoveredSlotId = this.slotIdAtPoint(event.clientX, event.clientY);
+    this.cdr.detectChanges();
   }
 
-  onSlotDrop(event: CdkDragDrop<string[]>, pair: DisplayPair) {
-    if (event.previousContainer === event.container) return;
-    if (this.isSlotDisabled(pair)) return;
+  @HostListener('window:pointermove', ['$event'])
+  onWindowPointerMove(event: PointerEvent) {
+    if (this.draggingWord == null || this.activePointerId !== event.pointerId) return;
+    this.ghostX = event.clientX;
+    this.ghostY = event.clientY;
+    this.hoveredSlotId = this.slotIdAtPoint(event.clientX, event.clientY);
+    this.cdr.detectChanges();
+  }
 
-    const word = event.item.data as string;
-    if (!word) return;
+  @HostListener('window:pointerup', ['$event'])
+  @HostListener('window:pointercancel', ['$event'])
+  onWindowPointerEnd(event: PointerEvent) {
+    if (this.draggingWord == null || this.activePointerId !== event.pointerId) return;
+    const slotId = this.slotIdAtPoint(event.clientX, event.clientY) ?? this.hoveredSlotId;
+    this.finishDrag(slotId);
+  }
 
+  /** Fallback when pointer capture blocks pointerup (common on Windows + Chrome). */
+  @HostListener('window:mouseup', ['$event'])
+  onWindowMouseUp(event: MouseEvent) {
+    if (this.draggingWord == null || event.button !== 0) return;
+    const slotId = this.slotIdAtPoint(event.clientX, event.clientY) ?? this.hoveredSlotId;
+    this.finishDrag(slotId);
+  }
+
+  onTargetPointerUp(event: PointerEvent, pair: DisplayPair) {
+    if (this.draggingWord == null || this.activePointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.canAcceptDrop(pair)) {
+      this.finishDrag(pair.slotId);
+    }
+  }
+
+  private finishDrag(slotId: string | null) {
+    if (this.dropCommitted || this.draggingWord == null) return;
+    this.dropCommitted = true;
+
+    const word = this.draggingWord;
+    this.cancelDrag();
+
+    if (!slotId || !word.trim()) return;
+
+    const pair = this.currentPairs.find(p => p.slotId === slotId);
+    if (!pair || !this.canAcceptDrop(pair)) return;
+
+    const wordIndex = this.availableWords.indexOf(word);
+    if (wordIndex === -1) return;
+
+    this.availableWords.splice(wordIndex, 1);
+    this.availableWords = [...this.availableWords];
+    this.slotData[slotId] = [word];
     pair.validating = true;
-    transferArrayItem(
-      event.previousContainer.data,
-      event.container.data,
-      event.previousIndex,
-      0,
-    );
+    this.cdr.detectChanges();
 
     this.validateMatch(pair, word);
+  }
+
+  private cancelDrag() {
+    this.draggingWord = null;
+    this.activePointerId = null;
+    this.hoveredSlotId = null;
+    this.cdr.detectChanges();
+  }
+
+  private returnWordToPool(pair: DisplayPair, word: string) {
+    const slotArr = this.slotData[pair.slotId];
+    if (!slotArr?.length) return;
+    const idx = slotArr.indexOf(word);
+    if (idx === -1) return;
+    slotArr.splice(idx, 1);
+    this.availableWords = [...this.availableWords, word];
+    this.cdr.detectChanges();
   }
 
   private validateMatch(pair: DisplayPair, word: string) {
@@ -389,13 +530,14 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
       questionId: pair.questionId,
       pairIndex: pair.pairIndex,
       word,
-      responseTimeMs: 0
+      responseTimeMs: 0,
     }).subscribe({
       next: (r) => {
         pair.validating = false;
         if (r.isCorrect) {
           pair.matched = true;
           pair.matchedWord = word;
+          pair.wrongFlash = false;
           this.score += r.pointsEarned || 10;
           this.correctCount++;
           this.xpPerMatch = r.pointsEarned || 5;
@@ -405,27 +547,17 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
             setTimeout(() => this.loadPage(this.currentPageIndex + 1), 500);
           }
         } else {
-          // Wrong — return word to pool
-          const slotArr = this.slotData[pair.slotId] || [];
-          const si = slotArr.indexOf(word);
-          if (si !== -1) {
-            slotArr.splice(si, 1);
-            this.availableWords.push(word);
-            this.availableWords = [...this.availableWords];
-          }
+          pair.wrongFlash = true;
+          this.returnWordToPool(pair, word);
+          setTimeout(() => { pair.wrongFlash = false; }, 450);
         }
+        this.cdr.detectChanges();
       },
       error: () => {
         pair.validating = false;
-        // On error, also return the word to the pool
-        const slotArr = this.slotData[pair.slotId] || [];
-        const si = slotArr.indexOf(word);
-        if (si !== -1) {
-          slotArr.splice(si, 1);
-          this.availableWords.push(word);
-          this.availableWords = [...this.availableWords];
-        }
-      }
+        this.returnWordToPool(pair, word);
+        this.cdr.detectChanges();
+      },
     });
   }
 
@@ -450,7 +582,7 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
       score: this.score,
       xpEarned: this.correctCount * (this.gameSet?.xpReward || 50),
       accuracy,
-      timeSpentSeconds: this.sessionElapsedSeconds
+      timeSpentSeconds: this.sessionElapsedSeconds,
     };
   }
 }

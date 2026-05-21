@@ -340,6 +340,13 @@
   color: #011f4b;
 }
 
+.meeting-id-cell {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: #334155;
+  white-space: nowrap;
+}
+
 .batch-pill {
   font-size: 11px;
   color: #64748b;
