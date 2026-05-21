@@ -220,8 +220,10 @@ export class DocumentVerificationComponent implements OnInit {
     displayName: ''
   };
   agreementPreviewUrl: SafeResourceUrl | null = null;
+  private agreementPreviewBlobUrl: string | null = null;
   agreementPreviewing = false;
   agreementSaving = false;
+  private agreementPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ========== EXPORT CSV ==========
 
@@ -389,36 +391,73 @@ export class DocumentVerificationComponent implements OnInit {
   }
 
   onAgreementTemplateChange(): void {
-    const tpl = this.agreementTemplates.find(t => t._id === this.agreementForm.templateId) || null;
-    this.agreementSelectedTemplate = tpl;
-    this.agreementPreviewUrl = null;
-    if (!tpl) return;
+    const id = this.agreementForm.templateId;
+    this.clearAgreementPreview();
+    if (!id) {
+      this.agreementSelectedTemplate = null;
+      return;
+    }
 
-    const prefill: Record<string, string> = {
-      studentName: this.agreementForm.studentName,
-      studentEmail: this.agreementForm.studentEmail,
-      name: this.agreementForm.studentName,
-      email: this.agreementForm.studentEmail
-    };
-    const values: Record<string, string> = {};
-    for (const f of tpl.dynamicFields) {
-      values[f.id] = prefill[f.id] || '';
+    this.agreementService.getTemplate(id).subscribe({
+      next: r => {
+        this.agreementSelectedTemplate = r.template;
+        const prefill: Record<string, string> = {
+          studentName: this.agreementForm.studentName,
+          studentEmail: this.agreementForm.studentEmail,
+          name: this.agreementForm.studentName,
+          email: this.agreementForm.studentEmail
+        };
+        const values: Record<string, string> = {};
+        for (const f of r.template.dynamicFields || []) {
+          values[f.id] = prefill[f.id] || '';
+        }
+        this.agreementForm.fieldValues = values;
+        if (this.agreementForm.studentName) {
+          this.agreementForm.displayName = `${r.template.name} – ${this.agreementForm.studentName}`;
+        } else {
+          this.agreementForm.displayName = r.template.name;
+        }
+        this.scheduleAgreementPreview();
+      },
+      error: () => this.snackBar.open('Failed to load template', 'Close', { duration: 3000 })
+    });
+  }
+
+  onAgreementFieldChange(): void {
+    this.scheduleAgreementPreview();
+  }
+
+  buildAgreementFieldPayload(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const f of this.agreementSelectedTemplate?.dynamicFields || []) {
+      const v = this.agreementForm.fieldValues[f.id];
+      if (v != null && String(v).trim()) {
+        out[f.id] = String(v).trim();
+      }
     }
-    this.agreementForm.fieldValues = values;
-    if (this.agreementForm.studentName) {
-      this.agreementForm.displayName = `${tpl.name} – ${this.agreementForm.studentName}`;
-    } else {
-      this.agreementForm.displayName = tpl.name;
-    }
+    return out;
+  }
+
+  scheduleAgreementPreview(): void {
+    if (!this.agreementForm.templateId) return;
+    if (this.agreementPreviewTimer) clearTimeout(this.agreementPreviewTimer);
+    this.agreementPreviewTimer = setTimeout(() => this.previewAgreementPdf(), 450);
   }
 
   previewAgreementPdf(): void {
     if (!this.agreementForm.templateId) return;
+    const payload = this.buildAgreementFieldPayload();
+    if (!Object.keys(payload).length) {
+      this.clearAgreementPreview();
+      return;
+    }
+
     this.agreementPreviewing = true;
-    this.agreementService.previewInstance(this.agreementForm.templateId, this.agreementForm.fieldValues).subscribe({
+    this.agreementService.previewInstance(this.agreementForm.templateId, payload).subscribe({
       next: (blob: Blob) => {
-        const url = URL.createObjectURL(blob);
-        this.agreementPreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        if (this.agreementPreviewBlobUrl) URL.revokeObjectURL(this.agreementPreviewBlobUrl);
+        this.agreementPreviewBlobUrl = URL.createObjectURL(blob);
+        this.agreementPreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.agreementPreviewBlobUrl);
         this.agreementPreviewing = false;
       },
       error: e => {
@@ -428,16 +467,29 @@ export class DocumentVerificationComponent implements OnInit {
     });
   }
 
+  private clearAgreementPreview(): void {
+    if (this.agreementPreviewBlobUrl) {
+      URL.revokeObjectURL(this.agreementPreviewBlobUrl);
+      this.agreementPreviewBlobUrl = null;
+    }
+    this.agreementPreviewUrl = null;
+  }
+
   saveAgreement(sendEmail: boolean): void {
     if (!this.agreementForm.studentId || !this.agreementForm.templateId || !this.agreementForm.displayName) {
       this.snackBar.open('Select a student, template, and agreement name', 'Close', { duration: 3000 });
+      return;
+    }
+    const payload = this.buildAgreementFieldPayload();
+    if (!Object.keys(payload).length) {
+      this.snackBar.open('Fill in at least one agreement field before saving', 'Close', { duration: 3000 });
       return;
     }
     this.agreementSaving = true;
     this.agreementService.shareInstance({
       templateId: this.agreementForm.templateId,
       studentId: this.agreementForm.studentId,
-      fieldValues: this.agreementForm.fieldValues,
+      fieldValues: payload,
       displayName: this.agreementForm.displayName,
       sendEmail
     }).subscribe({

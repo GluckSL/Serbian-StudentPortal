@@ -2,7 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { StudentDocumentsService } from '../../../services/student-documents.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { StudentDocumentsService, StudentDocument } from '../../../services/student-documents.service';
 import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
 import { MaterialModule } from '../../../shared/material.module';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
@@ -50,15 +51,22 @@ export class StudentDocumentProfileComponent implements OnInit {
   documents: any[] = [];
   rows: StudentDocRow[] = [];
 
-  showReuploadDialog = false;
-  selectedRowDoc: any | null = null;
-  reuploadReason = '';
+  /** admin_pending | student_pending | all */
+  activeTab: 'admin_pending' | 'student_pending' | 'all' = 'admin_pending';
+
+  showVerificationDialog = false;
+  verificationAction: 'VERIFIED' | 'REJECTED' | null = null;
+  verificationNotes = '';
+  verifying = false;
+  /** Row being approved/rejected */
+  verifyTarget: StudentDocRow | null = null;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private documentService: StudentDocumentsService,
-    private agreementService: AgreementService
+    private agreementService: AgreementService,
+    private snack: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -156,6 +164,13 @@ export class StudentDocumentProfileComponent implements OnInit {
         .filter((d) => d.documentType === req.type)
         .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
       const latest = docsByType.length > 0 ? docsByType[0] : null;
+      const agMatch = latest
+        ? agreements.find((a) => a.studentDocumentId && String(a.studentDocumentId) === String(latest._id))
+        : null;
+      const isAg =
+        !!agMatch ||
+        latest?.documentCategory === 'AGREEMENT' ||
+        String(req.type || '').startsWith('AGREEMENT_');
       rows.push({
         type: req.type,
         label: req.name || req.label || req.type,
@@ -165,7 +180,11 @@ export class StudentDocumentProfileComponent implements OnInit {
         doc: latest,
         uploadedAt: latest?.uploadedAt || null,
         remarks: String(latest?.verificationNotes || latest?.remarks || '').trim(),
-        selectedStatus: (latest?.status || 'PENDING') as 'PENDING' | 'VERIFIED' | 'REJECTED'
+        selectedStatus: (latest?.status || 'PENDING') as 'PENDING' | 'VERIFIED' | 'REJECTED',
+        isAgreement: isAg,
+        agreementId: agMatch?._id,
+        agreementStatus: agMatch?.status,
+        hasSignedCopy: !!agMatch?.signedFile
       });
     }
 
@@ -185,8 +204,11 @@ export class StudentDocumentProfileComponent implements OnInit {
       }
     }
 
-    // Merge agreement rows
+    // Agreement instances not already linked to a requirement row
     for (const ag of agreements) {
+      if (ag.studentDocumentId && rows.some((r) => r.doc && String(r.doc._id) === String(ag.studentDocumentId))) {
+        continue;
+      }
       const agStatus = this.mapAgreementStatus(ag.status);
       rows.push({
         type: `AGREEMENT_${ag._id}`,
@@ -194,7 +216,16 @@ export class StudentDocumentProfileComponent implements OnInit {
         requirementId: undefined,
         required: false,
         status: agStatus,
-        doc: ag.studentDocumentId ? { _id: ag.studentDocumentId, documentCategory: 'AGREEMENT', agreementId: ag._id, fileName: ag.generatedFile?.fileName, filePath: '' } : null,
+        doc: ag.studentDocumentId
+          ? {
+              _id: ag.studentDocumentId,
+              documentCategory: 'AGREEMENT',
+              agreementId: ag._id,
+              fileName: ag.signedFile?.fileName || ag.generatedFile?.fileName,
+              filePath: '',
+              documentName: ag.displayName
+            }
+          : null,
         uploadedAt: ag.sentAt ? new Date(ag.sentAt) : null,
         remarks: ag.verificationNotes || '',
         selectedStatus: (agStatus === 'NOT_UPLOADED' ? 'PENDING' : agStatus) as 'PENDING' | 'VERIFIED' | 'REJECTED',
@@ -218,9 +249,136 @@ export class StudentDocumentProfileComponent implements OnInit {
     }
   }
 
-  downloadAgreement(agreementId: string, type: 'generated' | 'signed'): void {
-    const url = this.agreementService.getDownloadUrl(agreementId, type);
-    window.open(url, '_blank');
+  downloadAgreement(agreementId: string, type: 'generated' | 'signed', fileName?: string): void {
+    this.agreementService.downloadInstance(agreementId, type).subscribe({
+      next: (blob) => this.documentService.triggerFileDownload(blob, fileName || `agreement-${type}.pdf`),
+      error: () => this.snack.open('Download failed', 'Close', { duration: 3000 })
+    });
+  }
+
+  canReviewRow(row: StudentDocRow): boolean {
+    return this.isAdminPending(row);
+  }
+
+  /** Uploaded and waiting for admin approve/reject */
+  isAdminPending(row: StudentDocRow): boolean {
+    if (!row.doc) return false;
+    if (row.status === 'NOT_UPLOADED') return false;
+    if (row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy) return false;
+    return row.status === 'PENDING' || row.agreementStatus === 'SIGNED_PENDING';
+  }
+
+  /** Student must upload, re-upload, or sign */
+  isStudentPending(row: StudentDocRow): boolean {
+    if (row.status === 'NOT_UPLOADED' || !row.doc) return true;
+    if (row.status === 'REJECTED') return true;
+    if (row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy) return true;
+    return false;
+  }
+
+  setTab(tab: 'admin_pending' | 'student_pending' | 'all'): void {
+    this.activeTab = tab;
+  }
+
+  get filteredRows(): StudentDocRow[] {
+    switch (this.activeTab) {
+      case 'admin_pending':
+        return this.rows.filter((r) => this.isAdminPending(r));
+      case 'student_pending':
+        return this.rows.filter((r) => this.isStudentPending(r));
+      default:
+        return this.rows;
+    }
+  }
+
+  get adminPendingCount(): number {
+    return this.rows.filter((r) => this.isAdminPending(r)).length;
+  }
+
+  get studentPendingCount(): number {
+    return this.rows.filter((r) => this.isStudentPending(r)).length;
+  }
+
+  get allCount(): number {
+    return this.rows.length;
+  }
+
+  getEmptyTabMessage(): string {
+    switch (this.activeTab) {
+      case 'admin_pending':
+        return 'No documents waiting for your review.';
+      case 'student_pending':
+        return 'Nothing pending from the student — no missing uploads or re-uploads.';
+      default:
+        return 'No documents found for this student.';
+    }
+  }
+
+  openVerifyDialog(row: StudentDocRow, action: 'VERIFIED' | 'REJECTED'): void {
+    this.verifyTarget = row;
+    this.verificationAction = action;
+    this.verificationNotes = row.remarks || '';
+    this.showVerificationDialog = true;
+  }
+
+  closeVerificationDialog(): void {
+    this.showVerificationDialog = false;
+    this.verifyTarget = null;
+    this.verificationAction = null;
+    this.verificationNotes = '';
+  }
+
+  confirmVerification(): void {
+    if (!this.verifyTarget || !this.verificationAction) return;
+    const row = this.verifyTarget;
+    const action = this.verificationAction;
+    const notes =
+      action === 'VERIFIED'
+        ? (this.verificationNotes.trim() || 'Verified after review by admin')
+        : this.verificationNotes.trim();
+
+    if (action === 'REJECTED' && !notes) {
+      this.snack.open('Please enter a reason for the student', 'Close', { duration: 3000 });
+      return;
+    }
+
+    this.verifying = true;
+
+    const done = (msg: string) => {
+      this.verifying = false;
+      this.snack.open(msg, 'Close', { duration: 4500 });
+      this.closeVerificationDialog();
+      this.loadData();
+    };
+
+    const fail = (e: { error?: { message?: string } }) => {
+      this.verifying = false;
+      this.snack.open(e.error?.message || 'Update failed', 'Close', { duration: 4000 });
+    };
+
+    if (row.isAgreement && row.agreementId) {
+      this.agreementService.verifyInstance(row.agreementId, action, notes).subscribe({
+        next: (r) => {
+          const extra = action === 'REJECTED' && r.emailSent ? ' Email sent to student.' : '';
+          done((r.message || `Agreement ${action.toLowerCase()}`) + extra);
+        },
+        error: fail
+      });
+      return;
+    }
+
+    if (!row.doc?._id) {
+      this.verifying = false;
+      return;
+    }
+
+    this.documentService.verifyDocument(row.doc._id, action, notes).subscribe({
+      next: (r) => {
+        const extra = action === 'REJECTED' && r.emailSent ? ' Email sent to student.' : '';
+        done((r.message || `Document ${action.toLowerCase()}`) + extra);
+      },
+      error: fail
+    });
   }
 
   openDocumentInNewTab(doc: any): void {
@@ -273,45 +431,6 @@ export class StudentDocumentProfileComponent implements OnInit {
     input.click();
   }
 
-  updateRowStatus(row: StudentDocRow): void {
-    if (!row.doc || !row.selectedStatus) return;
-
-    if (row.selectedStatus === 'REJECTED') {
-      this.openReuploadDialog(row.doc);
-      return;
-    }
-
-    const notes = row.selectedStatus === 'VERIFIED' ? 'Verified after review by admin' : 'Moved back to pending review by admin';
-    this.documentService.verifyDocument(row.doc._id, row.selectedStatus, notes).subscribe({
-      next: (response) => {
-        if (response.success) this.loadData();
-      }
-    });
-  }
-
-  openReuploadDialog(doc: any): void {
-    this.selectedRowDoc = doc;
-    this.reuploadReason = '';
-    this.showReuploadDialog = true;
-  }
-
-  closeReuploadDialog(): void {
-    this.showReuploadDialog = false;
-    this.selectedRowDoc = null;
-    this.reuploadReason = '';
-  }
-
-  submitReuploadRequest(): void {
-    if (!this.selectedRowDoc || !this.reuploadReason.trim()) return;
-    this.documentService.verifyDocument(this.selectedRowDoc._id, 'REJECTED', this.reuploadReason.trim()).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.closeReuploadDialog();
-          this.loadData();
-        }
-      }
-    });
-  }
 
   getStatusColor(status: string): string {
     switch (status) {

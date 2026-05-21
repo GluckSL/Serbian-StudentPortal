@@ -459,11 +459,48 @@ router.put('/admin/verify/:documentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     }
     
     console.log(`✅ Document ${status.toLowerCase()}: ${document.documentName}`);
+
+    let emailSent = false;
+    if (status === 'REJECTED' || status === 'VERIFIED') {
+      try {
+        const {
+          sendDocumentReuploadEmail,
+          sendDocumentApprovedEmail,
+          isDocumentEmailConfigured
+        } = require('../config/documentEmailConfig');
+        if (isDocumentEmailConfigured()) {
+          const isAgreement = document.documentCategory === 'AGREEMENT' || String(document.documentType || '').startsWith('AGREEMENT_');
+          if (status === 'REJECTED') {
+            emailSent = await sendDocumentReuploadEmail({
+              studentName: document.studentName,
+              studentEmail: document.studentEmail,
+              documentName: document.documentName,
+              reason: verificationNotes || document.remarks || '',
+              isAgreement
+            });
+          } else {
+            emailSent = await sendDocumentApprovedEmail({
+              studentName: document.studentName,
+              studentEmail: document.studentEmail,
+              documentName: document.documentName,
+              isAgreement
+            });
+          }
+        }
+      } catch (mailErr) {
+        console.warn(`⚠️ ${status === 'REJECTED' ? 'Re-upload' : 'Approval'} email failed:`, mailErr.message);
+      }
+    }
     
     res.json({
       success: true,
-      message: `Document ${status.toLowerCase()} successfully`,
-      document
+      message: status === 'REJECTED'
+        ? (emailSent ? 'Re-upload requested and email sent to student' : 'Re-upload requested (email not sent — check DOCS_EMAIL_* in .env)')
+        : status === 'VERIFIED'
+          ? (emailSent ? 'Approved and confirmation email sent to student' : 'Approved (email not sent — check DOCS_EMAIL_* in .env)')
+          : `Document ${status.toLowerCase()} successfully`,
+      document,
+      emailSent
     });
   } catch (error) {
     console.error('❌ Error verifying document:', error);

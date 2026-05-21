@@ -24,16 +24,33 @@
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Select Template</mat-label>
         <mat-select [(ngModel)]="selectedTemplate" (ngModelChange)="onTemplateSelect()" [compareWith]="compareTemplates">
-          <mat-option *ngFor="let t of templates" [value]="t">{{ t.name }}</mat-option>
+          <mat-option *ngFor="let t of templates" [value]="t">
+            {{ t.name }}
+            <span *ngIf="t.fillMode === 'docx'"> (Word)</span>
+            <span *ngIf="t.fillMode !== 'docx'"> (PDF overlay)</span>
+          </mat-option>
         </mat-select>
       </mat-form-field>
+
+      <div class="fill-mode-warn" *ngIf="selectedTemplate && selectedTemplate.fillMode !== 'docx' && !selectedTemplate.docxR2Key">
+        <p>
+          <strong>PDF overlay mode</strong> — values are drawn on white boxes (not real editing).
+          Fix: open <strong>Agreement Templates</strong>, click <strong>Edit Fields</strong> on this template,
+          then upload the original <strong>.docx</strong> with <code ngNonBindable>{{Date}}</code>,
+          <code ngNonBindable>{{Name}}</code>, etc.
+        </p>
+        <a mat-stroked-button color="primary" routerLink="/admin/agreements/templates" target="_blank">
+          <mat-icon>upload_file</mat-icon> Upgrade template to Word mode
+        </a>
+      </div>
 
       <!-- Dynamic fields form -->
       <ng-container *ngIf="selectedTemplate">
         <div class="fields-form">
           <mat-form-field appearance="outline" *ngFor="let f of templateFields()" class="field-input">
             <mat-label>{{ f.label }}</mat-label>
-            <input matInput [(ngModel)]="fieldValues[f.id]" [placeholder]="f.sampleText || f.label" [required]="f.required" />
+            <input matInput [(ngModel)]="fieldValues[f.id]" (ngModelChange)="onFieldInputChange()"
+                   [placeholder]="f.sampleText || f.label" [required]="f.required" />
             <mat-hint>Page {{ f.page }}</mat-hint>
           </mat-form-field>
         </div>
@@ -65,10 +82,15 @@
           </button>
         </div>
 
-        <!-- Inline preview iframe -->
-        <div *ngIf="previewUrl" class="preview-section">
-          <h4>PDF Preview</h4>
-          <iframe [src]="previewUrl" class="preview-iframe" title="Agreement Preview"></iframe>
+        <!-- Live preview — updates as you type -->
+        <div class="preview-section" *ngIf="selectedTemplate">
+          <h4>PDF Preview <span class="preview-hint" *ngIf="previewing">(updating…)</span></h4>
+          <p class="preview-note" *ngIf="!previewUrl && !previewing">
+            Enter values above — placeholders are replaced
+            <ng-container *ngIf="selectedTemplate?.fillMode === 'docx'">inside the Word document</ng-container>
+            <ng-container *ngIf="selectedTemplate?.fillMode !== 'docx'">on the PDF (overlay mode)</ng-container>.
+          </p>
+          <iframe *ngIf="previewUrl" [src]="previewUrl" class="preview-iframe" title="Agreement Preview"></iframe>
         </div>
       </ng-container>
 

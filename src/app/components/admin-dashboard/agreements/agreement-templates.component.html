@@ -1,223 +1,608 @@
 <div class="agreement-templates-container">
 
+
+
   <!-- Header -->
+
   <div class="page-header">
+
     <div>
+
       <h2>Agreement Templates</h2>
-      <p>Manage reusable agreement PDF templates with dynamic fields</p>
+
+      <p>Create Word or PDF templates with <span ngNonBindable>{{placeholders}}</span> for student agreements</p>
+
     </div>
+
     <div class="header-actions">
+
       <button mat-raised-button color="primary" (click)="startCreate()" *ngIf="step === 'list'">
+
         <mat-icon>add</mat-icon> Create Template
+
       </button>
+
       <button mat-stroked-button (click)="step = 'list'; loadTemplates()" *ngIf="step !== 'list'">
+
         <mat-icon>arrow_back</mat-icon> Back to List
+
       </button>
+
     </div>
+
   </div>
 
+
+
   <!-- ── STEP: list ── -->
+
   <ng-container *ngIf="step === 'list'">
+
     <div *ngIf="loading" class="center-spinner"><mat-spinner diameter="40"></mat-spinner></div>
 
-    <div class="template-grid" *ngIf="!loading">
-      <mat-card *ngFor="let t of templates" class="template-card">
-        <mat-card-header>
-          <mat-icon mat-card-avatar>description</mat-icon>
-          <mat-card-title>{{ t.name }}</mat-card-title>
-          <mat-card-subtitle>{{ t.pageCount }} pages · {{ t.dynamicFields.length }} dynamic fields</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <p class="description">{{ t.description || 'No description' }}</p>
-          <div class="field-chips">
-            <mat-chip *ngFor="let f of t.dynamicFields" class="field-chip">{{ f.label }}</mat-chip>
+
+
+    <ng-container *ngIf="!loading">
+
+      <div class="list-toolbar" *ngIf="templates.length > 0">
+
+        <div class="stats-row">
+
+          <div class="stat-pill">
+
+            <mat-icon>folder</mat-icon>
+
+            <span><strong>{{ templateStats.total }}</strong> templates</span>
+
           </div>
+
+          <div class="stat-pill stat-pill--word">
+
+            <mat-icon>description</mat-icon>
+
+            <span><strong>{{ templateStats.word }}</strong> Word</span>
+
+          </div>
+
+          <div class="stat-pill stat-pill--overlay">
+
+            <mat-icon>picture_as_pdf</mat-icon>
+
+            <span><strong>{{ templateStats.overlay }}</strong> PDF overlay</span>
+
+          </div>
+
+        </div>
+
+        <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+
+          <mat-label>Search templates</mat-label>
+
+          <mat-icon matPrefix>search</mat-icon>
+
+          <input matInput [(ngModel)]="templateSearch" placeholder="Name or field…" />
+
+          <button mat-icon-button matSuffix *ngIf="templateSearch" (click)="templateSearch = ''" type="button">
+
+            <mat-icon>close</mat-icon>
+
+          </button>
+
+        </mat-form-field>
+
+      </div>
+
+
+
+      <div class="template-grid" *ngIf="filteredTemplates.length > 0">
+
+        <mat-card *ngFor="let t of filteredTemplates" class="template-card">
+
+          <div class="card-top" [class.card-top--word]="isWordMode(t)">
+
+            <div class="card-top-icon">
+
+              <mat-icon>{{ isWordMode(t) ? 'article' : 'picture_as_pdf' }}</mat-icon>
+
+            </div>
+
+            <div class="card-top-text">
+
+              <h3 class="card-title">{{ t.name }}</h3>
+
+              <p class="card-meta">{{ t.pageCount || 0 }} pages · {{ t.dynamicFields.length || 0 }} fields</p>
+
+            </div>
+
+            <span class="mode-pill" [class.mode-pill--word]="isWordMode(t)">
+
+              {{ isWordMode(t) ? 'Word' : 'PDF overlay' }}
+
+            </span>
+
+          </div>
+
+
+
+          <mat-card-content class="card-body">
+
+            <p class="description">{{ t.description || 'No description' }}</p>
+
+            <div class="field-chips" *ngIf="t.dynamicFields?.length">
+
+              <span class="field-chip" *ngFor="let label of visibleFieldLabels(t)">{{ label }}</span>
+
+              <span class="field-chip field-chip--more" *ngIf="extraFieldCount(t) > 0">+{{ extraFieldCount(t) }} more</span>
+
+            </div>
+
+            <p class="no-fields-hint" *ngIf="!t.dynamicFields?.length">No fields configured — click Edit Fields</p>
+
+          </mat-card-content>
+
+
+
+          <mat-card-actions class="card-actions">
+
+            <button mat-stroked-button color="primary" (click)="editTemplate(t)">
+
+              <mat-icon>edit</mat-icon> Edit
+
+            </button>
+
+            <button mat-stroked-button [matMenuTriggerFor]="tplMenu" (click)="menuContext = t" [disabled]="deletingId === t._id">
+
+              <mat-icon>more_vert</mat-icon>
+
+            </button>
+
+          </mat-card-actions>
+
+        </mat-card>
+
+      </div>
+
+      <mat-menu #tplMenu="matMenu">
+        <button mat-menu-item (click)="menuContext && hideTemplate(menuContext, $event)" [disabled]="!menuContext">
+          <mat-icon>visibility_off</mat-icon>
+          <span>Hide from list</span>
+        </button>
+        <button mat-menu-item class="menu-delete" (click)="menuContext && deleteTemplatePermanent(menuContext, $event)" [disabled]="!menuContext">
+          <mat-icon color="warn">delete_forever</mat-icon>
+          <span>Delete permanently (R2 + DB)</span>
+        </button>
+      </mat-menu>
+
+      <mat-card *ngIf="templates.length > 0 && filteredTemplates.length === 0" class="empty-card">
+
+        <mat-card-content>
+
+          <mat-icon class="empty-icon">search_off</mat-icon>
+
+          <p>No templates match "<strong>{{ templateSearch }}</strong>"</p>
+
         </mat-card-content>
-        <mat-card-actions>
-          <button mat-button color="primary" (click)="editTemplate(t)">
-            <mat-icon>edit</mat-icon> Edit Fields
-          </button>
-          <button mat-button color="warn" (click)="deleteTemplate(t._id)">
-            <mat-icon>delete_outline</mat-icon> Deactivate
-          </button>
-        </mat-card-actions>
+
       </mat-card>
 
       <mat-card *ngIf="templates.length === 0" class="empty-card">
+
         <mat-card-content>
+
           <mat-icon class="empty-icon">folder_open</mat-icon>
+
           <p>No templates yet. Click <strong>Create Template</strong> to get started.</p>
+
+          <p class="empty-hint">Upload <strong>.docx</strong> with <span ngNonBindable>{{placeholders}}</span> for best quality (real text, no white boxes).</p>
+
         </mat-card-content>
+
       </mat-card>
-    </div>
+
+    </ng-container>
+
   </ng-container>
+
+
 
   <!-- ── STEP: upload ── -->
+
   <ng-container *ngIf="step === 'upload'">
+
     <mat-card class="wizard-card">
+
       <mat-card-header><mat-card-title>Step 1 — Upload Agreement Document</mat-card-title></mat-card-header>
+
       <mat-card-content>
+
         <mat-form-field appearance="outline" class="full-width">
+
           <mat-label>Template Name</mat-label>
+
           <input matInput [(ngModel)]="templateName" placeholder="e.g. Job Placement Agreement" />
+
         </mat-form-field>
+
         <mat-form-field appearance="outline" class="full-width">
+
           <mat-label>Description (optional)</mat-label>
+
           <textarea matInput [(ngModel)]="templateDescription" rows="2"></textarea>
+
         </mat-form-field>
+
+
 
         <div class="drop-zone"
+
           (dragover)="$event.preventDefault()"
+
           (drop)="onFileDrop($event)">
+
           <mat-icon>cloud_upload</mat-icon>
+
           <p>Drag & drop a PDF or Word file here, or</p>
+
           <button mat-stroked-button (click)="fileInputRef.nativeElement.click()">Browse</button>
+
           <input #fileInput type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" (change)="onFileSelect($event)" />
+
           <p class="upload-hint">
-            <strong>Best quality:</strong> Save from Word as <strong>PDF</strong> (File → Save As → PDF) and upload that — keeps logos, colors, and footers exactly.
-            DOCX upload uses Microsoft Word or LibreOffice on the server to preserve layout.
+
+            <strong>Best:</strong> Upload the <strong>.docx</strong> Word file with
+
+            <code ngNonBindable>{{studentName}}</code>, <code ngNonBindable>{{level}}</code>, etc.
+
+            Text is replaced inside Word (real editing, no white boxes). PDF-only upload uses overlay mode (lower quality).
+
           </p>
+
           <p *ngIf="selectedFile" class="selected-file"><mat-icon>check_circle</mat-icon> {{ selectedFile.name }}</p>
+
         </div>
+
       </mat-card-content>
+
       <mat-card-actions>
+
         <button mat-raised-button color="primary" [disabled]="!selectedFile || uploading || !templateName" (click)="uploadPdf()">
+
           <mat-spinner *ngIf="uploading" diameter="16" style="display:inline-block;margin-right:6px"></mat-spinner>
+
           {{ uploading ? 'Uploading…' : 'Upload & Continue' }}
+
         </button>
+
       </mat-card-actions>
+
     </mat-card>
+
   </ng-container>
+
+
 
   <!-- ── STEP: preview & field selection ── -->
+
   <ng-container *ngIf="step === 'preview'">
+
     <div class="preview-layout">
-      <!-- PDF Preview panel -->
+
       <mat-card class="pdf-panel">
+
         <mat-card-header>
+
           <mat-card-title>Step 2 — Preview &amp; Mark Dynamic Fields</mat-card-title>
-          <mat-card-subtitle>Red text in the PDF is detected automatically as dynamic fields (e.g. Name, Address). Adjust below, then save.</mat-card-subtitle>
+
+          <mat-card-subtitle>Use <strong ngNonBindable>{{placeholders}}</strong> in your Word/PDF (e.g. <span ngNonBindable>{{studentName}}</span>). Detected automatically; layout stays intact.</mat-card-subtitle>
+
         </mat-card-header>
+
         <mat-card-content>
-          <div class="pdf-toolbar">
-            <button mat-stroked-button color="accent" [disabled]="analyzing" (click)="autoDetectRedFields()">
-              <mat-icon>format_color_text</mat-icon>
-              Detect Red Fields
-            </button>
-            <button mat-stroked-button [disabled]="analyzing" (click)="runAiAnalysis()">
-              <mat-spinner *ngIf="analyzing" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
-              <mat-icon *ngIf="!analyzing">auto_awesome</mat-icon>
-              {{ analyzing ? 'Analysing…' : 'AI Suggest Fields' }}
-            </button>
-            <span class="page-info" *ngIf="totalPages">{{ totalPages }} pages · {{ fields.length }}/7 fields</span>
+
+          <div class="docx-upgrade-banner" *ngIf="editingFillMode !== 'docx'">
+
+            <mat-icon>warning_amber</mat-icon>
+
+            <div>
+
+              <strong>PDF overlay mode</strong> — preview uses white boxes on top of text.
+
+              Upload the original <strong>.docx</strong> file with <code ngNonBindable>{{Date}}</code>,
+
+              <code ngNonBindable>{{Name}}</code>, etc. to enable real in-document editing.
+
+            </div>
+
+            <div class="docx-upgrade-actions">
+
+              <input #docxUpgradeInput type="file" accept=".docx" style="display:none" (change)="onDocxUpgradeSelect($event)" />
+
+              <button mat-stroked-button type="button" (click)="docxUpgradeInput.click()">
+
+                <mat-icon>upload_file</mat-icon> Choose .docx
+
+              </button>
+
+              <button mat-raised-button color="primary" [disabled]="!docxUpgradeFile || upgradingDocx" (click)="uploadDocxSource()">
+
+                <mat-spinner *ngIf="upgradingDocx" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+
+                {{ upgradingDocx ? 'Uploading…' : (docxUpgradeFile ? 'Enable Word mode' : 'Select file first') }}
+
+              </button>
+
+              <span *ngIf="docxUpgradeFile" class="selected-file">{{ docxUpgradeFile.name }}</span>
+
+            </div>
+
           </div>
+
+
+
+          <p class="docx-ok-banner" *ngIf="editingFillMode === 'docx'">
+
+            <mat-icon>check_circle</mat-icon> Word mode — placeholders are replaced as real text (no white boxes).
+
+          </p>
+
+
+
+          <div class="pdf-toolbar">
+
+            <button mat-stroked-button color="accent" [disabled]="analyzing" (click)="autoDetectPlaceholders()">
+
+              <mat-icon>data_object</mat-icon>
+
+              Detect placeholders
+
+            </button>
+
+            <button mat-stroked-button [disabled]="analyzing" (click)="runAiAnalysis()">
+
+              <mat-spinner *ngIf="analyzing" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+
+              <mat-icon *ngIf="!analyzing">auto_awesome</mat-icon>
+
+              {{ analyzing ? 'Analysing…' : 'AI Suggest Fields' }}
+
+            </button>
+
+            <span class="page-info" *ngIf="totalPages">{{ totalPages }} pages · {{ fields.length }}/20 fields</span>
+
+          </div>
+
+
 
           <p class="pdf-select-hint" *ngIf="pdfPreviewUrl">
+
             <mat-icon>info</mat-icon>
+
             Select text in the PDF preview below, copy it, then paste into <strong>Sample Text</strong> and click <strong>Locate in PDF</strong>.
+
           </p>
+
           <iframe *ngIf="pdfPreviewUrl" [src]="pdfPreviewUrl" class="pdf-iframe" title="PDF Preview"></iframe>
+
           <div *ngIf="!pdfPreviewUrl" class="pdf-placeholder">
+
             <mat-spinner diameter="32"></mat-spinner>
+
             <p>Loading preview…</p>
+
           </div>
+
         </mat-card-content>
+
       </mat-card>
 
-      <!-- Field management panel -->
+
+
       <div class="fields-panel">
-        <!-- AI suggestions -->
+
         <mat-card *ngIf="aiSuggestions.length > 0" class="suggestions-card">
+
           <mat-card-header><mat-card-title>AI Suggestions</mat-card-title></mat-card-header>
+
           <mat-card-content>
+
             <div class="suggestion-row" *ngFor="let s of aiSuggestions">
+
               <div class="suggestion-info">
+
                 <strong>{{ s.label }}</strong>
+
                 <span class="suggestion-meta">Page {{ s.page }} · "{{ s.sampleText }}"</span>
+
                 <mat-chip class="confidence-chip" [class.high]="s.confidence==='high'">{{ s.confidence }}</mat-chip>
+
               </div>
+
               <button mat-icon-button color="primary" (click)="applySuggestion(s)"
-                [disabled]="isFieldAlreadyAdded(s.id)"
-                matTooltip="Add this field">
+
+                [disabled]="isFieldAlreadyAdded(s.id)" matTooltip="Add this field">
+
                 <mat-icon>add_circle</mat-icon>
+
               </button>
+
             </div>
+
           </mat-card-content>
+
         </mat-card>
 
-        <!-- Current fields -->
+
+
         <mat-card class="current-fields-card">
+
           <mat-card-header>
-            <mat-card-title>Dynamic Fields — red placeholders ({{ fields.length }}/7)</mat-card-title>
+
+            <mat-card-title>Dynamic fields ({{ fields.length }}/20)</mat-card-title>
+
           </mat-card-header>
+
           <mat-card-content>
+
             <div *ngIf="fields.length === 0" class="no-fields">No fields added yet.</div>
+
             <div class="field-row" *ngFor="let f of fields; let i = index">
+
               <div class="field-detail">
+
                 <strong>{{ f.label }}</strong>
+
                 <span class="field-meta">ID: {{ f.id }} · Page {{ f.page }}</span>
+
                 <span class="field-meta" *ngIf="f.sampleText">Sample: "{{ f.sampleText }}"</span>
+
               </div>
+
               <div class="field-coords">
+
                 <span class="coord-label">x</span>
+
                 <input type="number" step="0.01" min="0" max="1" [(ngModel)]="f.x" class="coord-input" />
+
                 <span class="coord-label">y</span>
+
                 <input type="number" step="0.01" min="0" max="1" [(ngModel)]="f.y" class="coord-input" />
+
                 <span class="coord-label">w</span>
+
                 <input type="number" step="0.01" min="0.01" max="1" [(ngModel)]="f.width" class="coord-input" />
+
                 <span class="coord-label">h</span>
+
                 <input type="number" step="0.01" min="0.01" max="0.3" [(ngModel)]="f.height" class="coord-input" />
+
                 <span class="coord-label">size</span>
+
                 <input type="number" step="1" min="7" max="24" [(ngModel)]="f.fontSize" class="coord-input" />
+
               </div>
+
               <button mat-icon-button color="warn" (click)="removeField(i)"><mat-icon>remove_circle_outline</mat-icon></button>
+
             </div>
+
           </mat-card-content>
+
         </mat-card>
 
-        <!-- Add field manually -->
-        <mat-card class="add-field-card" *ngIf="fields.length < 7">
-          <mat-card-header><mat-card-title>Add Field Manually</mat-card-title></mat-card-header>
+
+
+        <mat-card class="add-field-card" *ngIf="fields.length < 20">
+
+          <mat-card-header><mat-card-title>Add placeholder manually</mat-card-title></mat-card-header>
+
           <mat-card-content>
+
+            <p class="manual-howto">
+
+              In Word, type <code ngNonBindable>{{level}}</code> where the level should go → Save As PDF → upload.
+
+              Or add here: Field ID <strong>level</strong>, Sample Text <strong ngNonBindable>{{level}}</strong> →
+
+              <em>Locate in PDF</em> → <em>Add Field</em>.
+
+            </p>
+
             <div class="manual-field-grid">
+
               <mat-form-field appearance="outline">
-                <mat-label>Field ID (camelCase)</mat-label>
-                <input matInput [(ngModel)]="newField.id" placeholder="studentName" />
+
+                <mat-label>Field ID</mat-label>
+
+                <input matInput [(ngModel)]="newField.id" placeholder="level" (ngModelChange)="onNewFieldIdChange()" />
+
+                <mat-hint>e.g. level → matches <span ngNonBindable>{{level}}</span> in PDF</mat-hint>
+
               </mat-form-field>
+
               <mat-form-field appearance="outline">
+
                 <mat-label>Label</mat-label>
-                <input matInput [(ngModel)]="newField.label" placeholder="Student Full Name" />
+
+                <input matInput [(ngModel)]="newField.label" placeholder="Language Level" />
+
               </mat-form-field>
+
               <mat-form-field appearance="outline">
+
                 <mat-label>Page</mat-label>
+
                 <input matInput type="number" [(ngModel)]="newField.page" min="1" [max]="totalPages || 99" />
+
               </mat-form-field>
+
               <mat-form-field appearance="outline">
-                <mat-label>Sample Text (from PDF)</mat-label>
-                <input matInput [(ngModel)]="newField.sampleText" placeholder="Paste text you selected in the PDF" />
+
+                <mat-label>Text in PDF (exact)</mat-label>
+
+                <input matInput [(ngModel)]="newField.sampleText" [attr.placeholder]="placeholderExample" />
+
+                <mat-hint>Must match PDF exactly</mat-hint>
+
               </mat-form-field>
+
             </div>
+
             <div class="manual-field-actions">
-              <button mat-stroked-button color="accent" [disabled]="!newField.sampleText || locatingText" (click)="locateFromSampleText()">
+
+              <button mat-stroked-button color="accent" [disabled]="!newField.id || locatingText" (click)="locateAndAddPlaceholder()">
+
                 <mat-spinner *ngIf="locatingText" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
-                <mat-icon *ngIf="!locatingText">my_location</mat-icon>
-                Locate in PDF
+
+                <mat-icon *ngIf="!locatingText">search</mat-icon>
+
+                Find in PDF
+
               </button>
+
+              <button mat-stroked-button color="accent" [disabled]="!newField.sampleText || locatingText" (click)="locateFromSampleText()">
+
+                <mat-icon>my_location</mat-icon>
+
+                Locate
+
+              </button>
+
               <button mat-stroked-button color="primary" (click)="addField()">
-                <mat-icon>add</mat-icon> Add Field
+
+                <mat-icon>add</mat-icon>
+
+                Add Field
+
               </button>
+
             </div>
+
           </mat-card-content>
+
         </mat-card>
+
+
 
         <div class="save-actions">
+
           <button mat-raised-button color="primary" [disabled]="fields.length === 0 || saving" (click)="saveFields()">
+
             <mat-spinner *ngIf="saving" diameter="16" style="display:inline-block;margin-right:6px"></mat-spinner>
+
             {{ saving ? 'Saving…' : 'Save Template' }}
+
           </button>
+
         </div>
+
       </div>
+
     </div>
+
   </ng-container>
 
+
+
 </div>
+
+

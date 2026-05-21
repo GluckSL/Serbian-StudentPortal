@@ -117,7 +117,7 @@ async function getTextItemsByPage(buffer) {
         page: pn,
         xNorm: Math.max(0, Math.min(0.95, x / vp.width)),
         yNorm: Math.max(0, Math.min(0.95, 1 - (y + h) / vp.height)),
-        widthNorm: Math.max(0.06, Math.min(0.45, w / vp.width)),
+        widthNorm: Math.max(0.1, Math.min(0.45, Math.max(w / vp.width, (item.str.length || 4) * 0.014))),
         heightNorm: Math.max(0.025, Math.min(0.1, h / vp.height)),
         fontSize: Math.round(fontSize)
       });
@@ -197,6 +197,16 @@ async function detectRedDynamicFields(pdfBuffer) {
   return matchCandidatesToFields(candidates, pagesData);
 }
 
+/**
+ * Best-effort detection: {{placeholders}} first, then red text.
+ */
+async function detectDynamicFields(pdfBuffer) {
+  const { detectBracePlaceholders } = require('./agreementPlaceholderDetector');
+  const brace = await detectBracePlaceholders(pdfBuffer);
+  if (brace.length) return brace;
+  return detectRedDynamicFields(pdfBuffer);
+}
+
 /** Find coordinates for a text snippet the admin selected or pasted from the PDF. */
 async function locateTextInPdf(pdfBuffer, sampleText) {
   const sample = String(sampleText || '').trim();
@@ -205,4 +215,12 @@ async function locateTextInPdf(pdfBuffer, sampleText) {
   return findTextItem(pagesData, sample);
 }
 
-module.exports = { detectRedDynamicFields, extractRedTextCandidates, locateTextInPdf };
+module.exports = {
+  detectRedDynamicFields,
+  detectDynamicFields,
+  extractRedTextCandidates,
+  locateTextInPdf,
+  getTextItemsByPage,
+  findTextItem,
+  slugifyId
+};

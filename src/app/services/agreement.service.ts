@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -12,8 +12,10 @@ export interface DynamicField {
   width: number;
   height: number;
   sampleText?: string;
+  placeholderToken?: string;
   fontSize?: number;
   required?: boolean;
+  source?: string;
 }
 
 export interface AgreementTemplate {
@@ -22,6 +24,8 @@ export interface AgreementTemplate {
   slug: string;
   description: string;
   r2Key: string;
+  docxR2Key?: string;
+  fillMode?: 'docx' | 'overlay';
   pageCount: number;
   dynamicFields: DynamicField[];
   aiSuggestions?: any[];
@@ -71,18 +75,55 @@ export class AgreementService {
     return this.http.get<any>(`${this.base}/templates/${id}`);
   }
 
-  uploadTemplatePdf(file: File): Observable<{ success: boolean; tempId: string; r2Key: string; pageCount: number; conversion?: string }> {
+  /** Attach .docx source to an existing template (enables real text fill). */
+  uploadTemplateDocx(templateId: string, file: File): Observable<{
+    success: boolean;
+    template: AgreementTemplate;
+    fillMode: 'docx';
+    fields?: DynamicField[];
+    source?: string;
+    message?: string;
+    warning?: string;
+  }> {
+    const fd = new FormData();
+    fd.append('docx', file);
+    return this.http.post<any>(`${this.base}/templates/${templateId}/upload-docx`, fd);
+  }
+
+  uploadTemplatePdf(file: File): Observable<{
+    success: boolean;
+    tempId: string;
+    r2Key: string | null;
+    docxR2Key?: string;
+    fillMode?: 'docx' | 'overlay';
+    pageCount: number;
+    conversion?: string;
+    warning?: string;
+  }> {
     const fd = new FormData();
     fd.append('pdf', file);
     return this.http.post<any>(`${this.base}/templates/upload`, fd);
   }
 
-  createTemplate(payload: { name: string; description?: string; r2Key: string; pageCount: number; tempId: string }): Observable<{ success: boolean; template: AgreementTemplate }> {
+  createTemplate(payload: {
+    name: string;
+    description?: string;
+    r2Key: string;
+    docxR2Key?: string;
+    fillMode?: string;
+    pageCount: number;
+    tempId: string;
+  }): Observable<{ success: boolean; template: AgreementTemplate }> {
     return this.http.post<any>(`${this.base}/templates`, payload);
   }
 
-  detectRedFields(id: string): Observable<{ success: boolean; fields: DynamicField[]; count: number }> {
+  detectRedFields(id: string): Observable<{ success: boolean; fields: DynamicField[]; count: number; source?: string }> {
     return this.http.post<any>(`${this.base}/templates/${id}/detect-red-fields`, {});
+  }
+
+  /** Prefer {{fieldName}} markers in the document. */
+  detectPlaceholders(id: string): Observable<{ success: boolean; fields: DynamicField[]; count: number; source?: string }> {
+    return this.http.post<any>(`${this.base}/templates/${id}/detect-placeholders`, {});
   }
 
   locateTextInTemplate(id: string, sampleText: string): Observable<{ success: boolean; field: Partial<DynamicField> }> {
@@ -101,8 +142,10 @@ export class AgreementService {
     return this.http.get<any>(`${this.base}/templates/${id}/preview`);
   }
 
-  deleteTemplate(id: string): Observable<{ success: boolean }> {
-    return this.http.delete<any>(`${this.base}/templates/${id}`);
+  deleteTemplate(id: string, options?: { soft?: boolean }): Observable<{ success: boolean; message?: string }> {
+    let params = new HttpParams();
+    if (options?.soft) params = params.set('soft', 'true');
+    return this.http.delete<{ success: boolean; message?: string }>(`${this.base}/templates/${id}`, { params });
   }
 
   // ─── Instances ────────────────────────────────────────────────────────────
@@ -130,13 +173,25 @@ export class AgreementService {
     return `${this.base}/instances/${id}/download?type=${type}`;
   }
 
-  uploadSigned(id: string, file: File): Observable<{ success: boolean }> {
+  /** Download agreement PDF with auth (for student download button). */
+  downloadInstance(id: string, type: 'generated' | 'signed' = 'generated'): Observable<Blob> {
+    return this.http.get(`${this.base}/instances/${id}/download`, {
+      params: { type },
+      responseType: 'blob'
+    });
+  }
+
+  uploadSigned(id: string, file: File): Observable<{ success: boolean; message?: string }> {
     const fd = new FormData();
     fd.append('file', file);
     return this.http.post<any>(`${this.base}/instances/${id}/upload-signed`, fd);
   }
 
-  verifyInstance(id: string, status: 'VERIFIED' | 'REJECTED', notes?: string): Observable<{ success: boolean }> {
+  verifyInstance(
+    id: string,
+    status: 'VERIFIED' | 'REJECTED',
+    notes?: string
+  ): Observable<{ success: boolean; message?: string; emailSent?: boolean }> {
     return this.http.put<any>(`${this.base}/instances/${id}/verify`, { status, notes: notes || '' });
   }
 }

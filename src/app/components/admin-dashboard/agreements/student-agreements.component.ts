@@ -29,7 +29,9 @@ export class StudentAgreementsComponent implements OnInit {
 
   // Preview
   previewUrl: SafeResourceUrl | null = null;
+  private previewBlobUrl: string | null = null;
   previewing = false;
+  private previewTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Existing agreements list
   agreements: StudentAgreement[] = [];
@@ -74,32 +76,84 @@ export class StudentAgreementsComponent implements OnInit {
 
   onTemplateSelect(): void {
     this.fieldValues = {};
-    this.previewUrl = null;
-    if (!this.selectedTemplate) return;
-    // Prefill common fields from query params
-    const prefillMap: Record<string, string> = {
-      studentName: this.studentName,
-      studentEmail: this.studentEmail,
-      name: this.studentName,
-      email: this.studentEmail
-    };
-    for (const f of this.selectedTemplate.dynamicFields) {
-      if (prefillMap[f.id]) this.fieldValues[f.id] = prefillMap[f.id];
+    this.clearPreview();
+    if (!this.selectedTemplate?._id) return;
+
+    this.svc.getTemplate(this.selectedTemplate._id).subscribe({
+      next: r => {
+        this.selectedTemplate = r.template;
+        if (!this.selectedTemplate.fillMode && this.selectedTemplate.docxR2Key) {
+          this.selectedTemplate.fillMode = 'docx';
+        }
+        const prefillMap: Record<string, string> = {
+          studentName: this.studentName,
+          studentEmail: this.studentEmail,
+          name: this.studentName,
+          email: this.studentEmail
+        };
+        const values: Record<string, string> = {};
+        for (const f of this.selectedTemplate!.dynamicFields || []) {
+          values[f.id] = prefillMap[f.id] || '';
+        }
+        this.fieldValues = values;
+        this.displayName = `${this.selectedTemplate!.name} – ${this.studentName}`;
+        this.schedulePreview();
+      },
+      error: () => this.snack.open('Failed to load template fields', 'Close', { duration: 3000 })
+    });
+  }
+
+  onFieldInputChange(): void {
+    this.schedulePreview();
+  }
+
+  schedulePreview(): void {
+    if (!this.selectedTemplate?._id) return;
+    if (this.previewTimer) clearTimeout(this.previewTimer);
+    this.previewTimer = setTimeout(() => this.previewPdf(), 450);
+  }
+
+  /** Send only template field keys with non-empty values. */
+  buildFieldValuesPayload(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const f of this.templateFields()) {
+      const v = this.fieldValues[f.id];
+      if (v != null && String(v).trim()) {
+        out[f.id] = String(v).trim();
+      }
     }
-    this.displayName = `${this.selectedTemplate.name} – ${this.studentName}`;
+    return out;
   }
 
   previewPdf(): void {
-    if (!this.selectedTemplate) return;
+    if (!this.selectedTemplate?._id) return;
+    const payload = this.buildFieldValuesPayload();
+    if (!Object.keys(payload).length) {
+      this.clearPreview();
+      return;
+    }
+
     this.previewing = true;
-    this.svc.previewInstance(this.selectedTemplate._id, this.fieldValues).subscribe({
+    this.svc.previewInstance(this.selectedTemplate._id, payload).subscribe({
       next: (blob: Blob) => {
-        const url = URL.createObjectURL(blob);
-        this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        if (this.previewBlobUrl) URL.revokeObjectURL(this.previewBlobUrl);
+        this.previewBlobUrl = URL.createObjectURL(blob);
+        this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewBlobUrl);
         this.previewing = false;
       },
-      error: e => { this.previewing = false; this.snack.open(e.error?.message || 'Preview failed', 'Close', { duration: 3000 }); }
+      error: e => {
+        this.previewing = false;
+        this.snack.open(e.error?.message || 'Preview failed', 'Close', { duration: 3000 });
+      }
     });
+  }
+
+  private clearPreview(): void {
+    if (this.previewBlobUrl) {
+      URL.revokeObjectURL(this.previewBlobUrl);
+      this.previewBlobUrl = null;
+    }
+    this.previewUrl = null;
   }
 
   share(sendEmail = this.sendEmail): void {
@@ -107,12 +161,17 @@ export class StudentAgreementsComponent implements OnInit {
       this.snack.open('Select a template and enter an agreement name', 'Close', { duration: 3000 });
       return;
     }
+    const payload = this.buildFieldValuesPayload();
+    if (!Object.keys(payload).length) {
+      this.snack.open('Fill in at least one agreement field before saving', 'Close', { duration: 3000 });
+      return;
+    }
     this.sendEmail = sendEmail;
     this.sharing = true;
     this.svc.shareInstance({
       templateId: this.selectedTemplate._id,
       studentId: this.studentId,
-      fieldValues: this.fieldValues,
+      fieldValues: payload,
       displayName: this.displayName,
       sendEmail
     }).subscribe({

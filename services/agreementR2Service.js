@@ -47,6 +47,28 @@ async function putAgreementTemplate(buffer, templateId) {
   return key;
 }
 
+async function putAgreementDocx(buffer, templateId) {
+  const cfg = getR2Config();
+  if (!cfg) throw new Error('R2 is not configured for agreement templates');
+  const key = `agreements/templates/${templateId}/source.docx`;
+  await cfg.client.send(new PutObjectCommand({
+    Bucket: cfg.bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  }));
+  return key;
+}
+
+async function getAgreementDocxBuffer(r2Key) {
+  const cfg = getR2Config();
+  if (!cfg) throw new Error('R2 is not configured');
+  const resp = await cfg.client.send(new GetObjectCommand({ Bucket: cfg.bucket, Key: r2Key }));
+  const chunks = [];
+  for await (const chunk of resp.Body) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
 async function getAgreementTemplateBuffer(r2Key) {
   const cfg = getR2Config();
   if (!cfg) throw new Error('R2 is not configured');
@@ -63,16 +85,41 @@ async function getAgreementTemplateSignedUrl(r2Key, expiresIn = 600) {
   return getSignedUrl(cfg.client, cmd, { expiresIn });
 }
 
-async function deleteAgreementTemplate(r2Key) {
+async function deleteAgreementObject(r2Key) {
+  if (!r2Key) return;
   const cfg = getR2Config();
   if (!cfg) throw new Error('R2 is not configured');
   await cfg.client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: r2Key }));
 }
 
+/** Remove PDF + DOCX sources for a template (best-effort). */
+async function deleteAgreementTemplateFiles(template) {
+  const errors = [];
+  const keys = new Set();
+  if (template?.r2Key) keys.add(template.r2Key);
+  if (template?.docxR2Key) keys.add(template.docxR2Key);
+  const id = template?._id?.toString?.() || template?.id;
+  if (id) {
+    keys.add(`agreements/templates/${id}/source.pdf`);
+    keys.add(`agreements/templates/${id}/source.docx`);
+  }
+  for (const key of keys) {
+    try {
+      await deleteAgreementObject(key);
+    } catch (e) {
+      errors.push(`${key}: ${e.message}`);
+    }
+  }
+  return { deleted: keys.size, errors };
+}
+
 module.exports = {
   isAgreementR2Configured,
   putAgreementTemplate,
+  putAgreementDocx,
   getAgreementTemplateBuffer,
+  getAgreementDocxBuffer,
   getAgreementTemplateSignedUrl,
-  deleteAgreementTemplate
+  deleteAgreementTemplate: deleteAgreementObject,
+  deleteAgreementTemplateFiles
 };

@@ -12,29 +12,25 @@
       <div class="tab-content">
         <!-- Action Buttons -->
         <div class="action-buttons-row">
-          <button mat-raised-button color="primary" (click)="openBulkUploadDialog()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--primary" (click)="openBulkUploadDialog()">
             <mat-icon>cloud_upload</mat-icon>
-            Bulk Upload for Students
+            Bulk Upload
           </button>
-          <button mat-raised-button style="background-color: #4caf50; color: white;" (click)="openMarkVerifiedDialog()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--success" (click)="openMarkVerifiedDialog()">
             <mat-icon>verified</mat-icon>
-            Mark as Verified (No Upload)
+            Mark Verified
           </button>
-          <button mat-raised-button color="accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
             <mat-icon>check_circle</mat-icon>
-            Verify Selected ({{ selectedDocuments.length }})
+            Verify ({{ selectedDocuments.length }})
           </button>
-          <button mat-raised-button style="background-color: #1565c0; color: white;" (click)="exportToCSV()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--export" (click)="exportToCSV()">
             <mat-icon>download</mat-icon>
             Export CSV
           </button>
-          <button mat-raised-button class="agreement-templates-btn" (click)="openAgreementTemplates()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--templates" (click)="openAgreementTemplates()">
             <mat-icon>description</mat-icon>
-            Agreement Templates
-          </button>
-          <button mat-raised-button class="agreement-generate-btn" (click)="openAgreementDialog()">
-            <mat-icon>assignment</mat-icon>
-            Generate Agreement
+            Templates
           </button>
         </div>
 
@@ -102,37 +98,42 @@
   </div>
 
   <!-- Filters -->
-  <mat-card class="filters-card">
-    <mat-card-content>
+  <div class="filters-bar">
       <div class="filters-toolbar">
-        <mat-form-field appearance="outline" class="filter-field search-field primary-search">
-          <mat-label>Search</mat-label>
-          <input matInput [(ngModel)]="searchQuery" (input)="applyFilters()"
-                 placeholder="Student email or document name">
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
+        <div class="search-wrap">
+          <mat-icon class="search-icon">search</mat-icon>
+          <input
+            class="search-input"
+            type="text"
+            [(ngModel)]="searchQuery"
+            (input)="applyFilters()"
+            placeholder="Search student email or document…" />
+        </div>
 
-        <button
-          mat-stroked-button
-          class="filter-toggle-btn"
-          (click)="toggleAdvancedFilters()"
-          [matTooltip]="showAdvancedFilters ? 'Hide filters' : 'Show filters'">
-          <mat-icon>filter_alt</mat-icon>
-          {{ showAdvancedFilters ? 'Hide Filters' : 'Filters' }}
-        </button>
-
-        <button mat-stroked-button class="clear-filters-btn" (click)="clearFilters()">
-          <mat-icon>clear</mat-icon>
-          Clear Filters
-        </button>
-
-        <div class="view-toggle">
-          <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="Compact View">
-            <mat-icon>view_list</mat-icon>
+        <div class="filters-actions">
+          <button
+            mat-stroked-button
+            class="pill-btn filter-toggle-btn"
+            [class.pill-btn--active]="showAdvancedFilters"
+            (click)="toggleAdvancedFilters()"
+            [matTooltip]="showAdvancedFilters ? 'Hide filters' : 'Show filters'">
+            <mat-icon>filter_alt</mat-icon>
+            Filters
           </button>
-          <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Detailed View">
-            <mat-icon>table_rows</mat-icon>
+
+          <button mat-stroked-button class="pill-btn clear-filters-btn" (click)="clearFilters()">
+            <mat-icon>close</mat-icon>
+            Clear
           </button>
+
+          <div class="view-toggle">
+            <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="List view">
+              <mat-icon>view_list</mat-icon>
+            </button>
+            <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Table view">
+              <mat-icon>table_rows</mat-icon>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -233,8 +234,7 @@
           <mat-icon matSuffix>school</mat-icon>
         </mat-form-field>
       </div>
-    </mat-card-content>
-  </mat-card>
+  </div>
 
   <!-- Compact Student View -->
   <div *ngIf="viewMode === 'compact' && !loading">
@@ -298,7 +298,7 @@
                 </td>
                 <td>
                   <div class="action-buttons">
-                    <button mat-raised-button color="primary"
+                    <button mat-flat-button class="view-btn"
                             (click)="openStudentDocumentsPage(group); $event.stopPropagation()">
                       View
                     </button>
@@ -954,7 +954,8 @@
       <ng-container *ngIf="agreementSelectedTemplate">
         <mat-form-field appearance="outline" class="full-width" *ngFor="let f of agreementSelectedTemplate.dynamicFields">
           <mat-label>{{ f.label }}</mat-label>
-          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" [placeholder]="f.sampleText || f.label" />
+          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" (ngModelChange)="onAgreementFieldChange()"
+                 [placeholder]="f.sampleText || f.label" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
@@ -962,8 +963,12 @@
           <input matInput [(ngModel)]="agreementForm.displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
         </mat-form-field>
 
-        <div *ngIf="agreementPreviewUrl" class="agreement-preview-wrap">
-          <iframe [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
+        <div class="agreement-preview-wrap" *ngIf="agreementSelectedTemplate">
+          <p class="agreement-preview-note" *ngIf="!agreementPreviewUrl && !agreementPreviewing">
+            Preview updates as you type — your values replace the red placeholders.
+          </p>
+          <p class="agreement-preview-note" *ngIf="agreementPreviewing">Updating preview…</p>
+          <iframe *ngIf="agreementPreviewUrl" [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
         </div>
       </ng-container>
     </div>

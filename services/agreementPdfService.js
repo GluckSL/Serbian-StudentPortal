@@ -1,18 +1,18 @@
 // PDF generation for agreement templates.
-// Uses pdf-lib to overlay filled values on a template PDF, and pdf-parse for text extraction.
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const pdfParse = require('pdf-parse');
 const { sanitizeForWinAnsi } = require('./agreementPdfText');
+const {
+  normalizeFieldValues,
+  resolveFieldPlacement,
+  getTextItemsByPage,
+  isBracePlaceholder
+} = require('./agreementPdfFill');
 
-/**
- * Extract text from each page of a PDF buffer.
- * Returns an array of { page (1-indexed), text } objects.
- */
 async function extractPagesText(buffer) {
   const data = await pdfParse(buffer);
   const fullText = data.text || '';
   const pageCount = data.numpages || 1;
-  // pdf-parse gives us full text; split by form-feed (\f) for per-page text when available
   const pageSections = fullText.split(/\f/);
   const pages = [];
   for (let i = 0; i < pageCount; i++) {
@@ -22,54 +22,72 @@ async function extractPagesText(buffer) {
 }
 
 /**
- * Generate a filled PDF by overlaying dynamic values on the template.
- * fields: AgreementTemplate.dynamicFields array
- * values: Map or plain object { fieldId: value }
- * Returns a Buffer with the modified PDF.
+ * Overlay filled values on template PDF (preview, email attachment, download).
+ * {{placeholders}} use tight boxes so layout stays intact.
  */
 async function generateFilledPdf(templateBuffer, fields, values) {
   const pdfDoc = await PDFDocument.load(templateBuffer);
   const pages = pdfDoc.getPages();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const valueMap = normalizeFieldValues(fields, values);
+  const pagesData = await getTextItemsByPage(templateBuffer);
 
-  const valueMap = values instanceof Map ? Object.fromEntries(values) : (values || {});
-
-  for (const field of fields) {
-    const value = valueMap[field.id];
+  for (const field of fields || []) {
+    const fieldKey = field.id || field.fieldId;
+    const value = valueMap[fieldKey];
     if (!value) continue;
-    const pageIdx = (field.page || 1) - 1;
+
+    const place = resolveFieldPlacement(field, pagesData);
+    const pageIdx = (place.page || 1) - 1;
     const page = pages[pageIdx];
     if (!page) continue;
 
     const { width: pageW, height: pageH } = page.getSize();
+    const fontSize = place.fontSize || 11;
+    const safeValue = sanitizeForWinAnsi(value);
+    const token = sanitizeForWinAnsi(field.placeholderToken || field.sampleText || '');
+    const tight = place.brace || isBracePlaceholder(field);
+    const pad = tight ? 2 : 5;
 
-    // Convert normalized 0-1 coords to absolute PDF points
-    const absX = field.x * pageW;
-    const absY = pageH - field.y * pageH - (field.height * pageH); // flip y-axis
-    const absW = field.width * pageW;
-    const absH = field.height * pageH;
-    const fontSize = field.fontSize || 11;
+    const absX = place.x * pageW;
+    const boxTopFromBottom = pageH - place.y * pageH;
+    const placeH = place.height * pageH;
+    const absH = Math.max(placeH, fontSize * 1.25);
+    const absY = boxTopFromBottom - absH;
 
-    // White rectangle to cover the original sample text
-    page.drawRectangle({
-      x: absX,
-      y: absY,
-      width: absW,
-      height: absH,
+    const placeholderW = place.width * pageW;
+    const valueW = font.widthOfTextAtSize(safeValue, fontSize);
+    const tokenW = token ? font.widthOfTextAtSize(token, fontSize) : 0;
+
+    const coverW = tight
+      ? Math.max(placeholderW, tokenW, valueW) + pad * 2
+      : Math.max(placeholderW, valueW, pageW * 0.06) + pad * 2;
+    const coverH = absH + (tight ? pad : pad * 2);
+    const coverX = Math.max(0, absX - pad);
+    const coverY = Math.max(0, absY - pad / 2);
+
+    const maxChars = Math.floor((coverW - pad * 2) / (fontSize * 0.52));
+    const displayValue =
+      safeValue.length > maxChars
+        ? safeValue.slice(0, Math.max(0, maxChars - 3)) + '...'
+        : safeValue;
+
+    const coverOpts = {
+      x: coverX,
+      y: coverY,
+      width: coverW,
+      height: coverH,
       color: rgb(1, 1, 1),
-      opacity: 1
-    });
+      opacity: 1,
+      borderWidth: 0
+    };
 
-    // Draw replacement text — simple single-line; truncate to fit
-    const maxChars = Math.floor(absW / (fontSize * 0.55));
-    const safeValue = sanitizeForWinAnsi(String(value));
-    const displayValue = safeValue.length > maxChars
-      ? safeValue.slice(0, maxChars - 3) + '...'
-      : safeValue;
+    page.drawRectangle(coverOpts);
+    if (!tight) page.drawRectangle(coverOpts);
 
     page.drawText(displayValue, {
-      x: absX + 2,
-      y: absY + (absH - fontSize) / 2 + 1,
+      x: coverX + pad,
+      y: coverY + (coverH - fontSize) / 2,
       size: fontSize,
       font,
       color: rgb(0, 0, 0)
@@ -80,4 +98,4 @@ async function generateFilledPdf(templateBuffer, fields, values) {
   return Buffer.from(pdfBytes);
 }
 
-module.exports = { extractPagesText, generateFilledPdf };
+module.exports = { extractPagesText, generateFilledPdf, normalizeFieldValues };
