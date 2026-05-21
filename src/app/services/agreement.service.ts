@@ -142,9 +142,10 @@ export class AgreementService {
     return this.http.get<any>(`${this.base}/templates/${id}/preview`);
   }
 
-  deleteTemplate(id: string, options?: { soft?: boolean }): Observable<{ success: boolean; message?: string }> {
+  deleteTemplate(id: string, options?: { soft?: boolean; cascade?: boolean }): Observable<{ success: boolean; message?: string }> {
     let params = new HttpParams();
     if (options?.soft) params = params.set('soft', 'true');
+    if (options?.cascade) params = params.set('cascade', 'true');
     return this.http.delete<{ success: boolean; message?: string }>(`${this.base}/templates/${id}`, { params });
   }
 

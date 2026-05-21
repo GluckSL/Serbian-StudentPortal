@@ -23,6 +23,7 @@ const {
   getAgreementTemplateSignedUrl,
   deleteAgreementTemplateFiles
 } = require('../services/agreementR2Service');
+const deleteFromS3 = require('../config/s3Delete');
 const { extractPagesText, normalizeFieldValues } = require('../services/agreementPdfService');
 const { detectTemplateFields, generateFilledAgreement } = require('../services/agreementFillService');
 const { isDocxBuffer } = require('../services/agreementDocxService');
@@ -480,7 +481,34 @@ router.get('/templates/:id/preview', verifyToken, checkRole(['ADMIN']), async (r
   }
 });
 
+/** Remove student agreements (+ linked checklist docs / S3 files) for a template. */
+async function deleteStudentAgreementsForTemplate(templateId) {
+  const agreements = await StudentAgreement.find({ templateId }).lean();
+  let removedAgreements = 0;
+  let removedDocuments = 0;
+
+  for (const agreement of agreements) {
+    if (agreement.generatedFile?.s3Key) {
+      await deleteFromS3(agreement.generatedFile.s3Key);
+    }
+    if (agreement.signedFile?.s3Key) {
+      await deleteFromS3(agreement.signedFile.s3Key);
+    }
+    if (agreement.studentDocumentId) {
+      const doc = await StudentDocument.findById(agreement.studentDocumentId).lean();
+      if (doc?.filePath) await deleteFromS3(doc.filePath);
+      await StudentDocument.findByIdAndDelete(agreement.studentDocumentId);
+      removedDocuments++;
+    }
+    await StudentAgreement.findByIdAndDelete(agreement._id);
+    removedAgreements++;
+  }
+
+  return { removedAgreements, removedDocuments };
+}
+
 // DELETE /api/agreements/templates/:id — permanent delete (R2 + DB) or ?soft=true to hide only
+// ?cascade=true also deletes linked student agreements (test cleanup)
 router.delete('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id);
@@ -492,11 +520,18 @@ router.delete('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, r
     }
 
     const inUse = await StudentAgreement.countDocuments({ templateId: template._id });
-    if (inUse > 0) {
+    const cascade = req.query.cascade === 'true';
+
+    if (inUse > 0 && !cascade) {
       return res.status(409).json({
         success: false,
-        message: `Cannot delete: ${inUse} student agreement(s) use this template. Hide it instead (?soft=true) or remove those agreements first.`
+        message: `Cannot delete: ${inUse} student agreement(s) use this template. Hide it instead (?soft=true), use ?cascade=true to delete those agreements too, or remove them first.`
       });
+    }
+
+    let cascadeCleanup = { removedAgreements: 0, removedDocuments: 0 };
+    if (inUse > 0 && cascade) {
+      cascadeCleanup = await deleteStudentAgreementsForTemplate(template._id);
     }
 
     let r2Cleanup = { deleted: 0, errors: [] };
@@ -508,8 +543,11 @@ router.delete('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, r
 
     res.json({
       success: true,
-      message: 'Template and R2 files deleted permanently',
-      mode: 'hard',
+      message: cascade
+        ? `Template deleted (${cascadeCleanup.removedAgreements} linked student agreement(s) removed)`
+        : 'Template and R2 files deleted permanently',
+      mode: cascade ? 'hard-cascade' : 'hard',
+      cascadeCleanup,
       r2Cleanup
     });
   } catch (err) {

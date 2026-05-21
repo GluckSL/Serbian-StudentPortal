@@ -497,11 +497,12 @@ export class AgreementTemplatesComponent implements OnInit {
     event?.stopPropagation();
     const msg =
       `Permanently delete "${t.name}"?\n\n` +
-      'This removes the template from the database and deletes PDF/DOCX files from R2 storage. ' +
+      'This removes the template from the database, deletes PDF/DOCX files from R2, ' +
+      'and removes any student agreements created from this template (test cleanup).\n\n' +
       'Cannot be undone.';
     if (!confirm(msg)) return;
     this.deletingId = t._id;
-    this.svc.deleteTemplate(t._id).subscribe({
+    this.svc.deleteTemplate(t._id, { cascade: true }).subscribe({
       next: (r) => {
         this.deletingId = null;
         this.snack.open(r.message || 'Template deleted', 'Close', { duration: 3500 });
