@@ -89,7 +89,7 @@
 
 .ph-kpi--overall { background: #e0f2fe; }
 .ph-kpi--class { background: #fef9c3; }
-.ph-kpi--module { background: #ede9fe; }
+.ph-kpi--dg { background: #ede9fe; }
 .ph-kpi--exercise { background: #dcfce7; }
 .ph-kpi--session { background: #ffedd5; }
 .ph-kpi--time { background: #fce7f3; }
@@ -422,6 +422,49 @@ td {
 .ph-ex-item__title {
   font-weight: 600;
   color: #0f172a;
+}
+
+.ph-dg-table tbody tr td {
+  vertical-align: middle;
+}
+
+.ph-dg-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ph-dg-item__icon {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 6px;
+  background: #7c3aed;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.ph-dg-item__title {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ph-play-btn {
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ph-play-btn:hover {
+  background: #ede9fe;
 }
 
 .ph-level-chip {

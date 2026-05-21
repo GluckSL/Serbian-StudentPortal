@@ -6,13 +6,14 @@ import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { DgApiService } from '../../dg-bot/dg-api.service';
+import type { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
-import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 import { StudentProgressService } from '../../services/student-progress.service';
 import { ZoomService } from '../../services/zoom.service';
 
 type RangeMode = 'weekly' | 'overall';
-type TrackTab = 'classes' | 'exercises' | 'modules';
+type TrackTab = 'classes' | 'exercises' | 'dgBot';
 
 interface SessionHistory {
   sessionId: string;
@@ -43,12 +44,12 @@ export class PerformanceHistoryComponent implements OnInit {
   pageSize = 8;
   classPage = 1;
   exercisePage = 1;
-  modulePage = 1;
+  dgBotPage = 1;
 
   journeyCourseDay = 1;
   sessionHistory: SessionHistory[] = [];
   exercises: DigitalExercise[] = [];
-  modules: LearningModule[] = [];
+  dgBotModules: DgModuleSummary[] = [];
   meetings: any[] = [];
   totalVocabulary = 0;
 
@@ -56,7 +57,7 @@ export class PerformanceHistoryComponent implements OnInit {
     private http: HttpClient,
     private router: Router,
     private exerciseService: DigitalExerciseService,
-    private moduleService: LearningModulesService,
+    private dgApi: DgApiService,
     private progressService: StudentProgressService,
     private zoomService: ZoomService
   ) {}
@@ -70,14 +71,15 @@ export class PerformanceHistoryComponent implements OnInit {
     forkJoin({
       journey: this.progressService.getStudentJourney().pipe(catchError(() => of(null))),
       exercises: this.exerciseService.getExercises({ page: 1, limit: 500 }).pipe(catchError(() => of({ exercises: [] }))),
-      modules: this.moduleService.getModules({ page: 1, limit: 500 }).pipe(catchError(() => of({ modules: [] }))),
+      dgBot: this.dgApi.listStudentModules().pipe(catchError(() => of({ modules: [], studentCourseDay: undefined }))),
       meetings: this.zoomService.getStudentMeetings().pipe(catchError(() => of({ success: false, data: [] }))),
       sessions: this.http.get<any>(`${environment.apiUrl}/session-records/my-history`, { withCredentials: true }).pipe(catchError(() => of({ sessionHistory: [] })))
     }).subscribe({
-      next: ({ journey, exercises, modules, meetings, sessions }) => {
-        this.journeyCourseDay = Number(journey?.profile?.currentCourseDay || 1);
+      next: ({ journey, exercises, dgBot, meetings, sessions }) => {
+        const dgDay = 'studentCourseDay' in dgBot ? dgBot.studentCourseDay : undefined;
+        this.journeyCourseDay = Number(journey?.profile?.currentCourseDay || dgDay || 1);
         this.exercises = Array.isArray(exercises?.exercises) ? exercises.exercises : [];
-        this.modules = Array.isArray(modules?.modules) ? modules.modules : [];
+        this.dgBotModules = Array.isArray(dgBot?.modules) ? dgBot.modules : [];
         this.meetings = meetings?.success && Array.isArray(meetings?.data) ? meetings.data : [];
         this.sessionHistory = Array.isArray(sessions?.sessionHistory) ? sessions.sessionHistory : [];
         this.totalVocabulary = new Set(
@@ -109,7 +111,7 @@ export class PerformanceHistoryComponent implements OnInit {
   private resetPages(): void {
     this.classPage = 1;
     this.exercisePage = 1;
-    this.modulePage = 1;
+    this.dgBotPage = 1;
   }
 
   get skeletonRows(): number[] {
@@ -127,11 +129,11 @@ export class PerformanceHistoryComponent implements OnInit {
     });
   }
 
-  get filteredModules(): LearningModule[] {
+  get filteredDgBotModules(): DgModuleSummary[] {
     const q = this.searchText.trim().toLowerCase();
-    const items = this.modules.filter((m: any) => this.isInRangeByDay(Number(m.courseDay || 0)));
+    const items = this.dgBotModules.filter((m) => this.isInRangeByDay(Number(m.courseDay || 0)));
     if (!q) return items;
-    return items.filter((m: any) => `${m.title || ''} ${m.level || ''} ${m.category || ''} ${m.courseDay || ''}`.toLowerCase().includes(q));
+    return items.filter((m) => `${m.title || ''} ${m.level || ''} ${m.language || ''} ${m.courseDay || ''}`.toLowerCase().includes(q));
   }
 
   get filteredExercises(): DigitalExercise[] {
@@ -150,11 +152,11 @@ export class PerformanceHistoryComponent implements OnInit {
   }
 
   get overallDone(): number {
-    return this.classAttended + this.moduleCompleted + this.exerciseCompleted;
+    return this.classAttended + this.dgBotCompleted + this.exerciseCompleted;
   }
 
   get overallTotal(): number {
-    return this.classTotal + this.moduleTotal + this.exerciseTotal;
+    return this.classTotal + this.dgBotTotal + this.exerciseTotal;
   }
 
   get overallPct(): number {
@@ -173,16 +175,16 @@ export class PerformanceHistoryComponent implements OnInit {
     return this.ratio(this.classAttended, this.classTotal);
   }
 
-  get moduleCompleted(): number {
-    return this.filteredModules.filter((m: any) => m.studentProgress?.status === 'completed').length;
+  get dgBotCompleted(): number {
+    return this.filteredDgBotModules.filter((m) => !!m.studentProgress?.completed).length;
   }
 
-  get moduleTotal(): number {
-    return this.filteredModules.length;
+  get dgBotTotal(): number {
+    return this.filteredDgBotModules.length;
   }
 
-  get modulePct(): number {
-    return this.ratio(this.moduleCompleted, this.moduleTotal);
+  get dgBotPct(): number {
+    return this.ratio(this.dgBotCompleted, this.dgBotTotal);
   }
 
   get exerciseCompleted(): number {
@@ -225,8 +227,8 @@ export class PerformanceHistoryComponent implements OnInit {
     return this.paginate(this.filteredExercises, this.exercisePage);
   }
 
-  get pagedModules(): LearningModule[] {
-    return this.paginate(this.filteredModules, this.modulePage);
+  get pagedDgBotModules(): DgModuleSummary[] {
+    return this.paginate(this.filteredDgBotModules, this.dgBotPage);
   }
 
   get classPages(): number {
@@ -237,26 +239,26 @@ export class PerformanceHistoryComponent implements OnInit {
     return this.totalPages(this.filteredExercises.length);
   }
 
-  get modulePages(): number {
-    return this.totalPages(this.filteredModules.length);
+  get dgBotPages(): number {
+    return this.totalPages(this.filteredDgBotModules.length);
   }
 
   get currentPage(): number {
     if (this.activeTab === 'classes') return this.classPage;
     if (this.activeTab === 'exercises') return this.exercisePage;
-    return this.modulePage;
+    return this.dgBotPage;
   }
 
   get totalPagesForActiveTab(): number {
     if (this.activeTab === 'classes') return this.classPages;
     if (this.activeTab === 'exercises') return this.exercisePages;
-    return this.modulePages;
+    return this.dgBotPages;
   }
 
   get totalRowsForActiveTab(): number {
     if (this.activeTab === 'classes') return this.filteredMeetings.length;
     if (this.activeTab === 'exercises') return this.filteredExercises.length;
-    return this.filteredModules.length;
+    return this.filteredDgBotModules.length;
   }
 
   get showingFromForActiveTab(): number {
@@ -272,7 +274,7 @@ export class PerformanceHistoryComponent implements OnInit {
   get activeTabLabel(): string {
     if (this.activeTab === 'classes') return 'classes';
     if (this.activeTab === 'exercises') return 'exercises';
-    return 'modules';
+    return 'DG bot lessons';
   }
 
   canGoPrev(): boolean {
@@ -296,7 +298,7 @@ export class PerformanceHistoryComponent implements OnInit {
       this.exercisePage = Math.min(this.exercisePages, Math.max(1, this.exercisePage + dir));
       return;
     }
-    this.modulePage = Math.min(this.modulePages, Math.max(1, this.modulePage + dir));
+    this.dgBotPage = Math.min(this.dgBotPages, Math.max(1, this.dgBotPage + dir));
   }
 
   getMeetingStatus(meeting: any): string {
@@ -319,8 +321,28 @@ export class PerformanceHistoryComponent implements OnInit {
     return 'upcoming';
   }
 
-  getModuleStatus(module: any): string {
-    return module?.studentProgress?.status === 'completed' ? 'Completed' : 'Pending';
+  getDgBotStatus(module: DgModuleSummary): string {
+    if (module?.studentProgress?.completed) return 'Completed';
+    const pct = Number(module?.studentProgress?.bestCompletionPercent);
+    if (Number.isFinite(pct) && pct > 0) return 'In progress';
+    return 'Pending';
+  }
+
+  getDgBotStatusClass(module: DgModuleSummary): string {
+    const s = this.getDgBotStatus(module).toLowerCase();
+    if (s === 'completed') return 'ok';
+    if (s === 'in progress') return 'partial';
+    return 'pending';
+  }
+
+  formatDgBotProgress(module: DgModuleSummary): string {
+    const pct = Number(module?.studentProgress?.bestCompletionPercent);
+    return Number.isFinite(pct) && pct > 0 ? `${Math.round(pct)}%` : '—';
+  }
+
+  openDgBot(module: DgModuleSummary): void {
+    if (!module?._id) return;
+    this.router.navigate(['/dg-bot', module._id, 'play']);
   }
 
   getExerciseStatus(ex: any): string {
@@ -350,8 +372,8 @@ export class PerformanceHistoryComponent implements OnInit {
     return `${this.filteredExercises.length} exercises`;
   }
 
-  moduleRowCountText(): string {
-    return `${this.filteredModules.length} modules`;
+  dgBotRowCountText(): string {
+    return `${this.filteredDgBotModules.length} DG bot lessons`;
   }
 
   openJourney(): void {

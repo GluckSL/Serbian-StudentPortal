@@ -107,23 +107,58 @@ function parseDateRange(query) {
   return { from, to };
 }
 
+const VALID_STUDENT_LEVELS = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
+
 /**
  * Returns an array of student ObjectIds for the given cohort, or null for 'overall' (no filter).
  * - 'platinum': PLATINUM subscription students that are NOT in Go
  * - 'go': students with goStatus === 'GO'
  */
 async function getCohortStudentIds(cohort) {
-  if (!cohort || cohort === 'overall') return null;
-  let userFilter = {};
+  return resolveAnalyticsStudentIds({ cohort });
+}
+
+/**
+ * Resolves student ObjectIds for portal analytics filters (cohort, batch, level).
+ * Returns null when no filters are active (show all students).
+ */
+async function resolveAnalyticsStudentIds({ cohort, batch, level } = {}) {
+  const hasCohort = cohort === 'platinum' || cohort === 'go';
+  const batchVal = String(batch || '').trim();
+  const levelVal = VALID_STUDENT_LEVELS.has(String(level || '').trim().toUpperCase())
+    ? String(level).trim().toUpperCase()
+    : null;
+
+  if (!hasCohort && !batchVal && !levelVal) return null;
+
+  const userFilter = { role: 'STUDENT' };
   if (cohort === 'platinum') {
-    userFilter = { role: 'STUDENT', subscription: 'PLATINUM', goStatus: { $ne: 'GO' } };
+    userFilter.subscription = 'PLATINUM';
+    userFilter.goStatus = { $ne: 'GO' };
   } else if (cohort === 'go') {
-    userFilter = { role: 'STUDENT', goStatus: 'GO' };
-  } else {
-    return null;
+    userFilter.goStatus = 'GO';
   }
+  if (batchVal) userFilter.batch = batchVal;
+  if (levelVal) userFilter.level = levelVal;
+
   const users = await User.find(userFilter).select('_id').lean();
   return users.map((u) => u._id);
+}
+
+async function getAnalyticsFilterOptions() {
+  const batches = await User.distinct('batch', {
+    role: 'STUDENT',
+    batch: { $exists: true, $nin: [null, ''] }
+  });
+  const sortedBatches = [...new Set(batches.map((b) => String(b).trim()).filter(Boolean))].sort((a, b) => {
+    const aNum = parseInt(a, 10);
+    const bNum = parseInt(b, 10);
+    if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+    if (!Number.isNaN(aNum)) return -1;
+    if (!Number.isNaN(bNum)) return 1;
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+  });
+  return { batches: sortedBatches, levels: [...VALID_STUDENT_LEVELS] };
 }
 
 function sessionTimeRangeMatch(from, to) {
@@ -1084,8 +1119,8 @@ async function estimateFromLoginActivity(from, to) {
   };
 }
 
-async function getDashboard(from, to, includeHistorical, cohort = null) {
-  const cohortIds = await getCohortStudentIds(cohort);
+async function getDashboard(from, to, includeHistorical, studentIds = null) {
+  const cohortIds = studentIds;
   const overview = await getOverview(from, to, cohortIds);
   const [
     timeSeries,
@@ -1793,10 +1828,10 @@ async function getDigiBotLearningAnalytics(from, to, cap, cohortIds) {
   };
 }
 
-async function getLearningAnalytics(from, to, kind = 'video', limit = 300, cohort = null) {
+async function getLearningAnalytics(from, to, kind = 'video', limit = 300, studentIds = null) {
   const cap = Math.min(Math.max(parseInt(String(limit), 10) || 300, 1), 1000);
   const k = String(kind || 'video').toLowerCase();
-  const cohortIds = await getCohortStudentIds(cohort);
+  const cohortIds = studentIds;
 
   if (k === 'video') {
     return getCombinedVideoLearningAnalytics(from, to, limit, cohortIds);
@@ -1852,6 +1887,8 @@ module.exports = {
   closeStaleSessions,
   parseDateRange,
   getCohortStudentIds,
+  resolveAnalyticsStudentIds,
+  getAnalyticsFilterOptions,
   getOverview,
   getStudentWise,
   getPageWise,

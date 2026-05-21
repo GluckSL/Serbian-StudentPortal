@@ -4,7 +4,6 @@
  */
 
 const User = require('../models/User');
-const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 
 const JOURNEY_LEVEL_RANGES = [
   { min: 1, max: 42, level: 'A1' },
@@ -27,12 +26,11 @@ function levelForJourneyDay(day) {
   return 'B2';
 }
 
-/** True when this student follows the GO / GO-SILVER 200-day journey program. */
+/** All portal students follow journey-day → level mapping when their day changes. */
 function usesJourneyDayLevelSync(student) {
   if (!student) return false;
-  if (String(student.goStatus || '').toUpperCase() === 'GO') return true;
-  const keys = allStudentBatchStringsForContent(student);
-  return keys.some((k) => String(k).toUpperCase() === 'GO-SILVER');
+  if (student.role && student.role !== 'STUDENT') return false;
+  return true;
 }
 
 /**
@@ -72,11 +70,36 @@ async function ensureStudentLevelMatchesJourneyDay(studentId) {
   return { synced: true, level: expected, previousLevel: current };
 }
 
+/**
+ * Fix stored levels for students in a batch whose level does not match currentCourseDay.
+ * @returns {Promise<{ updated: number }>}
+ */
+async function syncJourneyLevelsForBatch(batchRegex) {
+  const students = await User.find({ role: 'STUDENT', batch: batchRegex })
+    .select('_id currentCourseDay level')
+    .lean();
+  const ops = [];
+  for (const s of students) {
+    const expected = levelForJourneyDay(s.currentCourseDay);
+    if (String(s.level || 'A1').toUpperCase() !== expected) {
+      ops.push({
+        updateOne: {
+          filter: { _id: s._id },
+          update: { $set: { level: expected } }
+        }
+      });
+    }
+  }
+  if (ops.length) await User.bulkWrite(ops);
+  return { updated: ops.length };
+}
+
 module.exports = {
   JOURNEY_LEVEL_RANGES,
   normalizeJourneyDay,
   levelForJourneyDay,
   usesJourneyDayLevelSync,
   withJourneyLevelInSet,
-  ensureStudentLevelMatchesJourneyDay
+  ensureStudentLevelMatchesJourneyDay,
+  syncJourneyLevelsForBatch
 };

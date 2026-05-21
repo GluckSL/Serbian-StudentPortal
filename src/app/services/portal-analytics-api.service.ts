@@ -7,6 +7,13 @@ export interface PortalAnalyticsRange {
   from: string;
   to: string;
   cohort?: 'overall' | 'platinum' | 'go';
+  batch?: string;
+  level?: string;
+}
+
+export interface PortalAnalyticsFilterOptions {
+  batches: string[];
+  levels: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -20,6 +27,12 @@ export class PortalAnalyticsApiService {
     if (range.cohort && range.cohort !== 'overall') {
       p = p.set('cohort', range.cohort);
     }
+    if (range.batch) {
+      p = p.set('batch', range.batch);
+    }
+    if (range.level) {
+      p = p.set('level', range.level);
+    }
     if (extra) {
       for (const [k, v] of Object.entries(extra)) {
         if (v === undefined || v === null) continue;
@@ -27,6 +40,12 @@ export class PortalAnalyticsApiService {
       }
     }
     return p;
+  }
+
+  getFilterOptions(): Observable<PortalAnalyticsFilterOptions> {
+    return this.http.get<PortalAnalyticsFilterOptions>(`${this.base}/filter-options`, {
+      withCredentials: true
+    });
   }
 
   getDashboard(range: PortalAnalyticsRange, includeHistorical = false): Observable<unknown> {

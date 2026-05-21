@@ -27,7 +27,10 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
-const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
+const {
+  withJourneyLevelInSet,
+  syncJourneyLevelsForBatch
+} = require('../services/journeyLevelSync.service');
 const {
   BATCH_TYPE_NEW,
   normalizeBatchType,
@@ -476,6 +479,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
     const batchRx = batchNameRegex(batchName);
+    await syncJourneyLevelsForBatch(batchRx);
     const students = await User.find({ role: 'STUDENT', batch: batchRx })
       .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount batch')
       .sort({ name: 1 })
