@@ -51,6 +51,9 @@ export class StudentDocumentProfileComponent implements OnInit {
   documents: any[] = [];
   rows: StudentDocRow[] = [];
 
+  /** admin_pending | student_pending | all */
+  activeTab: 'admin_pending' | 'student_pending' | 'all' = 'admin_pending';
+
   showVerificationDialog = false;
   verificationAction: 'VERIFIED' | 'REJECTED' | null = null;
   verificationNotes = '';
@@ -254,10 +257,61 @@ export class StudentDocumentProfileComponent implements OnInit {
   }
 
   canReviewRow(row: StudentDocRow): boolean {
+    return this.isAdminPending(row);
+  }
+
+  /** Uploaded and waiting for admin approve/reject */
+  isAdminPending(row: StudentDocRow): boolean {
     if (!row.doc) return false;
     if (row.status === 'NOT_UPLOADED') return false;
     if (row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy) return false;
     return row.status === 'PENDING' || row.agreementStatus === 'SIGNED_PENDING';
+  }
+
+  /** Student must upload, re-upload, or sign */
+  isStudentPending(row: StudentDocRow): boolean {
+    if (row.status === 'NOT_UPLOADED' || !row.doc) return true;
+    if (row.status === 'REJECTED') return true;
+    if (row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy) return true;
+    return false;
+  }
+
+  setTab(tab: 'admin_pending' | 'student_pending' | 'all'): void {
+    this.activeTab = tab;
+  }
+
+  get filteredRows(): StudentDocRow[] {
+    switch (this.activeTab) {
+      case 'admin_pending':
+        return this.rows.filter((r) => this.isAdminPending(r));
+      case 'student_pending':
+        return this.rows.filter((r) => this.isStudentPending(r));
+      default:
+        return this.rows;
+    }
+  }
+
+  get adminPendingCount(): number {
+    return this.rows.filter((r) => this.isAdminPending(r)).length;
+  }
+
+  get studentPendingCount(): number {
+    return this.rows.filter((r) => this.isStudentPending(r)).length;
+  }
+
+  get allCount(): number {
+    return this.rows.length;
+  }
+
+  getEmptyTabMessage(): string {
+    switch (this.activeTab) {
+      case 'admin_pending':
+        return 'No documents waiting for your review.';
+      case 'student_pending':
+        return 'Nothing pending from the student — no missing uploads or re-uploads.';
+      default:
+        return 'No documents found for this student.';
+    }
   }
 
   openVerifyDialog(row: StudentDocRow, action: 'VERIFIED' | 'REJECTED'): void {
