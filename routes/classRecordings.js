@@ -780,6 +780,22 @@ function mapManualRecordingToAdminItem(m) {
   };
 }
 
+/** Batch labels for admin list filter (Zoom: accessBatches, else meeting.batch). */
+function adminRecordingBatchLabels(zoomRow, meeting) {
+  const accessBatches = Array.isArray(zoomRow?.accessBatches)
+    ? zoomRow.accessBatches.map((b) => String(b).trim()).filter(Boolean)
+    : [];
+  if (accessBatches.length) return accessBatches;
+  const meetingBatch = meeting?.batch ? String(meeting.batch).trim() : '';
+  return meetingBatch ? [meetingBatch] : [];
+}
+
+function matchesAdminBatchFilter(batchFilter, batchLabels) {
+  if (!batchFilter || batchFilter === 'ALL') return true;
+  if (!Array.isArray(batchLabels) || !batchLabels.length) return false;
+  return batchLabels.some((b) => batchesAlign(batchFilter, b));
+}
+
 /** Lightweight rows for sort/filter before hydrating a page of full records. */
 async function buildAdminRecordingRefs(filters = {}) {
   const { level, batch, search } = filters;
@@ -789,7 +805,6 @@ async function buildAdminRecordingRefs(filters = {}) {
 
   const manualQuery = { ...adminReadyManualQuery() };
   if (level && level !== 'ALL') manualQuery.level = level;
-  if (batch && batch !== 'ALL') manualQuery.batches = batch;
   if (searchRe) {
     manualQuery.$and = manualQuery.$and || [];
     manualQuery.$and.push({
@@ -802,7 +817,6 @@ async function buildAdminRecordingRefs(filters = {}) {
 
   const zoomQuery = { ...adminReadyZoomQuery() };
   if (level && level !== 'ALL') zoomQuery.accessLevel = level;
-  if (batch && batch !== 'ALL') zoomQuery.accessBatches = batch;
   if (searchRe) {
     zoomQuery.$and = zoomQuery.$and || [];
     zoomQuery.$and.push({
@@ -831,6 +845,10 @@ async function buildAdminRecordingRefs(filters = {}) {
   const refs = [];
 
   manualRows.forEach((m) => {
+    const manualBatches = Array.isArray(m.batches)
+      ? m.batches.map((b) => String(b).trim()).filter(Boolean)
+      : [];
+    if (!matchesAdminBatchFilter(batch, manualBatches)) return;
     refs.push({
       kind: 'manual',
       id: m._id,
@@ -848,12 +866,7 @@ async function buildAdminRecordingRefs(filters = {}) {
       const mid = String(z.zoomMeetingId || '');
       if (!searchRe.test(topic) && !searchRe.test(mid)) return;
     }
-    if (batch && batch !== 'ALL') {
-      const accessBatches = Array.isArray(z.accessBatches) ? z.accessBatches : [];
-      const meetingBatch = meeting.batch ? [String(meeting.batch)] : [];
-      const batches = accessBatches.length ? accessBatches : meetingBatch;
-      if (!batches.map(String).includes(String(batch))) return;
-    }
+    if (!matchesAdminBatchFilter(batch, adminRecordingBatchLabels(z, meeting))) return;
     refs.push({
       kind: 'zoom',
       id: z.meetingLinkId,
