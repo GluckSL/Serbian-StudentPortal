@@ -32,6 +32,8 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
   draftFrom = '';
   draftTo = '';
   cohort: 'overall' | 'platinum' | 'go' = 'overall';
+  batch = '';
+  level = '';
   viewMode: 'rolling' | 'custom' = 'rolling';
 
   loading = true;
@@ -63,7 +65,9 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
   ngOnInit(): void {
     this.route.queryParamMap
       .pipe(
-        map((q) => `${q.get('from') ?? ''}|${q.get('to') ?? ''}|${q.get('cohort') ?? ''}`),
+        map((q) =>
+          `${q.get('from') ?? ''}|${q.get('to') ?? ''}|${q.get('cohort') ?? ''}|${q.get('batch') ?? ''}|${q.get('level') ?? ''}`
+        ),
         distinctUntilChanged(),
         map(() => this.route.snapshot.queryParamMap)
       )
@@ -73,20 +77,24 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
         const cohortQ = q.get('cohort');
         this.cohort =
           cohortQ === 'platinum' || cohortQ === 'go' ? cohortQ : 'overall';
+        this.batch = (q.get('batch') || '').trim();
+        this.level = (q.get('level') || '').trim().toUpperCase();
+
+        const range = this.buildRange(fromQ, toQ);
 
         if (this.isYmd(fromQ) && this.isYmd(toQ)) {
           this.viewMode = 'custom';
           this.draftFrom = fromQ;
           this.draftTo = toQ;
           this.noOlderChunks = false;
-          this.fetchRange({ from: fromQ, to: toQ, cohort: this.cohort }, true);
+          this.fetchRange(range, true);
         } else {
           this.viewMode = 'rolling';
           const today = this.toInputDateInTimeZone(new Date(), this.analyticsTz);
           this.draftFrom = this.addDaysYmd(today, -6);
           this.draftTo = today;
           this.noOlderChunks = false;
-          this.fetchRange({ from: this.draftFrom, to: this.draftTo, cohort: this.cohort }, true);
+          this.fetchRange(this.buildRange(this.draftFrom, this.draftTo), true);
         }
       });
   }
@@ -144,7 +152,7 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
     if (chunkTo < chunkFrom) return;
     this.loadingMore = true;
     this.error = '';
-    this.api.getDailyLogs({ from: chunkFrom, to: chunkTo, cohort: this.cohort }).subscribe({
+    this.api.getDailyLogs(this.buildRange(chunkFrom, chunkTo)).subscribe({
       next: (raw: unknown) => {
         const chunk = normalizeDailyLogsApi(raw);
         if (!chunk.length) this.noOlderChunks = true;
@@ -211,9 +219,18 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
     return [...dates].sort()[0];
   }
 
+  private buildRange(from: string, to: string): PortalAnalyticsRange {
+    const r: PortalAnalyticsRange = { from, to, cohort: this.cohort };
+    if (this.batch) r.batch = this.batch;
+    if (this.level) r.level = this.level;
+    return r;
+  }
+
   private replaceQueryParams(from: string, to: string): void {
     const q: Record<string, string> = { from, to };
     if (this.cohort !== 'overall') q['cohort'] = this.cohort;
+    if (this.batch) q['batch'] = this.batch;
+    if (this.level) q['level'] = this.level;
     this.router.navigate(['/portal-analytics/daily-logs'], { queryParams: q, replaceUrl: true });
   }
 

@@ -5,7 +5,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
-import { PortalAnalyticsRange } from '../../services/portal-analytics-api.service';
+import { PortalAnalyticsApiService, PortalAnalyticsRange } from '../../services/portal-analytics-api.service';
 import { PortalAnalyticsDashboardComponent } from './dashboard/portal-analytics-dashboard.component';
 import { PortalAnalyticsStudentWiseComponent } from './student-wise/portal-analytics-student-wise.component';
 import { PortalAnalyticsPageWiseComponent } from './page-wise/portal-analytics-page-wise.component';
@@ -35,7 +35,10 @@ import { PortalAnalyticsDeviceWiseComponent } from './device-wise/portal-analyti
   styleUrls: ['./portal-analytics.component.scss']
 })
 export class PortalAnalyticsComponent implements OnInit {
-  constructor(private readonly router: Router) {}
+  constructor(
+    private readonly router: Router,
+    private readonly api: PortalAnalyticsApiService
+  ) {}
 
   private readonly analyticsTz = 'Asia/Kolkata';
   draftFrom = '';
@@ -43,25 +46,65 @@ export class PortalAnalyticsComponent implements OnInit {
   range: PortalAnalyticsRange = { from: '', to: '' };
   selectedQuickRange: 'today' | 'lastDate' | 'week' | null = null;
   cohort: 'overall' | 'platinum' | 'go' = 'overall';
+  batch = '';
+  level = '';
+  availableBatches: string[] = [];
+  availableLevels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
   ngOnInit(): void {
+    this.loadFilterOptions();
     this.setTodayRange();
+  }
+
+  private loadFilterOptions(): void {
+    this.api.getFilterOptions().subscribe({
+      next: (res) => {
+        this.availableBatches = res?.batches || [];
+        if (res?.levels?.length) this.availableLevels = res.levels;
+      },
+      error: () => {
+        this.availableBatches = [];
+      }
+    });
+  }
+
+  private buildRange(from: string, to: string): PortalAnalyticsRange {
+    const r: PortalAnalyticsRange = { from, to, cohort: this.cohort };
+    if (this.batch) r.batch = this.batch;
+    if (this.level) r.level = this.level;
+    return r;
   }
 
   applyRange(): void {
     this.selectedQuickRange = null;
-    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
+    this.range = this.buildRange(this.draftFrom, this.draftTo);
   }
 
   setCohort(c: 'overall' | 'platinum' | 'go'): void {
     this.cohort = c;
-    this.range = { ...this.range, cohort: c };
+    if (this.range.from && this.range.to) {
+      this.range = this.buildRange(this.range.from, this.range.to);
+    }
+  }
+
+  onBatchChange(): void {
+    if (this.range.from && this.range.to) {
+      this.range = this.buildRange(this.range.from, this.range.to);
+    }
+  }
+
+  onLevelChange(): void {
+    if (this.range.from && this.range.to) {
+      this.range = this.buildRange(this.range.from, this.range.to);
+    }
   }
 
   openDailyLogsInNewTab(): void {
     if (!this.range?.from || !this.range?.to) return;
     const q: Record<string, string> = { from: this.range.from, to: this.range.to };
     if (this.cohort !== 'overall') q['cohort'] = this.cohort;
+    if (this.batch) q['batch'] = this.batch;
+    if (this.level) q['level'] = this.level;
     const url = this.router.serializeUrl(
       this.router.createUrlTree(['/portal-analytics/daily-logs'], { queryParams: q })
     );
@@ -73,7 +116,7 @@ export class PortalAnalyticsComponent implements OnInit {
     this.draftFrom = today;
     this.draftTo = today;
     this.selectedQuickRange = 'today';
-    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
+    this.range = this.buildRange(this.draftFrom, this.draftTo);
   }
 
   setLastDateRange(): void {
@@ -82,7 +125,7 @@ export class PortalAnalyticsComponent implements OnInit {
     this.draftFrom = lastDate;
     this.draftTo = lastDate;
     this.selectedQuickRange = 'lastDate';
-    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
+    this.range = this.buildRange(this.draftFrom, this.draftTo);
   }
 
   setWeekRange(): void {
@@ -90,7 +133,7 @@ export class PortalAnalyticsComponent implements OnInit {
     this.draftFrom = this.addDays(today, -6);
     this.draftTo = today;
     this.selectedQuickRange = 'week';
-    this.range = { from: this.draftFrom, to: this.draftTo, cohort: this.cohort };
+    this.range = this.buildRange(this.draftFrom, this.draftTo);
   }
 
   private toInputDate(d: Date): string {

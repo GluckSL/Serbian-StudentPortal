@@ -105,13 +105,11 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
   readonly pageSize = 12;
   readonly kinds: LearningKind[] = ['video', 'exercises', 'digibot'];
   activeKind: LearningKind = 'video';
-  viewMode: 'day' | 'range' = 'day';
   loading = false;
   error = '';
   data: LearningResponse | null = null;
   digiBotData: DigiBotLearningResponse | null = null;
   currentPage = 1;
-  effectiveDay = '';
   expandedSessionId: string | null = null;
 
   formatDuration = formatPortalDuration;
@@ -166,7 +164,6 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['range'] && this.range?.from && this.range?.to) {
-      this.effectiveDay = this.range.to || this.range.from;
       this.load(this.activeKind);
     }
   }
@@ -176,12 +173,6 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     this.activeKind = kind;
     this.expandedSessionId = null;
     this.load(kind);
-  }
-
-  setViewMode(mode: 'day' | 'range'): void {
-    if (this.viewMode === mode) return;
-    this.viewMode = mode;
-    this.load(this.activeKind);
   }
 
   prevPage(): void {
@@ -205,12 +196,7 @@ export class PortalAnalyticsLearningComponent implements OnChanges {
     this.error = '';
     this.data = null;
     this.digiBotData = null;
-    const reqRange: PortalAnalyticsRange =
-      this.viewMode === 'day'
-        ? { from: this.effectiveDay, to: this.effectiveDay, cohort: this.range.cohort }
-        : { from: this.range.from, to: this.range.to, cohort: this.range.cohort };
-
-    this.api.getLearning(reqRange, kind, 300).subscribe({
+    this.api.getLearning(this.range, kind, 300).subscribe({
       next: (res: unknown) => {
         if (kind === 'digibot') {
           const body = res as DigiBotLearningResponse;
