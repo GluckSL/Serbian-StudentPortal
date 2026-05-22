@@ -251,7 +251,7 @@
           </ng-container>
           <ng-template #standardReqActions>
             <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyActionMobile">
-              <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentDetails(latestDoc)">
+              <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(latestDoc)">
                 <i class="fas fa-eye"></i> View
               </button>
               <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(latestDoc)">
@@ -364,7 +364,7 @@
           </div>
         </div>
         <div class="document-actions">
-          <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentDetails(doc)">
+          <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(doc)">
             <i class="fas fa-eye"></i> View
           </button>
           <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(doc)">

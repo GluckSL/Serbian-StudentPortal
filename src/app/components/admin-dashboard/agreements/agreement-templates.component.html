@@ -257,7 +257,33 @@
 
           </p>
 
-          <p *ngIf="selectedFile" class="selected-file"><mat-icon>check_circle</mat-icon> {{ selectedFile.name }}</p>
+          <p *ngIf="selectedFile && !uploading" class="selected-file"><mat-icon>check_circle</mat-icon> {{ selectedFile.name }}</p>
+
+        </div>
+
+
+
+        <div class="upload-progress-panel" *ngIf="uploading" role="status" aria-live="polite">
+
+          <div class="upload-progress-header">
+
+            <mat-icon class="upload-progress-icon">cloud_sync</mat-icon>
+
+            <div>
+
+              <p class="upload-progress-title">{{ uploadPhaseLabel || 'Processing…' }}</p>
+
+              <p class="upload-progress-detail">{{ uploadStatusDetail }}</p>
+
+            </div>
+
+            <span class="upload-progress-pct">{{ uploadProgress }}%</span>
+
+          </div>
+
+          <mat-progress-bar mode="determinate" [value]="uploadProgress" color="primary"></mat-progress-bar>
+
+          <p class="upload-progress-hint">Word files are converted on the server — this is usually the slowest step.</p>
 
         </div>
 
@@ -269,7 +295,7 @@
 
           <mat-spinner *ngIf="uploading" diameter="16" style="display:inline-block;margin-right:6px"></mat-spinner>
 
-          {{ uploading ? 'Uploading…' : 'Upload & Continue' }}
+          {{ uploading ? ('Processing ' + uploadProgress + '%…') : 'Upload & Continue' }}
 
         </button>
 

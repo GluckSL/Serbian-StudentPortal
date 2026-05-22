@@ -1,11 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { AgreementService, AgreementTemplate, StudentAgreement } from '../../../services/agreement.service';
+import { normalizeStudentObjectId } from '../../../utils/student-id.util';
 
 @Component({
   selector: 'app-student-agreements',
@@ -21,17 +22,19 @@ export class StudentAgreementsComponent implements OnInit {
 
   // Template picker & share form
   templates: AgreementTemplate[] = [];
+  templatesLoading = false;
   selectedTemplate: AgreementTemplate | null = null;
   fieldValues: Record<string, string> = {};
   displayName = '';
   sendEmail = true;
   sharing = false;
 
-  // Preview
+  // Preview (manual refetch only — no auto-update on keystroke)
   previewUrl: SafeResourceUrl | null = null;
   private previewBlobUrl: string | null = null;
   previewing = false;
-  private previewTimer: ReturnType<typeof setTimeout> | null = null;
+  previewOutdated = false;
+  private previewRequestId = 0;
 
   // Existing agreements list
   agreements: StudentAgreement[] = [];
@@ -42,31 +45,93 @@ export class StudentAgreementsComponent implements OnInit {
   verifyStatus: 'VERIFIED' | 'REJECTED' = 'VERIFIED';
   verifyNotes = '';
   verifying = false;
+  studentIdInvalid = false;
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private svc: AgreementService,
     private snack: MatSnackBar,
     private sanitizer: DomSanitizer
   ) {}
 
   ngOnInit(): void {
-    this.studentId = this.route.snapshot.paramMap.get('studentId') || '';
     const qp = this.route.snapshot.queryParamMap;
+    this.studentId =
+      normalizeStudentObjectId(this.route.snapshot.paramMap.get('studentId')) ||
+      normalizeStudentObjectId(qp.get('studentMongoId'));
+    this.studentIdInvalid = !this.studentId;
     this.studentName = qp.get('name') || '';
     this.studentEmail = qp.get('email') || '';
+    if (this.studentIdInvalid) {
+      this.snack.open(
+        'Student ID is missing or invalid. Open this page from Document Verification → student profile → Generate Agreement.',
+        'Close',
+        { duration: 8000 }
+      );
+    } else {
+      this.loadAgreements();
+    }
     this.loadTemplates();
-    this.loadAgreements();
+  }
+
+  get hasValidStudentId(): boolean {
+    return !!this.studentId && !this.studentIdInvalid;
   }
 
   loadTemplates(): void {
+    this.templatesLoading = true;
     this.svc.getTemplates().subscribe({
-      next: r => this.templates = r.templates,
-      error: () => this.snack.open('Failed to load templates', 'Close', { duration: 3000 })
+      next: r => {
+        this.templates = (r.templates || []).filter(t => t.isActive !== false);
+        this.templatesLoading = false;
+      },
+      error: () => {
+        this.templatesLoading = false;
+        this.snack.open('Failed to load templates', 'Close', { duration: 3000 });
+      }
     });
   }
 
+  get studentInitials(): string {
+    const parts = (this.studentName || '?').trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0]?.[0] || '?').toUpperCase();
+  }
+
+  get wizardStep(): 1 | 2 | 3 {
+    if (!this.selectedTemplate) return 1;
+    if (!this.previewUrl) return 2;
+    return 3;
+  }
+
+  get canShare(): boolean {
+    return !!this.selectedTemplate && !!this.displayName.trim() && Object.keys(this.buildFieldValuesPayload()).length > 0;
+  }
+
+  get canRefetchPreview(): boolean {
+    return !!this.selectedTemplate && Object.keys(this.buildFieldValuesPayload()).length > 0;
+  }
+
+  goBackToDocuments(): void {
+    if (!this.studentId) {
+      this.router.navigate(['/admin/document-verification']);
+      return;
+    }
+    this.router.navigate(['/admin/document-verification/student', this.studentId], {
+      queryParams: {
+        name: this.studentName,
+        email: this.studentEmail
+      }
+    });
+  }
+
+  isWordTemplate(t: AgreementTemplate): boolean {
+    return t.fillMode === 'docx' || !!t.docxR2Key;
+  }
+
   loadAgreements(): void {
+    if (!this.hasValidStudentId) return;
     this.loadingAgreements = true;
     this.svc.getInstances(this.studentId).subscribe({
       next: r => { this.agreements = r.agreements; this.loadingAgreements = false; },
@@ -97,20 +162,23 @@ export class StudentAgreementsComponent implements OnInit {
         }
         this.fieldValues = values;
         this.displayName = `${this.selectedTemplate!.name} – ${this.studentName}`;
-        this.schedulePreview();
+        // One automatic preview when template loads (prefilled student name, etc.)
+        if (Object.keys(this.buildFieldValuesPayload()).length > 0) {
+          this.refetchPreview();
+        } else {
+          this.previewOutdated = false;
+        }
       },
       error: () => this.snack.open('Failed to load template fields', 'Close', { duration: 3000 })
     });
   }
 
   onFieldInputChange(): void {
-    this.schedulePreview();
+    this.previewOutdated = true;
   }
 
-  schedulePreview(): void {
-    if (!this.selectedTemplate?._id) return;
-    if (this.previewTimer) clearTimeout(this.previewTimer);
-    this.previewTimer = setTimeout(() => this.previewPdf(), 450);
+  refetchPreview(): void {
+    this.previewPdf();
   }
 
   /** Send only template field keys with non-empty values. */
@@ -129,34 +197,51 @@ export class StudentAgreementsComponent implements OnInit {
     if (!this.selectedTemplate?._id) return;
     const payload = this.buildFieldValuesPayload();
     if (!Object.keys(payload).length) {
-      this.clearPreview();
+      this.snack.open('Fill at least one field, then click Update preview', 'Close', { duration: 3000 });
       return;
     }
 
+    const reqId = ++this.previewRequestId;
     this.previewing = true;
     this.svc.previewInstance(this.selectedTemplate._id, payload).subscribe({
       next: (blob: Blob) => {
+        if (reqId !== this.previewRequestId) return;
         if (this.previewBlobUrl) URL.revokeObjectURL(this.previewBlobUrl);
         this.previewBlobUrl = URL.createObjectURL(blob);
-        this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.previewBlobUrl);
+        this.previewUrl = this.buildPdfViewerUrl(this.previewBlobUrl);
+        this.previewOutdated = false;
         this.previewing = false;
       },
       error: e => {
+        if (reqId !== this.previewRequestId) return;
         this.previewing = false;
         this.snack.open(e.error?.message || 'Preview failed', 'Close', { duration: 3000 });
       }
     });
   }
 
+  /** Minimal PDF viewer: hide toolbar, thumbnails, and side panes. */
+  private buildPdfViewerUrl(blobUrl: string): SafeResourceUrl {
+    const params = 'toolbar=0&navpanes=0&statusbar=0&messages=0&scrollbar=1&view=FitH';
+    const hash = blobUrl.includes('#') ? '&' + params : '#' + params;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(blobUrl + hash);
+  }
+
   private clearPreview(): void {
+    this.previewRequestId++;
     if (this.previewBlobUrl) {
       URL.revokeObjectURL(this.previewBlobUrl);
       this.previewBlobUrl = null;
     }
     this.previewUrl = null;
+    this.previewOutdated = false;
   }
 
   share(sendEmail = this.sendEmail): void {
+    if (!this.hasValidStudentId) {
+      this.snack.open('Cannot save: student ID is invalid. Go back and open from the student document profile.', 'Close', { duration: 5000 });
+      return;
+    }
     if (!this.selectedTemplate || !this.displayName) {
       this.snack.open('Select a template and enter an agreement name', 'Close', { duration: 3000 });
       return;
@@ -171,16 +256,19 @@ export class StudentAgreementsComponent implements OnInit {
     this.svc.shareInstance({
       templateId: this.selectedTemplate._id,
       studentId: this.studentId,
+      studentEmail: this.studentEmail,
       fieldValues: payload,
       displayName: this.displayName,
       sendEmail
     }).subscribe({
       next: r => {
         this.sharing = false;
-        this.snack.open(sendEmail ? 'Agreement saved and emailed!' : 'Agreement saved!', 'Close', { duration: 3000 });
-        // Trigger browser download
-        const dlUrl = this.svc.getDownloadUrl(r.agreement._id);
-        window.open(dlUrl, '_blank');
+        const msg =
+          r.message ||
+          (sendEmail
+            ? 'Agreement saved to student portal and emailed'
+            : 'Agreement saved to student portal — student can view and upload signed copy');
+        this.snack.open(msg, 'Close', { duration: 5000 });
         this.loadAgreements();
         this.selectedTemplate = null;
         this.fieldValues = {};

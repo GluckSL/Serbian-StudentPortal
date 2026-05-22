@@ -4,7 +4,8 @@ const {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
-  DeleteObjectCommand
+  DeleteObjectCommand,
+  CopyObjectCommand
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -92,6 +93,20 @@ async function deleteAgreementObject(r2Key) {
   await cfg.client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: r2Key }));
 }
 
+/** Server-side copy within the same bucket (avoids download + re-upload on template create). */
+async function copyAgreementObject(sourceKey, destKey) {
+  const cfg = getR2Config();
+  if (!cfg) throw new Error('R2 is not configured');
+  await cfg.client.send(
+    new CopyObjectCommand({
+      Bucket: cfg.bucket,
+      Key: destKey,
+      CopySource: `${cfg.bucket}/${sourceKey}`
+    })
+  );
+  return destKey;
+}
+
 /** Remove PDF + DOCX sources for a template (best-effort). */
 async function deleteAgreementTemplateFiles(template) {
   const errors = [];
@@ -120,6 +135,7 @@ module.exports = {
   getAgreementTemplateBuffer,
   getAgreementDocxBuffer,
   getAgreementTemplateSignedUrl,
+  copyAgreementObject,
   deleteAgreementTemplate: deleteAgreementObject,
   deleteAgreementTemplateFiles
 };

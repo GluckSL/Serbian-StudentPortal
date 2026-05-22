@@ -91,6 +91,8 @@
 .toolbar-btn--accent:hover:not(:disabled) { background: #6d28d9 !important; }
 .toolbar-btn--export { background: #1d4ed8 !important; color: #fff !important; }
 .toolbar-btn--export:hover { background: #1e40af !important; }
+.toolbar-btn--agreement { background: #1565c0 !important; color: #fff !important; }
+.toolbar-btn--agreement:hover { background: #0d47a1 !important; }
 .toolbar-btn--templates { background: #6d28d9 !important; color: #fff !important; }
 .toolbar-btn--templates:hover { background: #5b21b6 !important; }
 

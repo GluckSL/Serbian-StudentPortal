@@ -1,7 +1,26 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpEvent, HttpEventType, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+
+export type TemplateUploadProgressEvent =
+  | { kind: 'progress'; percent: number; loaded: number; total: number | null; phase: 'upload' }
+  | { kind: 'processing'; percent: number; phase: 'processing'; message: string }
+  | {
+      kind: 'complete';
+      body: {
+        success: boolean;
+        template: AgreementTemplate;
+        tempId: string;
+        r2Key: string | null;
+        docxR2Key?: string;
+        fillMode?: 'docx' | 'overlay';
+        pageCount: number;
+        conversion?: string;
+        warning?: string;
+      };
+    };
 
 export interface DynamicField {
   id: string;
@@ -105,6 +124,54 @@ export class AgreementService {
     return this.http.post<any>(`${this.base}/templates/upload`, fd);
   }
 
+  /**
+   * Single request: upload file + create template (faster than upload then create).
+   * Reports byte upload progress, then processing phase until the server responds.
+   */
+  uploadAndCreateTemplate(
+    file: File,
+    name: string,
+    description?: string
+  ): Observable<TemplateUploadProgressEvent> {
+    const fd = new FormData();
+    fd.append('pdf', file);
+    fd.append('name', name.trim());
+    if (description?.trim()) fd.append('description', description.trim());
+
+    let uploadDone = false;
+
+    return this.http
+      .post<any>(`${this.base}/templates/upload-and-create`, fd, {
+        reportProgress: true,
+        observe: 'events'
+      })
+      .pipe(
+        map((event: HttpEvent<any>): TemplateUploadProgressEvent | null => {
+          if (event.type === HttpEventType.UploadProgress) {
+            const loaded = event.loaded ?? 0;
+            const total = event.total ?? null;
+            const raw = total && total > 0 ? Math.round((100 * loaded) / total) : 0;
+            const percent = Math.min(55, Math.round(raw * 0.55));
+            if (loaded > 0 && total && loaded >= total) uploadDone = true;
+            return { kind: 'progress', percent, loaded, total, phase: 'upload' };
+          }
+          if (event.type === HttpEventType.Response && event.body) {
+            return { kind: 'complete', body: event.body };
+          }
+          if (uploadDone && event.type === HttpEventType.Sent) {
+            return {
+              kind: 'processing',
+              percent: 60,
+              phase: 'processing',
+              message: 'Converting and saving…'
+            };
+          }
+          return null;
+        }),
+        filter((e): e is TemplateUploadProgressEvent => e != null)
+      );
+  }
+
   createTemplate(payload: {
     name: string;
     description?: string;
@@ -158,10 +225,11 @@ export class AgreementService {
   shareInstance(payload: {
     templateId: string;
     studentId: string;
+    studentEmail?: string;
     fieldValues: Record<string, string>;
     displayName: string;
     sendEmail?: boolean;
-  }): Observable<{ success: boolean; agreement: StudentAgreement; downloadUrl: string }> {
+  }): Observable<{ success: boolean; agreement: StudentAgreement; downloadUrl: string; message?: string }> {
     return this.http.post<any>(`${this.base}/instances/share`, payload);
   }
 

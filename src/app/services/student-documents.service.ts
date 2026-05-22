@@ -198,6 +198,19 @@ export class StudentDocumentsService {
     window.URL.revokeObjectURL(url);
   }
 
+  /** Open PDF/image in a new browser tab (view, not download). */
+  openBlobInNewTab(blob: Blob, mimeType = 'application/pdf'): void {
+    const type = blob.type || mimeType;
+    const url = window.URL.createObjectURL(new Blob([blob], { type }));
+    const hash = type.includes('pdf') ? '#toolbar=0&navpanes=0&view=FitH' : '';
+    const w = window.open(url + hash, '_blank', 'noopener');
+    if (!w) {
+      window.URL.revokeObjectURL(url);
+      throw new Error('Popup blocked — allow popups for this site to view documents');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  }
+
   // Get status badge class
   getStatusBadgeClass(status: string): string {
     switch (status) {

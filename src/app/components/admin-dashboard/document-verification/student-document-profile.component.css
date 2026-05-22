@@ -73,6 +73,28 @@
   color: #fff !important;
 }
 
+.btn-generate-agreement {
+  background: #1565c0 !important;
+  color: #fff !important;
+}
+
+.upload-only-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.act-btn--generate {
+  background: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #90caf9;
+}
+
+.act-btn--generate:hover {
+  background: #bbdefb;
+}
+
 /* ── Student info banner ── */
 .student-info-banner {
   display: grid;

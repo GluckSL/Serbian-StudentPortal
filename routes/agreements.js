@@ -14,6 +14,15 @@ const StudentDocument = require('../models/StudentDocument');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const User = require('../models/User');
 
+/** Reject literal "null", invalid hex, etc. before User.findById. */
+function parseStudentObjectId(raw) {
+  if (raw == null) return null;
+  const id = String(raw).trim();
+  if (!id || id === 'null' || id === 'undefined') return null;
+  if (!/^[a-fA-F0-9]{24}$/.test(id)) return null;
+  return id;
+}
+
 const s3Client = require('../config/s3');
 const {
   isAgreementR2Configured,
@@ -21,10 +30,11 @@ const {
   putAgreementDocx,
   getAgreementTemplateBuffer,
   getAgreementTemplateSignedUrl,
+  copyAgreementObject,
   deleteAgreementTemplateFiles
 } = require('../services/agreementR2Service');
 const deleteFromS3 = require('../config/s3Delete');
-const { extractPagesText, normalizeFieldValues } = require('../services/agreementPdfService');
+const { getPdfPageCount, extractPagesText, normalizeFieldValues } = require('../services/agreementPdfService');
 const { detectTemplateFields, generateFilledAgreement } = require('../services/agreementFillService');
 const { isDocxBuffer } = require('../services/agreementDocxService');
 const { suggestDynamicFields } = require('../services/agreementAiService');
@@ -117,6 +127,111 @@ async function createSignedS3Url(filePath) {
   return getSignedUrl(s3Client, cmd, { expiresIn: 300 });
 }
 
+/** Convert + store template file (parallel DOCX upload, PDF conversion, R2 put, fast page count). */
+async function processTemplateFileUpload(file, storageId) {
+  const originalBuf = file.buffer;
+  const wordUpload = isWordFile(file.mimetype, file.originalname);
+
+  let docxBuf = null;
+  if (wordUpload) {
+    docxBuf = await ensureDocxBuffer(originalBuf, file.mimetype, file.originalname);
+    if (!docxBuf && isDocxBufferFile(originalBuf, file.originalname)) docxBuf = originalBuf;
+  }
+
+  let pdfBuffer;
+  let sourceType;
+  let conversion;
+  let pageCount = 0;
+  let pdfWarning = null;
+  let docxR2Key = null;
+
+  try {
+    const convPromise = normalizeTemplateUploadToPdf(originalBuf, file.mimetype, file.originalname, {
+      docxBuffer: docxBuf || undefined
+    });
+    const docxPutPromise =
+      docxBuf && wordUpload ? putAgreementDocx(docxBuf, storageId) : Promise.resolve(null);
+
+    const [normalized, uploadedDocxKey] = await Promise.all([convPromise, docxPutPromise]);
+    if (uploadedDocxKey) docxR2Key = uploadedDocxKey;
+
+    pdfBuffer = normalized.pdfBuffer;
+    sourceType = normalized.sourceType;
+    conversion = normalized.conversion;
+    if (!docxBuf && normalized.docxBuffer) {
+      docxBuf = normalized.docxBuffer;
+      if (!docxR2Key) docxR2Key = await putAgreementDocx(docxBuf, storageId);
+    }
+
+    if (pdfBuffer) {
+      const [r2Key, count] = await Promise.all([
+        putAgreementTemplate(pdfBuffer, storageId),
+        getPdfPageCount(pdfBuffer)
+      ]);
+      pageCount = count;
+      return {
+        r2Key,
+        docxR2Key,
+        fillMode: docxR2Key ? 'docx' : 'overlay',
+        pageCount,
+        convertedFrom: sourceType,
+        conversion,
+        warning: pdfWarning
+      };
+    }
+  } catch (convErr) {
+    if (!docxR2Key) throw convErr;
+    pdfWarning =
+      'DOCX saved for real text editing, but PDF preview could not be generated. ' +
+      'Install LibreOffice or fix Microsoft Word, then re-upload — or fill fields and use Preview on the share screen.';
+    console.warn('[agreements] PDF conversion failed; DOCX stored:', convErr.message);
+    sourceType = 'word';
+    conversion = 'docx-only';
+  }
+
+  return {
+    r2Key: null,
+    docxR2Key,
+    fillMode: docxR2Key ? 'docx' : 'overlay',
+    pageCount,
+    convertedFrom: sourceType,
+    conversion,
+    warning: pdfWarning
+  };
+}
+
+async function relocateTemplateR2Keys(template, tempId, r2Key, docxR2Key) {
+  if (!tempId || !isAgreementR2Configured()) return;
+  const id = template._id.toHexString();
+  if (tempId === id) return;
+
+  const updates = {};
+  const finalPdfKey = `agreements/templates/${id}/source.pdf`;
+  const finalDocxKey = `agreements/templates/${id}/source.docx`;
+
+  try {
+    if (r2Key && r2Key !== finalPdfKey) {
+      await copyAgreementObject(r2Key, finalPdfKey);
+      updates.r2Key = finalPdfKey;
+    }
+    if (docxR2Key && docxR2Key !== finalDocxKey) {
+      await copyAgreementObject(docxR2Key, finalDocxKey);
+      updates.docxR2Key = finalDocxKey;
+      updates.fillMode = 'docx';
+    }
+    if (Object.keys(updates).length) {
+      await AgreementTemplate.findByIdAndUpdate(template._id, updates);
+      if (updates.r2Key) template.r2Key = updates.r2Key;
+      if (updates.docxR2Key) {
+        template.docxR2Key = updates.docxR2Key;
+        template.fillMode = 'docx';
+      }
+    }
+  } catch (mvErr) {
+    console.warn('⚠️  Could not move template R2 key:', mvErr.message);
+  }
+}
+
 // ─── Template routes (ADMIN) ───────────────────────────────────────────────
 
 // GET /api/agreements/templates — list active templates
@@ -152,70 +267,71 @@ router.post('/templates/upload', verifyToken, checkRole(['ADMIN']), memUpload.si
       return res.status(503).json({ success: false, message: 'R2 storage is not configured' });
     }
     const tempId = new mongoose.Types.ObjectId().toHexString();
-    const originalBuf = req.file.buffer;
-    const wordUpload = isWordFile(req.file.mimetype, req.file.originalname);
-
-    let docxR2Key = null;
-    let docxBuf = null;
-    if (wordUpload) {
-      docxBuf = await ensureDocxBuffer(originalBuf, req.file.mimetype, req.file.originalname);
-      if (!docxBuf && isDocxBufferFile(originalBuf, req.file.originalname)) docxBuf = originalBuf;
-      if (docxBuf) docxR2Key = await putAgreementDocx(docxBuf, tempId);
-    }
-
-    let pdfBuffer;
-    let sourceType;
-    let conversion;
-    let pageCount = 0;
-    let pdfWarning = null;
-
-    try {
-      const normalized = await normalizeTemplateUploadToPdf(
-        originalBuf,
-        req.file.mimetype,
-        req.file.originalname
-      );
-      pdfBuffer = normalized.pdfBuffer;
-      sourceType = normalized.sourceType;
-      conversion = normalized.conversion;
-      if (!docxBuf && normalized.docxBuffer) {
-        docxBuf = normalized.docxBuffer;
-        docxR2Key = await putAgreementDocx(docxBuf, tempId);
-      }
-      const pages = await extractPagesText(pdfBuffer);
-      pageCount = pages.pageCount;
-    } catch (convErr) {
-      if (!docxR2Key) throw convErr;
-      pdfWarning =
-        'DOCX saved for real text editing, but PDF preview could not be generated. ' +
-        'Install LibreOffice or fix Microsoft Word, then re-upload — or fill fields and use Preview on the share screen.';
-      console.warn('[agreements] PDF conversion failed; DOCX stored:', convErr.message);
-      sourceType = 'word';
-      conversion = 'docx-only';
-    }
-
-    let r2Key = null;
-    if (pdfBuffer) {
-      r2Key = await putAgreementTemplate(pdfBuffer, tempId);
-    }
-
-    res.json({
-      success: true,
-      tempId,
-      r2Key,
-      docxR2Key,
-      fillMode: docxR2Key ? 'docx' : 'overlay',
-      pageCount,
-      convertedFrom: sourceType,
-      conversion,
-      warning: pdfWarning
-    });
+    const result = await processTemplateFileUpload(req.file, tempId);
+    res.json({ success: true, tempId, ...result });
   } catch (err) {
     console.error('❌ template upload:', err);
     const status = /LibreOffice|Microsoft Word|Save As|Only PDF|formatting/i.test(err.message) ? 400 : 500;
     res.status(status).json({ success: false, message: err.message });
   }
 });
+
+// POST /api/agreements/templates/upload-and-create — one round-trip: upload, convert, store, create DB row
+router.post(
+  '/templates/upload-and-create',
+  verifyToken,
+  checkRole(['ADMIN']),
+  memUpload.single('pdf'),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ success: false, message: 'File required (PDF, DOC, or DOCX)' });
+      const name = String(req.body?.name || '').trim();
+      if (!name) return res.status(400).json({ success: false, message: 'name required' });
+      if (!isAgreementR2Configured()) {
+        return res.status(503).json({ success: false, message: 'R2 storage is not configured' });
+      }
+
+      const slug = slugify(name);
+      const existing = await AgreementTemplate.findOne({ slug });
+      if (existing) {
+        return res.status(409).json({ success: false, message: 'A template with this name already exists' });
+      }
+
+      const templateId = new mongoose.Types.ObjectId();
+      const storageId = templateId.toHexString();
+      const uploaded = await processTemplateFileUpload(req.file, storageId);
+      if (!uploaded.r2Key && !uploaded.docxR2Key) {
+        return res.status(400).json({ success: false, message: 'Upload failed — no file stored' });
+      }
+
+      const template = await AgreementTemplate.create({
+        _id: templateId,
+        name,
+        slug,
+        description: String(req.body?.description || '').trim(),
+        r2Key: uploaded.r2Key || '',
+        docxR2Key: uploaded.docxR2Key || '',
+        fillMode: uploaded.fillMode,
+        pageCount: uploaded.pageCount || 0,
+        dynamicFields: [],
+        createdBy: req.user.id
+      });
+
+      res.status(201).json({
+        success: true,
+        template,
+        tempId: storageId,
+        ...uploaded
+      });
+    } catch (err) {
+      console.error('❌ template upload-and-create:', err);
+      const status = /LibreOffice|Microsoft Word|Save As|Only PDF|formatting|already exists/i.test(err.message)
+        ? 400
+        : 500;
+      res.status(status).json({ success: false, message: err.message });
+    }
+  }
+);
 
 // POST /api/agreements/templates — create template metadata
 router.post('/templates', verifyToken, checkRole(['ADMIN']), async (req, res) => {
@@ -242,33 +358,7 @@ router.post('/templates', verifyToken, checkRole(['ADMIN']), async (req, res) =>
       createdBy: req.user.id
     });
 
-    // Move R2 keys to use the real template ID (best-effort)
-    if (tempId && isAgreementR2Configured()) {
-      try {
-        const id = template._id.toHexString();
-        const updates = {};
-        if (r2Key) {
-          const buf = await getAgreementTemplateBuffer(r2Key);
-          updates.r2Key = await putAgreementTemplate(buf, id);
-        }
-        if (docxR2Key) {
-          const { getAgreementDocxBuffer } = require('../services/agreementR2Service');
-          const docxBuf = await getAgreementDocxBuffer(docxR2Key);
-          updates.docxR2Key = await putAgreementDocx(docxBuf, id);
-          updates.fillMode = 'docx';
-        }
-        if (Object.keys(updates).length) {
-          await AgreementTemplate.findByIdAndUpdate(template._id, updates);
-          if (updates.r2Key) template.r2Key = updates.r2Key;
-          if (updates.docxR2Key) {
-            template.docxR2Key = updates.docxR2Key;
-            template.fillMode = 'docx';
-          }
-        }
-      } catch (mvErr) {
-        console.warn('⚠️  Could not move template R2 key:', mvErr.message);
-      }
-    }
+    await relocateTemplateR2Keys(template, tempId, r2Key, docxR2Key);
 
     res.status(201).json({ success: true, template });
   } catch (err) {
@@ -303,15 +393,20 @@ router.post('/templates/:id/upload-docx', verifyToken, checkRole(['ADMIN']), mem
       return res.status(400).json({ success: false, message: 'Could not read .docx file' });
     }
 
-    const docxR2Key = await putAgreementDocx(docxBuf, id);
-
-    const updates = { docxR2Key, fillMode: 'docx' };
+    const updates = { fillMode: 'docx' };
     let warning = null;
 
     try {
-      const { pdfBuffer } = await convertWordToPdf(docxBuf, 'source.docx');
-      updates.r2Key = await putAgreementTemplate(pdfBuffer, id);
-      const { pageCount } = await extractPagesText(pdfBuffer);
+      const [docxR2Key, { pdfBuffer }] = await Promise.all([
+        putAgreementDocx(docxBuf, id),
+        convertWordToPdf(docxBuf, 'source.docx')
+      ]);
+      updates.docxR2Key = docxR2Key;
+      const [r2Key, pageCount] = await Promise.all([
+        putAgreementTemplate(pdfBuffer, id),
+        getPdfPageCount(pdfBuffer)
+      ]);
+      updates.r2Key = r2Key;
       updates.pageCount = pageCount;
     } catch (convErr) {
       warning =
@@ -582,17 +677,35 @@ router.post('/instances/preview', verifyToken, checkRole(['ADMIN']), async (req,
 // POST /api/agreements/instances/share — generate, save, optionally email
 router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
-    const { templateId, studentId, fieldValues, displayName, sendEmail } = req.body;
-    if (!templateId || !studentId || !displayName) {
-      return res.status(400).json({ success: false, message: 'templateId, studentId, displayName required' });
+    const { templateId, studentId, studentEmail, fieldValues, displayName, sendEmail } = req.body;
+    if (!templateId || !displayName) {
+      return res.status(400).json({ success: false, message: 'templateId and displayName required' });
     }
 
-    const [template, student] = await Promise.all([
-      AgreementTemplate.findById(templateId).lean(),
-      User.findById(studentId).select('name email').lean()
-    ]);
+    const template = await AgreementTemplate.findById(templateId).lean();
     if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
-    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    let studentOid = parseStudentObjectId(studentId);
+    let student = null;
+    if (studentOid) {
+      student = await User.findById(studentOid).select('name email').lean();
+    }
+    if (!student && studentEmail) {
+      student = await User.findOne({
+        email: String(studentEmail).trim().toLowerCase(),
+        role: 'STUDENT'
+      })
+        .select('name email')
+        .lean();
+      if (student) studentOid = String(student._id);
+    }
+    if (!student) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Student not found. Open Generate Agreement from the student document profile, or ensure the student email is correct.'
+      });
+    }
 
     const fields = template.dynamicFields || [];
     const mappedValues = normalizeFieldValues(fields, fieldValues);
@@ -608,7 +721,7 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
 
     // Upload generated PDF to S3
     const safeDisplay = displayName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const s3Key = `uploads/agreements/${studentId}/${template.slug}_${Date.now()}_${safeDisplay}.pdf`;
+    const s3Key = `uploads/agreements/${studentOid}/${template.slug}_${Date.now()}_${safeDisplay}.pdf`;
     const s3Url = await uploadBufferToS3(filledBuf, s3Key, 'application/pdf');
 
     // Ensure a DocumentRequirement exists for this agreement type
@@ -653,29 +766,30 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
     if (sendEmail !== false && isDocumentEmailConfigured()) {
       try {
         const transporter = getDocumentTransporter();
-        const portalUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
+        const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+        const docsUrl = `${portalUrl}/student-documents`;
         await transporter.sendMail({
           from: getDocumentFromAddress(),
           to: student.email,
           cc: getDocumentCc(),
-          subject: `Agreement Ready for Signature: ${displayName}`,
+          subject: `Agreement ready for signature — ${displayName}`,
           attachments: [{ filename: `${safeDisplay}.pdf`, content: filledBuf, contentType: 'application/pdf' }],
           html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-              <div style="background:#1a237e;color:white;padding:20px;text-align:center;">
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+              <div style="background:linear-gradient(135deg,#1a237e,#3949ab);color:white;padding:22px;text-align:center;">
                 <h2 style="margin:0;">Glück Global</h2>
               </div>
               <div style="padding:24px;">
-                <p>Dear ${student.name},</p>
-                <p>Please find your <strong>${displayName}</strong> agreement attached to this email.</p>
-                <p>Kindly review the document, sign it, and upload the signed copy to your student portal:</p>
+                <p>Dear <strong>${student.name}</strong>,</p>
+                <p>Your agreement <strong>${displayName}</strong> is ready. The PDF is attached to this email.</p>
+                <p>Please review it, sign it, and upload the signed copy in the student portal.</p>
                 <div style="text-align:center;margin:24px 0;">
-                  <a href="${portalUrl}/student/documents" style="background:#1a237e;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;">
-                    Upload Signed Agreement
+                  <a href="${docsUrl}" style="background:#1565c0;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;">
+                    Check it out
                   </a>
                 </div>
-                <p>If you have any questions, please contact your advisor.</p>
-                <p>Regards,<br>Glück Global Team</p>
+                <p style="font-size:13px;color:#666;">Portal: <a href="${docsUrl}">${docsUrl}</a></p>
+                <p>Regards,<br><strong>Glück Global Team</strong></p>
               </div>
             </div>`
         });
@@ -688,7 +802,10 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
       success: true,
       agreement,
       studentDocumentId: docRecord._id,
-      downloadUrl: `/api/agreements/instances/${agreement._id}/download`
+      downloadUrl: `/api/agreements/instances/${agreement._id}/download`,
+      message: sendEmail !== false
+        ? 'Agreement saved to student portal and email sent'
+        : 'Agreement saved to student portal — student can view and upload signed copy'
     });
   } catch (err) {
     console.error('❌ instance share:', err);
@@ -700,10 +817,13 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
 router.get('/instances', verifyToken, async (req, res) => {
   try {
     const isAdmin = req.user.role === 'ADMIN';
-    const studentId = isAdmin ? (req.query.studentId || null) : req.user.id;
-    if (!studentId) return res.status(400).json({ success: false, message: 'studentId required' });
+    const rawStudentId = isAdmin ? req.query.studentId : req.user.id;
+    const studentOid = parseStudentObjectId(rawStudentId);
+    if (!studentOid) {
+      return res.status(400).json({ success: false, message: 'Valid studentId required' });
+    }
 
-    const agreements = await StudentAgreement.find({ studentId })
+    const agreements = await StudentAgreement.find({ studentId: studentOid })
       .populate('templateId', 'name slug dynamicFields')
       .sort({ sentAt: -1 })
       .lean();
@@ -736,18 +856,39 @@ router.get('/instances/:id/download', verifyToken, async (req, res) => {
       return res.redirect(signedUrl);
     }
 
-    // Regenerate filled PDF from template + stored values (always matches form input)
+    const filename = agreement.generatedFile?.fileName || `${agreement.displayName || 'agreement'}.pdf`;
+    const safeName = filename.replace(/"/g, '');
+
+    if (agreement.generatedFile?.s3Key) {
+      try {
+        const { GetObjectCommand } = require('@aws-sdk/client-s3');
+        const resp = await s3Client.send(
+          new GetObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: agreement.generatedFile.s3Key
+          })
+        );
+        const chunks = [];
+        for await (const chunk of resp.Body) chunks.push(chunk);
+        const buf = Buffer.concat(chunks);
+        res.set('Content-Type', 'application/pdf');
+        res.set('Content-Disposition', `inline; filename="${safeName}"`);
+        return res.send(buf);
+      } catch (s3Err) {
+        console.warn('[agreements] S3 read failed, regenerating PDF:', s3Err.message);
+      }
+    }
+
     const template = await AgreementTemplate.findById(agreement.templateId).lean();
-    if (!template?.r2Key) {
+    if (!template?.r2Key && !template?.docxR2Key) {
       return res.status(404).json({ success: false, message: 'Template not found' });
     }
     const fv = agreement.fieldValues || {};
     const mapped = normalizeFieldValues(template.dynamicFields || [], fv);
     const { pdfBuffer: filledBuf } = await generateFilledAgreement(template, mapped);
 
-    const filename = agreement.generatedFile?.fileName || `${agreement.displayName || 'agreement'}.pdf`;
     res.set('Content-Type', 'application/pdf');
-    res.set('Content-Disposition', `inline; filename="${filename.replace(/"/g, '')}"`);
+    res.set('Content-Disposition', `inline; filename="${safeName}"`);
     res.send(filledBuf);
   } catch (err) {
     console.error('❌ agreement download:', err);

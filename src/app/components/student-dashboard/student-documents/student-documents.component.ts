@@ -161,13 +161,30 @@ export class StudentDocumentsComponent implements OnInit {
   }
 
   viewAgreement(a: StudentAgreement): void {
-    this.agreementService.downloadInstance(a._id, 'generated').subscribe({
+    const type = a.signedFile && a.status !== 'SENT' ? 'signed' : 'generated';
+    this.agreementService.downloadInstance(a._id, type).subscribe({
       next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        try {
+          this.documentService.openBlobInNewTab(blob);
+        } catch (e: any) {
+          this.showError(e?.message || 'Allow popups to view the document');
+        }
       },
       error: (e) => this.showError(e.error?.message || 'Could not open agreement')
+    });
+  }
+
+  viewDocumentFile(doc: StudentDocument): void {
+    if (!doc?._id || doc.fileName === 'NO_FILE_UPLOADED') return;
+    this.documentService.previewDocument(doc._id).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob, doc.mimeType || 'application/pdf');
+        } catch (e: any) {
+          this.showError(e?.message || 'Allow popups to view the document');
+        }
+      },
+      error: () => this.showError('Could not open document preview')
     });
   }
 

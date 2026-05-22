@@ -130,6 +130,59 @@ async function sendDocumentApprovedEmail({ studentName, studentEmail, documentNa
   return true;
 }
 
+/**
+ * Email student when admin uploads a document on their behalf.
+ */
+async function sendDocumentAddedByAdminEmail({ studentName, studentEmail, documentName }) {
+  if (!isDocumentEmailConfigured() || !studentEmail) return false;
+
+  const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const docsUrl = `${portalUrl}/student-documents`;
+  const safeName = String(studentName || 'Student').trim();
+  const safeDoc = String(documentName || 'document').trim();
+
+  const transporter = getDocumentTransporter();
+  await transporter.sendMail({
+    from: getDocumentFromAddress(),
+    to: studentEmail,
+    cc: getDocumentCc(),
+    subject: `New document added to your portal — ${safeDoc}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); color: white; padding: 22px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Glück Global</h2>
+          <p style="margin: 8px 0 0; font-size: 14px; opacity: 0.9;">Student Document Portal</p>
+        </div>
+        <div style="padding: 28px 24px; background: #ffffff;">
+          <p style="margin: 0 0 12px; font-size: 15px; color: #334155;">Dear <strong>${safeName}</strong>,</p>
+          <p style="margin: 0 0 16px; font-size: 15px; color: #475569; line-height: 1.5;">
+            A new document has been added to your account by our admin team.
+          </p>
+          <div style="background: #f0f4ff; border-left: 4px solid #3949ab; padding: 14px 16px; border-radius: 0 8px 8px 0; margin: 0 0 20px;">
+            <p style="margin: 0; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Document</p>
+            <p style="margin: 6px 0 0; font-size: 17px; font-weight: 600; color: #1a237e;">${safeDoc}</p>
+          </div>
+          <p style="margin: 0 0 20px; font-size: 14px; color: #475569;">
+            Sign in to review the file, download it if needed, and complete any remaining uploads from your checklist.
+          </p>
+          <div style="text-align: center; margin: 28px 0 8px;">
+            <a href="${docsUrl}" style="display: inline-block; background: #1565c0; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+              Check it out
+            </a>
+          </div>
+          <p style="margin: 20px 0 0; font-size: 12px; color: #94a3b8; text-align: center;">
+            Or open: <a href="${docsUrl}" style="color: #3949ab;">${docsUrl}</a>
+          </p>
+        </div>
+        <div style="background: #f8fafc; padding: 14px 24px; text-align: center; font-size: 12px; color: #94a3b8;">
+          Glück Global &bull; This is an automated message. Please do not reply unless you need assistance.
+        </div>
+      </div>
+    `
+  });
+  return true;
+}
+
 module.exports = {
   getDocumentTransporter,
   getDocumentFromAddress,
@@ -137,4 +190,5 @@ module.exports = {
   isDocumentEmailConfigured,
   sendDocumentReuploadEmail,
   sendDocumentApprovedEmail,
+  sendDocumentAddedByAdminEmail,
 };

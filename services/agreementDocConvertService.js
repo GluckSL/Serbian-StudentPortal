@@ -250,7 +250,7 @@ async function convertWordToPdf(buffer, originalname) {
 /**
  * @returns {Promise<{ pdfBuffer: Buffer, sourceType: 'pdf' | 'word', conversion?: string, docxBuffer?: Buffer }>}
  */
-async function normalizeTemplateUploadToPdf(buffer, mimetype, originalname) {
+async function normalizeTemplateUploadToPdf(buffer, mimetype, originalname, options = {}) {
   if (!buffer?.length) throw new Error('Empty file uploaded');
 
   if (!isAllowedTemplateUpload(mimetype, originalname)) {
@@ -262,7 +262,8 @@ async function normalizeTemplateUploadToPdf(buffer, mimetype, originalname) {
   }
 
   if (isWordFile(mimetype, originalname)) {
-    const docxBuffer = (await ensureDocxBuffer(buffer, mimetype, originalname)) || buffer;
+    const docxBuffer =
+      options.docxBuffer || (await ensureDocxBuffer(buffer, mimetype, originalname)) || buffer;
     const nameForPdf = isDocxBuffer(docxBuffer, originalname) ? 'source.docx' : originalname;
     const { pdfBuffer, conversion } = await convertWordToPdf(docxBuffer, nameForPdf);
     return { pdfBuffer, sourceType: 'word', conversion, docxBuffer };
