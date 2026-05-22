@@ -42,8 +42,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   room: Room | null = null;
 
-  isMicOn = true;
-  isCamOn = true;
+  isMicOn = false;
+  isCamOn = false;
   isScreenSharing = false;
 
   mainParticipant: ParticipantInfo | null = null;
@@ -176,22 +176,23 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       if (pub.source === Track.Source.Microphone) {
         this.isMicOn = !pub.isMuted;
       }
-      if (pub.source === Track.Source.Camera) {
-        this.isCamOn = !pub.isMuted;
-        if (!pub.isMuted && pub.videoTrack) {
-          this.selfViewStream = new MediaStream([pub.videoTrack.mediaStreamTrack]);
-          this.selfViewTrack = pub.videoTrack.mediaStreamTrack;
-          this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
-        } else if (pub.isMuted) {
-          this.selfViewStream = null;
-          this.selfViewTrack?.stop();
-          this.selfViewTrack = null;
-          if (this.selfVideoEl?.nativeElement) {
-            this.selfVideoEl.nativeElement.pause();
-            this.selfVideoEl.nativeElement.srcObject = null;
+        if (pub.source === Track.Source.Camera) {
+          this.isCamOn = !pub.isMuted;
+          if (!pub.isMuted && pub.videoTrack) {
+            this.selfViewStream = new MediaStream([pub.videoTrack.mediaStreamTrack]);
+            this.selfViewTrack = pub.videoTrack.mediaStreamTrack;
+            this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
+          } else if (pub.isMuted) {
+            this.selfViewStream = null;
+            // Don't stop selfViewTrack — it's the same track published to
+            // LiveKit.  Stopping the MediaStreamTrack would prevent unmute
+            // from working (the camera would stay black).
+            if (this.selfVideoEl?.nativeElement) {
+              this.selfVideoEl.nativeElement.pause();
+              this.selfVideoEl.nativeElement.srcObject = null;
+            }
           }
         }
-      }
       this.updateParticipantList();
     });
   };
@@ -233,6 +234,9 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
         this.startTimer();
         this.setupSocket();
         this.setupLocalTracks();
+        // Register event handlers for already-connected participants
+        // (participantConnected only fires for participants who join *after* us)
+        this.room?.remoteParticipants.forEach(p => this.onParticipantConnected(p));
         this.updateParticipantList();
         this.selectMainParticipant();
         this.room?.startAudio().catch(() => {});
@@ -384,21 +388,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   }
 
   private async setupLocalTracks(): Promise<void> {
-    if (!this.room) return;
-
-    await this.room.localParticipant.setMicrophoneEnabled(true);
-
-    const track = await createLocalVideoTrack({
-      resolution: VideoPresets.h720.resolution,
-    });
-    const options: any = { source: Track.Source.Camera };
-    if (!this.isStudent) {
-      options.name = `teacher-camera-${this.userId}`;
-    }
-    await this.room.localParticipant.publishTrack(track, options);
-    this.selfViewStream = new MediaStream([track.mediaStreamTrack]);
-    this.selfViewTrack = track.mediaStreamTrack;
-    this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
+    // Camera and mic start off — user activates via toggle buttons.
+    // No tracks are published here.
   }
 
   private attachStreamToElement(elRef: ElementRef<HTMLVideoElement> | undefined, stream: MediaStream): void {
@@ -624,9 +615,30 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.room.localParticipant.setMicrophoneEnabled(!this.isMicOn);
   }
 
-  toggleCam(): void {
+  async toggleCam(): Promise<void> {
     if (!this.room) return;
-    this.room.localParticipant.setCameraEnabled(!this.isCamOn);
+    const enable = !this.isCamOn;
+    if (enable) {
+      const existing = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
+      if (existing) {
+        await existing.unmute();
+      } else {
+        const track = await createLocalVideoTrack({
+          resolution: VideoPresets.h720.resolution,
+        });
+        const options: any = { source: Track.Source.Camera };
+        if (!this.isStudent) {
+          options.name = `teacher-camera-${this.userId}`;
+        }
+        await this.room.localParticipant.publishTrack(track, options);
+        this.selfViewStream = new MediaStream([track.mediaStreamTrack]);
+        this.selfViewTrack = track.mediaStreamTrack;
+        this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
+      }
+    } else {
+      const pub = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
+      if (pub) await pub.mute();
+    }
   }
 
   async toggleScreenShare(): Promise<void> {
