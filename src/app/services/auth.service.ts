@@ -43,6 +43,7 @@ interface User {
   sidebarPermissions?: string[];
   teacherTabPermissions?: string[];
   sidebarAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
+  sidebarDeletePermissions?: string[];
   teacherTabAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
   batch?: string;
   medium?: string;

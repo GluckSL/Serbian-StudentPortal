@@ -343,6 +343,37 @@ export class NavService {
     return rank[current] >= rank[required];
   }
 
+  normalizeSidebarDeletePermissions(
+    deletePermissions: string[] = [],
+    accessLevels: Record<string, AccessLevel> = {}
+  ): string[] {
+    const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
+    const normalized: string[] = [];
+    const levels = this.normalizeAccessLevels(accessLevels);
+
+    for (const tabId of deletePermissions) {
+      if (!validIds.has(tabId)) continue;
+      const level = levels[tabId] || this.getTabAccessLevel(tabId, levels);
+      if (this.canAccessLevel(level || undefined, 'edit')) {
+        normalized.push(tabId);
+      }
+    }
+    return Array.from(new Set(normalized));
+  }
+
+  /** SUB_ADMIN: edit access required; full always allows delete; otherwise tab must be in deletePermissions. */
+  canDeleteOnTab(
+    tabId: string,
+    accessLevels: Record<string, AccessLevel> = {},
+    deletePermissions: string[] = [],
+    fallbackPermissions: string[] = []
+  ): boolean {
+    const level = this.getTabAccessLevel(tabId, accessLevels, fallbackPermissions);
+    if (!this.canAccessLevel(level || undefined, 'edit')) return false;
+    if (level === 'full') return true;
+    return (deletePermissions || []).includes(tabId);
+  }
+
   getTabAccessLevel(
     tabId: string,
     accessLevels: Record<string, AccessLevel> = {},
