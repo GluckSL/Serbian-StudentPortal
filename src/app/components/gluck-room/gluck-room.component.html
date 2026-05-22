@@ -44,8 +44,11 @@
             <mat-icon>menu</mat-icon>
           </button>
           <span class="timer">{{ formatTime(elapsedSeconds) }}</span>
-          <button mat-mini-fab *ngIf="isHostUser" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
+          <button mat-mini-fab *ngIf="isHostUser && !isEnding" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
             <mat-icon>call_end</mat-icon>
+          </button>
+          <button mat-mini-fab *ngIf="isHostUser && isEnding" color="warn" disabled class="ctrl-btn leave-btn">
+            <mat-spinner diameter="18"></mat-spinner>
           </button>
           <button mat-mini-fab (click)="leave()" class="ctrl-btn leave-btn">
             <mat-icon>logout</mat-icon>
@@ -161,6 +164,9 @@
             </div>
           </mat-card-content>
           <mat-card-actions align="end">
+            <button *ngIf="session.status === 'active'" mat-raised-button color="primary" (click)="onJoinClick()">
+              <mat-icon>videocam</mat-icon> Join Now
+            </button>
             <button *ngIf="session.status === 'scheduled' && isHostUser" mat-raised-button color="primary" disabled>
               Waiting to start...
             </button>

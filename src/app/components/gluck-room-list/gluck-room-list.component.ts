@@ -31,6 +31,8 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   totalCount = 0;
   tabIndex = 0;
 
+  actionLoadingId: string | null = null;
+
   availableBatches: string[] = [];
 
   private loadSeq = 0;
@@ -147,26 +149,36 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   startSession(id: string, event: Event): void {
     event.stopPropagation();
     if (!confirm('Start this session? This will create a LiveKit room and begin recording.')) return;
+    this.actionLoadingId = id;
     this.gluckRoomService.startSession(id).subscribe({
       next: (res) => {
+        this.actionLoadingId = null;
         if (res.success) this.loadSessions();
         else this.error = res.message;
       },
-      error: (err) => { this.error = err.error?.message || 'Failed to start session'; }
+      error: (err) => {
+        this.actionLoadingId = null;
+        this.error = err.error?.message || 'Failed to start session';
+      }
     });
   }
 
   endSession(id: string, event: Event): void {
     event.stopPropagation();
     if (!confirm('End this session? Recording will be finalized and uploaded.')) return;
+    this.actionLoadingId = id;
     this.gluckRoomService.endSession(id).subscribe({
       next: (res) => {
+        this.actionLoadingId = null;
         if (res.success) {
           this.loadSessions();
           this.openRecording(id);
         } else this.error = res.message;
       },
-      error: (err) => { this.error = err.error?.message || 'Failed to end session'; }
+      error: (err) => {
+        this.actionLoadingId = null;
+        this.error = err.error?.message || 'Failed to end session';
+      }
     });
   }
 

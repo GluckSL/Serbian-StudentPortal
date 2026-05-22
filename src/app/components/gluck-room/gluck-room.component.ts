@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Room, RoomEvent, RemoteParticipant, Participant, Track, VideoPresets, ParticipantEvent, TrackPublication, VideoTrack, createLocalVideoTrack } from 'livekit-client';
+import { Room, RoomEvent, RemoteParticipant, Participant, Track, VideoPresets, ParticipantEvent, TrackPublication, VideoTrack, RemoteTrack, RemoteTrackPublication, createLocalVideoTrack } from 'livekit-client';
 import { MaterialModule } from '../../shared/material.module';
 import { GluckRoomService } from '../../services/gluck-room.service';
 import { GluckRoomSocketService } from '../../services/gluck-room-socket.service';
@@ -63,6 +63,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   elapsedSeconds = 0;
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
+  isEnding = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -139,8 +140,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           this.session = res.data;
           const host = res.data.hostId;
           this.hostId = typeof host === 'object' ? host._id : host;
-          if (res.data.status === 'active') this.joinSession();
-          else this.loading = false;
+          this.loading = false;
         } else {
           this.error = res.message || 'Session not found';
           this.loading = false;
@@ -151,6 +151,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
         this.loading = false;
       }
     });
+  }
+
+  onJoinClick(): void {
+    this.loading = true;
+    this.joinSession();
   }
 
   private joinSession(): void {
@@ -212,8 +217,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     });
   };
 
-  private onRemoteTrackSubscribed = (): void => {
+  private onRemoteTrackSubscribed = (track: RemoteTrack, publication: RemoteTrackPublication): void => {
     this.ngZone.run(() => {
+      if (track.kind === 'audio') {
+        track.attach();
+      }
       this.updateParticipantList();
       this.attachTileVideos();
       this.selectMainParticipant();
@@ -243,10 +251,16 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
         this.setupLocalTracks();
         // Register event handlers for already-connected participants
         // (participantConnected only fires for participants who join *after* us)
-        this.room?.remoteParticipants.forEach(p => this.onParticipantConnected(p));
+        this.room?.remoteParticipants.forEach(p => {
+          this.onParticipantConnected(p);
+          // Attach any existing audio tracks from participants already in the room
+          p.audioTrackPublications.forEach((pub) => {
+            if (pub.track) pub.track.attach();
+          });
+        });
         this.updateParticipantList();
         this.selectMainParticipant();
-        this.room?.startAudio().catch(() => {});
+        this.room?.startAudio().catch((e) => console.warn('startAudio failed:', e));
         setTimeout(() => {
           if (this.selfViewStream) {
             this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
@@ -617,10 +631,18 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     }, 1000);
   }
 
-  toggleMic(): void {
+  async toggleMic(): Promise<void> {
     if (!this.room) return;
-    this.isMicOn = !this.isMicOn;
-    this.room.localParticipant.setMicrophoneEnabled(this.isMicOn);
+    const target = !this.isMicOn;
+    this.isMicOn = target;
+    try {
+      if (target) {
+        await this.room.startAudio().catch((e) => console.warn('startAudio in toggleMic:', e));
+      }
+      await this.room.localParticipant.setMicrophoneEnabled(target);
+    } catch {
+      this.isMicOn = !target;
+    }
   }
 
   async toggleCam(): Promise<void> {
@@ -775,15 +797,17 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   endSession(): void {
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id) return;
+    if (!id || this.isEnding) return;
     if (!confirm('End this session for all participants?')) return;
+    this.isEnding = true;
     this.gluckRoomService.endSession(id).subscribe({
       next: (res) => {
+        this.isEnding = false;
         if (res.success) {
           this.showSessionInfoAndClose();
         }
       },
-      error: () => {}
+      error: () => { this.isEnding = false; }
     });
   }
 

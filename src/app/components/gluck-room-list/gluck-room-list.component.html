@@ -91,14 +91,20 @@
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef class="col-actions">Actions</th>
           <td mat-cell *matCellDef="let s" class="col-actions">
-            <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-flat-button color="primary" (click)="startSession(s._id, $event)">
+            <button *ngIf="s.status === 'scheduled' && isHost(s) && actionLoadingId !== s._id" mat-flat-button color="primary" (click)="startSession(s._id, $event)">
               Start
+            </button>
+            <button *ngIf="s.status === 'scheduled' && isHost(s) && actionLoadingId === s._id" mat-flat-button color="primary" disabled>
+              <mat-spinner diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner> Starting...
             </button>
             <button *ngIf="s.status === 'active'" mat-flat-button class="join-btn" (click)="joinSession(s._id, $event)">
               Join
             </button>
-            <button *ngIf="s.status === 'active' && isHost(s)" mat-flat-button color="warn" (click)="endSession(s._id, $event)">
+            <button *ngIf="s.status === 'active' && isHost(s) && actionLoadingId !== s._id" mat-flat-button color="warn" (click)="endSession(s._id, $event)">
               End
+            </button>
+            <button *ngIf="s.status === 'active' && isHost(s) && actionLoadingId === s._id" mat-flat-button color="warn" disabled>
+              <mat-spinner diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner> Ending...
             </button>
             <button *ngIf="s.status === 'ended'" mat-stroked-button (click)="openRecording(s._id)">
               <mat-icon>play_circle</mat-icon> Recording
