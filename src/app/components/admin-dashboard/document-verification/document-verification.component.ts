@@ -13,6 +13,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { EMPTY, expand, reduce } from 'rxjs';
 import { Router } from '@angular/router';
+import { normalizeStudentObjectId, studentIdFromRef } from '../../../utils/student-id.util';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 interface StudentDocument {
@@ -240,9 +241,8 @@ export class DocumentVerificationComponent implements OnInit {
     // Group documents by student
     const studentMap = new Map<string, any>();
     this.documents.forEach(doc => {
-      const id = typeof doc.studentId === 'object' && doc.studentId !== null
-        ? (doc.studentId as any)._id : doc.studentId;
-      const idStr = String(id);
+      const idStr = studentIdFromRef(doc.studentId);
+      if (!idStr) return;
       if (!studentMap.has(idStr)) {
         const snap = this.getDocCrmSnapshot(doc);
         studentMap.set(idStr, {
@@ -522,14 +522,11 @@ export class DocumentVerificationComponent implements OnInit {
   }
 
   private getStudentId(student: any): string {
-    return String(
-      student?._id ??
-      student?.id ??
-      student?.studentId ??
-      student?.userId ??
-      student?.uid ??
-      ''
+    const fromFields = normalizeStudentObjectId(
+      student?._id ?? student?.id ?? student?.studentId ?? student?.userId ?? student?.uid
     );
+    if (fromFields) return fromFields;
+    return studentIdFromRef(student?.studentId);
   }
 
   getStudentName(student: any): string {
@@ -770,12 +767,7 @@ export class DocumentVerificationComponent implements OnInit {
 
     // Fallback: count unique students from documents
     const uniqueStudents = new Set(
-      this.documents.map(d => {
-        const id = typeof d.studentId === 'object' && d.studentId !== null
-          ? (d.studentId as any)._id
-          : d.studentId;
-        return String(id);
-      })
+      this.documents.map((d) => studentIdFromRef(d.studentId)).filter((id) => !!id)
     );
     this.stats.totalStudents = uniqueStudents.size;
   }
@@ -844,20 +836,16 @@ export class DocumentVerificationComponent implements OnInit {
   buildStudentGroups(): void {
     const docsByStudent = new Map<string, StudentDocument[]>();
     for (const doc of this.documents) {
-      const id = typeof doc.studentId === 'object' && doc.studentId !== null
-        ? (doc.studentId as any)._id
-        : doc.studentId;
-      const idStr = String(id);
+      const idStr = studentIdFromRef(doc.studentId);
+      if (!idStr) continue;
       if (!docsByStudent.has(idStr)) docsByStudent.set(idStr, []);
       docsByStudent.get(idStr)!.push(doc);
     }
 
     const visibleDocsByStudent = new Map<string, StudentDocument[]>();
     for (const doc of this.filteredDocuments) {
-      const id = typeof doc.studentId === 'object' && doc.studentId !== null
-        ? (doc.studentId as any)._id
-        : doc.studentId;
-      const idStr = String(id);
+      const idStr = studentIdFromRef(doc.studentId);
+      if (!idStr) continue;
       if (!visibleDocsByStudent.has(idStr)) visibleDocsByStudent.set(idStr, []);
       visibleDocsByStudent.get(idStr)!.push(doc);
     }
@@ -877,7 +865,7 @@ export class DocumentVerificationComponent implements OnInit {
       // Build from full student list so everyone is visible (even with 0 docs)
       for (const student of this.students) {
         const studentId = this.getStudentId(student);
-        if (!studentId) continue;
+        if (!studentId || studentId === 'null') continue;
 
         if (!this.studentMatchesCrmFilters(student)) continue;
 
@@ -916,10 +904,8 @@ export class DocumentVerificationComponent implements OnInit {
       // Fallback to documents only if student list isn't loaded yet
       const groupMap = new Map<string, any>();
       this.filteredDocuments.forEach(doc => {
-        const id = typeof doc.studentId === 'object' && doc.studentId !== null
-          ? (doc.studentId as any)._id
-          : doc.studentId;
-        const idStr = String(id);
+        const idStr = studentIdFromRef(doc.studentId);
+        if (!idStr) return;
         const snap = this.getDocCrmSnapshot(doc);
 
         if (!groupMap.has(idStr)) {

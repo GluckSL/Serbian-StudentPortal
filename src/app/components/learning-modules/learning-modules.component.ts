@@ -494,7 +494,14 @@ export class LearningModulesComponent implements OnInit {
     
     // Admins can delete any module
     if (this.currentUser.role === 'ADMIN' || this.currentUser.role === 'TEACHER_ADMIN') return true;
-    if (this.currentUser.role === 'SUB_ADMIN') return this.hasSubAdminPermission('modules', 'full');
+    if (this.currentUser.role === 'SUB_ADMIN') {
+      return this.navService.canDeleteOnTab(
+        'modules',
+        this.currentUser?.sidebarAccessLevels || {},
+        this.currentUser?.sidebarDeletePermissions || [],
+        this.currentUser?.sidebarPermissions || []
+      );
+    }
     
     // Teachers can delete modules they created
     if (this.currentUser.role === 'TEACHER') {

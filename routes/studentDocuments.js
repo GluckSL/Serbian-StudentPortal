@@ -673,12 +673,29 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
     });
     
     await document.save();
+
+    let emailSent = false;
+    try {
+      const { sendDocumentAddedByAdminEmail, isDocumentEmailConfigured } = require('../config/documentEmailConfig');
+      if (isDocumentEmailConfigured()) {
+        emailSent = await sendDocumentAddedByAdminEmail({
+          studentName: student.name,
+          studentEmail: student.email,
+          documentName: documentName || requirement.label || requirement.name
+        });
+      }
+    } catch (mailErr) {
+      console.warn('⚠️  Admin upload notification email failed:', mailErr.message);
+    }
     
     console.log(`✅ Admin uploaded document: ${documentName} for ${student.name}`);
     
     res.json({
       success: true,
-      message: 'Document uploaded successfully',
+      message: emailSent
+        ? 'Document uploaded and student notified by email'
+        : 'Document uploaded successfully',
+      emailSent,
       document: mapStudentDocument({
         ...document.toObject(),
         documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(document.documentType)

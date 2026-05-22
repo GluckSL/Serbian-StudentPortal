@@ -6,6 +6,10 @@
       <p class="subtitle">Review uploads, approve or reject with notes — students receive email on approval or rejection</p>
     </div>
     <div class="header-actions">
+      <button mat-flat-button class="btn-pill btn-generate-agreement" (click)="openAgreementWorkspace()">
+        <mat-icon>description</mat-icon>
+        Generate Agreement
+      </button>
       <button mat-flat-button color="primary" class="btn-pill btn-export" (click)="exportStudentDocumentDetails()">
         <mat-icon>download</mat-icon>
         Export
@@ -152,9 +156,9 @@
                   </ng-container>
 
                   <button type="button" class="act-btn act-btn--ghost"
-                          (click)="row.isAgreement && row.agreementId ? downloadAgreement(row.agreementId, 'generated', row.label + '.pdf') : openDocumentInNewTab(row.doc)"
-                          [disabled]="!row.isAgreement && row.doc.fileName === 'NO_FILE_UPLOADED'">
-                    <mat-icon>{{ row.isAgreement ? 'download' : 'visibility' }}</mat-icon>
+                          (click)="viewRow(row)"
+                          [disabled]="(!row.isAgreement && row.doc?.fileName === 'NO_FILE_UPLOADED') || (row.isAgreement && !row.agreementId)">
+                    <mat-icon>visibility</mat-icon>
                     View
                   </button>
 
@@ -187,10 +191,16 @@
                   </mat-menu>
                 </div>
                 <ng-template #uploadOnlyAction>
-                  <button type="button" class="act-btn act-btn--upload" (click)="uploadForStudent(row)">
-                    <mat-icon>cloud_upload</mat-icon>
-                    Upload for student
-                  </button>
+                  <div class="upload-only-actions">
+                    <button type="button" class="act-btn act-btn--generate" *ngIf="row.isAgreement" (click)="openAgreementWorkspace()">
+                      <mat-icon>description</mat-icon>
+                      Generate agreement
+                    </button>
+                    <button type="button" class="act-btn act-btn--upload" (click)="uploadForStudent(row)">
+                      <mat-icon>cloud_upload</mat-icon>
+                      Upload for student
+                    </button>
+                  </div>
                 </ng-template>
               </td>
             </tr>

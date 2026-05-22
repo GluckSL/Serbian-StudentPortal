@@ -2,6 +2,20 @@
 
 require("dotenv").config();
 
+// Windows / some ISP DNS returns querySrv ECONNREFUSED for mongodb+srv; public resolvers fix Atlas SRV lookups in Node.
+(function configureMongoDnsResolvers() {
+  const uri = process.env.MONGO_URI || '';
+  if (!uri.startsWith('mongodb+srv://')) return;
+  const fromEnv = (process.env.MONGO_DNS_SERVERS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const servers = fromEnv.length ? fromEnv : process.platform === 'win32' ? ['1.1.1.1', '8.8.8.8'] : [];
+  if (!servers.length) return;
+  require('dns').setServers(servers);
+  console.log(`[Mongo DNS] Using DNS resolvers: ${servers.join(', ')} (SRV lookup for Atlas)`);
+})();
+
 // Validate critical S3 env vars at startup so issues are visible immediately
 const REQUIRED_S3_VARS = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'S3_BUCKET'];
 const missingS3Vars = REQUIRED_S3_VARS.filter(v => !process.env[v]);
@@ -15,7 +29,7 @@ const app = express();
 const path = require('path');
 const mongoose = require("mongoose");
 const cors = require("cors");
-const dns = require('dns').promises;
+const dns = require('dns').promises; // uses resolvers from configureMongoDnsResolvers above
 const auth = require("./middleware/auth");
 
 const allowedOrigins = [
@@ -452,8 +466,8 @@ connectMongoDb()
   .catch((err) => {
     console.error('❌ MongoDB connection failed — server not started:', err.message || err);
     console.error(
-      '   Fix: verify MONGO_URI, Atlas Database User password, and Network Access (IP allowlist: add 0.0.0.0/0 for testing or your current IP). ' +
-      'SRV DNS can succeed while the driver still cannot complete TLS/auth.'
+      '   Fix: verify MONGO_URI, Atlas password, and Network Access (IP allowlist). ' +
+      'If you see querySrv ECONNREFUSED, set Windows DNS to 1.1.1.1/8.8.8.8, run ipconfig /flushdns, or set MONGO_DNS_SERVERS=1.1.1.1,8.8.8.8 in .env.'
     );
     process.exit(1);
   });

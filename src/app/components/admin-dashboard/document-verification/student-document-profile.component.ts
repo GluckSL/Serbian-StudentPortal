@@ -7,6 +7,7 @@ import { StudentDocumentsService, StudentDocument } from '../../../services/stud
 import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
 import { MaterialModule } from '../../../shared/material.module';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
+import { normalizeStudentObjectId, studentIdFromRef } from '../../../utils/student-id.util';
 
 interface StudentDocRow {
   type: string;
@@ -70,7 +71,7 @@ export class StudentDocumentProfileComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.studentId = this.route.snapshot.paramMap.get('studentId') || '';
+    this.studentId = normalizeStudentObjectId(this.route.snapshot.paramMap.get('studentId'));
     const qp = this.route.snapshot.queryParamMap;
     this.student = {
       name: qp.get('name') || '',
@@ -100,6 +101,10 @@ export class StudentDocumentProfileComponent implements OnInit {
               this.documents = docRes.documents || [];
               if (this.documents.length > 0) {
                 const base = this.documents[0];
+                if (!this.studentId) {
+                  const fromDoc = studentIdFromRef(base.studentId);
+                  if (fromDoc) this.studentId = fromDoc;
+                }
                 this.student.name = this.student.name || base.studentName || '';
                 this.student.email = this.student.email || base.studentEmail || '';
                 this.student.studentStatus = this.student.studentStatus || base.studentStatus || '';
@@ -137,18 +142,25 @@ export class StudentDocumentProfileComponent implements OnInit {
     });
   }
 
+  /** Open the Share New Agreement screen for this student (fill template → PDF → checklist). */
   openAgreementWorkspace(): void {
-    const url = this.router.createUrlTree(
-      ['/admin/agreements/student', this.studentId],
-      { queryParams: {
+    const id = normalizeStudentObjectId(this.studentId) ||
+      this.documents.map((d) => studentIdFromRef(d.studentId)).find((x) => !!x) ||
+      '';
+    if (!id) {
+      this.snack.open('Student ID missing — open this profile from Document Verification student list', 'Close', { duration: 5000 });
+      return;
+    }
+    this.router.navigate(['/admin/agreements/student', id], {
+      queryParams: {
         name: this.student.name,
         email: this.student.email,
+        studentMongoId: id,
         studentStatus: this.student.studentStatus,
         subscription: this.student.subscription,
         servicesOpted: this.student.servicesOpted
-      } }
-    ).toString();
-    window.open(url, '_blank');
+      }
+    });
   }
 
   createRows(studentDocs: any[], agreements: StudentAgreement[] = []): StudentDocRow[] {
@@ -165,7 +177,11 @@ export class StudentDocumentProfileComponent implements OnInit {
         .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
       const latest = docsByType.length > 0 ? docsByType[0] : null;
       const agMatch = latest
-        ? agreements.find((a) => a.studentDocumentId && String(a.studentDocumentId) === String(latest._id))
+        ? agreements.find(
+            (a) =>
+              (a.studentDocumentId && String(a.studentDocumentId) === String(latest._id)) ||
+              a.displayName === latest.documentName
+          )
         : null;
       const isAg =
         !!agMatch ||
@@ -247,6 +263,19 @@ export class StudentDocumentProfileComponent implements OnInit {
       case 'SENT': return 'PENDING';
       default: return 'NOT_UPLOADED';
     }
+  }
+
+  viewAgreement(agreementId: string, type: 'generated' | 'signed' = 'generated'): void {
+    this.agreementService.downloadInstance(agreementId, type).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob);
+        } catch (e: any) {
+          this.snack.open(e?.message || 'Allow popups to view the document', 'Close', { duration: 4000 });
+        }
+      },
+      error: (e) => this.snack.open(e?.error?.message || 'Could not open document', 'Close', { duration: 4000 })
+    });
   }
 
   downloadAgreement(agreementId: string, type: 'generated' | 'signed', fileName?: string): void {
@@ -382,9 +411,25 @@ export class StudentDocumentProfileComponent implements OnInit {
   }
 
   openDocumentInNewTab(doc: any): void {
-    if (!doc || doc.fileName === 'NO_FILE_UPLOADED') return;
-    const previewUrl = this.documentService.getPreviewUrl(doc._id);
-    window.open(previewUrl, '_blank', 'noopener');
+    if (!doc?._id || doc.fileName === 'NO_FILE_UPLOADED') return;
+    this.documentService.previewDocument(doc._id).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob, doc.mimeType || 'application/pdf');
+        } catch (e: any) {
+          this.snack.open(e?.message || 'Allow popups to view the document', 'Close', { duration: 4000 });
+        }
+      },
+      error: () => this.snack.open('Could not open document preview', 'Close', { duration: 3000 })
+    });
+  }
+
+  viewRow(row: StudentDocRow): void {
+    if (row.isAgreement && row.agreementId) {
+      this.viewAgreement(row.agreementId, row.hasSignedCopy ? 'signed' : 'generated');
+      return;
+    }
+    if (row.doc) this.openDocumentInNewTab(row.doc);
   }
 
   downloadDocument(doc: any): void {
@@ -424,8 +469,13 @@ export class StudentDocumentProfileComponent implements OnInit {
       formData.append('description', 'Uploaded by admin from Student Document Profile page');
       this.documentService.adminUploadDocument(formData).subscribe({
         next: (response) => {
-          if (response.success) this.loadData();
-        }
+          if (response.success) {
+            const msg = (response as { message?: string }).message || 'Document uploaded for student';
+            this.snack.open(msg, 'Close', { duration: 4500 });
+            this.loadData();
+          }
+        },
+        error: (e) => this.snack.open(e?.error?.message || 'Upload failed', 'Close', { duration: 4000 })
       });
     };
     input.click();

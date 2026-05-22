@@ -1,4 +1,4 @@
-import { Component, OnInit, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
@@ -6,6 +6,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { AgreementService, AgreementTemplate, DynamicField, AiSuggestion } from '../../../services/agreement.service';
+import { Subscription, interval } from 'rxjs';
+import { takeWhile } from 'rxjs/operators';
 
 type WizardStep = 'list' | 'upload' | 'preview' | 'save';
 
@@ -53,7 +55,7 @@ function emptyFieldDraft(): FieldDraft {
   templateUrl: './agreement-templates.component.html',
   styleUrls: ['./agreement-templates.component.css']
 })
-export class AgreementTemplatesComponent implements OnInit {
+export class AgreementTemplatesComponent implements OnInit, OnDestroy {
   readonly placeholderExample = '{{level}}';
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfCanvas') pdfCanvasRef!: ElementRef<HTMLCanvasElement>;
@@ -68,6 +70,11 @@ export class AgreementTemplatesComponent implements OnInit {
   // Upload step state
   selectedFile: File | null = null;
   uploading = false;
+  uploadProgress = 0;
+  uploadPhaseLabel = '';
+  uploadStatusDetail = '';
+  private uploadProgressSub: Subscription | null = null;
+  private processingTickSub: Subscription | null = null;
   uploadResult: {
     tempId: string;
     r2Key: string | null;
@@ -107,6 +114,10 @@ export class AgreementTemplatesComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadTemplates();
+  }
+
+  ngOnDestroy(): void {
+    this.clearUploadProgressTimers();
   }
 
   loadTemplates(): void {
@@ -158,54 +169,143 @@ export class AgreementTemplatesComponent implements OnInit {
   }
 
   uploadPdf(): void {
-    if (!this.selectedFile) return;
+    if (!this.selectedFile || !this.templateName.trim()) return;
+    this.clearUploadProgressTimers();
     this.uploading = true;
-    this.svc.uploadTemplatePdf(this.selectedFile).subscribe({
-      next: r => {
-        this.uploadResult = r;
-        this.totalPages = r.pageCount;
-        if (r.warning) {
-          this.snack.open(r.warning, 'Close', { duration: 10000 });
-        }
-        if (r.fillMode === 'docx') {
-          this.snack.open('DOCX saved — placeholders will be replaced as real text (not white boxes).', 'Close', { duration: 6000 });
-        } else if (r.conversion === 'libreoffice') {
-          this.snack.open('Converted with LibreOffice. For real text editing, upload DOCX instead of PDF.', 'Close', { duration: 5000 });
-        } else if (r.conversion === 'msword') {
-          this.snack.open('Converted with Word. For real text editing, upload DOCX instead of PDF.', 'Close', { duration: 5000 });
-        }
-        const name = this.templateName || this.selectedFile!.name.replace(/\.(pdf|docx?)$/i, '');
-        if (!r.r2Key && !r.docxR2Key) {
-          this.uploading = false;
-          this.snack.open('Upload failed — no file stored', 'Close', { duration: 4000 });
-          return;
-        }
-        this.svc.createTemplate({
-          name,
-          description: this.templateDescription,
-          r2Key: r.r2Key || '',
-          docxR2Key: r.docxR2Key,
-          fillMode: r.fillMode,
-          pageCount: r.pageCount,
-          tempId: r.tempId
-        }).subscribe({
-          next: cr => {
-            this.createdTemplateId = cr.template._id;
-            this.templateName = cr.template.name;
-            this.uploading = false;
-            this.editingFillMode = cr.template.fillMode === 'docx' || !!cr.template.docxR2Key ? 'docx' : 'overlay';
-            this.step = 'preview';
-            if (cr.template.r2Key) this.loadPdfPreview(cr.template._id);
-            else if (this.editingFillMode === 'docx') {
-              this.snack.open('Word file saved. PDF preview unavailable until LibreOffice/Word conversion works — use field preview on Share screen.', 'Close', { duration: 8000 });
-              this.autoDetectPlaceholders();
+    this.uploadProgress = 0;
+    this.uploadPhaseLabel = 'Uploading file…';
+    this.uploadStatusDetail = this.formatFileSize(this.selectedFile.size);
+
+    this.uploadProgressSub = this.svc
+      .uploadAndCreateTemplate(this.selectedFile, this.templateName, this.templateDescription)
+      .subscribe({
+        next: (ev) => {
+          if (ev.kind === 'progress') {
+            this.stopProcessingTick();
+            this.uploadProgress = ev.percent;
+            this.uploadPhaseLabel = 'Uploading file…';
+            if (ev.total) {
+              this.uploadStatusDetail = `${this.formatFileSize(ev.loaded)} / ${this.formatFileSize(ev.total)}`;
             }
-          },
-          error: e => { this.uploading = false; this.snack.open(e.error?.message || 'Create failed', 'Close', { duration: 3000 }); }
-        });
-      },
-      error: e => { this.uploading = false; this.snack.open(e.error?.message || 'Upload failed', 'Close', { duration: 3000 }); }
-    });
+            if (ev.percent >= 55) this.startProcessingTick();
+            return;
+          }
+          if (ev.kind === 'processing') {
+            this.uploadProgress = Math.max(this.uploadProgress, ev.percent);
+            this.uploadPhaseLabel = ev.message;
+            return;
+          }
+          if (ev.kind === 'complete') {
+            this.finishUploadFromResponse(ev.body);
+          }
+        },
+        error: (e) => this.failUpload(e.error?.message || 'Upload failed')
+      });
+  }
+
+  private startProcessingTick(): void {
+    if (this.processingTickSub) return;
+    const messages = [
+      'Converting document…',
+      'Storing template in cloud…',
+      'Preparing preview…'
+    ];
+    let tick = 0;
+    this.uploadPhaseLabel = messages[0];
+    this.processingTickSub = interval(900)
+      .pipe(takeWhile(() => this.uploading && this.uploadProgress < 95))
+      .subscribe(() => {
+        tick += 1;
+        this.uploadProgress = Math.min(94, this.uploadProgress + 2);
+        this.uploadPhaseLabel = messages[Math.min(messages.length - 1, Math.floor(tick / 3))];
+        this.uploadStatusDetail = 'Server is processing — large Word files may take a minute';
+      });
+  }
+
+  private stopProcessingTick(): void {
+    this.processingTickSub?.unsubscribe();
+    this.processingTickSub = null;
+  }
+
+  private clearUploadProgressTimers(): void {
+    this.uploadProgressSub?.unsubscribe();
+    this.uploadProgressSub = null;
+    this.stopProcessingTick();
+  }
+
+  private finishUploadFromResponse(r: {
+    template: AgreementTemplate;
+    tempId: string;
+    r2Key: string | null;
+    docxR2Key?: string;
+    fillMode?: 'docx' | 'overlay';
+    pageCount: number;
+    conversion?: string;
+    warning?: string;
+  }): void {
+    this.stopProcessingTick();
+    this.uploadProgress = 100;
+    this.uploadPhaseLabel = 'Complete';
+    this.uploadStatusDetail = 'Opening field editor…';
+
+    this.uploadResult = {
+      tempId: r.tempId,
+      r2Key: r.r2Key,
+      docxR2Key: r.docxR2Key,
+      fillMode: r.fillMode,
+      pageCount: r.pageCount,
+      warning: r.warning
+    };
+    this.totalPages = r.pageCount;
+
+    if (r.warning) this.snack.open(r.warning, 'Close', { duration: 10000 });
+    if (r.fillMode === 'docx') {
+      this.snack.open('DOCX saved — placeholders will be replaced as real text (not white boxes).', 'Close', { duration: 6000 });
+    } else if (r.conversion === 'libreoffice' || r.conversion === 'libreoffice-cli') {
+      this.snack.open('Converted with LibreOffice. For real text editing, upload DOCX instead of PDF.', 'Close', { duration: 5000 });
+    } else if (r.conversion === 'msword') {
+      this.snack.open('Converted with Word. For real text editing, upload DOCX instead of PDF.', 'Close', { duration: 5000 });
+    }
+
+    if (!r.r2Key && !r.docxR2Key) {
+      this.failUpload('Upload failed — no file stored');
+      return;
+    }
+
+    this.createdTemplateId = r.template._id;
+    this.templateName = r.template.name;
+    this.editingFillMode = r.template.fillMode === 'docx' || !!r.template.docxR2Key ? 'docx' : 'overlay';
+
+    setTimeout(() => {
+      this.uploading = false;
+      this.uploadProgress = 0;
+      this.step = 'preview';
+      if (r.template.r2Key) this.loadPdfPreview(r.template._id);
+      else if (this.editingFillMode === 'docx') {
+        this.snack.open(
+          'Word file saved. PDF preview unavailable until LibreOffice/Word conversion works — use field preview on Share screen.',
+          'Close',
+          { duration: 8000 }
+        );
+        this.autoDetectPlaceholders();
+      }
+    }, 400);
+  }
+
+  private failUpload(message: string): void {
+    this.clearUploadProgressTimers();
+    this.uploading = false;
+    this.uploadProgress = 0;
+    this.uploadPhaseLabel = '';
+    this.uploadStatusDetail = '';
+    this.snack.open(message, 'Close', { duration: 4000 });
+  }
+
+  private formatFileSize(bytes: number): string {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   loadPdfPreview(id: string): void {
@@ -520,8 +620,12 @@ export class AgreementTemplatesComponent implements OnInit {
   }
 
   private resetWizard(): void {
+    this.clearUploadProgressTimers();
     this.selectedFile = null;
     this.uploading = false;
+    this.uploadProgress = 0;
+    this.uploadPhaseLabel = '';
+    this.uploadStatusDetail = '';
     this.uploadResult = null;
     this.createdTemplateId = '';
     this.pdfPreviewUrl = null;

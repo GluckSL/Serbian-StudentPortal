@@ -21,6 +21,7 @@ interface ManagedUser {
   sidebarPermissions: string[];
   teacherTabPermissions: string[];
   sidebarAccessLevels: Record<string, AccessLevel>;
+  sidebarDeletePermissions: string[];
   teacherTabAccessLevels: Record<string, AccessLevel>;
   permissionsDirty: boolean;
 }
@@ -182,6 +183,9 @@ interface PwModal {
                           <p class="tab-info-note" *ngIf="isTeacherRole(user)">
                             Assign tab access with checkbox matrix: <strong>View</strong>, <strong>Edit</strong>, <strong>Full</strong>. Uncheck to remove access.
                           </p>
+                          <p class="tab-info-note" *ngIf="isSubAdminRole(user)">
+                            Sub-admin access: <strong>View</strong>, <strong>Edit</strong>, <strong>Delete</strong> (destructive actions), <strong>Full</strong> (includes delete). Grant edit without delete when they may change data but must not remove it.
+                          </p>
                           <div class="permissions-grid">
                             <table class="permission-table permission-table-wide">
                               <thead>
@@ -189,6 +193,7 @@ interface PwModal {
                                   <th>Tab</th>
                                   <th>View</th>
                                   <th>Edit</th>
+                                  <th *ngIf="isSubAdminRole(user)">Delete</th>
                                   <th>Full</th>
                                 </tr>
                               </thead>
@@ -230,6 +235,14 @@ interface PwModal {
                                       type="checkbox"
                                       [checked]="hasTeacherAccessAtLeast(user, option.id, 'edit')"
                                       (change)="onTeacherCheckboxToggle(user, option.id, 'edit', $event)"
+                                    />
+                                  </td>
+                                  <td *ngIf="isSubAdminRole(user)">
+                                    <input
+                                      type="checkbox"
+                                      [checked]="hasSubAdminDeleteAccess(user, option.id)"
+                                      [disabled]="isSubAdminDeleteCheckboxDisabled(user, option.id)"
+                                      (change)="onSubAdminDeleteToggle(user, option.id, $event)"
                                     />
                                   </td>
                                   <td>
@@ -997,14 +1010,21 @@ export class UserRolesComponent implements OnInit {
   fetchTeachersAndAdmins(): void {
     this.http.get<any>(`${apiUrl}/auth/teachers-and-admins`, { withCredentials: true }).subscribe({
       next: (response) => {
-        this.allTeachersAndAdmins = response.map((user: any): ManagedUser => ({
-          ...user,
-          newRole: user.role,
-          sidebarAccessLevels: this.normalizeAccessLevelsForRole(
+        this.allTeachersAndAdmins = response.map((user: any): ManagedUser => {
+          const sidebarAccessLevels = this.normalizeAccessLevelsForRole(
             user.role,
             user.sidebarAccessLevels || {},
             user.sidebarPermissions || [],
             true
+          );
+          return {
+          ...user,
+          newRole: user.role,
+          sidebarAccessLevels,
+          sidebarDeletePermissions: this.normalizeDeletePermissionsForRole(
+            user.role,
+            user.sidebarDeletePermissions || [],
+            sidebarAccessLevels
           ),
           teacherTabAccessLevels: this.normalizeTeacherAccessLevelsForRole(
             user.role,
@@ -1023,7 +1043,8 @@ export class UserRolesComponent implements OnInit {
             )
             : [],
           permissionsDirty: false
-        }));
+        };
+        });
         this.expandedSubAdminRows.clear();
         this.expandedTeacherTabRows.clear();
       },
@@ -1042,6 +1063,11 @@ export class UserRolesComponent implements OnInit {
         user.sidebarPermissions || [],
         true
       );
+      user.sidebarDeletePermissions = this.normalizeDeletePermissionsForRole(
+        'SUB_ADMIN',
+        user.sidebarDeletePermissions || [],
+        user.sidebarAccessLevels || {}
+      );
       user.sidebarPermissions = this.navService.normalizeSidebarPermissions(
         user.sidebarPermissions || [],
         user.sidebarAccessLevels
@@ -1050,6 +1076,7 @@ export class UserRolesComponent implements OnInit {
       user.teacherTabPermissions = [];
     } else if (this.isTeacherAssignableRole(user.newRole)) {
       user.sidebarAccessLevels = {};
+      user.sidebarDeletePermissions = [];
       user.sidebarPermissions = [];
       user.teacherTabAccessLevels = this.normalizeTeacherAccessLevelsForRole(
         user.newRole,
@@ -1062,6 +1089,7 @@ export class UserRolesComponent implements OnInit {
       );
     } else {
       user.sidebarAccessLevels = {};
+      user.sidebarDeletePermissions = [];
       user.sidebarPermissions = [];
       user.teacherTabAccessLevels = {};
       user.teacherTabPermissions = [];
@@ -1112,9 +1140,54 @@ export class UserRolesComponent implements OnInit {
     }
 
     user.sidebarAccessLevels = this.normalizeAccessLevelsForRole('SUB_ADMIN', next, user.sidebarPermissions || [], true);
+    user.sidebarDeletePermissions = this.normalizeDeletePermissionsForRole(
+      'SUB_ADMIN',
+      user.sidebarDeletePermissions || [],
+      user.sidebarAccessLevels
+    );
     user.sidebarPermissions = this.navService.normalizeSidebarPermissions(
       Object.keys(user.sidebarAccessLevels || {}),
       user.sidebarAccessLevels
+    );
+    user.permissionsDirty = true;
+  }
+
+  hasSubAdminDeleteAccess(user: ManagedUser, permissionId: string): boolean {
+    return this.navService.canDeleteOnTab(
+      permissionId,
+      user.sidebarAccessLevels || {},
+      user.sidebarDeletePermissions || [],
+      user.sidebarPermissions || []
+    );
+  }
+
+  isSubAdminDeleteCheckboxDisabled(user: ManagedUser, permissionId: string): boolean {
+    const level = this.getSubAdminAccessLevel(user, permissionId);
+    if (!level || !this.navService.canAccessLevel(level, 'edit')) return true;
+    return level === 'full';
+  }
+
+  onSubAdminDeleteToggle(user: ManagedUser, permissionId: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    let nextDelete = [...(user.sidebarDeletePermissions || [])];
+
+    if (checked) {
+      const current = this.getSubAdminAccessLevel(user, permissionId);
+      if (!current || !this.navService.canAccessLevel(current, 'edit')) {
+        this.setSubAdminAccessLevel(user, permissionId, 'edit');
+      }
+      if (!nextDelete.includes(permissionId)) nextDelete.push(permissionId);
+    } else {
+      nextDelete = nextDelete.filter((id) => id !== permissionId);
+      if (this.getSubAdminAccessLevel(user, permissionId) === 'full') {
+        this.setSubAdminAccessLevel(user, permissionId, 'edit');
+      }
+    }
+
+    user.sidebarDeletePermissions = this.normalizeDeletePermissionsForRole(
+      'SUB_ADMIN',
+      nextDelete,
+      user.sidebarAccessLevels || {}
     );
     user.permissionsDirty = true;
   }
@@ -1129,6 +1202,12 @@ export class UserRolesComponent implements OnInit {
     const current = this.getSubAdminAccessLevel(user, permissionId);
     if (checked) {
       this.setSubAdminAccessLevel(user, permissionId, level);
+      if (level === 'full') {
+        user.sidebarDeletePermissions = (user.sidebarDeletePermissions || []).filter(
+          (id) => id !== permissionId
+        );
+        user.permissionsDirty = true;
+      }
       return;
     }
 
@@ -1136,6 +1215,10 @@ export class UserRolesComponent implements OnInit {
     // full -> edit, edit -> view, view -> none
     if (level === 'full' && current === 'full') {
       this.setSubAdminAccessLevel(user, permissionId, 'edit');
+      user.sidebarDeletePermissions = (user.sidebarDeletePermissions || []).filter(
+        (id) => id !== permissionId
+      );
+      user.permissionsDirty = true;
       return;
     }
     if (level === 'edit' && (current === 'edit' || current === 'full')) {
@@ -1266,6 +1349,15 @@ export class UserRolesComponent implements OnInit {
     return role === 'TEACHER' || role === 'TEACHER_ADMIN';
   }
 
+  private normalizeDeletePermissionsForRole(
+    role: string,
+    deletePermissions: string[] = [],
+    accessLevels: Record<string, AccessLevel> = {}
+  ): string[] {
+    if (role !== 'SUB_ADMIN') return [];
+    return this.navService.normalizeSidebarDeletePermissions(deletePermissions, accessLevels);
+  }
+
   private normalizeAccessLevelsForRole(
     role: string,
     accessLevels: Record<string, any>,
@@ -1366,6 +1458,13 @@ export class UserRolesComponent implements OnInit {
       payload.sidebarPermissions = user.newRole === 'SUB_ADMIN'
         ? this.navService.normalizeSidebarPermissions(Object.keys(payload.sidebarAccessLevels || {}), payload.sidebarAccessLevels)
         : [];
+      payload.sidebarDeletePermissions = user.newRole === 'SUB_ADMIN'
+        ? this.normalizeDeletePermissionsForRole(
+            'SUB_ADMIN',
+            user.sidebarDeletePermissions || [],
+            payload.sidebarAccessLevels || {}
+          )
+        : [];
 
       payload.teacherTabAccessLevels = this.isTeacherAssignableRole(user.newRole)
         ? this.normalizeTeacherAccessLevelsForRole(user.newRole, user.teacherTabAccessLevels || {}, user.teacherTabPermissions || [])
@@ -1392,6 +1491,11 @@ export class UserRolesComponent implements OnInit {
           user.sidebarPermissions = this.normalizePermissionsForRole(
             user.role,
             payload.sidebarPermissions || [],
+            user.sidebarAccessLevels
+          );
+          user.sidebarDeletePermissions = this.normalizeDeletePermissionsForRole(
+            user.role,
+            payload.sidebarDeletePermissions || [],
             user.sidebarAccessLevels
           );
           user.teacherTabPermissions = this.normalizeTeacherTabsForRole(

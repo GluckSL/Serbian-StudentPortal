@@ -9,6 +9,22 @@ const {
   isBracePlaceholder
 } = require('./agreementPdfFill');
 
+/** Fast page count only (no full text extraction) — used on template upload. */
+async function getPdfPageCount(buffer) {
+  if (!buffer?.length) return 0;
+  try {
+    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    return pdfDoc.getPageCount();
+  } catch (_) {
+    try {
+      const data = await pdfParse(buffer);
+      return data.numpages || 1;
+    } catch (__) {
+      return 1;
+    }
+  }
+}
+
 async function extractPagesText(buffer) {
   const data = await pdfParse(buffer);
   const fullText = data.text || '';
@@ -98,4 +114,4 @@ async function generateFilledPdf(templateBuffer, fields, values) {
   return Buffer.from(pdfBytes);
 }
 
-module.exports = { extractPagesText, generateFilledPdf, normalizeFieldValues };
+module.exports = { getPdfPageCount, extractPagesText, generateFilledPdf, normalizeFieldValues };
