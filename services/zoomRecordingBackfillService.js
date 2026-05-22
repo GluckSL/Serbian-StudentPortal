@@ -97,6 +97,21 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** How long a ZoomRecording may stay `processing` before backfill re-queues it (ms). */
+function staleProcessingThresholdMs() {
+  const fromEnv = Number(process.env.STALE_ZOOM_PROCESSING_MS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return 90 * 60 * 1000; // 90 minutes
+}
+
+function isStaleProcessingRecording(rec) {
+  if (!rec || rec.status !== 'processing') return false;
+  const touched = rec.updatedAt || rec.createdAt;
+  if (!touched) return true;
+  const ageMs = Date.now() - new Date(touched).getTime();
+  return ageMs >= staleProcessingThresholdMs();
+}
+
 /**
  * Run async work with a fixed concurrency limit (e.g. parallel Zoom API calls
  * without tripping rate limits).
@@ -241,6 +256,7 @@ async function backfillZoomRecordings({
       pipelineFailed: 0,
       skippedAlreadyReady: 0,
       skippedProcessing: 0,
+      reclaimedStaleProcessing: 0,
       skippedFailed: 0,
       skippedNoRecordingInZoom: 0,
       errors: 0,
@@ -280,11 +296,22 @@ async function backfillZoomRecordings({
     const scanOne = async (meeting) => {
       try {
         const existing = recordingsByLinkId.get(String(meeting._id));
+        let reclaimedStale = false;
 
         if (existing && !force) {
           if (existing.status === 'ready') return { kind: 'skip_ready' };
-          if (existing.status === 'processing') return { kind: 'skip_processing' };
-          if (existing.status === 'failed' && !includeFailed) return { kind: 'skip_failed' };
+          if (existing.status === 'processing') {
+            if (!isStaleProcessingRecording(existing)) {
+              return { kind: 'skip_processing' };
+            }
+            reclaimedStale = true;
+            console.warn(
+              `♻️  Backfill reclaiming stale processing: meetingLinkId=${meeting._id} ` +
+              `zoomId=${meeting.zoomMeetingId} (last update ${existing.updatedAt || existing.createdAt})`
+            );
+          } else if (existing.status === 'failed' && !includeFailed) {
+            return { kind: 'skip_failed' };
+          }
         }
 
         const zoomData = await fetchMeetingRecordingsFromZoomWithRetry(meeting, accessToken);
@@ -305,7 +332,7 @@ async function backfillZoomRecordings({
         );
 
         return {
-          kind: 'queued',
+          kind: reclaimedStale ? 'reclaim_stale_processing' : 'queued',
           pipelineItem: {
             meetingLinkId: meeting._id,
             zoomMeetingId: String(meeting.zoomMeetingId),
@@ -320,6 +347,7 @@ async function backfillZoomRecordings({
             topic: meeting.topic,
             zoomMeetingId: meeting.zoomMeetingId,
             queued: true,
+            reclaimedStale,
           },
         };
       } catch (err) {
@@ -358,7 +386,9 @@ async function backfillZoomRecordings({
           summary.skippedNoRecordingInZoom += 1;
           break;
         case 'queued':
+        case 'reclaim_stale_processing':
           summary.queued += 1;
+          if (r.kind === 'reclaim_stale_processing') summary.reclaimedStaleProcessing += 1;
           pipelineQueue.push(r.pipelineItem);
           summary.details.push(r.detail);
           break;
@@ -413,7 +443,8 @@ async function backfillZoomRecordings({
     console.log(
       `✅ Backfill scan complete: considered=${summary.considered} queued=${summary.queued} ` +
       `skippedReady=${summary.skippedAlreadyReady} skippedProcessing=${summary.skippedProcessing} ` +
-      `skippedFailed=${summary.skippedFailed} noRecording=${summary.skippedNoRecordingInZoom} errors=${summary.errors} ` +
+      `reclaimedStale=${summary.reclaimedStaleProcessing} skippedFailed=${summary.skippedFailed} ` +
+      `noRecording=${summary.skippedNoRecordingInZoom} errors=${summary.errors} ` +
       `pipelineCompleted=${summary.pipelineCompleted} pipelineFailed=${summary.pipelineFailed}`
     );
 

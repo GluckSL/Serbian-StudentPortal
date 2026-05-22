@@ -17,6 +17,14 @@
           <i class="fa fa-upload"></i>
           {{ publishLoading ? 'Publishing…' : ('Publish (' + selectedPublishCount() + ')') }}
         </button>
+        <button
+          class="cr-btn cr-btn--req-approval"
+          [class.cr-btn--req-approval--pending]="pendingCount > 0"
+          type="button"
+          (click)="openApprovalInNewTab()">
+          <i class="fa fa-inbox"></i>
+          Req approval<span *ngIf="pendingCount > 0" class="cr-req-approval-count"> ({{ pendingCount }})</span>
+        </button>
         <button class="cr-btn cr-btn--ghost" (click)="openWebhookAudit()">
           <i class="fa fa-wave-square"></i> Webhook Audit
         </button>
@@ -90,7 +98,11 @@
       <div *ngIf="!tableLoading && !totalCount" class="cr-empty">
         <i class="fa fa-video cr-empty__icon"></i>
         <h3>No ready recordings</h3>
-        <p>Only fully processed recordings with media appear here.</p>
+        <p *ngIf="!searchQuery">Only fully processed recordings with media appear here.</p>
+        <p *ngIf="searchQuery">
+          No <strong>ready</strong> recording matches this search. If a meeting is stuck in processing or failed,
+          run <strong>Backfill</strong> with the meeting ID (force retry is enabled for targeted IDs).
+        </p>
       </div>
 
       <table *ngIf="totalCount" class="cr-table" [class.cr-table--dimmed]="tableLoading">
@@ -130,6 +142,12 @@
             <td class="cr-td--title">
               <span class="cr-cell-main">{{ r.title }}</span>
               <span class="cr-cell-sub" *ngIf="r.description">{{ r.description }}</span>
+              <span class="cr-status-chip cr-status-chip--processing" *ngIf="isProcessingRecording(r)">
+                {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
+              </span>
+              <span class="cr-status-chip cr-status-chip--failed" *ngIf="r.status === 'failed'">
+                Processing failed — use Backfill to retry
+              </span>
             </td>
             <td>
               <span class="cr-duration">{{ getRecordingDurationDisplay(r) }}</span>

@@ -66,28 +66,48 @@
       </div>
       <button mat-flat-button color="primary" type="button" (click)="applyRange()">Apply</button>
     </div>
-    <div class="pa-cohort-filter">
-      <button
-        type="button"
-        class="pa-cohort-btn"
-        [class.pa-cohort-btn--active]="cohort === 'overall'"
-        (click)="setCohort('overall')">
-        Overall
-      </button>
-      <button
-        type="button"
-        class="pa-cohort-btn pa-cohort-btn--platinum"
-        [class.pa-cohort-btn--active]="cohort === 'platinum'"
-        (click)="setCohort('platinum')">
-        Platinum
-      </button>
-      <button
-        type="button"
-        class="pa-cohort-btn pa-cohort-btn--go"
-        [class.pa-cohort-btn--active]="cohort === 'go'"
-        (click)="setCohort('go')">
-        Go
-      </button>
+    <div class="pa-extra-filters">
+      <label class="pa-field pa-field--select">
+        <span>Batch</span>
+        <select class="form-control" [(ngModel)]="batch" name="batch" (ngModelChange)="onBatchChange()">
+          <option value="">All batches</option>
+          @for (b of availableBatches; track b) {
+            <option [value]="b">{{ b }}</option>
+          }
+        </select>
+      </label>
+      <label class="pa-field pa-field--select">
+        <span>Level</span>
+        <select class="form-control" [(ngModel)]="level" name="level" (ngModelChange)="onLevelChange()">
+          <option value="">All levels</option>
+          @for (lv of availableLevels; track lv) {
+            <option [value]="lv">{{ lv }}</option>
+          }
+        </select>
+      </label>
+      <div class="pa-cohort-filter">
+        <button
+          type="button"
+          class="pa-cohort-btn"
+          [class.pa-cohort-btn--active]="cohort === 'overall'"
+          (click)="setCohort('overall')">
+          Overall
+        </button>
+        <button
+          type="button"
+          class="pa-cohort-btn pa-cohort-btn--platinum"
+          [class.pa-cohort-btn--active]="cohort === 'platinum'"
+          (click)="setCohort('platinum')">
+          Platinum
+        </button>
+        <button
+          type="button"
+          class="pa-cohort-btn pa-cohort-btn--go"
+          [class.pa-cohort-btn--active]="cohort === 'go'"
+          (click)="setCohort('go')">
+          Go
+        </button>
+      </div>
     </div>
   </div>
 

@@ -31,6 +31,8 @@
 
   <div *ngIf="error" class="dg-hub__err">{{ error }}</div>
 
+  <p class="dg-hub__week-banner" *ngIf="showWeeklyHint && !loading && !error">{{ journeyWeekHint }}</p>
+
   <ng-container *ngIf="!loading && !error">
     <section class="dg-hub__stats" *ngIf="!embedded && modules.length > 0">
       <article class="dg-hub__stat-card dg-hub__stat-card--primary">

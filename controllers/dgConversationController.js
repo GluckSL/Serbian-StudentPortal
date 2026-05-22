@@ -3,7 +3,8 @@
 const DGModule = require('../models/DGModule');
 const {
   getStudentDgJourneyAccess,
-  dgModuleUnlockedForStudentDay,
+  dgModuleUnlockedForAccess,
+  dgWeekLockMessage,
 } = require('../utils/dgStudentJourneyGate');
 const {
   startConversation,
@@ -32,7 +33,7 @@ async function denyIfStudentDgJourneyLocked(req, mod) {
       },
     };
   }
-  if (access.learningEnabled === false) {
+  if (access.dgBotEnabled === false) {
     return {
       status: 403,
       body: {
@@ -41,7 +42,11 @@ async function denyIfStudentDgJourneyLocked(req, mod) {
       },
     };
   }
-  if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
+  if (!dgModuleUnlockedForAccess(access, mod.courseDay)) {
+    const weekLock = dgWeekLockMessage(access, mod.courseDay);
+    if (weekLock) {
+      return { status: 403, body: weekLock };
+    }
     return {
       status: 403,
       body: {

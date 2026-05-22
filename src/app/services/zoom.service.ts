@@ -320,12 +320,23 @@ export class ZoomService {
   }
 
   /**
-   * Get meetings for logged-in student
+   * Get meetings for logged-in student.
+   * Pass tab + page + limit for paginated My Course tabs (7 per page).
    */
-  getStudentMeetings(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/student-meetings`, {
-      withCredentials: true
-    });
+  getStudentMeetings(filters?: {
+    tab?: 'upcoming' | 'live' | 'attempted';
+    page?: number;
+    limit?: number;
+    includeTabCounts?: boolean;
+  }): Observable<any> {
+    const params = new URLSearchParams();
+    if (filters?.tab) params.append('tab', filters.tab);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
+    const qs = params.toString();
+    const url = qs ? `${this.apiUrl}/student-meetings?${qs}` : `${this.apiUrl}/student-meetings`;
+    return this.http.get(url, { withCredentials: true });
   }
 
   /**

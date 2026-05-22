@@ -145,6 +145,19 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   activeTab: 'info' | 'questions' | 'video' | 'preview' = 'info';
   expandedQuestion = -1;
 
+  // ── Bulk select / edit (parity with PDF extract review) ──
+  selectedIndices = new Set<number>();
+  selectAllChecked = false;
+  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | '' = '';
+  bulkEditValue = '';
+  bulkAudioUploading = false;
+  bulkTypeChangeOpen = false;
+  bulkTargetType = '';
+  bulkConverting = false;
+  bulkConvertProgress = 0;
+  bulkConvertTotal = 0;
+  generatingAnswers = false;
+
   @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
   currentListeningQ: BuilderQuestion | null = null;
 
@@ -534,6 +547,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
     this.questions.splice(fromIndex, 1);
     this.questions.splice(toIndex, 0, moved);
+    this.syncSelectedIndicesAfterMove(fromIndex, toIndex);
 
     if (this.expandedQuestion === fromIndex) {
       this.expandedQuestion = toIndex;
@@ -657,6 +671,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   removeQuestion(index: number): void {
     this.questions.splice(index, 1);
+    const updated = new Set<number>();
+    for (const idx of this.selectedIndices) {
+      if (idx < index) updated.add(idx);
+      else if (idx > index) updated.add(idx - 1);
+    }
+    this.selectedIndices = updated;
+    this.selectAllChecked = this.selectedIndices.size === this.questions.length && this.questions.length > 0;
     if (this.expandedQuestion >= this.questions.length) {
       this.expandedQuestion = this.questions.length - 1;
     }
@@ -1210,10 +1231,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   onListeningFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if ((this as any)._bulkAudioMode) {
+      (this as any)._bulkAudioMode = false;
+      this.onBulkAudioFileSelected(file);
+      return;
+    }
     const q = this.currentListeningQ;
     this.currentListeningQ = null;
-    input.value = '';
-    if (!file || !q) return;
+    if (!q) return;
     this.exerciseService.uploadListeningMedia(file).subscribe({
       next: (res) => {
         q.mediaUrl = res.url;
@@ -1891,6 +1918,260 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   stopImagePinDrag(): void {
     this.draggingPinQuestionIndex = null;
     this.draggingPinId = null;
+  }
+
+  get validQuestionCount(): number {
+    return this.questions.filter((q) => this.isQuestionValid(q)).length;
+  }
+
+  getInvalidSummaryTooltip(): string {
+    const invalid = this.questions.length - this.validQuestionCount;
+    if (invalid <= 0) return '';
+    return `${invalid} question(s) need fixes. Open each row marked with ! for details.`;
+  }
+
+  // ── Bulk select helpers ──────────────────────────────────────────────────────
+
+  toggleSelectQuestion(i: number, event: Event): void {
+    event.stopPropagation();
+    if (this.selectedIndices.has(i)) {
+      this.selectedIndices.delete(i);
+    } else {
+      this.selectedIndices.add(i);
+    }
+    this.selectAllChecked = this.selectedIndices.size === this.questions.length && this.questions.length > 0;
+  }
+
+  toggleSelectAll(event: Event): void {
+    event.stopPropagation();
+    if (this.selectAllChecked) {
+      this.selectedIndices.clear();
+      this.selectAllChecked = false;
+    } else {
+      this.questions.forEach((_, i) => this.selectedIndices.add(i));
+      this.selectAllChecked = true;
+    }
+  }
+
+  clearSelection(): void {
+    this.selectedIndices.clear();
+    this.selectAllChecked = false;
+    this.bulkEditField = '';
+    this.bulkEditValue = '';
+    this.bulkTypeChangeOpen = false;
+    this.bulkTargetType = '';
+  }
+
+  isSelected(i: number): boolean {
+    return this.selectedIndices.has(i);
+  }
+
+  private syncSelectedIndicesAfterMove(fromIndex: number, toIndex: number): void {
+    const updated = new Set<number>();
+    for (const idx of this.selectedIndices) {
+      if (idx === fromIndex) {
+        updated.add(toIndex);
+      } else if (fromIndex < toIndex && idx > fromIndex && idx <= toIndex) {
+        updated.add(idx - 1);
+      } else if (fromIndex > toIndex && idx >= toIndex && idx < fromIndex) {
+        updated.add(idx + 1);
+      } else {
+        updated.add(idx);
+      }
+    }
+    this.selectedIndices = updated;
+    this.selectAllChecked = this.selectedIndices.size === this.questions.length && this.questions.length > 0;
+  }
+
+  // ── Bulk field edit ──────────────────────────────────────────────────────────
+
+  applyBulkField(): void {
+    if (!this.bulkEditField || this.selectedIndices.size === 0) return;
+    for (const idx of this.selectedIndices) {
+      const q = this.questions[idx];
+      if (!q) continue;
+      if (this.bulkEditField === 'audio') {
+        q.mediaUrl = this.bulkEditValue;
+      } else if (this.bulkEditField === 'attachment') {
+        q.attachmentUrl = this.bulkEditValue;
+      } else if (this.bulkEditField === 'example') {
+        q.workedExample = this.bulkEditValue;
+      } else {
+        q[this.bulkEditField] = this.bulkEditValue;
+      }
+    }
+    this.showSuccess(`Applied "${this.bulkEditField}" to ${this.selectedIndices.size} question(s).`);
+    this.bulkEditValue = '';
+  }
+
+  triggerBulkAudioFile(): void {
+    (this as any)._bulkAudioMode = true;
+    this.listeningFileInput?.nativeElement?.click();
+  }
+
+  onBulkAudioFileSelected(file: File): void {
+    this.bulkAudioUploading = true;
+    this.exerciseService.uploadListeningMedia(file).subscribe({
+      next: (res) => {
+        this.bulkAudioUploading = false;
+        this.bulkEditValue = res.url;
+        this.applyBulkField();
+      },
+      error: (err) => {
+        this.bulkAudioUploading = false;
+        this.showError(err.error?.error || 'Audio upload failed');
+      }
+    });
+  }
+
+  generateMissingAnswers(): void {
+    const candidates: Array<{ index: number; q: BuilderQuestion }> = [];
+    this.questions.forEach((q, i) => {
+      if (q.type === 'fill-blank') {
+        const blankRuns = countFillBlankRuns(q.sentence || '');
+        if (blankRuns < 1) return;
+        const raw = Array.isArray(q.answers) ? q.answers : [];
+        const padded = [...raw];
+        while (padded.length < blankRuns) padded.push('');
+        const anyMissing = padded.slice(0, blankRuns).some((a) => !String(a ?? '').trim());
+        if (anyMissing) candidates.push({ index: i, q });
+      } else if (q.type === 'question-answer') {
+        const hasSample = Array.isArray(q.sampleAnswers) && q.sampleAnswers.some((a) => String(a || '').trim());
+        if (!hasSample) candidates.push({ index: i, q });
+      } else if ((q.type as any) === 'jumble-word') {
+        if (!String(q.expectedWord || '').trim()) candidates.push({ index: i, q });
+      }
+    });
+
+    if (candidates.length === 0) {
+      this.showSuccess('All questions already have answers.');
+      return;
+    }
+
+    this.generatingAnswers = true;
+    const payload = candidates.map(({ index, q }) => {
+      const base: any = { index, type: q.type };
+      if (q.type === 'fill-blank') {
+        base.sentence = q.sentence || '';
+        base.instruction = q.instruction || '';
+        base.hint = q.hint || '';
+        base.answers = q.answers || [];
+      } else if (q.type === 'question-answer') {
+        base.prompt = q.prompt || '';
+        base.instruction = q.instruction || '';
+        base.sampleAnswers = q.sampleAnswers || [];
+      } else if ((q.type as any) === 'jumble-word') {
+        base.prompt = q.scrambledText || '';
+        base.hint = q.boldLetter || '';
+      }
+      return base;
+    });
+
+    this.exerciseService.generateMissingAnswers(payload).subscribe({
+      next: (res) => {
+        this.generatingAnswers = false;
+        const touched = new Set<number>();
+        (res.results || []).forEach((r: any) => {
+          const idx = Number(r?.index);
+          if (!Number.isFinite(idx) || idx < 0 || idx >= this.questions.length) return;
+          const q = this.questions[idx];
+          if (!q) return;
+          if (q.type === 'fill-blank' && Array.isArray(r.answers) && r.answers.length) {
+            const n = countFillBlankRuns(String(q.sentence || ''));
+            const merged: string[] = [];
+            for (let j = 0; j < Math.max(n, 1); j++) {
+              const ai = String(r.answers[j] ?? '').trim();
+              const prev = String((q.answers && q.answers[j]) ?? '').trim();
+              merged.push(ai || prev);
+            }
+            q.answers = merged;
+            if (merged.some((x) => String(x || '').trim())) touched.add(idx);
+          }
+          if (q.type === 'question-answer' && Array.isArray(r.sampleAnswers) && r.sampleAnswers.length) {
+            q.sampleAnswers = r.sampleAnswers;
+            touched.add(idx);
+          }
+          if ((q.type as string) === 'jumble-word' && r.expectedWord) {
+            q.expectedWord = String(r.expectedWord).trim();
+            touched.add(idx);
+          }
+        });
+        const filled = touched.size;
+        this.showSuccess(
+          filled > 0
+            ? `Generated answers for ${filled} question(s).`
+            : 'No answers were applied. Try again, or check that blanks use underscores (_) in the sentence.'
+        );
+      },
+      error: (err) => {
+        this.generatingAnswers = false;
+        this.showError(err.error?.error || 'Failed to generate missing answers.');
+      }
+    });
+  }
+
+  // ── Bulk type conversion ─────────────────────────────────────────────────────
+
+  private questionPayloadForConvert(q: BuilderQuestion): any {
+    const row: any = {
+      ...q,
+      context: String(q.context || '').trim(),
+      instruction: String(q.instruction ?? ''),
+      example: String(q.workedExample ?? '')
+    };
+    if ((q.type as any) === 'rearrange') {
+      const tokensRaw = String(q.rearrangeTokens || '');
+      row.rearrangeTokens = tokensRaw
+        .split('\n')
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+    return row;
+  }
+
+  convertSelectedTypes(): void {
+    if (!this.bulkTargetType || this.selectedIndices.size === 0 || this.bulkConverting) return;
+    const indices = Array.from(this.selectedIndices);
+    this.bulkConverting = true;
+    this.bulkConvertProgress = 0;
+    this.bulkConvertTotal = indices.length;
+
+    const convertNext = (pos: number): void => {
+      if (pos >= indices.length) {
+        this.bulkConverting = false;
+        this.showSuccess(`Converted ${indices.length} question(s) to "${this.bulkTargetType}".`);
+        this.bulkTypeChangeOpen = false;
+        this.bulkTargetType = '';
+        return;
+      }
+      const idx = indices[pos];
+      const prev = this.questions[idx];
+      this.exerciseService.convertQuestionType({
+        question: this.questionPayloadForConvert(prev),
+        targetType: this.bulkTargetType,
+        targetLanguage: this.targetLanguage
+      }).subscribe({
+        next: (res) => {
+          if (res?.question) {
+            const mapped = this.mapQuestionFromApi(res.question);
+            mapped.points = prev.points ?? mapped.points;
+            if (prev.subQuestions?.length) {
+              mapped.subQuestions = prev.subQuestions;
+            }
+            this.questions[idx] = mapped;
+          }
+          this.bulkConvertProgress = pos + 1;
+          convertNext(pos + 1);
+        },
+        error: (err) => {
+          this.showError(err.error?.error || `Conversion failed for question ${idx + 1}.`);
+          this.bulkConvertProgress = pos + 1;
+          convertNext(pos + 1);
+        }
+      });
+    };
+
+    convertNext(0);
   }
 
   private showSuccess(msg: string): void {

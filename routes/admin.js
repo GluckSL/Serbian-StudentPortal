@@ -657,9 +657,15 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
           message: 'currentCourseDay must be a number from 1 to 200'
         });
       }
-      updateData.currentCourseDay = d;
-      updateData.pendingJourneyDayAdvance = false;
-      updateData.pendingJourneyDayAdvanceForDay = null;
+      const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
+      Object.assign(
+        updateData,
+        withJourneyLevelInSet(d, {
+          currentCourseDay: d,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        })
+      );
     }
 
     // Update all selected students

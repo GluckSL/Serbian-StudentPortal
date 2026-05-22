@@ -24,7 +24,7 @@ function isOldBatchType(type) {
 }
 
 function batchTypeLabel(type) {
-  return isOldBatchType(type) ? 'Old (live only)' : 'New (full content)';
+  return isOldBatchType(type) ? 'Old (live + optional DG Bot)' : 'New (full content)';
 }
 
 module.exports = {

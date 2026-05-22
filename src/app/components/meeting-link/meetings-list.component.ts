@@ -58,10 +58,10 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   private filterDebounceTimer?: ReturnType<typeof setTimeout>;
 
   displayedColumnsAdmin: string[] = [
-    'status', 'topic', 'teacher', 'dateTime', 'duration', 'participants', 'batch', 'actions'
+    'status', 'topic', 'teacher', 'dateTime', 'duration', 'participants', 'batch', 'meetingId', 'actions'
   ];
   displayedColumnsTeacher: string[] = [
-    'status', 'topic', 'dateTime', 'duration', 'participants', 'batch', 'actions'
+    'status', 'topic', 'dateTime', 'duration', 'participants', 'batch', 'meetingId', 'actions'
   ];
 
   /** Refresh “Join in …” labels periodically */

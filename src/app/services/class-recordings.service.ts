@@ -130,6 +130,41 @@ export class ClassRecordingsService {
     return this.http.get<any>(`${this.url}${sep}_=${Date.now()}`);
   }
 
+  /** Paginated merged manual + Zoom list for student My Course (7 per page). */
+  getStudentRecordingsFeed(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    filter?: string;
+    courseDay?: number | null;
+  }): Observable<{
+    success: boolean;
+    recordings: Array<Record<string, unknown>>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    pagination?: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  }> {
+    const qp = new URLSearchParams();
+    qp.set('page', String(params.page));
+    qp.set('limit', String(params.limit));
+    if (params.search?.trim()) qp.set('search', params.search.trim());
+    if (params.filter && params.filter !== 'all') qp.set('filter', params.filter);
+    if (params.courseDay != null && Number.isFinite(Number(params.courseDay))) {
+      qp.set('courseDay', String(params.courseDay));
+    }
+    qp.set('_', String(Date.now()));
+    return this.http.get<any>(`${this.url}/student-feed?${qp.toString()}`);
+  }
+
   getAdminAllRecordings(): Observable<{ success: boolean; recordings: AdminClassRecording[] }> {
     return this.http.get<any>(`${this.url}/admin/all`);
   }

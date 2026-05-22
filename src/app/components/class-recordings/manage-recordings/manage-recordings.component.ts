@@ -12,6 +12,7 @@ import {
   AdminClassRecording,
   ZoomWebhookAuditRow,
 } from '../../../services/class-recordings.service';
+import { RecordingAccessRequestService } from '../../../services/recording-access-request.service';
 import { NotificationService } from '../../../services/notification.service';
 import { forkJoin, of } from 'rxjs';
 
@@ -111,12 +112,16 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   };
   viewsMeta: { totalStudents?: number; watchedCount?: number; notWatchedCount?: number; totalWatchSeconds?: number; videoSizeBytes?: number } = {};
 
+  // ── Recording access requests (count badge; full UI in new tab) ─────────────
+  pendingCount = 0;
+
   constructor(
     private service: ClassRecordingsService,
     private snackBar: MatSnackBar,
     private sanitizer: DomSanitizer,
     private notify: NotificationService,
-    private router: Router
+    private router: Router,
+    private recordingReqService: RecordingAccessRequestService
   ) {}
 
   ngOnInit(): void {
@@ -124,6 +129,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.loadBatches();
     this.loadZoomTeachers();
     this.startProcessingClock();
+    this.loadPendingCount();
   }
 
   loadZoomTeachers(): void {
@@ -144,8 +150,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       limit: 200,
       includeFailed: true,
       meetingIds,
-      // Re-queue recordings that are already "ready" so they run through the
-      // current pipeline (HLS) instead of staying on legacy MP4-only objects.
+      // Targeted IDs: force retry (stuck processing/failed). Bulk (no IDs): force HLS migration.
       force: true,
     }).subscribe({
       next: () => {
@@ -153,7 +158,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         this.backfillStatusMessage = 'Backfill running in background…';
         this.snackBar.open(
           meetingIds.length
-            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s).`
+            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s) — will retry stuck/failed and re-fetch from Zoom.`
             : 'Backfill started (force) — reprocessing may take a while; old MP4 → HLS where Zoom still has the file',
           'Close',
           { duration: 7000 }
@@ -182,6 +187,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
               if (s.pipelineCompleted) parts.push(`✅ ${s.pipelineCompleted} processed`);
               if (s.pipelineFailed) parts.push(`❌ ${s.pipelineFailed} failed`);
               if (s.skippedAlreadyReady) parts.push(`${s.skippedAlreadyReady} already ready`);
+              if (s.skippedProcessing) parts.push(`${s.skippedProcessing} still processing`);
+              if (s.reclaimedStaleProcessing) parts.push(`${s.reclaimedStaleProcessing} reclaimed stale`);
               if (s.skippedNoRecordingInZoom) parts.push(`${s.skippedNoRecordingInZoom} no Zoom file`);
               if (s.errors) parts.push(`${s.errors} scan errors`);
               this.backfillStatusMessage = parts.length ? `Done — ${parts.join(', ')}` : 'Done — nothing to process';
@@ -1220,5 +1227,21 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     if (mb < 1024) return `${mb.toFixed(1)} MB`;
     const gb = mb / 1024;
     return `${gb.toFixed(2)} GB`;
+  }
+
+  // ── Recording access request approval ───────────────────────────────────────
+
+  loadPendingCount(): void {
+    this.recordingReqService.getPendingCount().subscribe({
+      next: (res) => { this.pendingCount = res.count || 0; },
+      error: () => {}
+    });
+  }
+
+  openApprovalInNewTab(): void {
+    const tree = this.router.createUrlTree(['/class-recordings/approval-requests']);
+    const url = `${window.location.origin}${this.router.serializeUrl(tree)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    this.loadPendingCount();
   }
 }

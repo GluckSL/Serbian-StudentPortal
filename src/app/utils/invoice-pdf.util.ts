@@ -82,6 +82,32 @@ const fmtDate = (d: string | undefined | null): string => {
   });
 };
 
+function renderBankDetailsBlock(currency: string): string {
+  const isInr = String(currency ?? "").trim().toUpperCase() === "INR";
+  if (isInr) {
+    return `
+    <div class="bank-grid">
+      <div class="bank-item"><strong>Account Name:</strong> GLUCK GLOBAL PRIVATE LIMITED</div>
+      <div class="bank-item"><strong>Account No:</strong> 0021001010654</div>
+      <div class="bank-item"><strong>Bank Name:</strong> Cosmos Co-operative Bank Ltd</div>
+      <div class="bank-item"><strong>IFSC:</strong> COSB0000002</div>
+      <div class="bank-item"><strong>Branch:</strong> Khadki</div>
+      <div class="bank-item"><strong>Account Currency:</strong> Indian Rupee (INR)</div>
+    </div>`;
+  }
+  return `
+    <div class="bank-grid">
+      <div class="bank-item"><strong>Beneficiary Name:</strong> Glück Global Pvt Ltd</div>
+      <div class="bank-item"><strong>Account Number:</strong> 115511485187</div>
+      <div class="bank-item"><strong>Bank Name:</strong> National Development Bank PLC</div>
+      <div class="bank-item"><strong>Bank Address:</strong> No 133, Kotugodella Street, Kandy</div>
+      <div class="bank-item"><strong>Bank Code:</strong> 7214</div>
+      <div class="bank-item"><strong>Branch Code:</strong> 002</div>
+      <div class="bank-item"><strong>SWIFT Code:</strong> NDBSLKLX</div>
+      <div class="bank-item"><strong>Account Currency:</strong> Sri Lankan Rupee (LKR)</div>
+    </div>`;
+}
+
 export function renderInvoiceHTML(data: InvoiceData): string {
   const formatAmount = (amount: number, currency: string) =>
     `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -349,16 +375,7 @@ export function renderInvoiceHTML(data: InvoiceData): string {
 
   <div class="section">
     <h3>Bank Details</h3>
-    <div class="bank-grid">
-      <div class="bank-item"><strong>Beneficiary Name:</strong> Glück Global Pvt Ltd</div>
-      <div class="bank-item"><strong>Account Number:</strong> 115511485187</div>
-      <div class="bank-item"><strong>Bank Name:</strong> National Development Bank PLC</div>
-      <div class="bank-item"><strong>Bank Address:</strong> No 133, Kotugodella Street, Kandy</div>
-      <div class="bank-item"><strong>Bank Code:</strong> 7214</div>
-      <div class="bank-item"><strong>Branch Code:</strong> 002</div>
-      <div class="bank-item"><strong>SWIFT Code:</strong> NDBSLKLX</div>
-      <div class="bank-item"><strong>Account Currency:</strong> Sri Lankan Rupee (LKR)</div>
-    </div>
+    ${renderBankDetailsBlock(data.currency)}
   </div>
 
   ${submissionBlock}

@@ -49,7 +49,7 @@ const documentRequirementSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['ACADEMIC', 'IDENTIFICATION', 'PROFESSIONAL', 'LEGAL', 'VISA', 'OTHER'],
+    enum: ['ACADEMIC', 'IDENTIFICATION', 'PROFESSIONAL', 'LEGAL', 'VISA', 'AGREEMENT', 'OTHER'],
     default: 'OTHER'
   },
   // Which services this document applies to. Empty array = ALL services.

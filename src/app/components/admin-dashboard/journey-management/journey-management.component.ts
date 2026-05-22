@@ -20,6 +20,8 @@ interface BatchSummary {
   autoDay: boolean;
   notes: string;
   batchType?: 'new' | 'old';
+  /** When batchType is old: weekly DG Bot release (days 1–7, then 8–14, …). */
+  oldBatchDgBotAccess?: boolean;
   /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
   strictJourneyRule?: boolean;
   strictJourneyThresholdPercent?: number;
@@ -508,7 +510,14 @@ interface TimelineDay {
           <div class="j-ro-card-icon j-ro-card-icon--blue"><i class="fas fa-toggle-on"></i></div>
           <div class="j-ro-card-body">
             <span class="j-ro-card-label">Batch type</span>
-            <span class="j-ro-card-value">{{ editBatchType === 'old' ? 'Old (live/recordings only)' : 'New (modules/exercises enabled)' }}</span>
+            <span class="j-ro-card-value">{{ editBatchType === 'old' ? (editOldBatchDgBotAccess ? 'Old — live/recordings + DG Bot (weekly)' : 'Old (live/recordings only)') : 'New (modules/exercises enabled)' }}</span>
+          </div>
+        </div>
+        <div class="j-ro-card" *ngIf="editBatchType === 'old'">
+          <div class="j-ro-card-icon" [ngClass]="editOldBatchDgBotAccess ? 'j-ro-card-icon--green' : 'j-ro-card-icon--muted'"><i class="fas fa-robot"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">DG Bot access</span>
+            <span class="j-ro-card-value">{{ editOldBatchDgBotAccess ? 'On — weekly release' : 'Off' }}</span>
           </div>
         </div>
         <div class="j-ro-card">
@@ -602,12 +611,26 @@ interface TimelineDay {
         <div class="j-config-field">
           <label>
             Batch type
-            <span class="j-label-hint">— default: new</span>
+            <span class="j-label-hint">— default: old</span>
           </label>
-          <select class="j-input" [(ngModel)]="editBatchType">
+          <select class="j-input" [(ngModel)]="editBatchType" (ngModelChange)="onBatchTypeChange()">
             <option value="new">New batch (modules + exercises + classes)</option>
             <option value="old">Old batch (classes + recordings only)</option>
           </select>
+        </div>
+
+        <div class="j-config-field j-config-field--strict" *ngIf="editBatchType === 'old'">
+          <label>
+            Give access of DG Bot
+            <span class="j-label-hint">— weekly: days 1–7, then 8–14 after week 1 complete</span>
+          </label>
+          <div class="j-strict-controls">
+            <label class="j-switch">
+              <input type="checkbox" [(ngModel)]="editOldBatchDgBotAccess" />
+              <span class="j-switch-slider" aria-hidden="true"></span>
+              <span class="j-switch-label">{{ editOldBatchDgBotAccess ? 'On — students get DG Bot in 7-day journey weeks' : 'Off — no DG Bot for this batch' }}</span>
+            </label>
+          </div>
         </div>
 
         <div class="j-config-field j-config-field--strict">
@@ -3796,7 +3819,9 @@ export class JourneyManagementComponent implements OnInit {
   editBatchDay = 1;
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
-  editBatchType: 'new' | 'old' = 'new';
+  editBatchType: 'new' | 'old' = 'old';
+  /** Old batch only: weekly DG Bot access. */
+  editOldBatchDgBotAccess = false;
   /** When false, daily rollover advances students without requiring day tasks. */
   editStrictJourneyRule = false;
   /** 1–100; used when editStrictJourneyRule is true. */
@@ -4701,6 +4726,7 @@ export class JourneyManagementComponent implements OnInit {
       : '';
     this.editNotes = b.notes;
     this.editBatchType = b.batchType === 'old' ? 'old' : 'new';
+    this.editOldBatchDgBotAccess = !!b.oldBatchDgBotAccess;
     this.editStrictJourneyRule = !!b.strictJourneyRule;
     this.editStrictThresholdPercent =
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
@@ -4782,6 +4808,8 @@ export class JourneyManagementComponent implements OnInit {
           this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
           this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
           this.selectedBatch.batchType = this.editBatchType;
+          this.editOldBatchDgBotAccess = !!r.config.oldBatchDgBotAccess;
+          this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
         }
         if (this.selectedBatch?.batchName === batchName) {
           this.studentsLoadedForBatch = batchName;
@@ -4856,6 +4884,7 @@ export class JourneyManagementComponent implements OnInit {
       batchStartDate: this.editBatchStartDate || null,
       notes: this.editNotes,
       batchType: this.editBatchType,
+      oldBatchDgBotAccess: this.editBatchType === 'old' ? !!this.editOldBatchDgBotAccess : false,
       strictJourneyRule: this.editStrictJourneyRule,
       strictJourneyThresholdPercent: this.editStrictThresholdPercent,
       autoRecordingEnabled: this.editAutoRecordingEnabled
@@ -4875,10 +4904,18 @@ export class JourneyManagementComponent implements OnInit {
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editStrictJourneyRule = !!config.strictJourneyRule;
     this.editBatchType = config.batchType === 'old' ? 'old' : 'new';
+    this.editOldBatchDgBotAccess = !!config.oldBatchDgBotAccess;
+    this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
     this.editStrictThresholdPercent =
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!config.autoRecordingEnabled;
     this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
+  }
+
+  onBatchTypeChange(): void {
+    if (this.editBatchType !== 'old') {
+      this.editOldBatchDgBotAccess = false;
+    }
   }
 
   setStudentDay(s: StudentRow): void {

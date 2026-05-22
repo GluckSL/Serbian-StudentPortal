@@ -6,12 +6,14 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { PageEvent } from '@angular/material/paginator';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { StudentDocumentsService } from '../../../services/student-documents.service';
+import { AgreementService, AgreementTemplate } from '../../../services/agreement.service';
 import { NotificationService } from '../../../services/notification.service';
 import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { EMPTY, expand, reduce } from 'rxjs';
 import { Router } from '@angular/router';
+import { normalizeStudentObjectId, studentIdFromRef } from '../../../utils/student-id.util';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 interface StudentDocument {
@@ -194,6 +196,7 @@ export class DocumentVerificationComponent implements OnInit {
     { value: 'PROFESSIONAL', label: 'Professional' },
     { value: 'LEGAL', label: 'Legal' },
     { value: 'VISA', label: 'Visa' },
+    { value: 'AGREEMENT', label: 'Agreement' },
     { value: 'OTHER', label: 'Other' }
   ];
 
@@ -201,6 +204,27 @@ export class DocumentVerificationComponent implements OnInit {
   showEmailDialog = false;
   emailForm = { to: '', studentName: '', subject: '', message: '' };
   sendingEmail = false;
+
+  // Agreement generate dialog
+  showAgreementDialog = false;
+  agreementStudentControl = new FormControl('');
+  agreementFilteredStudents: any[] = [];
+  agreementTemplates: AgreementTemplate[] = [];
+  agreementTemplatesLoading = false;
+  agreementSelectedTemplate: AgreementTemplate | null = null;
+  agreementForm = {
+    studentId: '',
+    studentName: '',
+    studentEmail: '',
+    templateId: '',
+    fieldValues: {} as Record<string, string>,
+    displayName: ''
+  };
+  agreementPreviewUrl: SafeResourceUrl | null = null;
+  private agreementPreviewBlobUrl: string | null = null;
+  agreementPreviewing = false;
+  agreementSaving = false;
+  private agreementPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ========== EXPORT CSV ==========
 
@@ -217,9 +241,8 @@ export class DocumentVerificationComponent implements OnInit {
     // Group documents by student
     const studentMap = new Map<string, any>();
     this.documents.forEach(doc => {
-      const id = typeof doc.studentId === 'object' && doc.studentId !== null
-        ? (doc.studentId as any)._id : doc.studentId;
-      const idStr = String(id);
+      const idStr = studentIdFromRef(doc.studentId);
+      if (!idStr) return;
       if (!studentMap.has(idStr)) {
         const snap = this.getDocCrmSnapshot(doc);
         studentMap.set(idStr, {
@@ -279,6 +302,7 @@ export class DocumentVerificationComponent implements OnInit {
 
   constructor(
     private documentService: StudentDocumentsService,
+    private agreementService: AgreementService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
@@ -307,6 +331,184 @@ export class DocumentVerificationComponent implements OnInit {
     ).subscribe(filtered => {
       this.markVerifiedFilteredStudents = filtered;
     });
+
+    this.agreementStudentControl.valueChanges.pipe(
+      startWith(''),
+      map(value => this._filterStudents(value || ''))
+    ).subscribe(filtered => {
+      this.agreementFilteredStudents = filtered;
+    });
+  }
+
+  openAgreementTemplates(): void {
+    this.router.navigate(['/admin/agreements/templates']);
+  }
+
+  openAgreementDialog(): void {
+    this.loadStudents();
+    this.loadAgreementTemplates();
+    this.agreementStudentControl.setValue('');
+    this.agreementForm = {
+      studentId: '',
+      studentName: '',
+      studentEmail: '',
+      templateId: '',
+      fieldValues: {},
+      displayName: ''
+    };
+    this.agreementSelectedTemplate = null;
+    this.agreementPreviewUrl = null;
+    this.showAgreementDialog = true;
+  }
+
+  closeAgreementDialog(): void {
+    this.showAgreementDialog = false;
+    this.agreementPreviewUrl = null;
+  }
+
+  loadAgreementTemplates(): void {
+    this.agreementTemplatesLoading = true;
+    this.agreementService.getTemplates().subscribe({
+      next: r => {
+        this.agreementTemplates = r.templates.filter(t => t.isActive !== false);
+        this.agreementTemplatesLoading = false;
+      },
+      error: () => {
+        this.agreementTemplatesLoading = false;
+        this.snackBar.open('Failed to load agreement templates', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  selectAgreementStudent(student: any): void {
+    this.agreementForm.studentId = this.getStudentId(student);
+    this.agreementForm.studentName = this.getStudentName(student);
+    this.agreementForm.studentEmail = this.getStudentEmail(student);
+    this.agreementStudentControl.setValue(
+      `${this.agreementForm.studentName} (${this.agreementForm.studentEmail})`
+    );
+    this.onAgreementTemplateChange();
+  }
+
+  onAgreementTemplateChange(): void {
+    const id = this.agreementForm.templateId;
+    this.clearAgreementPreview();
+    if (!id) {
+      this.agreementSelectedTemplate = null;
+      return;
+    }
+
+    this.agreementService.getTemplate(id).subscribe({
+      next: r => {
+        this.agreementSelectedTemplate = r.template;
+        const prefill: Record<string, string> = {
+          studentName: this.agreementForm.studentName,
+          studentEmail: this.agreementForm.studentEmail,
+          name: this.agreementForm.studentName,
+          email: this.agreementForm.studentEmail
+        };
+        const values: Record<string, string> = {};
+        for (const f of r.template.dynamicFields || []) {
+          values[f.id] = prefill[f.id] || '';
+        }
+        this.agreementForm.fieldValues = values;
+        if (this.agreementForm.studentName) {
+          this.agreementForm.displayName = `${r.template.name} – ${this.agreementForm.studentName}`;
+        } else {
+          this.agreementForm.displayName = r.template.name;
+        }
+        this.scheduleAgreementPreview();
+      },
+      error: () => this.snackBar.open('Failed to load template', 'Close', { duration: 3000 })
+    });
+  }
+
+  onAgreementFieldChange(): void {
+    this.scheduleAgreementPreview();
+  }
+
+  buildAgreementFieldPayload(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const f of this.agreementSelectedTemplate?.dynamicFields || []) {
+      const v = this.agreementForm.fieldValues[f.id];
+      if (v != null && String(v).trim()) {
+        out[f.id] = String(v).trim();
+      }
+    }
+    return out;
+  }
+
+  scheduleAgreementPreview(): void {
+    if (!this.agreementForm.templateId) return;
+    if (this.agreementPreviewTimer) clearTimeout(this.agreementPreviewTimer);
+    this.agreementPreviewTimer = setTimeout(() => this.previewAgreementPdf(), 450);
+  }
+
+  previewAgreementPdf(): void {
+    if (!this.agreementForm.templateId) return;
+    const payload = this.buildAgreementFieldPayload();
+    if (!Object.keys(payload).length) {
+      this.clearAgreementPreview();
+      return;
+    }
+
+    this.agreementPreviewing = true;
+    this.agreementService.previewInstance(this.agreementForm.templateId, payload).subscribe({
+      next: (blob: Blob) => {
+        if (this.agreementPreviewBlobUrl) URL.revokeObjectURL(this.agreementPreviewBlobUrl);
+        this.agreementPreviewBlobUrl = URL.createObjectURL(blob);
+        this.agreementPreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.agreementPreviewBlobUrl);
+        this.agreementPreviewing = false;
+      },
+      error: e => {
+        this.agreementPreviewing = false;
+        this.snackBar.open(e.error?.message || 'Preview failed', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  private clearAgreementPreview(): void {
+    if (this.agreementPreviewBlobUrl) {
+      URL.revokeObjectURL(this.agreementPreviewBlobUrl);
+      this.agreementPreviewBlobUrl = null;
+    }
+    this.agreementPreviewUrl = null;
+  }
+
+  saveAgreement(sendEmail: boolean): void {
+    if (!this.agreementForm.studentId || !this.agreementForm.templateId || !this.agreementForm.displayName) {
+      this.snackBar.open('Select a student, template, and agreement name', 'Close', { duration: 3000 });
+      return;
+    }
+    const payload = this.buildAgreementFieldPayload();
+    if (!Object.keys(payload).length) {
+      this.snackBar.open('Fill in at least one agreement field before saving', 'Close', { duration: 3000 });
+      return;
+    }
+    this.agreementSaving = true;
+    this.agreementService.shareInstance({
+      templateId: this.agreementForm.templateId,
+      studentId: this.agreementForm.studentId,
+      fieldValues: payload,
+      displayName: this.agreementForm.displayName,
+      sendEmail
+    }).subscribe({
+      next: r => {
+        this.agreementSaving = false;
+        this.snackBar.open(
+          sendEmail ? 'Agreement saved and emailed to student' : 'Agreement saved successfully',
+          'Close',
+          { duration: 4000 }
+        );
+        window.open(this.agreementService.getDownloadUrl(r.agreement._id), '_blank');
+        this.closeAgreementDialog();
+        this.loadDocuments();
+      },
+      error: e => {
+        this.agreementSaving = false;
+        this.snackBar.open(e.error?.message || 'Failed to save agreement', 'Close', { duration: 4000 });
+      }
+    });
   }
   
   private _filterStudents(value: string): any[] {
@@ -320,17 +522,14 @@ export class DocumentVerificationComponent implements OnInit {
   }
 
   private getStudentId(student: any): string {
-    return String(
-      student?._id ??
-      student?.id ??
-      student?.studentId ??
-      student?.userId ??
-      student?.uid ??
-      ''
+    const fromFields = normalizeStudentObjectId(
+      student?._id ?? student?.id ?? student?.studentId ?? student?.userId ?? student?.uid
     );
+    if (fromFields) return fromFields;
+    return studentIdFromRef(student?.studentId);
   }
 
-  private getStudentName(student: any): string {
+  getStudentName(student: any): string {
     const name =
       student?.name ??
       student?.studentName ??
@@ -342,7 +541,7 @@ export class DocumentVerificationComponent implements OnInit {
     return String(name).trim();
   }
 
-  private getStudentEmail(student: any): string {
+  getStudentEmail(student: any): string {
     return String(student?.email ?? student?.studentEmail ?? student?.mail ?? '').trim();
   }
 
@@ -568,12 +767,7 @@ export class DocumentVerificationComponent implements OnInit {
 
     // Fallback: count unique students from documents
     const uniqueStudents = new Set(
-      this.documents.map(d => {
-        const id = typeof d.studentId === 'object' && d.studentId !== null
-          ? (d.studentId as any)._id
-          : d.studentId;
-        return String(id);
-      })
+      this.documents.map((d) => studentIdFromRef(d.studentId)).filter((id) => !!id)
     );
     this.stats.totalStudents = uniqueStudents.size;
   }
@@ -642,20 +836,16 @@ export class DocumentVerificationComponent implements OnInit {
   buildStudentGroups(): void {
     const docsByStudent = new Map<string, StudentDocument[]>();
     for (const doc of this.documents) {
-      const id = typeof doc.studentId === 'object' && doc.studentId !== null
-        ? (doc.studentId as any)._id
-        : doc.studentId;
-      const idStr = String(id);
+      const idStr = studentIdFromRef(doc.studentId);
+      if (!idStr) continue;
       if (!docsByStudent.has(idStr)) docsByStudent.set(idStr, []);
       docsByStudent.get(idStr)!.push(doc);
     }
 
     const visibleDocsByStudent = new Map<string, StudentDocument[]>();
     for (const doc of this.filteredDocuments) {
-      const id = typeof doc.studentId === 'object' && doc.studentId !== null
-        ? (doc.studentId as any)._id
-        : doc.studentId;
-      const idStr = String(id);
+      const idStr = studentIdFromRef(doc.studentId);
+      if (!idStr) continue;
       if (!visibleDocsByStudent.has(idStr)) visibleDocsByStudent.set(idStr, []);
       visibleDocsByStudent.get(idStr)!.push(doc);
     }
@@ -675,7 +865,7 @@ export class DocumentVerificationComponent implements OnInit {
       // Build from full student list so everyone is visible (even with 0 docs)
       for (const student of this.students) {
         const studentId = this.getStudentId(student);
-        if (!studentId) continue;
+        if (!studentId || studentId === 'null') continue;
 
         if (!this.studentMatchesCrmFilters(student)) continue;
 
@@ -714,10 +904,8 @@ export class DocumentVerificationComponent implements OnInit {
       // Fallback to documents only if student list isn't loaded yet
       const groupMap = new Map<string, any>();
       this.filteredDocuments.forEach(doc => {
-        const id = typeof doc.studentId === 'object' && doc.studentId !== null
-          ? (doc.studentId as any)._id
-          : doc.studentId;
-        const idStr = String(id);
+        const idStr = studentIdFromRef(doc.studentId);
+        if (!idStr) return;
         const snap = this.getDocCrmSnapshot(doc);
 
         if (!groupMap.has(idStr)) {

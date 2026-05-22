@@ -10,6 +10,7 @@ portalRouter.post('/end-session', verifyToken, ctrl.requireStudent, ctrl.endSess
 
 const analyticsRouter = express.Router();
 
+analyticsRouter.get('/filter-options', verifyToken, isAdmin, ctrl.filterOptions);
 analyticsRouter.get('/overview', verifyToken, isAdmin, ctrl.overview);
 analyticsRouter.get('/dashboard', verifyToken, isAdmin, ctrl.dashboard);
 analyticsRouter.get('/daily-logs', verifyToken, isAdmin, ctrl.dailyLogs);

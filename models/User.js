@@ -29,6 +29,8 @@ const UserSchema = new mongoose.Schema({
     of: { type: String, enum: ["view", "edit", "full"] },
     default: {}
   },
+  /** Tab IDs where SUB_ADMIN may delete data (requires edit access; full level always allows delete). */
+  sidebarDeletePermissions: { type: [String], default: [] },
   teacherTabAccessLevels: {
     type: Map,
     of: { type: String, enum: ["view", "edit", "full"] },

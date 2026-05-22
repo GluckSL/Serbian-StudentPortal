@@ -368,6 +368,8 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         subscription: student.subscription || '',
         journeyAccessEnabled: journeyAccess.enabled !== false,
         learningContentEnabled: journeyAccess.learningEnabled !== false,
+        dgBotEnabled: journeyAccess.dgBotEnabled !== false,
+        dgUnlockMode: journeyAccess.dgUnlockMode || 'none',
         batchType: normalizeBatchType(journeyAccess.batchType),
         pendingJourneyDayAdvance: !!student.pendingJourneyDayAdvance,
         pendingJourneyDayAdvanceForDay:

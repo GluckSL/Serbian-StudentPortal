@@ -401,14 +401,15 @@ exports.submitImageMatchSlot = async (req, res) => {
     if (!question) return notFound(res, 'Question not found');
 
     const result = imageMatchingService.evaluateMatch(question, word, pairIndex);
+    const staffPreview = isArenaStaff(req.user.role);
+    const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
     let pointsEarned = 0;
     let questionComplete = false;
 
     if (!result.isCorrect) {
-      const correctMatches = await GameAnswer.countDocuments({
+      const correctMatches = staffPreview ? 0 : await GameAnswer.countDocuments({
         attemptId: attempt._id, isCorrect: true,
       });
-      const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
       return res.json({
         success: true,
         isCorrect: false,
@@ -416,69 +417,80 @@ exports.submitImageMatchSlot = async (req, res) => {
         questionComplete: false,
         correctMatches,
         totalMatches: totalPairs,
-      });
-    }
-
-    // Check if this pair was already matched
-    const existingAnswer = await GameAnswer.findOne({
-      attemptId: attempt._id,
-      questionId: question._id,
-      slotIndex: pairIndex,
-    });
-    if (existingAnswer) {
-      const correctMatches = await GameAnswer.countDocuments({
-        attemptId: attempt._id, isCorrect: true,
-      });
-      const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
-      return res.json({
-        success: true,
-        isCorrect: true,
-        alreadyMatched: true,
-        pointsEarned: 0,
-        questionComplete: false,
-        correctMatches,
-        totalMatches: totalPairs,
+        preview: staffPreview,
       });
     }
 
     pointsEarned = result.points;
 
-    // Record the answer — use pairIndex as slotIndex so the unique compound index
-    // (attemptId + questionId + slotIndex) supports multiple pairs per question
-    await GameAnswer.create({
-      attemptId: attempt._id,
-      questionId: question._id,
-      studentId: req.user.id,
-      typedWord: String(word).toUpperCase().trim(),
-      slotIndex: pairIndex,
-      responseTimeMs: responseTimeMs || 0,
-      isCorrect: true,
-      pointsEarned,
-    });
-
-    const correctMatches = await GameAnswer.countDocuments({
-      attemptId: attempt._id, isCorrect: true,
-    });
-    const totalPairs = await getTotalImageMatchPairs(attempt.gameSetId);
-    questionComplete = correctMatches >= totalPairs;
-
-    if (questionComplete) {
-      await GameAttempt.findByIdAndUpdate(attempt._id, {
-        $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+    if (!staffPreview) {
+      // Check if this pair was already matched
+      const existingAnswer = await GameAnswer.findOne({
+        attemptId: attempt._id,
+        questionId: question._id,
+        slotIndex: pairIndex,
       });
-      const xpAmount = scoringService.perAnswerXp('image_matching');
-      await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
-    } else {
-      await GameAttempt.findByIdAndUpdate(attempt._id, { $inc: { score: pointsEarned } });
+      if (existingAnswer) {
+        const correctMatches = await GameAnswer.countDocuments({
+          attemptId: attempt._id, isCorrect: true,
+        });
+        return res.json({
+          success: true,
+          isCorrect: true,
+          alreadyMatched: true,
+          pointsEarned: 0,
+          questionComplete: false,
+          correctMatches,
+          totalMatches: totalPairs,
+        });
+      }
+
+      // Record the answer — use pairIndex as slotIndex so the unique compound index
+      // (attemptId + questionId + slotIndex) supports multiple pairs per question
+      await GameAnswer.create({
+        attemptId: attempt._id,
+        questionId: question._id,
+        studentId: req.user.id,
+        typedWord: String(word).toUpperCase().trim(),
+        slotIndex: pairIndex,
+        responseTimeMs: responseTimeMs || 0,
+        isCorrect: true,
+        pointsEarned,
+      });
+
+      const correctMatches = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      questionComplete = correctMatches >= totalPairs;
+
+      if (questionComplete) {
+        await GameAttempt.findByIdAndUpdate(attempt._id, {
+          $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+        });
+        const xpAmount = scoringService.perAnswerXp('image_matching');
+        await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
+      } else {
+        await GameAttempt.findByIdAndUpdate(attempt._id, { $inc: { score: pointsEarned } });
+      }
+
+      return res.json({
+        success: true,
+        isCorrect: true,
+        pointsEarned,
+        questionComplete,
+        correctMatches,
+        totalMatches: totalPairs,
+      });
     }
 
     res.json({
       success: true,
       isCorrect: true,
       pointsEarned,
-      questionComplete,
-      correctMatches,
+      questionComplete: false,
+      correctMatches: 0,
       totalMatches: totalPairs,
+      preview: true,
     });
   } catch (err) {
     serverError(res, err);

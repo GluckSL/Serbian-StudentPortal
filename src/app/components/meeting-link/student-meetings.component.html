@@ -7,8 +7,8 @@
     <p class="subtitle">View and join your scheduled German language classes</p>
   </div>
 
-  <!-- Loading State -->
-  <div *ngIf="loading" class="loading-container">
+  <!-- Loading State (standalone page only; embedded uses table skeleton rows) -->
+  <div *ngIf="loading && !embedded" class="loading-container">
     <mat-spinner></mat-spinner>
     <p>Loading your classes...</p>
   </div>
@@ -24,22 +24,22 @@
   </mat-card>
 
   <!-- Meetings Content -->
-  <div *ngIf="!loading && !error">
+  <div *ngIf="(!loading || embedded) && !error">
     <div class="sm-embedded-section-head" *ngIf="embedded">
       <h2 class="sm-embedded-section-head__title">My Classes</h2>
     </div>
 
     <!-- Tabs must show even when every list is empty (e.g. My Course → Resources) -->
-    <div class="table-wrap" *ngIf="embedded || allMeetings.length > 0">
+    <div class="table-wrap" *ngIf="embedded || upcomingTotal + liveTotal + attemptedTotal > 0 || loading || tabLoading">
       <div class="tab-row">
         <button type="button" class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
-          Upcoming Classes ({{ upcomingMeetings.length }})
+          Upcoming Classes ({{ upcomingTotal }})
         </button>
         <button type="button" class="tab-btn" [class.active]="activeTab === 'live'" (click)="setTab('live')">
-          Live Classes ({{ ongoingMeetings.length }})
+          Live Classes ({{ liveTotal }})
         </button>
         <button type="button" class="tab-btn" [class.active]="activeTab === 'attempted'" (click)="setTab('attempted')">
-          Attempted Classes ({{ attemptedMeetings.length }})
+          Attempted Classes ({{ attemptedTotal }})
         </button>
       </div>
 
@@ -57,6 +57,12 @@
           </tr>
         </thead>
         <tbody>
+          <ng-container *ngIf="tabLoading && activeTab === 'upcoming'">
+            <tr *ngFor="let _ of skeletonClassRows" class="sm-sk-row">
+              <td colspan="7"><div class="sm-sk-line sm-sk-line--long"></div></td>
+            </tr>
+          </ng-container>
+          <ng-container *ngIf="!(tabLoading && activeTab === 'upcoming')">
           <tr *ngFor="let meeting of paginatedUpcomingMeetings" class="sm-class-card-row">
             <td class="col-topic">
               <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
@@ -91,11 +97,12 @@
               </div>
             </td>
           </tr>
-          <tr *ngIf="upcomingMeetings.length === 0"><td colspan="7" class="empty-row">No upcoming classes</td></tr>
+          </ng-container>
+          <tr *ngIf="!tabLoading && upcomingTotal === 0"><td colspan="7" class="empty-row">No upcoming classes</td></tr>
         </tbody>
       </table>
-      <div class="sm-pagination" *ngIf="activeTab === 'upcoming' && upcomingMeetings.length > classesPageSize">
-        <span class="sm-pagination__label">{{ classPageRangeLabel(upcomingPage, upcomingMeetings.length) }}</span>
+      <div class="sm-pagination" *ngIf="activeTab === 'upcoming' && upcomingTotal > classesPageSize">
+        <span class="sm-pagination__label">{{ classPageRangeLabel(upcomingPage, upcomingTotal) }}</span>
         <div class="sm-pagination__controls">
           <button type="button" class="sm-pagination__btn" [disabled]="upcomingPage === 1" (click)="changeUpcomingPage(upcomingPage - 1)" aria-label="Previous page">
             <mat-icon>chevron_left</mat-icon>
@@ -127,6 +134,12 @@
           </tr>
         </thead>
         <tbody>
+          <ng-container *ngIf="tabLoading && activeTab === 'live'">
+            <tr *ngFor="let _ of skeletonClassRows" class="sm-sk-row">
+              <td colspan="7"><div class="sm-sk-line sm-sk-line--long"></div></td>
+            </tr>
+          </ng-container>
+          <ng-container *ngIf="!(tabLoading && activeTab === 'live')">
           <tr *ngFor="let meeting of paginatedOngoingMeetings" class="sm-class-card-row">
             <td class="col-topic">
               <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
@@ -161,11 +174,12 @@
               </div>
             </td>
           </tr>
-          <tr *ngIf="ongoingMeetings.length === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>
+          </ng-container>
+          <tr *ngIf="!tabLoading && liveTotal === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>
         </tbody>
       </table>
-      <div class="sm-pagination" *ngIf="activeTab === 'live' && ongoingMeetings.length > classesPageSize">
-        <span class="sm-pagination__label">{{ classPageRangeLabel(livePage, ongoingMeetings.length) }}</span>
+      <div class="sm-pagination" *ngIf="activeTab === 'live' && liveTotal > classesPageSize">
+        <span class="sm-pagination__label">{{ classPageRangeLabel(livePage, liveTotal) }}</span>
         <div class="sm-pagination__controls">
           <button type="button" class="sm-pagination__btn" [disabled]="livePage === 1" (click)="changeLivePage(livePage - 1)" aria-label="Previous page">
             <mat-icon>chevron_left</mat-icon>
@@ -195,6 +209,12 @@
           </tr>
         </thead>
         <tbody>
+          <ng-container *ngIf="tabLoading && activeTab === 'attempted'">
+            <tr *ngFor="let _ of skeletonClassRows" class="sm-sk-row">
+              <td colspan="5"><div class="sm-sk-line sm-sk-line--long"></div></td>
+            </tr>
+          </ng-container>
+          <ng-container *ngIf="!(tabLoading && activeTab === 'attempted')">
           <tr *ngFor="let meeting of paginatedAttemptedMeetings" class="sm-class-card-row">
             <td class="col-topic">
               <ng-container *ngIf="splitClassTopic(meeting.topic) as tpc">
@@ -231,11 +251,12 @@
               </div>
             </td>
           </tr>
-          <tr *ngIf="attemptedMeetings.length === 0"><td colspan="5" class="empty-row">No attempted classes yet</td></tr>
+          </ng-container>
+          <tr *ngIf="!tabLoading && attemptedTotal === 0"><td colspan="5" class="empty-row">No attempted classes yet</td></tr>
         </tbody>
       </table>
-      <div class="sm-pagination" *ngIf="activeTab === 'attempted' && attemptedMeetings.length > classesPageSize">
-        <span class="sm-pagination__label">{{ classPageRangeLabel(attemptedPage, attemptedMeetings.length) }}</span>
+      <div class="sm-pagination" *ngIf="activeTab === 'attempted' && attemptedTotal > classesPageSize">
+        <span class="sm-pagination__label">{{ classPageRangeLabel(attemptedPage, attemptedTotal) }}</span>
         <div class="sm-pagination__controls">
           <button type="button" class="sm-pagination__btn" [disabled]="attemptedPage === 1" (click)="changeAttemptedPage(attemptedPage - 1)" aria-label="Previous page">
             <mat-icon>chevron_left</mat-icon>
@@ -255,7 +276,7 @@
     </div>
 
     <!-- Full-page empty state only when not embedded (embedded always has tabs + per-tab empty rows) -->
-    <div *ngIf="allMeetings.length === 0 && !embedded" class="empty-state">
+    <div *ngIf="upcomingTotal + liveTotal + attemptedTotal === 0 && !loading && !tabLoading && !embedded" class="empty-state">
       <mat-icon>event_busy</mat-icon>
       <h3>No Classes Scheduled</h3>
       <p>You don't have any Zoom classes scheduled yet.</p>

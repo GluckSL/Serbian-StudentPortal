@@ -9,6 +9,7 @@ const SessionRecord = require('../models/SessionRecord');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { getJourneyAccessForStudentId } = require('../utils/studentJourneyAccess');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { subAdminCanDeleteOnTab } = require('../services/subAdminPermissions');
 
 // GET /api/learning-modules - Get all modules (with filtering and level-based access control)
 router.get('/', verifyToken, async (req, res) => {
@@ -353,7 +354,7 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER']), as
 });
 
 // DELETE /api/learning-modules/:id - Move module to trash (Admins can delete any, Teachers can delete their own)
-router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
+router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'SUB_ADMIN']), async (req, res) => {
   try {
     const module = await LearningModule.findById(req.params.id);
     
@@ -369,6 +370,15 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, 
     // Check permissions: Admins can delete any module, Teachers can only delete their own
     if (req.user.role === 'TEACHER' && module.createdBy.toString() !== req.user.id) {
       return res.status(403).json({ message: 'You can only delete modules you created' });
+    }
+
+    if (req.user.role === 'SUB_ADMIN') {
+      const subAdminUser = await User.findById(req.user.id).select(
+        'role sidebarAccessLevels sidebarDeletePermissions sidebarPermissions'
+      );
+      if (!subAdminUser || !subAdminCanDeleteOnTab(subAdminUser, 'modules')) {
+        return res.status(403).json({ message: 'You do not have delete permission for learning modules' });
+      }
     }
     
     console.log('🗑️ Moving module to trash:', {

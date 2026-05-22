@@ -2,9 +2,12 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { StudentDocumentsService } from '../../../services/student-documents.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { StudentDocumentsService, StudentDocument } from '../../../services/student-documents.service';
+import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
 import { MaterialModule } from '../../../shared/material.module';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
+import { normalizeStudentObjectId, studentIdFromRef } from '../../../utils/student-id.util';
 
 interface StudentDocRow {
   type: string;
@@ -16,6 +19,11 @@ interface StudentDocRow {
   uploadedAt: Date | null;
   remarks: string;
   selectedStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  // Agreement-specific fields
+  isAgreement?: boolean;
+  agreementId?: string;
+  agreementStatus?: string;
+  hasSignedCopy?: boolean;
 }
 
 @Component({
@@ -44,18 +52,26 @@ export class StudentDocumentProfileComponent implements OnInit {
   documents: any[] = [];
   rows: StudentDocRow[] = [];
 
-  showReuploadDialog = false;
-  selectedRowDoc: any | null = null;
-  reuploadReason = '';
+  /** admin_pending | student_pending | all */
+  activeTab: 'admin_pending' | 'student_pending' | 'all' = 'admin_pending';
+
+  showVerificationDialog = false;
+  verificationAction: 'VERIFIED' | 'REJECTED' | null = null;
+  verificationNotes = '';
+  verifying = false;
+  /** Row being approved/rejected */
+  verifyTarget: StudentDocRow | null = null;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private documentService: StudentDocumentsService
+    private documentService: StudentDocumentsService,
+    private agreementService: AgreementService,
+    private snack: MatSnackBar
   ) {}
 
   ngOnInit(): void {
-    this.studentId = this.route.snapshot.paramMap.get('studentId') || '';
+    this.studentId = normalizeStudentObjectId(this.route.snapshot.paramMap.get('studentId'));
     const qp = this.route.snapshot.queryParamMap;
     this.student = {
       name: qp.get('name') || '',
@@ -85,6 +101,10 @@ export class StudentDocumentProfileComponent implements OnInit {
               this.documents = docRes.documents || [];
               if (this.documents.length > 0) {
                 const base = this.documents[0];
+                if (!this.studentId) {
+                  const fromDoc = studentIdFromRef(base.studentId);
+                  if (fromDoc) this.studentId = fromDoc;
+                }
                 this.student.name = this.student.name || base.studentName || '';
                 this.student.email = this.student.email || base.studentEmail || '';
                 this.student.studentStatus = this.student.studentStatus || base.studentStatus || '';
@@ -96,9 +116,20 @@ export class StudentDocumentProfileComponent implements OnInit {
                   this.student.isTestAccount = base.isTestAccount;
                 }
               }
-              this.rows = this.createRows(this.documents);
+              // Also load agreement rows then build merged table
+              this.agreementService.getInstances(this.studentId).subscribe({
+                next: (agRes) => {
+                  this.rows = this.createRows(this.documents, agRes.agreements || []);
+                  this.loading = false;
+                },
+                error: () => {
+                  this.rows = this.createRows(this.documents, []);
+                  this.loading = false;
+                }
+              });
+            } else {
+              this.loading = false;
             }
-            this.loading = false;
           },
           error: () => {
             this.loading = false;
@@ -111,7 +142,28 @@ export class StudentDocumentProfileComponent implements OnInit {
     });
   }
 
-  createRows(studentDocs: any[]): StudentDocRow[] {
+  /** Open the Share New Agreement screen for this student (fill template → PDF → checklist). */
+  openAgreementWorkspace(): void {
+    const id = normalizeStudentObjectId(this.studentId) ||
+      this.documents.map((d) => studentIdFromRef(d.studentId)).find((x) => !!x) ||
+      '';
+    if (!id) {
+      this.snack.open('Student ID missing — open this profile from Document Verification student list', 'Close', { duration: 5000 });
+      return;
+    }
+    this.router.navigate(['/admin/agreements/student', id], {
+      queryParams: {
+        name: this.student.name,
+        email: this.student.email,
+        studentMongoId: id,
+        studentStatus: this.student.studentStatus,
+        subscription: this.student.subscription,
+        servicesOpted: this.student.servicesOpted
+      }
+    });
+  }
+
+  createRows(studentDocs: any[], agreements: StudentAgreement[] = []): StudentDocRow[] {
     const docs = Array.isArray(studentDocs) ? studentDocs : [];
     const rows: StudentDocRow[] = [];
 
@@ -124,6 +176,17 @@ export class StudentDocumentProfileComponent implements OnInit {
         .filter((d) => d.documentType === req.type)
         .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
       const latest = docsByType.length > 0 ? docsByType[0] : null;
+      const agMatch = latest
+        ? agreements.find(
+            (a) =>
+              (a.studentDocumentId && String(a.studentDocumentId) === String(latest._id)) ||
+              a.displayName === latest.documentName
+          )
+        : null;
+      const isAg =
+        !!agMatch ||
+        latest?.documentCategory === 'AGREEMENT' ||
+        String(req.type || '').startsWith('AGREEMENT_');
       rows.push({
         type: req.type,
         label: req.name || req.label || req.type,
@@ -133,7 +196,11 @@ export class StudentDocumentProfileComponent implements OnInit {
         doc: latest,
         uploadedAt: latest?.uploadedAt || null,
         remarks: String(latest?.verificationNotes || latest?.remarks || '').trim(),
-        selectedStatus: (latest?.status || 'PENDING') as 'PENDING' | 'VERIFIED' | 'REJECTED'
+        selectedStatus: (latest?.status || 'PENDING') as 'PENDING' | 'VERIFIED' | 'REJECTED',
+        isAgreement: isAg,
+        agreementId: agMatch?._id,
+        agreementStatus: agMatch?.status,
+        hasSignedCopy: !!agMatch?.signedFile
       });
     }
 
@@ -152,13 +219,217 @@ export class StudentDocumentProfileComponent implements OnInit {
         });
       }
     }
+
+    // Agreement instances not already linked to a requirement row
+    for (const ag of agreements) {
+      if (ag.studentDocumentId && rows.some((r) => r.doc && String(r.doc._id) === String(ag.studentDocumentId))) {
+        continue;
+      }
+      const agStatus = this.mapAgreementStatus(ag.status);
+      rows.push({
+        type: `AGREEMENT_${ag._id}`,
+        label: ag.displayName,
+        requirementId: undefined,
+        required: false,
+        status: agStatus,
+        doc: ag.studentDocumentId
+          ? {
+              _id: ag.studentDocumentId,
+              documentCategory: 'AGREEMENT',
+              agreementId: ag._id,
+              fileName: ag.signedFile?.fileName || ag.generatedFile?.fileName,
+              filePath: '',
+              documentName: ag.displayName
+            }
+          : null,
+        uploadedAt: ag.sentAt ? new Date(ag.sentAt) : null,
+        remarks: ag.verificationNotes || '',
+        selectedStatus: (agStatus === 'NOT_UPLOADED' ? 'PENDING' : agStatus) as 'PENDING' | 'VERIFIED' | 'REJECTED',
+        isAgreement: true,
+        agreementId: ag._id,
+        agreementStatus: ag.status,
+        hasSignedCopy: !!ag.signedFile
+      });
+    }
+
     return rows;
   }
 
+  private mapAgreementStatus(agStatus: string): 'PENDING' | 'VERIFIED' | 'REJECTED' | 'NOT_UPLOADED' {
+    switch (agStatus) {
+      case 'VERIFIED': return 'VERIFIED';
+      case 'REJECTED': return 'REJECTED';
+      case 'SIGNED_PENDING': return 'PENDING';
+      case 'SENT': return 'PENDING';
+      default: return 'NOT_UPLOADED';
+    }
+  }
+
+  viewAgreement(agreementId: string, type: 'generated' | 'signed' = 'generated'): void {
+    this.agreementService.downloadInstance(agreementId, type).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob);
+        } catch (e: any) {
+          this.snack.open(e?.message || 'Allow popups to view the document', 'Close', { duration: 4000 });
+        }
+      },
+      error: (e) => this.snack.open(e?.error?.message || 'Could not open document', 'Close', { duration: 4000 })
+    });
+  }
+
+  downloadAgreement(agreementId: string, type: 'generated' | 'signed', fileName?: string): void {
+    this.agreementService.downloadInstance(agreementId, type).subscribe({
+      next: (blob) => this.documentService.triggerFileDownload(blob, fileName || `agreement-${type}.pdf`),
+      error: () => this.snack.open('Download failed', 'Close', { duration: 3000 })
+    });
+  }
+
+  canReviewRow(row: StudentDocRow): boolean {
+    return this.isAdminPending(row);
+  }
+
+  /** Uploaded and waiting for admin approve/reject */
+  isAdminPending(row: StudentDocRow): boolean {
+    if (!row.doc) return false;
+    if (row.status === 'NOT_UPLOADED') return false;
+    if (row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy) return false;
+    return row.status === 'PENDING' || row.agreementStatus === 'SIGNED_PENDING';
+  }
+
+  /** Student must upload, re-upload, or sign */
+  isStudentPending(row: StudentDocRow): boolean {
+    if (row.status === 'NOT_UPLOADED' || !row.doc) return true;
+    if (row.status === 'REJECTED') return true;
+    if (row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy) return true;
+    return false;
+  }
+
+  setTab(tab: 'admin_pending' | 'student_pending' | 'all'): void {
+    this.activeTab = tab;
+  }
+
+  get filteredRows(): StudentDocRow[] {
+    switch (this.activeTab) {
+      case 'admin_pending':
+        return this.rows.filter((r) => this.isAdminPending(r));
+      case 'student_pending':
+        return this.rows.filter((r) => this.isStudentPending(r));
+      default:
+        return this.rows;
+    }
+  }
+
+  get adminPendingCount(): number {
+    return this.rows.filter((r) => this.isAdminPending(r)).length;
+  }
+
+  get studentPendingCount(): number {
+    return this.rows.filter((r) => this.isStudentPending(r)).length;
+  }
+
+  get allCount(): number {
+    return this.rows.length;
+  }
+
+  getEmptyTabMessage(): string {
+    switch (this.activeTab) {
+      case 'admin_pending':
+        return 'No documents waiting for your review.';
+      case 'student_pending':
+        return 'Nothing pending from the student — no missing uploads or re-uploads.';
+      default:
+        return 'No documents found for this student.';
+    }
+  }
+
+  openVerifyDialog(row: StudentDocRow, action: 'VERIFIED' | 'REJECTED'): void {
+    this.verifyTarget = row;
+    this.verificationAction = action;
+    this.verificationNotes = row.remarks || '';
+    this.showVerificationDialog = true;
+  }
+
+  closeVerificationDialog(): void {
+    this.showVerificationDialog = false;
+    this.verifyTarget = null;
+    this.verificationAction = null;
+    this.verificationNotes = '';
+  }
+
+  confirmVerification(): void {
+    if (!this.verifyTarget || !this.verificationAction) return;
+    const row = this.verifyTarget;
+    const action = this.verificationAction;
+    const notes =
+      action === 'VERIFIED'
+        ? (this.verificationNotes.trim() || 'Verified after review by admin')
+        : this.verificationNotes.trim();
+
+    if (action === 'REJECTED' && !notes) {
+      this.snack.open('Please enter a reason for the student', 'Close', { duration: 3000 });
+      return;
+    }
+
+    this.verifying = true;
+
+    const done = (msg: string) => {
+      this.verifying = false;
+      this.snack.open(msg, 'Close', { duration: 4500 });
+      this.closeVerificationDialog();
+      this.loadData();
+    };
+
+    const fail = (e: { error?: { message?: string } }) => {
+      this.verifying = false;
+      this.snack.open(e.error?.message || 'Update failed', 'Close', { duration: 4000 });
+    };
+
+    if (row.isAgreement && row.agreementId) {
+      this.agreementService.verifyInstance(row.agreementId, action, notes).subscribe({
+        next: (r) => {
+          const extra = action === 'REJECTED' && r.emailSent ? ' Email sent to student.' : '';
+          done((r.message || `Agreement ${action.toLowerCase()}`) + extra);
+        },
+        error: fail
+      });
+      return;
+    }
+
+    if (!row.doc?._id) {
+      this.verifying = false;
+      return;
+    }
+
+    this.documentService.verifyDocument(row.doc._id, action, notes).subscribe({
+      next: (r) => {
+        const extra = action === 'REJECTED' && r.emailSent ? ' Email sent to student.' : '';
+        done((r.message || `Document ${action.toLowerCase()}`) + extra);
+      },
+      error: fail
+    });
+  }
+
   openDocumentInNewTab(doc: any): void {
-    if (!doc || doc.fileName === 'NO_FILE_UPLOADED') return;
-    const previewUrl = this.documentService.getPreviewUrl(doc._id);
-    window.open(previewUrl, '_blank', 'noopener');
+    if (!doc?._id || doc.fileName === 'NO_FILE_UPLOADED') return;
+    this.documentService.previewDocument(doc._id).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob, doc.mimeType || 'application/pdf');
+        } catch (e: any) {
+          this.snack.open(e?.message || 'Allow popups to view the document', 'Close', { duration: 4000 });
+        }
+      },
+      error: () => this.snack.open('Could not open document preview', 'Close', { duration: 3000 })
+    });
+  }
+
+  viewRow(row: StudentDocRow): void {
+    if (row.isAgreement && row.agreementId) {
+      this.viewAgreement(row.agreementId, row.hasSignedCopy ? 'signed' : 'generated');
+      return;
+    }
+    if (row.doc) this.openDocumentInNewTab(row.doc);
   }
 
   downloadDocument(doc: any): void {
@@ -198,52 +469,18 @@ export class StudentDocumentProfileComponent implements OnInit {
       formData.append('description', 'Uploaded by admin from Student Document Profile page');
       this.documentService.adminUploadDocument(formData).subscribe({
         next: (response) => {
-          if (response.success) this.loadData();
-        }
+          if (response.success) {
+            const msg = (response as { message?: string }).message || 'Document uploaded for student';
+            this.snack.open(msg, 'Close', { duration: 4500 });
+            this.loadData();
+          }
+        },
+        error: (e) => this.snack.open(e?.error?.message || 'Upload failed', 'Close', { duration: 4000 })
       });
     };
     input.click();
   }
 
-  updateRowStatus(row: StudentDocRow): void {
-    if (!row.doc || !row.selectedStatus) return;
-
-    if (row.selectedStatus === 'REJECTED') {
-      this.openReuploadDialog(row.doc);
-      return;
-    }
-
-    const notes = row.selectedStatus === 'VERIFIED' ? 'Verified after review by admin' : 'Moved back to pending review by admin';
-    this.documentService.verifyDocument(row.doc._id, row.selectedStatus, notes).subscribe({
-      next: (response) => {
-        if (response.success) this.loadData();
-      }
-    });
-  }
-
-  openReuploadDialog(doc: any): void {
-    this.selectedRowDoc = doc;
-    this.reuploadReason = '';
-    this.showReuploadDialog = true;
-  }
-
-  closeReuploadDialog(): void {
-    this.showReuploadDialog = false;
-    this.selectedRowDoc = null;
-    this.reuploadReason = '';
-  }
-
-  submitReuploadRequest(): void {
-    if (!this.selectedRowDoc || !this.reuploadReason.trim()) return;
-    this.documentService.verifyDocument(this.selectedRowDoc._id, 'REJECTED', this.reuploadReason.trim()).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.closeReuploadDialog();
-          this.loadData();
-        }
-      }
-    });
-  }
 
   getStatusColor(status: string): string {
     switch (status) {

@@ -4,22 +4,6 @@
     <mat-tab label="Exercises"></mat-tab>
     <mat-tab label="DigiBot"></mat-tab>
   </mat-tab-group>
-  <div class="mode-toggle">
-    <button
-      mat-stroked-button
-      type="button"
-      [class.mode-active]="viewMode === 'day'"
-      (click)="setViewMode('day')">
-      Day
-    </button>
-    <button
-      mat-stroked-button
-      type="button"
-      [class.mode-active]="viewMode === 'range'"
-      (click)="setViewMode('range')">
-      Range
-    </button>
-  </div>
 
   @if (loading) {
     <div class="pa-center"><mat-spinner diameter="40" /></div>
@@ -32,12 +16,8 @@
       <h3>Portal Analytics – DigiBot</h3>
       <p>
         Gluck Buddy (DG Bot) session activity — individual practice sessions with scores, time, and conversation logs.
-        @if (viewMode === 'day') {
-          Summary for <strong>{{ effectiveDay | date : 'mediumDate' }}</strong> (day-wise view).
-        } @else {
-          <strong>{{ range.from | date : 'mediumDate' }}</strong> to
-          <strong>{{ range.to | date : 'mediumDate' }}</strong> (range view).
-        }
+        <strong>{{ range.from | date : 'mediumDate' }}</strong> to
+        <strong>{{ range.to | date : 'mediumDate' }}</strong>.
       </p>
     </div>
 
@@ -220,12 +200,8 @@
         } @else {
           Student-wise tracked time summary for
         }
-        @if (viewMode === 'day') {
-          <strong>{{ effectiveDay | date : 'mediumDate' }}</strong> (day-wise view).
-        } @else {
-          <strong>{{ range.from | date : 'mediumDate' }}</strong> to
-          <strong>{{ range.to | date : 'mediumDate' }}</strong> (range view).
-        }
+        <strong>{{ range.from | date : 'mediumDate' }}</strong> to
+        <strong>{{ range.to | date : 'mediumDate' }}</strong>.
       </p>
     </div>
 

@@ -192,6 +192,18 @@
   border-top-width: 3px !important;
 }
 
+.pa-extra-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.pa-field--select .form-control {
+  min-width: 130px;
+}
+
 /* Cohort filter toggle */
 .pa-cohort-filter {
   display: flex;

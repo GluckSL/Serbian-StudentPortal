@@ -114,7 +114,7 @@
         Exercises
       </button>
       <button
-        *ngIf="allowsLearningContent"
+        *ngIf="allowsTalkBuddyTab"
         type="button"
         role="tab"
         class="mc-tab"
@@ -140,7 +140,12 @@
       </section>
       <section class="mc-classes-card mc-classes-card--recordings" aria-label="Recorded classes">
         <h3 class="mc-classes-card__title">Recorded classes</h3>
-        <app-student-recordings [embedded]="true"></app-student-recordings>
+        <app-student-recordings
+          [embedded]="true"
+          [isPlatinumStudent]="isPlatinumStudent"
+          [refreshToken]="recordingsRefreshToken"
+          (reqRecordingClick)="openRecordingReqPanel()"
+        ></app-student-recordings>
       </section>
     </div>
     <aside class="mc-classes-layout__aside" aria-label="Journey and updates">
@@ -289,6 +294,9 @@
   <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
 
   <div class="mc-panel" *ngIf="activeTab === 'talk-buddy'" role="tabpanel">
+    <p class="mc-dg-week-hint" *ngIf="allowsDgBot && !allowsLearningContent">
+      Complete all Glück Buddy modules in your current week to unlock the next week of practice.
+    </p>
     <app-gluck-buddy-hub></app-gluck-buddy-hub>
   </div>
 
@@ -796,6 +804,274 @@
       >
         All tasks for Day {{ journeyCourseDay }} are completed!
       </p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recording access request — class list modal (center screen) ── -->
+<div
+  class="mc-req-modal-overlay mc-req-modal-overlay--list"
+  *ngIf="showRecordingReqPanel && isPlatinumStudent && !recordingReqConfirmTarget"
+  (click)="closeRecordingReqPanel()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Request recording access for batch classes"
+>
+    <div class="mc-req-modal mc-req-modal--list" (click)="$event.stopPropagation()">
+      <div class="mc-req-modal__header">
+        <div>
+          <h4 class="mc-req-modal__title">Request Recording Access</h4>
+          <p class="mc-req-modal__subtitle" *ngIf="recordingReqQuota">
+            Level <strong>{{ recordingReqQuota.level || levelShortLabel }}</strong> &mdash;
+            <strong>{{ recordingReqQuota.remaining }}</strong> of {{ recordingReqQuota.limit }} requests remaining
+            <span *ngIf="!recordingReqLoading && recordingReqTotal">
+              &mdash; {{ recordingReqTotal }} class{{ recordingReqTotal !== 1 ? 'es' : '' }}
+            </span>
+          </p>
+        </div>
+        <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqPanel()" aria-label="Close">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="mc-req-modal__body mc-req-modal__body--list">
+        <div class="mc-req-banner mc-req-banner--success" *ngIf="recordingReqSuccessMsg">
+          <span class="material-icons">check_circle</span>
+          {{ recordingReqSuccessMsg }}
+        </div>
+
+        <div class="mc-req-banner mc-req-banner--warn" *ngIf="recordingReqQuota && recordingReqQuota.remaining === 0 && !recordingReqLoading">
+          <span class="material-icons">info</span>
+          You have used all {{ recordingReqQuota.limit }} approved recording requests for level {{ recordingReqQuota.level }}.
+        </div>
+
+        <div class="mc-req-banner mc-req-banner--error" *ngIf="recordingReqError && !recordingReqLoading">
+          <span class="material-icons">error_outline</span>
+          {{ recordingReqError }}
+        </div>
+
+        <div class="mc-req-list-modal" *ngIf="recordingReqLoading" aria-busy="true" aria-label="Loading classes">
+          <table class="mc-req-table mc-req-table--skeleton">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Date</th>
+                <th>Teacher</th>
+                <th>Attendance</th>
+                <th class="mc-req-table__action-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let _ of recordingReqSkeletonRows" class="mc-req-sk-row">
+                <td><div class="mc-req-sk-line mc-req-sk-line--topic"></div></td>
+                <td><div class="mc-req-sk-line mc-req-sk-line--short"></div></td>
+                <td><div class="mc-req-sk-line mc-req-sk-line--med"></div></td>
+                <td><div class="mc-req-sk-line mc-req-sk-line--pill"></div></td>
+                <td class="mc-req-table__action-col">
+                  <div class="mc-req-table__actions">
+                    <div class="mc-req-sk-icon"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mc-req-list-modal" *ngIf="!recordingReqLoading && !recordingReqError">
+          <div class="mc-req-empty" *ngIf="!recordingReqClasses.length">
+            <span class="material-icons">event_busy</span>
+            No past classes found for your batch.
+          </div>
+
+          <table class="mc-req-table" *ngIf="recordingReqClasses.length">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Date</th>
+                <th>Teacher</th>
+                <th>Attendance</th>
+                <th class="mc-req-table__action-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let cls of recordingReqClasses">
+                <td class="mc-req-table__topic">{{ cls.topic }}</td>
+                <td>{{ formatReqDate(cls.startTime) }}</td>
+                <td>{{ cls.teacherName }}</td>
+                <td>
+                  <span class="mc-req-row__att" [ngClass]="cls.attendanceStatus === 'Attended' ? 'att--attended' : 'att--missed'">
+                    {{ cls.attendanceStatus }}
+                  </span>
+                </td>
+                <td class="mc-req-table__action-col">
+                  <div class="mc-req-table__actions">
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
+                      *ngIf="cls.isAlreadyPublished"
+                      title="Access granted"
+                      aria-label="Access granted"
+                    >
+                      <span class="material-icons">check_circle</span>
+                    </span>
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
+                      *ngIf="!cls.isAlreadyPublished && cls.requestStatus === 'APPROVED'"
+                      title="Approved"
+                      aria-label="Approved"
+                    >
+                      <span class="material-icons">verified</span>
+                    </span>
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--pending"
+                      *ngIf="cls.requestStatus === 'PENDING'"
+                      title="Pending review"
+                      aria-label="Pending review"
+                    >
+                      <span class="material-icons">schedule</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="mc-req-icon-btn mc-req-icon-btn--request"
+                      *ngIf="cls.canRequest"
+                      (click)="openRecordingReqConfirm(cls)"
+                      title="Request access"
+                      aria-label="Request access"
+                    >
+                      <span class="material-icons">playlist_add</span>
+                    </button>
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--muted"
+                      *ngIf="!cls.isAlreadyPublished && cls.requestStatus !== 'APPROVED' && cls.requestStatus !== 'PENDING' && !cls.canRequest"
+                      title="Quota full"
+                      aria-label="Quota full"
+                    >
+                      <span class="material-icons">block</span>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div
+            class="mc-req-pagination"
+            *ngIf="recordingReqTotalPages > 1 && !recordingReqLoading && !recordingReqError"
+          >
+            <button
+              type="button"
+              class="mc-req-pagination__btn"
+              (click)="goToRecordingReqPage(recordingReqPage - 1)"
+              [disabled]="recordingReqPage <= 1 || recordingReqLoading"
+            >
+              <span class="material-icons">chevron_left</span> Previous
+            </button>
+            <span class="mc-req-pagination__info">
+              Showing {{ recordingReqRangeStart() }}&ndash;{{ recordingReqRangeEnd() }} of {{ recordingReqTotal }}
+            </span>
+            <button
+              type="button"
+              class="mc-req-pagination__btn"
+              (click)="goToRecordingReqPage(recordingReqPage + 1)"
+              [disabled]="recordingReqPage >= recordingReqTotalPages || recordingReqLoading"
+            >
+              Next <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ── Recording access request — confirmation modal ── -->
+<div
+  class="mc-req-modal-overlay mc-req-modal-overlay--confirm"
+  *ngIf="recordingReqConfirmTarget"
+  (click)="closeRecordingReqConfirm()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Confirm recording request"
+>
+  <div class="mc-req-modal mc-req-modal--confirm" (click)="$event.stopPropagation()">
+    <div class="mc-req-modal__header mc-req-modal__header--confirm">
+      <div class="mc-req-modal__header-text">
+        <span class="mc-req-modal__header-icon material-icons">videocam</span>
+        <div>
+          <h4 class="mc-req-modal__title">Confirm request</h4>
+          <p class="mc-req-modal__subtitle">Review the class below before submitting</p>
+        </div>
+      </div>
+      <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqConfirm()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <div class="mc-req-modal__body mc-req-modal__body--confirm">
+      <div class="mc-req-confirm-card">
+        <p class="mc-req-confirm-card__topic">{{ recordingReqConfirmTarget.topic }}</p>
+        <ul class="mc-req-confirm-card__meta">
+          <li>
+            <span class="material-icons">event</span>
+            {{ formatReqDate(recordingReqConfirmTarget.startTime) }}
+          </li>
+          <li>
+            <span class="material-icons">person</span>
+            {{ recordingReqConfirmTarget.teacherName }}
+          </li>
+          <li>
+            <span class="material-icons">how_to_reg</span>
+            <span
+              [ngClass]="recordingReqConfirmTarget.attendanceStatus === 'Attended' ? 'mc-req-confirm-card__att--ok' : 'mc-req-confirm-card__att--no'"
+            >
+              {{ recordingReqConfirmTarget.attendanceStatus }}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="mc-req-confirm-quota" *ngIf="recordingReqQuota">
+        <div class="mc-req-confirm-quota__stat">
+          <span class="mc-req-confirm-quota__label">Request #</span>
+          <span class="mc-req-confirm-quota__value">{{ recordingReqOrdinal(recordingReqQuota.approvedCount + 1) }}</span>
+        </div>
+        <div class="mc-req-confirm-quota__divider"></div>
+        <div class="mc-req-confirm-quota__stat">
+          <span class="mc-req-confirm-quota__label">Level</span>
+          <span class="mc-req-confirm-quota__value">{{ recordingReqQuota.level }}</span>
+        </div>
+        <div class="mc-req-confirm-quota__divider"></div>
+        <div class="mc-req-confirm-quota__stat">
+          <span class="mc-req-confirm-quota__label">After approval</span>
+          <span class="mc-req-confirm-quota__value">
+            {{ recordingReqQuota.remaining - 1 }} left
+          </span>
+        </div>
+      </div>
+
+      <p class="mc-req-confirm-note" *ngIf="recordingReqQuota">
+        You can submit up to {{ recordingReqQuota.limit }} approved recording requests per level.
+        We will notify you by email once your request is reviewed.
+      </p>
+
+      <div class="mc-req-modal__fail" *ngIf="recordingReqFailMsg">
+        <span class="material-icons">error_outline</span>
+        {{ recordingReqFailMsg }}
+      </div>
+    </div>
+
+    <div class="mc-req-modal__footer mc-req-modal__footer--confirm">
+      <button type="button" class="mc-req-modal__btn mc-req-modal__btn--cancel" (click)="closeRecordingReqConfirm()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="mc-req-modal__btn mc-req-modal__btn--confirm"
+        [disabled]="recordingReqSubmitting"
+        (click)="confirmRecordingRequest()"
+      >
+        <span class="material-icons mc-req-spin" *ngIf="recordingReqSubmitting">autorenew</span>
+        <span class="material-icons" *ngIf="!recordingReqSubmitting">send</span>
+        {{ recordingReqSubmitting ? 'Submitting…' : 'Submit request' }}
+      </button>
     </div>
   </div>
 </div>

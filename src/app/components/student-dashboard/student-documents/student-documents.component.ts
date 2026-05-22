@@ -1,7 +1,7 @@
 // src/app/components/student-dashboard/student-documents/student-documents.component.ts
 // Component for student document upload and management
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { 
@@ -10,6 +10,7 @@ import {
   StudentDocument,
   DocumentStats 
 } from '../../../services/student-documents.service';
+import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
 import { NotificationService } from '../../../services/notification.service';
 
 @Component({
@@ -49,10 +50,21 @@ export class StudentDocumentsComponent implements OnInit {
   successMessage: string = '';
   errorMessage: string = '';
 
-  constructor(private documentService: StudentDocumentsService, private notify: NotificationService) {}
+  // Agreements
+  agreements: StudentAgreement[] = [];
+  loadingAgreements = false;
+  uploadingAgreementId: string | null = null;
+  @ViewChild('signedFileInput') signedFileInput!: ElementRef<HTMLInputElement>;
+
+  constructor(
+    private documentService: StudentDocumentsService,
+    private agreementService: AgreementService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     this.loadData();
+    this.loadAgreements();
   }
 
   async loadData(): Promise<void> {
@@ -102,6 +114,123 @@ export class StudentDocumentsComponent implements OnInit {
     } catch (error) {
       console.error('Error loading stats:', error);
     }
+  }
+
+  loadAgreements(): void {
+    this.loadingAgreements = true;
+    this.agreementService.getInstances().subscribe({
+      next: r => { this.agreements = r.agreements || []; this.loadingAgreements = false; },
+      error: () => { this.loadingAgreements = false; }
+    });
+  }
+
+  isAgreementRequirement(req: DocumentRequirement): boolean {
+    return req.category === 'AGREEMENT' || String(req.type || '').startsWith('AGREEMENT_');
+  }
+
+  /** Link checklist row to shared agreement instance. */
+  getAgreementForRequirement(req: DocumentRequirement): StudentAgreement | null {
+    const latest = this.getLatestDocumentForType(req.type);
+    if (latest) {
+      const byDoc = this.agreements.find(
+        (a) => a.studentDocumentId && String(a.studentDocumentId) === String(latest._id)
+      );
+      if (byDoc) return byDoc;
+    }
+    const byName = this.agreements.find(
+      (a) => latest && (a.displayName === latest.documentName || a.templateName === req.label)
+    );
+    if (byName) return byName;
+    if (this.agreements.length === 1 && this.isAgreementRequirement(req)) return this.agreements[0];
+    return null;
+  }
+
+  canUploadSignedAgreement(a: StudentAgreement): boolean {
+    return a.status === 'SENT' || a.status === 'REJECTED' || a.status === 'SIGNED_PENDING';
+  }
+
+  downloadAgreement(a: StudentAgreement, type: 'generated' | 'signed' = 'generated'): void {
+    const name =
+      type === 'signed' && a.signedFile?.fileName
+        ? a.signedFile.fileName
+        : a.generatedFile?.fileName || `${a.displayName || 'agreement'}.pdf`;
+    this.agreementService.downloadInstance(a._id, type).subscribe({
+      next: (blob) => this.documentService.triggerFileDownload(blob, name),
+      error: (e) => this.showError(e.error?.message || 'Download failed')
+    });
+  }
+
+  viewAgreement(a: StudentAgreement): void {
+    const type = a.signedFile && a.status !== 'SENT' ? 'signed' : 'generated';
+    this.agreementService.downloadInstance(a._id, type).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob);
+        } catch (e: any) {
+          this.showError(e?.message || 'Allow popups to view the document');
+        }
+      },
+      error: (e) => this.showError(e.error?.message || 'Could not open agreement')
+    });
+  }
+
+  viewDocumentFile(doc: StudentDocument): void {
+    if (!doc?._id || doc.fileName === 'NO_FILE_UPLOADED') return;
+    this.documentService.previewDocument(doc._id).subscribe({
+      next: (blob) => {
+        try {
+          this.documentService.openBlobInNewTab(blob, doc.mimeType || 'application/pdf');
+        } catch (e: any) {
+          this.showError(e?.message || 'Allow popups to view the document');
+        }
+      },
+      error: () => this.showError('Could not open document preview')
+    });
+  }
+
+  triggerSignedUpload(agreementId: string): void {
+    this.uploadingAgreementId = agreementId;
+    this.signedFileInput.nativeElement.click();
+  }
+
+  onSignedFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !this.uploadingAgreementId) return;
+    const id = this.uploadingAgreementId;
+    this.agreementService.uploadSigned(id, file).subscribe({
+      next: () => {
+        this.showSuccess('Signed agreement uploaded! Admin will review it shortly.');
+        this.loadAgreements();
+        this.loadDocuments();
+        this.loadStats();
+        this.uploadingAgreementId = null;
+        input.value = '';
+      },
+      error: e => {
+        this.showError(e.error?.message || 'Upload failed');
+        this.uploadingAgreementId = null;
+        input.value = '';
+      }
+    });
+  }
+
+  agreementStatusLabel(s: string): string {
+    const map: Record<string, string> = {
+      SENT: 'Awaiting Your Signature',
+      SIGNED_PENDING: 'Under Review',
+      VERIFIED: 'Verified',
+      REJECTED: 'Rejected'
+    };
+    return map[s] || s;
+  }
+
+  agreementStatusClass(s: string): string {
+    const map: Record<string, string> = {
+      SENT: 'status-pending', SIGNED_PENDING: 'status-pending',
+      VERIFIED: 'status-verified', REJECTED: 'status-rejected'
+    };
+    return map[s] || '';
   }
 
   // Document type selection - auto-fill document name

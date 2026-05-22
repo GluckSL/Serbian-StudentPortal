@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, ViewChild, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -21,6 +21,7 @@ import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
+import { RecordingAccessRequestService, EligibleClass, RecordingRequestQuota } from '../../services/recording-access-request.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
 import {
@@ -98,6 +99,26 @@ export class MyCourseComponent implements OnInit {
   announcementLoadError = false;
   private lastAnnouncementId: string | null = null;
 
+  // ── Recording access request panel ──────────────────────────────────────────
+  showRecordingReqPanel = false;
+  recordingReqClasses: EligibleClass[] = [];
+  recordingReqQuota: RecordingRequestQuota | null = null;
+  recordingReqLoading = false;
+  recordingReqError = '';
+  readonly recordingReqPageSize = 7;
+  readonly recordingReqSkeletonRows = [0, 1, 2, 3, 4, 5, 6];
+  recordingReqPage = 1;
+  recordingReqTotal = 0;
+  recordingReqTotalPages = 0;
+  /** The class row currently open in the confirmation modal. */
+  recordingReqConfirmTarget: EligibleClass | null = null;
+  recordingReqSubmitting = false;
+  recordingReqSuccessMsg = '';
+  recordingReqFailMsg = '';
+  recordingsRefreshToken = 0;
+
+  @ViewChild(StudentRecordingsComponent) studentRecordings?: StudentRecordingsComponent;
+
   /** Full user profile from AuthService (contains subscription, role, etc.) */
   userProfile: any = null;
 
@@ -155,7 +176,8 @@ export class MyCourseComponent implements OnInit {
     private joinClassFlow: JoinClassFlowService,
     private notify: NotificationService,
     private dgApiService: DgApiService,
-    private recordingsService: ClassRecordingsService
+    private recordingsService: ClassRecordingsService,
+    private recordingReqService: RecordingAccessRequestService
   ) {}
 
   ngOnInit(): void {
@@ -240,7 +262,7 @@ export class MyCourseComponent implements OnInit {
       });
 
     this.zoomService
-      .getStudentMeetings()
+      .getStudentMeetings({ tab: 'upcoming', page: 1, limit: 25 })
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => of({ success: false, data: [] }))
@@ -262,7 +284,9 @@ export class MyCourseComponent implements OnInit {
           replaceUrl: true
         });
       }
-      if ((t === 'exercises' || t === 'talk-buddy') && !this.allowsLearningContent) {
+      if (t === 'exercises' && !this.allowsLearningContent) {
+        this.activeTab = 'classes';
+      } else if (t === 'talk-buddy' && !this.allowsTalkBuddyTab) {
         this.activeTab = 'classes';
       } else if (t === 'exercises' || t === 'talk-buddy' || t === 'classes') {
         this.activeTab = t;
@@ -423,7 +447,10 @@ export class MyCourseComponent implements OnInit {
   }
 
   setTab(tab: MyCourseTab): void {
-    if (!this.allowsLearningContent && (tab === 'exercises' || tab === 'talk-buddy')) {
+    if (tab === 'exercises' && !this.allowsLearningContent) {
+      tab = 'classes';
+    }
+    if (tab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
       tab = 'classes';
     }
     this.activeTab = tab;
@@ -603,6 +630,15 @@ export class MyCourseComponent implements OnInit {
 
   get allowsLearningContent(): boolean {
     return this.profile?.learningContentEnabled !== false;
+  }
+
+  /** Old batches with admin DG Bot toggle, or any batch with full learning content. */
+  get allowsDgBot(): boolean {
+    return this.profile?.dgBotEnabled !== false;
+  }
+
+  get allowsTalkBuddyTab(): boolean {
+    return this.allowsLearningContent || this.allowsDgBot;
   }
 
   get journeyCourseDay(): number {
@@ -1042,6 +1078,122 @@ export class MyCourseComponent implements OnInit {
     if (meeting?.isOngoing) return 'Live';
     if (meeting?.hasEnded) return 'Attempted';
     return 'Upcoming';
+  }
+
+  // ── Recording access request panel ──────────────────────────────────────────
+
+  get isPlatinumStudent(): boolean {
+    return String(this.userProfile?.subscription || '').toUpperCase() === 'PLATINUM';
+  }
+
+  toggleRecordingReqPanel(): void {
+    if (this.showRecordingReqPanel) {
+      this.closeRecordingReqPanel();
+    } else {
+      this.openRecordingReqPanel();
+    }
+  }
+
+  openRecordingReqPanel(): void {
+    this.showRecordingReqPanel = true;
+    this.recordingReqSuccessMsg = '';
+    this.recordingReqFailMsg = '';
+    this.recordingReqPage = 1;
+    this.recordingReqClasses = [];
+    this.loadEligibleClasses(1);
+  }
+
+  closeRecordingReqPanel(): void {
+    this.showRecordingReqPanel = false;
+    this.recordingReqConfirmTarget = null;
+  }
+
+  loadEligibleClasses(page?: number): void {
+    const targetPage = page ?? this.recordingReqPage;
+    this.recordingReqPage = targetPage;
+    this.recordingReqLoading = true;
+    this.recordingReqError = '';
+    this.recordingReqService.getEligibleClasses(targetPage, this.recordingReqPageSize).subscribe({
+      next: (res) => {
+        const list = Array.isArray(res?.classes) ? res.classes : [];
+        this.recordingReqClasses = list;
+        const p = res?.pagination;
+        this.recordingReqTotal = p?.total ?? list.length;
+        this.recordingReqTotalPages = p?.totalPages ?? (list.length ? 1 : 0);
+        const q = res?.quota;
+        this.recordingReqQuota = q
+          ? {
+              level: q.level || this.levelShortLabel,
+              approvedCount: q.approvedCount ?? 0,
+              remaining: q.remaining ?? 0,
+              limit: q.limit ?? 5,
+            }
+          : null;
+        this.recordingReqLoading = false;
+      },
+      error: (err) => {
+        this.recordingReqError = err?.error?.message || 'Failed to load classes. Please try again.';
+        this.recordingReqLoading = false;
+      },
+    });
+  }
+
+  goToRecordingReqPage(page: number): void {
+    if (page < 1 || page > this.recordingReqTotalPages || page === this.recordingReqPage || this.recordingReqLoading) {
+      return;
+    }
+    this.loadEligibleClasses(page);
+  }
+
+  openRecordingReqConfirm(cls: EligibleClass): void {
+    this.recordingReqConfirmTarget = cls;
+    this.recordingReqSuccessMsg = '';
+    this.recordingReqFailMsg = '';
+  }
+
+  closeRecordingReqConfirm(): void {
+    this.recordingReqConfirmTarget = null;
+  }
+
+  confirmRecordingRequest(): void {
+    if (!this.recordingReqConfirmTarget || this.recordingReqSubmitting) return;
+    this.recordingReqSubmitting = true;
+    this.recordingReqFailMsg = '';
+    this.recordingReqService.submitRequest(this.recordingReqConfirmTarget.meetingLinkId).subscribe({
+      next: (res) => {
+        this.recordingReqSubmitting = false;
+        this.recordingReqConfirmTarget = null;
+        this.recordingReqSuccessMsg = 'Request submitted! You\'ll be notified once it\'s reviewed.';
+        this.recordingsRefreshToken += 1;
+        this.loadEligibleClasses(this.recordingReqPage);
+      },
+      error: (err) => {
+        this.recordingReqSubmitting = false;
+        this.recordingReqFailMsg = err?.error?.message || 'Failed to submit request. Please try again.';
+      },
+    });
+  }
+
+  recordingReqOrdinal(n: number): string {
+    if (n === 1) return '1st';
+    if (n === 2) return '2nd';
+    if (n === 3) return '3rd';
+    return `${n}th`;
+  }
+
+  formatReqDate(d: string | Date | null | undefined): string {
+    if (!d) return 'N/A';
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  recordingReqRangeStart(): number {
+    if (!this.recordingReqTotal) return 0;
+    return (this.recordingReqPage - 1) * this.recordingReqPageSize + 1;
+  }
+
+  recordingReqRangeEnd(): number {
+    if (!this.recordingReqTotal) return 0;
+    return Math.min(this.recordingReqPage * this.recordingReqPageSize, this.recordingReqTotal);
   }
 
 }

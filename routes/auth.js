@@ -119,6 +119,30 @@ function normalizeTeacherTabPermissions(permissions) {
   );
 }
 
+function normalizeSidebarDeletePermissions(deletePermissions, accessLevels = {}) {
+  const normalized = [];
+  if (!Array.isArray(deletePermissions)) return normalized;
+
+  const levels =
+    accessLevels && typeof accessLevels === "object" && !Array.isArray(accessLevels)
+      ? accessLevels
+      : {};
+
+  for (const permissionId of deletePermissions) {
+    if (
+      typeof permissionId !== "string" ||
+      !ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId)
+    ) {
+      continue;
+    }
+    const level = levels[permissionId];
+    if (level === "edit" || level === "full") {
+      if (!normalized.includes(permissionId)) normalized.push(permissionId);
+    }
+  }
+  return normalized;
+}
+
 function normalizeAccessLevels(accessLevels, fallbackPermissions = []) {
   const normalized = {};
 
@@ -1342,6 +1366,7 @@ router.post("/login", async (req, res) => {
         sidebarPermissions: user.sidebarPermissions || [],
         teacherTabPermissions: user.teacherTabPermissions || [],
         sidebarAccessLevels: user.sidebarAccessLevels || {},
+        sidebarDeletePermissions: user.sidebarDeletePermissions || [],
         teacherTabAccessLevels: user.teacherTabAccessLevels || {}
       }
     });
@@ -1465,7 +1490,7 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   try {
     const users = await User.find({
       role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN'] }
-    }).select("name email regNo role sidebarPermissions teacherTabPermissions sidebarAccessLevels teacherTabAccessLevels").sort({ role: 1, name: 1 });
+    }).select("name email regNo role sidebarPermissions teacherTabPermissions sidebarAccessLevels sidebarDeletePermissions teacherTabAccessLevels").sort({ role: 1, name: 1 });
 
     res.status(200).json(users);
   } catch (error) {
@@ -1702,6 +1727,7 @@ router.put("/:id", async (req, res) => {
       sidebarPermissions,
       teacherTabPermissions,
       sidebarAccessLevels,
+      sidebarDeletePermissions,
       teacherTabAccessLevels
     } = req.body;
 
@@ -1758,6 +1784,12 @@ router.put("/:id", async (req, res) => {
       }
 
       updateData.sidebarAccessLevels = normalizedSidebarAccessLevels;
+      updateData.sidebarDeletePermissions = normalizeSidebarDeletePermissions(
+        typeof sidebarDeletePermissions !== "undefined"
+          ? sidebarDeletePermissions
+          : existingUser.sidebarDeletePermissions || [],
+        normalizedSidebarAccessLevels
+      );
       updateData.sidebarPermissions = normalizeSidebarPermissions(
         accessLevelsToPermissions(normalizedSidebarAccessLevels)
       );
@@ -1766,6 +1798,7 @@ router.put("/:id", async (req, res) => {
     } else if (role) {
       updateData.sidebarPermissions = [];
       updateData.sidebarAccessLevels = {};
+      updateData.sidebarDeletePermissions = [];
     }
 
     // Teacher tab permissions (supports both legacy list and access levels map)
@@ -1793,6 +1826,7 @@ router.put("/:id", async (req, res) => {
       );
       updateData.sidebarPermissions = [];
       updateData.sidebarAccessLevels = {};
+      updateData.sidebarDeletePermissions = [];
     } else if (role && role !== "SUB_ADMIN") {
       updateData.teacherTabPermissions = [];
       updateData.teacherTabAccessLevels = {};

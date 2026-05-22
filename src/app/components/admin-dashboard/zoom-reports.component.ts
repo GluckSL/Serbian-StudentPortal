@@ -289,7 +289,12 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   viewMeetingDetails(id: string): void { this.router.navigate(['/teacher/meetings', id]); }
-  viewAttendance(id: string): void { this.router.navigate(['/teacher/meetings', id, 'attendance']); }
+  viewAttendance(id: string): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/teacher/meetings', id, 'attendance'])
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 
   refetchAttendance(meetingId: string): void {
     if (this.refetchingMeetingIds.has(meetingId)) return;

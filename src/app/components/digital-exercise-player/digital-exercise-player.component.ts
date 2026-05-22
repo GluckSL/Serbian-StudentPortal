@@ -1909,11 +1909,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }> = [];
     let blankNum = 0;
     const data = pq.data;
+    const subs = data.subQuestions || [];
+    const hasSubQuestions = subs.length > 0;
 
     if (data.type === 'fill-blank' && countFillBlankRuns(data.sentence || '') > 0) {
       const count = countFillBlankRuns(data.sentence || '');
       const correctList = data._correctAnswers || data.answers || [];
-      const partLabel = `Q ${this.getQuestionPartLabel(questionIndex, this.getParentPartNumber(data))}`;
+      const partLabel = this.getFillBlankReviewPartLabel(
+        questionIndex,
+        this.getParentPartNumber(data),
+        'parent',
+        hasSubQuestions
+      );
       for (let bi = 0; bi < count; bi++) {
         blankNum++;
         const studentAnswer = String(pq.fillAnswers?.[bi] ?? '').trim();
@@ -1929,14 +1936,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
     }
 
-    const subs = data.subQuestions || [];
     for (let si = 0; si < subs.length; si++) {
       const sq = subs[si];
       if (sq.type !== 'fill-blank') continue;
       const count = countFillBlankRuns(sq.sentence || '');
       if (count <= 0) continue;
       const correctList = sq._correctAnswers || sq.answers || [];
-      const partLabel = `Q ${this.getQuestionPartLabel(questionIndex, this.getSubQuestionPartNumber(si, data))}`;
+      const partLabel = this.getFillBlankReviewPartLabel(
+        questionIndex,
+        this.getSubQuestionPartNumber(si, data),
+        'sub',
+        hasSubQuestions
+      );
       for (let bi = 0; bi < count; bi++) {
         blankNum++;
         const studentAnswer = String(pq.subQuestionFillBlankAnswers?.[si]?.[bi] ?? '').trim();
@@ -4056,6 +4067,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Parent is part 1; first sub-question is part 2, etc. */
   getQuestionPartLabel(questionIndex: number, partNumber: number): string {
     return `${questionIndex + 1}.${partNumber}`;
+  }
+
+  /**
+   * Labels for fill-blank review cards — distinct from sub-question headers (Q 1.2)
+   * so blanks are not shown with the same Q id as the sub-question block below.
+   */
+  getFillBlankReviewPartLabel(
+    questionIndex: number,
+    partNumber: number,
+    scope: 'parent' | 'sub',
+    hasSubQuestions: boolean
+  ): string {
+    const qPart = this.getQuestionPartLabel(questionIndex, partNumber);
+    if (scope === 'sub') {
+      return `Sub-part Q ${qPart}`;
+    }
+    if (hasSubQuestions) {
+      return 'Main question';
+    }
+    return `Q ${qPart}`;
   }
 
   getParentPartNumber(data?: QuestionRowData | null): number {

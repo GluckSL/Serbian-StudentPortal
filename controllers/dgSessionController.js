@@ -2,7 +2,8 @@ const DGSession = require('../models/DGSession');
 const DGModule = require('../models/DGModule');
 const {
   getStudentDgJourneyAccess,
-  dgModuleUnlockedForStudentDay,
+  dgModuleUnlockedForAccess,
+  dgWeekLockMessage,
 } = require('../utils/dgStudentJourneyGate');
 const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
@@ -35,13 +36,17 @@ exports.start = async (req, res) => {
           code: 'JOURNEY_NOT_ACTIVE',
         });
       }
-      if (access.learningEnabled === false) {
+      if (access.dgBotEnabled === false) {
         return res.status(403).json({
           message: 'DG modules are not available for your batch.',
           code: 'LEARNING_CONTENT_DISABLED',
         });
       }
-      if (!dgModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
+      if (!dgModuleUnlockedForAccess(access, mod.courseDay)) {
+        const weekLock = dgWeekLockMessage(access, mod.courseDay);
+        if (weekLock) {
+          return res.status(403).json(weekLock);
+        }
         return res.status(403).json({
           message: 'This module unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',

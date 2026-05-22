@@ -12,21 +12,29 @@
       <div class="tab-content">
         <!-- Action Buttons -->
         <div class="action-buttons-row">
-          <button mat-raised-button color="primary" (click)="openBulkUploadDialog()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--primary" (click)="openBulkUploadDialog()">
             <mat-icon>cloud_upload</mat-icon>
-            Bulk Upload for Students
+            Bulk Upload
           </button>
-          <button mat-raised-button style="background-color: #4caf50; color: white;" (click)="openMarkVerifiedDialog()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--success" (click)="openMarkVerifiedDialog()">
             <mat-icon>verified</mat-icon>
-            Mark as Verified (No Upload)
+            Mark Verified
           </button>
-          <button mat-raised-button color="accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
             <mat-icon>check_circle</mat-icon>
-            Verify Selected ({{ selectedDocuments.length }})
+            Verify ({{ selectedDocuments.length }})
           </button>
-          <button mat-raised-button style="background-color: #1565c0; color: white;" (click)="exportToCSV()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--export" (click)="exportToCSV()">
             <mat-icon>download</mat-icon>
             Export CSV
+          </button>
+          <button mat-flat-button class="toolbar-btn toolbar-btn--agreement" (click)="openAgreementDialog()">
+            <mat-icon>post_add</mat-icon>
+            Generate Agreement
+          </button>
+          <button mat-flat-button class="toolbar-btn toolbar-btn--templates" (click)="openAgreementTemplates()">
+            <mat-icon>description</mat-icon>
+            Templates
           </button>
         </div>
 
@@ -94,37 +102,42 @@
   </div>
 
   <!-- Filters -->
-  <mat-card class="filters-card">
-    <mat-card-content>
+  <div class="filters-bar">
       <div class="filters-toolbar">
-        <mat-form-field appearance="outline" class="filter-field search-field primary-search">
-          <mat-label>Search</mat-label>
-          <input matInput [(ngModel)]="searchQuery" (input)="applyFilters()"
-                 placeholder="Student email or document name">
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
+        <div class="search-wrap">
+          <mat-icon class="search-icon">search</mat-icon>
+          <input
+            class="search-input"
+            type="text"
+            [(ngModel)]="searchQuery"
+            (input)="applyFilters()"
+            placeholder="Search student email or document…" />
+        </div>
 
-        <button
-          mat-stroked-button
-          class="filter-toggle-btn"
-          (click)="toggleAdvancedFilters()"
-          [matTooltip]="showAdvancedFilters ? 'Hide filters' : 'Show filters'">
-          <mat-icon>filter_alt</mat-icon>
-          {{ showAdvancedFilters ? 'Hide Filters' : 'Filters' }}
-        </button>
-
-        <button mat-stroked-button class="clear-filters-btn" (click)="clearFilters()">
-          <mat-icon>clear</mat-icon>
-          Clear Filters
-        </button>
-
-        <div class="view-toggle">
-          <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="Compact View">
-            <mat-icon>view_list</mat-icon>
+        <div class="filters-actions">
+          <button
+            mat-stroked-button
+            class="pill-btn filter-toggle-btn"
+            [class.pill-btn--active]="showAdvancedFilters"
+            (click)="toggleAdvancedFilters()"
+            [matTooltip]="showAdvancedFilters ? 'Hide filters' : 'Show filters'">
+            <mat-icon>filter_alt</mat-icon>
+            Filters
           </button>
-          <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Detailed View">
-            <mat-icon>table_rows</mat-icon>
+
+          <button mat-stroked-button class="pill-btn clear-filters-btn" (click)="clearFilters()">
+            <mat-icon>close</mat-icon>
+            Clear
           </button>
+
+          <div class="view-toggle">
+            <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="List view">
+              <mat-icon>view_list</mat-icon>
+            </button>
+            <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Table view">
+              <mat-icon>table_rows</mat-icon>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -225,8 +238,7 @@
           <mat-icon matSuffix>school</mat-icon>
         </mat-form-field>
       </div>
-    </mat-card-content>
-  </mat-card>
+  </div>
 
   <!-- Compact Student View -->
   <div *ngIf="viewMode === 'compact' && !loading">
@@ -290,7 +302,7 @@
                 </td>
                 <td>
                   <div class="action-buttons">
-                    <button mat-raised-button color="primary"
+                    <button mat-flat-button class="view-btn"
                             (click)="openStudentDocumentsPage(group); $event.stopPropagation()">
                       View
                     </button>
@@ -894,6 +906,90 @@
       <button mat-raised-button color="primary" (click)="sendEmail()" [disabled]="sendingEmail">
         <mat-icon>{{ sendingEmail ? 'hourglass_empty' : 'send' }}</mat-icon>
         {{ sendingEmail ? 'Sending...' : 'Send Email' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Agreement Dialog -->
+<div class="verification-dialog-overlay" *ngIf="showAgreementDialog" (click)="closeAgreementDialog()">
+  <div class="verification-dialog agreement-dialog" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <h3>
+        <mat-icon style="color: #5e35b1;">assignment</mat-icon>
+        Generate Agreement for Student
+      </h3>
+      <button mat-icon-button (click)="closeAgreementDialog()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="dialog-content">
+      <p class="info-text">
+        Select a student and agreement template, fill in the dynamic fields, then save the PDF or save and email it to the student.
+        <a class="template-link" (click)="openAgreementTemplates(); $event.preventDefault()">Manage templates</a>
+      </p>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Search Student</mat-label>
+        <input matInput
+               [formControl]="agreementStudentControl"
+               [matAutocomplete]="autoAgreementStudent"
+               placeholder="Type name, email, or reg no...">
+        <mat-icon matSuffix>search</mat-icon>
+        <mat-autocomplete #autoAgreementStudent="matAutocomplete" (optionSelected)="selectAgreementStudent($event.option.value)">
+          <mat-option *ngFor="let student of agreementFilteredStudents" [value]="student">
+            <div class="student-option">
+              <strong>{{ getStudentName(student) }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
+              <small>{{ getStudentEmail(student) }}</small>
+            </div>
+          </mat-option>
+        </mat-autocomplete>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Agreement Template</mat-label>
+        <mat-select [(ngModel)]="agreementForm.templateId" (ngModelChange)="onAgreementTemplateChange()" [disabled]="agreementTemplatesLoading">
+          <mat-option *ngFor="let t of agreementTemplates" [value]="t._id">{{ t.name }} ({{ t.dynamicFields.length }} fields)</mat-option>
+        </mat-select>
+        <mat-hint *ngIf="agreementTemplates.length === 0 && !agreementTemplatesLoading">No templates yet — create one via Agreement Templates</mat-hint>
+      </mat-form-field>
+
+      <ng-container *ngIf="agreementSelectedTemplate">
+        <mat-form-field appearance="outline" class="full-width" *ngFor="let f of agreementSelectedTemplate.dynamicFields">
+          <mat-label>{{ f.label }}</mat-label>
+          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" (ngModelChange)="onAgreementFieldChange()"
+                 [placeholder]="f.sampleText || f.label" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Agreement Name</mat-label>
+          <input matInput [(ngModel)]="agreementForm.displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
+        </mat-form-field>
+
+        <div class="agreement-preview-wrap" *ngIf="agreementSelectedTemplate">
+          <p class="agreement-preview-note" *ngIf="!agreementPreviewUrl && !agreementPreviewing">
+            Preview updates as you type — your values replace the red placeholders.
+          </p>
+          <p class="agreement-preview-note" *ngIf="agreementPreviewing">Updating preview…</p>
+          <iframe *ngIf="agreementPreviewUrl" [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="dialog-actions">
+      <button mat-button (click)="closeAgreementDialog()">Cancel</button>
+      <button mat-stroked-button (click)="previewAgreementPdf()" [disabled]="agreementPreviewing || !agreementForm.templateId">
+        <mat-icon>visibility</mat-icon>
+        Preview
+      </button>
+      <button mat-raised-button style="background:#1565c0;color:#fff" (click)="saveAgreement(false)" [disabled]="agreementSaving">
+        <mat-icon>save</mat-icon>
+        {{ agreementSaving ? 'Saving…' : 'Save PDF' }}
+      </button>
+      <button mat-raised-button color="primary" (click)="saveAgreement(true)" [disabled]="agreementSaving">
+        <mat-icon>email</mat-icon>
+        {{ agreementSaving ? 'Sending…' : 'Save & Send Email' }}
       </button>
     </div>
   </div>

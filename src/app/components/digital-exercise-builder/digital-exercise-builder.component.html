@@ -275,15 +275,149 @@
     <!-- Questions List -->
     <div class="questions-list" *ngIf="questions.length > 0">
       <div class="questions-header">
-        <h3>Questions ({{ getTotalQuestionCount() }})</h3>
-        <span class="total-points">Total: {{ getTotalPoints() }} points</span>
+        <div class="questions-header-left">
+          <label class="bulk-select-all" (click)="toggleSelectAll($event)" matTooltip="Select / deselect all questions">
+            <input type="checkbox" [checked]="selectAllChecked" (change)="toggleSelectAll($event)" (click)="$event.stopPropagation()" />
+            <span class="bulk-select-label">All</span>
+          </label>
+          <h3>Questions <span class="q-count">{{ getTotalQuestionCount() }}</span></h3>
+        </div>
+        <div class="questions-header-stats">
+          <button class="btn-gen-answers" type="button" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI fills missing answers for fill-blank and Q&A questions">
+            <span class="material-icons">{{ generatingAnswers ? 'hourglass_top' : 'auto_fix_high' }}</span>
+            {{ generatingAnswers ? 'Generating…' : 'Generate missing answers' }}
+          </button>
+          <span
+            class="valid-count"
+            [class.all-good]="validQuestionCount === questions.length"
+            [matTooltip]="getInvalidSummaryTooltip()"
+            [matTooltipDisabled]="validQuestionCount === questions.length"
+            matTooltipShowDelay="200"
+          >
+            <span class="material-icons">{{ validQuestionCount === questions.length ? 'check_circle' : 'warning' }}</span>
+            {{ validQuestionCount }}/{{ questions.length }} valid
+          </span>
+          <span class="total-points">{{ getTotalPoints() }} pts total</span>
+        </div>
+      </div>
+
+      <!-- Bulk action toolbar -->
+      <div class="bulk-toolbar" *ngIf="selectedIndices.size > 0">
+        <div class="bulk-toolbar-top">
+          <span class="bulk-count">
+            <span class="material-icons">check_box</span>
+            {{ selectedIndices.size }} selected
+          </span>
+          <button type="button" class="btn-bulk-clear" (click)="clearSelection()" matTooltip="Deselect all">
+            <span class="material-icons">close</span> Deselect all
+          </button>
+        </div>
+
+        <div class="bulk-section">
+          <div class="bulk-section-title">
+            <span class="material-icons">edit</span> Bulk Edit Field
+          </div>
+          <div class="bulk-field-row">
+            <select [(ngModel)]="bulkEditField" class="bulk-field-select">
+              <option value="">— Choose field to edit —</option>
+              <option value="instruction">Instruction (blue banner)</option>
+              <option value="example">Example (worked sample)</option>
+              <option value="context">Context (background text)</option>
+              <option value="audio">Audio URL (listening)</option>
+              <option value="attachment">Attachment URL</option>
+            </select>
+          </div>
+
+          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio'">
+            <div class="bulk-input-row">
+              <textarea
+                *ngIf="bulkEditField === 'context'"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-textarea"
+                rows="3"
+                placeholder="Enter context text to apply to all selected questions…"
+              ></textarea>
+              <input
+                *ngIf="bulkEditField !== 'context'"
+                type="text"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-input"
+                [placeholder]="bulkEditField === 'instruction' ? 'e.g. Choose the correct option.' : bulkEditField === 'example' ? 'e.g. The sky is ___ → blue' : 'https://…'"
+              />
+            </div>
+            <button type="button" class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim()">
+              <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }} selected
+            </button>
+          </ng-container>
+
+          <ng-container *ngIf="bulkEditField === 'audio'">
+            <div class="bulk-audio-row">
+              <button type="button" class="btn-upload-audio" (click)="triggerBulkAudioFile()" [disabled]="bulkAudioUploading">
+                <span class="material-icons">upload_file</span>
+                {{ bulkAudioUploading ? 'Uploading…' : 'Upload audio file' }}
+              </button>
+              <span class="upload-or">or paste URL</span>
+              <input
+                type="text"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-input"
+                placeholder="https://… audio URL"
+                style="flex:1"
+              />
+              <button type="button" class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim() || bulkAudioUploading">
+                <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }}
+              </button>
+            </div>
+          </ng-container>
+        </div>
+
+        <div class="bulk-section">
+          <div class="bulk-section-title">
+            <span class="material-icons">transform</span> Bulk Change Type (AI)
+            <button type="button" class="btn-toggle-type-panel" (click)="bulkTypeChangeOpen = !bulkTypeChangeOpen">
+              <span class="material-icons">{{ bulkTypeChangeOpen ? 'expand_less' : 'expand_more' }}</span>
+            </button>
+          </div>
+
+          <ng-container *ngIf="bulkTypeChangeOpen">
+            <p class="bulk-type-hint">AI will read each selected question and rewrite it in the chosen format. Original context, instruction, and example are preserved.</p>
+
+            <div class="bulk-convert-progress" *ngIf="bulkConverting">
+              <div class="bulk-progress-label">Converting {{ bulkConvertProgress }} / {{ bulkConvertTotal }}…</div>
+              <div class="bulk-progress-bar">
+                <div class="bulk-progress-fill" [style.width.%]="bulkConvertTotal > 0 ? (bulkConvertProgress / bulkConvertTotal) * 100 : 0"></div>
+              </div>
+            </div>
+
+            <ng-container *ngIf="!bulkConverting">
+              <div class="bulk-type-row">
+                <select [(ngModel)]="bulkTargetType" class="bulk-field-select">
+                  <option value="">— Select target type —</option>
+                  <option *ngFor="let t of questionTypes" [value]="t.value">{{ t.label }}</option>
+                </select>
+                <button
+                  type="button"
+                  class="btn-bulk-convert"
+                  (click)="convertSelectedTypes()"
+                  [disabled]="!bulkTargetType || bulkConverting"
+                >
+                  <span class="material-icons">auto_awesome</span>
+                  Convert {{ selectedIndices.size }} with AI
+                </button>
+              </div>
+            </ng-container>
+          </ng-container>
+        </div>
       </div>
 
       <div class="question-item" *ngFor="let q of questions; let i = index" [class.expanded]="expandedQuestion === i">
 
         <!-- Question Header -->
-        <div class="question-header" (click)="toggleExpanded(i)">
+        <div class="question-header" [class.q-selected]="isSelected(i)" (click)="toggleExpanded(i)">
           <div class="question-header-left">
+            <label class="q-checkbox" (click)="$event.stopPropagation()">
+              <input type="checkbox" [checked]="isSelected(i)" (change)="toggleSelectQuestion(i, $event)" />
+            </label>
             <span class="q-number">Q{{ i + 1 }}</span>
             <input
               type="number"
