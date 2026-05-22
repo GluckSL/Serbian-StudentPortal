@@ -150,16 +150,15 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       limit: 200,
       includeFailed: true,
       meetingIds,
-      // Targeted IDs: skip meetings that already have a ready recording in the portal.
-      // Bulk backfill (no IDs): force reprocess so legacy MP4-only objects can move to HLS.
-      force: meetingIds.length === 0,
+      // Targeted IDs: force retry (stuck processing/failed). Bulk (no IDs): force HLS migration.
+      force: true,
     }).subscribe({
       next: () => {
         // Server responds 202 immediately — begin polling for completion.
         this.backfillStatusMessage = 'Backfill running in background…';
         this.snackBar.open(
           meetingIds.length
-            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s) — already-ready recordings will be skipped.`
+            ? `Targeted backfill started for ${meetingIds.length} meeting ID(s) — will retry stuck/failed and re-fetch from Zoom.`
             : 'Backfill started (force) — reprocessing may take a while; old MP4 → HLS where Zoom still has the file',
           'Close',
           { duration: 7000 }
@@ -188,6 +187,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
               if (s.pipelineCompleted) parts.push(`✅ ${s.pipelineCompleted} processed`);
               if (s.pipelineFailed) parts.push(`❌ ${s.pipelineFailed} failed`);
               if (s.skippedAlreadyReady) parts.push(`${s.skippedAlreadyReady} already ready`);
+              if (s.skippedProcessing) parts.push(`${s.skippedProcessing} still processing`);
+              if (s.reclaimedStaleProcessing) parts.push(`${s.reclaimedStaleProcessing} reclaimed stale`);
               if (s.skippedNoRecordingInZoom) parts.push(`${s.skippedNoRecordingInZoom} no Zoom file`);
               if (s.errors) parts.push(`${s.errors} scan errors`);
               this.backfillStatusMessage = parts.length ? `Done — ${parts.join(', ')}` : 'Done — nothing to process';

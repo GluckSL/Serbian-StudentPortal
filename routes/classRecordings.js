@@ -796,6 +796,96 @@ function matchesAdminBatchFilter(batchFilter, batchLabels) {
   return batchLabels.some((b) => batchesAlign(batchFilter, b));
 }
 
+function normalizeZoomMeetingIdForSearch(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function buildLooseZoomMeetingIdSearchRegex(zoomMeetingId) {
+  const digits = normalizeZoomMeetingIdForSearch(zoomMeetingId);
+  if (digits.length < 8) return null;
+  return new RegExp(`^\\D*${digits.split('').join('\\D*')}\\D*$`);
+}
+
+function buildZoomMeetingIdSearchOr(search) {
+  const raw = String(search || '').trim();
+  if (!raw) return [];
+  const clauses = [{ zoomMeetingId: raw }];
+  const digits = normalizeZoomMeetingIdForSearch(raw);
+  if (digits && digits !== raw) clauses.push({ zoomMeetingId: digits });
+  const loose = buildLooseZoomMeetingIdSearchRegex(raw);
+  if (loose) clauses.push({ zoomMeetingId: { $regex: loose } });
+  return clauses;
+}
+
+/** Processing/failed Zoom rows visible when admin searches (not in default ready list). */
+async function buildAdminInProgressZoomRefs(filters = {}) {
+  const { level, batch, search } = filters;
+  const rawSearch = String(search || '').trim();
+  if (!rawSearch) return [];
+
+  const searchRe = new RegExp(rawSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const zoomIdOr = buildZoomMeetingIdSearchOr(rawSearch);
+
+  const zoomRows = zoomIdOr.length
+    ? await ZoomRecording.find({
+      status: { $in: ['processing', 'failed'] },
+      $or: zoomIdOr,
+    })
+      .select('meetingLinkId zoomMeetingId createdAt accessBatches accessLevel status')
+      .lean()
+    : [];
+
+  const topicMeetings = await MeetingLink.find({
+    $or: [{ topic: searchRe }, ...(zoomIdOr.length ? zoomIdOr : [])],
+  })
+    .select('_id topic batch startTime')
+    .lean();
+
+  const meetingIdsFromTopic = topicMeetings.map((m) => m._id);
+  const extraZoom = meetingIdsFromTopic.length
+    ? await ZoomRecording.find({
+      meetingLinkId: { $in: meetingIdsFromTopic },
+      status: { $in: ['processing', 'failed'] },
+    })
+      .select('meetingLinkId zoomMeetingId createdAt accessBatches accessLevel status')
+      .lean()
+    : [];
+
+  const byMeetingLink = new Map();
+  [...zoomRows, ...extraZoom].forEach((z) => {
+    byMeetingLink.set(z.meetingLinkId.toString(), z);
+  });
+
+  const meetingMap = {};
+  topicMeetings.forEach((m) => { meetingMap[m._id.toString()] = m; });
+
+  const missingMeetingIds = [...byMeetingLink.keys()].filter((id) => !meetingMap[id]);
+  if (missingMeetingIds.length) {
+    const extraMeetings = await MeetingLink.find({ _id: { $in: missingMeetingIds } })
+      .select('_id topic batch startTime')
+      .lean();
+    extraMeetings.forEach((m) => { meetingMap[m._id.toString()] = m; });
+  }
+
+  const refs = [];
+  for (const z of byMeetingLink.values()) {
+    const meeting = meetingMap[z.meetingLinkId.toString()];
+    if (!meeting) continue;
+    if (level && level !== 'ALL' && z.accessLevel && z.accessLevel !== level) continue;
+    if (!matchesAdminBatchFilter(batch, adminRecordingBatchLabels(z, meeting))) continue;
+    refs.push({
+      kind: 'zoom',
+      id: z.meetingLinkId,
+      sortAt: meeting.startTime || z.createdAt,
+      title: meeting.topic || '',
+      description: '',
+      zoomMeetingId: z.zoomMeetingId || '',
+      inProgress: true,
+    });
+  }
+  return refs;
+}
+
 /** Lightweight rows for sort/filter before hydrating a page of full records. */
 async function buildAdminRecordingRefs(filters = {}) {
   const { level, batch, search } = filters;
@@ -876,6 +966,16 @@ async function buildAdminRecordingRefs(filters = {}) {
       zoomMeetingId: z.zoomMeetingId || '',
     });
   });
+
+  if (search) {
+    const inProgressRefs = await buildAdminInProgressZoomRefs(filters);
+    const existingZoomIds = new Set(
+      refs.filter((r) => r.kind === 'zoom').map((r) => String(r.id))
+    );
+    inProgressRefs.forEach((ref) => {
+      if (!existingZoomIds.has(String(ref.id))) refs.push(ref);
+    });
+  }
 
   refs.sort((a, b) => new Date(b.sortAt) - new Date(a.sortAt));
   return refs;

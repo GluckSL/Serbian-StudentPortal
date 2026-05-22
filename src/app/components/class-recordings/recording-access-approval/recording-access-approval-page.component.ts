@@ -9,7 +9,11 @@ import { ClassRecordingsService } from '../../../services/class-recordings.servi
 import {
   RecordingAccessRequestService,
   PendingRequest,
+  ReviewedRequest,
+  RequestHistoryCounts,
 } from '../../../services/recording-access-request.service';
+
+type ApprovalTab = 'pending' | 'history';
 
 @Component({
   selector: 'app-recording-access-approval-page',
@@ -19,9 +23,18 @@ import {
   styleUrls: ['./recording-access-approval-page.component.scss'],
 })
 export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
+  activeTab: ApprovalTab = 'pending';
   requests: PendingRequest[] = [];
+  historyRequests: ReviewedRequest[] = [];
+  historyCounts: RequestHistoryCounts | null = null;
+  historyStatusFilter: '' | 'APPROVED' | 'DECLINED' = '';
+  historyPage = 1;
+  historyTotal = 0;
+  readonly historyPageSize = 50;
   loading = false;
+  historyLoading = false;
   error = '';
+  historyError = '';
   busyId: string | null = null;
   declineTarget: PendingRequest | null = null;
   declineReason = '';
@@ -52,6 +65,15 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
     this.stopBackfillPolling();
   }
 
+  setTab(tab: ApprovalTab): void {
+    this.activeTab = tab;
+    if (tab === 'pending') {
+      this.loadRequests();
+    } else {
+      this.loadHistory();
+    }
+  }
+
   loadRequests(): void {
     this.loading = true;
     this.error = '';
@@ -65,6 +87,55 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
         this.loading = false;
       },
     });
+  }
+
+  loadHistory(): void {
+    this.historyLoading = true;
+    this.historyError = '';
+    this.recordingReqService
+      .getRequestHistory({
+        page: this.historyPage,
+        limit: this.historyPageSize,
+        status: this.historyStatusFilter,
+      })
+      .subscribe({
+        next: (res) => {
+          this.historyRequests = res.requests || [];
+          this.historyTotal = res.total || 0;
+          this.historyCounts = res.counts || null;
+          this.historyLoading = false;
+        },
+        error: (err) => {
+          this.historyError = err?.error?.message || 'Failed to load history.';
+          this.historyLoading = false;
+        },
+      });
+  }
+
+  onHistoryFilterChange(): void {
+    this.historyPage = 1;
+    this.loadHistory();
+  }
+
+  historyPrevPage(): void {
+    if (this.historyPage > 1) {
+      this.historyPage -= 1;
+      this.loadHistory();
+    }
+  }
+
+  historyNextPage(): void {
+    if (this.historyPage * this.historyPageSize < this.historyTotal) {
+      this.historyPage += 1;
+      this.loadHistory();
+    }
+  }
+
+  get historyPageLabel(): string {
+    if (!this.historyTotal) return '0 of 0';
+    const from = (this.historyPage - 1) * this.historyPageSize + 1;
+    const to = Math.min(this.historyPage * this.historyPageSize, this.historyTotal);
+    return `${from}–${to} of ${this.historyTotal}`;
   }
 
   get readyRecordingCount(): number {
@@ -268,6 +339,28 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
       month: 'short',
       year: 'numeric',
     });
+  }
+
+  statusLabel(status: string): string {
+    const s = String(status || '').toUpperCase();
+    if (s === 'APPROVED') return 'Approved';
+    if (s === 'DECLINED') return 'Declined';
+    return s || '—';
+  }
+
+  formatReviewedAt(d: string | null | undefined): string {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  reviewerName(req: ReviewedRequest): string {
+    return req.reviewedBy?.name || req.reviewedBy?.email || '—';
   }
 
   formatRequestedAt(d: string | null | undefined): string {

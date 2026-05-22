@@ -325,4 +325,58 @@ router.get(
   }
 );
 
+/**
+ * GET /api/recording-access-requests/admin/history?page=1&limit=50&status=APPROVED|DECLINED
+ * Reviewed requests are never deleted — full audit trail for admins.
+ */
+router.get(
+  '/admin/history',
+  verifyToken,
+  checkRole(STAFF_ROLES),
+  async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+      const statusFilter = String(req.query.status || '').toUpperCase();
+
+      const query = { status: { $in: ['APPROVED', 'DECLINED'] } };
+      if (statusFilter === 'APPROVED' || statusFilter === 'DECLINED') {
+        query.status = statusFilter;
+      }
+
+      const [total, requests, approvedTotal, declinedTotal, pendingTotal] = await Promise.all([
+        RecordingAccessRequest.countDocuments(query),
+        RecordingAccessRequest.find(query)
+          .populate('meetingLinkId', 'topic startTime duration zoomMeetingId batch')
+          .populate('reviewedBy', 'name email')
+          .sort({ reviewedAt: -1, updatedAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        RecordingAccessRequest.countDocuments({ status: 'APPROVED' }),
+        RecordingAccessRequest.countDocuments({ status: 'DECLINED' }),
+        RecordingAccessRequest.countDocuments({ status: 'PENDING' }),
+      ]);
+
+      res.json({
+        success: true,
+        requests,
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+        counts: {
+          pending: pendingTotal,
+          approved: approvedTotal,
+          declined: declinedTotal,
+          reviewed: approvedTotal + declinedTotal,
+        },
+      });
+    } catch (err) {
+      console.error('[RecordingAccessRequest] admin/history error:', err);
+      res.status(500).json({ success: false, message: 'Failed to fetch request history.' });
+    }
+  }
+);
+
 module.exports = router;

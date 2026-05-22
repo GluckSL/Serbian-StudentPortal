@@ -6,17 +6,30 @@
         Class Recordings
       </a>
       <h1 class="rar-header__title">Recording Access Requests</h1>
-      <p class="rar-header__sub">Review Platinum student requests and approve or decline access.</p>
+      <p class="rar-header__sub">
+        Review Platinum student requests. Approved and declined requests are kept in History — nothing is deleted.
+      </p>
     </div>
     <div class="rar-header__actions">
-      <button type="button" class="rar-btn rar-btn--ghost" (click)="loadRequests()" [disabled]="loading">
+      <button type="button" class="rar-btn rar-btn--ghost" (click)="activeTab === 'pending' ? loadRequests() : loadHistory()" [disabled]="loading || historyLoading">
         <mat-icon>refresh</mat-icon>
         Refresh
       </button>
     </div>
   </header>
 
-  <div class="rar-stats">
+  <nav class="rar-tabs" aria-label="Request queues">
+    <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'pending'" (click)="setTab('pending')">
+      Pending
+      <span class="rar-tab__badge" *ngIf="requests.length">{{ requests.length }}</span>
+    </button>
+    <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'history'" (click)="setTab('history')">
+      History
+      <span class="rar-tab__badge rar-tab__badge--muted" *ngIf="historyCounts?.reviewed">{{ historyCounts?.reviewed }}</span>
+    </button>
+  </nav>
+
+  <div class="rar-stats" *ngIf="activeTab === 'pending'">
     <div class="rar-stat rar-stat--purple">
       <span class="rar-stat__val">{{ loading ? '…' : requests.length }}</span>
       <span class="rar-stat__lbl">Pending</span>
@@ -31,13 +44,34 @@
     </div>
   </div>
 
-  <div class="rar-banner rar-banner--error" *ngIf="error && !loading">
+  <div class="rar-stats" *ngIf="activeTab === 'history' && historyCounts">
+    <div class="rar-stat rar-stat--purple">
+      <span class="rar-stat__val">{{ historyCounts.pending }}</span>
+      <span class="rar-stat__lbl">Still pending</span>
+    </div>
+    <div class="rar-stat rar-stat--green">
+      <span class="rar-stat__val">{{ historyCounts.approved }}</span>
+      <span class="rar-stat__lbl">Approved (all time)</span>
+    </div>
+    <div class="rar-stat rar-stat--amber">
+      <span class="rar-stat__val">{{ historyCounts.declined }}</span>
+      <span class="rar-stat__lbl">Declined (all time)</span>
+    </div>
+  </div>
+
+  <div class="rar-banner rar-banner--error" *ngIf="activeTab === 'pending' && error && !loading">
     <mat-icon>error_outline</mat-icon>
     {{ error }}
     <button type="button" class="rar-banner__retry" (click)="loadRequests()">Try again</button>
   </div>
 
-  <div class="rar-card" *ngIf="loading">
+  <div class="rar-banner rar-banner--error" *ngIf="activeTab === 'history' && historyError && !historyLoading">
+    <mat-icon>error_outline</mat-icon>
+    {{ historyError }}
+    <button type="button" class="rar-banner__retry" (click)="loadHistory()">Try again</button>
+  </div>
+
+  <div class="rar-card" *ngIf="activeTab === 'pending' && loading">
     <table class="rar-table rar-table--skeleton">
       <thead>
         <tr>
@@ -59,14 +93,14 @@
     </table>
   </div>
 
-  <div class="rar-card rar-card--empty" *ngIf="!loading && !error && !requests.length">
+  <div class="rar-card rar-card--empty" *ngIf="activeTab === 'pending' && !loading && !error && !requests.length">
     <mat-icon class="rar-empty__icon">check_circle</mat-icon>
     <h2>All caught up</h2>
     <p>No pending recording access requests right now.</p>
     <button type="button" class="rar-btn rar-btn--primary" (click)="goToRecordings()">Back to Class Recordings</button>
   </div>
 
-  <div class="rar-card" *ngIf="!loading && requests.length">
+  <div class="rar-card" *ngIf="activeTab === 'pending' && !loading && requests.length">
     <div class="rar-card__toolbar">
       <span class="rar-card__count">{{ requests.length }} request{{ requests.length !== 1 ? 's' : '' }} waiting</span>
     </div>
@@ -173,6 +207,94 @@
           </tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- History tab -->
+  <div class="rar-card" *ngIf="activeTab === 'history' && historyLoading">
+    <table class="rar-table rar-table--skeleton">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Class</th>
+          <th>Status</th>
+          <th>Reviewed</th>
+          <th>Reviewer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let _ of skeletonRows">
+          <td colspan="5"><div class="rar-sk-line"></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rar-card" *ngIf="activeTab === 'history' && !historyLoading">
+    <div class="rar-card__toolbar rar-card__toolbar--history">
+      <span class="rar-card__count">{{ historyTotal }} reviewed request{{ historyTotal !== 1 ? 's' : '' }}</span>
+      <mat-form-field appearance="outline" class="rar-history-filter" subscriptSizing="dynamic">
+        <mat-label>Status</mat-label>
+        <mat-select [(ngModel)]="historyStatusFilter" (ngModelChange)="onHistoryFilterChange()">
+          <mat-option value="">All reviewed</mat-option>
+          <mat-option value="APPROVED">Approved only</mat-option>
+          <mat-option value="DECLINED">Declined only</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="rar-card rar-card--empty rar-card--nested" *ngIf="!historyRequests.length">
+      <mat-icon class="rar-empty__icon">history</mat-icon>
+      <h2>No reviewed requests yet</h2>
+      <p>Approved and declined requests will appear here permanently.</p>
+    </div>
+
+    <div class="rar-table-wrap" *ngIf="historyRequests.length">
+      <table class="rar-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Batch / Level</th>
+            <th>Class</th>
+            <th>Meeting ID</th>
+            <th>Status</th>
+            <th>Requested</th>
+            <th>Reviewed</th>
+            <th>Reviewer</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let req of historyRequests">
+            <td class="rar-cell-student">
+              <span class="rar-student-name">{{ req.studentName }}</span>
+              <span class="rar-student-email">{{ req.studentEmail }}</span>
+            </td>
+            <td>
+              <span class="rar-pill">{{ req.studentBatch }}</span>
+              <span class="rar-pill rar-pill--level">{{ req.studentLevel }}</span>
+            </td>
+            <td class="rar-cell-class">
+              <span class="rar-class-topic">{{ req.classTopic }}</span>
+              <span class="rar-class-date">{{ formatDate(req.classDate) }}</span>
+            </td>
+            <td><code class="rar-mid">{{ meetingId(req) }}</code></td>
+            <td>
+              <span class="rar-badge rar-badge--ok" *ngIf="req.status === 'APPROVED'">{{ statusLabel(req.status) }}</span>
+              <span class="rar-badge rar-badge--no" *ngIf="req.status === 'DECLINED'">{{ statusLabel(req.status) }}</span>
+            </td>
+            <td class="rar-cell-muted">{{ formatRequestedAt(req.requestedAt) }}</td>
+            <td class="rar-cell-muted">{{ formatReviewedAt(req.reviewedAt) }}</td>
+            <td class="rar-cell-muted">{{ reviewerName(req) }}</td>
+            <td class="rar-cell-muted">{{ req.declineReason || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="rar-history-pager" *ngIf="historyTotal > historyPageSize">
+        <button type="button" class="rar-btn rar-btn--ghost" (click)="historyPrevPage()" [disabled]="historyPage <= 1">Previous</button>
+        <span>{{ historyPageLabel }}</span>
+        <button type="button" class="rar-btn rar-btn--ghost" (click)="historyNextPage()" [disabled]="historyPage * historyPageSize >= historyTotal">Next</button>
+      </div>
     </div>
   </div>
 </div>

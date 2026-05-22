@@ -62,6 +62,20 @@ export interface PendingRequest {
   };
 }
 
+export interface ReviewedRequest extends PendingRequest {
+  reviewedAt?: string | null;
+  reviewedBy?: { _id?: string; name?: string; email?: string } | null;
+  declineReason?: string;
+  recordingAvailable?: boolean;
+}
+
+export interface RequestHistoryCounts {
+  pending: number;
+  approved: number;
+  declined: number;
+  reviewed: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecordingAccessRequestService {
   private readonly url = `${environment.apiUrl}/recording-access-requests`;
@@ -97,5 +111,25 @@ export class RecordingAccessRequestService {
 
   declineRequest(id: string, reason?: string): Observable<any> {
     return this.http.post<any>(`${this.url}/admin/${id}/decline`, { reason: reason || '' });
+  }
+
+  getRequestHistory(params?: {
+    page?: number;
+    limit?: number;
+    status?: 'APPROVED' | 'DECLINED' | '';
+  }): Observable<{
+    success: boolean;
+    requests: ReviewedRequest[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    counts: RequestHistoryCounts;
+  }> {
+    const q: Record<string, string> = {};
+    if (params?.page) q['page'] = String(params.page);
+    if (params?.limit) q['limit'] = String(params.limit);
+    if (params?.status) q['status'] = params.status;
+    return this.http.get<any>(`${this.url}/admin/history`, { params: q });
   }
 }
