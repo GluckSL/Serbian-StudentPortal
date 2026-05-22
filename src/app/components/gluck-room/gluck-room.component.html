@@ -51,8 +51,8 @@
 
       <div class="sidebar">
         <div class="camera-grid" *ngIf="!showParticipantList">
-          <div class="tile" *ngFor="let p of topFiveParticipants" [attr.data-participant]="p.identity">
-            <video #tileVideo autoplay playsinline muted class="tile-video" [class.hidden]="!p.hasVideo"></video>
+          <div class="tile" *ngFor="let p of topFiveParticipants">
+            <video #tileVideo autoplay playsinline muted class="tile-video" [class.hidden]="!p.hasVideo" [attr.data-participant]="p.identity"></video>
             <div class="tile-placeholder" *ngIf="!p.hasVideo">
               <div class="tile-avatar">{{ getParticipantInitials(p) }}</div>
             </div>

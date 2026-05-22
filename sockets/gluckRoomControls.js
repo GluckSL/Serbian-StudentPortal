@@ -1,5 +1,6 @@
 const { Server } = require('socket.io');
 const gluckRoomService = require('../services/gluckRoomService');
+const GluckRoomParticipant = require('../models/GluckRoomParticipant');
 
 function initGluckRoomControls(httpServer) {
   const io = new Server(httpServer, {
@@ -49,6 +50,32 @@ function initGluckRoomControls(httpServer) {
     socket.on('disable-all-cams', async () => {
       if (!canModerate) return;
       roomNamespace.to(roomName).emit('all-cameras-disabled');
+    });
+
+    socket.on('mic-toggled', async ({ userId, on, sessionId }) => {
+      roomNamespace.to(roomName).emit('participant-mic-state', { userId, on });
+      if (!sessionId) return;
+      try {
+        await GluckRoomParticipant.updateOne(
+          { sessionId, userId },
+          { isMuted: !on }
+        );
+      } catch (err) {
+        console.warn('Failed to update mic state:', err.message);
+      }
+    });
+
+    socket.on('cam-toggled', async ({ userId, on, sessionId }) => {
+      roomNamespace.to(roomName).emit('participant-cam-state', { userId, on });
+      if (!sessionId) return;
+      try {
+        await GluckRoomParticipant.updateOne(
+          { sessionId, userId },
+          { isCameraDisabled: !on }
+        );
+      } catch (err) {
+        console.warn('Failed to update cam state:', err.message);
+      }
     });
 
     socket.on('remove-participant', async ({ targetUserId }) => {

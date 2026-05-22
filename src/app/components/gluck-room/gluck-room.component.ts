@@ -172,12 +172,15 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   }
 
   private onLocalTrackMute = (pub: TrackPublication): void => {
+    const sessionId = this.session?._id;
     this.ngZone.run(() => {
       if (pub.source === Track.Source.Microphone) {
         this.isMicOn = !pub.isMuted;
+        this.gluckRoomSocket.emit('mic-toggled', { userId: this.userId, on: this.isMicOn, sessionId });
       }
         if (pub.source === Track.Source.Camera) {
           this.isCamOn = !pub.isMuted;
+          this.gluckRoomSocket.emit('cam-toggled', { userId: this.userId, on: this.isCamOn, sessionId });
           if (!pub.isMuted && pub.videoTrack) {
             this.selfViewStream = new MediaStream([pub.videoTrack.mediaStreamTrack]);
             this.selfViewTrack = pub.videoTrack.mediaStreamTrack;
@@ -254,9 +257,12 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     });
 
     this.room.localParticipant.on(ParticipantEvent.TrackPublished, (pub) => {
-      if (pub.source !== Track.Source.ScreenShare && pub.source !== Track.Source.Camera) return;
+      if (pub.source !== Track.Source.ScreenShare && pub.source !== Track.Source.Camera && pub.source !== Track.Source.Microphone) return;
       this.ngZone.run(() => {
-        if (pub.source === Track.Source.ScreenShare) {
+        if (pub.source === Track.Source.Microphone) {
+          this.isMicOn = true;
+          this.updateParticipantList();
+        } else if (pub.source === Track.Source.ScreenShare) {
           this.isScreenSharing = true;
           this.isMainScreenShare = true;
           this.mainParticipant = {
@@ -267,18 +273,14 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
             isCamOn: this.isCamOn,
             hasVideo: true,
           };
+          this.updateParticipantList();
           const videoEl = this.mainVideoEl?.nativeElement ?? document.querySelector<HTMLVideoElement>('.main-video');
           const screenTrack = pub.videoTrack ?? (pub.track as any);
-          const attached = videoEl && screenTrack && typeof screenTrack.attach === 'function';
-          if (attached) {
+          if (videoEl && screenTrack && typeof screenTrack.attach === 'function') {
             videoEl.srcObject = null;
             screenTrack.attach(videoEl);
             videoEl.play().catch(() => {});
-          } else {
-            this.isMainScreenShare = false;
-            this.mainParticipant.hasVideo = false;
           }
-          this.updateParticipantList();
           const endedHandler = () => {
             this.ngZone.run(() => {
               this.isScreenSharing = false;
@@ -439,21 +441,19 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
     if (localScreenPub && !this.isStudent) {
       const localTrack = localScreenPub.videoTrack?.mediaStreamTrack;
-      if (localTrack) {
-        this.ngZone.run(() => {
-          this.mainParticipant = {
-            identity: local.identity,
-            name: local.name || 'Your Screen',
-            role: this.getSocketRole(),
-            isMicOn: this.isMicOn,
-            isCamOn: this.isCamOn,
-            hasVideo: true,
-          };
-          this.isMainScreenShare = true;
-          this.attachToMainVideo(localTrack);
-        });
-        return;
-      }
+      this.ngZone.run(() => {
+        this.mainParticipant = {
+          identity: local.identity,
+          name: local.name || 'Your Screen',
+          role: this.getSocketRole(),
+          isMicOn: this.isMicOn,
+          isCamOn: this.isCamOn,
+          hasVideo: !!localTrack,
+        };
+        this.isMainScreenShare = true;
+        this.attachToMainVideo(localTrack ?? null);
+      });
+      return;
     }
 
     const teacher = this.findTeacherParticipant();
@@ -612,12 +612,14 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   toggleMic(): void {
     if (!this.room) return;
-    this.room.localParticipant.setMicrophoneEnabled(!this.isMicOn);
+    this.isMicOn = !this.isMicOn;
+    this.room.localParticipant.setMicrophoneEnabled(this.isMicOn);
   }
 
   async toggleCam(): Promise<void> {
     if (!this.room) return;
     const enable = !this.isCamOn;
+    this.isCamOn = enable;
     if (enable) {
       const existing = this.room.localParticipant.getTrackPublication(Track.Source.Camera);
       if (existing) {
@@ -644,15 +646,23 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   async toggleScreenShare(): Promise<void> {
     if (!this.room || this.isStudent) return;
     const enabled = !this.isScreenSharing;
-    try {
-      await this.room.localParticipant.setScreenShareEnabled(enabled);
-      if (enabled) {
+    if (enabled) {
+      try {
+        await this.room.localParticipant.setScreenShareEnabled(enabled);
         const pub = this.room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
         const t = pub?.videoTrack ?? (pub?.track as any);
         const videoEl = this.mainVideoEl?.nativeElement ?? document.querySelector<HTMLVideoElement>('.main-video');
         this.ngZone.run(() => {
           this.isScreenSharing = true;
           this.isMainScreenShare = true;
+          this.mainParticipant = {
+            identity: this.room!.localParticipant.identity,
+            name: this.room!.localParticipant.name || 'Your Screen',
+            role: this.getSocketRole(),
+            isMicOn: this.isMicOn,
+            isCamOn: this.isCamOn,
+            hasVideo: true,
+          };
           if (t && videoEl && typeof t.attach === 'function') {
             videoEl.srcObject = null;
             t.attach(videoEl);
@@ -673,9 +683,19 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           };
           t.on('ended', ended);
         }
+      } catch {
+        this.ngZone.run(() => this.isScreenSharing = false);
       }
-    } catch {
-      this.ngZone.run(() => this.isScreenSharing = false);
+    } else {
+      this.room.localParticipant.setScreenShareEnabled(false).catch(() => {});
+      this.ngZone.run(() => {
+        this.isScreenSharing = false;
+        this.isMainScreenShare = false;
+        this.mainParticipant = null;
+        const el = this.mainVideoEl?.nativeElement ?? document.querySelector<HTMLVideoElement>('.main-video');
+        if (el) { el.srcObject = null; }
+        this.updateParticipantList();
+      });
     }
   }
 

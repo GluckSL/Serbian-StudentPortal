@@ -362,8 +362,10 @@ router.post('/sessions/:id/token', verifyToken, async (req, res) => {
     const user = await User.findById(userId).select('name role');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    const canPublish = user.role !== 'STUDENT';
-    const token = await gluckRoomService.generateToken(session.livekitRoomName, userId.toString(), user.name, canPublish);
+    const isStudent = user.role === 'STUDENT';
+    const canPublish = true;
+    const canPublishSources = isStudent ? [1, 2] : [];
+    const token = await gluckRoomService.generateToken(session.livekitRoomName, userId.toString(), user.name, canPublish, canPublishSources);
 
     res.json({ success: true, data: { token, roomName: session.livekitRoomName, livekitUrl: process.env.LIVEKIT_URL } });
   } catch (err) {
@@ -407,8 +409,10 @@ router.post('/sessions/:id/join', verifyToken, async (req, res) => {
       return res.status(403).json({ success: false, message: 'You are not authorized to join this session' });
     }
 
-    const canPublish = user.role !== 'STUDENT';
-    const token = await gluckRoomService.generateToken(session.livekitRoomName, userId.toString(), user.name, canPublish);
+    const isStudent = user.role === 'STUDENT';
+    const canPublish = true;
+    const canPublishSources = isStudent ? [1, 2] : [];
+    const token = await gluckRoomService.generateToken(session.livekitRoomName, userId.toString(), user.name, canPublish, canPublishSources);
 
     let participant = await GluckRoomParticipant.findOne({ sessionId: session._id, userId });
     if (!participant) {
@@ -421,6 +425,8 @@ router.post('/sessions/:id/join', verifyToken, async (req, res) => {
         userId,
         role: participantRole,
         joinMethod,
+        isMuted: true,
+        isCameraDisabled: true,
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
       });

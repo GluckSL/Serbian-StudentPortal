@@ -109,7 +109,7 @@ class GluckRoomService {
     }
   }
 
-  async generateToken(roomName, userId, userName, canPublish = false) {
+  async generateToken(roomName, userId, userName, canPublish = false, canPublishSources = []) {
     const token = new AccessToken(
       process.env.LIVEKIT_API_KEY,
       process.env.LIVEKIT_API_SECRET,
@@ -125,6 +125,7 @@ class GluckRoomService {
       canPublish: canPublish,
       canSubscribe: true,
       canPublishData: true,
+      ...(canPublishSources.length > 0 ? { canPublishSources } : {}),
     });
 
     return await token.toJwt();
