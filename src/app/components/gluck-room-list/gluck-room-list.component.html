@@ -14,7 +14,7 @@
         <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Search sessions...">
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>
-      <mat-form-field appearance="outline">
+      <mat-form-field *ngIf="!isStudent" appearance="outline">
         <mat-label>Batch</mat-label>
         <mat-select [(ngModel)]="batchFilter" (ngModelChange)="onBatchFilterChange()">
           <mat-option value="all">All Batches</mat-option>
@@ -102,6 +102,9 @@
             </button>
             <button *ngIf="s.status === 'ended'" mat-stroked-button (click)="openRecording(s._id)">
               <mat-icon>play_circle</mat-icon> Recording
+            </button>
+            <button *ngIf="s.status === 'ended' && isHost(s)" mat-icon-button matTooltip="Delete permanently" (click)="deleteEndedSession(s._id, $event)">
+              <mat-icon color="warn">delete</mat-icon>
             </button>
             <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-icon-button matTooltip="Edit" (click)="editSession(s._id, $event)">
               <mat-icon>edit</mat-icon>

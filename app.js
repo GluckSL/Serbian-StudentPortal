@@ -425,7 +425,7 @@ connectMongoDb()
 
     httpServer = http.createServer(app);
     initGlueckArenaSockets(httpServer);
-    initGluckRoomControls(httpServer);
+    initGluckRoomControls(httpServer, app);
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
 

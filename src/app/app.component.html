@@ -1,36 +1,43 @@
 <!-- Wait for auth check on page refresh -->
 <ng-container *ngIf="authChecked; else appLoading">
 
-  <!-- Public pages (home/login): no sidebar, show header -->
-  <ng-container *ngIf="!showSidebar">
-    <app-header *ngIf="showHeader"></app-header>
-    <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
-      <router-outlet></router-outlet>
-    </main>
-    <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
+  <!-- Gluck Room: full-screen, no sidebar/header/footer -->
+  <ng-container *ngIf="isGluckRoom; else normalLayout">
+    <router-outlet></router-outlet>
   </ng-container>
 
-  <!-- Logged-in pages: sidebar + content -->
-  <ng-container *ngIf="showSidebar">
-    <!-- Mobile hamburger -->
-    <button class="mobile-menu-btn" (click)="toggleSidebar()">☰ <span style="font-size:14px;font-weight:700;margin-left:8px;">Glück Global</span></button>
+  <ng-template #normalLayout>
+    <!-- Public pages (home/login): no sidebar, show header -->
+    <ng-container *ngIf="!showSidebar">
+      <app-header *ngIf="showHeader"></app-header>
+      <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
+        <router-outlet></router-outlet>
+      </main>
+      <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
+    </ng-container>
 
-    <!-- Overlay for mobile -->
-    <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
+    <!-- Logged-in pages: sidebar + content -->
+    <ng-container *ngIf="showSidebar">
+      <!-- Mobile hamburger -->
+      <button class="mobile-menu-btn" (click)="toggleSidebar()">☰ <span style="font-size:14px;font-weight:700;margin-left:8px;">Glück Global</span></button>
 
-    <div class="app-shell">
-      <app-sidebar
-        [class.open]="sidebarOpen"
-        (closeSidebar)="sidebarOpen = false">
-      </app-sidebar>
-      <div class="shell-content">
-        <main class="main-content">
-          <router-outlet></router-outlet>
-        </main>
-        <app-footer></app-footer>
+      <!-- Overlay for mobile -->
+      <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
+
+      <div class="app-shell">
+        <app-sidebar
+          [class.open]="sidebarOpen"
+          (closeSidebar)="sidebarOpen = false">
+        </app-sidebar>
+        <div class="shell-content">
+          <main class="main-content">
+            <router-outlet></router-outlet>
+          </main>
+          <app-footer></app-footer>
+        </div>
       </div>
-    </div>
-  </ng-container>
+    </ng-container>
+  </ng-template>
 
   <!-- Floating Help button (all pages) -->
   <app-support-fab></app-support-fab>

@@ -27,6 +27,8 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoginRoute = false;
   /** Marketing home includes its own footer — hide global app-footer */
   isHomeRoute = false;
+  /** Gluck Room full-screen: no sidebar, header, or footer */
+  isGluckRoom = false;
 
   constructor(
     private router: Router,
@@ -41,6 +43,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.showHeader = !isHomeOrLogin;
       this.isLoginRoute = path === '/login';
       this.isHomeRoute = path === '/home' || path === '/' || path === '';
+      this.isGluckRoom = /^\/gluck-room\/([a-f0-9]{24})(\/recording)?$/.test(path);
     });
   }
 
@@ -49,6 +52,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const initialPath = this.router.url.split('?')[0];
     this.isLoginRoute = initialPath === '/login';
     this.isHomeRoute = initialPath === '/home' || initialPath === '/' || initialPath === '';
+    this.isGluckRoom = /^\/gluck-room\/([a-f0-9]{24})(\/recording)?$/.test(initialPath);
     if (initialPath === '/home' || initialPath === '/login' || initialPath === '/' || initialPath === '') {
       this.showHeader = false;
     }

@@ -105,7 +105,7 @@ router.get('/sessions', verifyToken, async (req, res) => {
       GluckRoomSession.find(query)
         .populate('hostId', 'name email')
         .populate('allowedStudents', 'name email')
-        .sort({ scheduledStartTime: -1 })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize),
       GluckRoomSession.countDocuments(query)
@@ -162,13 +162,20 @@ router.put('/sessions/:id', verifyToken, async (req, res) => {
   }
 });
 
-// DELETE /api/gluckroom/sessions/:id — Cancel session (host only)
+// DELETE /api/gluckroom/sessions/:id — Cancel or hard-delete session (host only)
 router.delete('/sessions/:id', verifyToken, async (req, res) => {
   try {
     const session = await GluckRoomSession.findById(req.params.id);
     if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
     if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only the host can cancel this session' });
-    if (session.status === 'ended') return res.status(400).json({ success: false, message: 'Cannot delete an ended session' });
+
+    if (session.status === 'ended' || session.status === 'cancelled') {
+      // Hard-delete ended/cancelled sessions and related records
+      await GluckRoomParticipant.deleteMany({ sessionId: session._id });
+      await GluckRoomRecording.deleteMany({ sessionId: session._id });
+      await GluckRoomSession.findByIdAndDelete(session._id);
+      return res.json({ success: true, message: 'Session deleted permanently' });
+    }
 
     if (session.status === 'active' && session.egressId) {
       await gluckRoomService.stopRecordingAndDeleteRoom(session.livekitRoomName, session.egressId);
@@ -252,6 +259,15 @@ router.post('/sessions/:id/end', verifyToken, async (req, res) => {
 
     session.participantCount = participants.length;
     await session.save();
+
+    try {
+      const roomNamespace = req.app.get('gluckRoomNamespace');
+      if (roomNamespace) {
+        roomNamespace.to(session.livekitRoomName).emit('session-ended');
+      }
+    } catch (err) {
+      console.warn('Could not emit session-ended event:', err.message);
+    }
 
     if (session.isRecordingPublished) {
       const recording = new GluckRoomRecording({

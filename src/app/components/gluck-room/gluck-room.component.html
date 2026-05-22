@@ -15,9 +15,13 @@
           <div class="main-placeholder" *ngIf="!mainParticipant?.hasVideo && mainParticipant">
             <div class="main-avatar">{{ mainParticipantInitials }}</div>
             <div class="main-name">{{ mainParticipantName }}</div>
+            <div class="main-you" *ngIf="mainParticipant?.identity === userId">(You)</div>
           </div>
           <div class="screen-share-badge" *ngIf="isMainScreenShare">
             <mat-icon>present_to_all</mat-icon> Sharing Screen
+          </div>
+          <div class="screen-share-status" *ngIf="!isMainScreenShare && livekitConnected">
+            <mat-icon>present_to_all</mat-icon> Screen is not shared
           </div>
         </div>
 
@@ -33,11 +37,11 @@
           <button mat-mini-fab [class.active]="isCamOn" (click)="toggleCam()" class="ctrl-btn">
             <mat-icon>{{ isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
           </button>
-          <button mat-mini-fab [class.active]="showParticipantList" (click)="toggleParticipantList()" class="ctrl-btn">
-            <mat-icon>people</mat-icon>
-          </button>
           <button mat-mini-fab *ngIf="!isStudent" [class.active]="isScreenSharing" (click)="toggleScreenShare()" class="ctrl-btn">
             <mat-icon>present_to_all</mat-icon>
+          </button>
+          <button mat-mini-fab (click)="sidebarOpen = !sidebarOpen" class="ctrl-btn mobile-sidebar-toggle">
+            <mat-icon>menu</mat-icon>
           </button>
           <span class="timer">{{ formatTime(elapsedSeconds) }}</span>
           <button mat-mini-fab *ngIf="isHostUser" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
@@ -49,55 +53,89 @@
         </div>
       </div>
 
-      <div class="sidebar">
-        <div class="camera-grid" *ngIf="!showParticipantList">
-          <div class="tile" *ngFor="let p of topFiveParticipants">
-            <video #tileVideo autoplay playsinline muted class="tile-video" [class.hidden]="!p.hasVideo" [attr.data-participant]="p.identity"></video>
-            <div class="tile-placeholder" *ngIf="!p.hasVideo">
-              <div class="tile-avatar">{{ getParticipantInitials(p) }}</div>
+      <div class="sidebar" [class.open]="sidebarOpen">
+        <mat-tab-group [(selectedIndex)]="sidebarTabIndex" mat-stretch-tabs>
+          <mat-tab label="Camera Feeds">
+            <div class="camera-grid">
+              <div class="tile" *ngFor="let p of topFiveParticipants">
+                <video #tileVideo autoplay playsinline muted class="tile-video" [class.hidden]="!p.hasVideo" [attr.data-participant]="p.identity"></video>
+                <div class="tile-placeholder" *ngIf="!p.hasVideo">
+                  <div class="tile-avatar">{{ getParticipantInitials(p) }}</div>
+                </div>
+                <div class="tile-overlay">
+                  <span class="tile-name">{{ p.name }}</span>
+                  <mat-icon class="tile-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="14">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
+                  <mat-icon class="tile-cam" [class.off]="!p.isCamOn" [style.font-size.px]="14">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+                </div>
+              </div>
             </div>
-            <div class="tile-overlay">
-              <span class="tile-name">{{ p.name }}</span>
-              <mat-icon class="tile-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="14">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
-              <mat-icon class="tile-cam" [class.off]="!p.isCamOn" [style.font-size.px]="14">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+          </mat-tab>
+          <mat-tab label="Participants">
+            <div class="list-header" *ngIf="canModerate">
+              <div class="header-actions">
+                <button mat-stroked-button size="small" (click)="muteAll()">
+                  <mat-icon [style.font-size.px]="16">mic_off</mat-icon> Mute All
+                </button>
+                <button mat-stroked-button size="small" (click)="disableAllCams()">
+                  <mat-icon [style.font-size.px]="16">videocam_off</mat-icon> Cams Off
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+            <div class="list-scroll">
+              <div class="participant-row" *ngFor="let p of allParticipants">
+                <div class="row-avatar">{{ getParticipantInitials(p) }}</div>
+                <div class="row-info">
+                  <span class="row-name">{{ p.name }} <span class="row-role" *ngIf="isSelf(p)">(You)</span></span>
+                  <span class="row-devices">
+                    <mat-icon class="dev-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="12">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
+                    <mat-icon class="dev-cam" [class.off]="!p.isCamOn" [style.font-size.px]="12">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+                  </span>
+                </div>
+                <div class="row-actions" *ngIf="canModerate && !isSelf(p)">
+                  <button mat-icon-button matTooltip="Mute" (click)="muteParticipant(p.identity)">
+                    <mat-icon [style.font-size.px]="18">mic_off</mat-icon>
+                  </button>
+                  <button mat-icon-button matTooltip="Disable Camera" (click)="disableCamera(p.identity)">
+                    <mat-icon [style.font-size.px]="18">videocam_off</mat-icon>
+                  </button>
+                  <button mat-icon-button matTooltip="Remove" color="warn" (click)="removeParticipant(p.identity)">
+                    <mat-icon [style.font-size.px]="18">remove_circle</mat-icon>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+      <div class="sidebar-backdrop" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
 
-        <div class="participant-list" *ngIf="showParticipantList">
-          <div class="list-header" *ngIf="canModerate">
-            <span class="header-title">Participants ({{ allParticipants.length }})</span>
-            <div class="header-actions">
-              <button mat-stroked-button size="small" (click)="muteAll()">
-                <mat-icon fontSet="material-icons-outlined" [style.font-size.px]="16">mic_off</mat-icon> Mute All
-              </button>
-              <button mat-stroked-button size="small" (click)="disableAllCams()">
-                <mat-icon fontSet="material-icons-outlined" [style.font-size.px]="16">videocam_off</mat-icon> Cams Off
-              </button>
-            </div>
-          </div>
-          <div class="list-scroll">
-            <div class="participant-row" *ngFor="let p of allParticipants">
-              <div class="row-avatar">{{ getParticipantInitials(p) }}</div>
-              <div class="row-info">
-                <span class="row-name">{{ p.name }}</span>
-                <span class="row-role" *ngIf="isSelf(p)">(You)</span>
+      <div class="session-ended-overlay" *ngIf="showSessionEndedOverlay">
+        <div class="info-view-wrapper">
+          <button mat-icon-button (click)="cancelClose()" class="back-btn"><mat-icon>arrow_back</mat-icon></button>
+          <mat-card class="session-info-card">
+            <mat-card-header>
+              <mat-card-title>{{ session.sessionName }}</mat-card-title>
+              <mat-card-subtitle>
+                <span class="status-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">
+                  {{ statusLabel(session.status) }}
+                </span>
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="info-grid">
+                <div class="info-item"><mat-icon>person</mat-icon><span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span></div>
+                <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
+                <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
+                <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
               </div>
-              <mat-icon class="row-icon" [class.muted]="!p.isMicOn" [style.font-size.px]="18">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
-              <mat-icon class="row-icon" [class.off]="!p.isCamOn" [style.font-size.px]="18">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
-              <div class="row-actions" *ngIf="canModerate && !isSelf(p)">
-                <button mat-icon-button matTooltip="Mute" (click)="muteParticipant(p.identity)">
-                  <mat-icon [style.font-size.px]="18">mic_off</mat-icon>
-                </button>
-                <button mat-icon-button matTooltip="Disable Camera" (click)="disableCamera(p.identity)">
-                  <mat-icon [style.font-size.px]="18">videocam_off</mat-icon>
-                </button>
-                <button mat-icon-button matTooltip="Remove" color="warn" (click)="removeParticipant(p.identity)">
-                  <mat-icon [style.font-size.px]="18">remove_circle</mat-icon>
-                </button>
+            </mat-card-content>
+            <mat-card-footer>
+              <div class="progress-wrap">
+                <div class="progress-fill" [style.width.%]="progressPercent"></div>
               </div>
-            </div>
-          </div>
+              <div class="closing-msg">Closing tab in {{ remainingSeconds }}s...</div>
+            </mat-card-footer>
+          </mat-card>
         </div>
       </div>
     </div>

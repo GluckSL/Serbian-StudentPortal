@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const gluckRoomService = require('../services/gluckRoomService');
 const GluckRoomParticipant = require('../models/GluckRoomParticipant');
 
-function initGluckRoomControls(httpServer) {
+function initGluckRoomControls(httpServer, app) {
   const io = new Server(httpServer, {
     cors: {
       origin: function (origin, callback) {
@@ -14,6 +14,7 @@ function initGluckRoomControls(httpServer) {
   });
 
   const roomNamespace = io.of('/gluckroom');
+  if (app) app.set('gluckRoomNamespace', roomNamespace);
 
   roomNamespace.use((socket, next) => {
     const { token, roomName } = socket.handshake.auth || {};

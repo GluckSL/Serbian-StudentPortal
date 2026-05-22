@@ -52,7 +52,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   selfViewStream: MediaStream | null = null;
   selfViewTrack: MediaStreamTrack | null = null;
 
-  showParticipantList = false;
+  sidebarOpen = false;
+  sidebarTabIndex = 0;
+  showSessionEndedOverlay = false;
+  progressPercent = 0;
+  private closeTimer: ReturnType<typeof setInterval> | null = null;
   allParticipants: ParticipantInfo[] = [];
   topFiveParticipants: ParticipantInfo[] = [];
 
@@ -420,6 +424,9 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     socket.on('all-cameras-disabled', () => {
       this.room?.localParticipant.setCameraEnabled(false);
     });
+    socket.on('session-ended', () => {
+      this.ngZone.run(() => this.showSessionInfoAndClose());
+    });
     socket.on('participant-removed', ({ targetUserId }: { targetUserId: string }) => {
       if (targetUserId === this.userId) {
         this.cleanupConnection();
@@ -699,10 +706,6 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     }
   }
 
-  toggleParticipantList(): void {
-    this.showParticipantList = !this.showParticipantList;
-  }
-
   muteParticipant(identity: string): void {
     this.gluckRoomSocket.emit('mute-participant', { targetUserId: identity });
   }
@@ -724,13 +727,50 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.gluckRoomSocket.emit('remove-participant', { targetUserId: identity });
   }
 
+  private showSessionInfoAndClose(): void {
+    this.showSessionEndedOverlay = true;
+    this.progressPercent = 0;
+    this.cleanupConnection();
+    const start = Date.now();
+    const duration = 10000;
+    this.closeTimer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      this.progressPercent = Math.min(100, (elapsed / duration) * 100);
+      if (elapsed >= duration) {
+        this.doClose();
+      }
+    }, 100);
+  }
+
+  get remainingSeconds(): number {
+    return Math.max(0, 10 - Math.floor(this.progressPercent / 10));
+  }
+
+  cancelClose(): void {
+    if (this.closeTimer) {
+      clearInterval(this.closeTimer);
+      this.closeTimer = null;
+    }
+    this.doClose();
+  }
+
+  private doClose(): void {
+    if (this.closeTimer) {
+      clearInterval(this.closeTimer);
+      this.closeTimer = null;
+    }
+    if (window.opener) {
+      try { window.opener.location.reload(); } catch {}
+    }
+    window.close();
+  }
+
   async leave(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.gluckRoomService.leaveSession(id).subscribe({ next: () => {}, error: () => {} });
     }
-    this.cleanupConnection();
-    this.router.navigate(['/gluck-room']);
+    this.showSessionInfoAndClose();
   }
 
   endSession(): void {
@@ -740,8 +780,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.gluckRoomService.endSession(id).subscribe({
       next: (res) => {
         if (res.success) {
-          this.cleanupConnection();
-          this.router.navigate(['/gluck-room']);
+          this.showSessionInfoAndClose();
         }
       },
       error: () => {}

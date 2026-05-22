@@ -182,6 +182,18 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     });
   }
 
+  deleteEndedSession(id: string, event: Event): void {
+    event.stopPropagation();
+    if (!confirm('Delete this completed session permanently? This will remove all participant and recording data.')) return;
+    this.gluckRoomService.deleteSession(id).subscribe({
+      next: (res) => {
+        if (res.success) this.loadSessions();
+        else this.error = res.message;
+      },
+      error: (err) => { this.error = err.error?.message || 'Failed to delete session'; }
+    });
+  }
+
   joinSession(id: string, event: Event): void {
     event.stopPropagation();
     window.open(`/gluck-room/${id}`, '_blank');
