@@ -170,10 +170,8 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     this.gluckRoomService.endSession(id).subscribe({
       next: (res) => {
         this.actionLoadingId = null;
-        if (res.success) {
-          this.loadSessions();
-          this.openRecording(id);
-        } else this.error = res.message;
+        if (res.success) this.loadSessions();
+        else this.error = res.message;
       },
       error: (err) => {
         this.actionLoadingId = null;

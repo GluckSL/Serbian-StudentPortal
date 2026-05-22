@@ -64,6 +64,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
   isEnding = false;
+  private isLocallyEnding = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -439,7 +440,12 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       this.room?.localParticipant.setCameraEnabled(false);
     });
     socket.on('session-ended', () => {
-      this.ngZone.run(() => this.showSessionInfoAndClose());
+      if (this.isLocallyEnding) return;
+      const id = this.route.snapshot.paramMap.get('id');
+      this.ngZone.run(() => {
+        this.cleanupConnection();
+        this.router.navigate(['/gluck-room', id]);
+      });
     });
     socket.on('participant-removed', ({ targetUserId }: { targetUserId: string }) => {
       if (targetUserId === this.userId) {
@@ -800,6 +806,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     if (!id || this.isEnding) return;
     if (!confirm('End this session for all participants?')) return;
     this.isEnding = true;
+    this.isLocallyEnding = true;
     this.gluckRoomService.endSession(id).subscribe({
       next: (res) => {
         this.isEnding = false;
@@ -807,7 +814,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           this.showSessionInfoAndClose();
         }
       },
-      error: () => { this.isEnding = false; }
+      error: () => { this.isEnding = false; this.isLocallyEnding = false; }
     });
   }
 
