@@ -375,6 +375,35 @@
   vertical-align: middle;
 }
 
+.sr-col-journey {
+  width: 88px;
+  min-width: 88px;
+  text-align: center;
+}
+
+.sr-table th.sr-col-journey {
+  text-align: center;
+}
+
+.sr-journey-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.sr-journey-day--empty {
+  background: transparent;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
 .sr-col-action {
   width: 90px;
   min-width: 90px;

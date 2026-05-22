@@ -806,6 +806,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
+  formatJourneyDay(r: DisplayRecording): string {
+    return r.courseDay != null && Number.isFinite(Number(r.courseDay)) ? String(r.courseDay) : '—';
+  }
+
   formatDuration(seconds: number | null): string {
     if (!seconds) return '—';
     const h = Math.floor(seconds / 3600);

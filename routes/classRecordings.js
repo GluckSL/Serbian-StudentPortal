@@ -335,7 +335,7 @@ router.get('/', verifyToken, async (req, res) => {
 
 /**
  * GET /api/class-recordings/student-feed
- * Paginated merged manual + Zoom recordings for students (newest first by default).
+ * Paginated merged manual + Zoom recordings for students (journey day desc, then date).
  * Query: page (default 1), limit (default 7), search, filter (all|attended|not_attended|date_newest|date_oldest), courseDay
  */
 router.get('/student-feed', verifyToken, async (req, res) => {
@@ -672,11 +672,15 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       });
     }
 
-    if (filter === 'date_oldest') {
-      merged.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    } else {
-      merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }
+    const sortByDateOldest = filter === 'date_oldest';
+    merged.sort((a, b) => {
+      const dayA = Number.isFinite(Number(a.courseDay)) ? Number(a.courseDay) : -1;
+      const dayB = Number.isFinite(Number(b.courseDay)) ? Number(b.courseDay) : -1;
+      if (dayA !== dayB) return dayB - dayA;
+      const tA = new Date(a.date).getTime();
+      const tB = new Date(b.date).getTime();
+      return sortByDateOldest ? tA - tB : tB - tA;
+    });
 
     const total = merged.length;
     const totalPages = Math.max(1, Math.ceil(total / limit));
