@@ -2,9 +2,6 @@ const {
   RoomServiceClient,
   EgressClient,
   AccessToken,
-  EncodedFileOutput,
-  S3Upload,
-  EncodingOptionsPreset,
   EncodedFileType
 } = require('livekit-server-sdk');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -51,42 +48,34 @@ class GluckRoomService {
       maxParticipants: 100,
     });
 
-    // Determine best video track for Egress:
-    //   'screen_share' → use host identity (LiveKit follows host's active
-    //                     video track — camera or screen share)
-    //   'camera'       → use teacher-camera-{hostId} track name
-    //   'none'         → omit videoTrackId (placeholder/canvas only)
-    let videoTrackId;
-    if (videoSource === 'screen_share') {
-      videoTrackId = hostId;
-    } else if (videoSource === 'camera') {
-      videoTrackId = `teacher-camera-${hostId}`;
-    }
-    // videoSource === 'none' → videoTrackId stays undefined
-
-    const egressOptions = { audioTrackId: 'room-audio-mix', encodingOptions: EncodingOptionsPreset.H264_720P_24 };
-    if (videoTrackId) egressOptions.videoTrackId = videoTrackId;
-
-    const fileOutput = new EncodedFileOutput({
-      filepath: `gluckroom/${sessionId}/recording.mp4`,
-      file_type: EncodedFileType.MP4,
-      output: {
-        case: 's3',
-        value: new S3Upload({
-          accessKey: R2_ACCESS_KEY,
-          secret: R2_SECRET,
-          bucket: R2_BUCKET,
-          endpoint: R2_ENDPOINT,
-          region: 'auto',
-          forcePathStyle: true,
-        }),
-      },
-    });
-
-    const egress = await this.egressClient.startTrackCompositeEgress(
+    const egress = await this.egressClient.startRoomCompositeEgress(
       sessionId,
-      fileOutput,
-      egressOptions
+      {
+        file: {
+          filepath: `gluckroom/${sessionId}/recording.mp4`,
+          fileType: EncodedFileType.MP4,
+          output: {
+            case: 's3',
+            value: {
+              accessKey: R2_ACCESS_KEY,
+              secret: R2_SECRET,
+              bucket: R2_BUCKET,
+              endpoint: R2_ENDPOINT,
+              region: 'auto',
+              forcePathStyle: true,
+            },
+          },
+        },
+      },
+      {
+        encodingOptions: {
+          width: 1280,
+          height: 720,
+          framerate: 30,
+          videoBitrate: 5000,
+          audioBitrate: 128,
+        },
+      }
     );
 
     return {

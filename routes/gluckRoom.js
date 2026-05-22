@@ -270,16 +270,19 @@ router.post('/sessions/:id/end', verifyToken, async (req, res) => {
     }
 
     if (session.isRecordingPublished) {
+      const r2Key = `gluckroom/${session.livekitRoomName}/recording.mp4`;
       const recording = new GluckRoomRecording({
         sessionId: session._id,
-        r2Key: `gluckroom/${session.livekitRoomName}/recording.mp4`,
-        status: 'processing',
+        r2Key,
+        status: 'ready',
         isPublished: true,
         accessBatches: session.allowedBatches || [session.batch],
         accessLevel: session.level,
         accessPlan: 'ALL'
       });
       await recording.save();
+      session.recordingKey = r2Key;
+      await session.save();
     }
 
     res.json({ success: true, data: session });
