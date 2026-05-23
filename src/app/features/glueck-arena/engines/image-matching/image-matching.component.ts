@@ -205,19 +205,27 @@ interface DisplayPair {
 
     .im-card__target {
       position: relative;
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 100%;
-      aspect-ratio: 1;
+      min-height: 160px;
+      max-height: 240px;
+      padding: 8px;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid #e2e8f0;
       background: #f1f5f9;
       transition: border-color 0.15s, box-shadow 0.15s;
+      box-sizing: border-box;
     }
     .im-card__target img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      max-width: 100%;
+      max-height: 220px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      object-position: center;
       pointer-events: none;
       display: block;
     }

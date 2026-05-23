@@ -9,6 +9,7 @@ import { MaterialModule } from '../../../../../shared/material.module';
 import { InteractiveGameService } from '../../../services/interactive-game.service';
 
 import { NotificationService } from '../../../../../services/notification.service';
+import { germanUppercase } from '../../../utils/german-text';
 
 
 
@@ -219,7 +220,6 @@ import { NotificationService } from '../../../../../services/notification.servic
     .sqf__field { flex: 1; min-width: 150px; }
 
     .sqf__field--word { font-weight: 600; }
-    .sqf__word-input { text-transform: uppercase; }
 
     .sqf__field--duration { max-width: 220px; min-width: 180px; }
 
@@ -424,7 +424,7 @@ export class ScrambleQuestionFormComponent implements OnInit, OnChanges {
 
     const qs = this.words.value.map((w: any, i: number) => ({
       ...w,
-      word: String(w.word || '').trim().toUpperCase(),
+      word: germanUppercase(w.word || ''),
       order: i,
     }));
 

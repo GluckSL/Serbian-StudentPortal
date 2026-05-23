@@ -3,6 +3,7 @@
 const GameQuestion = require('../../models/GameQuestion');
 const GameLevel = require('../../models/GameLevel');
 const GameSet = require('../../models/GameSet');
+const { germanUppercase, trimGermanWord } = require('../../utils/germanText');
 
 function normalizeKey(key) {
   return String(key || '')
@@ -33,7 +34,7 @@ function isScrambleLevelRow(row, importType) {
 
 function validateScrambleRow(row, index) {
   const errors = [];
-  const word = String(row.word || '').trim().toUpperCase();
+  const word = germanUppercase(row.word);
   if (!word) errors.push(`Row ${index + 1}: "word" column is required for Scramble Rush`);
   
   // Anti-cross-contamination check: if it looks like a sentence, it's probably the wrong file
@@ -86,7 +87,7 @@ function validateMatchingRow(row, index) {
     valid: errors.length === 0,
     errors,
     doc: {
-      word: left.toUpperCase(), 
+      word: trimGermanWord(left), 
       hint: right,
       imageUrl: String(row.image_url || row.imageurl || '').trim() || null,
       order: parseInt(row.order, 10) || index,
@@ -106,7 +107,7 @@ function validateFlashcardRow(row, index) {
     valid: errors.length === 0,
     errors,
     doc: {
-      word: front.toUpperCase(),
+      word: trimGermanWord(front),
       hint: back,
       imageUrl: String(row.image_url || row.imageurl || '').trim() || null,
       audioUrl: String(row.audio_url || row.audiourl || '').trim() || null,

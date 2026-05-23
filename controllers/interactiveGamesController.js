@@ -28,6 +28,7 @@ const importService = require('../services/interactiveGames/import');
 const cacheService = require('../services/interactiveGames/cache');
 const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
+const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
 const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
@@ -451,7 +452,7 @@ exports.submitImageMatchSlot = async (req, res) => {
         attemptId: attempt._id,
         questionId: question._id,
         studentId: req.user.id,
-        typedWord: String(word).toUpperCase().trim(),
+        typedWord: String(word).trim(),
         slotIndex: pairIndex,
         responseTimeMs: responseTimeMs || 0,
         isCorrect: true,
@@ -917,17 +918,22 @@ exports.adminUpsertQuestions = async (req, res) => {
       } else if (set.gameType === 'image_matching') {
         // Store pairs array instead of single word/hint
         doc.pairs = (q.pairs || []).map(p => ({
-          word: String(p.word || '').trim().toUpperCase(),
+          word: trimGermanWord(p.word),
           hint: p.hint || '',
           imageUrl: p.imageUrl || null,
           audioUrl: p.audioUrl || null,
         }));
       } else {
         // scramble_rush, matching, flashcards all use word/hint
-        doc.word = String(q.word || '').trim().toUpperCase();
         doc.hint = q.hint || '';
         doc.imageUrl = q.imageUrl || null;
         doc.audioUrl = q.audioUrl || null;
+
+        if (set.gameType === 'scramble_rush') {
+          doc.word = germanUppercase(q.word);
+        } else {
+          doc.word = trimGermanWord(q.word);
+        }
 
         if (set.gameType === 'scramble_rush') {
           doc.difficultyLevel = Math.min(5, Math.max(1, parseInt(q.difficultyLevel, 10) || 1));
@@ -987,7 +993,12 @@ exports.adminUpdateQuestion = async (req, res) => {
       if (req.body[f] !== undefined) updates[f] = req.body[f];
     }
 
-    if (updates.word) updates.word = String(updates.word).trim().toUpperCase();
+    if (updates.word) {
+      const qDoc = await GameQuestion.findById(req.params.qid).select('gameType').lean();
+      updates.word = qDoc?.gameType === 'scramble_rush'
+        ? germanUppercase(updates.word)
+        : trimGermanWord(updates.word);
+    }
     if (updates.correctSentence) {
       updates.correctSentence = String(updates.correctSentence).trim();
       updates.tokens = updates.correctSentence.split(/\s+/).filter(Boolean);

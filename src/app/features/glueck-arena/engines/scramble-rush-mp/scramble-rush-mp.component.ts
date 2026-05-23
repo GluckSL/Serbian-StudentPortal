@@ -14,6 +14,7 @@ import {
   ArenaBattleScrambleQuestion,
   ArenaBattleAnswerResult,
 } from '../../glueck-arena.types';
+import { germanUppercase } from '../../utils/german-text';
 
 @Component({
   selector: 'app-scramble-rush-mp',
@@ -82,7 +83,7 @@ import {
     .srmp__bonus { margin-left: 8px; font-size: 13px; }
     .srmp__locked { margin-top: 16px; color: #888; font-style: italic; }
     .srmp__input-bar { display: flex; gap: 10px; background: #fff; padding: 10px; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
-    .srmp__input { flex: 1; border: 2px solid #e0e0e0; border-radius: 10px; padding: 12px; font-size: 18px; font-weight: 700; text-transform: uppercase; }
+    .srmp__input { flex: 1; border: 2px solid #e0e0e0; border-radius: 10px; padding: 12px; font-size: 18px; font-weight: 700; }
     @media (max-width: 480px) { .srmp__letters { font-size: 26px; letter-spacing: 3px; } }
   `]
 })
@@ -162,10 +163,10 @@ export class ScrambleRushMpComponent implements OnChanges, OnDestroy {
   }
 
   submit() {
-    const word = this.typedWord.trim();
+    const word = germanUppercase(this.typedWord);
     if (!word || this.answered || this.feedback) return;
     this.answered = true;
-    this.submitAnswer.emit({ typedWord: word.toUpperCase() });
+    this.submitAnswer.emit({ typedWord: word });
   }
 
   applyResult(r: ArenaBattleAnswerResult) {
