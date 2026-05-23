@@ -8,6 +8,7 @@
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3Client = require('./s3');
+const { isExerciseR2Url, presignExerciseMediaUrl, getExerciseR2Config } = require('../services/exerciseMediaR2');
 
 const USE_SIGNED = process.env.S3_USE_SIGNED_URLS === 'true';
 const EXPIRES_IN = parseInt(process.env.S3_SIGNED_URL_EXPIRY || '3600', 10);
@@ -144,6 +145,23 @@ async function presignS3Url(url) {
     console.error('[presign] Failed to sign URL:', url, err.message);
     return url; // fall back to original — still may get 403 but won't crash
   }
+}
+
+/** Presign S3 (when enabled) or R2 media URLs for browser display. */
+async function presignMediaUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  if (!trimmed) return url;
+  if (isS3Url(trimmed)) return presignS3Url(trimmed);
+  if (isExerciseR2Url(trimmed)) {
+    const cfg = getExerciseR2Config();
+    // Public R2 custom domain / r2.dev URLs are already browser-readable — do not replace with storage-endpoint presigns.
+    if (cfg?.publicBaseUrl && trimmed.startsWith(cfg.publicBaseUrl)) {
+      return trimmed;
+    }
+    return presignExerciseMediaUrl(trimmed, EXPIRES_IN);
+  }
+  return trimmed;
 }
 
 /**
@@ -342,7 +360,7 @@ const MEDIA_URL_FIELD_NAMES = new Set([
  * Presign known media URL fields on any plain object tree (Sprechen modules, game sets, etc.).
  */
 async function resignMediaInObject(root) {
-  if (!USE_SIGNED || !root) return root;
+  if (!root) return root;
 
   const walk = async (node) => {
     if (!node || typeof node !== 'object') return;
@@ -353,8 +371,10 @@ async function resignMediaInObject(root) {
     const entries = Object.entries(node);
     await Promise.all(
       entries.map(async ([key, val]) => {
-        if (typeof val === 'string' && MEDIA_URL_FIELD_NAMES.has(key) && isS3Url(val)) {
-          node[key] = await presignS3Url(val);
+        if (typeof val === 'string' && MEDIA_URL_FIELD_NAMES.has(key)) {
+          if (isS3Url(val) || isExerciseR2Url(val)) {
+            node[key] = await presignMediaUrl(val);
+          }
           return;
         }
         if (val && typeof val === 'object') {
@@ -369,7 +389,7 @@ async function resignMediaInObject(root) {
 }
 
 async function resignMediaInObjects(items) {
-  if (!USE_SIGNED || !Array.isArray(items)) return items;
+  if (!Array.isArray(items)) return items;
   await Promise.all(items.map((item) => resignMediaInObject(item)));
   return items;
 }
@@ -399,6 +419,7 @@ function canonicalizeMediaInObject(root) {
 
 module.exports = {
   presignS3Url,
+  presignMediaUrl,
   presignS3ObjectKey,
   presignStoredS3Url,
   presignS3DownloadUrl,

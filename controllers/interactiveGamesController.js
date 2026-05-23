@@ -18,7 +18,7 @@ const imageMatchingService = require('../services/interactiveGames/imageMatching
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
 const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
-const { presignS3Url, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
+const { presignMediaUrl, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
 const dailyChallengesService = require('../services/interactiveGames/dailyChallenges');
@@ -873,7 +873,7 @@ exports.adminUploadThumbnail = async (req, res) => {
     );
     if (!set) return notFound(res);
 
-    const thumbnailUrl = await presignS3Url(canonicalUrl);
+    const thumbnailUrl = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, thumbnailUrl, canonicalUrl });
   } catch (err) {
     serverError(res, err);

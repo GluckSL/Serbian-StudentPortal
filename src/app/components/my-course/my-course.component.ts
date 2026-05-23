@@ -20,6 +20,8 @@ import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
 import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
+import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
+import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
 import { RecordingAccessRequestService, EligibleClass, RecordingRequestQuota } from '../../services/recording-access-request.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -76,6 +78,7 @@ export class MyCourseComponent implements OnInit {
 
   private journeyDayExercises: DigitalExercise[] = [];
   private journeyDayModules: LearningModule[] = [];
+  private journeyDayGameSets: GameSet[] = [];
   private journeyMeetings: any[] = [];
   /** Fallback when journey.profile.profilePic is empty (login/profile API often has photo). */
   private authProfilePicRaw: string | null = null;
@@ -171,6 +174,7 @@ export class MyCourseComponent implements OnInit {
     private zoomService: ZoomService,
     private exerciseService: DigitalExerciseService,
     private learningModulesService: LearningModulesService,
+    private interactiveGameService: InteractiveGameService,
     private dialog: MatDialog,
     private announcementService: AnnouncementService,
     private joinClassFlow: JoinClassFlowService,
@@ -351,6 +355,21 @@ export class MyCourseComponent implements OnInit {
     } else {
       this.journeyDayModules = [];
     }
+
+    this.interactiveGameService
+      .getCatalog({ page: 1, limit: 500 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const items: GameSet[] = Array.isArray(res?.items) ? res.items : [];
+          this.journeyDayGameSets = items.filter(
+            (g) => (g.targetLanguage || 'German') === 'German'
+          );
+        },
+        error: () => {
+          this.journeyDayGameSets = [];
+        }
+      });
 
     // Fetch DG modules for the current journey day (completion badge)
     this.dgApiService
@@ -697,6 +716,10 @@ export class MyCourseComponent implements OnInit {
     return st === 'completed';
   }
 
+  gameSetDone(set: GameSet): boolean {
+    return (set.studentProgress?.timesPlayed ?? 0) > 0;
+  }
+
   get selectedDayExercises(): DigitalExercise[] {
     let list = this.journeyDayExercises.filter((ex) => Number(ex.courseDay || 0) === this.selectedJourneyDay);
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.exerciseDone(x));
@@ -712,17 +735,37 @@ export class MyCourseComponent implements OnInit {
     return list;
   }
 
+  get selectedDayGameSets(): GameSet[] {
+    let list = this.journeyDayGameSets.filter(
+      (g) => Number(g.courseDay || 0) === this.selectedJourneyDay
+    );
+    if (this.journeyFilter === 'completed') list = list.filter((x) => this.gameSetDone(x));
+    if (this.journeyFilter === 'pending') list = list.filter((x) => !this.gameSetDone(x));
+    return list;
+  }
+
   get selectedDayHasItems(): boolean {
-    return this.selectedDayExercises.length > 0 || this.selectedDayModules.length > 0;
+    return (
+      this.selectedDayExercises.length > 0 ||
+      this.selectedDayModules.length > 0 ||
+      this.selectedDayGameSets.length > 0
+    );
   }
 
   get selectedDayCompletedCount(): number {
-    return this.selectedDayExercises.filter((x) => this.exerciseDone(x)).length +
-      this.selectedDayModules.filter((x) => this.moduleDone(x)).length;
+    return (
+      this.selectedDayExercises.filter((x) => this.exerciseDone(x)).length +
+      this.selectedDayModules.filter((x) => this.moduleDone(x)).length +
+      this.selectedDayGameSets.filter((x) => this.gameSetDone(x)).length
+    );
   }
 
   get selectedDayTotalCount(): number {
-    return this.selectedDayExercises.length + this.selectedDayModules.length;
+    return (
+      this.selectedDayExercises.length +
+      this.selectedDayModules.length +
+      this.selectedDayGameSets.length
+    );
   }
 
   // ── Day completion badge ────────────────────────────────────────────────────
@@ -741,6 +784,12 @@ export class MyCourseComponent implements OnInit {
     );
   }
 
+  get currentDayGameSetsForBadge(): GameSet[] {
+    return this.journeyDayGameSets.filter(
+      (g) => Number(g.courseDay) === this.journeyCourseDay
+    );
+  }
+
   get currentDayIncompleteExercises(): DigitalExercise[] {
     return this.currentDayExercisesForBadge.filter((ex) => !this.exerciseDone(ex));
   }
@@ -753,12 +802,17 @@ export class MyCourseComponent implements OnInit {
     return this.currentDayManualRecs.filter((r) => !this.recordingWatched(r));
   }
 
+  get currentDayIncompleteGameSets(): GameSet[] {
+    return this.currentDayGameSetsForBadge.filter((g) => !this.gameSetDone(g));
+  }
+
   /** True when at least one content item is tagged to the current day. */
   get dayHasTrackableContent(): boolean {
     return (
       this.currentDayExercisesForBadge.length > 0 ||
       this.currentDayDgModules.length > 0 ||
-      this.currentDayManualRecs.length > 0
+      this.currentDayManualRecs.length > 0 ||
+      this.currentDayGameSetsForBadge.length > 0
     );
   }
 
@@ -768,7 +822,8 @@ export class MyCourseComponent implements OnInit {
     return (
       this.currentDayIncompleteExercises.length === 0 &&
       this.currentDayIncompleteDg.length === 0 &&
-      this.currentDayIncompleteRecs.length === 0
+      this.currentDayIncompleteRecs.length === 0 &&
+      this.currentDayIncompleteGameSets.length === 0
     );
   }
 
@@ -793,6 +848,17 @@ export class MyCourseComponent implements OnInit {
         returnUrl: this.router.url   // return to current journey/day page
       }
     });
+  }
+
+  openGameSet(set: GameSet): void {
+    if (!set?._id) return;
+    this.router.navigate(['/glueck-arena', set._id]);
+  }
+
+  getGameSetHoverDetails(set: GameSet): string {
+    const status = this.gameSetDone(set) ? 'Completed' : 'Not completed';
+    const type = set.gameType ? set.gameType.replace(/_/g, ' ') : 'Game';
+    return `${set.title} · ${type} · ${status}`;
   }
 
   getExerciseHoverDetails(ex: DigitalExercise): string {

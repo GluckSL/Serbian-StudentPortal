@@ -96,6 +96,27 @@ function publicUrlForKey(key) {
   return `${cfg.publicBaseUrl}/${normalizedKey}`;
 }
 
+function isExerciseR2Url(url) {
+  return !!extractMediaKeyFromUrl(url);
+}
+
+/** Short-lived presigned GET for private R2 buckets (game thumbnails, attachments, etc.). */
+async function presignExerciseMediaUrl(url, expiresIn = 3600) {
+  const key = extractMediaKeyFromUrl(url);
+  if (!key) return url;
+  const cfg = getExerciseR2Config();
+  if (!cfg) return url;
+  try {
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+    const command = new GetObjectCommand({ Bucket: cfg.bucket, Key: key });
+    return await getSignedUrl(cfg.client, command, { expiresIn });
+  } catch (err) {
+    console.error('[R2 presign] Failed to sign URL:', url, err.message);
+    return url;
+  }
+}
+
 module.exports = {
   getExerciseR2Config,
   isExerciseR2Configured,
@@ -103,4 +124,6 @@ module.exports = {
   headExerciseMediaKey,
   extractMediaKeyFromUrl,
   publicUrlForKey,
+  isExerciseR2Url,
+  presignExerciseMediaUrl,
 };

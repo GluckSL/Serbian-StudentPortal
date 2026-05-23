@@ -387,6 +387,23 @@ export class GameSetEditorComponent implements OnInit {
     const reader = new FileReader();
     reader.onload = ev => this.thumbnailPreview = ev.target?.result as string;
     reader.readAsDataURL(file);
+
+    if (this.isEdit && this.setId) {
+      this.uploadThumbnailNow(this.setId, file);
+    }
+  }
+
+  private uploadThumbnailNow(setId: string, file: File): void {
+    this.svc.adminUploadThumbnail(setId, file).subscribe({
+      next: (tr) => {
+        this.thumbnailPreview = tr.thumbnailUrl;
+        this.pendingThumbnail = null;
+        this.notify.success('Thumbnail uploaded');
+      },
+      error: (err) => {
+        this.notify.error(err?.error?.message || 'Thumbnail upload failed');
+      }
+    });
   }
 
   save() {
@@ -418,9 +435,7 @@ export class GameSetEditorComponent implements OnInit {
         this.notify.success(this.isEdit ? 'Game set updated!' : 'Game set created!');
 
         if (this.pendingThumbnail) {
-          this.svc.adminUploadThumbnail(savedId, this.pendingThumbnail).subscribe({
-            next: (tr) => { this.thumbnailPreview = tr.thumbnailUrl; this.pendingThumbnail = null; }
-          });
+          this.uploadThumbnailNow(savedId, this.pendingThumbnail);
         }
 
         if (!this.isEdit) {
