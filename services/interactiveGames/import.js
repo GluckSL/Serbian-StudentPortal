@@ -4,12 +4,31 @@ const GameQuestion = require('../../models/GameQuestion');
 const GameLevel = require('../../models/GameLevel');
 const GameSet = require('../../models/GameSet');
 
+function normalizeKey(key) {
+  return String(key || '')
+    .replace(/^\ufeff/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
 function normalizeRow(row) {
   const r = {};
   Object.keys(row).forEach(k => {
-    r[k.trim().toLowerCase().replace(/\s+/g, '_')] = row[k];
+    r[normalizeKey(k)] = row[k];
   });
   return r;
+}
+
+/** Scramble Rush level row — not a CEFR "level" column on word rows */
+function isScrambleLevelRow(row, importType) {
+  if (importType === 'levels') return true;
+  const word = String(row.word || '').trim();
+  if (word) return false;
+  const levelNum = parseInt(row.level_number, 10);
+  if (levelNum > 0) return true;
+  const legacyLevel = parseInt(row.level, 10);
+  return legacyLevel > 0;
 }
 
 function validateScrambleRow(row, index) {
@@ -124,8 +143,8 @@ function parseRows(rows, gameType, importType) {
     let type = 'question';
     let parsed;
 
-    // Detect if this row is a level or a question
-    if (importType === 'levels' || (gameType === 'scramble_rush' && (row.level_number || row.level))) {
+    // Detect if this row is a level or a question (word rows win over optional CEFR "level" column)
+    if (gameType === 'scramble_rush' && isScrambleLevelRow(row, importType)) {
       type = 'level';
       parsed = validateLevelRow(row, i);
     } else {
