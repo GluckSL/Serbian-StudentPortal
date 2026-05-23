@@ -98,13 +98,14 @@ export class GluckRoomRecordingComponent implements OnInit, AfterViewChecked {
 
     if (Hls.isSupported()) {
       this.hls = new Hls({
-        enableWorker: true,
+        enableWorker: false,
         maxBufferLength: 10,
         maxMaxBufferLength: 20,
         startLevel: 0,
         backBufferLength: 5,
         xhrSetup: (xhr: XMLHttpRequest) => { hlsAuthXhrSetup(xhr); },
         fetchSetup: (context: any, initParams: any) => {
+          if (context.url.includes('X-Amz-Signature')) return new Request(context.url, initParams);
           const token = getAuthToken();
           const headers = new Headers(initParams?.headers || {});
           if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -113,6 +114,9 @@ export class GluckRoomRecordingComponent implements OnInit, AfterViewChecked {
       });
       this.hls.loadSource(url);
       this.hls.attachMedia(video);
+      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+      });
     }
   }
 

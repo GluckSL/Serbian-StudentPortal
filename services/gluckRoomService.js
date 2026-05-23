@@ -77,8 +77,7 @@ class GluckRoomService {
           height: 720,
           framerate: 30,
           videoBitrate: 5000,
-          videoQuality: 22,
-          maxBitrate: 8000,
+          audioCodec: 2,
           audioBitrate: 128,
         },
       }
