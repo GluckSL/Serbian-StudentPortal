@@ -24,15 +24,20 @@
       </mat-card-content>
     </mat-card>
 
-    <mat-card class="player-card" *ngIf="playbackUrl">
+    <mat-card class="player-card" *ngIf="playbackUrl || hlsMode">
       <mat-card-content>
-        <video controls class="video-player" [src]="playbackUrl" type="video/mp4">
+        <video #videoEl controls class="video-player" *ngIf="hlsMode; else mp4Player">
           Your browser does not support the video tag.
         </video>
+        <ng-template #mp4Player>
+          <video controls class="video-player" [src]="playbackUrl" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+        </ng-template>
       </mat-card-content>
     </mat-card>
 
-    <mat-card class="no-recording-card" *ngIf="!playbackUrl && !loading">
+    <mat-card class="no-recording-card" *ngIf="!playbackUrl && !hlsMode && !loading">
       <mat-card-content class="placeholder-content">
         <mat-icon>videocam_off</mat-icon>
         <h3>No recording available</h3>

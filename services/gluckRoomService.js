@@ -1,8 +1,8 @@
+const { Readable } = require('stream');
 const {
   RoomServiceClient,
   EgressClient,
   AccessToken,
-  EncodedFileType
 } = require('livekit-server-sdk');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
@@ -51,9 +51,12 @@ class GluckRoomService {
     const egress = await this.egressClient.startRoomCompositeEgress(
       sessionId,
       {
-        file: {
-          filepath: `gluckroom/${sessionId}/recording.mp4`,
-          fileType: EncodedFileType.MP4,
+        segments: {
+          filenamePrefix: `gluckroom/${sessionId}/hls/seg`,
+          playlistName: 'playlist.m3u8',
+          segmentDuration: 6,
+          protocol: 1,
+          filenameSuffix: 0,
           output: {
             case: 's3',
             value: {
@@ -69,10 +72,13 @@ class GluckRoomService {
       },
       {
         encodingOptions: {
+          videoCodec: 2,
           width: 1280,
           height: 720,
           framerate: 30,
           videoBitrate: 5000,
+          videoQuality: 22,
+          maxBitrate: 8000,
           audioBitrate: 128,
         },
       }
@@ -129,6 +135,46 @@ class GluckRoomService {
 
     const url = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
     return url;
+  }
+
+  async getSignedHlsPlaylist(hlsKey) {
+    this._ensureClients();
+
+    const obj = await this.s3.send(new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: hlsKey,
+    }));
+    const raw = await this._streamToString(obj.Body);
+
+    const hlsDir = hlsKey.substring(0, hlsKey.lastIndexOf('/'));
+    const lines = raw.split('\n');
+    const signed = await Promise.all(
+      lines.map(async (line) => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && trimmed.endsWith('.ts')) {
+          const segKey = `${hlsDir}/${trimmed}`;
+          const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: segKey });
+          return getSignedUrl(this.s3, cmd, { expiresIn: 3600 });
+        }
+        return line;
+      })
+    );
+
+    return signed.join('\n');
+  }
+
+  _streamToString(body) {
+    if (typeof body === 'string') return Promise.resolve(body);
+    if (body instanceof Buffer) return Promise.resolve(body.toString('utf-8'));
+    if (body instanceof Readable) {
+      return new Promise((resolve, reject) => {
+        const chunks = [];
+        body.on('data', (chunk) => chunks.push(chunk));
+        body.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+        body.on('error', reject);
+      });
+    }
+    return Promise.resolve(String(body));
   }
 
   async getRoom(roomName) {

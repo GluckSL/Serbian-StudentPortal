@@ -78,6 +78,11 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  recordingId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GluckRoomRecording',
+    default: null
+  },
   recordingKey: {
     type: String,
     default: null

@@ -5,7 +5,7 @@ const GluckRoomSession = require('../models/GluckRoomSession');
 const GluckRoomParticipant = require('../models/GluckRoomParticipant');
 const GluckRoomRecording = require('../models/GluckRoomRecording');
 const User = require('../models/User');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 const gluckRoomService = require('../services/gluckRoomService');
 
@@ -136,7 +136,13 @@ router.get('/sessions/:id', verifyToken, async (req, res) => {
 
     if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
 
-    res.json({ success: true, data: session });
+    const data = session.toObject();
+    if (!data.recordingId && data.recordingKey) {
+      const recording = await GluckRoomRecording.findOne({ sessionId: session._id }).select('_id');
+      if (recording) data.recordingId = recording._id;
+    }
+
+    res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -270,10 +276,12 @@ router.post('/sessions/:id/end', verifyToken, async (req, res) => {
     }
 
     if (session.isRecordingPublished) {
-      const r2Key = `gluckroom/${session.livekitRoomName}/recording.mp4`;
+      const hlsKey = `gluckroom/${session.livekitRoomName}/hls/playlist.m3u8`;
       const recording = new GluckRoomRecording({
         sessionId: session._id,
-        r2Key,
+        r2Key: hlsKey,
+        hlsKey,
+        hlsMode: true,
         status: 'ready',
         isPublished: true,
         accessBatches: session.allowedBatches || [session.batch],
@@ -281,7 +289,8 @@ router.post('/sessions/:id/end', verifyToken, async (req, res) => {
         accessPlan: 'ALL'
       });
       await recording.save();
-      session.recordingKey = r2Key;
+      session.recordingId = recording._id;
+      session.recordingKey = hlsKey;
       await session.save();
     }
 
@@ -633,7 +642,30 @@ router.get('/attendance/student/:userId', verifyToken, async (req, res) => {
 
 // ── Recording ──
 
-// GET /api/gluckroom/recordings/:id — Get presigned URL for playback
+// GET /api/gluckroom/sessions/:id/recording — Get recording ID for a session
+router.get('/sessions/:id/recording', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id).select('recordingId recordingKey status');
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+
+    let recordingId = session.recordingId;
+    if (!recordingId && session.recordingKey) {
+      const recording = await GluckRoomRecording.findOne({ sessionId: session._id }).select('_id');
+      if (recording) recordingId = recording._id;
+    }
+
+    if (!recordingId) {
+      return res.status(404).json({ success: false, message: 'No recording for this session' });
+    }
+
+    res.json({ success: true, data: { recordingId } });
+  } catch (err) {
+    console.error('Find recording by session error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/gluckroom/recordings/:id — Get playback URL (HLS or MP4)
 router.get('/recordings/:id', verifyToken, async (req, res) => {
   try {
     const recording = await GluckRoomRecording.findById(req.params.id).populate('sessionId', 'sessionName batch level');
@@ -643,10 +675,41 @@ router.get('/recordings/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Recording is not published' });
     }
 
-    const url = await gluckRoomService.getRecordingUrl(recording.r2Key);
-
-    res.json({ success: true, data: { recording, playbackUrl: url } });
+    if (recording.hlsMode && recording.hlsKey) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      res.json({
+        success: true,
+        data: {
+          recording,
+          hlsMode: true,
+          playbackUrl: `${baseUrl}/api/gluckroom/recordings/${recording._id}/hls/playlist`,
+        },
+      });
+    } else {
+      const url = await gluckRoomService.getRecordingUrl(recording.r2Key);
+      res.json({ success: true, data: { recording, playbackUrl: url } });
+    }
   } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/gluckroom/recordings/:id/hls/playlist — Rewritten HLS playlist with presigned segment URLs
+router.get('/recordings/:id/hls/playlist', verifyMediaToken, async (req, res) => {
+  try {
+    const recording = await GluckRoomRecording.findById(req.params.id);
+    if (!recording) return res.status(404).json({ success: false, message: 'Recording not found' });
+    if (!recording.hlsMode || !recording.hlsKey) {
+      return res.status(400).json({ success: false, message: 'Not an HLS recording' });
+    }
+
+    const url = await gluckRoomService.getSignedHlsPlaylist(recording.hlsKey);
+
+    res.set('Content-Type', 'application/vnd.apple.mpegurl');
+    res.set('Cache-Control', 'no-cache');
+    res.send(url);
+  } catch (err) {
+    console.error('HLS playlist error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

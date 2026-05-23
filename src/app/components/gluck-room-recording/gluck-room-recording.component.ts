@@ -1,10 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewChecked, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MaterialModule } from '../../shared/material.module';
 import { GluckRoomService } from '../../services/gluck-room.service';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, getAuthToken } from '../../services/auth.service';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import Hls from 'hls.js';
+import { hlsAuthXhrSetup } from '../../utils/hls-auth-xhr';
 
 @Component({
   selector: 'app-gluck-room-recording',
@@ -13,7 +15,9 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
   templateUrl: './gluck-room-recording.component.html',
   styleUrls: ['./gluck-room-recording.component.scss']
 })
-export class GluckRoomRecordingComponent implements OnInit {
+export class GluckRoomRecordingComponent implements OnInit, AfterViewChecked {
+  @ViewChild('videoEl') videoEl: ElementRef<HTMLVideoElement> | null = null;
+
   recording: any = null;
   session: any = null;
   playbackUrl: SafeResourceUrl | null = null;
@@ -22,6 +26,11 @@ export class GluckRoomRecordingComponent implements OnInit {
   userRole = '';
   userId = '';
   togglingPublish = false;
+
+  hlsMode = false;
+  hlsSrc: string | null = null;
+  pendingHlsInit = false;
+  private hls: Hls | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -45,12 +54,23 @@ export class GluckRoomRecordingComponent implements OnInit {
     this.loadRecording(recordingId);
   }
 
+  ngAfterViewChecked(): void {
+    if (this.pendingHlsInit && this.hlsSrc && this.videoEl) {
+      this.pendingHlsInit = false;
+      this.initHls(this.videoEl.nativeElement, this.hlsSrc);
+    }
+  }
+
   loadRecording(recordingId: string): void {
     this.gluckRoomService.getRecording(recordingId).subscribe({
       next: (res) => {
         if (res.success) {
           this.recording = res.data.recording;
-          if (res.data.playbackUrl) {
+          if (res.data.hlsMode) {
+            this.hlsMode = true;
+            this.hlsSrc = this.gluckRoomService.getHlsPlaylistUrl(recordingId);
+            this.pendingHlsInit = true;
+          } else if (res.data.playbackUrl) {
             this.playbackUrl = this.sanitizer.bypassSecurityTrustResourceUrl(res.data.playbackUrl);
           }
           if (this.recording?.sessionId) {
@@ -71,6 +91,36 @@ export class GluckRoomRecordingComponent implements OnInit {
         this.loading = false;
       }
     });
+  }
+
+  initHls(video: HTMLVideoElement, url: string): void {
+    if (this.hls) this.hls.destroy();
+
+    if (Hls.isSupported()) {
+      this.hls = new Hls({
+        enableWorker: true,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        startLevel: 0,
+        backBufferLength: 5,
+        xhrSetup: (xhr: XMLHttpRequest) => { hlsAuthXhrSetup(xhr); },
+        fetchSetup: (context: any, initParams: any) => {
+          const token = getAuthToken();
+          const headers = new Headers(initParams?.headers || {});
+          if (token) headers.set('Authorization', `Bearer ${token}`);
+          return new Request(context.url, { ...initParams, headers });
+        },
+      });
+      this.hls.loadSource(url);
+      this.hls.attachMedia(video);
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.hls) {
+      this.hls.destroy();
+      this.hls = null;
+    }
   }
 
   togglePublish(): void {

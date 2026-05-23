@@ -209,8 +209,20 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     window.open(`/gluck-room/${id}`, '_blank');
   }
 
-  openRecording(sessionId: string): void {
-    this.router.navigate(['/gluck-room', sessionId]);
+  openRecording(sessionId: string, event?: Event): void {
+    event?.stopPropagation();
+    this.gluckRoomService.getSessionRecording(sessionId).subscribe({
+      next: (res) => {
+        if (res.success && res.data.recordingId) {
+          this.router.navigate(['/gluck-room/recording', res.data.recordingId]);
+        } else {
+          this.error = res.message || 'No recording found for this session';
+        }
+      },
+      error: (err) => {
+        this.error = err.error?.message || 'Failed to load recording';
+      }
+    });
   }
 
   formatDate(d: string | Date): string {

@@ -10,6 +10,14 @@ const GluckRoomRecordingSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  hlsKey: {
+    type: String,
+    default: null
+  },
+  hlsMode: {
+    type: Boolean,
+    default: false
+  },
   duration: {
     type: Number,
     default: null

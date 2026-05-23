@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { getAuthToken } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class GluckRoomService {
@@ -65,11 +66,21 @@ export class GluckRoomService {
     return this.http.get(`${this.apiUrl}/recordings/${id}`, { withCredentials: true });
   }
 
+  getSessionRecording(sessionId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/sessions/${sessionId}/recording`, { withCredentials: true });
+  }
+
   publishRecording(id: string, data: { isPublished: boolean }): Observable<any> {
     return this.http.put(`${this.apiUrl}/recordings/${id}/publish`, data, { withCredentials: true });
   }
 
   deleteRecording(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/recordings/${id}`, { withCredentials: true });
+  }
+
+  getHlsPlaylistUrl(recordingId: string): string {
+    const token = getAuthToken();
+    const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${this.apiUrl}/recordings/${recordingId}/hls/playlist${qs}`;
   }
 }
