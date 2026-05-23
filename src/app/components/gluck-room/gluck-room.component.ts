@@ -65,6 +65,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   private destroyed = false;
   isEnding = false;
   private isLocallyEnding = false;
+  cardActionLoading = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -818,8 +819,39 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     });
   }
 
+  startFromCard(): void {
+    const id = this.session?._id;
+    if (!id) return;
+    this.cardActionLoading = true;
+    this.gluckRoomService.startSession(id).subscribe({
+      next: (res) => {
+        this.cardActionLoading = false;
+        if (res.success) this.loadSession();
+      },
+      error: () => { this.cardActionLoading = false; }
+    });
+  }
+
+  endFromCard(): void {
+    const id = this.session?._id;
+    if (!id) return;
+    this.cardActionLoading = true;
+    this.gluckRoomService.endSession(id).subscribe({
+      next: (res) => {
+        this.cardActionLoading = false;
+        if (res.success) this.loadSession();
+      },
+      error: () => { this.cardActionLoading = false; }
+    });
+  }
+
   goBack(): void {
-    this.leave();
+    if (this.livekitConnected) {
+      this.leave();
+    } else {
+      this.cleanupConnection();
+      this.router.navigate(['/gluck-room']);
+    }
   }
 
   getParticipantInitials(p: ParticipantInfo): string {
@@ -832,6 +864,16 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
     });
+  }
+
+  actualDuration(): string {
+    if (!this.session?.actualStartTime || !this.session?.actualEndTime) return '';
+    const ms = new Date(this.session.actualEndTime).getTime() - new Date(this.session.actualStartTime).getTime();
+    const totalMin = Math.floor(ms / 60000);
+    if (totalMin < 1) return '< 1 min';
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h ? `${h}h ${m}m` : `${m} min`;
   }
 
   statusLabel(status: string): string {

@@ -476,7 +476,20 @@
 
 .session-info-card {
   min-width: 400px;
-  max-width: 500px;
+  max-width: 600px;
+  position: relative;
+  width: 100%;
+  border-left: 4px solid #9e9e9e;
+}
+.session-info-card.card-live { border-left-color: #f44336; }
+.session-info-card.card-ended { border-left-color: #4caf50; }
+.session-info-card.card-cancelled { border-left-color: #f44336; }
+
+.status-corner {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
 }
 
 .info-grid {
@@ -495,6 +508,9 @@
 
 .info-item mat-icon {
   font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
   color: #666;
 }
 
@@ -509,15 +525,25 @@
 }
 
 .status-badge.live {
-  background: #4caf50;
+  background: #f44336;
 }
 
 .status-badge.ended {
-  background: #666;
+  background: #4caf50;
 }
 
 .status-badge.cancelled {
   background: #f44336;
+}
+
+@media (max-width: 600px) {
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  .session-info-card {
+    min-width: 0;
+    width: calc(100vw - 48px);
+  }
 }
 
 @media (max-width: 800px) {

@@ -41,17 +41,24 @@
 
 .gluck-table { width: 100%; background: #fff; border-radius: 12px; }
 .mat-column-actions { text-align: right; }
-.col-actions { white-space: nowrap; }
-.col-actions button { margin-left: 4px; }
+.col-actions {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.actions-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 
 .session-row { cursor: pointer; }
 .session-row:hover { background: #f5f8fc; }
 
 .status-chip {
   font-size: 11px; padding: 2px 10px; border-radius: 12px;
-  min-height: 22px; background: #e3f2fd; color: #1565c0;
-  &.live { background: #e8f5e9; color: #2e7d32; }
-  &.ended { background: #fce4ec; color: #c62828; }
+  min-height: 22px; background: #e0e0e0; color: #616161;
+  &.live { background: #ffebee; color: #c62828; }
+  &.ended { background: #e8f5e9; color: #2e7d32; }
   &.cancelled { background: #f5f5f5; color: #757575; }
 }
 
@@ -61,3 +68,15 @@
 }
 
 .join-btn { background: #4caf50; color: #fff; }
+
+@media (max-width: 800px) {
+  ::ng-deep .mat-mdc-paginator-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  ::ng-deep .mat-mdc-paginator-page-size {
+    align-items: center;
+    margin-right: 0;
+  }
+}

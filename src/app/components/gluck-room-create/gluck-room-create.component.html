@@ -83,7 +83,7 @@
       </mat-card>
     </mat-card-content>
 
-    <mat-card-actions align="end">
+    <mat-card-actions align="end" style="gap:16px;padding:16px">
       <button mat-stroked-button (click)="cancel()">Cancel</button>
       <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="submitting">
         <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner"></mat-spinner>

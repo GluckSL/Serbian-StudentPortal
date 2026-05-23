@@ -146,14 +146,14 @@
     <ng-template #infoView>
       <div class="info-view-wrapper" *ngIf="!loading && !error">
         <button mat-icon-button (click)="goBack()" class="back-btn"><mat-icon>arrow_back</mat-icon></button>
-        <mat-card class="session-info-card">
+        <mat-card class="session-info-card" [class.card-live]="session.status === 'active'" [class.card-ended]="session.status === 'ended'" [class.card-cancelled]="session.status === 'cancelled'">
+          <div class="status-corner">
+            <span class="status-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">
+              {{ statusLabel(session.status) }}
+            </span>
+          </div>
           <mat-card-header>
             <mat-card-title>{{ session.sessionName }}</mat-card-title>
-            <mat-card-subtitle>
-              <span class="status-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">
-                {{ statusLabel(session.status) }}
-              </span>
-            </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <div class="info-grid">
@@ -161,14 +161,29 @@
               <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
               <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
               <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
+              <div class="info-item" *ngIf="session.level"><mat-icon>school</mat-icon><span><strong>Level:</strong> {{ session.level }}</span></div>
+              <div class="info-item" *ngIf="session.actualStartTime"><mat-icon>play_arrow</mat-icon><span><strong>Started:</strong> {{ formatDate(session.actualStartTime) }}</span></div>
+              <div class="info-item" *ngIf="session.actualEndTime"><mat-icon>stop</mat-icon><span><strong>Ended:</strong> {{ formatDate(session.actualEndTime) }}</span></div>
+              <div class="info-item" *ngIf="session.actualEndTime && session.actualStartTime"><mat-icon>timer</mat-icon><span><strong>Actual:</strong> {{ actualDuration() }}</span></div>
+              <div class="info-item" *ngIf="session.participantCount != null"><mat-icon>people</mat-icon><span><strong>Participants:</strong> {{ session.participantCount }}</span></div>
             </div>
           </mat-card-content>
-          <mat-card-actions align="end">
+          <mat-card-actions align="end" style="gap:16px;padding:16px">
+            <button mat-stroked-button (click)="goBack()">
+              <mat-icon>arrow_back</mat-icon> Back
+            </button>
+            <button *ngIf="session.status === 'scheduled' && isHostUser" mat-raised-button color="primary" (click)="startFromCard()" [disabled]="cardActionLoading">
+              <mat-icon *ngIf="!cardActionLoading">play_arrow</mat-icon>
+              <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
+              {{ cardActionLoading ? 'Starting...' : 'Start' }}
+            </button>
             <button *ngIf="session.status === 'active'" mat-raised-button color="primary" (click)="onJoinClick()">
               <mat-icon>videocam</mat-icon> Join Now
             </button>
-            <button *ngIf="session.status === 'scheduled' && isHostUser" mat-raised-button color="primary" disabled>
-              Waiting to start...
+            <button *ngIf="session.status === 'active' && isHostUser" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
+              <mat-icon *ngIf="!cardActionLoading">stop</mat-icon>
+              <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
+              {{ cardActionLoading ? 'Ending...' : 'End' }}
             </button>
           </mat-card-actions>
         </mat-card>
