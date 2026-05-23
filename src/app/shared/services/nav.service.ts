@@ -46,6 +46,9 @@ export class NavService {
     'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
     'go-students': [
       '/admin/go-students'
+    ],
+    'class-recordings': [
+      '/class-recordings/approval-requests'
     ]
   };
   private readonly TEACHER_ROUTE_ALIASES: Record<string, string[]> = {

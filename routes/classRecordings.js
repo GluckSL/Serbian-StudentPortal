@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
+const { requireRecordingApprovalStaff } = require('../middleware/recordingStaffAccess');
 const ClassRecording = require('../models/ClassRecording');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
@@ -2122,7 +2123,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
  * Cloudflare's proxy timeout is never hit. Poll GET /zoom/backfill/status
  * to track progress.
  */
-router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+router.post('/zoom/backfill', verifyToken, requireRecordingApprovalStaff('edit', { allowTeacher: false }), (req, res) => {
   const {
     batch = null,
     limit = 100,
@@ -2160,7 +2161,7 @@ router.post('/zoom/backfill', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
  * Returns the state of the most recently triggered backfill job.
  * Use this to poll after calling POST /zoom/backfill.
  */
-router.get('/zoom/backfill/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+router.get('/zoom/backfill/status', verifyToken, requireRecordingApprovalStaff('edit', { allowTeacher: false }), (req, res) => {
   const status = getBackfillStatus();
   res.json({ success: true, ...status });
 });

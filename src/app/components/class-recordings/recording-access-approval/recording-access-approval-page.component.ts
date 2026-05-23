@@ -5,6 +5,7 @@ import { Router, RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../../shared/material.module';
 import { AuthService } from '../../../services/auth.service';
+import { NavService } from '../../../shared/services/nav.service';
 import { ClassRecordingsService } from '../../../services/class-recordings.service';
 import {
   RecordingAccessRequestService,
@@ -40,6 +41,8 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
   declineReason = '';
   readonly skeletonRows = [0, 1, 2, 3, 4];
   canBackfill = false;
+  /** Approve / decline / backfill (SUB_ADMIN needs Class Recordings edit access). */
+  canManageApprovals = false;
   /** Per-row status while backfill runs */
   rowStatus: Record<string, string> = {};
   private rowBackfillMode: 'backfill' | 'backfill-approve' | null = null;
@@ -51,14 +54,41 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
     private recordingReqService: RecordingAccessRequestService,
     private recordingsService: ClassRecordingsService,
     private authService: AuthService,
+    private navService: NavService,
     private snackBar: MatSnackBar,
     private router: Router
   ) {}
 
   ngOnInit(): void {
-    const role = String(this.authService.getSnapshotUser()?.role || '').toUpperCase();
-    this.canBackfill = role === 'ADMIN' || role === 'TEACHER_ADMIN';
+    this.refreshApprovalPermissions();
     this.loadRequests();
+  }
+
+  private refreshApprovalPermissions(): void {
+    const user = this.authService.getSnapshotUser();
+    const role = String(user?.role || '').toUpperCase();
+    if (role === 'ADMIN' || role === 'TEACHER_ADMIN') {
+      this.canBackfill = true;
+      this.canManageApprovals = true;
+      return;
+    }
+    if (role === 'TEACHER') {
+      this.canBackfill = false;
+      this.canManageApprovals = true;
+      return;
+    }
+    if (role === 'SUB_ADMIN') {
+      const level = this.navService.getTabAccessLevel(
+        'class-recordings',
+        user?.sidebarAccessLevels || {},
+        user?.sidebarPermissions || []
+      );
+      this.canManageApprovals = this.navService.canAccessLevel(level || undefined, 'edit');
+      this.canBackfill = this.canManageApprovals;
+      return;
+    }
+    this.canBackfill = false;
+    this.canManageApprovals = false;
   }
 
   ngOnDestroy(): void {
@@ -151,6 +181,10 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
   }
 
   approve(req: PendingRequest): void {
+    if (!this.canManageApprovals) {
+      this.snackBar.open('You do not have permission to approve requests.', 'Close', { duration: 4000 });
+      return;
+    }
     if (this.busyId || !req.hasRecording) return;
     this.busyId = req._id;
     this.recordingReqService.approveRequest(req._id).subscribe({
@@ -304,6 +338,10 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
   }
 
   openDecline(req: PendingRequest): void {
+    if (!this.canManageApprovals) {
+      this.snackBar.open('You do not have permission to decline requests.', 'Close', { duration: 4000 });
+      return;
+    }
     if (this.busyId) return;
     this.declineTarget = req;
     this.declineReason = '';

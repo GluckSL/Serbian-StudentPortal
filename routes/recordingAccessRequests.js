@@ -7,7 +7,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const { requireRecordingApprovalStaff } = require('../middleware/recordingStaffAccess');
 const { requirePlatinum } = require('../middleware/subscriptionCheck');
 
 const RecordingAccessRequest = require('../models/RecordingAccessRequest');
@@ -29,12 +30,6 @@ const {
 } = require('../services/recordingAccessRequest.service');
 
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
-
-const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
-
-function isStaff(role) {
-  return STAFF_ROLES.includes(role);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Student routes  (Platinum only)
@@ -198,7 +193,7 @@ router.post('/', verifyToken, requirePlatinum, async (req, res) => {
 router.get(
   '/admin/pending',
   verifyToken,
-  checkRole(STAFF_ROLES),
+  requireRecordingApprovalStaff('view'),
   async (req, res) => {
     try {
       const requests = await RecordingAccessRequest.find({ status: 'PENDING' })
@@ -237,7 +232,7 @@ router.get(
 router.post(
   '/admin/:id/approve',
   verifyToken,
-  checkRole(STAFF_ROLES),
+  requireRecordingApprovalStaff('edit'),
   async (req, res) => {
     try {
       const request = await RecordingAccessRequest.findById(req.params.id);
@@ -280,7 +275,7 @@ router.post(
 router.post(
   '/admin/:id/decline',
   verifyToken,
-  checkRole(STAFF_ROLES),
+  requireRecordingApprovalStaff('edit'),
   async (req, res) => {
     try {
       const { reason = '' } = req.body;
@@ -314,7 +309,7 @@ router.post(
 router.get(
   '/admin/count',
   verifyToken,
-  checkRole(STAFF_ROLES),
+  requireRecordingApprovalStaff('view'),
   async (req, res) => {
     try {
       const count = await RecordingAccessRequest.countDocuments({ status: 'PENDING' });
@@ -332,7 +327,7 @@ router.get(
 router.get(
   '/admin/history',
   verifyToken,
-  checkRole(STAFF_ROLES),
+  requireRecordingApprovalStaff('view'),
   async (req, res) => {
     try {
       const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
