@@ -148,7 +148,7 @@
             <td class="rar-col-actions">
               <p class="rar-row-status" *ngIf="rowStatusText(req)">{{ rowStatusText(req) }}</p>
 
-              <div class="rar-actions" *ngIf="req.hasRecording">
+              <div class="rar-actions" *ngIf="req.hasRecording && canManageApprovals">
                 <button
                   type="button"
                   class="rar-icon-btn rar-icon-btn--approve"
@@ -170,7 +170,7 @@
               </div>
 
               <div class="rar-actions rar-actions--missing" *ngIf="!req.hasRecording">
-                <ng-container *ngIf="canBackfill">
+                <ng-container *ngIf="canBackfill && canManageApprovals">
                   <button
                     type="button"
                     class="rar-action-btn rar-action-btn--backfill"
@@ -195,6 +195,7 @@
                   </button>
                 </ng-container>
                 <button
+                  *ngIf="canManageApprovals"
                   type="button"
                   class="rar-action-btn rar-action-btn--decline"
                   [disabled]="isRowBusy(req)"
