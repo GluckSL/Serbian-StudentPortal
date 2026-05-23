@@ -98,7 +98,7 @@
             <mat-select [(ngModel)]="selectedTemplate" (ngModelChange)="onTemplateSelect()" [compareWith]="compareTemplates"
                         placeholder="Select a template…">
               <mat-option *ngFor="let t of templates" [value]="t">
-                {{ t.name }} — {{ t.dynamicFields?.length || 0 }} fields ({{ isWordTemplate(t) ? 'Word' : 'PDF' }})
+                {{ t.name }} — {{ t.dynamicFields.length || 0 }} fields ({{ isWordTemplate(t) ? 'Word' : 'PDF' }})
               </mat-option>
             </mat-select>
             <mat-hint>{{ templates.length }} template(s) available</mat-hint>
