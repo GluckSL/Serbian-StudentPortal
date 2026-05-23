@@ -147,7 +147,6 @@ export class NavService {
     {
       group: 'Support',
       items: [
-        { id: 'whatsapp-announcement', label: 'WhatsApp Announcement', icon: 'chat', route: '/admin/whatsapp-announcement', subGroup: null },
         { id: 'reminders', label: 'Reminders', icon: 'alarm', route: '/admin/reminders', subGroup: null },
         { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },

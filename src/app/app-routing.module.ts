@@ -271,7 +271,6 @@ export const routes: Routes = [
 
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/whatsapp-announcement', loadComponent: () => import('./components/admin-dashboard/whatsapp-announcement/whatsapp-announcement.component').then(m => m.WhatsappAnnouncementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   {
     path: 'admin/reminders',
     component: RemindersComponent,

@@ -79,7 +79,6 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "monday-sync",
   "support-tickets",
   "announcements",
-  "whatsapp-announcement",
   "reminders",
   "glueck-arena",
   "help",
