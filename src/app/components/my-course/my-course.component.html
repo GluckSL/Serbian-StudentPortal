@@ -559,6 +559,39 @@
         </div>
       </div>
 
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--arena" *ngIf="selectedDayGameSets.length">
+        <div class="mc-day-section__head">
+          <h4>GlückArena</h4>
+          <span class="mc-day-section__count">{{ selectedDayGameSets.length }}</span>
+        </div>
+        <p class="mc-day-section__intro">German game modules for this journey day — play to earn XP.</p>
+        <div class="mc-day-item" *ngFor="let game of selectedDayGameSets">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getGameSetHoverDetails(game)"
+            (click)="openGameSet(game)"
+            (keydown.enter)="openGameSet(game)"
+          >
+            <div class="mc-day-item__title">{{ game.title }}</div>
+            <div class="mc-day-item__sub">{{ game.level || game.difficulty }} · {{ game.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getGameSetHoverDetails(game) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gameSetDone(game)" [class.pending]="!gameSetDone(game)">
+            {{ gameSetDone(game) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="!gameSetDone(game)"
+            [class.mc-day-item__btn--retry]="gameSetDone(game)"
+            (click)="openGameSet(game)"
+          >
+            <span class="material-icons">{{ gameSetDone(game) ? 'replay' : 'play_arrow' }}</span>{{ gameSetDone(game) ? 'Play again' : 'Play' }}
+          </button>
+        </div>
+      </div>
+
       <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy">
         <div class="mc-day-section__head">
           <h4>Gluck Buddy</h4>
@@ -778,6 +811,28 @@
         </div>
       </div>
 
+      <!-- GlückArena -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteGameSets.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">sports_esports</span> GlückArena
+        </p>
+        <div class="mc-completion-item" *ngFor="let game of currentDayIncompleteGameSets">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ game.title }}</span>
+            <span class="mc-completion-item__sub" *ngIf="game.level || game.category">
+              {{ game.level || game.difficulty }}{{ (game.level || game.category) && game.category ? ' · ' : '' }}{{ game.category }}
+            </span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="openGameSet(game); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Play
+          </button>
+        </div>
+      </div>
+
       <!-- Recorded Classes -->
       <div class="mc-completion-section" *ngIf="currentDayIncompleteRecs.length">
         <p class="mc-completion-section__label">
@@ -800,7 +855,7 @@
       <!-- Nothing left (edge-case: modal opened but actually done) -->
       <p
         class="mc-completion-modal__empty"
-        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteRecs.length"
+        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteGameSets.length && !currentDayIncompleteRecs.length"
       >
         All tasks for Day {{ journeyCourseDay }} are completed!
       </p>

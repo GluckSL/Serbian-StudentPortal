@@ -4,6 +4,7 @@ import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../../../shared/material.module';
 import { InteractiveGameService } from '../../services/interactive-game.service';
+import { DigitalExerciseService } from '../../../../services/digital-exercise.service';
 import { GameSet, StudentGameStats, CatalogFilters, GameType, LeaderboardEntry } from '../../glueck-arena.types';
 import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-stats-banner.component';
 import { DailyChallengesWidgetComponent } from '../../shared/daily-challenges-widget/daily-challenges-widget.component';
@@ -154,8 +155,8 @@ interface QuickLink {
             <article class="arena-card" *ngFor="let set of sets"
               (click)="openGame(set)" role="button" tabindex="0" (keyup.enter)="openGame(set)">
               <div class="arena-card__visual" [style.background]="getTypeColor(set.gameType)">
-                <img *ngIf="set.thumbnailUrl" [src]="set.thumbnailUrl" alt="" class="arena-card__img">
-                <mat-icon *ngIf="!set.thumbnailUrl" class="arena-card__glyph">{{ set.icon || 'sports_esports' }}</mat-icon>
+                <img *ngIf="getThumbnailUrl(set) && !brokenThumbnails.has(set._id)" [src]="getThumbnailUrl(set)" alt="" class="arena-card__img" (error)="onThumbnailError(set)">
+                <mat-icon *ngIf="!getThumbnailUrl(set) || brokenThumbnails.has(set._id)" class="arena-card__glyph">{{ set.icon || 'sports_esports' }}</mat-icon>
                 <span class="arena-card__xp">+{{ set.xpReward }} XP</span>
               </div>
               <div class="arena-card__content">
@@ -398,8 +399,12 @@ interface QuickLink {
       height: 140px; position: relative; display: flex;
       align-items: center; justify-content: center; overflow: hidden;
     }
-    .arena-card__img { width: 100%; height: 100%; object-fit: cover; }
+    .arena-card__img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; z-index: 1;
+    }
     .arena-card__glyph {
+      position: relative; z-index: 0;
       font-size: 56px !important; width: 56px !important; height: 56px !important;
       color: rgba(255,255,255,0.9) !important;
     }
@@ -474,6 +479,8 @@ export class GameCatalogComponent implements OnInit {
   sets: GameSet[] = [];
   myStats: StudentGameStats | null = null;
   topPlayers: LeaderboardEntry[] = [];
+  brokenThumbnails = new Set<string>();
+  private readonly thumbnailUrlCache = new Map<string, string>();
   loading = false;
   hasArenaAccess = true;
   accessChecked = false;
@@ -496,7 +503,11 @@ export class GameCatalogComponent implements OnInit {
     { route: '/glueck-arena/leaderboard', icon: 'leaderboard', label: 'Leaderboard' },
   ];
 
-  constructor(private svc: InteractiveGameService, private router: Router) {}
+  constructor(
+    private svc: InteractiveGameService,
+    private mediaService: DigitalExerciseService,
+    private router: Router
+  ) {}
 
   ngOnInit() {
     this.svc.getArenaAccess().subscribe({
@@ -518,13 +529,37 @@ export class GameCatalogComponent implements OnInit {
 
   load() {
     this.loading = true;
+    this.brokenThumbnails.clear();
+    this.thumbnailUrlCache.clear();
     this.svc.getCatalog(this.filters).subscribe({
       next: (r) => {
         this.sets = r.items || [];
         this.pagination = r.pagination;
+        this.resolveThumbnails(this.sets);
         this.loading = false;
       },
       error: () => { this.loading = false; }
+    });
+  }
+
+  getThumbnailUrl(set: GameSet): string {
+    if (!set?._id) return set?.thumbnailUrl || '';
+    return this.thumbnailUrlCache.get(set._id) || set.thumbnailUrl || '';
+  }
+
+  private resolveThumbnails(sets: GameSet[]): void {
+    const urls = sets.map((s) => String(s.thumbnailUrl || '').trim()).filter(Boolean);
+    if (!urls.length) return;
+    this.mediaService.resolveMediaFromR2(urls).subscribe({
+      next: (res) => {
+        const byOriginal = new Map((res.resolutions || []).map((row) => [row.original, row.url]));
+        for (const set of sets) {
+          const raw = String(set.thumbnailUrl || '').trim();
+          if (!raw) continue;
+          const resolved = byOriginal.get(raw) || raw;
+          this.thumbnailUrlCache.set(set._id, resolved);
+        }
+      }
     });
   }
 
@@ -543,6 +578,10 @@ export class GameCatalogComponent implements OnInit {
   openGame(set: GameSet) { this.router.navigate(['/glueck-arena', set._id]); }
 
   playGame(set: GameSet) { this.router.navigate(['/glueck-arena', set._id, 'play']); }
+
+  onThumbnailError(set: GameSet): void {
+    if (set?._id) this.brokenThumbnails.add(set._id);
+  }
 
   getTypeColor(type: GameType): string {
     const map: Record<string, string> = {

@@ -413,6 +413,7 @@ async function backfillZoomRecordings({
       pipelineQueue.map((item, idx) =>
         processZoomRecording(item.zoomMeetingId, item.downloadUrl, item.recordingStart, {
           meetingLinkId: item.meetingLinkId.toString(),
+          manualBackfill: true,
         })
           .then((result) => {
             console.log(

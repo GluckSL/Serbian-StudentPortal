@@ -1,4 +1,5 @@
 const scoringService = require('./scoring');
+const { germanWordsEqual } = require('../../utils/germanText');
 
 function shuffleWords(words) {
   if (!words || !words.length) return [];
@@ -23,9 +24,9 @@ function evaluateMatch(question, word, pairIndex) {
   if (!question || !question.pairs || !word || pairIndex == null) {
     return { isCorrect: false, points: 0, pairIndex: -1 };
   }
-  const submittedWord = String(word).toUpperCase().trim();
+  const submittedWord = String(word).trim();
   const pair = question.pairs[pairIndex];
-  if (!pair || !pair.word || pair.word.toUpperCase().trim() !== submittedWord) {
+  if (!pair || !pair.word || !germanWordsEqual(pair.word, submittedWord)) {
     return { isCorrect: false, points: 0, pairIndex: -1 };
   }
   return { isCorrect: true, points: scoringService.basePoints('image_matching'), pairIndex };
@@ -43,8 +44,8 @@ function evaluateAnswer(questions, matches) {
     const pairs = q.pairs || [];
     totalPairs += pairs.length;
     pairs.forEach((pair, pIdx) => {
-      const submittedWord = String(match[pIdx] || '').toUpperCase().trim();
-      if (pair.word && pair.word.toUpperCase().trim() === submittedWord) {
+      const submittedWord = String(match[pIdx] || '').trim();
+      if (pair.word && germanWordsEqual(pair.word, submittedWord)) {
         correct++;
         totalScore += scoringService.basePoints('image_matching');
       }

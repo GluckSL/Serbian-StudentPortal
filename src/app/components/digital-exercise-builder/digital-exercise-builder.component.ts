@@ -1150,31 +1150,74 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.question || q.prompt || q.word || q.sentence || q.instruction || '';
     const storyParagraph = q.storyParagraph || '';
     const contextText = q.context || '';
-    const correctAnswer = this.getCorrectAnswerText(q);
     const sampleAnswers = (q.sampleAnswers || []).map((x) => String(x || '').trim()).filter(Boolean);
-    if (!questionText && !storyParagraph && !contextText && !correctAnswer && sampleAnswers.length === 0) {
-      this.showError('Please fill in the question details first');
+    const audioUrl = this.getExplanationAudioUrl(q);
+    const hasTextContext =
+      questionText || storyParagraph || contextText || this.getCorrectAnswerText(q) || sampleAnswers.length > 0;
+
+    if (!hasTextContext && !audioUrl) {
+      this.showError('Please fill in the question details or attach audio first');
       return;
     }
+    if (q.type === 'listening' && !audioUrl) {
+      this.showError('Upload listening audio before generating an explanation');
+      return;
+    }
+
     q.generatingExplanation = true;
-    this.exerciseService.generateExplanation({
-      questionType: q.worksheetKind || q.type,
-      questionText,
-      storyParagraph,
-      contextText,
-      correctAnswer,
-      sampleAnswers,
-      targetLanguage: this.targetLanguage
-    }).subscribe({
-      next: (res) => {
-        q.answerExplanation = res.explanation;
-        q.generatingExplanation = false;
-      },
-      error: (err) => {
-        q.generatingExplanation = false;
-        this.showError(err.error?.error || 'AI generation failed');
+
+    const runGenerate = (audioTranscript: string) => {
+      if (q.type === 'listening' && audioTranscript && !(q.expectedTranscript || '').trim()) {
+        q.expectedTranscript = audioTranscript;
       }
-    });
+      const correctAnswer = this.getCorrectAnswerText(q) || audioTranscript;
+      this.exerciseService.generateExplanation({
+        questionType: q.worksheetKind || q.type,
+        questionText,
+        storyParagraph,
+        contextText,
+        correctAnswer,
+        sampleAnswers,
+        targetLanguage: this.targetLanguage,
+        audioTranscript: audioTranscript || undefined
+      }).subscribe({
+        next: (res) => {
+          q.answerExplanation = res.explanation;
+          q.generatingExplanation = false;
+        },
+        error: (err) => {
+          q.generatingExplanation = false;
+          this.showError(err.error?.error || 'AI generation failed');
+        }
+      });
+    };
+
+    if (audioUrl) {
+      this.exerciseService.transcribeListening(audioUrl).subscribe({
+        next: (res) => runGenerate((res.transcript || '').trim()),
+        error: (err) => {
+          if (q.type === 'listening' || !hasTextContext) {
+            q.generatingExplanation = false;
+            this.showError(err.error?.error || 'Could not transcribe audio');
+            return;
+          }
+          runGenerate('');
+        }
+      });
+      return;
+    }
+
+    runGenerate('');
+  }
+
+  /** Audio URL used to ground AI answer explanations (listening + audio attachments). */
+  private getExplanationAudioUrl(q: BuilderQuestion): string | null {
+    if (q.type === 'listening') return this.getListeningPreviewAudioUrl(q);
+    const att = String(q.attachmentUrl || '').trim();
+    if (att && this.getAttachmentType(att) === 'audio') return att;
+    const media = String(q.mediaUrl || '').trim();
+    if (media) return media;
+    return null;
   }
 
   private getCorrectAnswerText(q: BuilderQuestion): string {

@@ -590,6 +590,7 @@ async function uploadHlsToR2(tmpDir, files, hlsPrefix) {
  * @param {string} [options.meetingLinkId]
  * @param {string} [options.meetingUuid]
  * @param {string} [options.downloadToken]
+ * @param {boolean} [options.manualBackfill] — when true, process even if batch auto-recording is off (admin backfill tool)
  */
 async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingStart, options = {}) {
   console.log(`🎬 Starting HLS pipeline for Zoom meeting ${zoomMeetingId}`);
@@ -616,8 +617,8 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
     return { success: false, error: 'No MeetingLink found for provided zoomMeetingId' };
   }
 
-  // 1b. Check batch-level auto-recording toggle — skip webhook processing if disabled.
-  if (meetingLink.batch) {
+  // 1b. Webhooks only: respect batch auto-recording toggle. Manual backfill bypasses this.
+  if (!options.manualBackfill && meetingLink.batch) {
     const batchCfg = await BatchConfig.findOne({
       batchName: new RegExp(`^${meetingLink.batch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
     }).select('autoRecordingEnabled').lean();

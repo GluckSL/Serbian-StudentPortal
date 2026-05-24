@@ -3480,18 +3480,21 @@ router.post(
         contextText,
         correctAnswer,
         sampleAnswers,
-        targetLanguage
+        targetLanguage,
+        audioTranscript
       } = req.body;
 
       const cleanedSampleAnswers = Array.isArray(sampleAnswers)
         ? sampleAnswers.map((x) => String(x || '').trim()).filter(Boolean)
         : [];
+      const cleanedAudioTranscript = String(audioTranscript || '').trim();
 
       const hasAnyInput =
         String(questionText || '').trim() ||
         String(storyParagraph || '').trim() ||
         String(contextText || '').trim() ||
         String(correctAnswer || '').trim() ||
+        cleanedAudioTranscript ||
         cleanedSampleAnswers.length > 0;
 
       if (!hasAnyInput) {
@@ -3508,11 +3511,15 @@ router.post(
 
       const langNote = targetLanguage ? ` Exercise language: ${targetLanguage}.` : '';
       const typeNote = questionType ? ` Question type: ${questionType}.` : '';
+      const audioNote = cleanedAudioTranscript
+        ? ' An audio transcript is provided — base your explanation on what was actually said in the recording, not guesses.'
+        : '';
       const userContent =
-        `Write a concise teacher explanation (2-4 sentences) in English for why the answer is correct.${typeNote}${langNote} Use all provided fields together (question, story/context, and answer). If there is a story paragraph, explicitly connect the answer to evidence from it.\n` +
+        `Write a concise teacher explanation (2-4 sentences) in English for why the answer is correct.${typeNote}${langNote}${audioNote} Use all provided fields together (question, story/context, audio transcript, and answer). If there is a story paragraph, explicitly connect the answer to evidence from it.\n` +
         (questionText ? `Question: ${questionText}\n` : '') +
         (storyParagraph ? `Story paragraph: ${storyParagraph}\n` : '') +
         (contextText ? `Additional context: ${contextText}\n` : '') +
+        (cleanedAudioTranscript ? `Audio transcript (what the student hears): ${cleanedAudioTranscript}\n` : '') +
         (correctAnswer ? `Correct answer: ${correctAnswer}\n` : '') +
         (cleanedSampleAnswers.length > 0 ? `Sample answers: ${cleanedSampleAnswers.join(' | ')}` : '');
 
@@ -3521,7 +3528,7 @@ router.post(
         messages: [
           {
             role: 'system',
-            content: 'You are a language teacher writing clear answer explanations for students. Always write in English, even if the source content is in another language. Use the provided story/context as evidence when present, and explain why alternatives would be incorrect when that distinction matters (for example true/false).'
+            content: 'You are a language teacher writing clear answer explanations for students. Always write in English, even if the source content is in another language. When an audio transcript is provided, explain using the exact words and meaning from that transcript. Use the provided story/context as evidence when present, and explain why alternatives would be incorrect when that distinction matters (for example true/false).'
           },
           { role: 'user', content: userContent }
         ],

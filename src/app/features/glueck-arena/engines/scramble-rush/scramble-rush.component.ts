@@ -23,6 +23,7 @@ import { InteractiveGameService } from '../../services/interactive-game.service'
 import { GameAudioService } from '../../services/game-audio.service';
 
 import { ScrambleQuestion, GameAttempt, GameLevel } from '../../glueck-arena.types';
+import { germanUppercase } from '../../utils/german-text';
 
 
 
@@ -1196,8 +1197,6 @@ const DEADLINE_Y = 88;
 
       font-weight: 800;
 
-      text-transform: uppercase;
-
       letter-spacing: 2px;
 
       outline: none;
@@ -1778,7 +1777,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
   submitWord() {
 
-    const typed = this.typedWord.trim().toUpperCase();
+    const typed = germanUppercase(this.typedWord);
 
     if (!typed || this.phase !== 'playing' || this.submitting) return;
 

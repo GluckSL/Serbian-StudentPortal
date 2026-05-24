@@ -16,8 +16,8 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
       </button>
 
       <div class="gd__hero" *ngIf="set" [style.background]="getTypeColor(set.gameType)">
-        <img *ngIf="set.thumbnailUrl" [src]="set.thumbnailUrl" class="gd__hero__img">
-        <mat-icon *ngIf="!set.thumbnailUrl" class="gd__hero__icon">{{ set.icon }}</mat-icon>
+        <img *ngIf="set.thumbnailUrl && !thumbnailBroken" [src]="set.thumbnailUrl" class="gd__hero__img" (error)="thumbnailBroken = true">
+        <mat-icon *ngIf="!set.thumbnailUrl || thumbnailBroken" class="gd__hero__icon">{{ set.icon }}</mat-icon>
       </div>
 
       <div class="gd__content" *ngIf="set">
@@ -123,6 +123,7 @@ export class GameDetailComponent implements OnInit {
   set: GameSet | null = null;
   leaderboard: LeaderboardEntry[] = [];
   loading = false;
+  thumbnailBroken = false;
 
   constructor(
     private svc: InteractiveGameService,
@@ -133,6 +134,7 @@ export class GameDetailComponent implements OnInit {
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.loading = true;
+    this.thumbnailBroken = false;
     this.svc.getGameDetail(id).subscribe({
       next: (r) => {
         this.set = r.set;

@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
 
@@ -9,6 +9,7 @@ import { MaterialModule } from '../../../../../shared/material.module';
 import { InteractiveGameService } from '../../../services/interactive-game.service';
 
 import { NotificationService } from '../../../../../services/notification.service';
+import { germanUppercase } from '../../../utils/german-text';
 
 
 
@@ -82,7 +83,7 @@ import { NotificationService } from '../../../../../services/notification.servic
 
                   <mat-label>Word *</mat-label>
 
-                  <input matInput formControlName="word" (input)="toUpper($event, ctrl, 'word')" placeholder="HAUS">
+                  <input matInput formControlName="word" class="sqf__word-input" placeholder="HAUS">
 
                   <mat-hint>Uppercase German word</mat-hint>
 
@@ -248,7 +249,7 @@ import { NotificationService } from '../../../../../services/notification.servic
 
 })
 
-export class ScrambleQuestionFormComponent implements OnInit {
+export class ScrambleQuestionFormComponent implements OnInit, OnChanges {
 
   @Input() gameSetId!: string;
 
@@ -279,11 +280,14 @@ export class ScrambleQuestionFormComponent implements OnInit {
 
 
   ngOnInit() {
-
     this.form = this.fb.group({ words: this.fb.array([]) });
-
     this.load();
+  }
 
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['gameSetId'] && !changes['gameSetId'].firstChange && this.form) {
+      this.load();
+    }
   }
 
 
@@ -412,27 +416,17 @@ export class ScrambleQuestionFormComponent implements OnInit {
 
 
 
-  toUpper(e: Event, ctrl: any, field: string) {
-
-    const input = e.target as HTMLInputElement;
-
-    const upper = input.value.toUpperCase();
-
-    ctrl.get(field).setValue(upper, { emitEvent: false });
-
-    input.value = upper;
-
-  }
-
-
-
   save() {
 
     if (this.form.invalid) return;
 
     this.saving = true;
 
-    const qs = this.words.value.map((w: any, i: number) => ({ ...w, order: i }));
+    const qs = this.words.value.map((w: any, i: number) => ({
+      ...w,
+      word: germanUppercase(w.word || ''),
+      order: i,
+    }));
 
     this.svc.adminUpsertQuestions(this.gameSetId, qs).subscribe({
 

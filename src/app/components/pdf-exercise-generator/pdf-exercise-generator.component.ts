@@ -1737,33 +1737,74 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       (q.sentence || '').trim() ||
       this.stripHtmlPlain(q.instruction || '');
     const contextText = (q.context || '').trim();
-    const correctAnswer = this.getCorrectAnswerTextForReview(q);
     const sampleAnswers = (q.sampleAnswers || []).map((x) => String(x || '').trim()).filter(Boolean);
-    if (!questionText && !contextText && !correctAnswer && sampleAnswers.length === 0) {
-      this.showError('Please fill in the question details first');
+    const audioUrl = this.getExplanationAudioUrlForReview(q);
+    const hasTextContext =
+      questionText || contextText || this.getCorrectAnswerTextForReview(q) || sampleAnswers.length > 0;
+
+    if (!hasTextContext && !audioUrl) {
+      this.showError('Please fill in the question details or attach audio first');
       return;
     }
+    if (q.type === 'listening' && !audioUrl) {
+      this.showError('Upload listening audio before generating an explanation');
+      return;
+    }
+
     q.generatingExplanation = true;
-    this.exerciseService
-      .generateExplanation({
-        questionType: (q as { worksheetKind?: string }).worksheetKind || q.type,
-        questionText: questionText || this.stripHtmlPlain(q.instruction || ''),
-        storyParagraph: '',
-        contextText,
-        correctAnswer,
-        sampleAnswers,
-        targetLanguage: this.targetLanguage
-      })
-      .subscribe({
-        next: (res) => {
-          q.answerExplanation = res.explanation;
-          q.generatingExplanation = false;
-        },
+
+    const runGenerate = (audioTranscript: string) => {
+      if (q.type === 'listening' && audioTranscript && !(q.expectedTranscript || '').trim()) {
+        q.expectedTranscript = audioTranscript;
+      }
+      const correctAnswer = this.getCorrectAnswerTextForReview(q) || audioTranscript;
+      this.exerciseService
+        .generateExplanation({
+          questionType: (q as { worksheetKind?: string }).worksheetKind || q.type,
+          questionText: questionText || this.stripHtmlPlain(q.instruction || ''),
+          storyParagraph: '',
+          contextText,
+          correctAnswer,
+          sampleAnswers,
+          targetLanguage: this.targetLanguage,
+          audioTranscript: audioTranscript || undefined
+        })
+        .subscribe({
+          next: (res) => {
+            q.answerExplanation = res.explanation;
+            q.generatingExplanation = false;
+          },
+          error: (err: { error?: { error?: string } }) => {
+            q.generatingExplanation = false;
+            this.showError(err.error?.error || 'AI generation failed');
+          }
+        });
+    };
+
+    if (audioUrl) {
+      this.exerciseService.transcribeListening(audioUrl).subscribe({
+        next: (res) => runGenerate((res.transcript || '').trim()),
         error: (err: { error?: { error?: string } }) => {
-          q.generatingExplanation = false;
-          this.showError(err.error?.error || 'AI generation failed');
+          if (q.type === 'listening' || !hasTextContext) {
+            q.generatingExplanation = false;
+            this.showError(err.error?.error || 'Could not transcribe audio');
+            return;
+          }
+          runGenerate('');
         }
       });
+      return;
+    }
+
+    runGenerate('');
+  }
+
+  private getExplanationAudioUrlForReview(q: ReviewQuestion): string | null {
+    const media = String(q.mediaUrl || '').trim();
+    if (media) return media;
+    const att = String((q as { attachmentUrl?: string }).attachmentUrl || '').trim();
+    if (att) return att;
+    return null;
   }
 
   // Validation

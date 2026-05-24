@@ -105,7 +105,6 @@ const invoiceManagementRoutes = require('./routes/invoiceManagement');
 const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
 const announcementRoutes = require('./routes/announcements');
-const crmStudentPortalRoutes = require('./routes/crmStudentPortal');
 const reminderRoutes = require('./routes/reminders');
 const crmPortalRoutes = require('./routes/crmPortal');
 const testAccountRoutes = require('./routes/testAccounts');

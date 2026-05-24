@@ -945,6 +945,7 @@ export class DigitalExerciseService {
     correctAnswer?: string;
     sampleAnswers?: string[];
     targetLanguage?: string;
+    audioTranscript?: string;
   }): Observable<{ explanation: string }> {
     return this.http.post<{ explanation: string }>(
       `${environment.apiUrl}/digital-exercises/generate-explanation`,

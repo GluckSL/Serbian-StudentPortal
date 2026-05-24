@@ -204,8 +204,8 @@ export const routes: Routes = [
   { path: 'admin/external-meetings', loadComponent: () => import('./components/admin-dashboard/external-meetings/external-meetings.component').then(m => m.ExternalMeetingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Class Recordings — Teacher/Admin manage
-  { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
-  { path: 'class-recordings/approval-requests', loadComponent: () => import('./components/class-recordings/recording-access-approval/recording-access-approval-page.component').then(m => m.RecordingAccessApprovalPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+  { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'class-recordings/approval-requests', loadComponent: () => import('./components/class-recordings/recording-access-approval/recording-access-approval-page.component').then(m => m.RecordingAccessApprovalPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
 
   // Class Recordings — Student view (hub)
   { path: 'student/class-recordings', redirectTo: '/student/my-course', pathMatch: 'full' },
@@ -279,7 +279,6 @@ export const routes: Routes = [
 
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/whatsapp-announcement', loadComponent: () => import('./components/admin-dashboard/whatsapp-announcement/whatsapp-announcement.component').then(m => m.WhatsappAnnouncementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   {
     path: 'admin/reminders',
     component: RemindersComponent,

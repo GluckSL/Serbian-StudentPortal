@@ -4,6 +4,7 @@ import { FormBuilder, FormGroup, FormArray, Validators, ReactiveFormsModule, For
 import { MaterialModule } from '../../../../../shared/material.module';
 import { InteractiveGameService } from '../../../services/interactive-game.service';
 import { NotificationService } from '../../../../../services/notification.service';
+import { trimGermanWord } from '../../../utils/german-text';
 import { AdminImageMatchingQuestion } from '../../../glueck-arena.types';
 
 /** Strip presigned query params so only the stable object URL is stored in the form. */
@@ -127,10 +128,17 @@ function canonicalImageUrl(url: string | null | undefined): string | null {
       display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 8px;
     }
     .im-pair__image img {
-      width: 100%; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0;
+      width: 100%;
+      max-height: 140px;
+      height: auto;
+      object-fit: contain;
+      object-position: center;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      background: #f1f5f9;
     }
     .im-pair__placeholder {
-      width: 100%; height: 80px; display: flex; flex-direction: column; align-items: center;
+      width: 100%; min-height: 100px; max-height: 140px; display: flex; flex-direction: column; align-items: center;
       justify-content: center; background: #fff; border: 2px dashed #e2e8f0; border-radius: 6px;
       color: #94a3b8;
     }
@@ -321,7 +329,7 @@ export class ImageMatchingQuestionFormComponent implements OnInit {
           ? null
           : (p.imageUrl || null);
         return {
-          word: (p.word || '').toUpperCase().trim(),
+          word: trimGermanWord(p.word || ''),
           hint: p.hint || '',
           imageUrl,
         };

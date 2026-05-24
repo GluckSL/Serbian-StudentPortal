@@ -16,7 +16,7 @@ import * as XLSX from 'xlsx';
       <div class="gip__actions">
         <button mat-stroked-button (click)="downloadTemplate()"><mat-icon>download</mat-icon> Template</button>
         <button mat-stroked-button (click)="fileInput.click()"><mat-icon>upload_file</mat-icon> Upload CSV</button>
-        <input #fileInput type="file" accept=".csv" hidden (change)="onFile($event)">
+        <input #fileInput type="file" accept=".csv,.xlsx,.xls" hidden (change)="onFile($event)">
         <button mat-raised-button color="primary" [disabled]="!rows.length || importing" (click)="commit()">
           Import {{ rows.length }} rows
         </button>

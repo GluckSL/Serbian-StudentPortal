@@ -2,6 +2,7 @@
 // GlückArena: Scramble Rush game logic — shuffle, evaluate, shuffle display
 
 const { basePoints } = require('./scoring');
+const { germanUppercase, germanWordsEqual } = require('../../utils/germanText');
 
 /**
  * Shuffle an array using Fisher-Yates (in-place copy).
@@ -22,7 +23,7 @@ function shuffle(arr) {
  * (unless it's a single letter).
  */
 function scrambleWord(word) {
-  const letters = word.toUpperCase().split('');
+  const letters = germanUppercase(word).split('');
   if (letters.length <= 1) return letters;
   let shuffled;
   let attempts = 0;
@@ -40,8 +41,8 @@ function scrambleWord(word) {
 function evaluateAnswer(question, typedWord) {
   if (!typedWord || !question.word) return { isCorrect: false, points: 0 };
 
-  const normalise = str => str.trim().toUpperCase().replace(/\s+/g, '');
-  const isCorrect = normalise(typedWord) === normalise(question.word);
+  const normalise = (str) => String(str || '').trim().replace(/\s+/g, '');
+  const isCorrect = germanWordsEqual(normalise(typedWord), normalise(question.word));
 
   return {
     isCorrect,
