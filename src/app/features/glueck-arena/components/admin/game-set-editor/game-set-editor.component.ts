@@ -10,6 +10,7 @@ import { NotificationService } from '../../../../../services/notification.servic
 import { environment } from '../../../../../../environments/environment';
 import { GameSet, GameType, AdminGameQuestion, GameLevel } from '../../../glueck-arena.types';
 import { ImageMatchingQuestionFormComponent } from '../image-matching-question-form/image-matching-question-form.component';
+import { GenderStackQuestionFormComponent } from '../gender-stack-question-form/gender-stack-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -24,7 +25,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
   imports: [
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule, MaterialModule,
     ScrambleQuestionFormComponent, SentenceQuestionFormComponent, SimpleQuestionFormComponent,
-    LevelEditorComponent, GameImportPanelComponent, ImageMatchingQuestionFormComponent
+    LevelEditorComponent, GameImportPanelComponent, ImageMatchingQuestionFormComponent,
+    GenderStackQuestionFormComponent,
   ],
   template: `
     <div class="ga-editor">
@@ -56,6 +58,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                   <mat-option value="matching">Matching</mat-option>
                   <mat-option value="flashcards">Flashcards</mat-option>
                   <mat-option value="image_matching">Image Matching</mat-option>
+                  <mat-option value="gender_stack">Gender Stack</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -182,6 +185,28 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </mat-form-field>
             </div>
 
+            <div class="ga-card" *ngIf="form.get('gameType')?.value === 'gender_stack'">
+              <div class="ga-card__head">
+                <mat-icon>layers</mat-icon>
+                <div>
+                  <h3>Gender Stack gameplay</h3>
+                  <p>How often new words appear and how fast they fall to the shelf line.</p>
+                </div>
+              </div>
+              <div class="ga-editor__row">
+                <mat-form-field appearance="outline" class="ga-editor__field">
+                  <mat-label>Spawn interval (sec)</mat-label>
+                  <input matInput type="number" formControlName="gsSpawnIntervalSeconds" min="3" max="5" step="1">
+                  <mat-hint>New word every 3–5 seconds</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="ga-editor__field">
+                  <mat-label>Fall duration (sec)</mat-label>
+                  <input matInput type="number" formControlName="gsFallDurationSeconds" min="0.5" max="3" step="0.1">
+                  <mat-hint>Time to reach the shelf</mat-hint>
+                </mat-form-field>
+              </div>
+            </div>
+
             <!-- Thumbnail -->
             <div class="ga-section-title">Thumbnail</div>
             <div class="ga-thumb-row">
@@ -209,6 +234,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <app-simple-question-form *ngSwitchCase="'matching'" #simpleForm [gameSetId]="setId || ''" gameType="matching"></app-simple-question-form>
             <app-simple-question-form *ngSwitchCase="'flashcards'" #simpleForm [gameSetId]="setId || ''" gameType="flashcards"></app-simple-question-form>
             <app-image-matching-question-form *ngSwitchCase="'image_matching'" #imageMatchForm [gameSetId]="setId || ''" gameType="image_matching"></app-image-matching-question-form>
+            <app-gender-stack-question-form *ngSwitchCase="'gender_stack'" #genderStackForm [gameSetId]="setId || ''"></app-gender-stack-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
@@ -265,6 +291,7 @@ export class GameSetEditorComponent implements OnInit {
   @ViewChild('sentenceForm') sentenceForm?: SentenceQuestionFormComponent;
   @ViewChild('simpleForm') simpleForm?: SimpleQuestionFormComponent;
   @ViewChild('imageMatchForm') imageMatchForm?: ImageMatchingQuestionFormComponent;
+  @ViewChild('genderStackForm') genderStackForm?: GenderStackQuestionFormComponent;
 
   form!: FormGroup;
   isEdit = false;
@@ -310,6 +337,7 @@ export class GameSetEditorComponent implements OnInit {
     this.sentenceForm?.load();
     this.simpleForm?.load();
     this.imageMatchForm?.load();
+    this.genderStackForm?.load();
     if (this.setId) this.loadSet(this.setId);
   }
 
@@ -356,6 +384,8 @@ export class GameSetEditorComponent implements OnInit {
       courseDay: [null],
       sessionLimitSeconds: [null],
       perQuestionSeconds: [null],
+      gsSpawnIntervalSeconds: [4, [Validators.min(3), Validators.max(5)]],
+      gsFallDurationSeconds: [1.2, [Validators.min(0.5), Validators.max(3)]],
       questionCount: [0],
     });
   }
@@ -369,6 +399,8 @@ export class GameSetEditorComponent implements OnInit {
           ...s,
           sessionLimitSeconds: s.timerSettings?.sessionLimitSeconds ?? null,
           perQuestionSeconds: s.timerSettings?.perQuestionSeconds ?? null,
+          gsSpawnIntervalSeconds: s.genderStackSettings?.spawnIntervalSeconds ?? 4,
+          gsFallDurationSeconds: s.genderStackSettings?.fallDurationSeconds ?? 1.2,
         });
         this.thumbnailPreview = s.thumbnailUrl || null;
         this.targetBatches = Array.isArray(s.targetBatches) ? [...s.targetBatches] : [];
@@ -420,9 +452,15 @@ export class GameSetEditorComponent implements OnInit {
         sessionLimitSeconds: v.sessionLimitSeconds ? Number(v.sessionLimitSeconds) : null,
         perQuestionSeconds: v.perQuestionSeconds ? Number(v.perQuestionSeconds) : null,
       },
+      genderStackSettings: v.gameType === 'gender_stack' ? {
+        spawnIntervalSeconds: Number(v.gsSpawnIntervalSeconds) || 4,
+        fallDurationSeconds: Number(v.gsFallDurationSeconds) || 1.2,
+      } : undefined,
     };
     delete payload.sessionLimitSeconds;
     delete payload.perQuestionSeconds;
+    delete payload.gsSpawnIntervalSeconds;
+    delete payload.gsFallDurationSeconds;
 
     const obs = this.isEdit
       ? this.svc.adminUpdateSet(this.setId!, payload)

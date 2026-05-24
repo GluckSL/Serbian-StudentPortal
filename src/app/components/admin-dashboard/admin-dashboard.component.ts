@@ -46,6 +46,7 @@ interface Student {
   level: string;
   studentStatus: string;
   lastCredentialsEmailSent?: Date | string | null;
+  displayPassword?: string | null;
   feedbackStats?: {
     currentLevel: string;
     fluency: number;
@@ -147,6 +148,11 @@ export class AdminDashboardComponent implements OnInit {
   filteredStudents: any[] = [];  // shown in table
   selectedStudentIds = new Set<string>();
   selectAll = false;
+
+  /** True when the logged-in user is a full ADMIN (can see student passwords) */
+  isFullAdmin = false;
+  /** Tracks which student rows have their password revealed */
+  revealedPasswords = new Set<string>();
 
   loading = false;
   error = '';
@@ -262,6 +268,7 @@ export class AdminDashboardComponent implements OnInit {
           this.router.navigate(['/dashboard']);
           return;
         }
+        this.isFullAdmin = user.role === 'ADMIN';
         this.initColumnVisibility();
         this.fetchFilterOptions();
         this.fetchStudents();
@@ -936,6 +943,29 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
+  sendingSignupLink: Record<string, boolean> = {};
+
+  sendSignupLink(student: Student): void {
+    this.notify.confirm(
+      'Send Signup Link',
+      `Send a signup link to ${student.name} (${student.email}) so they can complete registration and set their own password?`,
+      'Yes, Send', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.sendingSignupLink[student._id] = true;
+      this.authService.sendSignupLink(student._id, student.email, student.name).subscribe({
+        next: () => {
+          this.notify.success(`Signup link sent to ${student.email}`);
+          this.sendingSignupLink[student._id] = false;
+        },
+        error: (err: any) => {
+          this.notify.error(`Failed: ${err?.error?.msg || 'Could not send signup link'}`);
+          this.sendingSignupLink[student._id] = false;
+        }
+      });
+    });
+  }
+
   resendCredentials(student: Student): void {
     this.notify.confirm(
       'Resend Credentials',
@@ -967,6 +997,14 @@ export class AdminDashboardComponent implements OnInit {
         }
       });
     });
+  }
+
+  togglePasswordReveal(studentId: string): void {
+    if (this.revealedPasswords.has(studentId)) {
+      this.revealedPasswords.delete(studentId);
+    } else {
+      this.revealedPasswords.add(studentId);
+    }
   }
 
   formatDate(date: Date | string | null | undefined): string {

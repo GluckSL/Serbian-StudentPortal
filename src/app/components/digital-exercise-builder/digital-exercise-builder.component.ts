@@ -13,6 +13,7 @@ import {
 import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { map, switchMap } from 'rxjs';
 import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
@@ -157,6 +158,22 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   bulkConvertProgress = 0;
   bulkConvertTotal = 0;
   generatingAnswers = false;
+
+  /** Move selected questions into a new exercise (edit mode only). */
+  splitModalOpen = false;
+  splitSaving = false;
+  splitTitle = '';
+  splitDescription = '';
+  splitTargetLanguage: 'English' | 'German' = 'German';
+  splitNativeLanguage: 'English' | 'Tamil' | 'Sinhala' = 'English';
+  splitLevel = 'A1';
+  splitCategory = 'Grammar';
+  splitDifficulty: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
+  splitEstimatedDuration = 15;
+  splitTags = '';
+  splitCourseDayStr = '';
+  splitSequenceLetter = '';
+  splitVisibleToStudents = false;
 
   @ViewChild('listeningFileInput') listeningFileInput!: ElementRef<HTMLInputElement>;
   currentListeningQ: BuilderQuestion | null = null;
@@ -1549,7 +1566,52 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     }
 
     this.saving = true;
-    const normalizedQuestions = this.questions.map((q) => {
+    const normalizedQuestions = this.normalizeQuestionsForApi(this.questions);
+
+    // Normalize sequenceLetter: single lowercase letter a-z, or null
+    const rawLetter = this.sequenceLetter.trim().toLowerCase();
+    const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
+
+    const payload: Partial<DigitalExercise> = {
+      title: this.title.trim(),
+      description: this.description.trim(),
+      targetLanguage: this.targetLanguage,
+      nativeLanguage: this.nativeLanguage,
+      level: this.level as any,
+      category: this.category,
+      difficulty: this.difficulty,
+      estimatedDuration: this.estimatedDuration,
+      tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
+      courseDay,
+      sequenceLetter,
+      visibleToStudents: this.visibleToStudents,
+      questions: normalizedQuestions as any,
+      videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
+      videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows),
+      ...(this.isEditMode && this.mediaClears.length
+        ? { mediaClears: [...this.mediaClears] }
+        : {})
+    };
+
+    const request = this.isEditMode
+      ? this.exerciseService.updateExercise(this.exerciseId!, payload)
+      : this.exerciseService.createExercise(payload);
+
+    request.subscribe({
+      next: () => {
+        this.saving = false;
+        this.showSuccess(this.isEditMode ? 'Exercise updated!' : 'Exercise created!');
+        setTimeout(() => this.router.navigate(['/admin/digital-exercises']), 1200);
+      },
+      error: (err) => {
+        this.saving = false;
+        this.showError(err.error?.error || 'Failed to save exercise');
+      }
+    });
+  }
+
+  private normalizeQuestionsForApi(questions: BuilderQuestion[]): any[] {
+    return questions.map((q) => {
       const row: any = {
         ...q,
         context: String(q.context || '').trim(),
@@ -1769,47 +1831,6 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       this.stripBuilderOnlyFields(row);
       return row;
     });
-
-    // Normalize sequenceLetter: single lowercase letter a-z, or null
-    const rawLetter = this.sequenceLetter.trim().toLowerCase();
-    const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
-
-    const payload: Partial<DigitalExercise> = {
-      title: this.title.trim(),
-      description: this.description.trim(),
-      targetLanguage: this.targetLanguage,
-      nativeLanguage: this.nativeLanguage,
-      level: this.level as any,
-      category: this.category,
-      difficulty: this.difficulty,
-      estimatedDuration: this.estimatedDuration,
-      tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
-      courseDay,
-      sequenceLetter,
-      visibleToStudents: this.visibleToStudents,
-      questions: normalizedQuestions as any,
-      videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
-      videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows),
-      ...(this.isEditMode && this.mediaClears.length
-        ? { mediaClears: [...this.mediaClears] }
-        : {})
-    };
-
-    const request = this.isEditMode
-      ? this.exerciseService.updateExercise(this.exerciseId!, payload)
-      : this.exerciseService.createExercise(payload);
-
-    request.subscribe({
-      next: () => {
-        this.saving = false;
-        this.showSuccess(this.isEditMode ? 'Exercise updated!' : 'Exercise created!');
-        setTimeout(() => this.router.navigate(['/admin/digital-exercises']), 1200);
-      },
-      error: (err) => {
-        this.saving = false;
-        this.showError(err.error?.error || 'Failed to save exercise');
-      }
-    });
   }
 
   cancel(): void {
@@ -2003,6 +2024,145 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.bulkEditValue = '';
     this.bulkTypeChangeOpen = false;
     this.bulkTargetType = '';
+  }
+
+  get splitCourseDayAsNumber(): number | null {
+    const t = this.splitCourseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    return Number.isFinite(p) ? p : null;
+  }
+
+  onSplitCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.splitCourseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.splitCourseDayStr = '';
+      return;
+    }
+    this.splitCourseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
+
+  isSplitFormValid(): boolean {
+    return !!this.splitTitle.trim() && !!this.splitDescription.trim() && !!this.splitLevel && !!this.splitCategory;
+  }
+
+  openSplitToNewExerciseModal(): void {
+    if (!this.isEditMode || !this.exerciseId) {
+      this.showError('Save the exercise first, then split questions from the editor');
+      return;
+    }
+    if (this.selectedIndices.size === 0) {
+      this.showError('Select at least one question to move');
+      return;
+    }
+    if (this.selectedIndices.size >= this.questions.length) {
+      this.showError('Leave at least one question in this exercise');
+      return;
+    }
+
+    const baseTitle = this.title.trim();
+    this.splitTitle = baseTitle ? `${baseTitle} (split)` : 'New exercise';
+    this.splitDescription = this.description;
+    this.splitTargetLanguage = this.targetLanguage;
+    this.splitNativeLanguage = this.nativeLanguage;
+    this.splitLevel = this.level;
+    this.splitCategory = this.category;
+    this.splitDifficulty = this.difficulty;
+    this.splitEstimatedDuration = this.estimatedDuration;
+    this.splitTags = this.tags;
+    this.splitCourseDayStr = this.courseDayStr;
+    this.splitSequenceLetter = '';
+    this.splitVisibleToStudents = false;
+    this.splitModalOpen = true;
+  }
+
+  closeSplitModal(): void {
+    if (this.splitSaving) return;
+    this.splitModalOpen = false;
+  }
+
+  confirmSplitToNewExercise(): void {
+    if (!this.isEditMode || !this.exerciseId) return;
+    if (!this.isSplitFormValid()) {
+      this.showError('Please fill in title, description, level, and category for the new exercise');
+      return;
+    }
+    if (this.selectedIndices.size === 0 || this.selectedIndices.size >= this.questions.length) {
+      this.showError('Select some questions, but not every question');
+      return;
+    }
+
+    let courseDay: number | null = null;
+    const dayTrim = this.splitCourseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.showError('Journey day must be empty or a number from 1 to 200');
+        return;
+      }
+      courseDay = p;
+    }
+
+    const rawLetter = this.splitSequenceLetter.trim().toLowerCase();
+    const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
+
+    const sorted = [...this.selectedIndices].sort((a, b) => a - b);
+    const movedQuestions = sorted.map((i) => structuredClone(this.questions[i]) as BuilderQuestion);
+    const remainingQuestions = this.questions.filter((_, i) => !this.selectedIndices.has(i));
+
+    const newExercisePayload: Partial<DigitalExercise> = {
+      title: this.splitTitle.trim(),
+      description: this.splitDescription.trim(),
+      targetLanguage: this.splitTargetLanguage,
+      nativeLanguage: this.splitNativeLanguage,
+      level: this.splitLevel as any,
+      category: this.splitCategory,
+      difficulty: this.splitDifficulty,
+      estimatedDuration: this.splitEstimatedDuration,
+      tags: this.splitTags.split(',').map((t) => t.trim()).filter(Boolean),
+      courseDay,
+      sequenceLetter,
+      visibleToStudents: this.splitVisibleToStudents,
+      questions: this.normalizeQuestionsForApi(movedQuestions) as any
+    };
+
+    const updatePayload: Partial<DigitalExercise> = {
+      questions: this.normalizeQuestionsForApi(remainingQuestions) as any
+    };
+
+    this.splitSaving = true;
+    this.exerciseService
+      .createExercise(newExercisePayload)
+      .pipe(
+        switchMap((created) =>
+          this.exerciseService.updateExercise(this.exerciseId!, updatePayload).pipe(map(() => created))
+        )
+      )
+      .subscribe({
+        next: (created) => {
+          this.splitSaving = false;
+          this.questions = remainingQuestions;
+          this.clearSelection();
+          this.splitModalOpen = false;
+          if (this.expandedQuestion >= this.questions.length) {
+            this.expandedQuestion = Math.max(0, this.questions.length - 1);
+          }
+          const newId = created._id;
+          this.showSuccess(
+            newId
+              ? `Created new exercise with ${movedQuestions.length} question(s). This exercise was updated.`
+              : `Moved ${movedQuestions.length} question(s) to a new exercise.`
+          );
+        },
+        error: (err) => {
+          this.splitSaving = false;
+          this.showError(err.error?.error || 'Failed to create exercise from selected questions');
+        }
+      });
   }
 
   isSelected(i: number): boolean {

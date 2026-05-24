@@ -36,7 +36,10 @@ export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
       const isAuthEndpoint =
         url.includes('/auth/login') ||
         url.includes('/auth/signup') ||
-        url.includes('/auth/register');
+        url.includes('/auth/register') ||
+        url.includes('/auth/forgot-password/') ||
+        url.includes('/auth/setup/') ||
+        url.includes('/public-signup/');
 
       const path = router.url.split('?')[0];
       const onLoginPage = path === '/login';

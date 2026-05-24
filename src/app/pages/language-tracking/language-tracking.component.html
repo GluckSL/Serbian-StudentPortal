@@ -1,0 +1,383 @@
+<div class="lt-root">
+
+  <!-- ── Hero ───────────────────────────────────────────────────────────────── -->
+  <header class="lt-hero">
+    <div class="lt-hero__copy">
+      <h1 class="lt-hero__title">Language Tracking</h1>
+      <p class="lt-hero__sub">
+        Learning time across <strong>Exercises</strong>, <strong>DG Bot</strong> and
+        <strong>GlückArena</strong> — separate from total portal time.
+      </p>
+    </div>
+    <div class="lt-hero__actions">
+      <button mat-icon-button (click)="load()" matTooltip="Refresh data" [disabled]="loading">
+        <mat-icon [class.lt-spin]="loading">refresh</mat-icon>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Cohort tabs ────────────────────────────────────────────────────────── -->
+  <div class="lt-cohort-tabs">
+    <button class="lt-cohort-tab" [class.lt-cohort-tab--active]="cohort === 'overall'"
+      (click)="setCohort('overall')">
+      <span class="lt-dot lt-dot--all"></span>
+      All Students
+    </button>
+    <button class="lt-cohort-tab" [class.lt-cohort-tab--active]="cohort === 'platinum'"
+      (click)="setCohort('platinum')">
+      <span class="lt-dot lt-dot--platinum"></span>
+      Platinum
+    </button>
+    <button class="lt-cohort-tab" [class.lt-cohort-tab--active]="cohort === 'go'"
+      (click)="setCohort('go')">
+      <span class="lt-dot lt-dot--go"></span>
+      Silver (GO)
+    </button>
+  </div>
+
+  <!-- ── Compact toolbar ─────────────────────────────────────────────────────── -->
+  <div class="lt-toolbar">
+    <div class="lt-toolbar__top">
+      <div class="lt-quick-ranges">
+        <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === 'today'" (click)="setQuickRange('today')">Today</button>
+        <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === '7d'" (click)="setQuickRange('7d')">7 Days</button>
+        <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === '30d'" (click)="setQuickRange('30d')">30 Days</button>
+      </div>
+
+      <div class="lt-date-group">
+        <label class="lt-date-field">
+          <span>From</span>
+          <input type="date" [(ngModel)]="draftFrom" (change)="quickRange = 'custom'" class="lt-date-input" />
+        </label>
+        <label class="lt-date-field">
+          <span>To</span>
+          <input type="date" [(ngModel)]="draftTo" (change)="quickRange = 'custom'" class="lt-date-input" />
+        </label>
+        <button type="button" class="lt-pill-btn lt-pill-btn--primary" (click)="applyCustomRange()" [disabled]="!canApplyCustomRange">Apply</button>
+        <button type="button" class="lt-pill-btn" (click)="resetFilters()">Reset</button>
+      </div>
+    </div>
+
+    <div class="lt-toolbar__filters">
+      <div class="lt-filter-pill">
+        <span class="lt-filter-pill__label">Batch</span>
+        <select [(ngModel)]="batch" (ngModelChange)="onBatchChange()" class="lt-filter-select">
+          <option value="">All batches</option>
+          <option *ngFor="let b of availableBatches" [value]="b">{{ b }}</option>
+        </select>
+      </div>
+
+      <div class="lt-filter-pill">
+        <span class="lt-filter-pill__label">Level</span>
+        <select [(ngModel)]="level" (ngModelChange)="onLevelChange()" class="lt-filter-select">
+          <option value="">All levels</option>
+          <option *ngFor="let l of availableLevels" [value]="l">{{ l }}</option>
+        </select>
+      </div>
+
+      <div class="lt-filter-pill lt-filter-pill--search">
+        <mat-icon class="lt-search-icon">search</mat-icon>
+        <input type="text" class="lt-search-input" [(ngModel)]="searchRaw" (ngModelChange)="onSearchChange()" placeholder="Search student…" />
+      </div>
+
+      <div class="lt-filter-pill lt-filter-pill--sort">
+        <span class="lt-filter-pill__label">Sort</span>
+        <select [(ngModel)]="sort" (ngModelChange)="onSortChange()" class="lt-filter-select">
+          <option value="totalSeconds">Total Time</option>
+          <option value="name">Name</option>
+          <option value="currentCourseDay">Journey Day</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Loading / Error ────────────────────────────────────────────────────── -->
+  <!-- ── Skeleton (first load) ─────────────────────────────────────────────── -->
+  <ng-container *ngIf="loading && !hasLoadedOnce">
+    <div class="lt-skel lt-kpis">
+      <div class="lt-skel-card" *ngFor="let _ of [1,2,3,4]"></div>
+    </div>
+    <div class="lt-skel lt-source-row">
+      <div class="lt-skel-pill" *ngFor="let _ of [1,2,3]"></div>
+    </div>
+    <div class="lt-skel lt-charts-row">
+      <div class="lt-skel-chart"></div>
+      <div class="lt-skel-chart"></div>
+      <div class="lt-skel-chart"></div>
+    </div>
+    <div class="lt-skel lt-skel-table">
+      <div class="lt-skel-line" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></div>
+    </div>
+  </ng-container>
+
+  <div *ngIf="error && !loading" class="lt-error">
+    <mat-icon>error_outline</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-stroked-button (click)="load()">Retry</button>
+  </div>
+
+  <ng-container *ngIf="kpis">
+
+    <!-- ── KPI cards ──────────────────────────────────────────────────────────── -->
+    <div class="lt-kpis">
+      <div class="lt-kpi lt-kpi--blue">
+        <div class="lt-kpi__icon"><mat-icon>schedule</mat-icon></div>
+        <div class="lt-kpi__body">
+          <div class="lt-kpi__value">{{ kpis.totalLearningHours }}h</div>
+          <div class="lt-kpi__label">Total Learning Time</div>
+        </div>
+      </div>
+
+      <div class="lt-kpi lt-kpi--green">
+        <div class="lt-kpi__icon"><mat-icon>people</mat-icon></div>
+        <div class="lt-kpi__body">
+          <div class="lt-kpi__value">{{ kpis.activeStudents }}<span class="lt-kpi__sub">/ {{ kpis.totalStudents }}</span></div>
+          <div class="lt-kpi__label">Active Students</div>
+        </div>
+      </div>
+
+      <div class="lt-kpi lt-kpi--purple">
+        <div class="lt-kpi__icon"><mat-icon>timer</mat-icon></div>
+        <div class="lt-kpi__body">
+          <div class="lt-kpi__value">{{ kpis.avgMinutesPerStudent }}m</div>
+          <div class="lt-kpi__label">Avg / Active Student</div>
+        </div>
+      </div>
+
+      <div class="lt-kpi lt-kpi--amber" [class.lt-kpi--exercises]="kpis.topSource === 'exercises'"
+        [class.lt-kpi--digibot]="kpis.topSource === 'digibot'" [class.lt-kpi--arena]="kpis.topSource === 'arena'">
+        <div class="lt-kpi__icon">
+          <mat-icon *ngIf="kpis.topSource === 'exercises'">fitness_center</mat-icon>
+          <mat-icon *ngIf="kpis.topSource === 'digibot'">smart_toy</mat-icon>
+          <mat-icon *ngIf="kpis.topSource === 'arena'">sports_esports</mat-icon>
+        </div>
+        <div class="lt-kpi__body">
+          <div class="lt-kpi__value">{{ sourceLabel(kpis.topSource) }}</div>
+          <div class="lt-kpi__label">Top Source This Period</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Source breakdown mini-bars ────────────────────────────────────────── -->
+    <div class="lt-source-row">
+      <div class="lt-source-badge lt-source-badge--ex">
+        <mat-icon>fitness_center</mat-icon>
+        <span class="lt-source-badge__label">Exercises</span>
+        <span class="lt-source-badge__val">{{ kpis.exercisesHours }}h</span>
+      </div>
+      <div class="lt-source-badge lt-source-badge--dg">
+        <mat-icon>smart_toy</mat-icon>
+        <span class="lt-source-badge__label">DG Bot</span>
+        <span class="lt-source-badge__val">{{ kpis.digibotHours }}h</span>
+      </div>
+      <div class="lt-source-badge lt-source-badge--ar">
+        <mat-icon>sports_esports</mat-icon>
+        <span class="lt-source-badge__label">GlückArena</span>
+        <span class="lt-source-badge__val">{{ kpis.arenaHours }}h</span>
+      </div>
+    </div>
+
+    <!-- ── All 3 charts in one row ───────────────────────────────────────────── -->
+    <div class="lt-charts-row">
+      <div class="lt-chart-card lt-chart-card--trend">
+        <div class="lt-chart-card__head">
+          <mat-icon>trending_up</mat-icon>
+          <h3>Daily Learning Trend</h3>
+        </div>
+        <div class="lt-chart-card__body">
+          <canvas baseChart
+            [data]="trendChartData"
+            [options]="trendChartOptions"
+            type="line">
+          </canvas>
+        </div>
+      </div>
+
+      <div class="lt-chart-card lt-chart-card--doughnut">
+        <div class="lt-chart-card__head">
+          <mat-icon>donut_large</mat-icon>
+          <h3>Time by Source</h3>
+        </div>
+        <div class="lt-chart-card__body lt-chart-card__body--doughnut">
+          <canvas baseChart
+            [data]="doughnutChartData"
+            [options]="doughnutChartOptions"
+            type="doughnut">
+          </canvas>
+        </div>
+      </div>
+
+      <div class="lt-chart-card lt-chart-card--top10">
+        <div class="lt-chart-card__head">
+          <mat-icon>leaderboard</mat-icon>
+          <h3>Top 10 Students</h3>
+        </div>
+        <div class="lt-chart-card__body lt-chart-card__body--top10">
+          <canvas baseChart
+            [data]="topBarChartData"
+            [options]="topBarChartOptions"
+            type="bar">
+          </canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Student table ─────────────────────────────────────────────────────── -->
+    <div class="lt-table-section">
+      <div class="lt-table-header">
+        <h3>
+          <mat-icon>people</mat-icon> Students
+          <span class="lt-table-header__count">({{ total }})</span>
+        </h3>
+        <div class="lt-table-sort">
+          <button
+            *ngIf="selectedCount > 0"
+            mat-stroked-button
+            class="lt-bulk-remind-btn"
+            type="button"
+            [disabled]="sendingReminders"
+            (click)="sendBulkReminders()">
+            <mat-icon>mail</mat-icon>
+            Send reminders ({{ selectedCount }})
+          </button>
+          <span class="lt-table-sort__hint">Click a row for details</span>
+        </div>
+      </div>
+
+      <div class="lt-table-wrap">
+        <table class="lt-table">
+          <thead>
+            <tr>
+              <th class="lt-th lt-th--check">
+                <input
+                  type="checkbox"
+                  class="lt-row-check"
+                  [checked]="allOnPageSelected"
+                  [disabled]="!students.length"
+                  (change)="toggleSelectAllOnPage()"
+                  aria-label="Select all on this page" />
+              </th>
+              <th class="lt-th lt-th--name">Student</th>
+              <th class="lt-th">Batch</th>
+              <th class="lt-th lt-th--center">Day</th>
+              <th class="lt-th lt-th--time">
+                <span class="lt-th-src lt-th-src--ex">Exercises</span>
+              </th>
+              <th class="lt-th lt-th--time">
+                <span class="lt-th-src lt-th-src--dg">DG Bot</span>
+              </th>
+              <th class="lt-th lt-th--time">
+                <span class="lt-th-src lt-th-src--ar">Arena</span>
+              </th>
+              <th class="lt-th lt-th--time lt-th--total">Total</th>
+              <th class="lt-th lt-th--center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of students; let i = index" class="lt-row"
+              [class.lt-row--zero]="s.totalSeconds === 0"
+              (click)="openDrawer(s)" tabindex="0" role="button">
+              <td class="lt-td lt-td--check" (click)="$event.stopPropagation()">
+                <input
+                  type="checkbox"
+                  class="lt-row-check"
+                  [checked]="isSelected(s.studentId)"
+                  (change)="toggleSelect(s.studentId)"
+                  [attr.aria-label]="'Select ' + s.name" />
+              </td>
+              <td class="lt-td lt-td--name">
+                <div class="lt-student-cell">
+                  <div class="lt-student-avatar">{{ s.name.charAt(0).toUpperCase() }}</div>
+                  <div class="lt-student-info">
+                    <div class="lt-student-name">{{ s.name }}</div>
+                    <div class="lt-student-meta">{{ s.regNo }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="lt-td">
+                <span class="lt-badge lt-badge--batch">{{ s.batch || '—' }}</span>
+              </td>
+              <td class="lt-td lt-td--center">
+                <span class="lt-day-chip">{{ s.currentCourseDay }}</span>
+              </td>
+              <td class="lt-td lt-td--time">
+                <span class="lt-time lt-time--ex">{{ formatDuration(s.exercisesSeconds) }}</span>
+              </td>
+              <td class="lt-td lt-td--time">
+                <span class="lt-time lt-time--dg">{{ formatDuration(s.digibotSeconds) }}</span>
+              </td>
+              <td class="lt-td lt-td--time">
+                <span class="lt-time lt-time--ar">{{ formatDuration(s.arenaSeconds) }}</span>
+              </td>
+              <td class="lt-td lt-td--time lt-td--total">
+                <div class="lt-total-cell">
+                  <strong>{{ formatDuration(s.totalSeconds) }}</strong>
+                  <div class="lt-total-bar">
+                    <div class="lt-total-bar__ex"
+                      [style.width.%]="s.totalSeconds > 0 ? (s.exercisesSeconds / s.totalSeconds * 100) : 0"></div>
+                    <div class="lt-total-bar__dg"
+                      [style.width.%]="s.totalSeconds > 0 ? (s.digibotSeconds / s.totalSeconds * 100) : 0"></div>
+                    <div class="lt-total-bar__ar"
+                      [style.width.%]="s.totalSeconds > 0 ? (s.arenaSeconds / s.totalSeconds * 100) : 0"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="lt-td lt-td--center lt-td--actions">
+                <button
+                  mat-icon-button
+                  class="lt-remind-btn"
+                  (click)="sendReminderForStudent(s, $event)"
+                  [disabled]="sendingReminders"
+                  matTooltip="Send reminder email for incomplete day tasks">
+                  <mat-icon>mail</mat-icon>
+                </button>
+                <button mat-icon-button class="lt-detail-btn" (click)="$event.stopPropagation(); openDrawer(s)"
+                  matTooltip="View details & day completion">
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="!loading && students.length === 0">
+              <td colspan="9" class="lt-empty">
+                <mat-icon>school</mat-icon>
+                <p>No students found for the selected filters.</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="lt-pagination" *ngIf="totalPages > 1">
+        <button class="lt-pg-btn" [disabled]="page === 1" (click)="goToPage(page - 1)">
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+        <ng-container *ngFor="let p of pages">
+          <span *ngIf="p === -1" class="lt-pg-ellipsis">…</span>
+          <button *ngIf="p !== -1" class="lt-pg-btn" [class.lt-pg-btn--active]="p === page"
+            (click)="goToPage(p)">{{ p }}</button>
+        </ng-container>
+        <button class="lt-pg-btn" [disabled]="page === totalPages" (click)="goToPage(page + 1)">
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+        <span class="lt-pg-info">{{ (page - 1) * PAGE_SIZE + 1 }}–{{ Math.min(page * PAGE_SIZE, total) }} of {{ total }}</span>
+      </div>
+    </div>
+
+  </ng-container>
+
+  <!-- inline loading overlay while refreshing with existing data -->
+  <div *ngIf="loading && kpis" class="lt-overlay-spinner">
+    <mat-spinner diameter="36"></mat-spinner>
+  </div>
+
+</div>
+
+<!-- ── Detail drawer ──────────────────────────────────────────────────────────── -->
+<app-language-tracking-drawer
+  *ngIf="drawerStudent"
+  [student]="drawerStudent"
+  [from]="from"
+  [to]="to"
+  (close)="closeDrawer()">
+</app-language-tracking-drawer>

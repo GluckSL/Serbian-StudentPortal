@@ -470,6 +470,7 @@
                   <th>Status</th>
                   <th>Assigned Teacher</th>
                   <th>Last Credentials Sent</th>
+                  <th *ngIf="isFullAdmin" class="text-center">Password</th>
                   <th class="text-center">Actions</th>
                 </tr>
               </thead>
@@ -541,6 +542,17 @@
                       </small>
                     </div>
                   </td>
+                  <td *ngIf="isFullAdmin" class="text-center pw-cell">
+                    <ng-container *ngIf="student.displayPassword; else noPw">
+                      <span class="pw-value" *ngIf="revealedPasswords.has(student._id)">{{ student.displayPassword }}</span>
+                      <span class="pw-masked" *ngIf="!revealedPasswords.has(student._id)">••••••••</span>
+                      <button class="btn btn-sm btn-link pw-toggle-btn" (click)="togglePasswordReveal(student._id)"
+                              [title]="revealedPasswords.has(student._id) ? 'Hide' : 'Reveal'">
+                        <i [class]="revealedPasswords.has(student._id) ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                      </button>
+                    </ng-container>
+                    <ng-template #noPw><span class="text-muted small">—</span></ng-template>
+                  </td>
                   <td class="text-center">
                     <div class="action-buttons">
                       <button 
@@ -558,6 +570,15 @@
                       >
                         <i class="fas fa-envelope" *ngIf="!resendingCredentials[student._id]"></i>
                         <i class="fas fa-spinner fa-spin" *ngIf="resendingCredentials[student._id]"></i>
+                      </button>
+                      <button
+                        class="btn btn-sm btn-outline-primary me-1"
+                        (click)="sendSignupLink(student)"
+                        [disabled]="sendingSignupLink[student._id]"
+                        title="Send Signup Link"
+                      >
+                        <i class="fas fa-link" *ngIf="!sendingSignupLink[student._id]"></i>
+                        <i class="fas fa-spinner fa-spin" *ngIf="sendingSignupLink[student._id]"></i>
                       </button>
                       <button
                         class="btn btn-sm btn-outline-danger"

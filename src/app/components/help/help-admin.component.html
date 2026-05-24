@@ -11,6 +11,65 @@
     </button>
   </div>
 
+  <!-- Email Change Requests panel -->
+  <div class="ecr-panel">
+    <div class="ecr-panel__header">
+      <div class="ecr-panel__title">
+        <i class="fas fa-user-edit"></i>
+        Email Change Requests
+        <span class="ecr-badge" *ngIf="emailChangeRequests.length > 0">{{ emailChangeRequests.length }}</span>
+      </div>
+      <button class="ha-refresh ecr-refresh-btn" (click)="loadEmailChangeRequests()" [disabled]="emailChangeLoading">
+        <i class="fas" [class.fa-sync-alt]="!emailChangeLoading" [class.fa-spinner]="emailChangeLoading" [class.fa-spin]="emailChangeLoading"></i>
+        Refresh
+      </button>
+    </div>
+
+    <div *ngIf="emailChangeError" class="ha-error" style="margin:8px 0 0;"><i class="fas fa-exclamation-circle"></i> {{ emailChangeError }}</div>
+
+    <div *ngIf="emailChangeLoading && emailChangeRequests.length === 0" class="ecr-empty">
+      <span class="wd-spinner"></span> Loading…
+    </div>
+
+    <div *ngIf="!emailChangeLoading && emailChangeRequests.length === 0" class="ecr-empty">
+      <i class="fas fa-check-circle" style="color:#16a34a;"></i> No pending email change requests.
+    </div>
+
+    <div *ngIf="emailChangeRequests.length > 0" class="ecr-list">
+      <div class="ecr-card" *ngFor="let req of emailChangeRequests">
+        <div class="ecr-card__body">
+          <div class="ecr-card__student">
+            <strong>{{ req.studentName }}</strong>
+            <span class="ecr-reg">{{ req.regNo }}</span>
+          </div>
+          <div class="ecr-card__emails">
+            <span class="ecr-email-label">Current:</span> <span class="ecr-email-val">{{ req.currentEmail }}</span>
+            <span class="ecr-arrow">→</span>
+            <span class="ecr-email-label">New:</span> <span class="ecr-email-val ecr-email-val--new">{{ req.newEmail }}</span>
+          </div>
+          <div class="ecr-card__date">Requested {{ req.createdAt | date:'medium' }}</div>
+        </div>
+        <div class="ecr-card__actions">
+          <button
+            class="ecr-btn ecr-btn--approve"
+            [disabled]="processingEcrId === req._id"
+            (click)="approveEmailChange(req)"
+          >
+            <i class="fas fa-check"></i>
+            {{ processingEcrId === req._id ? 'Processing…' : 'Approve' }}
+          </button>
+          <button
+            class="ecr-btn ecr-btn--reject"
+            [disabled]="processingEcrId === req._id"
+            (click)="rejectEmailChange(req)"
+          >
+            <i class="fas fa-times"></i> Reject
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- KPI Strip -->
   <div class="ha-kpis" *ngIf="!loading">
     <div class="ha-kpi">

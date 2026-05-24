@@ -1036,6 +1036,7 @@ textarea.field-input.field-input--desc {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .questions-header h3 { margin: 0; font-size: 1rem; color: #333; }
 .questions-header .q-count {
@@ -1156,6 +1157,97 @@ textarea.field-input.field-input--desc {
   color: #4338ca;
 }
 .bulk-count .material-icons { font-size: 18px; }
+
+.btn-split-new-exercise {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-split-new-exercise .material-icons { font-size: 17px; }
+.btn-split-new-exercise:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+.btn-split-new-exercise:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-split-new-exercise--toolbar { color: #4338ca; background: #fff; border: 1.5px solid #a5b4fc; }
+.btn-split-new-exercise--toolbar:hover:not(:disabled) { background: #eef2ff; color: #3730a3; }
+
+.split-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.split-modal {
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  padding: 20px 22px 18px;
+}
+.split-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.split-modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e1b4b;
+}
+.split-modal-close {
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+}
+.split-modal-close:hover:not(:disabled) { background: #e2e8f0; color: #0f172a; }
+.split-modal-intro {
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+.split-modal-body { margin-bottom: 12px; }
+.split-visibility {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: #334155;
+  margin: 4px 0 16px;
+  cursor: pointer;
+}
+.split-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
 .btn-bulk-clear {
   display: inline-flex;
   align-items: center;

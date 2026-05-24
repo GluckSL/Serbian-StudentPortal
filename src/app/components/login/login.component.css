@@ -21,6 +21,17 @@
   overflow: hidden;
 }
 
+/* Signup payment — use full width of the right (50%) panel */
+.login-panel__inner:has(.sw-container--payment) {
+  max-width: 100%;
+}
+
+.login-panel:has(.sw-container--payment) {
+  align-items: flex-start;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
 /* ========== Hero (left) ========== */
 .login-hero {
   position: relative;
@@ -277,13 +288,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2.5rem 2rem 2rem;
+  padding: 2.25rem 1.25rem 1.5rem;
   animation: panelIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
 }
 
 .login-panel__inner {
   width: 100%;
-  max-width: 400px;
+  max-width: 560px; /* allow signup wizard to use full width */
 }
 
 .login-eyes {
@@ -1114,4 +1125,201 @@
   .wd-modal__footer {
     flex-direction: column;
   }
+}
+
+/* Password setup modal */
+.wd-modal--wide {
+  max-width: 480px;
+}
+
+.wd-modal__footer--stack {
+  flex-direction: column;
+}
+
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.setup-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1f2937;
+  background: #f9fafb;
+  box-sizing: border-box;
+}
+
+.setup-input:focus {
+  outline: none;
+  border-color: var(--login-purple, #7b61ff);
+  box-shadow: 0 0 0 3px rgba(123, 97, 255, 0.12);
+}
+
+.setup-input--readonly {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: default;
+}
+
+.setup-input--otp {
+  letter-spacing: 6px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.setup-email-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.setup-email-row .setup-input {
+  flex: 1;
+}
+
+.setup-change-email-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.setup-change-email-btn:hover {
+  text-decoration: underline;
+}
+
+.setup-pw-row {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+.setup-pw-row:focus-within {
+  border-color: var(--login-purple, #7b61ff);
+  box-shadow: 0 0 0 3px rgba(123, 97, 255, 0.12);
+}
+
+.setup-pw-row .setup-input {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.setup-pw-toggle {
+  background: none;
+  border: none;
+  padding: 0 12px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.setup-email-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.setup-link-btn {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.setup-primary-sm {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setup-primary-sm:disabled {
+  opacity: 0.65;
+}
+
+.setup-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+.setup-hint--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.setup-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* Change-email request sent confirmation */
+.setup-sent-banner {
+  text-align: center;
+  padding: 12px 0 4px;
+}
+
+.setup-sent-icon {
+  font-size: 42px;
+  color: #6c3fc5;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.setup-sent-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 8px;
+}
+
+.setup-sent-body {
+  font-size: 14px;
+  color: #374151;
+  margin: 0 0 10px;
+}
+
+.setup-sent-note {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
 }

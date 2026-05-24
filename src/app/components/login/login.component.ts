@@ -14,11 +14,12 @@ import { isSafeReturnUrl } from '../../services/join-class-flow.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
+import { PublicSignupWizardComponent } from '../public-signup/public-signup-wizard.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule, RouterModule],
+  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule, RouterModule, PublicSignupWizardComponent],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
@@ -35,6 +36,8 @@ export class LoginComponent implements OnInit {
   checkingExistingSession = false;
   /** Safe internal path to navigate to after successful login (from ?returnUrl query param). */
   pendingReturnUrl = '';
+  /** Controls whether the right panel shows login or signup wizard */
+  panelMode: 'login' | 'signup' = 'login';
 
   // Uncertain / Withdrawal confirmation modal
   showWithdrawalModal = false;
@@ -43,6 +46,34 @@ export class LoginComponent implements OnInit {
   confirmingDecision: 'YES' | 'NO' | null = null;
   withdrawalDecisionError = '';
   withdrawalAckMessage = '';
+
+  // First-login password setup modal
+  showPasswordSetupModal = false;
+  setupToken = '';
+  setupStudentInfo: {
+    studentId: string;
+    studentName: string;
+    email: string;
+    regNo: string;
+    studentStatus?: string;
+  } | null = null;
+  setupEmail = '';
+  setupNewEmail = '';
+  setupOtp = '';
+  setupNewPassword = '';
+  setupConfirmPassword = '';
+  setupShowNew = false;
+  setupShowConfirm = false;
+  setupError = '';
+  setupSuccess = '';
+  setupLoading = false;
+  /** 'start' | 'otp' | 'change-email' | 'change-email-sent' */
+  setupStep: 'start' | 'otp' | 'change-email' | 'change-email-sent' = 'start';
+  setupChangeNewEmail = '';
+  setupChangeNewPassword = '';
+  setupChangeConfirmPassword = '';
+  setupShowChangeNewPwd = false;
+  setupShowChangeConfirmPwd = false;
 
   /** Pupil offset in px (translate) for each eye */
   leftPupil = { x: 0, y: 0 };
@@ -175,7 +206,7 @@ export class LoginComponent implements OnInit {
     this.loading = true;
 
     const user = {
-      regNo: this.regNo,
+      identifier: this.regNo, // supports both regNo and email via backend
       password: this.password,
       keepSessionActive: this.keepSessionActive
     };
@@ -191,27 +222,25 @@ export class LoginComponent implements OnInit {
           return;
         }
 
-        this.authService.refreshUserProfile().subscribe({
-          next: (profile) => {
-            this.loading = false;
+        if (response?.requiresPasswordSetup) {
+          this.loading = false;
+          this.setupToken = response.setupToken;
+          this.setupStudentInfo = response.studentInfo;
+          this.setupEmail = response.studentInfo?.email || '';
+          this.setupOtp = '';
+          this.setupNewPassword = '';
+          this.setupConfirmPassword = '';
+          this.setupChangeNewEmail = '';
+          this.setupChangeNewPassword = '';
+          this.setupChangeConfirmPassword = '';
+          this.setupError = '';
+          this.setupSuccess = '';
+          this.setupStep = 'start';
+          this.showPasswordSetupModal = true;
+          return;
+        }
 
-            const merged = profile || response.user;
-            if (this.pendingReturnUrl) {
-              this.router.navigateByUrl(this.pendingReturnUrl);
-            } else {
-              const path = this.authService.getPostLoginPath(merged);
-              if (path) {
-                this.router.navigateByUrl(path);
-              } else {
-                this.errorMessage = 'Unknown user role.';
-              }
-            }
-          },
-          error: () => {
-            this.loading = false;
-            this.errorMessage = 'Failed to load user profile.';
-          }
-        });
+        this.navigateAfterLogin(response.user);
       },
       error: (err) => {
         this.loading = false;
@@ -224,6 +253,134 @@ export class LoginComponent implements OnInit {
           this.errorMessage = 'Server error. Please try again later.';
         }
       }
+    });
+  }
+
+  navigateAfterLogin(userFromResponse?: { role?: string; subscription?: string }): void {
+    this.authService.refreshUserProfile().subscribe({
+      next: (profile) => {
+        this.loading = false;
+        this.setupLoading = false;
+        const merged = profile || userFromResponse;
+        if (this.pendingReturnUrl) {
+          this.router.navigateByUrl(this.pendingReturnUrl);
+        } else {
+          const path = this.authService.getPostLoginPath(merged);
+          if (path) {
+            this.router.navigateByUrl(path);
+          } else {
+            this.errorMessage = 'Unknown user role.';
+          }
+        }
+      },
+      error: () => {
+        this.loading = false;
+        this.setupLoading = false;
+        this.errorMessage = 'Failed to load user profile.';
+      },
+    });
+  }
+
+  startEmailChange(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
+    this.setupChangeNewEmail = '';
+    this.setupChangeNewPassword = '';
+    this.setupChangeConfirmPassword = '';
+    this.setupStep = 'change-email';
+  }
+
+  cancelEmailChange(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
+    this.setupStep = 'start';
+  }
+
+  /** Flow A: submit email change request to admin */
+  submitEmailChangeRequest(): void {
+    this.setupError = '';
+    const newEmail = this.setupChangeNewEmail.trim().toLowerCase();
+    if (!newEmail || !newEmail.includes('@')) {
+      this.setupError = 'Enter a valid new email address.';
+      return;
+    }
+    if (this.setupChangeNewPassword.length < 8) {
+      this.setupError = 'Password must be at least 8 characters.';
+      return;
+    }
+    if (this.setupChangeNewPassword !== this.setupChangeConfirmPassword) {
+      this.setupError = 'Passwords do not match.';
+      return;
+    }
+    this.setupLoading = true;
+    this.authService.requestSetupEmailChange({
+      setupToken: this.setupToken,
+      newEmail,
+      newPassword: this.setupChangeNewPassword,
+      confirmPassword: this.setupChangeConfirmPassword,
+    }).subscribe({
+      next: () => {
+        this.setupLoading = false;
+        this.setupStep = 'change-email-sent';
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not submit request. Please try again.';
+      },
+    });
+  }
+
+  /** Flow B step 1: send OTP to current email */
+  sendSetupOtp(): void {
+    this.setupError = '';
+    this.setupLoading = true;
+    this.authService.sendSetupOtp(this.setupToken).subscribe({
+      next: (res: any) => {
+        this.setupLoading = false;
+        this.setupStep = 'otp';
+        this.setupSuccess = res.msg || `A verification code was sent to ${this.setupEmail}.`;
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not send verification code. Please try again.';
+      },
+    });
+  }
+
+  /** Flow B step 2: verify OTP + set password → log in */
+  completePasswordSetup(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
+    if (!this.setupOtp.trim()) {
+      this.setupError = 'Enter the verification code sent to your email.';
+      return;
+    }
+    if (this.setupNewPassword.length < 8) {
+      this.setupError = 'Password must be at least 8 characters.';
+      return;
+    }
+    if (this.setupNewPassword !== this.setupConfirmPassword) {
+      this.setupError = 'Passwords do not match.';
+      return;
+    }
+    this.setupLoading = true;
+    this.authService.completePasswordSetup({
+      setupToken: this.setupToken,
+      otp: this.setupOtp.trim(),
+      newPassword: this.setupNewPassword,
+      confirmPassword: this.setupConfirmPassword,
+      keepSessionActive: this.keepSessionActive,
+    }).subscribe({
+      next: () => {
+        this.showPasswordSetupModal = false;
+        this.setupToken = '';
+        this.setupStudentInfo = null;
+        this.navigateAfterLogin();
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not complete setup. Please try again.';
+      },
     });
   }
 

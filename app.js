@@ -354,6 +354,11 @@ app.use('/api/class-doubts', classDoubtRoutes);
 const interactiveGamesRoutes = require('./routes/interactiveGames');
 app.use('/api/interactive-games', interactiveGamesRoutes);
 
+const languageTrackingRoutes = require('./routes/languageTracking');
+app.use('/api/language-tracking', languageTrackingRoutes);
+
+const publicSignupRoutes = require('./routes/publicSignup');
+app.use('/api/public-signup', publicSignupRoutes);
 const classSubmissionRoutes = require('./routes/classSubmissions');
 app.use('/api/class-submissions', classSubmissionRoutes);
 

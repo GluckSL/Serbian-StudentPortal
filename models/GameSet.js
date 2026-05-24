@@ -8,6 +8,13 @@ const TimerSettingsSchema = new mongoose.Schema({
   perQuestionSeconds: { type: Number, default: null },   // null = no per-question timer
 }, { _id: false });
 
+const GenderStackSettingsSchema = new mongoose.Schema({
+  /** Seconds between new word spawns (admin: 3–5) */
+  spawnIntervalSeconds: { type: Number, default: 4, min: 3, max: 5 },
+  /** Seconds for a word to fall from the top to the shelf line */
+  fallDurationSeconds: { type: Number, default: 1.2, min: 0.5, max: 3 },
+}, { _id: false });
+
 const GameSetSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
@@ -16,7 +23,7 @@ const GameSetSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack'],
     required: true,
   },
 
@@ -50,6 +57,9 @@ const GameSetSchema = new mongoose.Schema({
   xpReward: { type: Number, default: 50, min: 0 },
 
   timerSettings: { type: TimerSettingsSchema, default: () => ({}) },
+
+  /** Gender Stack: spawn rate and fall speed */
+  genderStackSettings: { type: GenderStackSettingsSchema, default: () => ({}) },
 
   // Journey gating — mirrors DigitalExercise gating conventions
   visibleToStudents: { type: Boolean, default: false },
