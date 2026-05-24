@@ -100,6 +100,10 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     enum: ['scheduled', 'active', 'ended', 'cancelled'],
     default: 'scheduled'
   },
+  autoStartLockedAt: {
+    type: Date,
+    default: null
+  },
   maxParticipants: {
     type: Number,
     default: 100

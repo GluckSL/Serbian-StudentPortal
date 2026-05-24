@@ -131,6 +131,7 @@ const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiv
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
+const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -465,6 +466,7 @@ connectMongoDb()
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
+      scheduleGluckRoomAutoStart();
     });
   })
   .catch((err) => {
