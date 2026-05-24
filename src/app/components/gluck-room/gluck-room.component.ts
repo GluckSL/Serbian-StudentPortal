@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Room, RoomEvent, RemoteParticipant, Participant, Track, VideoPresets, ParticipantEvent, TrackPublication, VideoTrack, RemoteTrack, RemoteTrackPublication, createLocalVideoTrack } from 'livekit-client';
 import { MaterialModule } from '../../shared/material.module';
@@ -16,10 +17,18 @@ interface ParticipantInfo {
   hasVideo: boolean;
 }
 
+interface BreakoutInfo {
+  _id: string;
+  name: string;
+  livekitRoomName: string;
+  assignedParticipants: any[];
+  status: string;
+}
+
 @Component({
   selector: 'app-gluck-room',
   standalone: true,
-  imports: [CommonModule, MaterialModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './gluck-room.component.html',
   styleUrls: ['./gluck-room.component.scss']
 })
@@ -67,6 +76,18 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   private isLocallyEnding = false;
   cardActionLoading = false;
 
+  // Breakout rooms
+  breakouts: BreakoutInfo[] = [];
+  assignedBreakout: BreakoutInfo | null = null;
+  activeBreakoutId: string | null = null;
+  isConnectingBreakout = false;
+  showCreateBreakoutForm = false;
+  breakoutCreateCount = 1;
+  isCreatingBreakouts = false;
+  showAssignPanel: string | null = null;
+  tempAssignParticipants: string[] = [];
+  isReconnectingToMain = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -101,6 +122,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.userRole = user?.role || '';
     this.userId = user?.userId || user?._id || '';
     this.loadSession();
+    this.loadBreakouts();
   }
 
   ngAfterViewInit(): void {
@@ -423,7 +445,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   private setupSocket(): void {
     if (!this.room) return;
-    const socket = this.gluckRoomSocket.connect(this.roomName, this.token, this.getSocketRole());
+    const socket = this.gluckRoomSocket.connect(this.roomName, this.token, this.getSocketRole(), this.userId);
     socket.on('participant-muted', ({ targetUserId }: { targetUserId: string }) => {
       if (targetUserId === this.userId) {
         this.room?.localParticipant.setMicrophoneEnabled(false);
@@ -455,6 +477,47 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           this.error = 'You have been removed from this session.';
         });
       }
+    });
+
+    // Breakout events
+    socket.on('breakout-assigned', (data: { breakoutId: string; breakoutName: string }) => {
+      this.ngZone.run(() => {
+        this.assignedBreakout = {
+          _id: data.breakoutId,
+          name: data.breakoutName,
+          livekitRoomName: '',
+          assignedParticipants: [],
+          status: 'active',
+        } as BreakoutInfo;
+      });
+    });
+
+    socket.on('breakout-ended', (data: { breakoutId: string }) => {
+      this.ngZone.run(() => {
+        if (this.activeBreakoutId === data.breakoutId) {
+          this.activeBreakoutId = null;
+          this.reconnectToMainRoom();
+        }
+        if (this.assignedBreakout?._id === data.breakoutId) {
+          this.assignedBreakout = null;
+        }
+        this.breakouts = this.breakouts.filter(b => b._id !== data.breakoutId);
+      });
+    });
+
+    socket.on('breakout-return-to-main', () => {
+      this.ngZone.run(() => {
+        if (this.activeBreakoutId) {
+          this.activeBreakoutId = null;
+          this.reconnectToMainRoom();
+        }
+        this.assignedBreakout = null;
+        this.loadBreakouts();
+      });
+    });
+
+    socket.on('breakouts-updated', () => {
+      this.ngZone.run(() => this.loadBreakouts());
     });
   }
 
@@ -856,6 +919,303 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       this.cleanupConnection();
       this.router.navigate(['/gluck-room']);
     }
+  }
+
+  // ── Breakout Rooms ──
+
+  private disconnectLiveKitRoom(): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+    if (this.selfViewTrack) {
+      this.selfViewTrack.stop();
+      this.selfViewTrack = null;
+    }
+    this.selfViewStream = null;
+    if (this.room) {
+      this.room.disconnect();
+      this.room = null;
+    }
+    this.livekitConnected = false;
+    this.isMicOn = false;
+    this.isCamOn = false;
+    this.isScreenSharing = false;
+    this.mainParticipant = null;
+    this.isMainScreenShare = false;
+    this.allParticipants = [];
+    this.topFiveParticipants = [];
+  }
+
+  private async reconnectToMainRoom(): Promise<void> {
+    this.isReconnectingToMain = true;
+    this.disconnectLiveKitRoom();
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) return;
+    try {
+      const res: any = await this.gluckRoomService.joinSession(id).toPromise();
+      if (res.success) {
+        this.token = res.data.token;
+        this.livekitUrl = res.data.livekitUrl;
+        this.roomName = res.data.roomName;
+        await this.connectToLiveKit();
+      }
+    } catch (err: any) {
+      this.error = 'Failed to reconnect: ' + (err.message || '');
+    }
+    this.isReconnectingToMain = false;
+  }
+
+  loadBreakouts(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) return;
+    this.gluckRoomService.getBreakouts(id).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.breakouts = res.data;
+          this.assignedBreakout = null;
+          for (const b of this.breakouts) {
+            const isAssigned = b.assignedParticipants?.some(
+              (p: any) => (p._id || p).toString() === this.userId
+            );
+            if (isAssigned) {
+              this.assignedBreakout = b;
+              break;
+            }
+          }
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  onSidebarTabChange(index: number): void {
+    if (index === 2) {
+      this.loadBreakouts();
+    }
+  }
+
+  createBreakoutRooms(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id || this.isCreatingBreakouts) return;
+    this.isCreatingBreakouts = true;
+    this.gluckRoomService.createBreakouts(id, {
+      count: this.breakoutCreateCount,
+      namePrefix: 'Room',
+    }).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.breakouts = [...this.breakouts, ...res.data];
+          this.showCreateBreakoutForm = false;
+        }
+        this.isCreatingBreakouts = false;
+      },
+      error: () => { this.isCreatingBreakouts = false; }
+    });
+  }
+
+  toggleAssignPanel(breakoutId: string): void {
+    if (this.showAssignPanel === breakoutId) {
+      this.showAssignPanel = null;
+      return;
+    }
+    this.showAssignPanel = breakoutId;
+    const breakout = this.breakouts.find(b => b._id === breakoutId);
+    if (breakout) {
+      this.tempAssignParticipants = (breakout.assignedParticipants || []).map(
+        p => typeof p === 'object' ? (p._id || p) : p
+      );
+    } else {
+      this.tempAssignParticipants = [];
+    }
+  }
+
+  toggleAssignParticipant(participantId: string): void {
+    const idx = this.tempAssignParticipants.indexOf(participantId);
+    if (idx >= 0) {
+      this.tempAssignParticipants.splice(idx, 1);
+    } else {
+      this.tempAssignParticipants.push(participantId);
+    }
+  }
+
+  isAssignChecked(participantId: string): boolean {
+    return this.tempAssignParticipants.indexOf(participantId) >= 0;
+  }
+
+  assignSelectedToBreakout(breakoutId: string): void {
+    const pids = [...this.tempAssignParticipants];
+    if (pids.length === 0) return;
+    console.log('[Breakout] assignSelectedToBreakout called with pids:', pids, 'breakoutId:', breakoutId);
+    this.gluckRoomSocket.emit('breakout-assign-batch', { breakoutId, participantIds: pids });
+    // Optimistic update so host's assign panel shows correct checks immediately
+    const breakout = this.breakouts.find(b => b._id === breakoutId);
+    if (breakout) {
+      breakout.assignedParticipants = pids;
+    }
+    this.showAssignPanel = null;
+    this.tempAssignParticipants = [];
+  }
+
+  async joinBreakoutRoom(breakoutId: string): Promise<void> {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id || this.isConnectingBreakout) return;
+    this.isConnectingBreakout = true;
+    try {
+      const res: any = await this.gluckRoomService.joinBreakout(id, breakoutId).toPromise();
+      if (res.success) {
+        // Disconnect LiveKit room only — keep socket connected to main room
+        this.disconnectLiveKitRoom();
+        this.activeBreakoutId = breakoutId;
+        // Connect to breakout LiveKit room without re-setting up socket
+        await this.connectToBreakoutRoom(
+          res.data.livekitUrl,
+          res.data.token,
+          res.data.roomName
+        );
+      }
+    } catch {
+      this.activeBreakoutId = null;
+    }
+    this.isConnectingBreakout = false;
+  }
+
+  private async connectToBreakoutRoom(livekitUrl: string, token: string, roomName: string): Promise<void> {
+    if (!token || !livekitUrl) return;
+
+    this.room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+    });
+
+    this.room.on('participantConnected', (p) => this.onParticipantConnected(p));
+    this.room.on('participantDisconnected', (p) => this.onParticipantDisconnected(p));
+    this.room.on('trackPublished', (pub, p) => this.onTrackPublished(pub, p));
+    this.room.on('trackUnpublished', (pub, p) => this.onTrackUnpublished(pub, p));
+    this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => this.onActiveSpeakerChanged(speakers));
+    this.room.on('connected', () => {
+      this.ngZone.run(() => {
+        this.livekitConnected = true;
+        this.loading = false;
+        this.startTimer();
+        // Register event handlers for already-connected participants
+        this.room?.remoteParticipants.forEach(p => {
+          this.onParticipantConnected(p);
+          p.audioTrackPublications.forEach((pub) => {
+            if (pub.track) pub.track.attach();
+          });
+        });
+        this.updateParticipantList();
+        this.selectMainParticipant();
+        this.room?.startAudio().catch((e) => console.warn('startAudio failed:', e));
+        setTimeout(() => {
+          if (this.selfViewStream) {
+            this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
+          }
+          this.selectMainParticipant();
+          this.attachTileVideos();
+        });
+      });
+    });
+    this.room.on('disconnected', () => {
+      this.ngZone.run(() => { this.livekitConnected = false; });
+    });
+
+    this.room.localParticipant.on(ParticipantEvent.TrackPublished, (pub) => {
+      if (pub.source !== Track.Source.ScreenShare && pub.source !== Track.Source.Camera && pub.source !== Track.Source.Microphone) return;
+      this.ngZone.run(() => {
+        if (pub.source === Track.Source.Microphone) {
+          this.isMicOn = true;
+          this.updateParticipantList();
+        } else if (pub.source === Track.Source.ScreenShare) {
+          this.isScreenSharing = true;
+          this.isMainScreenShare = true;
+          this.mainParticipant = {
+            identity: this.room!.localParticipant.identity,
+            name: this.room!.localParticipant.name || 'Your Screen',
+            role: this.getSocketRole(),
+            isMicOn: this.isMicOn,
+            isCamOn: this.isCamOn,
+            hasVideo: true,
+          };
+          this.updateParticipantList();
+          const videoEl = this.mainVideoEl?.nativeElement ?? document.querySelector<HTMLVideoElement>('.main-video');
+          const screenTrack = pub.videoTrack ?? (pub.track as any);
+          if (videoEl && screenTrack && typeof screenTrack.attach === 'function') {
+            videoEl.srcObject = null;
+            screenTrack.attach(videoEl);
+            videoEl.play().catch(() => {});
+          }
+        }
+        if (pub.source === Track.Source.Camera && pub.videoTrack) {
+          this.isCamOn = true;
+          this.selfViewStream = new MediaStream([pub.videoTrack.mediaStreamTrack]);
+          this.selfViewTrack = pub.videoTrack.mediaStreamTrack;
+          this.attachStreamToElement(this.selfVideoEl, this.selfViewStream);
+          this.updateParticipantList();
+        }
+      });
+    });
+    this.room.localParticipant.on(ParticipantEvent.TrackUnpublished, (pub) => {
+      this.ngZone.run(() => {
+        if (pub.source === Track.Source.ScreenShare) {
+          this.isScreenSharing = false;
+          this.isMainScreenShare = false;
+          this.selectMainParticipant();
+        }
+        if (pub.source === Track.Source.Camera) {
+          this.isCamOn = false;
+          this.selfViewStream = null;
+          this.selfViewTrack?.stop();
+          this.selfViewTrack = null;
+          if (this.selfVideoEl?.nativeElement) {
+            this.selfVideoEl.nativeElement.pause();
+            this.selfVideoEl.nativeElement.srcObject = null;
+          }
+          this.updateParticipantList();
+        }
+      });
+    });
+    this.room.localParticipant.on(ParticipantEvent.TrackMuted, this.onLocalTrackMute);
+    this.room.localParticipant.on(ParticipantEvent.TrackUnmuted, this.onLocalTrackMute);
+
+    try {
+      await this.room.connect(livekitUrl, token);
+    } catch (err: any) {
+      this.ngZone.run(() => {
+        this.error = 'Failed to connect to breakout: ' + (err.message || 'unknown error');
+        this.loading = false;
+        this.activeBreakoutId = null;
+      });
+    }
+  }
+
+  async returnToMainRoom(): Promise<void> {
+    if (!this.activeBreakoutId) return;
+    const breakoutId = this.activeBreakoutId;
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.gluckRoomService.leaveBreakout(id, breakoutId).subscribe({ next: () => {}, error: () => {} });
+    }
+    this.activeBreakoutId = null;
+    await this.reconnectToMainRoom();
+  }
+
+  endBreakoutRoom(breakoutId: string): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) return;
+    this.breakouts = this.breakouts.filter(b => b._id !== breakoutId);
+    if (this.assignedBreakout?._id === breakoutId) this.assignedBreakout = null;
+    this.gluckRoomService.endBreakout(id, breakoutId).subscribe({ next: () => {}, error: () => {} });
+  }
+
+  endAllBreakoutRooms(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) return;
+    this.breakouts = [];
+    this.assignedBreakout = null;
+    this.gluckRoomService.endAllBreakouts(id).subscribe({ next: () => {}, error: () => {} });
   }
 
   getParticipantInitials(p: ParticipantInfo): string {

@@ -1,6 +1,10 @@
 <div class="room-stage">
   <div *ngIf="loading && !livekitConnected" class="loading-shade"><mat-spinner diameter="40"></mat-spinner></div>
 
+  <div *ngIf="isConnectingBreakout || isReconnectingToMain" class="switching-shade">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+
   <mat-card *ngIf="error && !loading && !livekitConnected" class="error-card">
     <mat-icon color="warn">error</mat-icon>
     <p>{{ error }}</p>
@@ -44,6 +48,9 @@
             <mat-icon>menu</mat-icon>
           </button>
           <span class="timer">{{ formatTime(elapsedSeconds) }}</span>
+          <span class="breakout-indicator" *ngIf="activeBreakoutId">
+            <mat-icon [style.font-size.px]="14">group_work</mat-icon> Breakout
+          </span>
           <button mat-mini-fab *ngIf="isHostUser && !isEnding" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
             <mat-icon>call_end</mat-icon>
           </button>
@@ -57,7 +64,7 @@
       </div>
 
       <div class="sidebar" [class.open]="sidebarOpen">
-        <mat-tab-group [(selectedIndex)]="sidebarTabIndex" mat-stretch-tabs>
+        <mat-tab-group [(selectedIndex)]="sidebarTabIndex" mat-stretch-tabs (selectedIndexChange)="onSidebarTabChange($event)">
           <mat-tab label="Camera Feeds">
             <div class="camera-grid">
               <div class="tile" *ngFor="let p of topFiveParticipants">
@@ -105,6 +112,99 @@
                     <mat-icon [style.font-size.px]="18">remove_circle</mat-icon>
                   </button>
                 </div>
+              </div>
+            </div>
+          </mat-tab>
+          <mat-tab label="Breakout Rooms">
+            <div class="breakout-content">
+              <!-- Create breakout form (host only, in main room) -->
+              <div *ngIf="canModerate && !activeBreakoutId" class="breakout-create">
+                <button mat-stroked-button size="small" (click)="showCreateBreakoutForm = !showCreateBreakoutForm" class="breakout-create-btn">
+                  <mat-icon [style.font-size.px]="16">meeting_room</mat-icon>
+                  {{ showCreateBreakoutForm ? 'Cancel' : 'Create Breakouts' }}
+                </button>
+                <div *ngIf="showCreateBreakoutForm" class="breakout-create-form">
+                  <mat-form-field appearance="outline" dense>
+                    <mat-label>Number of rooms</mat-label>
+                    <input matInput type="number" [(ngModel)]="breakoutCreateCount" min="1" max="10">
+                  </mat-form-field>
+                  <button mat-raised-button color="primary" size="small" (click)="createBreakoutRooms()" [disabled]="isCreatingBreakouts">
+                    <mat-spinner *ngIf="isCreatingBreakouts" diameter="14" style="display:inline-block;margin-right:4px"></mat-spinner>
+                    {{ isCreatingBreakouts ? 'Creating...' : 'Create' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- In breakout state -->
+              <div *ngIf="activeBreakoutId" class="breakout-active">
+                <div class="breakout-label">
+                  <mat-icon [style.font-size.px]="16">group_work</mat-icon>
+                  In Breakout Room
+                </div>
+                <button mat-raised-button color="accent" (click)="returnToMainRoom()" class="return-btn">
+                  <mat-icon>meeting_room</mat-icon> Return to Main Room
+                </button>
+              </div>
+
+              <!-- Breakout rooms list (host only) -->
+              <div *ngIf="canModerate && !activeBreakoutId && breakouts.length > 0" class="breakout-list">
+                <div class="breakout-room" *ngFor="let b of breakouts">
+                  <div class="breakout-room-header">
+                    <mat-icon [style.font-size.px]="18">meeting_room</mat-icon>
+                    <span class="breakout-room-name">{{ b.name }}</span>
+                    <span class="breakout-room-count">{{ b.assignedParticipants.length || 0 }}</span>
+                  </div>
+                  <div class="breakout-room-actions">
+                    <button mat-stroked-button size="small" (click)="toggleAssignPanel(b._id)">
+                      <mat-icon [style.font-size.px]="14">person_add</mat-icon> Assign
+                    </button>
+                    <button mat-stroked-button size="small" (click)="joinBreakoutRoom(b._id)" [disabled]="isConnectingBreakout">
+                      <mat-icon [style.font-size.px]="14">login</mat-icon> Join
+                    </button>
+                    <button mat-stroked-button size="small" color="warn" (click)="endBreakoutRoom(b._id)">
+                      <mat-icon [style.font-size.px]="14">close</mat-icon> End
+                    </button>
+                  </div>
+                  <!-- Assign panel -->
+                  <div *ngIf="showAssignPanel === b._id" class="assign-panel">
+                    <div class="assign-list">
+                      <div *ngFor="let p of allParticipants" class="assign-row" [class.selected]="isAssignChecked(p.identity)" (click)="toggleAssignParticipant(p.identity)">
+                        <span class="assign-check">{{ isAssignChecked(p.identity) ? '✓' : '' }}</span>
+                        <div class="row-avatar">{{ getParticipantInitials(p) }}</div>
+                        <span>{{ p.name }}</span>
+                        <span *ngIf="isSelf(p)" class="assign-self">(You)</span>
+                      </div>
+                    </div>
+                    <button mat-raised-button color="primary" size="small" (click)="assignSelectedToBreakout(b._id)" [disabled]="tempAssignParticipants.length === 0">
+                      Assign Selected ({{ tempAssignParticipants.length }})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- End All button (host) -->
+              <div *ngIf="canModerate && breakouts.length > 1 && !activeBreakoutId" class="breakout-end-all">
+                <button mat-stroked-button color="warn" (click)="endAllBreakoutRooms()">
+                  <mat-icon [style.font-size.px]="16">close_all</mat-icon> End All Breakouts
+                </button>
+              </div>
+
+              <!-- Participant assigned view -->
+              <div *ngIf="!canModerate && assignedBreakout && !activeBreakoutId" class="breakout-assigned">
+                <div class="breakout-label">
+                  <mat-icon [style.font-size.px]="16">meeting_room</mat-icon>
+                  Assigned: {{ assignedBreakout.name }}
+                </div>
+                <button mat-raised-button color="primary" (click)="joinBreakoutRoom(assignedBreakout._id)" [disabled]="isConnectingBreakout" class="join-breakout-btn">
+                  <mat-icon [style.font-size.px]="16">login</mat-icon>
+                  {{ isConnectingBreakout ? 'Connecting...' : 'Join Breakout' }}
+                </button>
+              </div>
+
+              <!-- No assignment (participant) -->
+              <div *ngIf="!canModerate && !assignedBreakout && !activeBreakoutId" class="breakout-none">
+                <mat-icon [style.font-size.px]="24">meeting_room</mat-icon>
+                <p>No breakout assigned</p>
               </div>
             </div>
           </mat-tab>

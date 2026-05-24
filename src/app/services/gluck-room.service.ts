@@ -97,4 +97,39 @@ export class GluckRoomService {
   bulkCreateSessions(data: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/sessions/bulk`, data, { withCredentials: true });
   }
+
+  // ── Breakout Rooms ──
+
+  createBreakouts(sessionId: string, data: { count: number; namePrefix?: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/${sessionId}/breakouts`, data, { withCredentials: true });
+  }
+
+  getBreakouts(sessionId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/sessions/${sessionId}/breakouts`, { withCredentials: true });
+  }
+
+  assignToBreakout(sessionId: string, breakoutId: string, participantIds: string[]): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/${sessionId}/breakouts/${breakoutId}/assign`,
+      { participantIds }, { withCredentials: true });
+  }
+
+  joinBreakout(sessionId: string, breakoutId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/${sessionId}/breakouts/${breakoutId}/join`,
+      {}, { withCredentials: true });
+  }
+
+  leaveBreakout(sessionId: string, breakoutId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/${sessionId}/breakouts/${breakoutId}/leave`,
+      {}, { withCredentials: true });
+  }
+
+  endBreakout(sessionId: string, breakoutId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/${sessionId}/breakouts/${breakoutId}/end`,
+      {}, { withCredentials: true });
+  }
+
+  endAllBreakouts(sessionId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/${sessionId}/breakouts/end-all`,
+      {}, { withCredentials: true });
+  }
 }

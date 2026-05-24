@@ -191,6 +191,42 @@ class GluckRoomService {
     this._ensureClients();
     await this.roomService.removeParticipant(roomName, identity);
   }
+
+  // ── Breakout rooms ──
+
+  async createBreakoutRoom(roomName) {
+    this._ensureClients();
+    return await this.roomService.createRoom({
+      name: roomName,
+      emptyTimeout: 300,
+      maxParticipants: 50,
+    });
+  }
+
+  async generateBreakoutToken(roomName, userId, userName) {
+    const token = new AccessToken(
+      process.env.LIVEKIT_API_KEY,
+      process.env.LIVEKIT_API_SECRET,
+      { identity: userId.toString(), name: userName }
+    );
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+    return await token.toJwt();
+  }
+
+  async deleteBreakoutRoom(roomName) {
+    this._ensureClients();
+    try {
+      await this.roomService.deleteRoom(roomName);
+    } catch (err) {
+      console.warn('Could not delete breakout room:', err.message);
+    }
+  }
 }
 
 module.exports = new GluckRoomService();

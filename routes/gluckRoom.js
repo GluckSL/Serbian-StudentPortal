@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const GluckRoomSession = require('../models/GluckRoomSession');
 const GluckRoomParticipant = require('../models/GluckRoomParticipant');
 const GluckRoomRecording = require('../models/GluckRoomRecording');
+const GluckRoomBreakout = require('../models/GluckRoomBreakout');
 const User = require('../models/User');
 const { verifyToken, verifyMediaToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
@@ -952,6 +953,206 @@ router.delete('/recordings/:id', verifyToken, async (req, res) => {
     await GluckRoomRecording.deleteOne({ _id: recording._id });
 
     res.json({ success: true, message: 'Recording deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Breakout Rooms ──
+
+// POST /api/gluckroom/sessions/:id/breakouts — Create breakout rooms
+router.post('/sessions/:id/breakouts', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only host can create breakouts' });
+    if (session.status !== 'active') return res.status(400).json({ success: false, message: 'Session must be active' });
+
+    const { count = 1, namePrefix = 'Room' } = req.body;
+    const userId = getUserId(req);
+    const created = [];
+
+    for (let i = 1; i <= count; i++) {
+      const livekitRoomName = `breakout_${session._id}_${i}_${Date.now()}`;
+      await gluckRoomService.createBreakoutRoom(livekitRoomName);
+
+      const breakout = await GluckRoomBreakout.create({
+        sessionId: session._id,
+        name: `${namePrefix} ${i}`,
+        livekitRoomName,
+        hostId: userId,
+        assignedParticipants: [],
+        status: 'active',
+      });
+      created.push(breakout);
+    }
+
+    const roomNamespace = req.app.get('gluckRoomNamespace');
+    if (roomNamespace) {
+      roomNamespace.to(session.livekitRoomName).emit('breakouts-updated');
+    }
+
+    res.json({ success: true, data: created });
+  } catch (err) {
+    console.error('Create breakouts error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/gluckroom/sessions/:id/breakouts — List breakout rooms
+router.get('/sessions/:id/breakouts', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+
+    const breakouts = await GluckRoomBreakout.find({ sessionId: session._id, status: 'active' })
+      .populate('assignedParticipants', 'name email')
+      .sort({ createdAt: 1 });
+
+    res.json({ success: true, data: breakouts });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/gluckroom/sessions/:id/breakouts/:breakoutId/assign — Assign participants to breakout
+router.post('/sessions/:id/breakouts/:breakoutId/assign', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only host can assign' });
+
+    const breakout = await GluckRoomBreakout.findById(req.params.breakoutId);
+    if (!breakout) return res.status(404).json({ success: false, message: 'Breakout not found' });
+    if (breakout.status !== 'active') return res.status(400).json({ success: false, message: 'Breakout is ended' });
+
+    breakout.assignedParticipants = req.body.participantIds || [];
+    await breakout.save();
+
+    const populated = await GluckRoomBreakout.findById(breakout._id)
+      .populate('assignedParticipants', 'name email');
+
+    // Notify assigned participants via socket
+    const roomNamespace = req.app.get('gluckRoomNamespace');
+    if (roomNamespace) {
+      for (const pid of breakout.assignedParticipants) {
+        roomNamespace.to(session.livekitRoomName).emit('breakout-assigned', {
+          breakoutId: breakout._id,
+          breakoutName: breakout.name,
+          participantId: pid.toString(),
+        });
+      }
+      roomNamespace.to(session.livekitRoomName).emit('breakouts-updated');
+    }
+
+    res.json({ success: true, data: populated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/gluckroom/sessions/:id/breakouts/:breakoutId/join — Get token for breakout
+router.post('/sessions/:id/breakouts/:breakoutId/join', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (session.status !== 'active') return res.status(400).json({ success: false, message: 'Session is not active' });
+
+    const breakout = await GluckRoomBreakout.findById(req.params.breakoutId);
+    if (!breakout) return res.status(404).json({ success: false, message: 'Breakout not found' });
+    if (breakout.status !== 'active') return res.status(400).json({ success: false, message: 'Breakout is ended' });
+
+    const userId = getUserId(req);
+    const isHost = isHostOrAdmin(req, session);
+    const isAssigned = breakout.assignedParticipants.some(
+      pid => pid.toString() === userId.toString()
+    );
+
+    if (!isHost && !isAssigned) {
+      return res.status(403).json({ success: false, message: 'You are not assigned to this breakout' });
+    }
+
+    const user = await User.findById(userId).select('name');
+    const token = await gluckRoomService.generateBreakoutToken(
+      breakout.livekitRoomName,
+      userId,
+      user?.name || 'Unknown'
+    );
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        livekitUrl: process.env.LIVEKIT_URL,
+        roomName: breakout.livekitRoomName,
+        breakoutName: breakout.name,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/gluckroom/sessions/:id/breakouts/:breakoutId/leave — Leave breakout (no-op)
+router.post('/sessions/:id/breakouts/:breakoutId/leave', verifyToken, (req, res) => {
+  res.json({ success: true, message: 'Left breakout' });
+});
+
+// POST /api/gluckroom/sessions/:id/breakouts/:breakoutId/end — End a specific breakout
+router.post('/sessions/:id/breakouts/:breakoutId/end', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only host can end breakouts' });
+
+    const breakout = await GluckRoomBreakout.findById(req.params.breakoutId);
+    if (!breakout) return res.status(404).json({ success: false, message: 'Breakout not found' });
+
+    await gluckRoomService.deleteBreakoutRoom(breakout.livekitRoomName);
+
+    breakout.status = 'ended';
+    breakout.endedAt = new Date();
+    breakout.assignedParticipants = [];
+    await breakout.save();
+
+    const roomNamespace = req.app.get('gluckRoomNamespace');
+    if (roomNamespace) {
+      roomNamespace.to(session.livekitRoomName).emit('breakout-ended', {
+        breakoutId: breakout._id.toString(),
+      });
+      roomNamespace.to(session.livekitRoomName).emit('breakouts-updated');
+    }
+
+    res.json({ success: true, data: breakout });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/gluckroom/sessions/:id/breakouts/end-all — End all active breakouts
+router.post('/sessions/:id/breakouts/end-all', verifyToken, async (req, res) => {
+  try {
+    const session = await GluckRoomSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only host can end breakouts' });
+
+    const active = await GluckRoomBreakout.find({ sessionId: session._id, status: 'active' });
+
+    for (const breakout of active) {
+      await gluckRoomService.deleteBreakoutRoom(breakout.livekitRoomName);
+      breakout.status = 'ended';
+      breakout.endedAt = new Date();
+      breakout.assignedParticipants = [];
+      await breakout.save();
+    }
+
+    const roomNamespace = req.app.get('gluckRoomNamespace');
+    if (roomNamespace) {
+      roomNamespace.to(session.livekitRoomName).emit('breakout-return-to-main');
+      roomNamespace.to(session.livekitRoomName).emit('breakouts-updated');
+    }
+
+    res.json({ success: true, data: { ended: active.length } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
