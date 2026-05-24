@@ -19,10 +19,14 @@
         <div class="meta">
           <span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span>
           <span><strong>Batch:</strong> {{ session.batch }}</span>
+          <span *ngIf="session.plan"><strong>Plan:</strong> {{ session.plan }}</span>
           <span *ngIf="session.level"><strong>Level:</strong> {{ session.level }}</span>
           <span><strong>Date:</strong> {{ formatDate(session.actualStartTime || session.scheduledStartTime) }}</span>
           <span *ngIf="session.maxDurationMinutes"><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span>
+          <span *ngIf="session.agenda"><strong>Agenda:</strong> {{ session.agenda }}</span>
           <span *ngIf="session.participantCount != null"><strong>Participants:</strong> {{ session.participantCount }}</span>
+          <span *ngIf="session.courseDay"><strong>Course Day:</strong> {{ session.courseDay }}</span>
+          <span *ngIf="session.targetJourneyDay"><strong>Target Day:</strong> {{ session.targetJourneyDay }}</span>
         </div>
       </mat-card-content>
     </mat-card>

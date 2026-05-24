@@ -83,4 +83,18 @@ export class GluckRoomService {
     const qs = token ? `?token=${encodeURIComponent(token)}` : '';
     return `${this.apiUrl}/recordings/${recordingId}/hls/playlist${qs}`;
   }
+
+  // ── Batch / Journey endpoints ──
+
+  getBatchJourneyData(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/sessions/batches`, { withCredentials: true });
+  }
+
+  bulkPreviewSessions(data: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/bulk/preview`, data, { withCredentials: true });
+  }
+
+  bulkCreateSessions(data: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/sessions/bulk`, data, { withCredentials: true });
+  }
 }

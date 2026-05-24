@@ -442,16 +442,18 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     });
     socket.on('session-ended', () => {
       if (this.isLocallyEnding) return;
-      const id = this.route.snapshot.paramMap.get('id');
       this.ngZone.run(() => {
         this.cleanupConnection();
-        this.router.navigate(['/gluck-room', id]);
+        this.loadSession();
       });
     });
     socket.on('participant-removed', ({ targetUserId }: { targetUserId: string }) => {
       if (targetUserId === this.userId) {
         this.cleanupConnection();
-        this.ngZone.run(() => this.router.navigate(['/gluck-room']));
+        this.ngZone.run(() => {
+          this.loadSession();
+          this.error = 'You have been removed from this session.';
+        });
       }
     });
   }
@@ -812,6 +814,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       next: (res) => {
         this.isEnding = false;
         if (res.success) {
+          this.session = res.data;
           this.showSessionInfoAndClose();
         }
       },
@@ -822,6 +825,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   startFromCard(): void {
     const id = this.session?._id;
     if (!id) return;
+    if (!confirm('This session is scheduled and will start automatically. Do you want to start it manually now?')) return;
     this.cardActionLoading = true;
     this.gluckRoomService.startSession(id).subscribe({
       next: (res) => {

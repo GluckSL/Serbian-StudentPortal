@@ -40,7 +40,7 @@ class GluckRoomService {
     }
   }
 
-  async createRoomAndStartRecording(sessionId, hostId, videoSource = 'camera') {
+  async createRoomAndStartRecording(sessionId, hostId, videoSource = 'camera', layoutUrl) {
     this._ensureClients();
     const room = await this.roomService.createRoom({
       name: sessionId,
@@ -71,6 +71,7 @@ class GluckRoomService {
         },
       },
       {
+        layout: layoutUrl || 'speaker',
         encodingOptions: {
           videoCodec: 2,
           width: 1280,

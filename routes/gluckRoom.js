@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const mongoose = require('mongoose');
 const GluckRoomSession = require('../models/GluckRoomSession');
@@ -8,6 +9,7 @@ const User = require('../models/User');
 const { verifyToken, verifyMediaToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
 const gluckRoomService = require('../services/gluckRoomService');
+const { generateJourneySchedules } = require('../services/journeyMeetingGenerator.service');
 
 function getUserId(req) {
   return req.user?.id || req.user?.userId || req.user?._id;
@@ -36,6 +38,7 @@ router.post('/sessions', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'ADMIN'
 
     const {
       sessionName, scheduledStartTime, maxDurationMinutes, batch, courseDay, level,
+      plan, agenda, timezone, targetJourneyDay, scheduleType, journeySettings,
       accessType, allowedBatches, allowedStudents, maxParticipants
     } = req.body;
 
@@ -59,7 +62,13 @@ router.post('/sessions', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'ADMIN'
       maxDurationMinutes: maxDurationMinutes || 180,
       batch,
       courseDay: courseDay || null,
+      targetJourneyDay: targetJourneyDay || null,
       level: level || null,
+      plan: plan || null,
+      agenda: agenda || '',
+      timezone: timezone || 'Asia/Kolkata',
+      scheduleType: scheduleType || 'single',
+      journeySettings: journeySettings || undefined,
       accessType: accessType || 'batch',
       allowedBatches: allowedBatches || [batch],
       allowedStudents: allowedStudents || [],
@@ -83,7 +92,7 @@ router.get('/sessions', verifyToken, async (req, res) => {
     const user = await User.findById(userId).select('role assignedBatches batch');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    const { status, batch, page = 1, limit = 25 } = req.query;
+    const { status, batch, plan, scheduleType, page = 1, limit = 25 } = req.query;
     const query = {};
 
     if (user.role === 'STUDENT') {
@@ -96,6 +105,8 @@ router.get('/sessions', verifyToken, async (req, res) => {
 
     if (status) query.status = status;
     if (batch) query.batch = batch;
+    if (plan) query.plan = plan;
+    if (scheduleType) query.scheduleType = scheduleType;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
@@ -111,6 +122,10 @@ router.get('/sessions', verifyToken, async (req, res) => {
       GluckRoomSession.countDocuments(query)
     ]);
 
+    // Gather available batches from sessions (for filter dropdown)
+    const batchAgg = await GluckRoomSession.distinct('batch', {});
+    const availableBatches = batchAgg.sort();
+
     res.json({
       success: true,
       count: sessions.length,
@@ -119,10 +134,61 @@ router.get('/sessions', verifyToken, async (req, res) => {
         page: pageNum, limit: pageSize, totalItems: totalCount,
         totalPages: Math.ceil(totalCount / pageSize)
       },
-      data: sessions
+      data: sessions,
+      availableBatches
     });
   } catch (err) {
     console.error('List sessions error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/gluckroom/sessions/batches — Batch journey data for session creation
+router.get('/sessions/batches', verifyToken, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await User.findById(userId).select('role assignedBatches batch');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    let batchFilter = {};
+    if (user.role === 'TEACHER' && user.assignedBatches?.length) {
+      batchFilter = { batch: { $in: user.assignedBatches } };
+    }
+
+    const sessions = await GluckRoomSession.find(batchFilter)
+      .select('batch courseDay targetJourneyDay plan')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Build batch summary from actual session data
+    const batchMap = new Map();
+    for (const s of sessions) {
+      if (!s.batch) continue;
+      if (!batchMap.has(s.batch)) {
+        batchMap.set(s.batch, {
+          batchName: s.batch,
+          batchCurrentDay: 0,
+          journeyLength: 200,
+          journeyActive: true,
+          plans: new Set()
+        });
+      }
+      const entry = batchMap.get(s.batch);
+      if (s.courseDay && s.courseDay > entry.batchCurrentDay) {
+        entry.batchCurrentDay = s.courseDay;
+      }
+      if (s.plan) entry.plans.add(s.plan);
+    }
+
+    const batches = Array.from(batchMap.values()).map(b => ({
+      ...b,
+      plans: Array.from(b.plans)
+    }));
+    batches.sort((a, b) => a.batchName.localeCompare(b.batchName));
+
+    res.json({ success: true, batches });
+  } catch (err) {
+    console.error('Batches error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -156,7 +222,7 @@ router.put('/sessions/:id', verifyToken, async (req, res) => {
     if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only the host can update this session' });
     if (session.status !== 'scheduled') return res.status(400).json({ success: false, message: 'Can only update scheduled sessions' });
 
-    const allowed = ['sessionName', 'scheduledStartTime', 'maxDurationMinutes', 'courseDay', 'level', 'accessType', 'maxParticipants', 'batch', 'allowedBatches', 'allowedStudents'];
+    const allowed = ['sessionName', 'scheduledStartTime', 'maxDurationMinutes', 'courseDay', 'targetJourneyDay', 'level', 'plan', 'agenda', 'timezone', 'scheduleType', 'journeySettings', 'accessType', 'maxParticipants', 'batch', 'allowedBatches', 'allowedStudents'];
     allowed.forEach(field => {
       if (req.body[field] !== undefined) session[field] = req.body[field];
     });
@@ -195,6 +261,137 @@ router.delete('/sessions/:id', verifyToken, async (req, res) => {
   }
 });
 
+// POST /api/gluckroom/sessions/bulk/preview — Preview journey schedules
+router.post('/sessions/bulk/preview', verifyToken, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await User.findById(userId).select('role');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const { weekdaysSun0, startClock, startingJourneyDay, targetJourneyDay, durationMinutes } = req.body;
+
+    if (!Array.isArray(weekdaysSun0) || weekdaysSun0.length === 0) {
+      return res.status(400).json({ success: false, message: 'Select at least one weekday' });
+    }
+    if (!startClock || !startingJourneyDay || !targetJourneyDay) {
+      return res.status(400).json({ success: false, message: 'startClock, startingJourneyDay, and targetJourneyDay are required' });
+    }
+
+    const result = generateJourneySchedules({
+      weekdaysSun0,
+      startClock,
+      startingJourneyDay: Number(startingJourneyDay),
+      targetJourneyDay: Number(targetJourneyDay),
+      durationMinutes: Number(durationMinutes) || 120
+    });
+
+    const totalTeachingHours = result.schedules.length * (Number(durationMinutes) || 120) / 60;
+
+    res.json({
+      success: true,
+      data: {
+        schedules: result.schedules,
+        warnings: result.warnings,
+        blockingErrors: [],
+        totalTeachingHours: Math.round(totalTeachingHours * 10) / 10
+      }
+    });
+  } catch (err) {
+    console.error('Bulk preview error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/gluckroom/sessions/bulk — Create multiple sessions at once
+router.post('/sessions/bulk', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await User.findById(userId).select('role assignedBatches batch');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const {
+      sessionName, batch, plan, level, teacherId,
+      duration, timezone, agenda, studentIds,
+      bulkScheduleId,
+      startingJourneyDay, targetJourneyDay,
+      schedules
+    } = req.body;
+
+    if (!sessionName || !batch || !Array.isArray(schedules) || schedules.length === 0) {
+      return res.status(400).json({ success: false, message: 'sessionName, batch, and schedules array are required' });
+    }
+
+    if (user.role === 'TEACHER' && !user.assignedBatches?.includes(batch)) {
+      return res.status(403).json({ success: false, message: 'You can only create sessions for your assigned batches' });
+    }
+
+    const created = [];
+    const failures = [];
+    const defaultAgenda = agenda || `Gluck Room - Batch ${batch}`;
+    const bulkId = bulkScheduleId || `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    for (const slot of schedules) {
+      try {
+        const { journeyDay, startTime, endTime } = slot;
+        if (!journeyDay || !startTime) {
+          failures.push({ startTime: startTime || 'unknown', message: 'Missing journeyDay or startTime' });
+          continue;
+        }
+
+        const scheduledStart = new Date(`${startTime}:00+05:30`);
+        if (Number.isNaN(scheduledStart.getTime())) {
+          failures.push({ startTime, message: 'Invalid startTime format' });
+          continue;
+        }
+
+        const sessionDoc = new GluckRoomSession({
+          sessionName: `${sessionName} - Day ${journeyDay}`,
+          hostId: teacherId || userId,
+          scheduledStartTime: scheduledStart,
+          maxDurationMinutes: Number(duration) || 120,
+          batch,
+          courseDay: Number(journeyDay),
+          targetJourneyDay: Number(targetJourneyDay) || null,
+          level: level || null,
+          plan: plan || null,
+          agenda: defaultAgenda,
+          timezone: timezone || 'Asia/Kolkata',
+          scheduleType: 'journey',
+          journeySettings: {
+            weekdays: req.body.weekdaysSun0 || [],
+            startClock: req.body.startClock || '19:00',
+            bulkScheduleId: bulkId
+          },
+          accessType: 'batch',
+          allowedBatches: [batch],
+          allowedStudents: Array.isArray(studentIds) ? studentIds : [],
+          livekitRoomName: `gluckroom_${new mongoose.Types.ObjectId()}_${Date.now()}`
+        });
+
+        await sessionDoc.save();
+        created.push(sessionDoc);
+      } catch (slotErr) {
+        failures.push({ startTime: slot.startTime || 'unknown', message: slotErr.message });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        sessions: created,
+        summary: {
+          createdCount: created.length,
+          failedCount: failures.length,
+          failedSchedules: failures
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Bulk create error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST /api/gluckroom/sessions/:id/start — Start session (host only)
 router.post('/sessions/:id/start', verifyToken, async (req, res) => {
   try {
@@ -209,10 +406,12 @@ router.post('/sessions/:id/start', verifyToken, async (req, res) => {
     }
 
     const videoSource = req.body.videoSource || 'camera';
+    const layoutUrl = `${req.protocol}://${req.get('host')}/api/gluckroom/layout`;
     const { roomName, egressId } = await gluckRoomService.createRoomAndStartRecording(
       session.livekitRoomName,
       session.hostId.toString(),
-      videoSource
+      videoSource,
+      layoutUrl
     );
 
     session.livekitRoomName = roomName;
@@ -294,7 +493,11 @@ router.post('/sessions/:id/end', verifyToken, async (req, res) => {
       await session.save();
     }
 
-    res.json({ success: true, data: session });
+    const updatedSession = await GluckRoomSession.findById(session._id)
+      .populate('hostId', 'name email')
+      .populate('allowedStudents', 'name email');
+
+    res.json({ success: true, data: updatedSession });
   } catch (err) {
     console.error('End session error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -752,6 +955,16 @@ router.delete('/recordings/:id', verifyToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
+});
+
+// GET /api/gluckroom/layout — Custom egress layout for room recording
+router.get('/layout', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'layouts', 'egress-room.html'));
+});
+
+// GET /api/gluckroom/layout/client.js — LiveKit client UMD for egress layout
+router.get('/layout/client.js', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'node_modules', 'livekit-client', 'dist', 'livekit-client.umd.js'));
 });
 
 module.exports = router;

@@ -28,7 +28,7 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     type: Number,
     default: 180,
     min: 15,
-    max: 300
+    max: 1440
   },
   batch: {
     type: String,
@@ -40,10 +40,30 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     max: 200,
     default: null
   },
+  targetJourneyDay: {
+    type: Number,
+    min: 1,
+    max: 200,
+    default: null
+  },
   level: {
     type: String,
     enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', null],
     default: null
+  },
+  plan: {
+    type: String,
+    enum: ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY', null],
+    default: null
+  },
+  agenda: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  timezone: {
+    type: String,
+    default: 'Asia/Kolkata'
   },
   accessType: {
     type: String,
@@ -57,6 +77,16 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  scheduleType: {
+    type: String,
+    enum: ['single', 'journey'],
+    default: 'single'
+  },
+  journeySettings: {
+    weekdays: [{ type: Number, min: 0, max: 6 }],
+    startClock: { type: String },
+    bulkScheduleId: { type: String }
+  },
   livekitRoomName: {
     type: String,
     required: true,
@@ -102,6 +132,7 @@ const GluckRoomSessionSchema = new mongoose.Schema({
 GluckRoomSessionSchema.index({ hostId: 1, status: 1 });
 GluckRoomSessionSchema.index({ batch: 1, status: 1 });
 GluckRoomSessionSchema.index({ scheduledStartTime: 1 });
+GluckRoomSessionSchema.index({ 'journeySettings.bulkScheduleId': 1 });
 
 GluckRoomSessionSchema.pre('save', function(next) {
   this.updatedAt = new Date();

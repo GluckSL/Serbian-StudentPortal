@@ -124,14 +124,16 @@
                 </span>
               </mat-card-subtitle>
             </mat-card-header>
-            <mat-card-content>
-              <div class="info-grid">
-                <div class="info-item"><mat-icon>person</mat-icon><span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span></div>
-                <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
-                <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
-                <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
-              </div>
-            </mat-card-content>
+          <mat-card-content>
+            <div class="info-grid">
+              <div class="info-item"><mat-icon>person</mat-icon><span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span></div>
+              <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
+              <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
+              <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
+              <div class="info-item" *ngIf="session.plan"><mat-icon>assignment</mat-icon><span><strong>Plan:</strong> {{ session.plan }}</span></div>
+              <div class="info-item" *ngIf="session.agenda"><mat-icon>description</mat-icon><span><strong>Agenda:</strong> {{ session.agenda }}</span></div>
+            </div>
+          </mat-card-content>
             <mat-card-footer>
               <div class="progress-wrap">
                 <div class="progress-fill" [style.width.%]="progressPercent"></div>
@@ -162,13 +164,20 @@
               <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
               <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
               <div class="info-item" *ngIf="session.level"><mat-icon>school</mat-icon><span><strong>Level:</strong> {{ session.level }}</span></div>
+              <div class="info-item" *ngIf="session.plan"><mat-icon>assignment</mat-icon><span><strong>Plan:</strong> {{ session.plan }}</span></div>
+              <div class="info-item" *ngIf="session.agenda"><mat-icon>description</mat-icon><span><strong>Agenda:</strong> {{ session.agenda }}</span></div>
+              <div class="info-item" *ngIf="session.courseDay"><mat-icon>looks_one</mat-icon><span><strong>Course Day:</strong> {{ session.courseDay }}</span></div>
+              <div class="info-item" *ngIf="session.targetJourneyDay"><mat-icon>looks_two</mat-icon><span><strong>Target Day:</strong> {{ session.targetJourneyDay }}</span></div>
+              <div class="info-item" *ngIf="session.scheduleType === 'journey'"><mat-icon>repeat</mat-icon><span><strong>Journey:</strong> Yes</span></div>
               <div class="info-item" *ngIf="session.actualStartTime"><mat-icon>play_arrow</mat-icon><span><strong>Started:</strong> {{ formatDate(session.actualStartTime) }}</span></div>
               <div class="info-item" *ngIf="session.actualEndTime"><mat-icon>stop</mat-icon><span><strong>Ended:</strong> {{ formatDate(session.actualEndTime) }}</span></div>
               <div class="info-item" *ngIf="session.actualEndTime && session.actualStartTime"><mat-icon>timer</mat-icon><span><strong>Actual:</strong> {{ actualDuration() }}</span></div>
               <div class="info-item" *ngIf="session.participantCount != null"><mat-icon>people</mat-icon><span><strong>Participants:</strong> {{ session.participantCount }}</span></div>
             </div>
           </mat-card-content>
-          <mat-card-actions align="end" style="gap:16px;padding:16px">
+          <mat-card-actions align="end" style="gap:16px;padding:16px;flex-direction:column">
+            <div *ngIf="session.status === 'scheduled' && isHostUser" class="auto-start-note">This session is scheduled and will start automatically. You can still start it manually.</div>
+            <div style="display:flex;gap:16px;width:100%;justify-content:flex-end">
             <button mat-stroked-button (click)="goBack()">
               <mat-icon>arrow_back</mat-icon> Back
             </button>
@@ -185,6 +194,7 @@
               <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
               {{ cardActionLoading ? 'Ending...' : 'End' }}
             </button>
+            </div>
           </mat-card-actions>
         </mat-card>
       </div>

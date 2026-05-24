@@ -24,6 +24,7 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   statusTab: 'scheduled' | 'active' | 'ended' = 'scheduled';
   batchFilter = 'all';
+  planFilter = 'all';
   searchQuery = '';
 
   pageIndex = 0;
@@ -74,6 +75,7 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     };
 
     if (this.batchFilter !== 'all') params['batch'] = this.batchFilter;
+    if (this.planFilter !== 'all') params['plan'] = this.planFilter;
     if (this.searchQuery.trim()) params['search'] = this.searchQuery.trim();
 
     this.gluckRoomService.getSessions(params).subscribe({
@@ -135,6 +137,10 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   createSession(): void {
     this.router.navigate(['/gluck-room/create']);
+  }
+
+  createBulkSession(): void {
+    this.router.navigate(['/gluck-room/create'], { queryParams: { mode: 'bulk' } });
   }
 
   editSession(id: string, event: Event): void {
