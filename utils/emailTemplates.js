@@ -289,39 +289,83 @@ function buildSignupEmailOtpEmail({ name, otp, expiresMinutes = 10 }) {
 
 // ─── Signup: admin notification when proof is uploaded ───────────────────────
 
+function proofDetailRow(label, value) {
+  if (value === undefined || value === null || value === '') return '';
+  return `
+        <tr>
+          <td style="padding:6px 0;color:#64748b;font-size:13px;width:160px;font-weight:600;vertical-align:top;">${escapeHtml(label)}</td>
+          <td style="padding:6px 0;color:#1e293b;font-size:13px;">${escapeHtml(String(value))}</td>
+        </tr>`;
+}
+
 /**
  * @param {object} params
  * @param {string} params.studentName
  * @param {string} params.studentEmail
+ * @param {string} [params.regNo]
+ * @param {string} [params.phoneNumber]
+ * @param {string} [params.whatsappNumber]
+ * @param {string} [params.nationality]
+ * @param {string} [params.address]
+ * @param {string} [params.learnFromLanguage]
  * @param {string} params.level
  * @param {string} params.subscription
  * @param {number} params.amount
  * @param {string} params.currency
+ * @param {string} [params.paymentMethod]
+ * @param {string} [params.proofFileName]
+ * @param {string} [params.proofNote]
  * @param {string} params.adminUrl  - direct link to Req Payment pending approvals
  */
-function buildSignupProofReceivedAdminEmail({ studentName, studentEmail, level, subscription, amount, currency, adminUrl }) {
+function buildSignupProofReceivedAdminEmail({
+  studentName,
+  studentEmail,
+  regNo,
+  phoneNumber,
+  whatsappNumber,
+  nationality,
+  address,
+  learnFromLanguage,
+  level,
+  subscription,
+  amount,
+  currency,
+  paymentMethod,
+  proofFileName,
+  proofNote,
+  adminUrl,
+}) {
+  const amountStr =
+    amount != null && Number.isFinite(Number(amount))
+      ? `${currency || ''} ${Number(amount).toLocaleString('en-IN')}`.trim()
+      : '';
+
+  const detailRows = [
+    proofDetailRow('Student Name', studentName),
+    proofDetailRow('Email', studentEmail),
+    proofDetailRow('Web App ID', regNo),
+    proofDetailRow('Phone', phoneNumber),
+    proofDetailRow('WhatsApp', whatsappNumber),
+    proofDetailRow('Nationality', nationality),
+    proofDetailRow('Address', address),
+    proofDetailRow('Learn-from language', learnFromLanguage),
+    proofDetailRow('German Level', level),
+    proofDetailRow('Plan', subscription),
+    proofDetailRow('Amount', amountStr),
+    proofDetailRow('Payment method', paymentMethod || 'Bank transfer (manual proof)'),
+    proofDetailRow('Proof file', proofFileName),
+  ].join('');
+
   return {
     subject: `New Signup Payment Proof — ${escapeHtml(studentName)}`,
     html: emailHeader('New Signup Payment Proof') + `
-      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">A new student has submitted a payment proof and is awaiting approval.</p>
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
-        <tr>
-          <td style="padding:6px 0;color:#64748b;font-size:13px;width:140px;font-weight:600;">Student Name</td>
-          <td style="padding:6px 0;color:#1e293b;font-size:13px;">${escapeHtml(studentName)}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 0;color:#64748b;font-size:13px;font-weight:600;">Email</td>
-          <td style="padding:6px 0;color:#1e293b;font-size:13px;">${escapeHtml(studentEmail)}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 0;color:#64748b;font-size:13px;font-weight:600;">Level / Plan</td>
-          <td style="padding:6px 0;color:#1e293b;font-size:13px;">${escapeHtml(level || '')} / ${escapeHtml(subscription || '')}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 0;color:#64748b;font-size:13px;font-weight:600;">Amount</td>
-          <td style="padding:6px 0;color:#1e293b;font-size:13px;font-weight:700;">${escapeHtml(currency)} ${amount?.toLocaleString?.() ?? amount}</td>
-        </tr>
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+        A student submitted a <strong>manual payment proof</strong> during self-signup. Please review the attached screenshot and approve in the admin panel.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;border:1px solid #e2e8f0;border-radius:10px;">
+        ${detailRows}
       </table>
+      ${proofNote ? `<p style="margin:0 0 20px;color:#64748b;font-size:13px;">${escapeHtml(proofNote)}</p>` : ''}
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:4px 0 24px;">
           <a href="${adminUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 30px;border-radius:8px;">

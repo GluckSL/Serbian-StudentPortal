@@ -14,7 +14,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const { setUserPassword } = require('../utils/setUserPassword');
 const CrmUpsertIdempotency = require('../models/CrmUpsertIdempotency');
-const transporter = require('../config/emailConfig');
+const { sendStudentSignupLinkEmail } = require('../utils/sendStudentSignupLink');
 const { generateRegNo, generatePassword, normalizePhone } = require('../utils/userRegistration');
 const { scheduleDispatchEventResilient, sanitizeUserDoc } = require('./studentPortalCrmWebhook');
 const { toStudentDto } = require('./crmStudentExport');
@@ -404,9 +404,10 @@ async function executeUpsert(body, correlationId) {
       password: 'placeholder', // overwritten by setUserPassword below
       registeredAt: new Date(),
       createdAt: new Date(),
+      ...(createLogin ? { isActive: false, signupSource: 'crm_sync' } : {}),
     });
     await setUserPassword(candidate, passwordPlain);
-    candidate.mustChangePassword = true;
+    candidate.mustChangePassword = createLogin ? false : true;
 
     try {
       await candidate.save();
@@ -448,35 +449,28 @@ async function executeUpsert(body, correlationId) {
     throw validationError('Could not allocate a unique registration number — please retry.');
   }
 
-  let credentialsSentThisRequest = false;
+  let signupLinkSentThisRequest = false;
   if (
     createLogin &&
     sendEmail &&
     !persistedUser.email.endsWith('@sync.gluckportal.local') &&
-    transporter &&
     !persistedUser.lastCredentialsEmailSent
   ) {
     try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: persistedUser.email,
-        subject: 'Welcome to Gluck Global Student Portal',
-        html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6">
-          <p>Hello ${name},</p>
-          <p>You have been registered on the <strong>Gluck Global Student Portal</strong>. Your login credentials are:</p>
-          <ul>
-            <li><strong>Web App ID:</strong> ${persistedUser.regNo}</li>
-            <li><strong>Password:</strong> ${passwordPlain}</li>
-          </ul>
-          <p>Access the portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p>
-          <p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p>
-        </div>`,
+      const sent = await sendStudentSignupLinkEmail(persistedUser, {
+        name,
+        level: merged.level,
+        subscription: merged.subscription,
+        phoneNumber: merged.phoneNumber,
+        whatsappNumber: merged.whatsappNumber,
       });
-      persistedUser.lastCredentialsEmailSent = new Date();
-      await persistedUser.save();
-      credentialsSentThisRequest = true;
+      if (sent.ok) {
+        persistedUser.lastCredentialsEmailSent = new Date();
+        await persistedUser.save();
+        signupLinkSentThisRequest = true;
+      }
     } catch (emailErr) {
-      console.warn('[crmStudentUpsert] credentials email failed:', emailErr.message);
+      console.warn('[crmStudentUpsert] signup link email failed:', emailErr.message);
     }
   }
 
@@ -490,8 +484,8 @@ async function executeUpsert(body, correlationId) {
   return {
     action: 'created',
     data: toStudentDto(persistedUser.toObject({ virtuals: false })),
-    ...(createLogin ? { credentials: { regNo: persistedUser.regNo, password: passwordPlain } } : {}),
-    ...(credentialsSentThisRequest ? { credentialsEmailSent: true } : {}),
+    ...(createLogin ? { credentials: { regNo: persistedUser.regNo } } : {}),
+    ...(signupLinkSentThisRequest ? { signupLinkEmailSent: true, credentialsEmailSent: true } : {}),
   };
 }
 
@@ -524,6 +518,7 @@ async function upsertStudentFromCrm(rawBody) {
       action: result.action,
       data: result.data,
       ...(result.credentials ? { credentials: result.credentials } : {}),
+      ...(result.signupLinkEmailSent ? { signupLinkEmailSent: result.signupLinkEmailSent } : {}),
       ...(result.credentialsEmailSent ? { credentialsEmailSent: result.credentialsEmailSent } : {}),
     };
 
