@@ -16,6 +16,7 @@ const { crmTokenAuth } = require('../middleware/crmTokenAuth');
 const { toStudentDto } = require('../services/crmStudentExport');
 const { upsertStudentFromCrm } = require('../services/crmStudentUpsert');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
+const { applyStudentCountryFilters } = require('../utils/studentCountry');
 
 async function batchParticipantsAndSchedules(batchName) {
   const name = String(batchName || '').trim();
@@ -207,6 +208,8 @@ router.get('/students', async (req, res) => {
       languageLevelOpted,
       leadSource,
       stream,
+      phoneCountry,
+      loginCountry,
       advField,
       advValue
     } = req.query;
@@ -223,6 +226,7 @@ router.get('/students', async (req, res) => {
     if (languageLevelOpted) query.languageLevelOpted = String(languageLevelOpted).trim();
     if (leadSource) query.leadSource = String(leadSource).trim();
     if (stream) query.stream = String(stream).trim();
+    applyStudentCountryFilters(query, { phoneCountry, loginCountry });
 
     if (teacherName) {
       const matchingTeachers = await User.find({

@@ -1,6 +1,7 @@
 // models/User.js
 
 const mongoose = require("mongoose");
+const { detectPhoneCountry } = require("../utils/phoneCountryDetect");
 
 const completionDates = new mongoose.Schema({
   A1CompletionDate: { type: Date },
@@ -59,6 +60,10 @@ const UserSchema = new mongoose.Schema({
   profilePic: { type: String, default: "" },
   subscriptionExpiry: { type: Date, default: null },
   lastLogin: { type: Date, default: null },
+  /** Normalized: India | Sri Lanka | Russia | Other | Unknown — from latest login IP/headers */
+  lastLoginCountry: { type: String, default: '' },
+  /** Normalized from phoneNumber / whatsappNumber — India | Sri Lanka | Russia | Other | Unknown */
+  phoneCountry: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   registeredAt: { type: Date, default: Date.now },
@@ -141,5 +146,12 @@ UserSchema.index(
   { crmExternalId: 1 },
   { unique: true, sparse: true, partialFilterExpression: { crmExternalId: { $gt: '' } } }
 );
+
+UserSchema.pre('save', function setPhoneCountry(next) {
+  if (this.role === 'STUDENT') {
+    this.phoneCountry = detectPhoneCountry(this.phoneNumber, this.whatsappNumber);
+  }
+  next();
+});
 
 module.exports = mongoose.model("User", UserSchema);

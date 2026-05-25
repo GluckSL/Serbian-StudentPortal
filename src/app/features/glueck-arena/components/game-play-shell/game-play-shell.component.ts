@@ -290,9 +290,9 @@ export interface IMResult {
 
     .shell-game-wrap {
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr) 300px;
+      grid-template-columns: 280px minmax(0, 1fr);
       gap: 16px;
-      align-items: stretch;
+      align-items: start;
       width: 100%;
     }
     .shell-game-wrap__left {

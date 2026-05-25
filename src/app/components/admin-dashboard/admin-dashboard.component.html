@@ -18,7 +18,7 @@
         </div>
         <div class="admin-header-stat">
           <div class="stat-item stat-item--elevated">
-            <span class="stat-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
+            <span class="stat-number">{{ displayStudentCount() }}</span>
             <span class="stat-label">Students in portal</span>
             <span class="stat-hint" *ngIf="!hasActiveStudentFilters() && portalStudentCounts.portalTotal">
               {{ portalStudentCounts.portalCrmLinked }} linked to Monday CRM ·
@@ -259,7 +259,7 @@
               </div>
               <div class="filter-header-actions">
                 <div class="filter-total-count">
-                  <span class="count-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
+                  <span class="count-number">{{ displayStudentCount() }}</span>
                   <span class="count-label">total</span>
                 </div>
                 <button
@@ -389,6 +389,20 @@
                   <option *ngFor="let l of filterOptions.languageLevelOpted" [value]="l">{{ l }}</option>
                 </select>
               </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Phone country</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.phoneCountry">
+                  <option value="">All countries</option>
+                  <option *ngFor="let c of filterOptions.phoneCountries" [value]="c">{{ c }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Login country</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.loginCountry">
+                  <option value="">All countries</option>
+                  <option *ngFor="let c of filterOptions.loginCountries" [value]="c">{{ c }}</option>
+                </select>
+              </div>
 
               <!-- Search Action -->
               <div class="col-xl-12 col-lg-12">
@@ -467,6 +481,8 @@
                   <th *ngIf="isColVisible('enrollmentDate')">Enrollment</th>
                   <th *ngIf="isColVisible('teacherIncharge')">Teacher in charge</th>
                   <th *ngIf="isColVisible('whatsappNumber')">WhatsApp</th>
+                  <th *ngIf="isColVisible('phoneCountry')">Phone country</th>
+                  <th *ngIf="isColVisible('lastLoginCountry')">Login country</th>
                   <th>Status</th>
                   <th>Assigned Teacher</th>
                   <th>Last Credentials Sent</th>
@@ -518,6 +534,8 @@
                   </td>
                   <td *ngIf="isColVisible('teacherIncharge')" class="crm-cell">{{ crmCellDisplay(student, 'teacherIncharge') }}</td>
                   <td *ngIf="isColVisible('whatsappNumber')" class="crm-cell">{{ crmCellDisplay(student, 'whatsappNumber') }}</td>
+                  <td *ngIf="isColVisible('phoneCountry')" class="crm-cell">{{ countryCellDisplay(student, 'phoneCountry') }}</td>
+                  <td *ngIf="isColVisible('lastLoginCountry')" class="crm-cell">{{ countryCellDisplay(student, 'lastLoginCountry') }}</td>
                   <td>
                     <span class="badge student-status-pill" [ngClass]="{
                       'student-status--done': student.studentStatus === 'COMPLETED',

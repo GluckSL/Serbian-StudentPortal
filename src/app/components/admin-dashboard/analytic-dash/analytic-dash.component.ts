@@ -119,7 +119,9 @@ export class AnalyticDashComponent implements OnInit {
     teacherName: '',
     servicesOpted: '',
     qualifications: '',
-    languageLevelOpted: ''
+    languageLevelOpted: '',
+    phoneCountry: '',
+    loginCountry: ''
   };
 
   /** Distinct values for CRM dropdowns (from `/admin/students/filter-options`) */
@@ -127,7 +129,9 @@ export class AnalyticDashComponent implements OnInit {
     batches: [] as string[],
     servicesOpted: [] as string[],
     qualifications: [] as string[],
-    languageLevelOpted: [] as string[]
+    languageLevelOpted: [] as string[],
+    phoneCountries: [] as string[],
+    loginCountries: [] as string[]
   };
 
   plan: string[] = ['PLATINUM', 'SILVER'];
@@ -426,7 +430,20 @@ export class AnalyticDashComponent implements OnInit {
   totalStudentsCount(): number {
     return this.totalStudents;
   }
-  
+
+  hasActiveStudentFilters(): boolean {
+    const f = this.filters;
+    return !!(
+      f.level || f.plan || f.batch || f.studentStatus || f.studentName || f.teacherName ||
+      f.servicesOpted || f.qualifications || f.languageLevelOpted ||
+      f.phoneCountry || f.loginCountry || this.appliedAdvField
+    );
+  }
+
+  displayStudentCount(): number {
+    return this.hasActiveStudentFilters() ? this.filteredStudentCount : this.totalStudentsCount();
+  }
+
   fetchStudents(page: number = this.currentPage): void {
     this.loading = true;
     this.currentPage = page;
@@ -444,6 +461,8 @@ export class AnalyticDashComponent implements OnInit {
     if (this.filters.servicesOpted) params = params.set('servicesOpted', this.filters.servicesOpted);
     if (this.filters.qualifications) params = params.set('qualifications', this.filters.qualifications);
     if (this.filters.languageLevelOpted) params = params.set('languageLevelOpted', this.filters.languageLevelOpted);
+    if (this.filters.phoneCountry) params = params.set('phoneCountry', this.filters.phoneCountry);
+    if (this.filters.loginCountry) params = params.set('loginCountry', this.filters.loginCountry);
     if (this.appliedAdvField && this.appliedAdvValue) {
       params = params.set('advField', this.appliedAdvField).set('advValue', this.appliedAdvValue);
     }
@@ -494,6 +513,8 @@ export class AnalyticDashComponent implements OnInit {
         servicesOpted?: string[];
         qualifications?: string[];
         languageLevelOpted?: string[];
+        phoneCountries?: string[];
+        loginCountries?: string[];
       }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
       .subscribe({
         next: (res) => {
@@ -502,6 +523,8 @@ export class AnalyticDashComponent implements OnInit {
           this.filterOptions.servicesOpted = res.servicesOpted ?? [];
           this.filterOptions.qualifications = res.qualifications ?? [];
           this.filterOptions.languageLevelOpted = res.languageLevelOpted ?? [];
+          this.filterOptions.phoneCountries = res.phoneCountries ?? [];
+          this.filterOptions.loginCountries = res.loginCountries ?? [];
         },
         error: () => {
           /* non-blocking */
@@ -562,7 +585,9 @@ export class AnalyticDashComponent implements OnInit {
       teacherName: '',
       servicesOpted: '',
       qualifications: '',
-      languageLevelOpted: ''
+      languageLevelOpted: '',
+      phoneCountry: '',
+      loginCountry: ''
     };
     this.studentNameControl.setValue('');
     this.teacherNameControl.setValue('');

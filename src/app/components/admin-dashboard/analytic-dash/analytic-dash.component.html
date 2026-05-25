@@ -18,7 +18,7 @@
         </div>
         <div class="admin-header-stat">
           <div class="stat-item stat-item--elevated">
-            <span class="stat-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
+            <span class="stat-number">{{ displayStudentCount() }}</span>
             <span class="stat-label">Students</span>
             <span class="stat-hint">matching filters</span>
           </div>
@@ -113,7 +113,7 @@
               </div>
               <div class="filter-header-actions">
                 <div class="filter-total-count">
-                  <span class="count-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
+                  <span class="count-number">{{ displayStudentCount() }}</span>
                   <span class="count-label">total</span>
                 </div>
                 <button
@@ -241,6 +241,20 @@
                 <select class="form-select filter-select" [(ngModel)]="filters.languageLevelOpted">
                   <option value="">All levels</option>
                   <option *ngFor="let l of filterOptions.languageLevelOpted" [value]="l">{{ l }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Phone country</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.phoneCountry">
+                  <option value="">All countries</option>
+                  <option *ngFor="let c of filterOptions.phoneCountries" [value]="c">{{ c }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Login country</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.loginCountry">
+                  <option value="">All countries</option>
+                  <option *ngFor="let c of filterOptions.loginCountries" [value]="c">{{ c }}</option>
                 </select>
               </div>
 
