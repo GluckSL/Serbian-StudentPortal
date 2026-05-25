@@ -314,7 +314,6 @@ const allRemindersRoutes = require('./routes/allReminders');
 app.use('/api/allreminders', allRemindersRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
-app.use('/api/crm-student-portal', crmStudentPortalRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
