@@ -281,6 +281,17 @@
             <span class="bulk-select-label">All</span>
           </label>
           <h3>Questions <span class="q-count">{{ getTotalQuestionCount() }}</span></h3>
+          <button
+            *ngIf="isEditMode && selectedIndices.size > 0"
+            type="button"
+            class="btn-split-new-exercise"
+            (click)="openSplitToNewExerciseModal()"
+            [disabled]="splitSaving || saving"
+            matTooltip="Create a new exercise with the selected questions; they are removed from this one"
+          >
+            <span class="material-icons">call_split</span>
+            New exercise from {{ selectedIndices.size }} selected
+          </button>
         </div>
         <div class="questions-header-stats">
           <button class="btn-gen-answers" type="button" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI fills missing answers for fill-blank and Q&A questions">
@@ -310,6 +321,17 @@
           </span>
           <button type="button" class="btn-bulk-clear" (click)="clearSelection()" matTooltip="Deselect all">
             <span class="material-icons">close</span> Deselect all
+          </button>
+          <button
+            *ngIf="isEditMode"
+            type="button"
+            class="btn-split-new-exercise btn-split-new-exercise--toolbar"
+            (click)="openSplitToNewExerciseModal()"
+            [disabled]="splitSaving || saving"
+            matTooltip="Must leave at least one question in this exercise"
+          >
+            <span class="material-icons">call_split</span>
+            Make new exercise from selected
           </button>
         </div>
 
@@ -2023,6 +2045,126 @@
 
       <div class="empty-preview" *ngIf="questions.length === 0">
         <p>Add questions to see preview</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Split selected questions → new exercise -->
+  <div
+    class="split-modal-backdrop"
+    *ngIf="splitModalOpen"
+    (click)="closeSplitModal()"
+    role="presentation"
+  >
+    <div
+      class="split-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="split-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="split-modal-header">
+        <h2 id="split-modal-title">New exercise from selected questions</h2>
+        <button type="button" class="split-modal-close" (click)="closeSplitModal()" [disabled]="splitSaving" aria-label="Close">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <p class="split-modal-intro">
+        {{ selectedIndices.size }} question(s) will move to a new exercise (all types and content preserved) and be removed from this one.
+      </p>
+
+      <div class="split-modal-body info-grid info-grid--top">
+        <div class="field-group field-group--title">
+          <label class="field-label required" for="split-title">Title</label>
+          <input id="split-title" type="text" [(ngModel)]="splitTitle" class="field-input field-input--sm" maxlength="120" />
+        </div>
+        <div class="field-group field-group--daybox">
+          <label class="field-label" for="split-course-day">Journey day (1–200)</label>
+          <input
+            id="split-course-day"
+            type="number"
+            class="field-input field-input--day"
+            min="1"
+            max="200"
+            [ngModel]="splitCourseDayAsNumber"
+            (ngModelChange)="onSplitCourseDayNumberInput($event)"
+            placeholder="Any"
+          />
+        </div>
+        <div class="field-group field-group--day">
+          <label class="field-label" for="split-seq">Sequence (a, b, c…)</label>
+          <input
+            id="split-seq"
+            type="text"
+            class="field-input field-input--seq"
+            [(ngModel)]="splitSequenceLetter"
+            placeholder="e.g. b"
+            maxlength="1"
+          />
+        </div>
+        <div class="field-group field-group--desc">
+          <label class="field-label required" for="split-desc">Description</label>
+          <textarea id="split-desc" [(ngModel)]="splitDescription" class="field-input field-input--desc field-input--sm" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="split-modal-body info-grid info-grid--settings">
+        <div class="field-group">
+          <label class="field-label required" for="split-target">Target</label>
+          <select id="split-target" [(ngModel)]="splitTargetLanguage" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="split-native">Native</label>
+          <select id="split-native" [(ngModel)]="splitNativeLanguage" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label required" for="split-cefr">CEFR</label>
+          <select id="split-cefr" [(ngModel)]="splitLevel" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label required" for="split-cat">Category</label>
+          <select id="split-cat" [(ngModel)]="splitCategory" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="split-diff">Difficulty</label>
+          <select id="split-diff" [(ngModel)]="splitDifficulty" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="split-dur">Min</label>
+          <input id="split-dur" type="number" [(ngModel)]="splitEstimatedDuration" class="field-input field-input--number field-input--sm" min="1" max="120" />
+        </div>
+        <div class="field-group field-group--tags">
+          <label class="field-label" for="split-tags">Tags</label>
+          <input id="split-tags" type="text" [(ngModel)]="splitTags" class="field-input field-input--sm" placeholder="optional" />
+        </div>
+      </div>
+
+      <label class="split-visibility">
+        <input type="checkbox" [(ngModel)]="splitVisibleToStudents" />
+        <span>Publish to students immediately</span>
+      </label>
+
+      <div class="split-modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeSplitModal()" [disabled]="splitSaving">Cancel</button>
+        <button
+          type="button"
+          class="btn-save"
+          (click)="confirmSplitToNewExercise()"
+          [disabled]="splitSaving || !isSplitFormValid()"
+        >
+          <span class="material-icons">{{ splitSaving ? 'hourglass_empty' : 'call_split' }}</span>
+          {{ splitSaving ? 'Creating…' : 'Create & remove from this exercise' }}
+        </button>
       </div>
     </div>
   </div>

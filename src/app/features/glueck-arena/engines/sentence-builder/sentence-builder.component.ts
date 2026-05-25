@@ -74,7 +74,6 @@ export interface SBResult {
                     class="sb-word__pill"
                     [class.sb-word__pill--locked]="slotLocked[i]"
                     [class.sb-word__pill--wrong]="wrongFlash[i]">
-                    <span class="sb-word__pos">{{ i + 1 }}</span>
                     {{ positionSlots[i][0] }}
                     <mat-icon class="sb-word__tick" *ngIf="slotLocked[i]">check_circle</mat-icon>
                   </span>
@@ -199,7 +198,7 @@ export interface SBResult {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 10px 16px 10px 12px;
+      padding: 10px 16px;
       border-radius: 999px;
       font-size: 15px;
       font-weight: 700;
@@ -209,18 +208,6 @@ export interface SBResult {
       user-select: none;
       white-space: nowrap;
       transition: box-shadow 0.15s ease;
-    }
-
-    .sb-word__pos {
-      font-size: 10px;
-      font-weight: 800;
-      opacity: 0.75;
-      background: rgba(0,0,0,.15);
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
     }
 
     .sb-word__pill--locked {

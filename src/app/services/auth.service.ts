@@ -148,8 +148,10 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/signup`, user);
   }
 
-  login(user: { regNo: string; password: string; keepSessionActive?: boolean }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/login`, user).pipe(
+  login(user: { identifier?: string; regNo?: string; password: string; keepSessionActive?: boolean }): Observable<any> {
+    // Send identifier (new field); backend also accepts legacy regNo
+    const payload = { identifier: user.identifier || user.regNo, password: user.password, keepSessionActive: user.keepSessionActive };
+    return this.http.post<any>(`${this.apiUrl}/auth/login`, payload).pipe(
       tap((response: any) => {
         if (response?.token) {
           try {
@@ -163,6 +165,75 @@ export class AuthService {
         }
       })
     );
+  }
+
+  requestPasswordReset(email: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/forgot-password/request`, { email });
+  }
+
+  resetPassword(data: { email: string; otp: string; newPassword: string; confirmPassword: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/forgot-password/reset`, data);
+  }
+
+  changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }): Observable<any> {
+    return this.http.put(`${this.apiUrl}/auth/change-password`, data);
+  }
+
+  /** Flow A: request email change — admin approval required */
+  requestSetupEmailChange(data: {
+    setupToken: string;
+    newEmail: string;
+    newPassword: string;
+    confirmPassword: string;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/setup/request-email-change`, data);
+  }
+
+  /** Flow B step 1: send OTP to current email */
+  sendSetupOtp(setupToken: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/setup/send-otp`, { setupToken });
+  }
+
+  /** Flow B step 2: verify OTP and set password, then log in */
+  completePasswordSetup(data: {
+    setupToken: string;
+    otp: string;
+    newPassword: string;
+    confirmPassword: string;
+    keepSessionActive?: boolean;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/setup/complete`, data).pipe(
+      tap((response: any) => {
+        if (response?.token) {
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, response.token);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (response?.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      })
+    );
+  }
+
+  /** Admin: get email change requests */
+  getEmailChangeRequests(status = 'pending'): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/email-change-requests`, {
+      params: { status },
+      withCredentials: true,
+    });
+  }
+
+  /** Admin: approve an email change request */
+  approveEmailChangeRequest(id: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/email-change-requests/${id}/approve`, {}, { withCredentials: true });
+  }
+
+  /** Admin: reject an email change request */
+  rejectEmailChangeRequest(id: string, reason = ''): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/email-change-requests/${id}/reject`, { reason }, { withCredentials: true });
   }
 
   confirmWithdrawalStatus(data: {
@@ -315,6 +386,10 @@ export class AuthService {
   // Resend credentials to a student
   resendCredentials(studentId: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/auth/resend-credentials/${studentId}`, {});
+  }
+
+  sendSignupLink(studentId: string, email: string, name?: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/admin/signup-link`, { email, name });
   }
 
   // Method to perform authenticated request

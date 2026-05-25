@@ -2,6 +2,7 @@
 
 require('dotenv').config();  // Load environment variables
 
+const crypto = require('crypto');
 const express = require("express");
 const axios = require("axios");
 const cron = require("node-cron");
@@ -29,6 +30,66 @@ const {
   sendWithdrawalLoginAttemptEmail,
   sendWithdrawalDecisionEmail,
 } = require('../services/withdrawalLoginNotification.service');
+const { setUserPassword } = require('../utils/setUserPassword');
+const { studentRequiresPasswordSetup } = require('../utils/studentPasswordSetup');
+const {
+  buildPasswordResetOtpEmail,
+  buildEmailChangeOtpEmail,
+  buildPortalCredentialsEmail,
+  buildWelcomeOneTimePasswordEmail,
+  buildSignupLinkEmail,
+} = require('../utils/emailTemplates');
+const PasswordResetOtp = require('../models/PasswordResetOtp');
+const EmailChangeOtp = require('../models/EmailChangeOtp');
+const StudentSignupApplication = require('../models/StudentSignupApplication');
+const {
+  forgotPasswordRequestLimiter,
+  forgotPasswordResetLimiter,
+  loginLimiter,
+  setupEmailOtpLimiter,
+  setupCompleteLimiter,
+} = require('../middleware/authRateLimit');
+
+function signPasswordSetupToken(userId) {
+  return jwt.sign(
+    { id: String(userId), purpose: 'password_setup' },
+    JWT_SECRET,
+    { expiresIn: '30m' }
+  );
+}
+
+function verifyPasswordSetupToken(token) {
+  const decoded = jwt.verify(token, JWT_SECRET);
+  if (decoded.purpose !== 'password_setup' || !decoded.id) {
+    throw new Error('Invalid setup token');
+  }
+  return decoded;
+}
+
+function issueLoginResponse(user, keepSessionActive, res) {
+  const remember = Boolean(keepSessionActive);
+  const jwtExpires = remember ? '30d' : '24h';
+  const token = jwt.sign(
+    { id: user._id, role: user.role, name: user.name },
+    JWT_SECRET,
+    { expiresIn: jwtExpires }
+  );
+  return res.json({
+    token,
+    user: {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      subscription: user.subscription,
+      profilePhoto: user.profilePhoto || null,
+      sidebarPermissions: user.sidebarPermissions || [],
+      teacherTabPermissions: user.teacherTabPermissions || [],
+      sidebarAccessLevels: user.sidebarAccessLevels || {},
+      sidebarDeletePermissions: user.sidebarDeletePermissions || [],
+      teacherTabAccessLevels: user.teacherTabAccessLevels || {},
+    },
+  });
+}
 
 function loginRequestMeta(req) {
   return {
@@ -396,6 +457,7 @@ function ensureStudentCreateFields(data) {
   if (!d.level) d.level = 'A1';
   d.batch = normalizeBatch(d.batch, d.subscription);
   if (!Array.isArray(d.medium) || !d.medium.length) d.medium = ['Not set'];
+  d.mustChangePassword = true;
   return d;
 }
 
@@ -656,17 +718,17 @@ async function runMondaySync() {
       } else {
         const regNo = await allocStudentRegNo();
         const passwordPlain = await generatePassword('STUDENT', regNo);
-        const hashedPassword = await bcrypt.hash(passwordPlain, 10);
         const createFields = ensureStudentCreateFields({
           ...updateData,
           email,
           regNo,
-          password: hashedPassword,
+          password: 'placeholder', // overwritten by setUserPassword below
           role: 'STUDENT',
           registeredAt: updateData.enrollmentDate || new Date(),
           createdAt: new Date(),
         });
         const newUser = new User(createFields);
+        await setUserPassword(newUser, passwordPlain);
         await newUser.save();
         if (studentStatus !== 'WITHDREW') {
           try {
@@ -710,17 +772,17 @@ async function runMondaySync() {
           if ((dupField === 'regNo' || dupField === 'crmExternalId') && studentStatus !== undefined) {
             const regNo = await allocStudentRegNo();
             const passwordPlain = await generatePassword('STUDENT', regNo);
-            const hashedPassword = await bcrypt.hash(passwordPlain, 10);
             const createFields = ensureStudentCreateFields({
               ...updateData,
               email,
               regNo,
-              password: hashedPassword,
+              password: 'placeholder', // overwritten by setUserPassword below
               role: 'STUDENT',
               registeredAt: updateData.enrollmentDate || new Date(),
               createdAt: new Date(),
             });
             const newUser = new User(createFields);
+            await setUserPassword(newUser, passwordPlain);
             await newUser.save();
             if (studentStatus !== 'WITHDREW') {
               try {
@@ -1130,17 +1192,18 @@ router.post("/signup", async (req, res) => {
     for (let offset = 0; offset < MAX_REGNO_CANDIDATES; offset++) {
       const regNo = regPrefix + String(regStart + offset).padStart(3, "0");
       password = await generatePassword(normalizedRole, regNo);
-      const hashedPassword = await bcrypt.hash(password, 10);
 
       user = new User({
         regNo,
         name: normalizedName,
         email: normalizedEmail,
-        password: hashedPassword,
+        password: 'placeholder', // will be overwritten by setUserPassword below
         role: normalizedRole
       });
+      await setUserPassword(user, password);
 
       if (user.role === "STUDENT") {
+        user.mustChangePassword = true;
         user.subscription = subscription;
         user.level = level;
         user.batch = batch;
@@ -1226,45 +1289,57 @@ router.post("/signup", async (req, res) => {
       user.role === "SUB_ADMIN" ? !!sendCredentialsEmail : true;
 
     if (shouldSendCredentialsEmail) {
-      // âœ‰ï¸ Send email
-      const passwordPlain = password; // Store plain password temporarily for email
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: user.email,
-        subject: "Welcome to Gluck Global Student Portal",
-        html: `
-          <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-            <p>Hello ${user.name},</p>
-
-            <p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p>
-
-            <ul>
-              <li><strong>Web App ID:</strong> ${user.regNo}</li>
-              <li><strong>Password:</strong> ${passwordPlain}</li>
-            </ul>
-
-            <p>Please keep this information safe and do not share it with anyone.</p>
-
-            <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
-
-            <p>Best regards,<br>
-            <strong>Gluck Global Pvt Ltd</strong></p>
-          </div>
-        `
-      };
-
-      try {
-        await transporter.sendMail(mailOptions);
-        console.log("âœ… Email sent to", user.email);
-
-        // Update lastCredentialsEmailSent timestamp
-        user.lastCredentialsEmailSent = new Date();
-        await user.save();
-      } catch (err) {
-        console.error("âŒ Email sending failed:", err);
+      if (user.role === 'STUDENT') {
+        // New student path: send a signup link so they set their own password
+        try {
+          const signupApp = await StudentSignupApplication.create({
+            name: user.name,
+            email: user.email,
+            emailVerifiedAt: new Date(),
+            status: 'payment_pending',
+            userId: user._id,
+          });
+          const frontendUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
+          const signupUrl = `${frontendUrl}/signup/apply?token=${signupApp.applicationToken}`;
+          const linkMail = buildSignupLinkEmail({ name: user.name, signupUrl });
+          await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject: linkMail.subject, html: linkMail.html });
+          console.log('Email sent to', user.email);
+          user.lastCredentialsEmailSent = new Date();
+          await user.save();
+        } catch (emailErr) {
+          console.error('Signup link email failed:', emailErr?.message);
+        }
+      } else {
+        // Non-student (teachers/admins): keep sending credentials
+        const passwordPlain = password;
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: user.email,
+          subject: 'Welcome to Gluck Global Student Portal',
+          html: `
+        <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
+          <p>Hello ${user.name},</p>
+          <p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p>
+          <ul>
+            <li><strong>Web App ID:</strong> ${user.regNo}</li>
+            <li><strong>Password:</strong> ${passwordPlain}</li>
+          </ul>
+          <p>Please keep this information safe and do not share it with anyone.</p>
+          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
+          <p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p>
+        </div>
+      `,
+        };
+        try {
+          await transporter.sendMail(mailOptions);
+          console.log('Email sent to', user.email);
+          user.lastCredentialsEmailSent = new Date();
+          await user.save();
+        } catch (err) {
+          console.error('Email sending failed:', err);
+        }
       }
     }
-
     const responsePayload = { msg: "User created successfully", user };
     if (user.role === "SUB_ADMIN") {
       responsePayload.generatedCredentials = {
@@ -1290,12 +1365,22 @@ router.post("/signup", async (req, res) => {
 });
 
 
-// âœ… Login
-router.post("/login", async (req, res) => {
+// ✅ Login — accepts regNo or email as identifier
+router.post("/login", loginLimiter, async (req, res) => {
   try {
-    const { regNo, password, keepSessionActive } = req.body;
+    // Support both legacy `regNo` field and new `identifier` field from updated frontend
+    const identifier = (req.body.identifier || req.body.regNo || '').trim();
+    const { password, keepSessionActive } = req.body;
 
-    const user = await User.findOne({ regNo });
+    if (!identifier) return res.status(400).json({ msg: "Invalid credentials" });
+
+    // Route lookup: email if identifier contains @, otherwise treat as regNo
+    let user;
+    if (identifier.includes('@')) {
+      user = await User.findOne({ email: identifier.toLowerCase() });
+    } else {
+      user = await User.findOne({ regNo: identifier });
+    }
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -1325,6 +1410,22 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // 🔐 First-login / ongoing student — set permanent password before access
+    if (studentRequiresPasswordSetup(user)) {
+      const setupToken = signPasswordSetupToken(user._id);
+      return res.json({
+        requiresPasswordSetup: true,
+        setupToken,
+        studentInfo: {
+          studentId: String(user._id),
+          studentName: user.name,
+          email: user.email,
+          regNo: user.regNo,
+          studentStatus: user.studentStatus,
+        },
+      });
+    }
+
     // ✅ track last login + keep login history (best effort)
     try {
       user.lastLogin = new Date();
@@ -1340,40 +1441,335 @@ router.post("/login", async (req, res) => {
       console.warn("Failed to record login activity:", e?.message || e);
     }
 
-    const remember = Boolean(keepSessionActive);
-    const jwtExpires = remember ? '30d' : '24h';
-
-    const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role,
-        name: user.name
-      },
-      JWT_SECRET,
-      { expiresIn: jwtExpires }
-    );
-
-    // SPA stores JWT in localStorage (interceptor + HLS xhrSetup).
-    return res.json({
-      token,
-      user: {
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        subscription: user.subscription,
-        profilePhoto: user.profilePhoto || null,
-        sidebarPermissions: user.sidebarPermissions || [],
-        teacherTabPermissions: user.teacherTabPermissions || [],
-        sidebarAccessLevels: user.sidebarAccessLevels || {},
-        sidebarDeletePermissions: user.sidebarDeletePermissions || [],
-        teacherTabAccessLevels: user.teacherTabAccessLevels || {}
-      }
-    });
+    return issueLoginResponse(user, keepSessionActive, res);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+
+// ✅ First-login setup — Flow A: request email change (admin approval required)
+// Student submits new email + desired password → notifies admins → pending approval
+router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res) => {
+  const EmailChangeRequest = require('../models/EmailChangeRequest');
+  const { encryptPassword } = require('../utils/passwordRecoverable');
+  try {
+    const { setupToken, newEmail: rawNewEmail, newPassword, confirmPassword } = req.body;
+    if (!setupToken || !rawNewEmail || !newPassword || !confirmPassword) {
+      return res.status(400).json({ msg: 'All fields are required.' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ msg: 'Passwords do not match.' });
+    }
+
+    const decoded = verifyPasswordSetupToken(setupToken);
+    const user = await User.findById(decoded.id);
+    if (!user || user.role !== 'STUDENT') {
+      return res.status(400).json({ msg: 'Invalid setup session.' });
+    }
+
+    const newEmail = String(rawNewEmail).trim().toLowerCase();
+    if (!newEmail.includes('@')) {
+      return res.status(400).json({ msg: 'Please enter a valid email address.' });
+    }
+    if (newEmail === String(user.email).toLowerCase()) {
+      return res.status(400).json({ msg: 'New email must be different from your current email.' });
+    }
+    const taken = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
+    if (taken) {
+      return res.status(400).json({ msg: 'That email address is already registered to another account.' });
+    }
+
+    const newPasswordEncrypted = encryptPassword(newPassword) || newPassword; // fallback plain if key not set (dev only)
+
+    // Cancel any pending request from this user
+    await EmailChangeRequest.deleteMany({ userId: user._id, status: 'pending' });
+
+    await EmailChangeRequest.create({
+      userId: user._id,
+      studentName: user.name,
+      regNo: user.regNo,
+      currentEmail: user.email,
+      newEmail,
+      newPasswordEncrypted,
+    });
+
+    // Notify admin emails
+    const adminNotifyHtml = `
+<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1a1a2e;max-width:560px;">
+  <h2 style="color:#6c3fc5;">Email Change Request — Glück Global Portal</h2>
+  <p><strong>Student:</strong> ${user.name} (${user.regNo})</p>
+  <p><strong>Current Email:</strong> ${user.email}</p>
+  <p><strong>Requested New Email:</strong> ${newEmail}</p>
+  <p>Please review and approve/reject this request in the <a href="https://gluckstudentsportal.com/admin/support-tickets">Admin Panel → Support Tickets</a>.</p>
+  <p style="color:#9ca3af;font-size:12px;">This is an automated notification from the Glück Global Student Portal.</p>
+</div>`;
+
+    const adminEmails = ['languageschool@gluckglobal.com', 'sourav@gluckglobal.com'];
+    transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: adminEmails.join(', '),
+      subject: `Email Change Request: ${user.name} (${user.regNo})`,
+      html: adminNotifyHtml,
+    }).catch((e) => console.error('[setup/request-email-change] admin notify failed:', e?.message));
+
+    return res.json({
+      msg: 'Your request has been sent. The support team will review it and update your email soon. You will be notified once approved.',
+    });
+  } catch (err) {
+    console.error('[setup/request-email-change]', err);
+    if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
+    }
+    return res.status(500).json({ msg: 'Could not submit request. Please try again.' });
+  }
+});
+
+// ✅ First-login setup — Flow B Step 1: send OTP to current email
+router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
+  try {
+    const { setupToken } = req.body;
+    if (!setupToken) return res.status(400).json({ msg: 'Setup token is required.' });
+
+    const decoded = verifyPasswordSetupToken(setupToken);
+    const user = await User.findById(decoded.id);
+    if (!user || user.role !== 'STUDENT') {
+      return res.status(400).json({ msg: 'Invalid setup session.' });
+    }
+
+    await EmailChangeOtp.deleteMany({ userId: user._id });
+
+    const otp = String(crypto.randomInt(100000, 999999));
+    const otpHash = await bcrypt.hash(otp, await bcrypt.genSalt(10));
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await EmailChangeOtp.create({ userId: user._id, pendingNewEmail: user.email, otpHash, expiresAt });
+
+    const { subject, html } = buildPasswordResetOtpEmail({ name: user.name, otp, expiresMinutes: 15 });
+    await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject, html });
+
+    return res.json({ msg: `A verification code was sent to ${user.email}.`, email: user.email });
+  } catch (err) {
+    console.error('[setup/send-otp]', err);
+    if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
+    }
+    return res.status(500).json({ msg: 'Could not send verification code. Please try again.' });
+  }
+});
+
+// ✅ First-login setup — Flow B Step 2: verify OTP + set password → log in
+router.post("/setup/complete", setupCompleteLimiter, async (req, res) => {
+  try {
+    const { setupToken, otp, newPassword, confirmPassword, keepSessionActive } = req.body;
+
+    if (!setupToken || !otp || !newPassword || !confirmPassword) {
+      return res.status(400).json({ msg: 'All fields are required.' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ msg: 'Passwords do not match.' });
+    }
+
+    const decoded = verifyPasswordSetupToken(setupToken);
+    const user = await User.findById(decoded.id);
+    if (!user || user.role !== 'STUDENT') {
+      return res.status(400).json({ msg: 'Invalid setup session.' });
+    }
+    if (!studentRequiresPasswordSetup(user)) {
+      return res.status(400).json({ msg: 'Password setup is not required for this account.' });
+    }
+
+    const otpDoc = await EmailChangeOtp.findOne({ userId: user._id, used: false });
+    if (!otpDoc || otpDoc.expiresAt < new Date()) {
+      if (otpDoc) await EmailChangeOtp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ msg: 'Verification code expired. Please request a new one.' });
+    }
+    otpDoc.attempts += 1;
+    if (otpDoc.attempts > 5) {
+      await EmailChangeOtp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ msg: 'Too many invalid attempts. Please request a new code.' });
+    }
+    await otpDoc.save();
+
+    const otpValid = await bcrypt.compare(String(otp).trim(), otpDoc.otpHash);
+    if (!otpValid) {
+      return res.status(400).json({ msg: 'Incorrect verification code. Please try again.' });
+    }
+
+    otpDoc.used = true;
+    await otpDoc.save();
+
+    await setUserPassword(user, newPassword);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
+    user.lastLogin = new Date();
+    await user.save();
+
+    UserActivityLog.create({
+      userId: user._id, role: user.role, type: 'LOGIN',
+      ip: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.ip || '',
+      userAgent: req.headers['user-agent'] || '',
+    }).catch(() => {});
+
+    const credsMail = buildPortalCredentialsEmail({ name: user.name, regNo: user.regNo, email: user.email, password: newPassword });
+    transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject: credsMail.subject, html: credsMail.html })
+      .catch((e) => console.error('[setup/complete] email failed:', e?.message));
+
+    return issueLoginResponse(user, keepSessionActive, res);
+  } catch (err) {
+    console.error('[setup/complete]', err);
+    if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
+    }
+    return res.status(500).json({ msg: 'Could not complete setup. Please try again.' });
+  }
+});
+
+// ✅ Forgot Password — Step 1: Request OTP
+router.post("/forgot-password/request", forgotPasswordRequestLimiter, async (req, res) => {
+  // Always return generic 200 to prevent email enumeration
+  const GENERIC_RESPONSE = { msg: "If an account with that email exists, a reset code has been sent." };
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ msg: "A valid email address is required." });
+    }
+
+    const user = await User.findOne({ email, isActive: { $ne: false } });
+    if (!user) return res.json(GENERIC_RESPONSE); // Don't reveal non-existence
+
+    // Invalidate any previous unused OTPs for this email
+    await PasswordResetOtp.deleteMany({ email });
+
+    const otp = String(crypto.randomInt(100000, 999999));
+    const salt = await bcrypt.genSalt(10);
+    const otpHash = await bcrypt.hash(otp, salt);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await PasswordResetOtp.create({ email, otpHash, expiresAt });
+
+    const { subject, html } = buildPasswordResetOtpEmail({
+      name: user.name,
+      otp,
+      expiresMinutes: 15,
+    });
+
+    try {
+      await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject, html });
+    } catch (mailErr) {
+      console.error('[forgot-password] Email send failed:', mailErr.message);
+      // Still return generic 200; OTP is in DB but mail failed — user can retry
+    }
+
+    return res.json(GENERIC_RESPONSE);
+  } catch (err) {
+    console.error('[forgot-password/request]', err);
+    return res.json(GENERIC_RESPONSE); // Never reveal server errors to clients
+  }
+});
+
+// ✅ Forgot Password — Step 2: Verify OTP and set new password
+router.post("/forgot-password/reset", forgotPasswordResetLimiter, async (req, res) => {
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const otp = String(req.body.otp || '').trim();
+    const newPassword = (req.body.newPassword || '').trim();
+    const confirmPassword = (req.body.confirmPassword || '').trim();
+
+    if (!email || !otp || !newPassword || !confirmPassword) {
+      return res.status(400).json({ msg: "All fields are required." });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ msg: "Password must be at least 8 characters." });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ msg: "Passwords do not match." });
+    }
+
+    const otpDoc = await PasswordResetOtp.findOne({ email, used: false });
+    if (!otpDoc) {
+      return res.status(400).json({ msg: "Invalid or expired reset code. Please request a new one." });
+    }
+
+    if (otpDoc.expiresAt < new Date()) {
+      await PasswordResetOtp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ msg: "Reset code has expired. Please request a new one." });
+    }
+
+    // Increment attempt counter before verifying (prevent timing-based enumeration)
+    otpDoc.attempts += 1;
+    if (otpDoc.attempts > 5) {
+      await PasswordResetOtp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ msg: "Too many invalid attempts. Please request a new reset code." });
+    }
+    await otpDoc.save();
+
+    const isOtpValid = await bcrypt.compare(otp, otpDoc.otpHash);
+    if (!isOtpValid) {
+      return res.status(400).json({ msg: "Incorrect reset code. Please try again." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ msg: "Account not found." });
+    }
+
+    await setUserPassword(user, newPassword);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    // Mark OTP as used
+    otpDoc.used = true;
+    await otpDoc.save();
+
+    return res.json({ msg: "Password reset successfully. You can now log in with your new password." });
+  } catch (err) {
+    console.error('[forgot-password/reset]', err);
+    return res.status(500).json({ msg: "Something went wrong. Please try again." });
+  }
+});
+
+// ✅ Change Password (logged-in user)
+router.put("/change-password", verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ msg: "All fields are required." });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ msg: "New password must be at least 8 characters." });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ msg: "New passwords do not match." });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ msg: "User not found." });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ msg: "Current password is incorrect." });
+    }
+
+    await setUserPassword(user, newPassword);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    return res.json({ msg: "Password changed successfully." });
+  } catch (err) {
+    console.error('[change-password]', err);
+    return res.status(500).json({ msg: "Something went wrong. Please try again." });
+  }
+});
 
 // ⚠️ Withdrawal Confirmation — called when uncertain/withdrawl student responds to the modal
 router.post("/withdrawal-confirmation", async (req, res) => {
@@ -1509,8 +1905,9 @@ router.put("/admin-set-password/:id", verifyToken, checkRole(['ADMIN']), async (
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword.trim(), salt);
+    await setUserPassword(user, newPassword.trim());
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
     await user.save();
     res.status(200).json({ success: true, message: "Password updated successfully." });
   } catch (error) {
@@ -1533,8 +1930,9 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
     }
 
     const plainPassword = newPassword.trim();
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(plainPassword, salt);
+    await setUserPassword(user, plainPassword);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
     await user.save();
     console.log(`📧 Sending admin password email with App ID template for user ${user._id} (${user.regNo})`);
 
@@ -1936,39 +2334,25 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
       return res.status(400).json({ msg: "Credentials can only be resent to students" });
     }
 
-    // Generate a new password
+    // Generate a new one-time password
     const passwordPlain = await generatePassword(user.role, user.regNo);
-    const hashedPassword = await bcrypt.hash(passwordPlain, 10);
-
-    // Update user password and email sent timestamp
-    user.password = hashedPassword;
+    await setUserPassword(user, passwordPlain);
+    user.mustChangePassword = true;
+    user.passwordChangedAt = null;
     user.lastCredentialsEmailSent = new Date();
     await user.save();
 
-    // Send email with credentials
+    const welcomeMail = buildWelcomeOneTimePasswordEmail({
+      name: user.name,
+      regNo: user.regNo,
+      email: user.email,
+      password: passwordPlain,
+    });
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Your Gluck Global Student Portal Credentials",
-      html: `
-        <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-          <p>Hello ${user.name},</p>
-
-          <p>As requested, here are your login credentials for the <strong>Gluck Global Student Portal</strong>:</p>
-
-          <ul>
-            <li><strong>Web App ID:</strong> ${user.regNo}</li>
-            <li><strong>Password:</strong> ${passwordPlain}</li>
-          </ul>
-
-          <p>Please keep this information safe and do not share it with anyone.</p>
-
-          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
-
-          <p>Best regards,<br>
-          <strong>Gluck Global Pvt Ltd</strong></p>
-        </div>
-      `
+      subject: welcomeMail.subject,
+      html: welcomeMail.html,
     };
 
     try {
@@ -2177,14 +2561,13 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
         // Generate RegNo and Password
         const regNo = await generateRegNo("STUDENT");
         const passwordPlain = await generatePassword("STUDENT", regNo);
-        const hashedPassword = await bcrypt.hash(passwordPlain, 10);
 
         // Create new user
         const newUser = new User({
           name: student.name.trim(),
           email: student.email.trim().toLowerCase(),
           regNo,
-          password: hashedPassword,
+          password: 'placeholder', // overwritten by setUserPassword below
           role: "STUDENT",
           subscription: student.subscription.toUpperCase(),
           level: student.level.toUpperCase(),
@@ -2198,7 +2581,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           leadSource: student.leadSource ? student.leadSource.trim() : undefined
         });
 
-        // âœ… Auto-set start date for current level
+        // ✅ Auto-set start date for current level
         const level = student.level.toUpperCase();
         if (!newUser.courseStartDates) {
           newUser.courseStartDates = {};
@@ -2206,6 +2589,8 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
         const levelStartField = `${level}StartDate`;
         newUser.courseStartDates[levelStartField] = new Date();
 
+        await setUserPassword(newUser, passwordPlain);
+        newUser.mustChangePassword = true;
         await newUser.save();
 
         scheduleDispatchEvent({
@@ -2217,29 +2602,17 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
         // Send welcome email if requested
         if (sendEmails) {
           try {
+            const welcomeMail = buildWelcomeOneTimePasswordEmail({
+              name: newUser.name,
+              regNo,
+              email: newUser.email,
+              password: passwordPlain,
+            });
             await transporter.sendMail({
               from: process.env.EMAIL_USER,
               to: newUser.email,
-              subject: "Welcome to Gluck Global Student Portal",
-              html: `
-                <div style="font-family: Arial, sans-serif; color: #000000; line-height: 1.6;">
-                  <p>Hello ${newUser.name},</p>
-
-                  <p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p>
-
-                  <ul>
-                    <li><strong>Web App ID:</strong> ${regNo}</li>
-                    <li><strong>Password:</strong> ${passwordPlain}</li>
-                  </ul>
-
-                  <p>Please keep this information safe and do not share it with anyone.</p>
-
-                  <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
-
-                  <p>Best regards,<br>
-                  <strong>Gluck Global Pvt Ltd</strong></p>
-                </div>
-              `
+              subject: welcomeMail.subject,
+              html: welcomeMail.html,
             });
 
             // Update lastCredentialsEmailSent timestamp
@@ -2307,6 +2680,45 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
       message: 'Server error during bulk upload',
       error: error.message
     });
+  }
+});
+
+// ─── POST /admin/signup-link — send a signup link to a prospective student ───
+
+router.post('/admin/signup-link', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    if (!['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ msg: 'Forbidden' });
+    }
+    const { name, email, level, subscription } = req.body;
+    if (!email || !String(email).includes('@')) {
+      return res.status(400).json({ msg: 'A valid email is required.' });
+    }
+
+    // Create (or reuse) a signup application
+    let signupApp = await StudentSignupApplication.findOne({
+      email: email.trim().toLowerCase(),
+      status: { $in: ['draft', 'email_verified', 'documents_done', 'payment_pending'] },
+    }).sort({ updatedAt: -1 });
+    if (!signupApp) {
+      signupApp = await StudentSignupApplication.create({
+        name: name || '',
+        email: email.trim().toLowerCase(),
+        level: level || undefined,
+        subscription: subscription || undefined,
+        inviteToken: require('crypto').randomUUID(),
+      });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
+    const signupUrl = `${frontendUrl}/signup/apply?token=${signupApp.applicationToken}`;
+    const linkMail = buildSignupLinkEmail({ name: name || 'there', signupUrl });
+    await transporter.sendMail({ from: process.env.EMAIL_USER, to: email.trim().toLowerCase(), subject: linkMail.subject, html: linkMail.html });
+
+    return res.json({ success: true, msg: `Signup link sent to ${email}.`, applicationToken: signupApp.applicationToken });
+  } catch (err) {
+    console.error('[POST /auth/admin/signup-link]', err);
+    return res.status(500).json({ msg: 'Failed to send signup link. Please try again.' });
   }
 });
 

@@ -47,6 +47,7 @@ export class InteractiveGameService {
     questionId: string;
     typedWord?: string;
     orderedTokens?: string[];
+    articleGender?: string;
     responseTimeMs?: number;
     questionElapsedMs?: number;
   }): Observable<AnswerResult> {

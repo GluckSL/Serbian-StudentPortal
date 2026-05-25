@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const { setUserPassword } = require('../utils/setUserPassword');
 const CrmUpsertIdempotency = require('../models/CrmUpsertIdempotency');
 const transporter = require('../config/emailConfig');
 const { generateRegNo, generatePassword, normalizePhone } = require('../utils/userRegistration');
@@ -395,16 +396,17 @@ async function executeUpsert(body, correlationId) {
   for (let regAttempt = 0; regAttempt < 8; regAttempt++) {
     const regNo = await generateRegNo('STUDENT');
     passwordPlain = generatePassword('STUDENT', regNo);
-    const hashedPassword = await bcrypt.hash(passwordPlain, 10);
 
     const candidate = new User({
       ...merged,
       regNo,
       role: 'STUDENT',
-      password: hashedPassword,
+      password: 'placeholder', // overwritten by setUserPassword below
       registeredAt: new Date(),
       createdAt: new Date(),
     });
+    await setUserPassword(candidate, passwordPlain);
+    candidate.mustChangePassword = true;
 
     try {
       await candidate.save();

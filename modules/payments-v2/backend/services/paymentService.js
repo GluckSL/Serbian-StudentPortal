@@ -16,6 +16,9 @@ const receiptService = require('./receiptService');
 
 const getEmailService = () => require('./emailService');
 
+const { activatePublicSignupStudent } = require('../../../../utils/signupActivation');
+
+
 const logAudit = (data) => PaymentAuditLog.create(data).catch((e) => console.error('[Audit]', e.message));
 
 const getUser = (userId) =>
@@ -195,6 +198,22 @@ const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, 
   if (student.email) {
     getEmailService().sendPaymentApprovedEmail(student, { ...submission.toObject(), receiptNumber }).catch((e) => console.error('[Email]', e.message));
   }
+
+  // ── Public signup: activate account + send Web App ID / password welcome email ──
+  if (refreshedRequest.source === 'PUBLIC_SIGNUP') {
+    try {
+      const studentId = student._id || student;
+      const result = await activatePublicSignupStudent(studentId, {
+        paymentRequestId: refreshedRequest._id,
+      });
+      if (!result.ok && result.reason !== 'not_public_signup') {
+        console.warn('[paymentService] PUBLIC_SIGNUP activation:', result.reason);
+      }
+    } catch (hookErr) {
+      console.error('[paymentService] PUBLIC_SIGNUP activation hook failed:', hookErr?.message || hookErr);
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   return { submission: submission.toObject(), request: refreshedRequest.toObject(), receiptNumber, isFullyPaid };
 };

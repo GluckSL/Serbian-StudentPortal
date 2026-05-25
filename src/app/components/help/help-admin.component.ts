@@ -6,6 +6,16 @@ import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
 import { SupportTicket } from './help.component';
 
+export interface EmailChangeReq {
+  _id: string;
+  studentName: string;
+  regNo: string;
+  currentEmail: string;
+  newEmail: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
+
 @Component({
   selector: 'app-help-admin',
   standalone: true,
@@ -26,6 +36,11 @@ export class HelpAdminComponent implements OnInit {
   replyDraft: Record<string, string> = {};
   replyingId: string | null = null;
   replyError: string | null = null;
+
+  emailChangeRequests: EmailChangeReq[] = [];
+  emailChangeLoading = false;
+  emailChangeError = '';
+  processingEcrId: string | null = null;
 
   readonly pageSizeOptions = [10, 20, 50];
   pageSize = 20;
@@ -50,6 +65,7 @@ export class HelpAdminComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadTickets();
+    this.loadEmailChangeRequests();
   }
 
   loadTickets(): void {
@@ -74,6 +90,64 @@ export class HelpAdminComponent implements OnInit {
           this.loading = false;
         }
       });
+  }
+
+  loadEmailChangeRequests(): void {
+    this.emailChangeLoading = true;
+    this.emailChangeError = '';
+    this.http.get<{ success: boolean; data: EmailChangeReq[] }>(
+      `${environment.apiUrl}/admin/email-change-requests`,
+      { params: { status: 'pending' }, withCredentials: true }
+    ).subscribe({
+      next: (res) => {
+        this.emailChangeRequests = res?.data || [];
+        this.emailChangeLoading = false;
+      },
+      error: (err) => {
+        this.emailChangeError = err?.error?.message || 'Failed to load email change requests.';
+        this.emailChangeLoading = false;
+      }
+    });
+  }
+
+  approveEmailChange(req: EmailChangeReq): void {
+    if (this.processingEcrId) return;
+    this.processingEcrId = req._id;
+    this.emailChangeError = '';
+    this.http.post<{ success: boolean; message: string }>(
+      `${environment.apiUrl}/admin/email-change-requests/${req._id}/approve`,
+      {},
+      { withCredentials: true }
+    ).subscribe({
+      next: () => {
+        this.emailChangeRequests = this.emailChangeRequests.filter(r => r._id !== req._id);
+        this.processingEcrId = null;
+      },
+      error: (err) => {
+        this.emailChangeError = err?.error?.message || 'Failed to approve request.';
+        this.processingEcrId = null;
+      }
+    });
+  }
+
+  rejectEmailChange(req: EmailChangeReq): void {
+    if (this.processingEcrId) return;
+    this.processingEcrId = req._id;
+    this.emailChangeError = '';
+    this.http.post<{ success: boolean }>(
+      `${environment.apiUrl}/admin/email-change-requests/${req._id}/reject`,
+      {},
+      { withCredentials: true }
+    ).subscribe({
+      next: () => {
+        this.emailChangeRequests = this.emailChangeRequests.filter(r => r._id !== req._id);
+        this.processingEcrId = null;
+      },
+      error: (err) => {
+        this.emailChangeError = err?.error?.message || 'Failed to reject request.';
+        this.processingEcrId = null;
+      }
+    });
   }
 
   applyFilters(): void {

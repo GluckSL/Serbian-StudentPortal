@@ -1,0 +1,267 @@
+<div class="sw-container" [class.sw-container--payment]="currentStep === 2">
+
+  <!-- Step indicator — only on personal-info step (static: step 1 active, step 2 pending) -->
+  <div class="sw-steps" *ngIf="currentStep === 1">
+    <div class="sw-step sw-step--active">
+      <span class="sw-step__num">1</span>
+      <span class="sw-step__label">Personal Info</span>
+    </div>
+    <div class="sw-step__line"></div>
+    <div class="sw-step">
+      <span class="sw-step__num">2</span>
+      <span class="sw-step__label">Payment</span>
+    </div>
+  </div>
+
+  <!-- ── STEP 1 — personal info ────────────────────────────────────────── -->
+  <ng-container *ngIf="currentStep === 1">
+
+    <ng-container *ngIf="otpSubStep === 'info'">
+      <h3 class="sw-title">Tell us about yourself</h3>
+      <p class="sw-subtitle">Fill in your details, choose your course plan, and we'll send a verification code to your email.</p>
+
+      <div class="sw-grid sw-grid--2">
+        <div class="sw-field">
+          <label class="sw-label" for="sw-name">Full name <span class="sw-required">*</span></label>
+          <input id="sw-name" type="text" class="sw-input" [(ngModel)]="name" placeholder="Your full name" autocomplete="name" />
+        </div>
+        <div class="sw-field">
+          <label class="sw-label" for="sw-email">Email <span class="sw-required">*</span></label>
+          <input id="sw-email" type="email" class="sw-input" [(ngModel)]="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="sw-field">
+          <label class="sw-label" for="sw-phone">Phone number</label>
+          <input id="sw-phone" type="tel" class="sw-input" [(ngModel)]="phoneNumber" placeholder="+91 98765 43210" />
+        </div>
+        <div class="sw-field">
+          <label class="sw-label" for="sw-whatsapp">WhatsApp number</label>
+          <input id="sw-whatsapp" type="tel" class="sw-input" [(ngModel)]="whatsappNumber" placeholder="Same as phone if identical" />
+        </div>
+        <div class="sw-field sw-field--full">
+          <label class="sw-label" for="sw-address">Address</label>
+          <input id="sw-address" type="text" class="sw-input" [(ngModel)]="address" placeholder="City, State, Country" />
+        </div>
+        <div class="sw-field">
+          <label class="sw-label" for="sw-lang-level">German level opted <span class="sw-required">*</span></label>
+          <select id="sw-lang-level" class="sw-input sw-select" [(ngModel)]="languageLevelOpted">
+            <option value="">Select level</option>
+            <option *ngFor="let lvl of GERMAN_LEVEL_OPTIONS" [value]="lvl">{{ lvl }}</option>
+          </select>
+        </div>
+        <div class="sw-field">
+          <label class="sw-label" for="sw-plan">Plan <span class="sw-required">*</span></label>
+          <select id="sw-plan" class="sw-input sw-select" [(ngModel)]="selectedSubscription">
+            <option value="">Select plan</option>
+            <option *ngFor="let s of SUBSCRIPTIONS" [value]="s.value">{{ s.label }}</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="sw-hint sw-hint--currency" *ngIf="languageLevelOpted && selectedSubscription && previewAmount">
+        <i class="fas fa-info-circle"></i>
+        Estimated fee: <strong>{{ formattedPreviewAmount }}</strong>
+        ({{ selectedCurrency }} — based on your phone number)
+      </p>
+
+      <div class="sw-field">
+        <label class="sw-label">Learn German from this language <span class="sw-required">*</span></label>
+        <p class="sw-hint">Select the language you are most comfortable learning in.</p>
+        <div class="sw-medium-opts">
+          <button
+            type="button"
+            *ngFor="let lang of LEARN_FROM_LANGUAGE_OPTIONS"
+            class="sw-medium-opt"
+            [class.sw-medium-opt--selected]="selectedLearnLanguage === lang"
+            (click)="selectLearnLanguage(lang)"
+          >
+            {{ lang }}
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="error" class="sw-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+
+      <div class="sw-actions">
+        <button type="button" class="sw-btn sw-btn--ghost" (click)="backFromPersonalInfo()">
+          <i class="fas fa-arrow-left"></i> {{ emailVerified ? 'Back' : 'Back to login' }}
+        </button>
+        <button type="button" class="sw-btn sw-btn--primary" [disabled]="loading" (click)="submitPersonalInfo()">
+          <ng-container *ngIf="!loading">
+            <ng-container *ngIf="emailVerified">Save &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
+            <ng-container *ngIf="!emailVerified">Send verification code <i class="fas fa-arrow-right"></i></ng-container>
+          </ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> {{ emailVerified ? 'Saving…' : 'Sending…' }}</ng-container>
+        </button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="otpSubStep === 'otp'">
+      <h3 class="sw-title">Verify your email</h3>
+      <p class="sw-subtitle">Enter the 6-digit code sent to <strong>{{ email }}</strong> and choose a password.</p>
+
+      <div class="sw-field">
+        <label class="sw-label" for="sw-otp">Verification code <span class="sw-required">*</span></label>
+        <input id="sw-otp" type="text" class="sw-input sw-input--otp" [(ngModel)]="otp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
+      </div>
+      <div class="sw-field">
+        <label class="sw-label" for="sw-pwd">Choose a password <span class="sw-required">*</span></label>
+        <div class="sw-pw-row">
+          <input [type]="showPwd ? 'text' : 'password'" id="sw-pwd" class="sw-input" [(ngModel)]="password" placeholder="Min. 8 characters" autocomplete="new-password" />
+          <button type="button" class="sw-pw-toggle" (click)="showPwd = !showPwd"><i [class]="showPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+        </div>
+      </div>
+      <div class="sw-field">
+        <label class="sw-label" for="sw-confirm-pwd">Confirm password <span class="sw-required">*</span></label>
+        <div class="sw-pw-row">
+          <input [type]="showConfirmPwd ? 'text' : 'password'" id="sw-confirm-pwd" class="sw-input" [(ngModel)]="confirmPassword" placeholder="Re-enter password" autocomplete="new-password" />
+          <button type="button" class="sw-pw-toggle" (click)="showConfirmPwd = !showConfirmPwd"><i [class]="showConfirmPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+        </div>
+      </div>
+
+      <div *ngIf="success" class="sw-info" role="status"><i class="fas fa-envelope"></i> {{ success }}</div>
+      <div *ngIf="error" class="sw-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+
+      <div class="sw-actions">
+        <button type="button" class="sw-btn sw-btn--ghost" (click)="otpSubStep = 'info'; error = ''">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+        <button type="button" class="sw-btn sw-btn--primary" [disabled]="loading" (click)="verifyOtp()">
+          <ng-container *ngIf="!loading">Verify &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Verifying…</ng-container>
+        </button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="otpSubStep === 'done'">
+      <h3 class="sw-title">Email verified!</h3>
+      <p class="sw-subtitle">Your email <strong>{{ email }}</strong> has been verified. Proceed to payment.</p>
+      <div *ngIf="success" class="sw-info" role="status"><i class="fas fa-check-circle"></i> {{ success }}</div>
+      <div *ngIf="error" class="sw-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+      <div class="sw-actions sw-actions--stacked">
+        <button type="button" class="sw-btn sw-btn--primary" [disabled]="loading" (click)="goToPayment()">
+          <ng-container *ngIf="!loading">Continue to payment <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Preparing…</ng-container>
+        </button>
+        <button type="button" class="sw-btn sw-btn--ghost" (click)="editDetails()">
+          <i class="fas fa-pen"></i> Edit details (level, plan, phone…)
+        </button>
+        <button type="button" class="sw-link-btn" (click)="backToLogin.emit()">Back to login</button>
+      </div>
+    </ng-container>
+
+  </ng-container>
+
+  <!-- ── STEP 2 — payment (full-width layout) ─────────────────────────────── -->
+  <ng-container *ngIf="currentStep === 2 && paymentSubStep === 'ready'">
+
+    <header class="sw-pay-header">
+      <button type="button" class="sw-pay-back" (click)="backFromPayment()">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      <div class="sw-pay-header__text">
+        <h3 class="sw-pay-header__title">Complete your payment</h3>
+        <p class="sw-pay-header__sub">Pay online with Razorpay, or transfer to our bank and upload proof.</p>
+      </div>
+    </header>
+
+    <div class="sw-pay-layout">
+      <div class="sw-bank-card">
+        <div class="sw-bank-card__head">
+          <h4 class="sw-bank-card__title">
+            <i class="fas fa-university"></i> {{ activeBankTitle }} bank details
+          </h4>
+          <span class="sw-bank-badge" [class.sw-bank-badge--lkr]="isLkrPayment">{{ selectedCurrency }}</span>
+        </div>
+        <p class="sw-bank-card__note">{{ activeBankTransferHint }}</p>
+        <dl class="sw-bank-list">
+          <ng-container *ngFor="let row of activeBankDetails">
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.value }}</dd>
+          </ng-container>
+        </dl>
+      </div>
+
+      <div class="sw-pay-layout__proof">
+        <h4 class="sw-pay-proof__title"><i class="fas fa-receipt"></i> Upload payment proof</h4>
+        <p class="sw-pay-proof__hint">After paying to the {{ activeBankTitle }} account above, upload your screenshot or PDF here.</p>
+        <label class="sw-upload-box" (click)="proofInput.click()">
+          <i class="fas fa-cloud-upload-alt sw-upload-box__icon"></i>
+          <span class="sw-upload-box__text">{{ proofFileName || 'Click to select file' }}</span>
+          <span class="sw-upload-box__sub">PNG, JPG, or PDF — max 15 MB</span>
+          <input #proofInput type="file" accept="image/*,.pdf" (change)="onProofFileChange($event)" hidden />
+        </label>
+        <button
+          type="button"
+          class="sw-btn sw-btn--outline"
+          [disabled]="!proofFile || loading"
+          (click)="submitProof()"
+        >
+          <ng-container *ngIf="!loading">Submit payment proof <i class="fas fa-paper-plane"></i></ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner sw-spinner--dark"></span> Submitting…</ng-container>
+        </button>
+      </div>
+    </div>
+
+    <footer class="sw-pay-footer">
+      <div class="sw-pay-footer__row">
+        <div class="sw-pay-footer__meta">
+          <div class="sw-pay-chip"><span>Level</span><strong>{{ languageLevelOpted }}</strong></div>
+          <div class="sw-pay-chip"><span>Plan</span><strong>{{ planLabel }}</strong></div>
+          <div class="sw-pay-chip sw-pay-chip--last"><span>Currency</span><strong>{{ selectedCurrency }}</strong></div>
+        </div>
+        <div class="sw-pay-footer__checkout">
+          <div class="sw-pay-total-block">
+            <span class="sw-pay-total-label">Total</span>
+            <strong class="sw-pay-total">{{ formattedAmount }}</strong>
+          </div>
+          <button
+            type="button"
+            class="sw-btn sw-btn--razorpay sw-btn--pay-now"
+            [disabled]="loading || !paymentFinalized"
+            (click)="payWithRazorpay()"
+          >
+            <ng-container *ngIf="!loading">
+              <i class="fas fa-credit-card"></i> Pay now
+            </ng-container>
+            <ng-container *ngIf="loading"><span class="sw-spinner"></span> Please wait…</ng-container>
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="error" class="sw-error sw-error--footer" role="alert">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+    </footer>
+
+    <div class="sw-loading-row" *ngIf="loading && !paymentFinalized">
+      <span class="sw-spinner sw-spinner--dark"></span> Preparing your payment…
+    </div>
+
+  </ng-container>
+
+  <!-- ── Success ───────────────────────────────────────────────────────── -->
+  <ng-container *ngIf="currentStep === 3">
+    <div class="sw-success-banner">
+      <i class="fas fa-check-circle sw-success-icon"></i>
+
+      <ng-container *ngIf="paymentSubStep === 'payment-done'">
+        <h3 class="sw-success-title">Payment Successful!</h3>
+        <p class="sw-success-body">Your account has been created. Check your email for your Web App ID and login details.</p>
+      </ng-container>
+
+      <ng-container *ngIf="paymentSubStep === 'proof-done'">
+        <h3 class="sw-success-title">Proof Submitted!</h3>
+        <p class="sw-success-body">
+          Our team will review your payment and activate your account within 24 hours.
+          You will receive an email with your <strong>Web App ID</strong> and login details once approved.
+        </p>
+      </ng-container>
+
+      <p class="sw-success-note">You can close this window or go back to login.</p>
+      <button type="button" class="sw-btn sw-btn--primary" (click)="backToLogin.emit()">
+        <i class="fas fa-arrow-left"></i> Go to login
+      </button>
+    </div>
+  </ng-container>
+
+</div>

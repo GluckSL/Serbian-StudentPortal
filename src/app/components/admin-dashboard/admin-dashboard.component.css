@@ -1064,6 +1064,13 @@
 .credentials-sent-info { font-size: 11px; }
 .credentials-sent-info small { display: block; line-height: 1.4; }
 
+/* Password cell */
+.pw-cell { white-space: nowrap; }
+.pw-value { font-family: 'Courier New', monospace; font-size: 13px; color: #1e293b; user-select: all; }
+.pw-masked { font-size: 13px; color: #94a3b8; letter-spacing: 2px; }
+.pw-toggle-btn { padding: 2px 6px; color: #7b61ff; border: none; background: none; }
+.pw-toggle-btn:hover { color: #5b4cdb; }
+
 .action-buttons { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .action-buttons .btn {
   border-radius: 8px;

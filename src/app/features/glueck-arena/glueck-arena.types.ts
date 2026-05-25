@@ -1,6 +1,7 @@
 // GlückArena shared TypeScript types
 
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching';
+export type ArticleGender = 'der' | 'die' | 'das';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -9,6 +10,13 @@ export type LeaderboardPeriod = 'daily' | 'weekly' | 'all';
 export interface TimerSettings {
   sessionLimitSeconds: number | null;
   perQuestionSeconds: number | null;
+}
+
+export interface GenderStackSettings {
+  /** Seconds between new word spawns (3–5) */
+  spawnIntervalSeconds: number;
+  /** Seconds for a word to fall to the shelf line */
+  fallDurationSeconds: number;
 }
 
 export interface GameSet {
@@ -25,6 +33,7 @@ export interface GameSet {
   targetLanguage: string;
   xpReward: number;
   timerSettings: TimerSettings;
+  genderStackSettings?: GenderStackSettings;
   visibleToStudents: boolean;
   courseDay: number | null;
   sequenceLetter: string | null;
@@ -86,7 +95,16 @@ export interface ImageMatchingQuestion {
   pairs: ImageMatchPair[];
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion;
+export interface GenderStackQuestion {
+  _id: string;
+  gameType: 'gender_stack';
+  order: number;
+  word: string;
+  translation: string;
+  audioUrl: string | null;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -106,7 +124,10 @@ export interface AdminImageMatchPair {
 export interface AdminImageMatchingQuestion extends ImageMatchingQuestion {
   pairs: AdminImageMatchPair[];
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion;
+export interface AdminGenderStackQuestion extends GenderStackQuestion {
+  articleGender: ArticleGender;
+}
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -145,7 +166,7 @@ export interface AnswerResult {
   isCorrect: boolean;
   pointsEarned: number;
   speedBonus?: number;
-  correctAnswer: { word?: string; sentence?: string; tokens?: string[] };
+  correctAnswer: { word?: string; sentence?: string; tokens?: string[]; articleGender?: ArticleGender };
 }
 
 export interface CompleteResult {
@@ -212,6 +233,7 @@ export interface StudentGameStats {
     scramble_rush: { gamesCompleted: number; bestScore: number; totalXp: number };
     sentence_builder: { gamesCompleted: number; bestScore: number; totalXp: number };
     image_matching: { gamesCompleted: number; bestScore: number; totalXp: number };
+    gender_stack: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 

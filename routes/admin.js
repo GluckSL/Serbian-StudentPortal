@@ -8,6 +8,7 @@ const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
+const { decryptPassword } = require('../utils/passwordRecoverable');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { computeStudentDataIssues } = require('../services/studentDataIssues');
@@ -189,8 +190,10 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     }
 
     const total = await User.countDocuments(query);
+    const isFullAdmin = req.user?.role === 'ADMIN';
+
     const students = await User.find(query)
-      .select('-password') // exclude passwords
+      .select(isFullAdmin ? '-password' : '-password -passwordRecoverable') // ADMIN gets passwordRecoverable for decryption
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -200,9 +203,20 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       });
 
     const pages = Math.max(1, Math.ceil(total / limit));
+
+    // For ADMIN: decrypt recoverable password and expose as displayPassword; never expose the cipher
+    const data = isFullAdmin
+      ? students.map((s) => {
+          const obj = s.toObject();
+          obj.displayPassword = decryptPassword(obj.passwordRecoverable) ?? null;
+          delete obj.passwordRecoverable; // never send ciphertext to frontend
+          return obj;
+        })
+      : students;
+
     res.json({
       success: true,
-      data: students,
+      data,
       pagination: {
         total,
         page,
@@ -807,6 +821,110 @@ router.post('/bulk-delete', verifyToken, isAdmin, async (req, res) => {
   }
 });
 
+
+// ─────────────────────────────────────────────────────────────────────
+// Email Change Requests (first-login setup — admin approval flow)
+// ─────────────────────────────────────────────────────────────────────
+const EmailChangeRequest = require('../models/EmailChangeRequest');
+const { decryptPassword: decryptPwd } = require('../utils/passwordRecoverable');
+const { setUserPassword } = require('../utils/setUserPassword');
+const nodemailer = require('nodemailer');
+
+// GET /admin/email-change-requests
+router.get('/email-change-requests', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const statusFilter = req.query.status || 'pending';
+    const requests = await EmailChangeRequest.find({ status: statusFilter })
+      .sort({ createdAt: -1 })
+      .lean();
+    return res.json({ success: true, data: requests });
+  } catch (err) {
+    console.error('[GET /admin/email-change-requests]', err);
+    return res.status(500).json({ success: false, message: 'Failed to load requests.' });
+  }
+});
+
+// POST /admin/email-change-requests/:id/approve
+router.post('/email-change-requests/:id/approve', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ecr = await EmailChangeRequest.findById(req.params.id);
+    if (!ecr) return res.status(404).json({ success: false, message: 'Request not found.' });
+    if (ecr.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Request already ${ecr.status}.` });
+    }
+
+    const user = await User.findById(ecr.userId);
+    if (!user) return res.status(404).json({ success: false, message: 'Student account not found.' });
+
+    // Decrypt and apply the password they chose during setup
+    const plainPassword = decryptPwd(ecr.newPasswordEncrypted);
+    if (!plainPassword) {
+      return res.status(500).json({ success: false, message: 'Could not decrypt stored password.' });
+    }
+
+    user.email = ecr.newEmail;
+    await setUserPassword(user, plainPassword);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    ecr.status = 'approved';
+    ecr.processedAt = new Date();
+    ecr.processedBy = req.user._id || req.user.id;
+    await ecr.save();
+
+    // Notify the student at their new email
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: false,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+    const approvalHtml = `
+<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1a1a2e;max-width:560px;">
+  <h2 style="color:#6c3fc5;">Your Email Has Been Updated — Glück Global Portal</h2>
+  <p>Hi <strong>${user.name}</strong>,</p>
+  <p>Your email change request has been approved. You can now log in with your new email or your Web App ID.</p>
+  <table style="border-collapse:collapse;width:100%;margin:16px 0;">
+    <tr><td style="padding:8px;background:#f3f4f6;font-weight:600;width:140px;">Web App ID</td><td style="padding:8px;">${user.regNo}</td></tr>
+    <tr><td style="padding:8px;background:#f3f4f6;font-weight:600;">Email</td><td style="padding:8px;">${user.email}</td></tr>
+  </table>
+  <p>If you did not make this request, please contact support immediately.</p>
+  <p style="color:#9ca3af;font-size:12px;">Glück Global German Language School</p>
+</div>`;
+    transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Email Updated — Glück Global Portal',
+      html: approvalHtml,
+    }).catch((e) => console.error('[approve email change] notify student failed:', e?.message));
+
+    return res.json({ success: true, message: 'Email change approved and applied.' });
+  } catch (err) {
+    console.error('[POST /admin/email-change-requests/:id/approve]', err);
+    return res.status(500).json({ success: false, message: 'Failed to approve request.' });
+  }
+});
+
+// POST /admin/email-change-requests/:id/reject
+router.post('/email-change-requests/:id/reject', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const ecr = await EmailChangeRequest.findById(req.params.id);
+    if (!ecr) return res.status(404).json({ success: false, message: 'Request not found.' });
+    if (ecr.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Request already ${ecr.status}.` });
+    }
+    ecr.status = 'rejected';
+    ecr.processedAt = new Date();
+    ecr.processedBy = req.user._id || req.user.id;
+    ecr.rejectionReason = req.body.reason || '';
+    await ecr.save();
+    return res.json({ success: true, message: 'Request rejected.' });
+  } catch (err) {
+    console.error('[POST /admin/email-change-requests/:id/reject]', err);
+    return res.status(500).json({ success: false, message: 'Failed to reject request.' });
+  }
+});
 
 module.exports = router;
 

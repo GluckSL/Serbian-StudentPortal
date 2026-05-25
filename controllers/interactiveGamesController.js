@@ -15,6 +15,7 @@ const scoringService = require('../services/interactiveGames/scoring');
 const scrambleRushService = require('../services/interactiveGames/scrambleRush');
 const sentenceBuilderService = require('../services/interactiveGames/sentenceBuilder');
 const imageMatchingService = require('../services/interactiveGames/imageMatching');
+const genderStackService = require('../services/interactiveGames/genderStack');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
 const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
@@ -30,7 +31,7 @@ const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -40,10 +41,28 @@ function isArenaStaff(role) {
   return ARENA_STAFF_ROLES.includes(role);
 }
 
+function requestUserId(req) {
+  const u = req.user;
+  return String(u?.id || u?._id || u?.userId || '');
+}
+
+function ownsAttempt(attempt, req) {
+  const uid = requestUserId(req);
+  return !!uid && String(attempt.studentId) === uid;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function clampPage(p) { return Math.max(1, parseInt(p, 10) || 1); }
 function clampLimit(l) { return Math.min(Math.max(parseInt(l, 10) || 12, 1), 50); }
+
+function normalizeGenderStackSettings(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    spawnIntervalSeconds: Math.min(5, Math.max(3, parseInt(src.spawnIntervalSeconds, 10) || 4)),
+    fallDurationSeconds: Math.min(3, Math.max(0.5, parseFloat(src.fallDurationSeconds) || 1.2)),
+  };
+}
 
 function badRequest(res, msg) { return res.status(400).json({ success: false, message: msg }); }
 function notFound(res, msg = 'Not found') { return res.status(404).json({ success: false, message: msg }); }
@@ -191,12 +210,13 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
+    const initialLives = set.gameType === 'gender_stack' ? 5 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
       gameType: set.gameType,
       status: 'in-progress',
-      livesRemaining: 3,
+      livesRemaining: initialLives,
       totalQuestions: set.questionCount,
       attemptNumber: prevCount + 1,
     });
@@ -234,6 +254,10 @@ exports.startAttempt = async (req, res) => {
         // Strip legacy root-level fields that existed before pairs schema
         const { word: _w, imageUrl: _img, hint: _h, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...rest } = safe;
         return rest;
+      }
+      if (set.gameType === 'gender_stack') {
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = q;
+        return safe;
       }
       const { __v: _v, ...safe } = q;
       return safe;
@@ -286,7 +310,7 @@ exports.submitSentenceSlot = async (req, res) => {
   try {
     const attempt = await GameAttempt.findById(req.params.attemptId);
     if (!attempt) return notFound(res, 'Attempt not found');
-    if (String(attempt.studentId) !== String(req.user.id)) {
+    if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     if (attempt.gameType !== 'sentence_builder') {
@@ -377,7 +401,7 @@ exports.submitImageMatchSlot = async (req, res) => {
   try {
     const attempt = await GameAttempt.findById(req.params.attemptId);
     if (!attempt) return notFound(res, 'Attempt not found');
-    if (String(attempt.studentId) !== String(req.user.id)) {
+    if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     if (attempt.gameType !== 'image_matching') {
@@ -504,9 +528,12 @@ exports.submitAnswer = async (req, res) => {
   try {
     const attempt = await GameAttempt.findById(req.params.attemptId);
     if (!attempt) return notFound(res, 'Attempt not found');
-    if (String(attempt.studentId) !== String(req.user.id)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    if (!ownsAttempt(attempt, req)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
 
-    const { questionId, typedWord, orderedTokens, responseTimeMs, questionElapsedMs } = req.body;
+    const staffPreview = isArenaStaff(req.user.role);
+    const { questionId, typedWord, orderedTokens, articleGender, responseTimeMs, questionElapsedMs } = req.body;
     if (!questionId) return badRequest(res, 'questionId required');
 
     const validation = await securityService.validateAnswerSubmission(attempt, questionId, responseTimeMs);
@@ -559,6 +586,24 @@ exports.submitAnswer = async (req, res) => {
       if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
         correctAnswer.word = question.pairs[result.pairIndex].word;
       }
+    } else if (attempt.gameType === 'gender_stack') {
+      if (!articleGender) return badRequest(res, 'articleGender required');
+      const result = genderStackService.evaluateAnswer(question, articleGender);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.articleGender = result.articleGender;
+      correctAnswer.word = question.word;
+
+      if (staffPreview) {
+        return res.json({
+          success: true,
+          isCorrect,
+          pointsEarned,
+          speedBonus: 0,
+          correctAnswer,
+          preview: true,
+        });
+      }
     }
 
     // Save answer record - update existing if wrong answer exists, else create new
@@ -568,6 +613,7 @@ exports.submitAnswer = async (req, res) => {
       studentId: req.user.id,
       typedWord: typedWord || '',
       orderedTokens: orderedTokens || [],
+      articleGender: articleGender || '',
       responseTimeMs: responseTimeMs || 0,
       isCorrect,
       pointsEarned,
@@ -583,7 +629,7 @@ exports.submitAnswer = async (req, res) => {
       score: pointsEarned,
       correctAnswers: isCorrect ? 1 : 0,
     };
-    if (attempt.gameType !== 'sentence_builder' || isCorrect) {
+    if (isCorrect || (attempt.gameType !== 'sentence_builder' && attempt.gameType !== 'gender_stack')) {
       attemptInc.wordsCompleted = 1;
     }
 
@@ -606,7 +652,9 @@ exports.completeAttempt = async (req, res) => {
   try {
     const attempt = await GameAttempt.findById(req.params.attemptId);
     if (!attempt) return notFound(res, 'Attempt not found');
-    if (String(attempt.studentId) !== String(req.user.id)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    if (!ownsAttempt(attempt, req)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
     if (attempt.status !== 'in-progress') return badRequest(res, 'Attempt already finalized');
 
     const { timeSpentSeconds, livesRemaining, currentLevel } = req.body;
@@ -757,7 +805,7 @@ exports.adminListSets = async (req, res) => {
 exports.adminCreateSet = async (req, res) => {
   try {
     const { title, description, gameType, difficulty, level, category, tags, xpReward,
-            timerSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
+            timerSettings, genderStackSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
             icon, estimatedDurationMinutes, targetBatches } = req.body;
 
     if (!title || !title.trim()) return badRequest(res, 'title required');
@@ -774,6 +822,7 @@ exports.adminCreateSet = async (req, res) => {
       tags: Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [],
       xpReward: Math.max(0, parseInt(xpReward, 10) || 50),
       timerSettings: timerSettings || {},
+      genderStackSettings: normalizeGenderStackSettings(genderStackSettings),
       visibleToStudents: !!visibleToStudents,
       courseDay: courseDay ? Number(courseDay) : null,
       sequenceLetter: sequenceLetter || null,
@@ -815,12 +864,16 @@ exports.adminGetSet = async (req, res) => {
 exports.adminUpdateSet = async (req, res) => {
   try {
     const allowedFields = ['title', 'description', 'difficulty', 'level', 'category', 'tags',
-      'xpReward', 'timerSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
+      'xpReward', 'timerSettings', 'genderStackSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
       'targetLanguage', 'icon', 'estimatedDurationMinutes', 'isPublished', 'isArchived'];
 
     const updates = {};
     for (const f of allowedFields) {
-      if (req.body[f] !== undefined) updates[f] = req.body[f];
+      if (req.body[f] !== undefined) {
+        updates[f] = f === 'genderStackSettings'
+          ? normalizeGenderStackSettings(req.body[f])
+          : req.body[f];
+      }
     }
     if (req.body.targetBatches !== undefined) {
       updates.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
@@ -901,6 +954,16 @@ exports.adminUpsertQuestions = async (req, res) => {
     const { questions } = req.body;
     if (!Array.isArray(questions) || questions.length === 0) return badRequest(res, 'questions array required');
 
+    if (set.gameType === 'gender_stack') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: German noun required`);
+        if (!genderStackService.normalizeGender(q.articleGender)) {
+          return badRequest(res, `Question ${i + 1}: articleGender must be der, die, or das`);
+        }
+      }
+    }
+
     const ops = questions.map((q, i) => {
       const doc = {
         gameSetId: set._id,
@@ -923,6 +986,11 @@ exports.adminUpsertQuestions = async (req, res) => {
           imageUrl: p.imageUrl || null,
           audioUrl: p.audioUrl || null,
         }));
+      } else if (set.gameType === 'gender_stack') {
+        doc.word = trimGermanWord(q.word);
+        doc.translation = String(q.translation || q.hint || '').trim();
+        doc.articleGender = genderStackService.normalizeGender(q.articleGender);
+        doc.audioUrl = q.audioUrl || null;
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';

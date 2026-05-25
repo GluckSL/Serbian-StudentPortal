@@ -13,7 +13,7 @@ const GameQuestionSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack'],
     required: true,
   },
 
@@ -36,6 +36,14 @@ const GameQuestionSchema = new mongoose.Schema({
     imageUrl: { type: String, default: null },
     audioUrl: { type: String, default: null },
   }],
+
+  // ── Gender Stack fields ─────────────────────────────────────────────────────
+  /** Grammatical gender article: der, die, or das */
+  articleGender: {
+    type: String,
+    enum: ['der', 'die', 'das', null],
+    default: null,
+  },
 
   // ── Sentence Builder fields ──────────────────────────────────────────────────
   // correct sentence — NOT sent to client until answer submitted

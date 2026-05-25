@@ -42,7 +42,7 @@ async function validateAnswerSubmission(attempt, questionId, responseTimeMs) {
   const rate = checkRateLimit(String(attempt.studentId));
   if (!rate.ok) return rate;
 
-  if (responseTimeMs != null && responseTimeMs < MIN_ANSWER_INTERVAL_MS) {
+  if (responseTimeMs != null && responseTimeMs > 0 && responseTimeMs < MIN_ANSWER_INTERVAL_MS) {
     return { ok: false, message: 'Answer submitted too quickly' };
   }
 

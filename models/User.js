@@ -21,6 +21,11 @@ const UserSchema = new mongoose.Schema({
   regNo: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  passwordRecoverable: { type: String, default: null }, // AES-256-GCM ciphertext for ADMIN display only
+  /** Student must complete first-login setup (set own password; one-time emailed password). */
+  mustChangePassword: { type: Boolean, default: false },
+  /** Set when the student completes password setup or changes password while logged in. */
+  passwordChangedAt: { type: Date, default: null },
   role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN", "SUB_ADMIN"], required: true },
   sidebarPermissions: { type: [String], default: [] },
   teacherTabPermissions: { type: [String], default: [] },
@@ -124,6 +129,10 @@ const UserSchema = new mongoose.Schema({
 
   // CRM link — stores the external WP/Gluck CRM contact ID so portal ↔ CRM records stay linked
   crmExternalId: { type: String, default: '', index: true },
+
+  // Self-signup fields
+  nationality:  { type: String, default: '' },
+  signupSource: { type: String, enum: ['admin', 'public_signup', 'bulk_upload', 'crm', ''], default: '' },
 });
 
 // Sparse unique index: two students cannot share the same non-empty crmExternalId,

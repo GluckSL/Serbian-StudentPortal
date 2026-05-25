@@ -68,6 +68,7 @@ interface BatchSummary { batchName: string; }
             <mat-option value="matching">Matching</mat-option>
             <mat-option value="flashcards">Flashcards</mat-option>
             <mat-option value="image_matching">Image Matching</mat-option>
+            <mat-option value="gender_stack">Gender Stack</mat-option>
           </mat-select>
         </mat-form-field>
       </div>

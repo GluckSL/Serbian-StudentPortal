@@ -66,6 +66,12 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
           <p *ngIf="set.gameType === 'flashcards'">
             Flip through cards to test your vocabulary. Coming soon!
           </p>
+          <p *ngIf="set.gameType === 'image_matching'">
+            Drag each German word to the picture it matches.
+          </p>
+          <p *ngIf="set.gameType === 'gender_stack'">
+            Words fall and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.
+          </p>
         </div>
 
         <button mat-raised-button color="primary" class="gd__play-btn" (click)="play()">
@@ -156,12 +162,17 @@ export class GameDetailComponent implements OnInit {
       sentence_builder: 'linear-gradient(135deg,#2e7d32,#66bb6a)',
       matching: 'linear-gradient(135deg,#6a1b9a,#ab47bc)',
       flashcards: 'linear-gradient(135deg,#e65100,#ffa726)',
+      image_matching: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+      gender_stack: 'linear-gradient(135deg,#0284c7,#38bdf8)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
 
   formatType(t: string): string {
-    const map: Record<string, string> = { scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder', matching: 'Matching', flashcards: 'Flashcards' };
+    const map: Record<string, string> = {
+      scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder', matching: 'Matching',
+      flashcards: 'Flashcards', image_matching: 'Image Matching', gender_stack: 'Gender Stack',
+    };
     return map[t] ?? t;
   }
 }

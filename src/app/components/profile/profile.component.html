@@ -88,6 +88,64 @@
         </div>
       </div>
 
+      <!-- Security: Change Password -->
+      <div class="pf-card">
+        <h4 class="pf-card__title">Security</h4>
+
+        <div *ngIf="!showChangePassword">
+          <p class="pf-field__label" style="margin-bottom:12px;">Update your password to keep your account secure.</p>
+          <button class="pf-btn-secondary" (click)="showChangePassword = true">
+            <i class="fas fa-lock"></i> Change Password
+          </button>
+        </div>
+
+        <form *ngIf="showChangePassword" (ngSubmit)="submitChangePassword()" class="pf-pw-form">
+          <div class="pf-pw-field">
+            <label class="pf-field__label" for="pw-current">Current password</label>
+            <div class="pf-pw-input-row">
+              <input [type]="showCurrentPw ? 'text' : 'password'" id="pw-current" class="pf-pw-input"
+                     placeholder="Enter current password" [(ngModel)]="pwCurrent" name="pwCurrent" required />
+              <button type="button" class="pf-pw-toggle" (click)="showCurrentPw = !showCurrentPw"
+                      [attr.aria-label]="showCurrentPw ? 'Hide' : 'Show'">
+                <i [class]="showCurrentPw ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+          <div class="pf-pw-field">
+            <label class="pf-field__label" for="pw-new">New password</label>
+            <div class="pf-pw-input-row">
+              <input [type]="showNewPw ? 'text' : 'password'" id="pw-new" class="pf-pw-input"
+                     placeholder="Min. 8 characters" [(ngModel)]="pwNew" name="pwNew" required />
+              <button type="button" class="pf-pw-toggle" (click)="showNewPw = !showNewPw"
+                      [attr.aria-label]="showNewPw ? 'Hide' : 'Show'">
+                <i [class]="showNewPw ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+          <div class="pf-pw-field">
+            <label class="pf-field__label" for="pw-confirm">Confirm new password</label>
+            <div class="pf-pw-input-row">
+              <input [type]="showConfirmPw ? 'text' : 'password'" id="pw-confirm" class="pf-pw-input"
+                     placeholder="Re-enter new password" [(ngModel)]="pwConfirm" name="pwConfirm" required />
+              <button type="button" class="pf-pw-toggle" (click)="showConfirmPw = !showConfirmPw"
+                      [attr.aria-label]="showConfirmPw ? 'Hide' : 'Show'">
+                <i [class]="showConfirmPw ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="pwError" class="pf-pw-banner pf-pw-banner--error" role="alert">{{ pwError }}</div>
+          <div *ngIf="pwSuccess" class="pf-pw-banner pf-pw-banner--success" role="status">{{ pwSuccess }}</div>
+
+          <div class="pf-pw-actions">
+            <button type="submit" class="pf-btn-primary" [disabled]="pwLoading">
+              {{ pwLoading ? 'Saving…' : 'Update Password' }}
+            </button>
+            <button type="button" class="pf-btn-ghost" (click)="cancelChangePassword()">Cancel</button>
+          </div>
+        </form>
+      </div>
+
     </div>
   </div>
 </div>

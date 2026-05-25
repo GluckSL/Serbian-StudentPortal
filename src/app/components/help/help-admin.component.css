@@ -606,3 +606,151 @@
   .ha-kpis { grid-template-columns: repeat(2, 1fr); }
   .ha-table-wrap { overflow-x: auto; }
 }
+
+/* ─── Email Change Requests Panel ─────────────────────── */
+.ecr-panel {
+  background: #fff;
+  border: 1.5px solid #e0d4f9;
+  border-radius: 14px;
+  padding: 14px 18px 16px;
+  margin-bottom: 18px;
+}
+
+.ecr-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ecr-panel__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #5b21b6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ecr-badge {
+  background: #7c3aed;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 1px 8px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.ecr-refresh-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+.ecr-empty {
+  font-size: 13px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.ecr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ecr-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #faf5ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  padding: 12px 14px;
+  flex-wrap: wrap;
+}
+
+.ecr-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ecr-card__student {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ecr-reg {
+  font-size: 12px;
+  color: #7c3aed;
+  background: #ede9fe;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.ecr-card__emails {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  color: #374151;
+}
+
+.ecr-email-label {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ecr-email-val { color: #1e293b; font-weight: 500; }
+.ecr-email-val--new { color: #6d28d9; font-weight: 600; }
+.ecr-arrow { color: #94a3b8; font-weight: 700; }
+
+.ecr-card__date {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 5px;
+}
+
+.ecr-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ecr-btn {
+  border: none;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity .15s;
+}
+.ecr-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.ecr-btn--approve {
+  background: #16a34a;
+  color: #fff;
+}
+.ecr-btn--approve:not(:disabled):hover { background: #15803d; }
+
+.ecr-btn--reject {
+  background: #f1f5f9;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.ecr-btn--reject:not(:disabled):hover { background: #fee2e2; }

@@ -46,6 +46,131 @@
   </div>
 </div>
 
+<!-- First-login password setup modal -->
+<!-- First-login password setup modal -->
+<div *ngIf="showPasswordSetupModal" class="wd-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="setup-modal-title">
+  <div class="wd-modal wd-modal--wide" (click)="$event.stopPropagation()">
+    <header class="wd-modal__header">
+      <div class="wd-modal__header-icon" aria-hidden="true"><i class="fas fa-key"></i></div>
+      <div class="wd-modal__header-text">
+        <p class="wd-modal__header-tag">Glück Global — Secure your account</p>
+        <h2 class="wd-modal__header-title" id="setup-modal-title">Set your password</h2>
+      </div>
+    </header>
+    <div class="wd-modal__body">
+      <p class="wd-modal__greeting" *ngIf="setupStudentInfo">
+        Hello <strong>{{ setupStudentInfo.studentName }}</strong>,
+        please set a permanent password to continue. You can sign in later with your
+        <strong>email</strong> or <strong>Web App ID ({{ setupStudentInfo.regNo }})</strong>.
+      </p>
+
+      <!-- ── STEP: start — show email + two choices ── -->
+      <ng-container *ngIf="setupStep === 'start'">
+        <div class="setup-field">
+          <label class="setup-label">Email</label>
+          <div class="setup-email-row">
+            <input type="email" class="setup-input setup-input--readonly" [value]="setupEmail" readonly tabindex="-1" />
+            <button type="button" class="setup-change-email-btn" (click)="startEmailChange()">Change email</button>
+          </div>
+          <p class="setup-hint">Is this email correct? Click <strong>Next</strong> to receive a verification code and set your password.</p>
+        </div>
+        <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
+      </ng-container>
+
+      <!-- ── STEP: otp — OTP sent to current email ── -->
+      <ng-container *ngIf="setupStep === 'otp'">
+        <p class="setup-hint setup-hint--info"><i class="fas fa-envelope"></i> A 6-digit code was sent to <strong>{{ setupEmail }}</strong>. Enter it below to verify and set your password.</p>
+        <div class="setup-field">
+          <label class="setup-label" for="setup-otp">Verification code</label>
+          <input type="text" id="setup-otp" class="setup-input setup-input--otp" [(ngModel)]="setupOtp" name="setupOtp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
+        </div>
+        <div class="setup-field">
+          <label class="setup-label" for="setup-new-pw">New password</label>
+          <div class="setup-pw-row">
+            <input [type]="setupShowNew ? 'text' : 'password'" id="setup-new-pw" class="setup-input" [(ngModel)]="setupNewPassword" name="setupNewPassword" placeholder="Min. 8 characters" required />
+            <button type="button" class="setup-pw-toggle" (click)="setupShowNew = !setupShowNew"><i [class]="setupShowNew ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+          </div>
+        </div>
+        <div class="setup-field">
+          <label class="setup-label" for="setup-confirm-pw">Confirm new password</label>
+          <div class="setup-pw-row">
+            <input [type]="setupShowConfirm ? 'text' : 'password'" id="setup-confirm-pw" class="setup-input" [(ngModel)]="setupConfirmPassword" name="setupConfirmPassword" placeholder="Re-enter password" required />
+            <button type="button" class="setup-pw-toggle" (click)="setupShowConfirm = !setupShowConfirm"><i [class]="setupShowConfirm ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+          </div>
+        </div>
+        <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
+        <div *ngIf="setupSuccess" class="setup-success" role="status"><i class="fas fa-check-circle"></i> {{ setupSuccess }}</div>
+      </ng-container>
+
+      <!-- ── STEP: change-email — student wants a different email ── -->
+      <ng-container *ngIf="setupStep === 'change-email'">
+        <p class="setup-hint setup-hint--info">Enter your new email and choose a password. Our support team will review your request and update your account.</p>
+        <div class="setup-field">
+          <label class="setup-label" for="setup-change-email">New email address</label>
+          <input type="email" id="setup-change-email" class="setup-input" [(ngModel)]="setupChangeNewEmail" name="setupChangeNewEmail" placeholder="newemail@example.com" />
+        </div>
+        <div class="setup-field">
+          <label class="setup-label" for="setup-change-pw">New password</label>
+          <div class="setup-pw-row">
+            <input [type]="setupShowChangeNewPwd ? 'text' : 'password'" id="setup-change-pw" class="setup-input" [(ngModel)]="setupChangeNewPassword" name="setupChangeNewPassword" placeholder="Min. 8 characters" />
+            <button type="button" class="setup-pw-toggle" (click)="setupShowChangeNewPwd = !setupShowChangeNewPwd"><i [class]="setupShowChangeNewPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+          </div>
+        </div>
+        <div class="setup-field">
+          <label class="setup-label" for="setup-change-confirm-pw">Confirm new password</label>
+          <div class="setup-pw-row">
+            <input [type]="setupShowChangeConfirmPwd ? 'text' : 'password'" id="setup-change-confirm-pw" class="setup-input" [(ngModel)]="setupChangeConfirmPassword" name="setupChangeConfirmPassword" placeholder="Re-enter password" />
+            <button type="button" class="setup-pw-toggle" (click)="setupShowChangeConfirmPwd = !setupShowChangeConfirmPwd"><i [class]="setupShowChangeConfirmPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+          </div>
+        </div>
+        <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
+      </ng-container>
+
+      <!-- ── STEP: change-email-sent — request submitted ── -->
+      <ng-container *ngIf="setupStep === 'change-email-sent'">
+        <div class="setup-sent-banner">
+          <i class="fas fa-paper-plane setup-sent-icon"></i>
+          <h3 class="setup-sent-title">Request Submitted!</h3>
+          <p class="setup-sent-body">Our support team will review your email change request and contact you soon. Your email will be updated once approved.</p>
+          <p class="setup-sent-note">You can close this window. We'll notify you at your current email when the change is applied.</p>
+        </div>
+      </ng-container>
+
+    </div>
+
+    <!-- Footer buttons -->
+    <footer class="wd-modal__footer wd-modal__footer--stack">
+      <!-- start step -->
+      <ng-container *ngIf="setupStep === 'start'">
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="sendSetupOtp()">
+          <ng-container *ngIf="!setupLoading">Next <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Sending code…</ng-container>
+        </button>
+      </ng-container>
+      <!-- otp step -->
+      <ng-container *ngIf="setupStep === 'otp'">
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'start'; setupError = ''">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="completePasswordSetup()">
+          <ng-container *ngIf="!setupLoading">Save &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Please wait…</ng-container>
+        </button>
+      </ng-container>
+      <!-- change-email step -->
+      <ng-container *ngIf="setupStep === 'change-email'">
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="cancelEmailChange()">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="submitEmailChangeRequest()">
+          <ng-container *ngIf="!setupLoading">Send request <i class="fas fa-paper-plane"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Sending…</ng-container>
+        </button>
+      </ng-container>
+      <!-- change-email-sent step -->
+      <ng-container *ngIf="setupStep === 'change-email-sent'">
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" (click)="showPasswordSetupModal = false">Close</button>
+      </ng-container>
+    </footer>
+  </div>
+</div>
+
 <div class="login-page">
   <!-- Left: hero -->
   <aside class="login-hero">
@@ -129,123 +254,133 @@
   <!-- Right: form -->
   <section class="login-panel">
     <div class="login-panel__inner">
-      <div class="login-eyes" aria-hidden="true">
-        <div class="login-eye" #eyeLeft>
-          <div class="login-eye__outer">
-            <div class="login-eye__iris">
-              <div class="login-eye__pupil" [style.transform]="pupilTransform(leftPupil)"></div>
+
+      <!-- ── Login mode ───────────────────────────────────────────────── -->
+      <ng-container *ngIf="panelMode === 'login'">
+        <div class="login-eyes" aria-hidden="true">
+          <div class="login-eye" #eyeLeft>
+            <div class="login-eye__outer">
+              <div class="login-eye__iris">
+                <div class="login-eye__pupil" [style.transform]="pupilTransform(leftPupil)"></div>
+              </div>
+            </div>
+          </div>
+          <div class="login-eye" #eyeRight>
+            <div class="login-eye__outer">
+              <div class="login-eye__iris">
+                <div class="login-eye__pupil" [style.transform]="pupilTransform(rightPupil)"></div>
+              </div>
             </div>
           </div>
         </div>
-        <div class="login-eye" #eyeRight>
-          <div class="login-eye__outer">
-            <div class="login-eye__iris">
-              <div class="login-eye__pupil" [style.transform]="pupilTransform(rightPupil)"></div>
+
+        <h2 class="login-panel__title">Login to Study</h2>
+        <p class="login-panel__subtitle">Please enter your credentials to access your lessons.</p>
+
+        <div *ngIf="checkingExistingSession" class="login-session-check" role="status" aria-live="polite">
+          <span class="btn-study__spinner" aria-hidden="true"></span>
+          <span>Checking your session…</span>
+        </div>
+
+        <form (ngSubmit)="onSubmit()" class="login-form" *ngIf="!checkingExistingSession">
+          <div class="form-field">
+            <label class="form-label" for="regNo">Web App ID or email</label>
+            <div class="form-input-row">
+              <i class="fas fa-user form-input-row__icon" aria-hidden="true"></i>
+              <input
+                type="text"
+                id="regNo"
+                class="form-input"
+                placeholder="Web App ID or email address"
+                required
+                [(ngModel)]="regNo"
+                (focus)="onCredentialFocus()"
+                name="regNo"
+                autocomplete="username"
+              />
             </div>
           </div>
-        </div>
-      </div>
 
-      <h2 class="login-panel__title">Login to Study</h2>
-      <p class="login-panel__subtitle">Please enter your credentials to access your lessons.</p>
-
-      <div *ngIf="checkingExistingSession" class="login-session-check" role="status" aria-live="polite">
-        <span class="btn-study__spinner" aria-hidden="true"></span>
-        <span>Checking your session…</span>
-      </div>
-
-      <form (ngSubmit)="onSubmit()" class="login-form" *ngIf="!checkingExistingSession">
-        <div class="form-field">
-          <label class="form-label" for="regNo">Username or email</label>
-          <div class="form-input-row">
-            <i class="fas fa-user form-input-row__icon" aria-hidden="true"></i>
-            <input
-              type="text"
-              id="regNo"
-              class="form-input"
-              placeholder="Your account identifier"
-              required
-              [(ngModel)]="regNo"
-              (focus)="onCredentialFocus()"
-              name="regNo"
-              autocomplete="username"
-            />
+          <div class="form-field">
+            <div class="form-label-row">
+              <label class="form-label" for="password">Password</label>
+              <a class="form-link" routerLink="/forgot-password">Forgot Password?</a>
+            </div>
+            <div class="form-input-row">
+              <i class="fas fa-lock form-input-row__icon" aria-hidden="true"></i>
+              <input
+                [type]="showPassword ? 'text' : 'password'"
+                id="password"
+                class="form-input"
+                placeholder="••••••••"
+                required
+                [(ngModel)]="password"
+                (focus)="onCredentialFocus()"
+                name="password"
+                autocomplete="current-password"
+              />
+              <button
+                type="button"
+                class="form-input-row__toggle"
+                (click)="togglePasswordVisibility()"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              >
+                <i [class]="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div class="form-field">
-          <div class="form-label-row">
-            <label class="form-label" for="password">Password</label>
-            <a class="form-link" href="mailto:support@gluckglobal.com?subject=Forgot%20password">Forgot Password?</a>
-          </div>
-          <div class="form-input-row">
-            <i class="fas fa-lock form-input-row__icon" aria-hidden="true"></i>
-            <input
-              [type]="showPassword ? 'text' : 'password'"
-              id="password"
-              class="form-input"
-              placeholder="••••••••"
-              required
-              [(ngModel)]="password"
-              (focus)="onCredentialFocus()"
-              name="password"
-              autocomplete="current-password"
-            />
-            <button
-              type="button"
-              class="form-input-row__toggle"
-              (click)="togglePasswordVisibility()"
-              [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
-            >
-              <i [class]="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          <label class="form-remember">
+            <input type="checkbox" [(ngModel)]="keepSessionActive" name="keepSession" />
+            <span class="form-remember__ui"></span>
+            <span>Remember this device</span>
+          </label>
+
+          <div *ngIf="showSessionExpiredNotice" class="banner-session" role="status">
+            <i class="fas fa-history" aria-hidden="true"></i>
+            <div>
+              <strong>Session expired</strong>
+              <p>Please sign in again to continue.</p>
+            </div>
+            <button type="button" class="banner-session__close" (click)="dismissSessionExpiredNotice()" aria-label="Dismiss">
+              <i class="fas fa-times"></i>
             </button>
           </div>
-        </div>
 
-        <label class="form-remember">
-          <input type="checkbox" [(ngModel)]="keepSessionActive" name="keepSession" />
-          <span class="form-remember__ui"></span>
-          <span>Remember this device</span>
-        </label>
+          <div *ngIf="withdrawalAckMessage" class="banner-success" role="status">{{ withdrawalAckMessage }}</div>
 
-        <div *ngIf="showSessionExpiredNotice" class="banner-session" role="status">
-          <i class="fas fa-history" aria-hidden="true"></i>
-          <div>
-            <strong>Session expired</strong>
-            <p>Please sign in again to continue.</p>
-          </div>
-          <button type="button" class="banner-session__close" (click)="dismissSessionExpiredNotice()" aria-label="Dismiss">
-            <i class="fas fa-times"></i>
+          <div *ngIf="errorMessage" class="banner-error" role="alert">{{ errorMessage }}</div>
+
+          <button type="submit" class="btn-study" [disabled]="loading">
+            <ng-container *ngIf="!loading">
+              Let's Study! <i class="fas fa-arrow-right"></i>
+            </ng-container>
+            <ng-container *ngIf="loading">
+              <span class="btn-study__spinner"></span> Signing in…
+            </ng-container>
           </button>
+        </form>
+
+        <p class="login-panel__join">
+          Don't have an account?
+          <a href="javascript:void(0)" (click)="panelMode = 'signup'">Register here</a>
+        </p>
+
+        <div class="login-panel__legal" role="contentinfo">
+          <a routerLink="/home">Privacy policy</a>
+          <span class="dot">·</span>
+          <a routerLink="/home">Terms of service</a>
+          <span class="dot">·</span>
+          <a routerLink="/help"><i class="fas fa-headset"></i> Help &amp; Support</a>
         </div>
+        <p class="login-panel__copy">© {{ currentYear }} Glück Global German Study Buddy</p>
+      </ng-container>
 
-        <div *ngIf="withdrawalAckMessage" class="banner-success" role="status">{{ withdrawalAckMessage }}</div>
+      <!-- ── Signup mode ──────────────────────────────────────────────── -->
+      <ng-container *ngIf="panelMode === 'signup'">
+        <app-public-signup-wizard (backToLogin)="panelMode = 'login'"></app-public-signup-wizard>
+      </ng-container>
 
-        <div *ngIf="errorMessage" class="banner-error" role="alert">{{ errorMessage }}</div>
-
-        <button type="submit" class="btn-study" [disabled]="loading">
-          <ng-container *ngIf="!loading">
-            Let's Study! <i class="fas fa-arrow-right"></i>
-          </ng-container>
-          <ng-container *ngIf="loading">
-            <span class="btn-study__spinner"></span> Signing in…
-          </ng-container>
-        </button>
-      </form>
-
-      <p class="login-panel__join">
-        Don't have an account?
-        <a routerLink="/home">Join the community</a>
-      </p>
-
-      <div class="login-panel__legal" role="contentinfo">
-        <a routerLink="/home">Privacy policy</a>
-        <span class="dot">·</span>
-        <a routerLink="/home">Terms of service</a>
-        <span class="dot">·</span>
-        <a routerLink="/help"><i class="fas fa-headset"></i> Help &amp; Support</a>
-      </div>
-      <p class="login-panel__copy">© {{ currentYear }} Glück Global German Study Buddy</p>
     </div>
   </section>
 </div>

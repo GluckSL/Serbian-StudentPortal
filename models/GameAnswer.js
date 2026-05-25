@@ -34,6 +34,9 @@ const GameAnswerSchema = new mongoose.Schema({
   /** Per-word slot placement (sentence builder instant mode) */
   slotIndex: { type: Number, default: null },
 
+  /** Gender Stack — submitted article */
+  articleGender: { type: String, default: '' },
+
   // ── Shared result ─────────────────────────────────────────────────────────
   isCorrect: { type: Boolean, default: false },
   pointsEarned: { type: Number, default: 0 },

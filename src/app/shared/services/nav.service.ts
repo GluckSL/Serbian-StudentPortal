@@ -45,6 +45,7 @@ export class NavService {
       '/admin/journey'
     ],
     'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
+    'language-tracking': ['/admin/language-tracking'],
     'go-students': [
       '/admin/go-students'
     ],
@@ -121,7 +122,8 @@ export class NavService {
       group: 'Student Progress',
       items: [
         { id: 'student-progress', label: 'Student Progress', icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
-        { id: 'admin-performance', label: 'Performance', icon: 'speed', route: '/admin/performance', subGroup: null }
+        { id: 'admin-performance', label: 'Performance', icon: 'speed', route: '/admin/performance', subGroup: null },
+        { id: 'language-tracking', label: 'Language Tracking', icon: 'translate', route: '/admin/language-tracking', subGroup: null }
       ]
     },
     {
