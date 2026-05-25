@@ -212,37 +212,6 @@
       </div>
       <div class="sidebar-backdrop" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
 
-      <div class="session-ended-overlay" *ngIf="showSessionEndedOverlay">
-        <div class="info-view-wrapper">
-          <button mat-icon-button (click)="cancelClose()" class="back-btn"><mat-icon>arrow_back</mat-icon></button>
-          <mat-card class="session-info-card">
-            <mat-card-header>
-              <mat-card-title>{{ session.sessionName }}</mat-card-title>
-              <mat-card-subtitle>
-                <span class="status-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">
-                  {{ statusLabel(session.status) }}
-                </span>
-              </mat-card-subtitle>
-            </mat-card-header>
-          <mat-card-content>
-            <div class="info-grid">
-              <div class="info-item"><mat-icon>person</mat-icon><span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span></div>
-              <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
-              <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
-              <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
-              <div class="info-item" *ngIf="session.plan"><mat-icon>assignment</mat-icon><span><strong>Plan:</strong> {{ session.plan }}</span></div>
-              <div class="info-item" *ngIf="session.agenda"><mat-icon>description</mat-icon><span><strong>Agenda:</strong> {{ session.agenda }}</span></div>
-            </div>
-          </mat-card-content>
-            <mat-card-footer>
-              <div class="progress-wrap">
-                <div class="progress-fill" [style.width.%]="progressPercent"></div>
-              </div>
-              <div class="closing-msg">Closing tab in {{ remainingSeconds }}s...</div>
-            </mat-card-footer>
-          </mat-card>
-        </div>
-      </div>
     </div>
 
     <ng-template #infoView>

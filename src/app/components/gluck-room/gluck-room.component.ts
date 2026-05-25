@@ -63,9 +63,6 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   sidebarOpen = false;
   sidebarTabIndex = 0;
-  showSessionEndedOverlay = false;
-  progressPercent = 0;
-  private closeTimer: ReturnType<typeof setInterval> | null = null;
   allParticipants: ParticipantInfo[] = [];
   topFiveParticipants: ParticipantInfo[] = [];
 
@@ -829,50 +826,13 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.gluckRoomSocket.emit('remove-participant', { targetUserId: identity });
   }
 
-  private showSessionInfoAndClose(): void {
-    this.showSessionEndedOverlay = true;
-    this.progressPercent = 0;
-    this.cleanupConnection();
-    const start = Date.now();
-    const duration = 300000;
-    this.closeTimer = setInterval(() => {
-      const elapsed = Date.now() - start;
-      this.progressPercent = Math.min(100, (elapsed / duration) * 100);
-      if (elapsed >= duration) {
-        this.doClose();
-      }
-    }, 100);
-  }
-
-  get remainingSeconds(): number {
-    return Math.max(0, Math.ceil((300 * (100 - this.progressPercent)) / 100));
-  }
-
-  cancelClose(): void {
-    if (this.closeTimer) {
-      clearInterval(this.closeTimer);
-      this.closeTimer = null;
-    }
-    this.doClose();
-  }
-
-  private doClose(): void {
-    if (this.closeTimer) {
-      clearInterval(this.closeTimer);
-      this.closeTimer = null;
-    }
-    if (window.opener) {
-      try { window.opener.location.reload(); } catch {}
-    }
-    window.close();
-  }
-
   async leave(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.gluckRoomService.leaveSession(id).subscribe({ next: () => {}, error: () => {} });
     }
-    this.showSessionInfoAndClose();
+    this.cleanupConnection();
+    this.router.navigate(['/gluck-room']);
   }
 
   endSession(): void {
@@ -885,8 +845,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       next: (res) => {
         this.isEnding = false;
         if (res.success) {
-          this.session = res.data;
-          this.showSessionInfoAndClose();
+          this.cleanupConnection();
+          this.router.navigate(['/gluck-room']);
         }
       },
       error: () => { this.isEnding = false; this.isLocallyEnding = false; }
