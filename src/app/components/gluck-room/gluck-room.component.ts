@@ -826,7 +826,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.progressPercent = 0;
     this.cleanupConnection();
     const start = Date.now();
-    const duration = 10000;
+    const duration = 300000;
     this.closeTimer = setInterval(() => {
       const elapsed = Date.now() - start;
       this.progressPercent = Math.min(100, (elapsed / duration) * 100);
@@ -837,7 +837,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   }
 
   get remainingSeconds(): number {
-    return Math.max(0, 10 - Math.floor(this.progressPercent / 10));
+    return Math.max(0, Math.ceil((300 * (100 - this.progressPercent)) / 100));
   }
 
   cancelClose(): void {

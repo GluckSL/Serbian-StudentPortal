@@ -104,6 +104,10 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  emptiedAt: {
+    type: Date,
+    default: null
+  },
   maxParticipants: {
     type: Number,
     default: 100
