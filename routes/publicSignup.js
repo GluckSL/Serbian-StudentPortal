@@ -350,6 +350,7 @@ router.post('/start', startLimiter, async (req, res) => {
 
     const { subject, html } = buildSignupEmailOtpEmail({ name: app.name, otp, expiresMinutes: 10 });
     await transporter.sendMail({ from: process.env.EMAIL_USER, to: app.email, subject, html });
+    console.log('[public-signup/start] OTP sent to user email:', app.email);
 
     return res.json({
       success: true,

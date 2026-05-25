@@ -152,8 +152,6 @@ export class AdminDashboardComponent implements OnInit {
   /** True when the logged-in user is a full ADMIN (can see student passwords) */
   isFullAdmin = false;
   /** Tracks which student rows have their password revealed */
-  revealedPasswords = new Set<string>();
-
   loading = false;
   error = '';
   filters = {
@@ -1022,14 +1020,6 @@ export class AdminDashboardComponent implements OnInit {
         }
       });
     });
-  }
-
-  togglePasswordReveal(studentId: string): void {
-    if (this.revealedPasswords.has(studentId)) {
-      this.revealedPasswords.delete(studentId);
-    } else {
-      this.revealedPasswords.add(studentId);
-    }
   }
 
   formatDate(date: Date | string | null | undefined): string {

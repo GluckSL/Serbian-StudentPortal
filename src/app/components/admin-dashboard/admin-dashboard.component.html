@@ -561,15 +561,8 @@
                     </div>
                   </td>
                   <td *ngIf="isFullAdmin" class="text-center pw-cell">
-                    <ng-container *ngIf="student.displayPassword; else noPw">
-                      <span class="pw-value" *ngIf="revealedPasswords.has(student._id)">{{ student.displayPassword }}</span>
-                      <span class="pw-masked" *ngIf="!revealedPasswords.has(student._id)">••••••••</span>
-                      <button class="btn btn-sm btn-link pw-toggle-btn" (click)="togglePasswordReveal(student._id)"
-                              [title]="revealedPasswords.has(student._id) ? 'Hide' : 'Reveal'">
-                        <i [class]="revealedPasswords.has(student._id) ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-                      </button>
-                    </ng-container>
-                    <ng-template #noPw><span class="text-muted small">—</span></ng-template>
+                    <span class="pw-value" *ngIf="student.displayPassword; else noPw">{{ student.displayPassword }}</span>
+                    <ng-template #noPw><span class="text-muted small" title="Custom password — use Resend credentials to reset">—</span></ng-template>
                   </td>
                   <td class="text-center">
                     <div class="action-buttons">

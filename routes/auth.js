@@ -1571,6 +1571,7 @@ router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
 
     const { subject, html } = buildPasswordResetOtpEmail({ name: user.name, otp, expiresMinutes: 15 });
     await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject, html });
+    console.log('[setup/send-otp] OTP sent to user email:', user.email);
 
     return res.json({ msg: `A verification code was sent to ${user.email}.`, email: user.email });
   } catch (err) {
@@ -1676,6 +1677,7 @@ router.post("/forgot-password/request", forgotPasswordRequestLimiter, async (req
 
     try {
       await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject, html });
+      console.log('[forgot-password/request] OTP sent to user email:', email);
     } catch (mailErr) {
       console.error('[forgot-password] Email send failed:', mailErr.message);
       // Still return generic 200; OTP is in DB but mail failed — user can retry

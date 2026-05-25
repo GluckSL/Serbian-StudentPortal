@@ -9,6 +9,7 @@ const MeetingLink = require('../models/MeetingLink');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 const { decryptPassword } = require('../utils/passwordRecoverable');
+const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { computeStudentDataIssues } = require('../services/studentDataIssues');
@@ -208,7 +209,7 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     const isFullAdmin = req.user?.role === 'ADMIN';
 
     const students = await User.find(query)
-      .select(isFullAdmin ? '-password' : '-password -passwordRecoverable') // ADMIN gets passwordRecoverable for decryption
+      .select(isFullAdmin ? '+password' : '-password -passwordRecoverable')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -219,14 +220,17 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
 
     const pages = Math.max(1, Math.ceil(total / limit));
 
-    // For ADMIN: decrypt recoverable password and expose as displayPassword; never expose the cipher
+    // For ADMIN: resolve plaintext password for directory display; never send hash or ciphertext
     const data = isFullAdmin
-      ? students.map((s) => {
-          const obj = s.toObject();
-          obj.displayPassword = decryptPassword(obj.passwordRecoverable) ?? null;
-          delete obj.passwordRecoverable; // never send ciphertext to frontend
-          return obj;
-        })
+      ? await Promise.all(
+          students.map(async (s) => {
+            const obj = s.toObject();
+            obj.displayPassword = await resolveStudentDisplayPassword(s);
+            delete obj.password;
+            delete obj.passwordRecoverable;
+            return obj;
+          })
+        )
       : students;
 
     res.json({
