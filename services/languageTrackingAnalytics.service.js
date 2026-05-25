@@ -16,7 +16,7 @@ const User = require('../models/User');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const DGSession = require('../models/DGSession');
 const GameAttempt = require('../models/GameAttempt');
-const { EXCLUDE_TEST } = require('../utils/analyticsFilters');
+const { EXCLUDE_TEST, batchMatchFilter } = require('../utils/analyticsFilters');
 const { totalSessionMinutes } = require('../utils/dgSessionMetrics');
 const {
   resolveAnalyticsStudentIds,
@@ -185,6 +185,36 @@ async function getDailyTrend(from, to, studentIds) {
   }));
 }
 
+// ── Student search ───────────────────────────────────────────────────────────
+
+/**
+ * Builds a MongoDB filter for free-text search across profile fields.
+ * Supports multi-word queries (each word must match at least one field).
+ */
+function buildStudentSearchFilter(search) {
+  const trimmed = String(search || '').trim();
+  if (!trimmed) return null;
+
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+
+  const tokenClause = (token) => {
+    const re = new RegExp(escape(token), 'i');
+    const or = [{ name: re }, { email: re }, { regNo: re }, { batch: re }, { level: re }];
+    if (/go[- ]?silver/i.test(token)) {
+      or.push({ goStatus: 'GO', subscription: 'SILVER' });
+    } else if (/^go$/i.test(token)) {
+      or.push({ goStatus: 'GO' });
+    } else if (/^platinum$/i.test(token)) {
+      or.push({ subscription: 'PLATINUM', goStatus: { $ne: 'GO' } });
+    }
+    return { $or: or };
+  };
+
+  if (tokens.length === 1) return tokenClause(tokens[0]);
+  return { $and: tokens.map(tokenClause) };
+}
+
 // ── Main overview aggregation ─────────────────────────────────────────────────
 
 /**
@@ -215,17 +245,19 @@ async function getOverview(opts = {}) {
     level: opts.level,
   });
 
-  // 2. Pull base student list with profile data
+  // 2. Pull base student list with profile data (include test accounts unless explicitly hidden)
+  const includeTest = opts.includeTestAccounts !== false;
   const studentFilter = {
     role: 'STUDENT',
-    ...EXCLUDE_TEST,
+    ...(includeTest ? {} : EXCLUDE_TEST),
   };
-  if (cohortIds) studentFilter._id = { $in: cohortIds };
+  if (cohortIds !== null) studentFilter._id = { $in: cohortIds };
 
-  if (opts.search) {
-    const re = new RegExp(opts.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    studentFilter.$or = [{ name: re }, { email: re }, { regNo: re }];
-  }
+  const batchRx = batchMatchFilter(opts.batch);
+  if (batchRx) studentFilter.batch = batchRx;
+
+  const searchFilter = buildStudentSearchFilter(opts.search);
+  if (searchFilter) Object.assign(studentFilter, searchFilter);
 
   const students = await User.find(studentFilter)
     .select('_id name email regNo batch level subscription goStatus currentCourseDay isTestAccount')
@@ -298,6 +330,7 @@ async function getOverview(opts = {}) {
       digibotSeconds: m.digibotSeconds,
       arenaSeconds: m.arenaSeconds,
       lastLearningAt: m.lastLearningAt,
+      isTestAccount: !!s.isTestAccount,
     };
   });
 
@@ -313,6 +346,9 @@ async function getOverview(opts = {}) {
 
   const total = rows.length;
   const pagedRows = rows.slice((page - 1) * limit, page * limit);
+  const topStudents = [...rows]
+    .sort((a, b) => b.totalSeconds - a.totalSeconds)
+    .slice(0, 10);
 
   // 7. KPIs
   const totalSecs = rows.reduce((s, r) => s + r.totalSeconds, 0);
@@ -337,6 +373,7 @@ async function getOverview(opts = {}) {
     },
     trend,
     students: pagedRows,
+    topStudents,
     total,
     page,
     limit,

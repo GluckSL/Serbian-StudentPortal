@@ -47,12 +47,14 @@ export interface LtStudentRow {
   digibotSeconds: number;
   arenaSeconds: number;
   lastLearningAt: string | null;
+  isTestAccount?: boolean;
 }
 
 export interface LtOverviewResponse {
   kpis: LtKpis;
   trend: LtTrendDay[];
   students: LtStudentRow[];
+  topStudents?: LtStudentRow[];
   total: number;
   page: number;
   limit: number;
@@ -160,6 +162,7 @@ export interface LtOverviewParams {
   batch?: string;
   level?: string;
   search?: string;
+  includeTestAccounts?: boolean;
   page?: number;
   limit?: number;
   sort?: LtSort;
@@ -183,6 +186,7 @@ export class LanguageTrackingApiService {
     if (p.batch) params = params.set('batch', p.batch);
     if (p.level) params = params.set('level', p.level);
     if (p.search) params = params.set('search', p.search);
+    if (p.includeTestAccounts === false) params = params.set('includeTestAccounts', 'false');
     if (p.page) params = params.set('page', String(p.page));
     if (p.limit) params = params.set('limit', String(p.limit));
     if (p.sort) params = params.set('sort', p.sort);

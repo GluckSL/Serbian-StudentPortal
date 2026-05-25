@@ -27,11 +27,14 @@ async function getIncompleteTasksForStudent(student) {
     goStatus: student.goStatus || '',
   });
 
+  const classBreakdown = completion.breakdown?.classes || { done: 0, total: 0 };
+  const incompleteTasks = (completion.incompleteTasks || []).filter((t) => t.kind !== 'class');
+
   return {
     day,
-    incompleteTasks: completion.incompleteTasks || [],
-    doneTasks: completion.doneTasks,
-    totalTasks: completion.totalTasks,
+    incompleteTasks,
+    doneTasks: completion.doneTasks - (classBreakdown.done || 0),
+    totalTasks: completion.totalTasks - (classBreakdown.total || 0),
   };
 }
 

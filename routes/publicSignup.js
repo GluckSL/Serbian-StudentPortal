@@ -35,6 +35,10 @@ const {
   buildSignupEmailOtpEmail,
   buildSignupProofReceivedAdminEmail,
 } = require('../utils/emailTemplates');
+const {
+  buildSignupProofAttachments,
+  parseAdminNotifyEmails,
+} = require('../utils/signupProofNotify');
 const { encryptPassword } = require('../utils/passwordRecoverable');
 const { activatePublicSignupStudent } = require('../utils/signupActivation');
 
@@ -168,8 +172,8 @@ async function findApp(token) {
   return SignupApplication.findOne({ applicationToken: token }).select('+passwordHash');
 }
 
-/** Admin email addresses that receive notification when proof is uploaded */
-const ADMIN_NOTIFY_EMAILS = ['sourav@gluckglobal.com', 'ceo@gluckglobal.com'];
+/** Finance / admin inbox for manual payment proof (override via SIGNUP_ADMIN_NOTIFY_EMAILS) */
+const ADMIN_NOTIFY_EMAILS = parseAdminNotifyEmails();
 
 /** Get (or resolve) the system admin ID used as paymentRequest.requestedBy */
 async function getSystemAdminId() {
@@ -693,19 +697,38 @@ router.post('/payment-proof', (req, res, next) => proofUpload(req, res, next), a
     app.paymentMethod = 'proof';
     await app.save();
 
-    // Notify admins
+    // Notify finance team (screenshot attached)
     const adminUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/admin/payment-request`;
+    const attachments = await buildSignupProofAttachments(f, screenshotKey);
     const notifyMail = buildSignupProofReceivedAdminEmail({
       studentName: app.name,
       studentEmail: app.email,
+      regNo: user.regNo,
+      phoneNumber: app.phoneNumber,
+      whatsappNumber: app.whatsappNumber,
+      nationality: app.nationality,
+      address: app.address,
+      learnFromLanguage: app.otherLanguageKnown,
       level: app.level,
       subscription: app.subscription,
       amount: app.amount,
       currency: app.currency || 'INR',
+      paymentMethod: 'Bank transfer (manual proof)',
+      proofFileName: f.originalname,
+      proofNote: attachments.length
+        ? 'Payment screenshot is attached to this email.'
+        : 'Screenshot could not be attached — open the admin panel to view the proof.',
       adminUrl,
     });
-    transporter.sendMail({ from: process.env.EMAIL_USER, to: ADMIN_NOTIFY_EMAILS.join(', '), subject: notifyMail.subject, html: notifyMail.html })
-      .catch(e => console.error('[signup/payment-proof] admin notify failed:', e?.message));
+    transporter
+      .sendMail({
+        from: process.env.EMAIL_USER,
+        to: ADMIN_NOTIFY_EMAILS.join(', '),
+        subject: notifyMail.subject,
+        html: notifyMail.html,
+        attachments,
+      })
+      .catch((e) => console.error('[signup/payment-proof] admin notify failed:', e?.message));
 
     return res.json({
       success: true,

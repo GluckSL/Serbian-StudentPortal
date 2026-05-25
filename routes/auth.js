@@ -31,6 +31,7 @@ const {
   sendWithdrawalDecisionEmail,
 } = require('../services/withdrawalLoginNotification.service');
 const { setUserPassword } = require('../utils/setUserPassword');
+const { sendStudentSignupLinkEmail } = require('../utils/sendStudentSignupLink');
 const { studentRequiresPasswordSetup } = require('../utils/studentPasswordSetup');
 const {
   buildPasswordResetOtpEmail,
@@ -461,6 +462,15 @@ function ensureStudentCreateFields(data) {
   return d;
 }
 
+/** Monday / CRM new students: inactive until self-signup + payment is complete. */
+function ensureMondayNewStudentFields(data) {
+  const d = ensureStudentCreateFields(data);
+  d.isActive = false;
+  d.signupSource = d.signupSource || 'crm_monday_sync';
+  d.mustChangePassword = false;
+  return d;
+}
+
 /** Build portal update payload from one Monday board item (all CRM columns). */
 async function mapMondayItemToPortalFields(item) {
   const get = (id) => mondayGet(item.column_values, id);
@@ -718,7 +728,7 @@ async function runMondaySync() {
       } else {
         const regNo = await allocStudentRegNo();
         const passwordPlain = await generatePassword('STUDENT', regNo);
-        const createFields = ensureStudentCreateFields({
+        const createFields = ensureMondayNewStudentFields({
           ...updateData,
           email,
           regNo,
@@ -732,17 +742,20 @@ async function runMondaySync() {
         await newUser.save();
         if (studentStatus !== 'WITHDREW') {
           try {
-            await transporter.sendMail({
-              from: process.env.EMAIL_USER,
-              to: email,
-              subject: 'Welcome to Gluck Global Student Portal',
-              html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p></div>`,
+            const sent = await sendStudentSignupLinkEmail(newUser, {
+              name,
+              level: updateData.level,
+              subscription: updateData.subscription,
+              phoneNumber: updateData.phoneNumber,
+              whatsappNumber: updateData.whatsappNumber,
             });
-            newUser.lastCredentialsEmailSent = new Date();
-            await newUser.save();
-            console.log(`  ðŸ“§ Credentials email sent to ${email}`);
+            if (sent.ok) {
+              newUser.lastCredentialsEmailSent = new Date();
+              await newUser.save();
+              console.log(`  📧 Signup link sent to ${email}`);
+            }
           } catch (emailErr) {
-            console.error(`  âš ï¸ Failed to send email to ${email}:`, emailErr.message);
+            console.error(`  ⚠️ Failed to send signup link to ${email}:`, emailErr.message);
           }
         }
         created++;
@@ -772,7 +785,7 @@ async function runMondaySync() {
           if ((dupField === 'regNo' || dupField === 'crmExternalId') && studentStatus !== undefined) {
             const regNo = await allocStudentRegNo();
             const passwordPlain = await generatePassword('STUDENT', regNo);
-            const createFields = ensureStudentCreateFields({
+            const createFields = ensureMondayNewStudentFields({
               ...updateData,
               email,
               regNo,
@@ -786,16 +799,20 @@ async function runMondaySync() {
             await newUser.save();
             if (studentStatus !== 'WITHDREW') {
               try {
-                await transporter.sendMail({
-                  from: process.env.EMAIL_USER,
-                  to: email,
-                  subject: 'Welcome to Gluck Global Student Portal',
-                  html: `<div style="font-family:Arial,sans-serif;color:#000;line-height:1.6"><p>Hello ${name},</p><p>You have successfully registered to the <strong>Gluck Global Student Portal</strong>. Here are your login credentials:</p><ul><li><strong>Web App ID:</strong> ${regNo}</li><li><strong>Password:</strong> ${passwordPlain}</li></ul><p>Please keep this information safe and do not share it with anyone.</p><p>You can access the Portal at: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p><p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p></div>`,
+                const sent = await sendStudentSignupLinkEmail(newUser, {
+                  name,
+                  level: updateData.level,
+                  subscription: updateData.subscription,
+                  phoneNumber: updateData.phoneNumber,
+                  whatsappNumber: updateData.whatsappNumber,
                 });
-                newUser.lastCredentialsEmailSent = new Date();
-                await newUser.save();
+                if (sent.ok) {
+                  newUser.lastCredentialsEmailSent = new Date();
+                  await newUser.save();
+                  console.log(`  📧 Signup link sent to ${email}`);
+                }
               } catch (emailErr) {
-                console.error(`  ⚠️ Failed to send email to ${email}:`, emailErr.message);
+                console.error(`  ⚠️ Failed to send signup link to ${email}:`, emailErr.message);
               }
             }
             created++;
