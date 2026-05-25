@@ -55,10 +55,11 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         </button>
       </header>
 
-      <div class="gs__sky" *ngIf="phase === 'playing'">
+      <div class="gs__sky">
         <div class="gs__sun"></div>
         <div class="gs__cloud gs__cloud--1"></div>
         <div class="gs__cloud gs__cloud--2"></div>
+        <div class="gs__cloud gs__cloud--3"></div>
 
         <div class="gs__ceiling" [class.gs__ceiling--danger]="totalBlocks >= MAX_STACK - 1">
           <span *ngIf="totalBlocks >= MAX_STACK - 1">Stack almost full!</span>
@@ -87,7 +88,7 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         </div>
 
         <div class="gs__shelf"></div>
-        <p class="gs__hint" *ngIf="!dragBlock">Drag a word onto DER, DIE, or DAS</p>
+        <p class="gs__hint">Drag a word onto DER, DIE, or DAS</p>
         <div class="gs__controls">
           <button
             type="button"
@@ -133,13 +134,13 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         </div>
       </div>
 
-      <div class="gs__overlay" *ngIf="phase === 'paused'">
-        <mat-icon>pause_circle</mat-icon>
-        <p>Paused</p>
-        <button mat-raised-button color="primary" (click)="resume()">Resume</button>
+      <div class="gs__overlay gs__overlay--dim" *ngIf="phase === 'paused'">
+        <button class="gs__play-btn" type="button" (click)="resume()" aria-label="Resume">
+          <mat-icon>play_arrow</mat-icon>
+        </button>
       </div>
 
-      <div class="gs__overlay" *ngIf="phase === 'gameover'">
+      <div class="gs__overlay gs__overlay--dim" *ngIf="phase === 'gameover'">
         <mat-icon>{{ won ? 'emoji_events' : 'heart_broken' }}</mat-icon>
         <h3>{{ won ? 'Great job!' : 'Stack overflow!' }}</h3>
         <p>Score: {{ score }} · {{ accuracy }}% accuracy</p>
@@ -151,20 +152,21 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
   `,
   styles: [`
     .gs {
-      position: relative; max-width: 420px; margin: 0 auto; border-radius: 20px;
+      position: relative; width: 100%; border-radius: 20px; overflow: hidden;
       box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15); border: 1px solid #0ea5e9;
       --gs-pad: 12px;
       --gs-gap: 10px;
       --gs-card-w: calc((100% - 2 * var(--gs-pad) - 2 * var(--gs-gap)) / 3);
     }
     .gs__hud {
-      display: flex; align-items: center; justify-content: space-between;
+      position: relative; display: flex; align-items: center; justify-content: center;
       padding: 10px 14px; background: rgba(255,255,255,0.95); border-bottom: 1px solid #e2e8f0;
     }
-    .gs__lives { display: flex; gap: 2px; }
+    .gs__lives { position: absolute; left: 14px; display: flex; gap: 2px; }
     .gs__heart { font-size: 22px; width: 22px; height: 22px; color: #ef4444; }
     .gs__heart--off { color: #fecaca; }
-    .gs__score { font-size: 22px; font-weight: 800; color: #0f172a; flex: 1; text-align: center; }
+    .gs__hud button { position: absolute; right: 14px; }
+    .gs__score { font-size: 22px; font-weight: 800; color: #0f172a; }
 
     .gs__sky {
       position: relative;
@@ -177,11 +179,48 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
       pointer-events: none;
     }
     .gs__cloud {
-      position: absolute; background: #fff; border-radius: 999px; opacity: 0.9;
-      box-shadow: 24px 6px 0 4px #fff, 48px 2px 0 0 #fff; pointer-events: none;
+      position: absolute; border-radius: 999px; pointer-events: none;
     }
-    .gs__cloud--1 { width: 56px; height: 22px; top: 36px; left: 12%; }
-    .gs__cloud--2 { width: 44px; height: 18px; top: 72px; left: 55%; opacity: 0.75; }
+    .gs__cloud::before, .gs__cloud::after {
+      content: ''; position: absolute; border-radius: 50%; background: inherit;
+    }
+    .gs__cloud--1 {
+      width: 110px; height: 28px; top: 28px; left: 8%;
+      background: #fff; opacity: 0.9;
+      animation: gs-cloud-drift 4s ease-in-out infinite;
+    }
+    .gs__cloud--1::before {
+      width: 52px; height: 52px; top: -28px; left: 14px;
+    }
+    .gs__cloud--1::after {
+      width: 40px; height: 40px; top: -20px; left: 52px;
+    }
+    .gs__cloud--2 {
+      width: 84px; height: 24px; top: 66px; left: 50%;
+      background: #fff; opacity: 0.75;
+      animation: gs-cloud-drift 5s ease-in-out 1s infinite;
+    }
+    .gs__cloud--2::before {
+      width: 38px; height: 38px; top: -20px; left: 10px;
+    }
+    .gs__cloud--2::after {
+      width: 30px; height: 30px; top: -14px; left: 38px;
+    }
+    .gs__cloud--3 {
+      width: 64px; height: 20px; top: 44px; left: 76%;
+      background: #fff; opacity: 0.6;
+      animation: gs-cloud-drift 3.5s ease-in-out 0.5s infinite;
+    }
+    .gs__cloud--3::before {
+      width: 30px; height: 30px; top: -16px; left: 8px;
+    }
+    .gs__cloud--3::after {
+      width: 22px; height: 22px; top: -10px; left: 28px;
+    }
+    @keyframes gs-cloud-drift {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(10px); }
+    }
 
     .gs__ceiling {
       text-align: center; min-height: 22px; padding: 6px;
@@ -276,6 +315,15 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
       background: rgba(15, 23, 42, 0.75); color: #fff; text-align: center; padding: 24px;
     }
+    .gs__overlay--dim { background: rgba(15, 23, 42, 0.4); }
+    .gs__play-btn {
+      width: 72px; height: 72px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,0.25); backdrop-filter: blur(4px);
+      color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .gs__play-btn:hover { background: rgba(255,255,255,0.4); transform: scale(1.08); }
+    .gs__play-btn mat-icon { font-size: 40px; width: 40px; height: 40px; }
     .gs__overlay mat-icon { font-size: 56px; width: 56px; height: 56px; }
     .gs__overlay h3 { margin: 0; font-size: 22px; }
     .gs__overlay p { margin: 0; opacity: 0.9; }
