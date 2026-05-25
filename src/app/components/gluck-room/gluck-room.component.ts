@@ -88,6 +88,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   tempAssignParticipants: string[] = [];
   isReconnectingToMain = false;
 
+  private tileObserver: IntersectionObserver | null = null;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -127,7 +129,10 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   ngAfterViewInit(): void {
     this.tileVideos.changes.subscribe(() => {
-      if (!this.destroyed) this.attachTileVideos();
+      if (!this.destroyed) {
+        this.attachTileVideos();
+        this.setupTileObserver();
+      }
     });
   }
 
@@ -137,6 +142,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   }
 
   private cleanupConnection(): void {
+    this.tileObserver?.disconnect();
+    this.tileObserver = null;
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;
@@ -291,6 +298,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           }
           this.selectMainParticipant();
           this.attachTileVideos();
+          this.setupTileObserver();
         });
       });
     });
@@ -921,9 +929,48 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     }
   }
 
+  // ── Selective Video Subscription (IntersectionObserver) ──
+
+  private setupTileObserver(): void {
+    this.tileObserver?.disconnect();
+    const grid = document.querySelector<HTMLElement>('.camera-grid');
+    if (!grid) return;
+
+    this.tileObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const videoEl = entry.target as HTMLVideoElement;
+          const identity = videoEl.dataset['participant'];
+          if (!identity) continue;
+          this.setParticipantVideoSubscribed(identity, entry.isIntersecting);
+        }
+      },
+      { root: grid, rootMargin: '200px', threshold: 0 }
+    );
+
+    this.tileVideos.forEach((el) => {
+      if (el.nativeElement.dataset['participant']) {
+        this.tileObserver?.observe(el.nativeElement);
+      }
+    });
+  }
+
+  private setParticipantVideoSubscribed(identity: string, subscribed: boolean): void {
+    if (!this.room) return;
+    if (!subscribed && identity === this.hostId) return;
+    const p = this.room.remoteParticipants.get(identity);
+    if (!p) return;
+    const camPub = p.getTrackPublication(Track.Source.Camera);
+    if (camPub) {
+      camPub.setSubscribed(subscribed);
+    }
+  }
+
   // ── Breakout Rooms ──
 
   private disconnectLiveKitRoom(): void {
+    this.tileObserver?.disconnect();
+    this.tileObserver = null;
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;
@@ -1115,6 +1162,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           }
           this.selectMainParticipant();
           this.attachTileVideos();
+          this.setupTileObserver();
         });
       });
     });
