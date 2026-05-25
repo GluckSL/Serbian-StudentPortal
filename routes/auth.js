@@ -12,6 +12,7 @@ const User = require("../models/User");
 const Course = require("../models/Course");
 const StudentLogs = require("../models/StudentLogs");
 const UserActivityLog = require("../models/UserActivityLog");
+const { recordStudentLogin } = require("../utils/studentCountry");
 const router = express.Router();
 const transporter = require("../config/emailConfig");
 const {
@@ -1443,19 +1444,22 @@ router.post("/login", loginLimiter, async (req, res) => {
       });
     }
 
-    // ✅ track last login + keep login history (best effort)
-    try {
-      user.lastLogin = new Date();
-      await user.save();
-      await UserActivityLog.create({
-        userId: user._id,
-        role: user.role,
-        type: "LOGIN",
-        ip: req.headers["x-forwarded-for"]?.toString()?.split(",")?.[0]?.trim() || req.ip || "",
-        userAgent: req.headers["user-agent"] || ""
-      });
-    } catch (e) {
-      console.warn("Failed to record login activity:", e?.message || e);
+    if (user.role === 'STUDENT') {
+      await recordStudentLogin(user, req);
+    } else {
+      try {
+        user.lastLogin = new Date();
+        await user.save();
+        await UserActivityLog.create({
+          userId: user._id,
+          role: user.role,
+          type: "LOGIN",
+          ip: req.headers["x-forwarded-for"]?.toString()?.split(",")?.[0]?.trim() || req.ip || "",
+          userAgent: req.headers["user-agent"] || ""
+        });
+      } catch (e) {
+        console.warn("Failed to record login activity:", e?.message || e);
+      }
     }
 
     return issueLoginResponse(user, keepSessionActive, res);
@@ -1625,14 +1629,7 @@ router.post("/setup/complete", setupCompleteLimiter, async (req, res) => {
     await setUserPassword(user, newPassword);
     user.mustChangePassword = false;
     user.passwordChangedAt = new Date();
-    user.lastLogin = new Date();
-    await user.save();
-
-    UserActivityLog.create({
-      userId: user._id, role: user.role, type: 'LOGIN',
-      ip: req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.ip || '',
-      userAgent: req.headers['user-agent'] || '',
-    }).catch(() => {});
+    await recordStudentLogin(user, req);
 
     const credsMail = buildPortalCredentialsEmail({ name: user.name, regNo: user.regNo, email: user.email, password: newPassword });
     transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject: credsMail.subject, html: credsMail.html })

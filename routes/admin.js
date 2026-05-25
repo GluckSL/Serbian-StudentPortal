@@ -12,6 +12,12 @@ const { decryptPassword } = require('../utils/passwordRecoverable');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { computeStudentDataIssues } = require('../services/studentDataIssues');
+const {
+  applyStudentCountryFilters,
+  scheduleCountryBackfills,
+  backfillPhoneCountries,
+  STUDENT_COUNTRY_FILTER_OPTIONS,
+} = require('../utils/studentCountry');
 
 /** Whitelist: API key → User schema path (advanced filter + distinct values) */
 const ADV_STUDENT_FILTER_FIELDS = {
@@ -44,6 +50,7 @@ router.get("/admin-dashboard", verifyToken, checkRole("admin"), (req, res) => {
 // Distinct CRM filter values for student list (Monday-synced fields)
 router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) => {
   try {
+    scheduleCountryBackfills();
     const base = { role: 'STUDENT' };
     const clean = (arr) =>
       [...new Set((arr || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) =>
@@ -77,6 +84,8 @@ router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) =>
         portalWithdrew,
         portalCrmLinked,
       },
+      phoneCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
+      loginCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -123,6 +132,9 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
 // Get all students
 router.get('/students', verifyToken, isAdmin, async (req, res) => {
   try {
+    if (req.query.phoneCountry) {
+      await backfillPhoneCountries();
+    }
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -144,6 +156,8 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       languageLevelOpted,
       leadSource,
       stream,
+      phoneCountry,
+      loginCountry,
       advField,
       advValue
     } = req.query;
@@ -160,6 +174,7 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     if (languageLevelOpted) query.languageLevelOpted = String(languageLevelOpted).trim();
     if (leadSource) query.leadSource = String(leadSource).trim();
     if (stream) query.stream = String(stream).trim();
+    applyStudentCountryFilters(query, { phoneCountry, loginCountry });
 
     if (teacherName) {
       const matchingTeachers = await User.find({

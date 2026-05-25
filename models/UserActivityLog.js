@@ -11,6 +11,7 @@ const userActivityLogSchema = new mongoose.Schema(
     },
     ip: { type: String, default: '' },
     userAgent: { type: String, default: '' },
+    country: { type: String, default: '' },
     createdAt: { type: Date, default: Date.now, index: true }
   },
   { versionKey: false }
