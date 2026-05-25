@@ -4,6 +4,7 @@ const PortalSession = require('../models/portalSession.model');
 const PageActivity = require('../models/pageActivity.model');
 const DigitalExercise = require('../models/DigitalExercise');
 const User = require('../models/User');
+const { batchMatchFilter } = require('../utils/analyticsFilters');
 const UserActivityLog = require('../models/UserActivityLog');
 const StudentLogs = require('../models/StudentLogs');
 const RecordingView = require('../models/RecordingView');
@@ -138,7 +139,10 @@ async function resolveAnalyticsStudentIds({ cohort, batch, level } = {}) {
   } else if (cohort === 'go') {
     userFilter.goStatus = 'GO';
   }
-  if (batchVal) userFilter.batch = batchVal;
+  if (batchVal) {
+    const batchRx = batchMatchFilter(batchVal);
+    if (batchRx) userFilter.batch = batchRx;
+  }
   if (levelVal) userFilter.level = levelVal;
 
   const users = await User.find(userFilter).select('_id').lean();

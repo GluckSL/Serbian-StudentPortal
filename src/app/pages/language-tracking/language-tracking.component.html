@@ -77,8 +77,13 @@
 
       <div class="lt-filter-pill lt-filter-pill--search">
         <mat-icon class="lt-search-icon">search</mat-icon>
-        <input type="text" class="lt-search-input" [(ngModel)]="searchRaw" (ngModelChange)="onSearchChange()" placeholder="Search student…" />
+        <input type="text" class="lt-search-input" [(ngModel)]="searchRaw" (ngModelChange)="onSearchChange()" placeholder="Name, email, reg no, batch…" />
       </div>
+
+      <label class="lt-filter-pill lt-filter-pill--check" matTooltip="Uncheck to hide students marked as test accounts">
+        <input type="checkbox" [(ngModel)]="includeTestAccounts" (ngModelChange)="onIncludeTestAccountsChange()" />
+        <span>Show test accounts</span>
+      </label>
 
       <div class="lt-filter-pill lt-filter-pill--sort">
         <span class="lt-filter-pill__label">Sort</span>
@@ -289,7 +294,7 @@
                 <div class="lt-student-cell">
                   <div class="lt-student-avatar">{{ s.name.charAt(0).toUpperCase() }}</div>
                   <div class="lt-student-info">
-                    <div class="lt-student-name">{{ s.name }}</div>
+                    <div class="lt-student-name">{{ s.name }}<app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge></div>
                     <div class="lt-student-meta">{{ s.regNo }}</div>
                   </div>
                 </div>
@@ -340,7 +345,8 @@
             <tr *ngIf="!loading && students.length === 0">
               <td colspan="9" class="lt-empty">
                 <mat-icon>school</mat-icon>
-                <p>No students found for the selected filters.</p>
+                <p>No students match your filters.</p>
+                <p class="lt-empty__hint">Clear the search box, widen the date range (e.g. 30 Days), or turn on “Show test accounts” if someone is marked as a test account.</p>
               </td>
             </tr>
           </tbody>

@@ -23,6 +23,7 @@ import {
   LtTrendDay,
 } from './language-tracking-api.service';
 import { LanguageTrackingDrawerComponent } from './language-tracking-drawer.component';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 function formatDuration(secs: number): string {
   const s = Math.max(0, Math.floor(secs || 0));
@@ -60,6 +61,7 @@ function daysAgoIso(n: number): string {
     MatSnackBarModule,
     NgChartsModule,
     LanguageTrackingDrawerComponent,
+    TestAccountBadgeComponent,
   ],
   templateUrl: './language-tracking.component.html',
   styleUrls: ['./language-tracking.component.scss'],
@@ -74,6 +76,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   batch = '';
   level = '';
   searchRaw = '';
+  includeTestAccounts = true;
   quickRange: 'today' | '7d' | '30d' | 'custom' = 'today';
 
   availableBatches: string[] = [];
@@ -270,11 +273,17 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.batch = '';
     this.level = '';
     this.searchRaw = '';
+    this.includeTestAccounts = true;
     this.setQuickRange('today');
   }
 
+  onIncludeTestAccountsChange(): void {
+    this.page = 1;
+    this.load();
+  }
+
   get hasAnyFilter(): boolean {
-    return !!(this.batch || this.level || (this.searchRaw || '').trim());
+    return !!(this.batch || this.level || (this.searchRaw || '').trim() || this.includeTestAccounts);
   }
 
   get canApplyCustomRange(): boolean {
@@ -427,6 +436,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
         batch: this.batch || undefined,
         level: this.level || undefined,
         search: this.searchRaw.trim() || undefined,
+        includeTestAccounts: this.includeTestAccounts,
         page: this.page,
         limit: this.PAGE_SIZE,
         sort: this.sort,
@@ -438,7 +448,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
           this.kpis = res.kpis;
           this.students = res.students;
           this.total = res.total;
-          this.buildCharts(res.students, res.trend, res.kpis);
+          this.buildCharts(res.topStudents ?? res.students, res.trend, res.kpis);
         },
         error: () => {
           this.loading = false;
