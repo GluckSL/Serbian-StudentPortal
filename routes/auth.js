@@ -126,6 +126,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "teacher-resources",
   "journey",
   "go-students",
+  "go-students-sinhala",
   "manage-classes",
   "attendance",
   "import-meeting",

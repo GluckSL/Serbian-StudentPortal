@@ -233,6 +233,9 @@ interface TimelineDay {
     <button type="button" class="j-plan-tab" [class.j-plan-tab--active]="planTab === 'silver'" (click)="switchPlanTab('silver')">
       <span class="j-plan-tab-icon">🥈</span> Silver
     </button>
+    <button type="button" class="j-plan-tab" [class.j-plan-tab--active]="planTab === 'silver-sinhala'" (click)="switchPlanTab('silver-sinhala')">
+      <span class="j-plan-tab-icon">🥈</span> Silver Sinhala
+    </button>
   </div>
 
   <!-- ══ Loading ══════════════════════════════════════════ -->
@@ -1661,19 +1664,19 @@ interface TimelineDay {
       </div>
     </div>
   </div>
-  <!-- ══ SILVER TAB ══════════════════════════════════════════════════════════ -->
-  <div *ngIf="planTab === 'silver'" class="j-content">
+  <!-- ══ SILVER TAB (Tamil GO-SILVER) ═══════════════════════════════════════ -->
+  <div *ngIf="planTab === 'silver' || planTab === 'silver-sinhala'" class="j-content">
     <div class="gs-add-bar">
       <div class="gs-add-title">
         <span class="gs-plan-badge">SILVER</span>
-        <span>GO Batch management</span>
+        <span>GO Batch management — {{ activeGoBatchLabel }}</span>
       </div>
       <div class="gs-silver-tab-bar">
         <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'go'" (click)="silverTab = 'go'">
-          GO Students
+          {{ planTab === 'silver-sinhala' ? 'GO Sinhala Students' : 'GO Students' }}
         </button>
         <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'silver'" (click)="silverTab = 'silver'">
-          Silver Students
+          {{ planTab === 'silver-sinhala' ? 'Silver Sinhala Students' : 'Silver Students' }}
         </button>
       </div>
     </div>
@@ -3887,7 +3890,7 @@ export class JourneyManagementComponent implements OnInit {
   progressOnlyMode = false;
 
   // ── Plan tabs (Platinum / Silver) ──────────────────────────────────────────
-  planTab: 'platinum' | 'silver' = 'platinum';
+  planTab: 'platinum' | 'silver' | 'silver-sinhala' = 'platinum';
 
   // ── GO Silver state ─────────────────────────────────────────────────────────
   silverTab: 'go' | 'silver' = 'go';
@@ -3937,10 +3940,23 @@ export class JourneyManagementComponent implements OnInit {
     );
   }
 
+  get activeGoApiPath(): string {
+    return this.planTab === 'silver-sinhala' ? 'go-students-sinhala' : 'go-students';
+  }
+
+  get activeGoBatchName(): string {
+    return this.planTab === 'silver-sinhala' ? 'GO-SINHALA' : 'GO-SILVER';
+  }
+
+  get activeGoBatchLabel(): string {
+    return this.planTab === 'silver-sinhala' ? 'GO-SINHALA (Sinhala)' : 'GO-SILVER (Tamil)';
+  }
+
   get silverBatchOptions(): string[] {
+    const defaultBatch = this.activeGoBatchName;
     if (this.silverBatchList.length > 0) {
       const set = new Set(this.silverBatchList);
-      set.add('GO-SILVER');
+      set.add(defaultBatch);
       return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     }
     const set = new Set<string>();
@@ -3948,7 +3964,7 @@ export class JourneyManagementComponent implements OnInit {
       const batch = String(s.batch || '').trim();
       if (batch) set.add(batch);
     });
-    set.add('GO-SILVER');
+    set.add(defaultBatch);
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }
 
@@ -3974,7 +3990,7 @@ export class JourneyManagementComponent implements OnInit {
       const batch = String(s?.batch || '').trim();
       if (batch) set.add(batch);
     });
-    set.add('GO-SILVER');
+    set.add(this.activeGoBatchName);
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }
 
@@ -4047,12 +4063,15 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   // ── Plan tab switch ─────────────────────────────────────────────────────────
-  switchPlanTab(tab: 'platinum' | 'silver'): void {
+  switchPlanTab(tab: 'platinum' | 'silver' | 'silver-sinhala'): void {
+    if (this.planTab === tab) return;
     this.planTab = tab;
-    if (tab === 'silver' && this.goStudents.length === 0) {
+    if (tab === 'silver' || tab === 'silver-sinhala') {
+      this.goStudents = [];
+      this.silverStudents = [];
+      this.goSelectedIds.clear();
+      this.silverSelectedIds.clear();
       this.loadGoStudents();
-    }
-    if (tab === 'silver' && this.silverStudents.length === 0) {
       this.loadSilverStudents();
     }
   }
@@ -4060,7 +4079,7 @@ export class JourneyManagementComponent implements OnInit {
   // ── GO Silver methods ───────────────────────────────────────────────────────
   loadGoStudents(): void {
     this.goLoading = true;
-    this.http.get<any>(`${environment.apiUrl}/go-students`, { withCredentials: true }).subscribe({
+    this.http.get<any>(`${environment.apiUrl}/${this.activeGoApiPath}`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.goStudents = r.students || [];
         this.goSelectedIds.clear();
@@ -4083,7 +4102,7 @@ export class JourneyManagementComponent implements OnInit {
       return;
     }
     this.goAdding = true;
-    this.http.post<any>(`${environment.apiUrl}/go-students/add`, { email }, { withCredentials: true }).subscribe({
+    this.http.post<any>(`${environment.apiUrl}/${this.activeGoApiPath}/add`, { email }, { withCredentials: true }).subscribe({
       next: (r) => {
         this.goAdding = false;
         this.goEmailInput = '';
@@ -4099,7 +4118,7 @@ export class JourneyManagementComponent implements OnInit {
 
   loadSilverStudents(): void {
     this.silverLoading = true;
-    this.http.get<any>(`${environment.apiUrl}/go-students/silver`, { withCredentials: true }).subscribe({
+    this.http.get<any>(`${environment.apiUrl}/${this.activeGoApiPath}/silver`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.silverStudents = r?.students || [];
         this.silverBatchList = r?.batches || [];
@@ -4170,7 +4189,7 @@ export class JourneyManagementComponent implements OnInit {
     if (!studentId) return;
     this.goRemovingIds.add(studentId);
     this.http.delete<any>(
-      `${environment.apiUrl}/go-students/${encodeURIComponent(studentId)}/remove`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/${encodeURIComponent(studentId)}/remove`,
       { withCredentials: true }
     ).subscribe({
       next: (r) => {
@@ -4200,7 +4219,7 @@ export class JourneyManagementComponent implements OnInit {
 
     this.goBulkUpdating = true;
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/bulk-remove-batch`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/bulk-remove-batch`,
       { studentIds },
       { withCredentials: true }
     ).subscribe({
@@ -4234,7 +4253,7 @@ export class JourneyManagementComponent implements OnInit {
 
     this.goBulkUpdating = true;
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/bulk-set-day`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/bulk-set-day`,
       { studentIds, day: Math.floor(day) },
       { withCredentials: true }
     ).subscribe({
@@ -4269,7 +4288,7 @@ export class JourneyManagementComponent implements OnInit {
 
     this.goBulkUpdating = true;
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/bulk-set-batch`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/bulk-set-batch`,
       { studentIds, batch },
       { withCredentials: true }
     ).subscribe({
@@ -4297,7 +4316,7 @@ export class JourneyManagementComponent implements OnInit {
     }
     this.silverAddingIds.add(student._id);
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/add`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/add`,
       { studentId: student._id },
       { withCredentials: true }
     ).subscribe({
@@ -4322,7 +4341,7 @@ export class JourneyManagementComponent implements OnInit {
 
     this.silverBulkUpdating = true;
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/silver/bulk-remove-batch`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/silver/bulk-remove-batch`,
       { studentIds },
       { withCredentials: true }
     ).subscribe({
@@ -4356,7 +4375,7 @@ export class JourneyManagementComponent implements OnInit {
 
     this.silverBulkUpdating = true;
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/silver/bulk-set-day`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/silver/bulk-set-day`,
       { studentIds, day: Math.floor(day) },
       { withCredentials: true }
     ).subscribe({
@@ -4391,7 +4410,7 @@ export class JourneyManagementComponent implements OnInit {
 
     this.silverBulkUpdating = true;
     this.http.post<any>(
-      `${environment.apiUrl}/go-students/silver/bulk-set-batch`,
+      `${environment.apiUrl}/${this.activeGoApiPath}/silver/bulk-set-batch`,
       { studentIds, batch },
       { withCredentials: true }
     ).subscribe({
@@ -4419,7 +4438,11 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   openGoStudentDetail(student: any): void {
-    const url = this.router.serializeUrl(this.router.createUrlTree(['/admin/journey/go', student._id]));
+    const queryParams =
+      this.planTab === 'silver-sinhala' ? { track: 'sinhala' } : {};
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/admin/journey/go', student._id], { queryParams })
+    );
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 

@@ -831,7 +831,8 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
     const day = student.currentCourseDay || 1;
     const batchKeys = allStudentBatchStringsForContent(student);
     const result = await checkDayCompletion(student._id, batchKeys, day);
-    const cfgBatch = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
+    const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+    const cfgBatch = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
     const batchCfg =
       cfgBatch
         ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(cfgBatch)}$`, 'i') }).lean()
@@ -871,7 +872,8 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
     if (!batchKeys.length) {
       return res.status(400).json({ message: 'Student has no batch assigned; cannot advance journey day.' });
     }
-    const cfgBatch = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
+    const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+    const cfgBatch = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
     const cfg = await getOrCreateConfig(cfgBatch);
     const currentDay = student.currentCourseDay || 1;
 

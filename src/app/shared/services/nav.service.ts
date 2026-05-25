@@ -48,6 +48,9 @@ export class NavService {
     'go-students': [
       '/admin/go-students'
     ],
+    'go-students-sinhala': [
+      '/admin/go-students'
+    ],
     'class-recordings': [
       '/class-recordings/approval-requests'
     ]

@@ -130,6 +130,8 @@ const UserSchema = new mongoose.Schema({
 
   // GO Silver batch fields
   goStatus: { type: String, enum: ['GO'], default: undefined },
+  /** Tamil → GO-SILVER journey; Sinhala → GO-SINHALA journey */
+  goLanguage: { type: String, enum: ['Tamil', 'Sinhala'], default: undefined },
   goJoiningDate: { type: Date, default: null },
 
   // CRM link — stores the external WP/Gluck CRM contact ID so portal ↔ CRM records stay linked

@@ -189,7 +189,8 @@ async function applyJourneyDayRollovers() {
   const configCache = new Map();
   async function batchConfigForStudent(student) {
     const keys = allStudentBatchStringsForContent(student);
-    const primary = keys.includes('GO-SILVER') ? 'GO-SILVER' : keys[0];
+    const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+    const primary = primaryGoBatchFromKeys(keys) || keys[0];
     if (!primary) return null;
     if (configCache.has(primary)) return configCache.get(primary);
     const doc = await BatchConfig.findOne({

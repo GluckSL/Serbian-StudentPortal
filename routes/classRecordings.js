@@ -1773,7 +1773,8 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
         const dayInt = Math.floor(day);
         const nextDay = Math.min(200, dayInt + 1);
         const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
-        const primary = batchKeys.includes('GO-SILVER') ? 'GO-SILVER' : batchKeys[0];
+        const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+        const primary = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
         const cfgDoc = primary
           ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
           : null;

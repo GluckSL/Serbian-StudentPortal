@@ -1,7 +1,9 @@
 /**
  * Batch label used for journey-scoped content (live classes, class recordings, etc.).
- * Silver GO students follow the GO-SILVER schedule without a traditional User.batch value.
+ * Silver GO students follow GO-SILVER (Tamil) or GO-SINHALA (Sinhala) without a traditional User.batch value.
  */
+
+const { goBatchForStudent } = require('./goSilverTrack');
 
 function normalizeBatch(value) {
   return String(value || '')
@@ -28,7 +30,7 @@ function effectiveStudentBatch(student) {
   const direct = String(student.batch || '').trim();
   if (direct) return direct;
   if (String(student.goStatus || '') === 'GO' && String(student.subscription || '').toUpperCase() === 'SILVER') {
-    return 'GO-SILVER';
+    return goBatchForStudent(student);
   }
   return '';
 }
@@ -51,7 +53,8 @@ function allStudentBatchStringsForContent(student) {
   };
   add(student.batch);
   if (String(student.goStatus || '') === 'GO' && String(student.subscription || '').toUpperCase() === 'SILVER') {
-    add('GO-SILVER');
+    const goBatch = goBatchForStudent(student);
+    if (goBatch) add(goBatch);
   }
   return out;
 }

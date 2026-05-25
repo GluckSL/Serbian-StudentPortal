@@ -9,7 +9,8 @@ const MAX_PER_REQUEST = 50;
 
 function resolveBatchForCompletion(student) {
   if (student.batch) return String(student.batch);
-  if (student.goStatus === 'GO' && student.subscription === 'SILVER') return 'GO-SILVER';
+  const { goBatchForStudent } = require('../utils/goSilverTrack');
+  if (student.goStatus === 'GO' && student.subscription === 'SILVER') return goBatchForStudent(student);
   return '';
 }
 

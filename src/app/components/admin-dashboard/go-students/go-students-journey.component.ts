@@ -50,7 +50,7 @@ interface PickerItem {
           <span>🚀</span> GO Students Journey
         </h1>
         <p class="gs-subtitle">
-          Manage the 200-day learning journey for Silver GO batch students. Link modules, exercises, live classes, and class recordings to each day (recordings are tagged to the GO-SILVER batch automatically).
+          Manage the 200-day learning journey for Silver GO students. Link modules, exercises, live classes, and class recordings to each day (recordings use the <strong>{{ GO_BATCH }}</strong> batch tag).
         </p>
       </div>
       <div class="gs-header-actions">
@@ -58,6 +58,14 @@ interface PickerItem {
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
       </div>
+    </div>
+    <div class="gs-track-tab-bar">
+      <button type="button" class="gs-track-tab" [class.gs-track-tab--active]="contentTrack === 'tamil'" (click)="switchContentTrack('tamil')">
+        GO Students (Tamil)
+      </button>
+      <button type="button" class="gs-track-tab" [class.gs-track-tab--active]="contentTrack === 'sinhala'" (click)="switchContentTrack('sinhala')">
+        GO Sinhala Students
+      </button>
     </div>
   </div>
 
@@ -100,7 +108,7 @@ interface PickerItem {
       </div>
     </div>
     <div class="gs-config-meta">
-      <span class="gs-info-chip">GO-SILVER batch</span>
+      <span class="gs-info-chip">{{ GO_BATCH }} batch</span>
       <span class="gs-info-chip">Day {{ batchConfig.batchCurrentDay }} / {{ batchConfig.journeyLength }}</span>
       <span *ngIf="batchConfig.batchStartDate" class="gs-info-chip">Started {{ batchConfig.batchStartDate | date:'dd MMM yyyy' }}</span>
     </div>
@@ -109,7 +117,7 @@ interface PickerItem {
   <!-- Loading -->
   <div *ngIf="loading" class="gs-loading">
     <div class="spinner-border text-primary"></div>
-    <p>Loading GO-SILVER journey…</p>
+    <p>Loading {{ GO_BATCH }} journey…</p>
   </div>
 
   <!-- Content area -->
@@ -406,6 +414,32 @@ interface PickerItem {
       justify-content: space-between;
       gap: 16px;
       flex-wrap: wrap;
+    }
+    .gs-track-tab-bar {
+      max-width: 1200px;
+      margin: 14px auto 0;
+      display: inline-flex;
+      gap: 8px;
+      padding: 4px;
+      background: rgba(255,255,255,.12);
+      border-radius: 10px;
+    }
+    .gs-track-tab {
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,.85);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .gs-track-tab:hover { background: rgba(255,255,255,.15); color: #fff; }
+    .gs-track-tab--active {
+      background: #fff;
+      color: #005b96;
+      box-shadow: 0 1px 4px rgba(0,0,0,.15);
     }
     .gs-title {
       margin: 0 0 4px;
@@ -831,13 +865,21 @@ interface PickerItem {
 export class GoStudentsJourneyComponent implements OnInit {
 
   private batchJourneyUrl = `${environment.apiUrl}/batch-journey`;
-  private goStudentsUrl = `${environment.apiUrl}/go-students`;
   private learningModulesUrl = `${environment.apiUrl}/learning-modules`;
   private digitalExercisesUrl = `${environment.apiUrl}/digital-exercises`;
   private classRecordingsUrl = `${environment.apiUrl}/class-recordings`;
   private zoomUrl = `${environment.apiUrl}/zoom`;
 
-  readonly GO_BATCH = 'GO-SILVER';
+  contentTrack: 'tamil' | 'sinhala' = 'tamil';
+
+  get GO_BATCH(): string {
+    return this.contentTrack === 'sinhala' ? 'GO-SINHALA' : 'GO-SILVER';
+  }
+
+  get goStudentsUrl(): string {
+    const path = this.contentTrack === 'sinhala' ? 'go-students-sinhala' : 'go-students';
+    return `${environment.apiUrl}/${path}`;
+  }
 
   loading = false;
   saving = false;
@@ -855,7 +897,11 @@ export class GoStudentsJourneyComponent implements OnInit {
   pinnedJourneyDays: number[] = [];
   /** Input next to “Add day” in the config bar */
   newJourneyDayInput: number | null = null;
-  private readonly pinnedDaysStorageKey = 'go-silver-journey-pinned-days';
+  private get pinnedDaysStorageKey(): string {
+    return this.contentTrack === 'sinhala'
+      ? 'go-sinhala-journey-pinned-days'
+      : 'go-silver-journey-pinned-days';
+  }
   /** When the timeline is empty, use this day for the empty-state “Add content” control */
   emptyAddDay = 1;
   showAddModal = false;
@@ -940,6 +986,16 @@ export class GoStudentsJourneyComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.loadPinnedJourneyDaysFromStorage();
+    this.loadData();
+  }
+
+  switchContentTrack(track: 'tamil' | 'sinhala'): void {
+    if (this.contentTrack === track) return;
+    this.contentTrack = track;
+    this.timelineDays = [];
+    this.pinnedJourneyDays = [];
+    this.batchConfig = null;
     this.loadPinnedJourneyDaysFromStorage();
     this.loadData();
   }
@@ -1057,7 +1113,7 @@ export class GoStudentsJourneyComponent implements OnInit {
           this.batchConfig.batchCurrentDay = this.editCurrentDay;
           this.batchConfig.notes = this.editNotes;
         }
-        this.notify.success('GO-SILVER journey config saved.');
+        this.notify.success(`${this.GO_BATCH} journey config saved.`);
       },
       error: (e) => {
         this.saving = false;

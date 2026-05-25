@@ -23,6 +23,7 @@ const {
   getAnalyticsFilterOptions,
   parseDateRange,
 } = require('./portalAnalytics.service');
+const { goBatchForStudent } = require('../utils/goSilverTrack');
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -320,7 +321,7 @@ async function getOverview(opts = {}) {
       name: s.name,
       email: s.email,
       regNo: s.regNo,
-      batch: s.batch || (s.goStatus === 'GO' && s.subscription === 'SILVER' ? 'GO-SILVER' : ''),
+      batch: s.batch || (s.goStatus === 'GO' && s.subscription === 'SILVER' ? goBatchForStudent(s) : ''),
       level: s.level,
       subscription: s.subscription,
       goStatus: s.goStatus || null,
@@ -432,7 +433,9 @@ async function getStudentDetail(studentId, opts = {}) {
     // Lazy require avoids circular dependency issues at module load time
     // eslint-disable-next-line global-require
     const { computeJourneyDayCompletion } = require('./journeyDayCompletion.service');
-    const batchForCompletion = student.batch || (student.goStatus === 'GO' && student.subscription === 'SILVER' ? 'GO-SILVER' : '');
+    const batchForCompletion = student.batch || (student.goStatus === 'GO' && student.subscription === 'SILVER'
+      ? goBatchForStudent(student)
+      : '');
     const day = student.currentCourseDay || 1;
     dayCompletion = await computeJourneyDayCompletion(sid, batchForCompletion, day, {
       includeRecordings: false,

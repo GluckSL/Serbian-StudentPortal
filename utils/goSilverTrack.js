@@ -56,15 +56,28 @@ function isSilverGoStudent(student) {
 
 /** Mongo filter for GO students on a track. */
 function goStudentQuery(track) {
-  const cfg = getTrackConfig(track);
+  const t = normalizeTrack(track);
+  const base = { role: 'STUDENT', goStatus: 'GO', subscription: 'SILVER' };
+  if (t === 'sinhala') {
+    return {
+      ...base,
+      $or: [
+        { goLanguage: 'Sinhala' },
+        { goLanguage: { $exists: false }, medium: 'Sinhala' },
+        { goLanguage: { $exists: false }, medium: { $in: ['Sinhala'] } }
+      ]
+    };
+  }
   return {
-    role: 'STUDENT',
-    goStatus: 'GO',
-    subscription: 'SILVER',
+    ...base,
     $or: [
-      { goLanguage: cfg.language },
-      { goLanguage: { $exists: false }, medium: cfg.language },
-      { goLanguage: { $exists: false }, medium: { $in: [cfg.language] } }
+      { goLanguage: 'Tamil' },
+      {
+        $and: [
+          { $or: [{ goLanguage: { $exists: false } }, { goLanguage: null }] },
+          { medium: { $nin: ['Sinhala'] } }
+        ]
+      }
     ]
   };
 }
@@ -72,11 +85,26 @@ function goStudentQuery(track) {
 /** Silver students not yet in GO for this track (by medium / language). */
 function silverPoolQuery(track) {
   const cfg = getTrackConfig(track);
-  return {
+  const base = {
     role: 'STUDENT',
     subscription: 'SILVER',
-    $or: [{ goStatus: { $exists: false } }, { goStatus: { $ne: 'GO' } }],
-    medium: cfg.language
+    $or: [{ goStatus: { $exists: false } }, { goStatus: { $ne: 'GO' } }]
+  };
+  if (normalizeTrack(track) === 'sinhala') {
+    return { ...base, medium: { $in: [cfg.language] } };
+  }
+  return {
+    ...base,
+    $and: [
+      {
+        $or: [
+          { medium: { $in: [cfg.language] } },
+          { medium: { $size: 0 } },
+          { medium: { $exists: false } }
+        ]
+      },
+      { medium: { $nin: ['Sinhala'] } }
+    ]
   };
 }
 
