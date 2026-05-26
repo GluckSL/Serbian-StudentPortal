@@ -135,7 +135,7 @@ const UserSchema = new mongoose.Schema({
   goJoiningDate: { type: Date, default: null },
 
   // CRM link — stores the external WP/Gluck CRM contact ID so portal ↔ CRM records stay linked
-  crmExternalId: { type: String, default: '', index: true },
+  crmExternalId: { type: String, default: '' },
 
   // Self-signup fields
   nationality:  { type: String, default: '' },
