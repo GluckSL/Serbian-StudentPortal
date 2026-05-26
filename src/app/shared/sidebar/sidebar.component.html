@@ -8,6 +8,13 @@
     <div class="role-badge" [style.background]="badgeColor">
       {{ userRole }}
     </div>
+    <button
+      type="button"
+      class="sidebar-close-btn"
+      aria-label="Close menu"
+      (click)="closeSidebar.emit()">
+      <span class="material-icons" aria-hidden="true">close</span>
+    </button>
   </div>
 
   <!-- Nav Groups -->

@@ -40,6 +40,7 @@ const {
   buildPortalCredentialsEmail,
   buildWelcomeOneTimePasswordEmail,
   buildSignupLinkEmail,
+  buildForcePasswordResetEmail,
 } = require('../utils/emailTemplates');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
 const EmailChangeOtp = require('../models/EmailChangeOtp');
@@ -72,7 +73,7 @@ function issueLoginResponse(user, keepSessionActive, res) {
   const remember = Boolean(keepSessionActive);
   const jwtExpires = remember ? '30d' : '24h';
   const token = jwt.sign(
-    { id: user._id, role: user.role, name: user.name },
+    { id: user._id, role: user.role, name: user.name, tv: user.authTokenVersion ?? 0 },
     JWT_SECRET,
     { expiresIn: jwtExpires }
   );
@@ -1405,6 +1406,18 @@ router.post("/login", loginLimiter, async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
+    // Keep ADMIN directory password column in sync when recoverable copy is missing.
+    if (user.role === 'STUDENT' && password) {
+      const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');
+      if (!readRecoverablePassword(user.passwordRecoverable)) {
+        const stored = storeRecoverablePassword(password);
+        if (stored) {
+          user.passwordRecoverable = stored;
+          await user.save().catch(() => {});
+        }
+      }
+    }
+
     // ⚠️ Uncertain / Withdrawn — show confirmation modal instead of logging in
     if (studentRequiresWithdrawalConfirmation(user)) {
       const loginAttemptTime = new Date().toISOString();
@@ -1432,8 +1445,10 @@ router.post("/login", loginLimiter, async (req, res) => {
     // 🔐 First-login / ongoing student — set permanent password before access
     if (studentRequiresPasswordSetup(user)) {
       const setupToken = signPasswordSetupToken(user._id);
+      const otpPreSent = Boolean(user.mustChangePassword && user.passwordChangedAt);
       return res.json({
         requiresPasswordSetup: true,
+        otpPreSent,
         setupToken,
         studentInfo: {
           studentId: String(user._id),
@@ -1474,7 +1489,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 // Student submits new email + desired password → notifies admins → pending approval
 router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res) => {
   const EmailChangeRequest = require('../models/EmailChangeRequest');
-  const { encryptPassword } = require('../utils/passwordRecoverable');
+  const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
   try {
     const { setupToken, newEmail: rawNewEmail, newPassword, confirmPassword } = req.body;
     if (!setupToken || !rawNewEmail || !newPassword || !confirmPassword) {
@@ -1505,7 +1520,7 @@ router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res
       return res.status(400).json({ msg: 'That email address is already registered to another account.' });
     }
 
-    const newPasswordEncrypted = encryptPassword(newPassword) || newPassword; // fallback plain if key not set (dev only)
+    const newPasswordEncrypted = storeRecoverablePassword(newPassword);
 
     // Cancel any pending request from this user
     await EmailChangeRequest.deleteMany({ userId: user._id, status: 'pending' });
@@ -2379,7 +2394,8 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
       res.json({
         success: true,
         msg: "Credentials email sent successfully",
-        lastSent: user.lastCredentialsEmailSent
+        lastSent: user.lastCredentialsEmailSent,
+        displayPassword: passwordPlain,
       });
     } catch (emailErr) {
       console.error("âŒ Email sending failed:", emailErr);
@@ -2511,10 +2527,9 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
             try {
               // Generate new password for existing user
               const newPasswordPlain = await generatePassword("STUDENT", existingUser.regNo);
-              const newHashedPassword = await bcrypt.hash(newPasswordPlain, 10);
 
-              // Update password
-              existingUser.password = newHashedPassword;
+              // Update password hash + recoverable copy (ADMIN password column)
+              await setUserPassword(existingUser, newPasswordPlain);
               existingUser.lastCredentialsEmailSent = new Date();
               await existingUser.save();
 
@@ -2697,6 +2712,63 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
       message: 'Server error during bulk upload',
       error: error.message
     });
+  }
+});
+
+// ─── POST /admin/force-password-reset/:studentId — logout, OTP email, must set new password ───
+
+router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.studentId);
+    if (!user) {
+      return res.status(404).json({ msg: 'Student not found.' });
+    }
+    if (user.role !== 'STUDENT') {
+      return res.status(400).json({ msg: 'Password reset can only be triggered for students.' });
+    }
+
+    user.authTokenVersion = (user.authTokenVersion || 0) + 1;
+    user.mustChangePassword = true;
+    await user.save();
+
+    await EmailChangeOtp.deleteMany({ userId: user._id });
+
+    const otp = String(crypto.randomInt(100000, 999999));
+    const otpHash = await bcrypt.hash(otp, await bcrypt.genSalt(10));
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await EmailChangeOtp.create({
+      userId: user._id,
+      pendingNewEmail: user.email,
+      otpHash,
+      expiresAt,
+    });
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    const loginUrl = `${frontendUrl}/login`;
+    const { subject, html } = buildForcePasswordResetEmail({
+      name: user.name,
+      regNo: user.regNo,
+      otp,
+      loginUrl,
+      expiresMinutes: 15,
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject,
+      html,
+    });
+
+    console.log('[admin/force-password-reset] Sent to', user.email, 'regNo', user.regNo);
+
+    return res.json({
+      success: true,
+      msg: `Password reset initiated for ${user.name}. They were signed out and emailed a verification code.`,
+    });
+  } catch (err) {
+    console.error('[POST /auth/admin/force-password-reset]', err);
+    return res.status(500).json({ msg: 'Failed to initiate password reset. Please try again.' });
   }
 });
 

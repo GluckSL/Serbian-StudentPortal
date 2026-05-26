@@ -52,7 +52,9 @@ export class NavService {
       '/admin/go-students'
     ],
     'class-recordings': [
-      '/class-recordings/approval-requests'
+      '/class-recordings/approval-requests',
+      '/class-recordings/access-recording',
+      '/class-recordings/self-pace'
     ]
   };
   private readonly TEACHER_ROUTE_ALIASES: Record<string, string[]> = {

@@ -341,6 +341,12 @@ app.use('/api/class-recordings', classRecordingRoutes);
 
 const recordingAccessRequestRoutes = require('./routes/recordingAccessRequests');
 app.use('/api/recording-access-requests', recordingAccessRequestRoutes);
+
+const journeyCrossBatchRecordingAccessRoutes = require('./routes/journeyCrossBatchRecordingAccess');
+app.use('/api/journey-cross-batch-recording-access', journeyCrossBatchRecordingAccessRoutes);
+
+const selfPaceRoutes = require('./routes/selfPace');
+app.use('/api/self-pace', selfPaceRoutes);
 app.use('/api/portal', portalRouter);
 app.use('/api/portal-analytics', analyticsRouter);
 

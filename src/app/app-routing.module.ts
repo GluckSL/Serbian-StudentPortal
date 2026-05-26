@@ -67,6 +67,13 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
+  {
+    path: 'admin/students/:studentId',
+    loadComponent: () => import('./components/admin-dashboard/admin-student-detail/admin-student-detail.component')
+      .then(m => m.AdminStudentDetailComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
 
   // User Roles Management
   {
@@ -202,6 +209,8 @@ export const routes: Routes = [
   // Class Recordings — Teacher/Admin manage
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
   { path: 'class-recordings/approval-requests', loadComponent: () => import('./components/class-recordings/recording-access-approval/recording-access-approval-page.component').then(m => m.RecordingAccessApprovalPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'class-recordings/self-pace', loadComponent: () => import('./components/class-recordings/recording-cross-batch-access/recording-cross-batch-access-page.component').then(m => m.RecordingCrossBatchAccessPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'class-recordings/access-recording', redirectTo: '/class-recordings/self-pace', pathMatch: 'full' },
 
   // Class Recordings — Student view (hub)
   { path: 'student/class-recordings', redirectTo: '/student/my-course', pathMatch: 'full' },

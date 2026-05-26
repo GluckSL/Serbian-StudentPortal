@@ -1007,6 +1007,19 @@
   }
 }
 
+/* ── Cross-batch access recording button ── */
+.cr-btn--access-recording {
+  background: rgba(37, 99, 235, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+}
+
+.cr-btn--access-recording:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.28);
+  color: #fff;
+  border-color: rgba(147, 197, 253, 0.6);
+}
+
 /* ── Recording access request button ── */
 .cr-btn--req-approval {
   background: rgba(124, 58, 237, 0.15);
