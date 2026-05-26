@@ -9,6 +9,7 @@ const BASE_POINTS = {
   image_matching: 10,
   gender_stack: 10,
   flapjugation: 10,
+  whackawort: 10,
 };
 
 const PER_ANSWER_XP = {
@@ -19,6 +20,7 @@ const PER_ANSWER_XP = {
   image_matching: 3,
   gender_stack: 3,
   flapjugation: 3,
+  whackawort: 3,
 };
 
 /**

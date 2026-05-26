@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -113,7 +113,16 @@ export interface FlapjugationQuestion {
   tokens: string[];
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion;
+export interface WhackawortQuestion {
+  _id: string;
+  gameType: 'whackawort';
+  order: number;
+  word: string;
+  translation: string;
+  category: string;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -138,7 +147,9 @@ export interface AdminGenderStackQuestion extends GenderStackQuestion {
 }
 export interface AdminFlapjugationQuestion extends FlapjugationQuestion {
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion;
+export interface AdminWhackawortQuestion extends WhackawortQuestion {
+}
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -246,6 +257,7 @@ export interface StudentGameStats {
     image_matching: { gamesCompleted: number; bestScore: number; totalXp: number };
     gender_stack: { gamesCompleted: number; bestScore: number; totalXp: number };
     flapjugation: { gamesCompleted: number; bestScore: number; totalXp: number };
+    whackawort: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 
@@ -421,7 +433,7 @@ export interface ArenaBattleSentenceQuestion {
 export interface ArenaBattleRound {
   roundIndex: number;
   totalRounds: number;
-  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion;
+  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion;
   roundStartedAt?: string;
   roundEndsAt?: string;
   serverTime: number;
@@ -610,4 +622,12 @@ export interface ArenaBattleFlapjugationQuestion {
   infinitive: string;
   forms: string[];
   translation?: string;
+}
+
+export interface ArenaBattleWhackawortQuestion {
+  questionId: string;
+  index: number;
+  targetCategory: string;
+  words: Array<{ word: string; translation: string; category: string }>;
+  duration: number;
 }

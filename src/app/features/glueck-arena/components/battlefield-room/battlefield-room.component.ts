@@ -14,6 +14,7 @@ import { GenderStackMpComponent } from '../../engines/gender-stack-mp/gender-sta
 import { FlashCardsMpComponent } from '../../engines/flash-cards-mp/flash-cards-mp.component';
 import { MatchingMpComponent } from '../../engines/matching-mp/matching-mp.component';
 import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
+import { WhackawortMpComponent } from '../../engines/whackawort-mp/whackawort-mp.component';
 import {
   ArenaRoomState, ArenaLeaderboardEntry, ArenaBattleRound, ArenaBattleAnswerResult,
   ChatMessage,
@@ -30,6 +31,7 @@ import { AuthService } from '../../../../services/auth.service';
     ScrambleRushMpComponent, SentenceBuilderMpComponent,
     ImageMatchingMpComponent, GenderStackMpComponent,
     FlashCardsMpComponent, MatchingMpComponent, FlapjugationMpComponent,
+    WhackawortMpComponent,
   ],
   template: `
     <div class="bfroom">
@@ -187,6 +189,10 @@ import { AuthService } from '../../../../services/auth.service';
                     [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
                     (submitAnswer)="onAnswer($event)">
                   </app-flapjugation-mp>
+                  <app-whackawort-mp *ngSwitchCase="'whackawort'"
+                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
+                    (submitAnswer)="onAnswer($event)">
+                  </app-whackawort-mp>
                 </ng-container>
                 <div class="bfroom__engine-fallback" *ngIf="!currentRound">
                   <mat-spinner diameter="32"></mat-spinner>

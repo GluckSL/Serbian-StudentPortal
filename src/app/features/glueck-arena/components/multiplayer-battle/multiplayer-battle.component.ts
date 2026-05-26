@@ -17,6 +17,7 @@ import { ScrambleRushMpComponent } from '../../engines/scramble-rush-mp/scramble
 import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/sentence-builder-mp.component';
 
 import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
+import { WhackawortMpComponent } from '../../engines/whackawort-mp/whackawort-mp.component';
 
 import { NotificationService } from '../../../../services/notification.service';
 
@@ -61,6 +62,7 @@ import {
     SentenceBuilderMpComponent,
 
     FlapjugationMpComponent,
+    WhackawortMpComponent,
 
   ],
 
@@ -205,6 +207,20 @@ import {
           (submitAnswer)="onFlapjugationSubmit($event)"
 
         ></app-flapjugation-mp>
+
+        <app-whackawort-mp
+
+          *ngIf="room?.gameType === 'whackawort'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onWhackawortSubmit($event)"
+
+        ></app-whackawort-mp>
 
       </div>
 
@@ -355,6 +371,8 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
     if (this.room?.gameType === 'scramble_rush') return 'Scramble Rush';
 
     if (this.room?.gameType === 'sentence_builder') return 'Sentence Builder';
+
+    if (this.room?.gameType === 'whackawort') return 'Whack-a-Wort';
 
     return 'Battle';
 
@@ -541,6 +559,22 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
       typedWord: e.typedWord,
 
       pronoun: e.pronoun,
+
+    });
+
+  }
+
+  onWhackawortSubmit(e: { word: string; category: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      word: e.word,
+
+      category: e.category,
 
     });
 

@@ -67,6 +67,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <div class="ga-toolbar__dropdown-item" (click)="setType('image_matching')">Image Matching</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('gender_stack')">Gender Stack</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('flapjugation')">Flapjugation</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('whackawort')">Whack-a-Wort</div>
           </div>
         </div>
         <div class="ga-toolbar__dropdown-wrap">
@@ -360,6 +361,7 @@ export class GameSetListComponent implements OnInit {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
+      whackawort: 'Whack-a-Wort',
     };
     return map[t] ?? t;
   }

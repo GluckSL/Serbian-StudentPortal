@@ -7,6 +7,7 @@ import { MultiplayerHudComponent } from '../../shared/multiplayer-hud/multiplaye
 import { ScrambleRushMpComponent } from '../../engines/scramble-rush-mp/scramble-rush-mp.component';
 import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/sentence-builder-mp.component';
 import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
+import { WhackawortMpComponent } from '../../engines/whackawort-mp/whackawort-mp.component';
 import {
   ArenaRoomState,
   ArenaBattleRound,
@@ -17,7 +18,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-spectator-watch',
   standalone: true,
-  imports: [CommonModule, RouterModule, MaterialModule, MultiplayerHudComponent, ScrambleRushMpComponent, SentenceBuilderMpComponent, FlapjugationMpComponent],
+  imports: [CommonModule, RouterModule, MaterialModule, MultiplayerHudComponent, ScrambleRushMpComponent, SentenceBuilderMpComponent, FlapjugationMpComponent, WhackawortMpComponent],
   template: `
     <div class="sw">
       <div class="sw__head">
@@ -41,6 +42,8 @@ import { Subscription } from 'rxjs';
           [round]="battleRound" [localScore]="0" [answerResult]="null"></app-sentence-builder-mp>
         <app-flapjugation-mp *ngIf="room.gameType === 'flapjugation'"
           [round]="battleRound" [localScore]="0" [answerResult]="null"></app-flapjugation-mp>
+        <app-whackawort-mp *ngIf="room.gameType === 'whackawort'"
+          [round]="battleRound" [localScore]="0" [answerResult]="null"></app-whackawort-mp>
         <p class="sw__readonly"><mat-icon>visibility</mat-icon> Read-only spectator view</p>
       </div>
 

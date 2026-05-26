@@ -8,13 +8,14 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
 import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
 import { GenderStackComponent, GSResult } from '../../engines/gender-stack/gender-stack.component';
 import { FlapjugationComponent, FJResult } from '../../engines/flapjugation/flapjugation.component';
+import { WhackawortComponent, WWResult } from '../../engines/whackawort/whackawort.component';
 
 export interface IMResult {
   score: number;
@@ -28,7 +29,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent
   ],
   template: `
     <div class="shell">
@@ -94,6 +95,7 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
               <p *ngIf="set.gameType === 'matching' || set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
               <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each pronoun cycles after 3 correct hits.</p>
+              <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
             </section>
           </aside>
 
@@ -177,6 +179,13 @@ export interface IMResult {
             [questions]="asFlapjugationQuestions()"
             (onComplete)="handleFlapjugationComplete($event)"
           ></app-flapjugation>
+
+          <app-whackawort
+            *ngIf="phase === 'playing' && set?.gameType === 'whackawort' && attempt"
+            [attempt]="attempt!"
+            [questions]="asWhackawortQuestions()"
+            (onComplete)="handleWhackawortComplete($event)"
+          ></app-whackawort>
 
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
@@ -898,6 +907,7 @@ export class GamePlayShellComponent implements OnInit {
   asImageMatchingQuestions(): ImageMatchingQuestion[] { return this.questions as ImageMatchingQuestion[]; }
   asGenderStackQuestions(): GenderStackQuestion[] { return this.questions as GenderStackQuestion[]; }
   asFlapjugationQuestions(): FlapjugationQuestion[] { return this.questions as FlapjugationQuestion[]; }
+  asWhackawortQuestions(): WhackawortQuestion[] { return this.questions as WhackawortQuestion[]; }
 
   isPlaceholderType(): boolean {
     return ['matching', 'flashcards'].includes(this.set?.gameType ?? '');
@@ -1017,6 +1027,30 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleWhackawortComplete(result: WWResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+      livesRemaining: result.livesRemaining,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -1028,6 +1062,7 @@ export class GamePlayShellComponent implements OnInit {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
+      whackawort: 'Whack-a-Wort',
     };
     return map[t] ?? t;
   }
@@ -1039,6 +1074,7 @@ export class GamePlayShellComponent implements OnInit {
       image_matching: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
       gender_stack: 'linear-gradient(135deg,#0ea5e9,#38bdf8)',
       flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
+      whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }

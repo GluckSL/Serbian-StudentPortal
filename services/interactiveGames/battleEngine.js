@@ -112,6 +112,17 @@ function sanitizeQuestionForClient(q, gameType, index) {
       translation: q.translation || '',
     };
   }
+  if (gameType === 'whackawort') {
+    return {
+      questionId: String(q._id),
+      index,
+      targetCategory: q.category || '',
+      words: [
+        { word: q.word || '', translation: q.translation || '', category: q.category || '' },
+      ],
+      duration: 60,
+    };
+  }
   return { questionId: String(q._id), index };
 }
 
@@ -194,6 +205,25 @@ async function initBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
     sanitizeQuestionForClient(q, room.gameType, idx)
   );
 
+  // For whackawort, enrich each round with distractors from other questions
+  if (room.gameType === 'whackawort') {
+    const allWords = questions.map(q => ({
+      word: q.word || '',
+      translation: q.translation || '',
+      category: q.category || '',
+    }));
+    for (let i = 0; i < sanitized.length; i++) {
+      const sq = sanitized[i];
+      const correctWord = { word: sq.words[0].word, translation: sq.words[0].translation, category: sq.words[0].category };
+      const distractors = allWords
+        .filter(w => w.category !== correctWord.category)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 8);
+      const grid = [correctWord, ...distractors].sort(() => Math.random() - 0.5);
+      sq.words = grid;
+    }
+  }
+
   const duration = roundDurationMs();
   room.battle = {
     totalRounds: sanitized.length,
@@ -214,6 +244,7 @@ async function initBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
       pairs: q.pairs || [],
       imageUrl: q.imageUrl || null,
       translation: q.translation || '',
+      category: q.category || null,
     })),
     snapshotVersion: 1,
   };
@@ -393,6 +424,13 @@ async function submitBattleAnswer(roomId, studentId, payload, buildLeaderboardFn
     const isCorrect = pronounIndex != null && correctForm && userForm === correctForm.toLowerCase().trim();
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
     if (!isCorrect) revealCorrect = { word: correctForm || qDoc.word || '' };
+  } else if (room.gameType === 'whackawort') {
+    const targetCategory = (qDoc.category || '').toLowerCase().trim();
+    const tappedWord = (payload.word || '').toLowerCase().trim();
+    const tappedCategory = (payload.category || '').toLowerCase().trim();
+    const isCorrect = tappedCategory === targetCategory;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: `Category: ${qDoc.category || ''}` };
   } else {
     return { ok: false, message: 'Unsupported game type' };
   }

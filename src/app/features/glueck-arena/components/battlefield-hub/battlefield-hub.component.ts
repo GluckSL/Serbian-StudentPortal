@@ -232,7 +232,7 @@ export class BattlefieldHubComponent implements OnInit, OnDestroy {
   joinCode = '';
   creating = false;
   availableSets: { _id: string; title: string; gameType: string }[] = [];
-  gameTypes: GameType[] = ['scramble_rush', 'sentence_builder', 'image_matching', 'gender_stack', 'flashcards', 'matching', 'flapjugation'];
+  gameTypes: GameType[] = ['scramble_rush', 'sentence_builder', 'image_matching', 'gender_stack', 'flashcards', 'matching', 'flapjugation', 'whackawort'];
 
   newRoom = { name: '', gameSetId: '', isPublic: true, maxPlayers: 4 };
 

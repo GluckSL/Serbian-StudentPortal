@@ -12,6 +12,7 @@ import { GameSet, GameType, AdminGameQuestion, GameLevel } from '../../../glueck
 import { ImageMatchingQuestionFormComponent } from '../image-matching-question-form/image-matching-question-form.component';
 import { GenderStackQuestionFormComponent } from '../gender-stack-question-form/gender-stack-question-form.component';
 import { FlapjugationQuestionFormComponent } from '../flapjugation-question-form/flapjugation-question-form.component';
+import { WhackawortQuestionFormComponent } from '../whackawort-question-form/whackawort-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -28,6 +29,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     ScrambleQuestionFormComponent, SentenceQuestionFormComponent, SimpleQuestionFormComponent,
     LevelEditorComponent, GameImportPanelComponent, ImageMatchingQuestionFormComponent,
     GenderStackQuestionFormComponent, FlapjugationQuestionFormComponent,
+    WhackawortQuestionFormComponent,
   ],
   template: `
     <div class="ga-editor">
@@ -61,6 +63,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                   <mat-option value="image_matching">Image Matching</mat-option>
                   <mat-option value="gender_stack">Gender Stack</mat-option>
                   <mat-option value="flapjugation">Flapjugation</mat-option>
+                  <mat-option value="whackawort">Whack-a-Wort</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -238,6 +241,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <app-image-matching-question-form *ngSwitchCase="'image_matching'" #imageMatchForm [gameSetId]="setId || ''" gameType="image_matching"></app-image-matching-question-form>
             <app-gender-stack-question-form *ngSwitchCase="'gender_stack'" #genderStackForm [gameSetId]="setId || ''"></app-gender-stack-question-form>
             <app-flapjugation-question-form *ngSwitchCase="'flapjugation'" #flapjugationForm [gameSetId]="setId || ''"></app-flapjugation-question-form>
+            <app-whackawort-question-form *ngSwitchCase="'whackawort'" #whackawortForm [gameSetId]="setId || ''"></app-whackawort-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
