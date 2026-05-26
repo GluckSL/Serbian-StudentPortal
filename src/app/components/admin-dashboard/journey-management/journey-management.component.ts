@@ -519,7 +519,7 @@ interface TimelineDay {
           <div class="j-ro-card-body">
             <span class="j-ro-card-label">Journey pause</span>
             <span class="j-ro-card-value">
-              {{ editJourneyPaused ? ('Paused on Day ' + (selectedBatch?.batchCurrentDay || editBatchDay)) : 'Running — advances at daily rollover' }}
+              {{ editJourneyPaused ? ('Paused on Day ' + (selectedBatch.batchCurrentDay || editBatchDay)) : 'Running — advances at daily rollover' }}
             </span>
           </div>
         </div>
@@ -701,7 +701,7 @@ interface TimelineDay {
         <i class="fas fa-pause-circle"></i>
         <div>
           <strong>Journey paused.</strong>
-          Batch and students stay on <strong>Day {{ selectedBatch?.batchCurrentDay || editBatchDay }}</strong>.
+          Batch and students stay on <strong>Day {{ selectedBatch.batchCurrentDay || editBatchDay }}</strong>.
           Midnight rollover will not advance anyone until you turn pause off and save.
         </div>
       </div>
