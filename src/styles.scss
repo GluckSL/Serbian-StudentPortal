@@ -603,3 +603,11 @@ body.teacher-read-only {
     max-width: 100vw !important;
   }
 }
+
+/* Mobile nav drawer open — prevent background scroll (iOS Safari) */
+body.mobile-sidebar-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}

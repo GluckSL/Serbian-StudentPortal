@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { RouterOutlet } from '@angular/router';
 import { HeaderComponent } from "./components/header/header.component";
@@ -41,6 +41,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.showHeader = !isHomeOrLogin;
       this.isLoginRoute = path === '/login';
       this.isHomeRoute = path === '/home' || path === '/' || path === '';
+      this.closeSidebar();
     });
   }
 
@@ -87,6 +88,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.portalTracking.stop();
+    document.body.classList.remove('mobile-sidebar-open');
   }
 
   get showSidebar(): boolean {
@@ -95,5 +97,21 @@ export class AppComponent implements OnInit, OnDestroy {
 
   toggleSidebar(): void {
     this.sidebarOpen = !this.sidebarOpen;
+    this.syncSidebarBodyLock();
+  }
+
+  closeSidebar(): void {
+    if (!this.sidebarOpen) return;
+    this.sidebarOpen = false;
+    this.syncSidebarBodyLock();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.closeSidebar();
+  }
+
+  private syncSidebarBodyLock(): void {
+    document.body.classList.toggle('mobile-sidebar-open', this.sidebarOpen);
   }
 }

@@ -47,6 +47,7 @@ interface Student {
   studentStatus: string;
   lastCredentialsEmailSent?: Date | string | null;
   displayPassword?: string | null;
+  passwordDisplayState?: 'VISIBLE' | 'UPDATED_HIDDEN' | 'UNAVAILABLE';
   feedbackStats?: {
     currentLevel: string;
     fluency: number;
@@ -152,7 +153,11 @@ export class AdminDashboardComponent implements OnInit {
   /** True when the logged-in user is a full ADMIN (can see student passwords) */
   isFullAdmin = false;
   /** Tracks which student rows have their password revealed */
-  loading = false;
+  loading = true;
+  readonly skeletonActionPills = [0, 1, 2];
+  readonly skeletonFilterFields = [0, 1, 2, 3, 4, 5];
+  readonly skeletonTableRows = [0, 1, 2, 3, 4, 5, 6, 7];
+  readonly skeletonTableCols = [0, 1, 2, 3, 4, 5, 6, 7, 8];
   error = '';
   filters = {
     level: '',
@@ -278,8 +283,8 @@ export class AdminDashboardComponent implements OnInit {
         this.fetchStudents();
         this.fetchTeachers();
       },
-      error: (err) => {
-        //console.error('Not authenticated:', err);
+      error: () => {
+        this.loading = false;
         this.router.navigate(['/auth/login']);
       }
     });
@@ -318,11 +323,6 @@ export class AdminDashboardComponent implements OnInit {
       next: res => {
         if (res.success) {
           this.students = res.data;
-          this.students.forEach(student => {
-            //this.loadFeedbackStats(student);
-            this.loadCourseProgress(student);
-            //console.log('Student data:', student);
-          });
           this.filteredStudents = [...this.students];
           this.totalStudents = res.pagination?.total ?? this.students.length;
           this.currentPage = res.pagination?.page ?? this.currentPage;
@@ -912,6 +912,22 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
+  viewStudentDetails(student: any): void {
+    const tree = this.router.createUrlTree(['/admin/students', student._id], {
+      queryParams: {
+        name: student.name || '',
+        email: student.email || '',
+        regNo: student.regNo || '',
+        batch: student.batch || '',
+        level: student.level || '',
+        subscription: student.subscription || '',
+        medium: student.medium || ''
+      }
+    });
+    const url = this.router.serializeUrl(tree);
+    window.open(url, '_blank', 'noopener');
+  }
+
   deleteUser(id: string): void {
     this.notify.confirm('Delete User', 'Are you sure you want to delete this user?', 'Yes, Delete', 'Cancel').subscribe(ok => {
       if (!ok) return;
@@ -966,24 +982,24 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  sendingSignupLink: Record<string, boolean> = {};
+  forcingPasswordReset: Record<string, boolean> = {};
 
-  sendSignupLink(student: Student): void {
+  forcePasswordReset(student: Student): void {
     this.notify.confirm(
-      'Send Signup Link',
-      `Send a signup link to ${student.name} (${student.email}) so they can complete registration and set their own password?`,
-      'Yes, Send', 'Cancel'
+      'Force password reset',
+      `Sign out ${student.name} (${student.email}), email them a verification code, and require a new password on next login? Their current password still works until they complete the reset.`,
+      'Yes, reset', 'Cancel'
     ).subscribe(ok => {
       if (!ok) return;
-      this.sendingSignupLink[student._id] = true;
-      this.authService.sendSignupLink(student._id, student.email, student.name).subscribe({
-        next: () => {
-          this.notify.success(`Signup link sent to ${student.email}`);
-          this.sendingSignupLink[student._id] = false;
+      this.forcingPasswordReset[student._id] = true;
+      this.authService.forcePasswordReset(student._id).subscribe({
+        next: (res) => {
+          this.notify.success(res?.msg || `Password reset email sent to ${student.email}`);
+          this.forcingPasswordReset[student._id] = false;
         },
         error: (err: any) => {
-          this.notify.error(`Failed: ${err?.error?.msg || 'Could not send signup link'}`);
-          this.sendingSignupLink[student._id] = false;
+          this.notify.error(err?.error?.msg || 'Could not initiate password reset');
+          this.forcingPasswordReset[student._id] = false;
         }
       });
     });
@@ -1006,10 +1022,16 @@ export class AdminDashboardComponent implements OnInit {
           const studentIndex = this.students.findIndex(s => s._id === student._id);
           if (studentIndex !== -1) {
             this.students[studentIndex].lastCredentialsEmailSent = response.lastSent;
+            if (response.displayPassword) {
+              this.students[studentIndex].displayPassword = response.displayPassword;
+            }
           }
           const filteredIndex = this.filteredStudents.findIndex(s => s._id === student._id);
           if (filteredIndex !== -1) {
             this.filteredStudents[filteredIndex].lastCredentialsEmailSent = response.lastSent;
+            if (response.displayPassword) {
+              this.filteredStudents[filteredIndex].displayPassword = response.displayPassword;
+            }
           }
           this.resendingCredentials[student._id] = false;
         },

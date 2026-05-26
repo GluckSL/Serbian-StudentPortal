@@ -7,6 +7,7 @@ const SessionRecord = require('../models/SessionRecord');
 const AiTutorSession = require('../models/AiTutorSession');
 const User = require('../models/User');
 const LearningModule = require('../models/LearningModule');
+const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 
 // POST /api/session-records - Create or update session record
 router.post('/', verifyToken, async (req, res) => {
@@ -362,11 +363,21 @@ router.get('/my-history', verifyToken, async (req, res) => {
       query.moduleId = moduleId;
     }
 
+    const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
+
     // Get session records
-    const sessionRecords = await SessionRecord.find(query)
-      .populate('moduleId', 'title level category')
+    let sessionRecords = await SessionRecord.find(query)
+      .populate('moduleId', 'title level category courseDay')
       .sort({ createdAt: -1 })
       .limit(50); // Limit to last 50 sessions
+
+    sessionRecords = sessionRecords.filter(
+      (record) =>
+        !isContentBlockedForStudent(studentDoc, {
+          level: record.moduleLevel || record.moduleId?.level,
+          courseDay: record.moduleId?.courseDay
+        })
+    );
 
     // Calculate statistics
     const totalSessions = sessionRecords.length;

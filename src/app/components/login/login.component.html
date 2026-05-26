@@ -100,6 +100,10 @@
         </div>
         <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
         <div *ngIf="setupSuccess" class="setup-success" role="status"><i class="fas fa-check-circle"></i> {{ setupSuccess }}</div>
+        <p class="setup-hint" style="margin-top: 0.75rem;">
+          Didn’t get a code?
+          <button type="button" class="setup-change-email-btn" [disabled]="setupLoading" (click)="sendSetupOtp()">Send a new code</button>
+        </p>
       </ng-container>
 
       <!-- ── STEP: change-email — student wants a different email ── -->

@@ -39,7 +39,7 @@ const {
   buildSignupProofAttachments,
   parseAdminNotifyEmails,
 } = require('../utils/signupProofNotify');
-const { encryptPassword } = require('../utils/passwordRecoverable');
+const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
 const { activatePublicSignupStudent } = require('../utils/signupActivation');
 
 // Payment v2 services (require lazily to avoid circular init issues)
@@ -404,13 +404,9 @@ router.post('/verify-email', otpVerifyLimiter, async (req, res) => {
 
     app.emailVerifiedAt = new Date();
     app.passwordHash = await bcrypt.hash(password, await bcrypt.genSalt(10));
-    const encrypted = encryptPassword(password);
-    if (encrypted) {
-      app.passwordRecoverable = encrypted;
-    } else {
-      console.error(
-        '[public-signup/verify-email] PASSWORD_RECOVERABLE_KEY is missing or invalid — approval email cannot include the chosen password'
-      );
+    app.passwordRecoverable = storeRecoverablePassword(password);
+    if (!app.passwordRecoverable) {
+      console.error('[public-signup/verify-email] Could not store recoverable password copy');
     }
     app.status = 'email_verified';
     await app.save();

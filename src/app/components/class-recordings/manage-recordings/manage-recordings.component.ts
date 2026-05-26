@@ -1244,4 +1244,10 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     window.open(url, '_blank', 'noopener,noreferrer');
     this.loadPendingCount();
   }
+
+  openAccessRecordingTab(): void {
+    const tree = this.router.createUrlTree(['/class-recordings/self-pace']);
+    const url = `${window.location.origin}${this.router.serializeUrl(tree)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 }
