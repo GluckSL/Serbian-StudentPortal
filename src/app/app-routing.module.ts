@@ -502,13 +502,39 @@ export const routes: Routes = [
   // ── GlückArena — Student routes ──────────────────────────────────────────
   {
     path: 'glueck-arena',
-    loadComponent: () => import('./features/glueck-arena/components/game-catalog/game-catalog.component').then(m => m.GameCatalogComponent),
+    loadComponent: () => import('./features/glueck-arena/components/arena-layout/arena-layout.component').then(m => m.ArenaLayoutComponent),
     canActivate: [AuthGuard],
-  },
-  {
-    path: 'glueck-arena/leaderboard',
-    loadComponent: () => import('./features/glueck-arena/components/game-leaderboard/game-leaderboard.component').then(m => m.GameLeaderboardComponent),
-    canActivate: [AuthGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () => import('./features/glueck-arena/components/game-catalog/game-catalog.component').then(m => m.GameCatalogComponent),
+      },
+      {
+        path: 'leaderboard',
+        loadComponent: () => import('./features/glueck-arena/components/game-leaderboard/game-leaderboard.component').then(m => m.GameLeaderboardComponent),
+      },
+      {
+        path: 'battlefield',
+        loadComponent: () => import('./features/glueck-arena/components/battlefield-hub/battlefield-hub.component').then(m => m.BattlefieldHubComponent),
+      },
+      {
+        path: 'battlefield/leaderboard',
+        loadComponent: () => import('./features/glueck-arena/components/battlefield-leaderboard/battlefield-leaderboard.component').then(m => m.BattlefieldLeaderboardComponent),
+      },
+      {
+        path: 'battlefield/room/:code',
+        loadComponent: () => import('./features/glueck-arena/components/battlefield-room/battlefield-room.component').then(m => m.BattlefieldRoomComponent),
+      },
+      {
+        path: ':id/play',
+        loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
+      },
+      {
+        path: ':id',
+        loadComponent: () => import('./features/glueck-arena/components/game-detail/game-detail.component').then(m => m.GameDetailComponent),
+      },
+    ],
   },
   {
     path: 'admin/glueck-arena/command-center',
@@ -523,14 +549,10 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   {
-    path: 'glueck-arena/:id',
-    loadComponent: () => import('./features/glueck-arena/components/game-detail/game-detail.component').then(m => m.GameDetailComponent),
-    canActivate: [AuthGuard],
-  },
-  {
-    path: 'glueck-arena/:id/play',
-    loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
-    canActivate: [AuthGuard],
+    path: 'admin/glueck-arena/battlefield/team-battles',
+    loadComponent: () => import('./features/glueck-arena/components/admin-team-battle/admin-team-battle.component').then(m => m.AdminTeamBattleComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   // ── GlückArena — Admin routes ─────────────────────────────────────────────
   {

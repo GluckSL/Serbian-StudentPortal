@@ -7,17 +7,12 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { getAuthToken } from '../../../services/auth.service';
 
 import {
-
   ArenaRoomState,
-
   ArenaLeaderboardEntry,
-
   ArenaBattleRound,
-
   ArenaBattleAnswerResult,
-
   ArenaBattleSnapshot,
-
+  ChatMessage,
 } from '../glueck-arena.types';
 
 
@@ -73,6 +68,9 @@ export class ArenaSocketService implements OnDestroy {
   readonly networkQuality$ = new BehaviorSubject<'good' | 'fair' | 'poor'>('good');
   readonly spectatorState$ = new Subject<{ delayed: boolean; spectatorCount?: number }>();
 
+  readonly chatMessage$ = new Subject<ChatMessage>();
+  readonly chatHistory$ = new Subject<ChatMessage[]>();
+
 
 
   private lastPongAt = Date.now();
@@ -101,7 +99,7 @@ export class ArenaSocketService implements OnDestroy {
 
       auth: { token },
 
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
 
       reconnection: true,
 
@@ -117,11 +115,7 @@ export class ArenaSocketService implements OnDestroy {
 
       this.connected$.next(true);
 
-      this.reconnecting$.next(false);
-
       this.startHeartbeat();
-
-      if (this.roomCode) this.joinRoom(this.roomCode);
 
     });
 
@@ -139,7 +133,10 @@ export class ArenaSocketService implements OnDestroy {
 
     this.socket.io.on('reconnect_attempt', () => this.reconnecting$.next(true));
 
-    this.socket.io.on('reconnect', () => this.reconnecting$.next(false));
+    this.socket.io.on('reconnect', () => {
+      this.reconnecting$.next(false);
+      if (this.roomCode) this.joinRoom(this.roomCode);
+    });
 
 
 
@@ -301,6 +298,20 @@ export class ArenaSocketService implements OnDestroy {
 
 
 
+    this.socket.on('arena:chat_message', (msg: ChatMessage) => {
+      this.chatMessage$.next(msg);
+    });
+
+    this.socket.on('arena:chat_history', (history: ChatMessage[]) => {
+      this.chatHistory$.next(history);
+    });
+
+    this.socket.on('arena:room_cancelled', () => {
+      this.phase$.next('idle');
+      this.room$.next(null);
+      this.battleRound$.next(null);
+    });
+
     this.socket.on('arena:pong', () => {
 
       const latency = Date.now() - this.lastPongAt;
@@ -409,6 +420,11 @@ export class ArenaSocketService implements OnDestroy {
 
 
 
+  cancelRoom(): void {
+    if (!this.roomCode) return;
+    this.socket?.emit('arena:cancel', { code: this.roomCode });
+  }
+
   requestRematch(): void {
 
     if (!this.roomCode) return;
@@ -428,6 +444,11 @@ export class ArenaSocketService implements OnDestroy {
   }
 
 
+
+  sendChatMessage(message: string): void {
+    if (!this.roomCode || !message?.trim()) return;
+    this.socket?.emit('arena:chat_message', { code: this.roomCode, message: message.trim() });
+  }
 
   getInviteLink(): Observable<{ url: string; code: string }> {
 

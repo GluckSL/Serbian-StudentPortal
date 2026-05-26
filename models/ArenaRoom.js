@@ -40,6 +40,13 @@ const ArenaRoomSchema = new mongoose.Schema({
   },
   spectatorCount: { type: Number, default: 0 },
   tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'ArenaTournament', default: null },
+  // Battlefield fields
+  roomName: { type: String, maxlength: 60, default: '' },
+  isPublic: { type: Boolean, default: false },
+  password: { type: String, default: null },
+  teamMode: { type: Boolean, default: false },
+  teams: { type: mongoose.Schema.Types.Mixed, default: null },
+  teamBattleId: { type: mongoose.Schema.Types.ObjectId, ref: 'BattlefieldTeamBattle', default: null },
 }, { timestamps: true });
 
 ArenaRoomSchema.index({ status: 1, endsAt: 1 });

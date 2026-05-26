@@ -40,22 +40,25 @@ function sanitizeRoom(room) {
     endsAt: o.endsAt,
     rematchVotes: (o.rematchRequestedBy || []).length,
     battle: battleEngine.sanitizeBattlePublic(o.battle),
-    currentQuestionIndex: o.currentQuestionIndex,
+    roomName: o.roomName || '',
+    isPublic: !!o.isPublic,
+    teamMode: !!o.teamMode,
   };
 }
 
 async function createRoom(hostId, hostName, gameSetId, opts = {}) {
   const set = await GameSet.findById(gameSetId).lean();
   if (!set) return { ok: false, message: 'Game not found' };
-  if (!['scramble_rush', 'sentence_builder'].includes(set.gameType)) {
-    return { ok: false, message: 'Multiplayer not supported for this game type' };
-  }
 
   const room = await ArenaRoom.create({
     inviteCode: inviteCode(),
     hostId,
     gameSetId,
     gameType: set.gameType,
+    roomName: opts.roomName || `${hostName}'s ${set.gameType.replace(/_/g, ' ')}`,
+    isPublic: !!opts.isPublic,
+    password: opts.password || null,
+    teamMode: !!opts.teamMode,
     players: [{
       studentId: hostId,
       name: hostName,
@@ -63,9 +66,9 @@ async function createRoom(hostId, hostName, gameSetId, opts = {}) {
       isConnected: true,
       lastHeartbeatAt: new Date(),
     }],
-    maxPlayers: config.multiplayer.maxPlayers,
+    maxPlayers: opts.maxPlayers || config.multiplayer.maxPlayers,
     endsAt: new Date(Date.now() + config.multiplayer.roomTtlMinutes * 60000),
-    matchmakingMode: opts.matchmakingMode || 'private',
+    matchmakingMode: opts.matchmakingMode || (opts.isPublic ? 'casual' : 'private'),
     region: opts.region || 'global',
   });
 
@@ -87,7 +90,7 @@ async function joinRoom(studentId, studentName, code, socketId = null) {
     existing.lastHeartbeatAt = new Date();
     if (socketId) existing.socketId = socketId;
     await room.save();
-    return { ok: true, room: sanitizeRoom(room) };
+    return { ok: true, room: sanitizeRoom(room), isReconnect: true };
   }
 
   if (room.players.length >= room.maxPlayers) return { ok: false, message: 'Room full' };
@@ -278,8 +281,12 @@ async function handleDisconnect(studentId, socketId) {
     const p = room.players.find(x => String(x.studentId) === String(studentId));
     if (p && (!socketId || p.socketId === socketId)) {
       p.isConnected = false;
-      await room.save();
     }
+    const anyConnected = room.players.some(x => x.isConnected);
+    if (!anyConnected && room.status !== 'playing') {
+      room.status = 'cancelled';
+    }
+    await room.save();
   }
 }
 
@@ -330,6 +337,35 @@ async function getLiveStats() {
   };
 }
 
+async function listPublicRooms(filters = {}) {
+  const query = {
+    isPublic: true,
+    status: { $in: ['lobby', 'playing'] },
+    endsAt: { $gt: new Date() },
+  };
+  if (filters.gameType) query.gameType = filters.gameType;
+  if (filters.search) {
+    query.roomName = { $regex: filters.search, $options: 'i' };
+  }
+  const rooms = await ArenaRoom.find(query)
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .populate('hostId', 'name username')
+    .lean();
+  return rooms.map(r => ({
+    inviteCode: r.inviteCode,
+    roomName: r.roomName || '',
+    gameType: r.gameType,
+    hostName: r.hostId?.name || r.hostId?.username || 'Unknown',
+    hostId: String(r.hostId?._id || r.hostId),
+    playerCount: (r.players || []).filter(p => p.isConnected).length,
+    maxPlayers: r.maxPlayers,
+    status: r.status,
+    isPublic: true,
+    hasPassword: !!r.password,
+  }));
+}
+
 module.exports = {
   createRoom,
   joinRoom,
@@ -348,4 +384,5 @@ module.exports = {
   getLiveStats,
   sanitizeRoom,
   buildLeaderboard,
+  listPublicRooms,
 };

@@ -360,6 +360,7 @@ export interface ArenaLeaderboardEntry {
 export interface ArenaRoomState {
   _id?: string;
   inviteCode: string;
+  roomName?: string;
   status: 'lobby' | 'countdown' | 'playing' | 'finished' | 'cancelled';
   gameType: string;
   gameSetId: string;
@@ -408,7 +409,7 @@ export interface ArenaBattleSentenceQuestion {
 export interface ArenaBattleRound {
   roundIndex: number;
   totalRounds: number;
-  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion;
+  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion;
   roundStartedAt?: string;
   roundEndsAt?: string;
   serverTime: number;
@@ -488,4 +489,105 @@ export interface AchievementDto {
   xpReward: number;
   isUnlocked: boolean;
   unlockedAt: string | null;
+}
+
+// ── Battlefield Types ─────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  userId: string;
+  userName: string;
+  message: string;
+  timestamp: number;
+  isSystem?: boolean;
+}
+
+export interface BattlefieldRoomListing {
+  inviteCode: string;
+  roomName: string;
+  gameType: GameType;
+  hostName: string;
+  hostId: string;
+  playerCount: number;
+  maxPlayers: number;
+  status: 'lobby' | 'playing';
+  isPublic: boolean;
+  hasPassword: boolean;
+}
+
+export interface BattlefieldStatsDto {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  elo: number;
+  tier: string;
+}
+
+export interface BattlefieldLeaderboardEntry {
+  rank: number;
+  studentId: string;
+  name: string;
+  elo: number;
+  tier: string;
+  wins: number;
+  losses: number;
+  winRate: number;
+  isMe?: boolean;
+}
+
+export interface TeamBattleDto {
+  _id: string;
+  title: string;
+  gameSetId: string;
+  gameType: GameType;
+  status: 'pending' | 'active' | 'finished';
+  teamA: {
+    name: string;
+    type: 'classroom' | 'manual';
+    classroomId?: string;
+    score: number;
+    members: { id: string; name: string }[];
+  };
+  teamB: {
+    name: string;
+    type: 'classroom' | 'manual';
+    classroomId?: string;
+    score: number;
+    members: { id: string; name: string }[];
+  };
+  rounds: number;
+  currentRound: number;
+  winner: string | null;
+  roomCode: string | null;
+  startsAt: string;
+  createdBy: string;
+}
+
+export interface ArenaBattleGenderQuestion {
+  questionId: string;
+  index: number;
+  word: string;
+  translation?: string;
+}
+
+export interface ArenaBattleImageQuestion {
+  questionId: string;
+  index: number;
+  imageUrl: string;
+  word: string;
+  options: string[];
+}
+
+export interface ArenaBattleFlashCardQuestion {
+  questionId: string;
+  index: number;
+  prompt: string;
+  hint?: string;
+}
+
+export interface ArenaBattleMatchingQuestion {
+  questionId: string;
+  index: number;
+  pairs: { id: string; left: string; right: string }[];
+  shuffledLeft: string[];
+  shuffledRight: string[];
 }

@@ -9,12 +9,6 @@ import { GameSet, StudentGameStats, CatalogFilters, GameType, LeaderboardEntry }
 import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-stats-banner.component';
 import { DailyChallengesWidgetComponent } from '../../shared/daily-challenges-widget/daily-challenges-widget.component';
 
-interface QuickLink {
-  route: string;
-  icon: string;
-  label: string;
-}
-
 @Component({
   selector: 'app-game-catalog',
   standalone: true,
@@ -44,9 +38,9 @@ interface QuickLink {
                 <p>Level up your German — play, earn XP, climb the ranks</p>
               </div>
             </div>
-            <a *ngFor="let link of quickLinks" [routerLink]="link.route" class="arena-nav__link">
-              <mat-icon>{{ link.icon }}</mat-icon>
-              <span>{{ link.label }}</span>
+            <a routerLink="/glueck-arena/leaderboard" class="arena-hero__lb-btn">
+              <mat-icon>leaderboard</mat-icon>
+              <span>Leaderboard</span>
             </a>
           </div>
 
@@ -204,7 +198,7 @@ interface QuickLink {
   `,
   styles: [`
     .arena {
-      --arena-bg: #f1f5f9;
+      --arena-bg: #fff;
       --arena-surface: #ffffff;
       --arena-text: #0f172a;
       --arena-muted: #64748b;
@@ -216,6 +210,8 @@ interface QuickLink {
       padding: 20px 20px 48px;
       min-height: 60vh;
       background: var(--arena-bg);
+      border-radius: 0 0 14px 14px;
+      border: 1px solid #e2e8f0;
     }
     .arena__locked {
       text-align: center; padding: 80px 24px; border-radius: 24px;
@@ -247,6 +243,15 @@ interface QuickLink {
       border: 1px solid var(--arena-border);
     }
     .arena-hero__logo mat-icon { font-size: 32px; width: 32px; height: 32px; color: var(--arena-text); }
+    .arena-hero__lb-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 12px; text-decoration: none;
+      font-size: 14px; font-weight: 600; color: var(--arena-text);
+      background: #fff; border: 1px solid var(--arena-border);
+      transition: box-shadow 0.15s, border-color 0.15s; flex-shrink: 0;
+    }
+    .arena-hero__lb-btn mat-icon { font-size: 20px; width: 20px; height: 20px; color: #405980; }
+    .arena-hero__lb-btn:hover { border-color: #93c5fd; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15); }
     .arena-hero h1 {
       margin: 0; font-size: 28px; font-weight: 800; color: var(--arena-text);
       letter-spacing: -0.03em; line-height: 1.15;
@@ -300,22 +305,6 @@ interface QuickLink {
     .podium__place--1 .podium__bar { height: 110px; background: linear-gradient(180deg,#ffd700,#ffb300); }
     .podium__place--2 .podium__bar { height: 80px; background: linear-gradient(180deg,#b0bec5,#90a4ae); }
     .podium__place--3 .podium__bar { height: 60px; background: linear-gradient(180deg,#cd7f32,#a0522d); }
-
-    .arena-nav__link {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 12px; border-radius: 14px;
-      text-decoration: none; font-size: 13px; font-weight: 600;
-      color: var(--arena-text); background: #fff;
-      border: 1px solid #e8ecf4;
-      box-shadow: 0 2px 8px rgba(30, 58, 95, 0.06);
-      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
-    }
-    .arena-nav__link mat-icon { font-size: 18px; width: 18px; height: 18px; color: #405980; }
-    .arena-nav__link:hover {
-      transform: translateY(-2px);
-      border-color: #93c5fd;
-      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
-    }
 
     .arena-games__head {
       display: flex; justify-content: flex-end;
@@ -470,8 +459,9 @@ interface QuickLink {
       .arena-hero h1 { font-size: 22px; }
       .arena-filters__select { width: 100%; flex: 1 1 45%; }
       .arena-grid { grid-template-columns: 1fr; }
-      .arena-nav__link span { display: none; }
-      .arena-nav__link { padding: 10px 12px; }
+      .arena-hero__lb-btn span { display: none; }
+      .arena-hero__lb-btn { width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+      .arena-hero__lb-btn mat-icon { margin: 0 !important; }
     }
   `]
 })
@@ -498,10 +488,6 @@ export class GameCatalogComponent implements OnInit {
   setType(v: string) { this.filters.gameType = v as GameType; this.typeOpen = false; this.load(); }
   setLevel(v: string) { this.filters.level = (v || undefined) as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | undefined; this.levelOpen = false; this.load(); }
   setDiff(v: string) { this.filters.difficulty = v as 'Beginner' | 'Intermediate' | 'Advanced' | undefined; this.diffOpen = false; this.load(); }
-
-  readonly quickLinks: QuickLink[] = [
-    { route: '/glueck-arena/leaderboard', icon: 'leaderboard', label: 'Leaderboard' },
-  ];
 
   constructor(
     private svc: InteractiveGameService,

@@ -87,6 +87,7 @@ export class NavService {
         { id: 'glueck-arena-analytics', label: 'Arena Analytics', icon: 'insights', route: '/admin/glueck-arena/analytics', subGroup: null },
         { id: 'glueck-arena-command', label: 'Arena Command Center', icon: 'dashboard', route: '/admin/glueck-arena/command-center', subGroup: null },
         { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null },
+        { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null },
         { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared', route: '/admin/teacher-resources', subGroup: null },
         { id: 'journey',           label: 'Journey',            icon: 'map', route: '/admin/journey',             subGroup: null },
         { id: 'go-students',       label: 'GO Students',        icon: 'rocket_launch', route: '/admin/go-students',         subGroup: null }
@@ -190,15 +191,9 @@ export class NavService {
         { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
-        { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null }
-      ]
-    },
-    {
-      group: 'Classes & Attendance',
-      items: [
-        { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings', subGroup: null },
-        { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports', subGroup: null },
-        { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }
+        { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null },
+        { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
+
       ]
     },
     {

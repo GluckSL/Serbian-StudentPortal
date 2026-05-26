@@ -77,6 +77,19 @@ router.get('/replays/:idOrToken', verifyToken, gaExt.getReplay);
 router.get('/ranked/me', verifyToken, checkRole(['STUDENT']), gaExt.getMyRankedProfile);
 router.get('/ranked/leaderboard', verifyToken, gaExt.getRankedLeaderboard);
 
+// ── Battlefield ───────────────────────────────────────────────────────────────
+router.get('/battlefield/rooms', verifyToken, gaExt.listBattlefieldRooms);
+router.post('/battlefield/rooms', verifyToken, checkRole(['STUDENT']), gaExt.createBattlefieldRoom);
+router.post('/battlefield/rooms/:code/join', verifyToken, checkRole(['STUDENT']), gaExt.joinBattlefieldRoom);
+router.post('/battlefield/rooms/:code/cancel', verifyToken, gaExt.cancelBattlefieldRoom);
+router.get('/battlefield/leaderboard', verifyToken, gaExt.getBattlefieldLeaderboard);
+router.get('/battlefield/stats', verifyToken, gaExt.getBattlefieldStats);
+
+router.get('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.listTeamBattles);
+router.post('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.createTeamBattle);
+router.post('/admin/battlefield/team-battles/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.startTeamBattle);
+router.post('/admin/battlefield/team-battles/:id/cancel', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.cancelTeamBattle);
+
 router.post('/matchmaking/join', verifyToken, checkRole(['STUDENT']), gaExt.joinMatchmaking);
 router.post('/matchmaking/leave', verifyToken, checkRole(['STUDENT']), gaExt.leaveMatchmaking);
 router.get('/matchmaking/status', verifyToken, checkRole(['STUDENT']), gaExt.getMatchmakingStatus);
