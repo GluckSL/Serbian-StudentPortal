@@ -16,6 +16,8 @@ import { ScrambleRushMpComponent } from '../../engines/scramble-rush-mp/scramble
 
 import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/sentence-builder-mp.component';
 
+import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
+
 import { NotificationService } from '../../../../services/notification.service';
 
 import { AuthService } from '../../../../services/auth.service';
@@ -57,6 +59,8 @@ import {
     ScrambleRushMpComponent,
 
     SentenceBuilderMpComponent,
+
+    FlapjugationMpComponent,
 
   ],
 
@@ -187,6 +191,20 @@ import {
           (submitAnswer)="onSentenceSubmit($event)"
 
         ></app-sentence-builder-mp>
+
+        <app-flapjugation-mp
+
+          *ngIf="room?.gameType === 'flapjugation'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onFlapjugationSubmit($event)"
+
+        ></app-flapjugation-mp>
 
       </div>
 
@@ -512,7 +530,21 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
 
   }
 
+  onFlapjugationSubmit(e: { typedWord: string; pronoun: string }) {
 
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+      pronoun: e.pronoun,
+
+    });
+
+  }
 
   copyInvite() {
 

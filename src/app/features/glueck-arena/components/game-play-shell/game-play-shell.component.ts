@@ -8,12 +8,13 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
 import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
 import { GenderStackComponent, GSResult } from '../../engines/gender-stack/gender-stack.component';
+import { FlapjugationComponent, FJResult } from '../../engines/flapjugation/flapjugation.component';
 
 export interface IMResult {
   score: number;
@@ -27,7 +28,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent
   ],
   template: `
     <div class="shell">
@@ -92,6 +93,7 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'image_matching'">Drag each word to the matching image. Match all pairs to complete the game.</p>
               <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
               <p *ngIf="set.gameType === 'matching' || set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
+              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each pronoun cycles after 3 correct hits.</p>
             </section>
           </aside>
 
@@ -169,6 +171,12 @@ export interface IMResult {
             [questions]="asGenderStackQuestions()"
             (onComplete)="handleGenderStackComplete($event)"
           ></app-gender-stack>
+
+          <app-flapjugation
+            *ngIf="phase === 'playing' && set?.gameType === 'flapjugation' && attempt"
+            [questions]="asFlapjugationQuestions()"
+            (onComplete)="handleFlapjugationComplete($event)"
+          ></app-flapjugation>
 
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
@@ -889,6 +897,7 @@ export class GamePlayShellComponent implements OnInit {
   asScrambleQuestions(): ScrambleQuestion[] { return this.questions as ScrambleQuestion[]; }
   asImageMatchingQuestions(): ImageMatchingQuestion[] { return this.questions as ImageMatchingQuestion[]; }
   asGenderStackQuestions(): GenderStackQuestion[] { return this.questions as GenderStackQuestion[]; }
+  asFlapjugationQuestions(): FlapjugationQuestion[] { return this.questions as FlapjugationQuestion[]; }
 
   isPlaceholderType(): boolean {
     return ['matching', 'flashcards'].includes(this.set?.gameType ?? '');
@@ -984,6 +993,30 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleFlapjugationComplete(result: FJResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+      livesRemaining: result.livesRemaining,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -994,7 +1027,7 @@ export class GamePlayShellComponent implements OnInit {
     const map: Record<string, string> = {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
-      gender_stack: 'Gender Stack',
+      gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
     };
     return map[t] ?? t;
   }
@@ -1005,6 +1038,7 @@ export class GamePlayShellComponent implements OnInit {
       sentence_builder: 'linear-gradient(135deg,#2e7d32,#66bb6a)',
       image_matching: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
       gender_stack: 'linear-gradient(135deg,#0ea5e9,#38bdf8)',
+      flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }

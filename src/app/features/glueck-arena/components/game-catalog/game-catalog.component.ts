@@ -115,6 +115,9 @@ import { DailyChallengesWidgetComponent } from '../../shared/daily-challenges-wi
                 <div class="arena-filters__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('matching')">Matching</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('flashcards')">Flashcards</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('image_matching')">Image Matching</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('gender_stack')">Gender Stack</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('flapjugation')">Flapjugation</div>
               </div>
             </div>
             <div class="arena-filters__dropdown-wrap">
@@ -577,6 +580,7 @@ export class GameCatalogComponent implements OnInit {
       flashcards: 'linear-gradient(145deg, #c2410c 0%, #f97316 50%, #fb923c 100%)',
       image_matching: 'linear-gradient(145deg, #6d28d9 0%, #a78bfa 100%)',
       gender_stack: 'linear-gradient(145deg, #0284c7 0%, #38bdf8 50%, #7dd3fc 100%)',
+      flapjugation: 'linear-gradient(145deg, #be185d 0%, #ec4899 50%, #f472b6 100%)',
     };
     return map[type] ?? 'linear-gradient(145deg, #1e3a5f, #64748b)';
   }
@@ -585,7 +589,7 @@ export class GameCatalogComponent implements OnInit {
     const map: Record<string, string> = {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
-      gender_stack: 'Gender Stack',
+      gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
     };
     return map[t] ?? t;
   }

@@ -72,6 +72,9 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
           <p *ngIf="set.gameType === 'gender_stack'">
             Words fall and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.
           </p>
+          <p *ngIf="set.gameType === 'flapjugation'">
+            Fly into the right verb conjugation for the pronoun shown — dodge all the wrong ones and make conjugation a reflex!
+          </p>
         </div>
 
         <button mat-raised-button color="primary" class="gd__play-btn" (click)="play()">
@@ -164,6 +167,7 @@ export class GameDetailComponent implements OnInit {
       flashcards: 'linear-gradient(135deg,#e65100,#ffa726)',
       image_matching: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
       gender_stack: 'linear-gradient(135deg,#0284c7,#38bdf8)',
+      flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
@@ -172,6 +176,7 @@ export class GameDetailComponent implements OnInit {
     const map: Record<string, string> = {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder', matching: 'Matching',
       flashcards: 'Flashcards', image_matching: 'Image Matching', gender_stack: 'Gender Stack',
+      flapjugation: 'Flapjugation',
     };
     return map[t] ?? t;
   }

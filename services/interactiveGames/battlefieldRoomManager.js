@@ -351,6 +351,13 @@ function submitAnswer(code, studentId, payload, io) {
     const isCorrect = correctCount === tokens.length;
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : Math.max(0, correctCount * 2) };
     if (!isCorrect) revealCorrect = { sentence: tokens.join(' | ') };
+  } else if (room.gameType === 'flapjugation') {
+    const pronounIndex = { ich: 0, du: 1, 'er/sie/es': 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
+    const correctForm = (qDoc.tokens || [])[pronounIndex];
+    const userForm = (payload.typedWord || '').toLowerCase().trim();
+    const isCorrect = pronounIndex != null && correctForm && userForm === correctForm.toLowerCase().trim();
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: correctForm || qDoc.word || '' };
   } else {
     return { ok: false, message: 'Unsupported game type' };
   }
@@ -661,6 +668,15 @@ function sanitizeQuestionForClient(q, gameType, index) {
       pairs,
       shuffledLeft: tokens.map(t => t.trim()),
       shuffledRight,
+    };
+  }
+  if (gameType === 'flapjugation') {
+    return {
+      questionId: String(q._id),
+      index,
+      infinitive: q.word || '',
+      forms: q.tokens || [],
+      translation: q.translation || '',
     };
   }
   return { questionId: String(q._id), index };

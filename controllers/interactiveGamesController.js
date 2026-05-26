@@ -31,7 +31,7 @@ const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -210,7 +210,7 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
-    const initialLives = set.gameType === 'gender_stack' ? 5 : 3;
+    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' ? 5 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
@@ -257,6 +257,10 @@ exports.startAttempt = async (req, res) => {
       }
       if (set.gameType === 'gender_stack') {
         const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = q;
+        return safe;
+      }
+      if (set.gameType === 'flapjugation') {
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, pairs: _p, __v: _v, ...safe } = q;
         return safe;
       }
       const { __v: _v, ...safe } = q;
@@ -964,6 +968,16 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'flapjugation') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: infinitive required`);
+        if (!Array.isArray(q.tokens) || q.tokens.length < 6 || q.tokens.some(t => !String(t).trim())) {
+          return badRequest(res, `Question ${i + 1}: all 6 conjugated forms are required`);
+        }
+      }
+    }
+
     const ops = questions.map((q, i) => {
       const doc = {
         gameSetId: set._id,
@@ -991,6 +1005,10 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.translation = String(q.translation || q.hint || '').trim();
         doc.articleGender = genderStackService.normalizeGender(q.articleGender);
         doc.audioUrl = q.audioUrl || null;
+      } else if (set.gameType === 'flapjugation') {
+        doc.word = trimGermanWord(q.word);
+        doc.translation = String(q.translation || '').trim();
+        doc.tokens = Array.isArray(q.tokens) ? q.tokens.map(t => String(t).trim()).filter(Boolean) : [];
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';

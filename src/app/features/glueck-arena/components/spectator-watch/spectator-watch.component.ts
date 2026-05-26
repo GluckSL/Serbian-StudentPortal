@@ -6,6 +6,7 @@ import { ArenaSocketService } from '../../services/arena-socket.service';
 import { MultiplayerHudComponent } from '../../shared/multiplayer-hud/multiplayer-hud.component';
 import { ScrambleRushMpComponent } from '../../engines/scramble-rush-mp/scramble-rush-mp.component';
 import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/sentence-builder-mp.component';
+import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
 import {
   ArenaRoomState,
   ArenaBattleRound,
@@ -16,7 +17,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-spectator-watch',
   standalone: true,
-  imports: [CommonModule, RouterModule, MaterialModule, MultiplayerHudComponent, ScrambleRushMpComponent, SentenceBuilderMpComponent],
+  imports: [CommonModule, RouterModule, MaterialModule, MultiplayerHudComponent, ScrambleRushMpComponent, SentenceBuilderMpComponent, FlapjugationMpComponent],
   template: `
     <div class="sw">
       <div class="sw__head">
@@ -38,6 +39,8 @@ import { Subscription } from 'rxjs';
           [round]="battleRound" [localScore]="0" [answerResult]="null"></app-scramble-rush-mp>
         <app-sentence-builder-mp *ngIf="room.gameType === 'sentence_builder'"
           [round]="battleRound" [localScore]="0" [answerResult]="null"></app-sentence-builder-mp>
+        <app-flapjugation-mp *ngIf="room.gameType === 'flapjugation'"
+          [round]="battleRound" [localScore]="0" [answerResult]="null"></app-flapjugation-mp>
         <p class="sw__readonly"><mat-icon>visibility</mat-icon> Read-only spectator view</p>
       </div>
 

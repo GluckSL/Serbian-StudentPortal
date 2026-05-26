@@ -13,6 +13,7 @@ import { ImageMatchingMpComponent } from '../../engines/image-matching-mp/image-
 import { GenderStackMpComponent } from '../../engines/gender-stack-mp/gender-stack-mp.component';
 import { FlashCardsMpComponent } from '../../engines/flash-cards-mp/flash-cards-mp.component';
 import { MatchingMpComponent } from '../../engines/matching-mp/matching-mp.component';
+import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
 import {
   ArenaRoomState, ArenaLeaderboardEntry, ArenaBattleRound, ArenaBattleAnswerResult,
   ChatMessage,
@@ -28,7 +29,7 @@ import { AuthService } from '../../../../services/auth.service';
     BattlefieldChatComponent, ConfettiBurstComponent,
     ScrambleRushMpComponent, SentenceBuilderMpComponent,
     ImageMatchingMpComponent, GenderStackMpComponent,
-    FlashCardsMpComponent, MatchingMpComponent,
+    FlashCardsMpComponent, MatchingMpComponent, FlapjugationMpComponent,
   ],
   template: `
     <div class="bfroom">
@@ -182,6 +183,10 @@ import { AuthService } from '../../../../services/auth.service';
                     [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
                     (submitAnswer)="onAnswer($event)">
                   </app-matching-mp>
+                  <app-flapjugation-mp *ngSwitchCase="'flapjugation'"
+                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
+                    (submitAnswer)="onAnswer($event)">
+                  </app-flapjugation-mp>
                 </ng-container>
                 <div class="bfroom__engine-fallback" *ngIf="!currentRound">
                   <mat-spinner diameter="32"></mat-spinner>
