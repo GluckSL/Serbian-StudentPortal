@@ -1,6 +1,11 @@
 // utils/portalBatchPresets.js
 // Canonical batch names available in the portal (BatchConfig + filter dropdowns).
 
+const { GO_BATCH_TAMIL, GO_BATCH_SINHALA } = require('./goSilverTrack');
+
+/** Always listed in recording / filter batch pickers (Silver GO journey tracks). */
+const GO_JOURNEY_BATCH_PRESETS = [GO_BATCH_TAMIL, GO_BATCH_SINHALA];
+
 const PORTAL_BATCH_PRESETS = [
   'withdrawl',
   'uncertain',
@@ -48,6 +53,7 @@ function mergePortalBatchNames(existingNames = []) {
   };
 
   (existingNames || []).forEach(add);
+  GO_JOURNEY_BATCH_PRESETS.forEach(add);
   PORTAL_BATCH_PRESETS.forEach(add);
 
   return out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
@@ -55,6 +61,7 @@ function mergePortalBatchNames(existingNames = []) {
 
 module.exports = {
   PORTAL_BATCH_PRESETS,
+  GO_JOURNEY_BATCH_PRESETS,
   UNCERTAIN_WITHDRAWAL_BATCH_KEYS,
   mergePortalBatchNames,
   normalizeBatchKey,

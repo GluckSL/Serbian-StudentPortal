@@ -15,6 +15,7 @@ const {
   meetsStrictThreshold
 } = require('./journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('./journeyLevelSync.service');
+const { shouldSkipStudentRollover } = require('../utils/journeyPause');
 
 /**
  * Check if a Silver GO student has completed all tasks for their current journey day
@@ -212,6 +213,9 @@ async function applyJourneyDayRollovers() {
 
   for (const s of students) {
     const cfg = await batchConfigForStudent(s);
+    if (shouldSkipStudentRollover(cfg)) {
+      continue;
+    }
     const cur = normalizeCourseDay(s.currentCourseDay);
     const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
 
