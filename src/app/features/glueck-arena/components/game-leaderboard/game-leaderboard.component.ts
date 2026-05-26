@@ -67,11 +67,48 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
             </div>
           </div>
 
-          <div class="lb__stats-card">
+          <!-- Podium skeleton -->
+          <div class="lb__podium-card" *ngIf="loading">
+            <div class="lb__podium-heading">
+              <span class="skel-block" style="width:120px;height:18px;border-radius:6px"></span>
+            </div>
+            <div class="lb__podium">
+              <div class="lb__podium__place">
+                <div class="skel-block" style="width:44px;height:44px;border-radius:50%"></div>
+                <div class="skel-block" style="width:68px;height:80px;border-radius:10px 10px 0 0"></div>
+                <div class="skel-block" style="width:60px;height:12px;border-radius:4px"></div>
+              </div>
+              <div class="lb__podium__place">
+                <div class="skel-block" style="width:44px;height:44px;border-radius:50%"></div>
+                <div class="skel-block" style="width:76px;height:110px;border-radius:10px 10px 0 0"></div>
+                <div class="skel-block" style="width:60px;height:12px;border-radius:4px"></div>
+              </div>
+              <div class="lb__podium__place">
+                <div class="skel-block" style="width:44px;height:44px;border-radius:50%"></div>
+                <div class="skel-block" style="width:68px;height:60px;border-radius:10px 10px 0 0"></div>
+                <div class="skel-block" style="width:60px;height:12px;border-radius:4px"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lb__stats-card" *ngIf="!loading">
             <div class="lb__stats-heading">
               <mat-icon>person</mat-icon> Your Stats
             </div>
             <app-game-stats-banner [stats]="myStats"></app-game-stats-banner>
+          </div>
+
+          <!-- Stats skeleton -->
+          <div class="lb__stats-card" *ngIf="loading">
+            <div class="lb__stats-heading">
+              <span class="skel-block" style="width:100px;height:18px;border-radius:6px"></span>
+            </div>
+            <div class="lb__skel-stats-grid">
+              <div class="skel-block" style="height:48px;border-radius:8px"></div>
+              <div class="skel-block" style="height:48px;border-radius:8px"></div>
+              <div class="skel-block" style="height:48px;border-radius:8px"></div>
+              <div class="skel-block" style="height:48px;border-radius:8px"></div>
+            </div>
           </div>
         </div>
 
@@ -87,8 +124,6 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
             <mat-tab label="This Week"></mat-tab>
             <mat-tab label="Today"></mat-tab>
           </mat-tab-group>
-
-          <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
 
           <!-- Full list -->
           <div class="lb__list" *ngIf="!loading">
@@ -124,8 +159,22 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
             </div>
           </div>
 
-            <div class="lb__list lb__list--skel" *ngIf="loading">
-            <div class="lb__row lb__row--skel" *ngFor="let _ of [1,2,3]"></div>
+            <div class="lb__list" *ngIf="loading">
+            <div class="lb__row lb__row--skel" *ngFor="let _ of [1,2,3,4,5]">
+              <div class="lb__row-top">
+                <span class="skel-block" style="width:30px;height:20px;border-radius:6px"></span>
+                <div class="skel-block" style="width:38px;height:38px;border-radius:50%"></div>
+                <div class="lb__info">
+                  <span class="skel-block" style="width:120px;height:16px;border-radius:4px"></span>
+                  <div class="lb__stats" style="margin-top:6px">
+                    <span class="skel-block" style="width:60px;height:22px;border-radius:999px"></span>
+                    <span class="skel-block" style="width:80px;height:22px;border-radius:999px"></span>
+                    <span class="skel-block" style="width:70px;height:22px;border-radius:999px"></span>
+                    <span class="skel-block" style="width:65px;height:22px;border-radius:999px"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           </div>
         </div>
@@ -192,9 +241,13 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
     .lb__empty { text-align: center; padding: 40px; color: #aaa; }
     .lb__empty mat-icon { font-size: 48px; width: 48px; height: 48px; opacity: .3; }
 
-    .lb__list--skel { }
     .lb__row--skel {
-      height: 60px; cursor: default;
+      cursor: default;
+      background: #f5f7fa;
+      border-color: #e2e8f0;
+    }
+    .lb__skel-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .skel-block {
       background: linear-gradient(90deg, #e8edf5 25%, #f5f7fa 50%, #e8edf5 75%);
       background-size: 200% 100%;
       animation: skel 1.4s infinite;
