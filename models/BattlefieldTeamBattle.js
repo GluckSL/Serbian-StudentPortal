@@ -19,7 +19,7 @@ const BattlefieldTeamBattleSchema = new mongoose.Schema({
   title: { type: String, required: true },
   gameSetId: { type: mongoose.Schema.Types.ObjectId, ref: 'GameSet', required: true },
   gameType: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'active', 'finished'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'active', 'finished', 'cancelled'], default: 'pending' },
   teamA: { type: TeamSchema, required: true },
   teamB: { type: TeamSchema, required: true },
   rounds: { type: Number, default: 5 },
