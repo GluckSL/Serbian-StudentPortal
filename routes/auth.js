@@ -291,6 +291,60 @@ function mondayColumnDisplay(col) {
 /** Sub-selection for items.column_values (items_page queries). */
 const MONDAY_COLUMN_VALUES_GQL = `id type text value ... on StatusValue { label } ... on DropdownValue { values { label } } ... on MirrorValue { display_value }`;
 
+function assertMondaySyncConfigured() {
+  if (!process.env.MONDAY_API_TOKEN || !process.env.MONDAY_BOARD_ID) {
+    throw new Error(
+      'Monday API not configured. Set MONDAY_API_TOKEN and MONDAY_BOARD_ID on the server.'
+    );
+  }
+}
+
+/** Paginated fetch of all items on the CRM board; throws with actionable errors on misconfiguration. */
+async function fetchAllMondayBoardItems() {
+  assertMondaySyncConfigured();
+  const boardId = process.env.MONDAY_BOARD_ID;
+  const token = process.env.MONDAY_API_TOKEN;
+
+  let allItems = [];
+  let cursor = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const query = cursor
+      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } } }`
+      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } } }`;
+    const variables = cursor ? { boardId: [boardId], cursor } : { boardId: [boardId] };
+    const response = await axios.post(
+      'https://api.monday.com/v2',
+      { query, variables },
+      { headers: { Authorization: token, 'Content-Type': 'application/json' } }
+    );
+
+    if (response.data?.errors?.length) {
+      const msg = response.data.errors.map((e) => e.message).join('; ');
+      throw new Error(`Monday.com API error: ${msg}`);
+    }
+
+    const board = response.data?.data?.boards?.[0];
+    if (!board) {
+      throw new Error(
+        `Monday.com board not found or not accessible (MONDAY_BOARD_ID=${boardId}). Verify the board ID and that the API token can read this board.`
+      );
+    }
+
+    const page = board.items_page;
+    if (!page) {
+      throw new Error('Monday.com returned no items_page for this board.');
+    }
+
+    allItems = allItems.concat(page.items || []);
+    cursor = page.cursor;
+    hasMore = !!cursor;
+  }
+
+  return { allItems, boardId };
+}
+
 function mondayGet(columnValues, id) {
   const col = columnValues.find((c) => c.id === id);
   return mondayColumnDisplay(col);
@@ -651,23 +705,7 @@ async function runMondaySync() {
       '⚠️ MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS is not set — documentation payment will not sync; distinct filter will stay empty until env + sync.'
     );
   }
-  const BOARD_ID = process.env.MONDAY_BOARD_ID;
-
-  let allItems = [];
-  let cursor = null;
-  let hasMore = true;
-
-  while (hasMore) {
-    const query = cursor
-      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
-      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
-    const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
-    const response = await axios.post("https://api.monday.com/v2", { query, variables }, { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } });
-    const page = response.data.data.boards[0].items_page;
-    allItems = allItems.concat(page.items);
-    cursor = page.cursor;
-    hasMore = !!cursor;
-  }
+  const { allItems, boardId: BOARD_ID } = await fetchAllMondayBoardItems();
 
   console.log(`ðŸ“‹ Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
 
@@ -878,44 +916,7 @@ router.post("/monday-sync-run", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
 // âœ… Preview Monday.com sync â€” dry run showing what would change
 router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const BOARD_ID = process.env.MONDAY_BOARD_ID;
-
-    // Fetch ALL items from the board (paginated) â€” same logic as cron
-    let allItems = [];
-    let cursor = null;
-    let hasMore = true;
-
-    while (hasMore) {
-      const query = cursor
-        ? `query ($boardId: [ID!], $cursor: String!) {
-            boards(ids: $boardId) {
-              items_page(limit: 500, cursor: $cursor) {
-                cursor
-                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
-              }
-            }
-          }`
-        : `query ($boardId: [ID!]) {
-            boards(ids: $boardId) {
-              items_page(limit: 500) {
-                cursor
-                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
-              }
-            }
-          }`;
-
-      const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
-      const response = await axios.post(
-        "https://api.monday.com/v2",
-        { query, variables },
-        { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } }
-      );
-
-      const page = response.data.data.boards[0].items_page;
-      allItems = allItems.concat(page.items);
-      cursor = page.cursor;
-      hasMore = !!cursor;
-    }
+    const { allItems } = await fetchAllMondayBoardItems();
 
     const { items: syncItems, duplicateRows, noEmail, duplicateRowsList, noEmailRows } =
       dedupeMondayItemsByEmail(allItems);
