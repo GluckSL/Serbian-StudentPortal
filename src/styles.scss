@@ -611,3 +611,36 @@ body.mobile-sidebar-open {
   width: 100%;
   height: 100%;
 }
+
+/* ─── GlückArena filter dropdown theme ─── */
+.arena-filters__select-panel .mat-mdc-select-panel {
+  border-radius: 12px !important; padding: 6px !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.15) !important;
+}
+.arena-filters__select-panel .mat-mdc-option {
+  font-size: 12px !important; font-weight: 700 !important;
+  min-height: 34px !important; padding: 0 12px !important;
+  border-radius: 8px !important; margin-bottom: 2px !important;
+  background: #f8fafc !important; color: #334155 !important;
+}
+.arena-filters__select-panel .mat-mdc-option:last-child { margin-bottom: 0 !important; }
+.arena-filters__select-panel .mat-mdc-option:hover:not(.mdc-list-item--selected) {
+  background: #e2e8f0 !important;
+}
+.arena-filters__select-panel .mat-mdc-option.mdc-list-item--selected,
+.arena-filters__select-panel .mat-mdc-option[aria-selected="true"] {
+  background: #dbeafe !important; color: #1e40af !important;
+  border-left: 3px solid #3b82f6 !important;
+  border-radius: 8px 4px 4px 8px !important;
+}
+.arena-filters__select-panel .mat-mdc-option.mdc-list-item--selected .mat-icon,
+.arena-filters__select-panel .mat-mdc-option[aria-selected="true"] .mat-icon {
+  color: #1e40af !important;
+}
+.arena-filters__select-panel .mat-mdc-option .mat-icon {
+  font-size: 16px !important; width: 16px !important; height: 16px !important;
+  vertical-align: middle; margin-right: 6px; color: #64748b;
+}
+.arena-filters__select-panel .mdc-list-item__primary-text {
+  display: flex !important; align-items: center !important; gap: 6px !important;
+}
