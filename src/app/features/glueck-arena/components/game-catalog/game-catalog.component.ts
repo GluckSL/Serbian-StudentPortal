@@ -58,7 +58,7 @@ function xpForLevel(level: number): number {
                   <span class="arena-hero__xp-text">{{ myStats.totalXp }} XP</span>
                 </div>
               </div>
-              <app-streak-fire *ngIf="myStats" [streak]="myStats.currentStreak ?? 0"></app-streak-fire>
+              <app-streak-fire *ngIf="myStats" [streak]="myStats.currentStreak"></app-streak-fire>
               <a class="arena-hero__nav-link" routerLink="/glueck-arena/leaderboard">
                 <mat-icon>leaderboard</mat-icon>
                 <span>Leaderboard</span>

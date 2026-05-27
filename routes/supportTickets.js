@@ -6,10 +6,7 @@ const upload = require('../config/supportTicketUpload');
 const transporter = require('../config/emailConfig');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
-function buildPublicUrl(req, fileName) {
-  // app.js serves /uploads statically from /uploads
-  return `${req.protocol}://${req.get('host')}/uploads/support-tickets/${fileName}`;
-}
+const R2_PUBLIC_BASE = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 
 async function sendNewTicketAlert(ticket) {
   await transporter.sendMail({
@@ -104,11 +101,11 @@ router.post('/tickets', upload.single('screenshot'), async (req, res) => {
       priority,
       description,
       screenshot: {
-        fileName: req.file.filename,
+        fileName: req.file.key,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        url: buildPublicUrl(req, req.file.filename)
+        url: `${R2_PUBLIC_BASE}/${req.file.key}`
       }
     });
 
