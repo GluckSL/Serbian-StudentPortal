@@ -650,6 +650,20 @@ exports.cancelTeamBattle = async (req, res) => {
     if (String(battle.createdBy) !== String(req.user.id) && !['ADMIN'].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
+
+    // Cancel the in-memory room if it exists
+    if (battle.roomCode) {
+      battlefieldRoomManager.cancelRoom(battle.roomCode, req.user.id);
+    }
+
+    // Cancel the ArenaRoom DB record if it exists
+    if (battle.roomCode) {
+      await require('../models/ArenaRoom').findOneAndUpdate(
+        { inviteCode: battle.roomCode },
+        { $set: { status: 'cancelled' } }
+      );
+    }
+
     battle.status = 'cancelled';
     await battle.save();
     res.json({ success: true, battle });

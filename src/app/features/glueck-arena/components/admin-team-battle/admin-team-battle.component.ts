@@ -62,12 +62,12 @@ interface BatchSummary { batchName: string; }
             <span>Round {{ b.currentRound }}/{{ b.rounds }}</span>
             <span *ngIf="b.roomCode">Room: {{ b.roomCode }}</span>
           </div>
-          <div class="atb__card-actions" *ngIf="b.status === 'pending'">
-            <button mat-raised-button color="primary" (click)="startBattle(b._id)">
+          <div class="atb__card-actions">
+            <button mat-raised-button color="primary" (click)="startBattle(b._id)" *ngIf="b.status === 'pending'">
               <mat-icon>play_arrow</mat-icon> Start
             </button>
-            <button mat-stroked-button color="warn" (click)="cancelBattle(b._id)">
-              Cancel
+            <button mat-stroked-button color="warn" (click)="cancelBattle(b._id)" *ngIf="b.status === 'pending' || b.status === 'active'">
+              <mat-icon>cancel</mat-icon> {{ b.status === 'active' ? 'Cancel Room' : 'Cancel' }}
             </button>
           </div>
         </div>
