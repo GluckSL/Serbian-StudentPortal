@@ -29,6 +29,10 @@ interface BatchSummary {
   autoRecordingEnabled?: boolean;
   /** Shown on home table only when true; false batches appear under “upcoming”. */
   journeyActive?: boolean;
+  /** New batch only: journey day frozen until admin resumes. */
+  journeyPaused?: boolean;
+  journeyPausedAt?: string | null;
+  journeyPausedFrozenDay?: number | null;
   studentCount: number;
   teacherId?: string | null;
   /** Resolved from students' assignedTeacher (most common per batch). */
@@ -389,7 +393,12 @@ interface TimelineDay {
             <tbody>
               <tr *ngFor="let b of filteredBatches; trackBy: trackBatch">
                 <td>
-                  <div class="j-batch-name-cell">{{ b.batchName }}</div>
+                  <div class="j-batch-name-cell">
+                    {{ b.batchName }}
+                    <span class="j-pause-badge" *ngIf="b.journeyPaused && b.batchType === 'new'">
+                      <i class="fas fa-pause"></i> Paused
+                    </span>
+                  </div>
                 </td>
                 <td>
                   <span class="j-day-pill j-day-pill--table">Day {{ b.batchCurrentDay }}</span>
@@ -455,6 +464,9 @@ interface TimelineDay {
         <h2>{{ selectedBatch.batchName }}</h2>
         <span class="j-batch-meta">{{ batchStudents.length }} students</span>
         <span class="j-day-pill" style="margin-left:8px">Day {{ selectedBatch.batchCurrentDay }}</span>
+        <span class="j-pause-badge j-pause-badge--header" *ngIf="selectedBatch.journeyPaused && editBatchType === 'new'">
+          <i class="fas fa-pause"></i> Journey paused
+        </span>
         <span class="j-auto-badge" *ngIf="selectedBatch.autoDay">
           <i class="fas fa-magic"></i> Auto
         </span>
@@ -500,6 +512,17 @@ interface TimelineDay {
             </span>
           </div>
         </div>
+        <div class="j-ro-card" *ngIf="editBatchType === 'new'">
+          <div class="j-ro-card-icon" [ngClass]="editJourneyPaused ? 'j-ro-card-icon--amber' : 'j-ro-card-icon--green'">
+            <i class="fas" [class.fa-pause]="editJourneyPaused" [class.fa-play]="!editJourneyPaused"></i>
+          </div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Journey pause</span>
+            <span class="j-ro-card-value">
+              {{ editJourneyPaused ? ('Paused on Day ' + (selectedBatch.batchCurrentDay || editBatchDay)) : 'Running — advances at daily rollover' }}
+            </span>
+          </div>
+        </div>
         <div class="j-ro-card">
           <div class="j-ro-card-icon j-ro-card-icon--amber"><i class="fas fa-shield-alt"></i></div>
           <div class="j-ro-card-body">
@@ -539,14 +562,17 @@ interface TimelineDay {
         </div>
       </div>
 
-      <div class="j-config-row" *ngIf="!isJourneyReadOnly">
-        <div class="j-config-field" style="min-width: 220px;">
-          <label>Teacher</label>
-          <div class="j-teacher-inline">
-            <span class="j-teacher-pill">
-              <i class="fas fa-chalkboard-teacher"></i>
-              {{ selectedBatch.teacherName || 'Not assigned' }}
-            </span>
+      <div class="j-config-form" *ngIf="!isJourneyReadOnly">
+        <!-- Teacher -->
+        <div class="j-config-section j-config-section--teacher j-config-section--compact">
+          <div class="j-teacher-block">
+            <div class="j-teacher-block-info">
+              <span class="j-config-section-icon j-config-section-icon--teacher"><i class="fas fa-chalkboard-teacher"></i></span>
+              <div class="j-teacher-block-text">
+                <span class="j-field-label">Teacher</span>
+                <span class="j-teacher-name">{{ selectedBatch.teacherName || 'Not assigned' }}</span>
+              </div>
+            </div>
             <button type="button"
                     class="j-btn j-btn-outline j-btn-sm"
                     (click)="openAssignTeacher(selectedBatch!)">
@@ -555,119 +581,133 @@ interface TimelineDay {
             </button>
           </div>
         </div>
-        <div class="j-config-field">
-          <label>Journey Length (days)</label>
-          <input type="number" [(ngModel)]="editJourneyLength" min="1" max="200" class="j-input">
-        </div>
 
-        <!-- Batch Start Date -->
-        <div class="j-config-field">
-          <label>
-            Batch Start Date
-            <span class="j-label-hint">— auto-advances batch day daily</span>
-          </label>
-          <input type="date" [(ngModel)]="editBatchStartDate" class="j-input">
-        </div>
-
-        <!-- Current Batch Day — read-only when auto, editable when manual -->
-        <div class="j-config-field">
-          <label>
-            Current Batch Day
-            <span class="j-auto-badge" *ngIf="editBatchStartDate">
-              <i class="fas fa-magic"></i> Auto
-            </span>
-          </label>
-          <div *ngIf="editBatchStartDate" class="j-auto-day-display">
-            <span class="j-day-pill">Day {{ computedDayFromDate() }}</span>
-            <span class="j-auto-day-hint">
-              <i class="fas fa-info-circle"></i>
-              {{ daysSinceStart() }} day{{ daysSinceStart() !== 1 ? 's' : '' }} since
-              {{ editBatchStartDate | date:'dd MMM yyyy' }}
-            </span>
-          </div>
-          <input *ngIf="!editBatchStartDate"
-                 type="number" [(ngModel)]="editBatchDay"
-                 min="1" [max]="editJourneyLength" class="j-input">
-        </div>
-
-        <div class="j-config-field j-config-field--strict">
-          <label>
-            Strict journey rule
-            <span class="j-label-hint">— task completion before next day</span>
-          </label>
-          <div class="j-strict-controls">
-            <label class="j-switch">
-              <input type="checkbox" [(ngModel)]="editStrictJourneyRule" (change)="onStrictJourneyToggle()" />
-              <span class="j-switch-slider" aria-hidden="true"></span>
-              <span class="j-switch-label">{{ editStrictJourneyRule ? 'On' : 'Off' }} (default: off — students advance without finishing modules / exercises / live classes)</span>
-            </label>
-            <input *ngIf="editStrictJourneyRule"
-                   type="number"
-                   class="j-input j-input--strict-pct"
-                   [(ngModel)]="editStrictThresholdPercent"
-                   min="1"
-                   max="100"
-                   placeholder="Enter the % of strictness" />
+        <!-- Schedule -->
+        <div class="j-config-section j-config-section--compact">
+          <h5 class="j-config-section-title"><i class="fas fa-calendar-alt"></i> Schedule</h5>
+          <div class="j-config-grid j-config-grid--schedule">
+            <div class="j-config-field">
+              <label class="j-field-label">Journey length</label>
+              <div class="j-input-with-suffix">
+                <input type="number" [(ngModel)]="editJourneyLength" min="1" max="200" class="j-input j-input--compact">
+                <span class="j-input-suffix">days</span>
+              </div>
+            </div>
+            <div class="j-config-field">
+              <label class="j-field-label">Batch start date</label>
+              <input type="date" [(ngModel)]="editBatchStartDate" class="j-input j-input--compact">
+            </div>
+            <div class="j-config-field">
+              <label class="j-field-label">
+                Current batch day
+                <span class="j-auto-badge j-auto-badge--sm" *ngIf="editBatchStartDate"><i class="fas fa-magic"></i> Auto</span>
+              </label>
+              <div *ngIf="editBatchStartDate" class="j-batch-day-inline">
+                <span class="j-day-pill">Day {{ computedDayFromDate() }}</span>
+                <span class="j-field-hint j-field-hint--inline">{{ daysSinceStart() }}d since {{ editBatchStartDate | date:'dd MMM yyyy' }}</span>
+              </div>
+              <input *ngIf="!editBatchStartDate"
+                     type="number" [(ngModel)]="editBatchDay"
+                     min="1" [max]="editJourneyLength" class="j-input j-input--compact">
+            </div>
           </div>
         </div>
 
-        <div class="j-config-field">
-          <label>
-            Batch type
-            <span class="j-label-hint">— default: old</span>
-          </label>
-          <select class="j-input" [(ngModel)]="editBatchType" (ngModelChange)="onBatchTypeChange()">
-            <option value="new">New batch (modules + exercises + classes)</option>
-            <option value="old">Old batch (classes + recordings only)</option>
-          </select>
-        </div>
+        <!-- Rules & behavior -->
+        <div class="j-config-section j-config-section--compact">
+          <div class="j-rules-head">
+            <h5 class="j-config-section-title"><i class="fas fa-sliders-h"></i> Rules &amp; behavior</h5>
+            <div class="j-config-field j-config-field--batch-type">
+              <label class="j-field-label">Batch type</label>
+              <select class="j-input j-input--compact" [(ngModel)]="editBatchType" (ngModelChange)="onBatchTypeChange()">
+                <option value="new">New batch (modules + exercises + classes)</option>
+                <option value="old">Old batch (classes + recordings only)</option>
+              </select>
+            </div>
+          </div>
+          <div class="j-toggle-grid">
+            <div class="j-toggle-card" [class.j-toggle-card--on]="editStrictJourneyRule">
+              <div class="j-toggle-card-head">
+                <span class="j-toggle-card-label" title="Require task completion before next day">Strict journey</span>
+                <span class="j-toggle-card-status" [class.j-toggle-card-status--on]="editStrictJourneyRule">{{ editStrictJourneyRule ? 'On' : 'Off' }}</span>
+                <label class="j-switch j-switch--sm">
+                  <input type="checkbox" [(ngModel)]="editStrictJourneyRule" (change)="onStrictJourneyToggle()" />
+                  <span class="j-switch-slider" aria-hidden="true"></span>
+                </label>
+              </div>
+              <div class="j-toggle-card-extra j-toggle-card-extra--inline" *ngIf="editStrictJourneyRule">
+                <div class="j-input-with-suffix j-input-with-suffix--sm">
+                  <input type="number" class="j-input j-input--compact" [(ngModel)]="editStrictThresholdPercent" min="1" max="100" placeholder="%" />
+                  <span class="j-input-suffix">% min</span>
+                </div>
+              </div>
+            </div>
 
-        <div class="j-config-field j-config-field--strict" *ngIf="editBatchType === 'old'">
-          <label>
-            Give access of DG Bot
-            <span class="j-label-hint">— weekly: days 1–7, then 8–14 after week 1 complete</span>
-          </label>
-          <div class="j-strict-controls">
-            <label class="j-switch">
-              <input type="checkbox" [(ngModel)]="editOldBatchDgBotAccess" />
-              <span class="j-switch-slider" aria-hidden="true"></span>
-              <span class="j-switch-label">{{ editOldBatchDgBotAccess ? 'On — students get DG Bot in 7-day journey weeks' : 'Off — no DG Bot for this batch' }}</span>
-            </label>
+            <div class="j-toggle-card" *ngIf="editBatchType === 'old'" [class.j-toggle-card--on]="editOldBatchDgBotAccess">
+              <div class="j-toggle-card-head">
+                <span class="j-toggle-card-label" title="Weekly DG Bot release">DG Bot</span>
+                <span class="j-toggle-card-status" [class.j-toggle-card-status--on]="editOldBatchDgBotAccess">{{ editOldBatchDgBotAccess ? 'On' : 'Off' }}</span>
+                <label class="j-switch j-switch--sm">
+                  <input type="checkbox" [(ngModel)]="editOldBatchDgBotAccess" />
+                  <span class="j-switch-slider" aria-hidden="true"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="j-toggle-card" *ngIf="editBatchType === 'new'"
+                 [class.j-toggle-card--warn]="editJourneyPaused">
+              <div class="j-toggle-card-head">
+                <span class="j-toggle-card-label" title="Freeze batch day until resumed">Pause journey</span>
+                <span class="j-toggle-card-status" [class.j-toggle-card-status--warn]="editJourneyPaused">{{ editJourneyPaused ? 'Paused' : 'Running' }}</span>
+                <label class="j-switch j-switch--sm">
+                  <input type="checkbox" [(ngModel)]="editJourneyPaused" />
+                  <span class="j-switch-slider" aria-hidden="true"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="j-toggle-card" [class.j-toggle-card--on]="editAutoRecordingEnabled">
+              <div class="j-toggle-card-head">
+                <span class="j-toggle-card-label" title="Zoom webhook auto-save">Auto recording</span>
+                <span class="j-toggle-card-status" [class.j-toggle-card-status--on]="editAutoRecordingEnabled">{{ editAutoRecordingEnabled ? 'On' : 'Off' }}</span>
+                <label class="j-switch j-switch--sm">
+                  <input type="checkbox" [(ngModel)]="editAutoRecordingEnabled" />
+                  <span class="j-switch-slider" aria-hidden="true"></span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="j-config-field j-config-field--strict">
-          <label>
-            Auto recording
-            <span class="j-label-hint">— Zoom webhook saves recordings automatically</span>
-          </label>
-          <div class="j-strict-controls">
-            <label class="j-switch">
-              <input type="checkbox" [(ngModel)]="editAutoRecordingEnabled" />
-              <span class="j-switch-slider" aria-hidden="true"></span>
-              <span class="j-switch-label">{{ editAutoRecordingEnabled ? 'On — recordings saved automatically via webhook' : 'Off (default) — recordings must be backfilled manually' }}</span>
-            </label>
+        <!-- Notes & actions -->
+        <div class="j-config-footer">
+          <div class="j-config-field j-config-field--notes">
+            <label class="j-field-label">Notes</label>
+            <input type="text" [(ngModel)]="editNotes" class="j-input" maxlength="500" placeholder="Optional notes for this batch…">
+          </div>
+          <div class="j-config-actions">
+            <button type="button" class="j-btn j-btn-outline j-btn-sm" (click)="saveConfig()" [disabled]="savingConfig">
+              <i class="fas fa-save"></i> {{ savingConfig ? 'Saving…' : 'Save' }}
+            </button>
+            <button type="button" class="j-btn j-btn-primary j-btn-sm" (click)="applyDayToAllStudents()" [disabled]="applyingDay">
+              <i class="fas fa-users"></i>
+              {{ applyingDay ? 'Applying…' : 'Apply Day ' + (editBatchStartDate ? computedDayFromDate() : editBatchDay) + ' to all' }}
+            </button>
           </div>
         </div>
+      </div>
 
-        <div class="j-config-field" style="flex:2">
-          <label>Notes</label>
-          <input type="text" [(ngModel)]="editNotes" class="j-input" maxlength="500" placeholder="Optional notes…">
-        </div>
-
-        <div class="j-config-actions">
-          <button type="button" class="j-btn j-btn-outline" (click)="saveConfig()" [disabled]="savingConfig">
-            <i class="fas fa-save"></i> {{ savingConfig ? 'Saving…' : 'Save Config' }}
-          </button>
-          <button type="button" class="j-btn j-btn-primary" (click)="applyDayToAllStudents()" [disabled]="applyingDay">
-            <i class="fas fa-users"></i>
-            {{ applyingDay ? 'Applying…' : 'Apply Day ' + (editBatchStartDate ? computedDayFromDate() : editBatchDay) + ' to All Students' }}
-          </button>
+      <div class="j-start-date-info j-start-date-info--warn" *ngIf="editJourneyPaused && editBatchType === 'new'">
+        <i class="fas fa-pause-circle"></i>
+        <div>
+          <strong>Journey paused.</strong>
+          Batch and students stay on <strong>Day {{ selectedBatch.batchCurrentDay || editBatchDay }}</strong>.
+          Midnight rollover will not advance anyone until you turn pause off and save.
         </div>
       </div>
 
       <!-- Info box when start date is set -->
-      <div class="j-start-date-info" *ngIf="editBatchStartDate">
+      <div class="j-start-date-info" *ngIf="editBatchStartDate && !(editJourneyPaused && editBatchType === 'new')">
         <i class="fas fa-calendar-check"></i>
         <div>
           <strong>Auto-schedule active.</strong>
@@ -2480,11 +2520,30 @@ interface TimelineDay {
       -webkit-overflow-scrolling: touch;
     }
     .j-table--batches { min-width: 880px; }
-    .j-table--batches .j-batch-name-cell {
+    .j-batch-name-cell {
       font-size: 14px;
       font-weight: 700;
       color: #03396c;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
     }
+    .j-pause-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background: #fef3c7;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .j-pause-badge--header { font-size: 11px; padding: 3px 10px; }
     .j-td-teacher {
       font-size: 12px;
       font-weight: 500;
@@ -2541,13 +2600,17 @@ interface TimelineDay {
 
     /* Start-date info banner */
     .j-start-date-info {
-      display: flex; align-items: flex-start; gap: 10px;
-      margin-top: 14px; padding: 10px 14px;
-      background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 10px;
-      font-size: 12px; color: #0c4a6e;
+      display: flex; align-items: flex-start; gap: 8px;
+      margin-top: 10px; padding: 8px 12px;
+      background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 8px;
+      font-size: 11px; color: #0c4a6e;
     }
     .j-start-date-info > i { color: #0369a1; font-size: 15px; margin-top: 1px; flex-shrink: 0; }
     .j-start-date-info > div { flex: 1; line-height: 1.5; }
+    .j-start-date-info--warn {
+      background: #fffbeb; border-color: #fde68a; color: #78350f;
+    }
+    .j-start-date-info--warn > i { color: #b45309; }
     .j-btn-icon-sm {
       background: none; border: none; cursor: pointer;
       color: #64748b; padding: 4px; border-radius: 6px;
@@ -2563,22 +2626,189 @@ interface TimelineDay {
 
     /* ── Config card ── */
     .j-config-card {
-      background: #fff; border-radius: 14px;
-      padding: 16px 20px; margin-bottom: 20px;
-      box-shadow: 0 2px 12px rgba(15,23,42,.07); border: 1px solid #e8ecf4;
+      background: #fff; border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 16px;
+      box-shadow: 0 1px 8px rgba(15,23,42,.06); border: 1px solid #e8ecf4;
     }
-    .j-card-title { font-size: 13px; font-weight: 700; color: #03396c; margin-bottom: 12px; }
-    .j-config-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-    .j-config-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
-    .j-teacher-inline { display:flex; align-items:center; gap:10px; flex-wrap: wrap; }
+    .j-card-title {
+      font-size: 14px; font-weight: 700; color: #03396c;
+      margin: 0 0 12px; padding-bottom: 8px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .j-config-form { display: flex; flex-direction: column; gap: 10px; }
+    .j-config-section {
+      padding: 16px 18px;
+      background: #f8fafc;
+      border: 1px solid #e8ecf4;
+      border-radius: 12px;
+    }
+    .j-config-section--compact {
+      padding: 10px 12px;
+      border-radius: 10px;
+    }
+    .j-config-section--teacher {
+      background: linear-gradient(135deg, #f0f7fc 0%, #f8fafc 100%);
+      border-color: #dbeafe;
+    }
+    .j-config-section-title {
+      margin: 0 0 8px;
+      font-size: 10px; font-weight: 700; color: #03396c;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .j-config-section--compact .j-config-section-title { margin-bottom: 8px; }
+    .j-config-section-title i { color: #005b96; font-size: 11px; opacity: 0.85; }
+    .j-config-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .j-config-grid--schedule {
+      grid-template-columns: repeat(3, 1fr);
+      align-items: end;
+    }
+    .j-config-field {
+      display: flex; flex-direction: column; gap: 4px; min-width: 0;
+    }
+    .j-config-field--batch-type { flex: 1; min-width: 200px; max-width: 360px; margin: 0; }
+    .j-config-field--notes { flex: 1; min-width: 160px; }
+    .j-rules-head {
+      display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .j-rules-head .j-config-section-title { margin-bottom: 0; flex-shrink: 0; align-self: center; }
+    .j-field-label {
+      font-size: 10px; font-weight: 700; color: #64748b;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .j-field-label--sm { margin-bottom: 2px; }
+    .j-field-hint {
+      margin: 0; font-size: 10px; color: #94a3b8; line-height: 1.3;
+    }
+    .j-field-hint--inline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .j-teacher-block {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+    }
+    .j-teacher-block-info {
+      display: flex; align-items: center; gap: 14px; min-width: 0;
+    }
+    .j-config-section-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: #e0f2fe; color: #0369a1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+    .j-config-section-icon--teacher { background: #dbeafe; color: #005b96; }
+    .j-teacher-block-info { gap: 10px; }
+    .j-teacher-name {
+      display: block; font-size: 13px; font-weight: 600; color: #0f172a;
+      margin-top: 1px; line-height: 1.25;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .j-teacher-pill {
       display:inline-flex; align-items:center; gap:6px;
       background:#f1f5f9; border:1px solid #e2e8f0;
       color:#0f172a; border-radius: 999px;
       padding: 6px 10px; font-size: 12px; font-weight: 700;
     }
-    .j-config-field label { font-size: 11px; font-weight: 600; color: #475569; }
-    .j-config-field--strict { flex: 1 1 280px; min-width: 240px; }
+    .j-input-with-suffix {
+      display: flex; align-items: stretch;
+      border: 1px solid #e2e8f0; border-radius: 8px;
+      background: #fff; overflow: hidden;
+    }
+    .j-input-with-suffix .j-input {
+      border: none; border-radius: 0; background: transparent;
+      flex: 1; min-width: 0;
+    }
+    .j-input-with-suffix .j-input:focus { box-shadow: none; }
+    .j-input-with-suffix:focus-within {
+      border-color: #005b96;
+      box-shadow: 0 0 0 2px rgba(0,91,150,.1);
+    }
+    .j-input-suffix {
+      display: flex; align-items: center; padding: 0 12px;
+      font-size: 12px; font-weight: 600; color: #64748b;
+      background: #f1f5f9; border-left: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .j-batch-day-inline {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 32px; padding: 0 10px;
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+      box-sizing: border-box;
+    }
+    .j-batch-day-inline .j-day-pill {
+      font-size: 11px; padding: 2px 8px; flex-shrink: 0;
+    }
+    .j-auto-badge--sm {
+      font-size: 9px; padding: 1px 6px;
+    }
+    .j-toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: stretch;
+    }
+    .j-toggle-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      min-height: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+    }
+    .j-toggle-card--on { border-color: #93c5fd; }
+    .j-toggle-card--warn {
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+    .j-toggle-card-head {
+      display: flex; align-items: center;
+      gap: 6px; min-width: 0;
+    }
+    .j-toggle-card-label {
+      font-size: 12px; font-weight: 600; color: #0f172a;
+      flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .j-toggle-card-status {
+      font-size: 9px; font-weight: 700; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.03em;
+      flex-shrink: 0;
+    }
+    .j-toggle-card-status--on { color: #005b96; }
+    .j-toggle-card-status--warn { color: #b45309; }
+    .j-toggle-card-extra--inline { margin: 0; padding: 0; border: none; max-width: none; }
+    .j-input-with-suffix--sm { max-width: 100%; }
+    .j-input-with-suffix--sm .j-input-suffix { padding: 0 8px; font-size: 10px; }
+    .j-config-footer {
+      display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+    }
+    .j-config-actions {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-left: auto; flex-shrink: 0;
+    }
+    .j-switch--card { flex-shrink: 0; }
+    .j-switch--sm { gap: 0; }
+    .j-switch--sm .j-switch-slider {
+      width: 34px; height: 18px;
+    }
+    .j-switch--sm .j-switch-slider::after {
+      width: 14px; height: 14px; top: 2px; left: 2px;
+    }
+    .j-switch--sm input:checked + .j-switch-slider::after {
+      transform: translateX(16px);
+    }
+    .j-input--compact {
+      padding: 5px 8px; font-size: 12px; min-height: 32px;
+    }
+    .j-input-with-suffix .j-input--compact { min-height: 30px; }
+    .j-input-suffix { padding: 0 8px; font-size: 11px; }
     .j-strict-controls {
       display: flex;
       flex-wrap: wrap;
@@ -2640,7 +2870,6 @@ interface TimelineDay {
       width: 100px;
       min-width: 88px;
     }
-    .j-config-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 
     /* ── Input ── */
     .j-input {
@@ -2887,12 +3116,20 @@ interface TimelineDay {
     .j-class-time { color: #94a3b8; font-size: 10px; margin-left: auto; }
 
     /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .j-toggle-grid { grid-template-columns: 1fr; }
+      .j-rules-head { flex-direction: column; align-items: stretch; }
+      .j-config-field--batch-type { max-width: none; }
+    }
     @media (max-width: 768px) {
       .j-content { padding: 14px; }
       .j-filter-row--main { flex-direction: column; align-items: stretch; }
       .j-filter-toolbar-end { margin-left: 0; }
       .j-filter-sort { min-width: 0; }
-      .j-config-row { flex-direction: column; }
+      .j-config-grid--schedule { grid-template-columns: 1fr; }
+      .j-config-footer { flex-direction: column; align-items: stretch; }
+      .j-config-actions { margin-left: 0; width: 100%; }
+      .j-config-actions .j-btn { flex: 1; justify-content: center; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -3831,6 +4068,8 @@ export class JourneyManagementComponent implements OnInit {
   editStrictThresholdPercent = 100;
   /** When true, recordings are auto-saved via Zoom webhook for this batch. */
   editAutoRecordingEnabled = false;
+  /** New batch only: freeze journey day until admin resumes. */
+  editJourneyPaused = false;
 
   activeTab: 'students' | 'timeline' | 'progress' = 'students';
 
@@ -4733,6 +4972,9 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   computedDayFromDate(): number {
+    if (this.editJourneyPaused && this.editBatchType === 'new') {
+      return this.selectedBatch?.batchCurrentDay ?? this.editBatchDay;
+    }
     return Math.min(this.editJourneyLength, Math.max(1, this.daysSinceStart() + 1));
   }
 
@@ -4754,6 +4996,7 @@ export class JourneyManagementComponent implements OnInit {
     this.editStrictThresholdPercent =
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!b.autoRecordingEnabled;
+    this.editJourneyPaused = !!(b.journeyPaused && b.batchType !== 'old');
     this.activeTab = 'students';
     this.batchStudents = [];
     this.studentsLoadedForBatch = null;
@@ -4833,6 +5076,9 @@ export class JourneyManagementComponent implements OnInit {
           this.selectedBatch.batchType = this.editBatchType;
           this.editOldBatchDgBotAccess = !!r.config.oldBatchDgBotAccess;
           this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
+          this.editJourneyPaused = !!(r.config.journeyPaused && r.config.batchType !== 'old');
+          this.selectedBatch.journeyPaused = this.editJourneyPaused;
+          this.selectedBatch.journeyPausedFrozenDay = r.config.journeyPausedFrozenDay ?? null;
         }
         if (this.selectedBatch?.batchName === batchName) {
           this.studentsLoadedForBatch = batchName;
@@ -4910,7 +5156,8 @@ export class JourneyManagementComponent implements OnInit {
       oldBatchDgBotAccess: this.editBatchType === 'old' ? !!this.editOldBatchDgBotAccess : false,
       strictJourneyRule: this.editStrictJourneyRule,
       strictJourneyThresholdPercent: this.editStrictThresholdPercent,
-      autoRecordingEnabled: this.editAutoRecordingEnabled
+      autoRecordingEnabled: this.editAutoRecordingEnabled,
+      journeyPaused: this.editBatchType === 'new' ? !!this.editJourneyPaused : false
     };
   }
 
@@ -4933,11 +5180,19 @@ export class JourneyManagementComponent implements OnInit {
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!config.autoRecordingEnabled;
     this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
+    this.editJourneyPaused = !!(config.journeyPaused && config.batchType !== 'old');
+    this.selectedBatch.journeyPaused = this.editJourneyPaused;
+    this.selectedBatch.journeyPausedFrozenDay = config.journeyPausedFrozenDay ?? null;
+    if (config.batchCurrentDay != null) {
+      this.editBatchDay = config.batchCurrentDay;
+    }
   }
 
   onBatchTypeChange(): void {
     if (this.editBatchType !== 'old') {
       this.editOldBatchDgBotAccess = false;
+    } else {
+      this.editJourneyPaused = false;
     }
   }
 

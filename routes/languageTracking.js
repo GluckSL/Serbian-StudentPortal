@@ -10,6 +10,8 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const {
   getOverview,
   getStudentDetail,
+  getStudentWeekSummary,
+  getStudentDayDetail,
   getAnalyticsFilterOptions,
 } = require('../services/languageTrackingAnalytics.service');
 const {
@@ -71,18 +73,50 @@ router.get('/student/:studentId', verifyToken, checkRole(ALLOWED_ROLES), async (
   }
 });
 
+// ── GET /api/language-tracking/student/:studentId/week/:week ───────────────────
+router.get('/student/:studentId/week/:week', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+  try {
+    const result = await getStudentWeekSummary(req.params.studentId, req.params.week);
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'STUDENT_NOT_FOUND') return res.status(404).json({ message: 'Student not found' });
+    if (err.message === 'INVALID_STUDENT_ID') return res.status(400).json({ message: 'Invalid student ID' });
+    console.error('language-tracking GET /student/:id/week/:week', err);
+    res.status(500).json({ message: 'Failed to load week summary' });
+  }
+});
+
+// ── GET /api/language-tracking/student/:studentId/day/:day ───────────────────
+router.get('/student/:studentId/day/:day', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+  try {
+    const result = await getStudentDayDetail(req.params.studentId, req.params.day);
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'STUDENT_NOT_FOUND') return res.status(404).json({ message: 'Student not found' });
+    if (err.message === 'INVALID_STUDENT_ID') return res.status(400).json({ message: 'Invalid student ID' });
+    if (err.message === 'DAY_NOT_REACHED') {
+      return res.status(400).json({
+        message: `Day ${err.day} is not reached yet (student is on day ${err.currentCourseDay})`,
+      });
+    }
+    console.error('language-tracking GET /student/:id/day/:day', err);
+    res.status(500).json({ message: 'Failed to load day detail' });
+  }
+});
+
 // ── POST /api/language-tracking/send-reminders ───────────────────────────────
-// Body: { studentIds: string[] } — sends one email per student with incomplete day tasks
+// Body: { studentIds: string[], day?: number } — optional day for historical reminders
 router.post('/send-reminders', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
   try {
     const studentIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const day = req.body?.day != null ? Number(req.body.day) : undefined;
     if (!studentIds.length) {
       return res.status(400).json({ message: 'studentIds array is required' });
     }
     if (studentIds.length > MAX_PER_REQUEST) {
       return res.status(400).json({ message: `Maximum ${MAX_PER_REQUEST} students per request` });
     }
-    const summary = await sendJourneyReminders(studentIds);
+    const summary = await sendJourneyReminders(studentIds, day);
     res.json(summary);
   } catch (err) {
     console.error('language-tracking POST /send-reminders', err);

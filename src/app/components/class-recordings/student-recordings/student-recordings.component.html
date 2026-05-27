@@ -85,6 +85,9 @@
     <article class="sr-rec-card" *ngFor="let r of filteredRecordings">
       <div class="sr-rec-card__head">
         <h3 class="sr-rec-card__title">{{ r.title }}</h3>
+        <p class="sr-cross-batch-label" *ngIf="getCrossBatchLabel(r) as label">
+          <i class="fa fa-share-nodes"></i> {{ label }}
+        </p>
           <div class="sr-rec-card__actions">
           <span class="sr-rec-card__att">
             <span [class]="getAttendanceClass(r)">{{ getAttendanceLabel(r) }}</span>
@@ -162,6 +165,9 @@
               <span class="sr-chip sr-chip--type">{{ r.type === 'zoom' ? 'Zoom' : 'Manual' }}</span>
               <span class="sr-chip" *ngIf="r.batch">{{ r.batch }}</span>
               <span class="sr-chip" *ngIf="r.duration">{{ formatDuration(r.duration) }}</span>
+            </div>
+            <div class="sr-cross-batch-label" *ngIf="getCrossBatchLabel(r) as label">
+              <i class="fa fa-share-nodes"></i> {{ label }}
             </div>
           </td>
           <td class="sr-col-journey">

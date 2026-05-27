@@ -235,7 +235,10 @@ export class LoginComponent implements OnInit {
           this.setupChangeConfirmPassword = '';
           this.setupError = '';
           this.setupSuccess = '';
-          this.setupStep = 'start';
+          this.setupStep = response.otpPreSent ? 'otp' : 'start';
+          this.setupSuccess = response.otpPreSent
+            ? 'Enter the verification code from your email. You can request a new code if needed.'
+            : '';
           this.showPasswordSetupModal = true;
           return;
         }

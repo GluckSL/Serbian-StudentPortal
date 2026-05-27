@@ -1163,3 +1163,31 @@
   border-color: #2563eb;
   color: #fff;
 }
+
+/* ── Cross-batch shared recording label ── */
+.sr-cross-batch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #1d4ed8;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  max-width: 100%;
+}
+
+.sr-cross-batch-label .fa,
+.sr-cross-batch-label i {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.sr-rec-card .sr-cross-batch-label {
+  margin: 6px 0 0;
+  width: fit-content;
+}

@@ -127,6 +127,46 @@ export interface LtSendRemindersResponse {
   failed: number;
 }
 
+export interface LtWeekDaySummary {
+  day: number;
+  isFuture: boolean;
+  complete: boolean;
+  completionPercent: number;
+  doneTasks: number;
+  totalTasks: number;
+  incompleteCount: number;
+  error?: boolean;
+}
+
+export interface LtWeekSummaryResponse {
+  student: {
+    studentId: string;
+    name: string;
+    regNo: string;
+    batch: string;
+    level: string;
+    currentCourseDay: number;
+  };
+  week: number;
+  weekStartDay: number;
+  weekEndDay: number;
+  currentWeek: number;
+  days: LtWeekDaySummary[];
+}
+
+export interface LtDayDetailResponse {
+  student: {
+    studentId: string;
+    name: string;
+    email: string;
+    regNo: string;
+    batch: string;
+    level: string;
+    currentCourseDay: number;
+  };
+  dayCompletion: LtDayCompletion | null;
+}
+
 export interface LtStudentDetailResponse {
   student: {
     studentId: string;
@@ -204,10 +244,26 @@ export class LanguageTrackingApiService {
     });
   }
 
-  sendReminders(studentIds: string[]): Observable<LtSendRemindersResponse> {
+  sendReminders(studentIds: string[], day?: number): Observable<LtSendRemindersResponse> {
+    const body: { studentIds: string[]; day?: number } = { studentIds };
+    if (day != null && day >= 1) body.day = day;
     return this.http.post<LtSendRemindersResponse>(
       `${this.base}/send-reminders`,
-      { studentIds },
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  getWeekSummary(studentId: string, week: number): Observable<LtWeekSummaryResponse> {
+    return this.http.get<LtWeekSummaryResponse>(
+      `${this.base}/student/${studentId}/week/${week}`,
+      { withCredentials: true },
+    );
+  }
+
+  getDayDetail(studentId: string, day: number): Observable<LtDayDetailResponse> {
+    return this.http.get<LtDayDetailResponse>(
+      `${this.base}/student/${studentId}/day/${day}`,
       { withCredentials: true },
     );
   }

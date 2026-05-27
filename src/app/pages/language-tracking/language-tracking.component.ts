@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
@@ -22,7 +23,6 @@ import {
   LtStudentRow,
   LtTrendDay,
 } from './language-tracking-api.service';
-import { LanguageTrackingDrawerComponent } from './language-tracking-drawer.component';
 import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 function formatDuration(secs: number): string {
@@ -60,7 +60,6 @@ function daysAgoIso(n: number): string {
     MatTooltipModule,
     MatSnackBarModule,
     NgChartsModule,
-    LanguageTrackingDrawerComponent,
     TestAccountBadgeComponent,
   ],
   templateUrl: './language-tracking.component.html',
@@ -192,9 +191,6 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     },
   };
 
-  // ── Detail drawer ────────────────────────────────────────────────────────────
-  drawerStudent: LtStudentRow | null = null;
-
   // ── Reminder selection ───────────────────────────────────────────────────────
   readonly selectedStudentIds = new Set<string>();
   sendingReminders = false;
@@ -215,6 +211,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   constructor(
     private readonly api: LanguageTrackingApiService,
     private readonly snackBar: MatSnackBar,
+    private readonly router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -319,12 +316,21 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     return Math.max(1, Math.ceil(this.total / this.PAGE_SIZE));
   }
 
-  openDrawer(s: LtStudentRow): void {
-    this.drawerStudent = s;
-  }
-
-  closeDrawer(): void {
-    this.drawerStudent = null;
+  openStudentDetail(s: LtStudentRow, event?: Event): void {
+    event?.stopPropagation();
+    const tree = this.router.createUrlTree(
+      ['/admin/language-tracking/student', s.studentId],
+      {
+        queryParams: {
+          from: this.from,
+          to: this.to,
+          week: Math.ceil((s.currentCourseDay || 1) / 7),
+          day: s.currentCourseDay || 1,
+        },
+      },
+    );
+    const url = this.router.serializeUrl(tree);
+    window.open(url, '_blank', 'noopener');
   }
 
   get selectedCount(): number {

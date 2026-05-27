@@ -96,10 +96,9 @@ router.put('/update-password', verifyToken, async (req, res) => {
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) return res.status(401).json({ success: false, msg: 'Current password is incorrect' });
 
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-
+    const { setUserPassword } = require('../utils/setUserPassword');
+    await setUserPassword(user, newPassword);
+    user.passwordChangedAt = new Date();
     await user.save();
 
     res.json({ success: true, msg: 'Password updated successfully' });

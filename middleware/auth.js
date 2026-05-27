@@ -2,8 +2,18 @@
 
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+async function assertTokenSessionValid(decoded) {
+  if (!decoded?.id) return true;
+  const row = await User.findById(decoded.id).select('authTokenVersion').lean();
+  if (!row) return false;
+  const tokenVersion = decoded.tv ?? 0;
+  const currentVersion = row.authTokenVersion ?? 0;
+  return currentVersion === tokenVersion;
+}
 
 /** Bearer-only JWT extraction: Authorization: Bearer <token> */
 function extractBearerToken(req) {
@@ -25,7 +35,7 @@ function extractMediaToken(req) {
 }
 
 // Middleware: Verify JWT from Authorization: Bearer <token>
-function verifyToken(req, res, next) {
+async function verifyToken(req, res, next) {
   const token = extractBearerToken(req);
 
   if (!token) {
@@ -37,7 +47,14 @@ function verifyToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // Add user data to request
+    const sessionOk = await assertTokenSessionValid(decoded);
+    if (!sessionOk) {
+      return res.status(403).json({
+        msg: 'Invalid or expired token',
+        message: 'Invalid or expired token',
+      });
+    }
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(403).json({
@@ -48,7 +65,7 @@ function verifyToken(req, res, next) {
 }
 
 // Middleware: verify JWT from Bearer header, fallback to query token for media endpoints.
-function verifyMediaToken(req, res, next) {
+async function verifyMediaToken(req, res, next) {
   const token = extractMediaToken(req);
 
   if (!token) {
@@ -60,6 +77,13 @@ function verifyMediaToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    const sessionOk = await assertTokenSessionValid(decoded);
+    if (!sessionOk) {
+      return res.status(403).json({
+        msg: 'Invalid or expired token',
+        message: 'Invalid or expired token',
+      });
+    }
     req.user = decoded;
     next();
   } catch (err) {

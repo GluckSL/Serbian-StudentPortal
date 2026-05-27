@@ -392,6 +392,14 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/admin/signup-link`, { email, name });
   }
 
+  /** Sign student out, email OTP, require new password on next login (admin directory). */
+  forcePasswordReset(studentId: string): Observable<{ success?: boolean; msg?: string; displayPassword?: string | null }> {
+    return this.http.post<{ success?: boolean; msg?: string; displayPassword?: string | null }>(
+      `${this.apiUrl}/auth/admin/force-password-reset/${studentId}`,
+      {}
+    );
+  }
+
   // Method to perform authenticated request
   fetchProtectedData(endpoint: string): Observable<any> {
     const token = this.getToken();

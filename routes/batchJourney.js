@@ -36,8 +36,15 @@ const {
   BATCH_TYPE_OLD,
   normalizeBatchType,
   isValidBatchTypeInput,
-  isOldBatchType
+  isOldBatchType,
+  isLearningEnabled
 } = require('../utils/batchType');
+const {
+  computeBatchDay,
+  applyJourneyPauseToggle,
+  clearJourneyPauseFields,
+  journeyPauseFieldsForApi
+} = require('../utils/journeyPause');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -228,23 +235,6 @@ async function renameBatchAcrossSystem(oldName, newName) {
   };
 }
 
-/**
- * Compute the "live" batch day.
- * If batchStartDate is set: day = daysElapsed + 1 (capped to journeyLength).
- * Otherwise fall back to the stored batchCurrentDay.
- */
-function computeBatchDay(cfg) {
-  if (!cfg.batchStartDate) return cfg.batchCurrentDay;
-  const msPerDay = 86_400_000;
-  const now = new Date();
-  // Compare at UTC midnight so timezone drift doesn't add/subtract a day
-  const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const sd = new Date(cfg.batchStartDate);
-  const startUTC = Date.UTC(sd.getFullYear(), sd.getMonth(), sd.getDate());
-  const elapsed = Math.floor((todayUTC - startUTC) / msPerDay);
-  return Math.min(cfg.journeyLength, Math.max(1, elapsed + 1));
-}
-
 async function checkDayCompletion(studentId, batchNameOrNames, day) {
   return computeJourneyDayCompletion(studentId, batchNameOrNames, day);
 }
@@ -346,6 +336,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
         autoRecordingEnabled: !!(cfg && cfg.autoRecordingEnabled),
         journeyActive: !!(cfg && cfg.journeyActive),
+        ...journeyPauseFieldsForApi(cfg),
         studentCount: countMap[name] || 0,
         teacherId: teacherByBatch[name]?.teacherId ?? null,
         teacherName: teacherByBatch[name]?.teacherName ?? null
@@ -519,7 +510,8 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
-        autoRecordingEnabled: !!cfg.autoRecordingEnabled
+        autoRecordingEnabled: !!cfg.autoRecordingEnabled,
+        ...journeyPauseFieldsForApi(cfg)
       },
       teacher: { teacherId, teacherName },
       students: students.map(s => ({
@@ -630,6 +622,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       strictJourneyThresholdPercent,
       autoRecordingEnabled,
       journeyActive,
+      journeyPaused,
       newBatchName
     } = req.body || {};
 
@@ -687,6 +680,8 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       cfg.batchType = normalizeBatchType(batchType);
       if (!isOldBatchType(cfg.batchType)) {
         cfg.oldBatchDgBotAccess = false;
+      } else {
+        clearJourneyPauseFields(cfg);
       }
     }
     if (oldBatchDgBotAccess !== undefined) {
@@ -717,6 +712,13 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     if (journeyActive !== undefined) {
       cfg.journeyActive = !!journeyActive;
     }
+    if (journeyPaused !== undefined) {
+      if (!isLearningEnabled(cfg.batchType)) {
+        clearJourneyPauseFields(cfg);
+      } else {
+        applyJourneyPauseToggle(cfg, !!journeyPaused);
+      }
+    }
     await cfg.save();
 
     const activeBatchDay = computeBatchDay(cfg);
@@ -730,7 +732,8 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
         batchCurrentDay: activeBatchDay,
         autoDay: !!cfg.batchStartDate,
-        journeyActive: !!cfg.journeyActive
+        journeyActive: !!cfg.journeyActive,
+        ...journeyPauseFieldsForApi(cfg)
       }
     });
   } catch (err) {

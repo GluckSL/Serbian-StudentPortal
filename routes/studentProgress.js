@@ -17,6 +17,18 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const MeetingLink = require('../models/MeetingLink');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { BATCH_TYPE_NEW, normalizeBatchType } = require('../utils/batchType');
+const {
+  normalizeBlockedJourneyLevels,
+  levelForJourneyDay,
+  isCourseDayAdminBlocked,
+  isLevelAdminBlocked,
+  isContentBlockedForStudent,
+  levelMetaForAdmin,
+  filterOutBlockedLevels,
+  appendNotBlockedToAndClauses,
+  countExerciseAttemptsForStudent
+} = require('../utils/journeyContentBlock');
+const ClassRecording = require('../models/ClassRecording');
 
 // Helper: build documents list cross-referencing requirements with uploads
 async function buildDocumentsList(studentId, servicesOpted) {
@@ -77,8 +89,20 @@ router.get('/', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (req, res)
     // Sort by last accessed
     pipeline.push({ $sort: { lastAccessedAt: -1 } });
     
-    const progress = await StudentProgress.aggregate(pipeline);
-    
+    let progress = await StudentProgress.aggregate(pipeline);
+
+    if (req.user.role === 'STUDENT') {
+      const User = require('../models/User');
+      const studentDoc = await User.findById(studentId).select('blockedJourneyLevels').lean();
+      progress = progress.filter((p) => {
+        const mod = p.module || {};
+        return !isContentBlockedForStudent(studentDoc, {
+          courseDay: mod.courseDay,
+          level: mod.level
+        });
+      });
+    }
+
     // Calculate overall statistics
     const stats = {
       totalModules: progress.length,
@@ -208,6 +232,7 @@ router.get('/level-progression', verifyToken, checkRole(['STUDENT', 'TEACHER']),
 
 // GET /api/student-progress/journey - Full student journey data for progress page
 router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (req, res) => {
+  // blockedJourneyLevels: admin-hidden CEFR segments (see utils/journeyContentBlock.js)
   try {
     const User = require('../models/User');
     const SessionRecord = require('../models/SessionRecord');
@@ -216,7 +241,6 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     const Invoice = require('../models/Invoice');
     const StudentPayment = require('../models/StudentPayment');
     const VisaTracking = require('../models/VisaTracking');
-    const ExerciseAttempt = require('../models/ExerciseAttempt');
     const studentId = req.user.id;
 
     let student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
@@ -260,6 +284,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     if (!displayLevels.includes(student.level)) {
       displayLevels = allLevels.slice(allLevels.indexOf(displayLevels[0]), currentLevelIndex + 1);
     }
+    displayLevels = filterOutBlockedLevels(displayLevels, student.blockedJourneyLevels);
 
     const levelProgression = displayLevels.map(level => {
       const startDate = student.courseStartDates?.[level + 'StartDate'];
@@ -281,7 +306,11 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     ]);
     const lessonsByLevel = {};
     let totalStudyMinutes = 0;
-    moduleProgress.forEach(mp => { lessonsByLevel[mp._id] = { total: mp.total, completed: mp.completed }; totalStudyMinutes += mp.totalTime || 0; });
+    moduleProgress.forEach((mp) => {
+      if (isLevelAdminBlocked(student.blockedJourneyLevels, mp._id)) return;
+      lessonsByLevel[mp._id] = { total: mp.total, completed: mp.completed };
+      totalStudyMinutes += mp.totalTime || 0;
+    });
 
     // AI Bot usage this week
     const now = new Date();
@@ -291,8 +320,19 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     let botWeekMinutes = 0, botTodayMinutes = 0;
     botSessions.forEach(s => { const dur = s.totalDuration || 0; botWeekMinutes += dur; if (s.startTime >= todayStart) botTodayMinutes += dur; });
 
-    // Attendance
-    const sessionRecords = await SessionRecord.find({ studentId: new mongoose.Types.ObjectId(studentId) }).select('sessionState startTime').sort({ startTime: -1 }).lean();
+    // Attendance (exclude admin-blocked levels / journey days)
+    const sessionRecordsRaw = await SessionRecord.find({ studentId: new mongoose.Types.ObjectId(studentId) })
+      .select('sessionState startTime moduleLevel moduleId')
+      .populate('moduleId', 'level courseDay')
+      .sort({ startTime: -1 })
+      .lean();
+    const sessionRecords = sessionRecordsRaw.filter(
+      (s) =>
+        !isContentBlockedForStudent(student, {
+          level: s.moduleLevel || s.moduleId?.level,
+          courseDay: s.moduleId?.courseDay
+        })
+    );
     const totalSessionCount = sessionRecords.length;
     const completedSessions = sessionRecords.filter(s => s.sessionState === 'completed' || s.sessionState === 'manually_ended').length;
     const lastSession = sessionRecords[0];
@@ -303,8 +343,9 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     // Teacher feedback latest per level
     const feedbackByLevel = {};
     const allProg = await StudentProgress.find({ studentId: new mongoose.Types.ObjectId(studentId) }).populate('moduleId', 'level').lean();
-    allProg.forEach(p => {
+    allProg.forEach((p) => {
       if (p.teacherFeedback?.length > 0 && p.moduleId?.level) {
+        if (isLevelAdminBlocked(student.blockedJourneyLevels, p.moduleId.level)) return;
         const latest = p.teacherFeedback.sort((a, b) => new Date(b.providedAt) - new Date(a.providedAt))[0];
         if (!feedbackByLevel[p.moduleId.level] || new Date(latest.providedAt) > new Date(feedbackByLevel[p.moduleId.level].providedAt)) {
           feedbackByLevel[p.moduleId.level] = latest;
@@ -327,7 +368,8 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
 
     const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
     const curIdx = levelOrder.indexOf(student.level);
-    const accessibleLevelsForEx = curIdx === -1 ? ['A1'] : levelOrder.slice(0, curIdx + 1);
+    let accessibleLevelsForEx = curIdx === -1 ? ['A1'] : levelOrder.slice(0, curIdx + 1);
+    accessibleLevelsForEx = filterOutBlockedLevels(accessibleLevelsForEx, student.blockedJourneyLevels);
     const rawCourseDay = student.currentCourseDay;
     const studentCourseDay = (rawCourseDay != null && Number.isFinite(Number(rawCourseDay)))
       ? Math.min(200, Math.max(1, Math.floor(Number(rawCourseDay))))
@@ -336,13 +378,15 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     let nextLockedDigitalExercise = null;
     if (student.role === 'STUDENT' && journeyAccess.learningEnabled !== false) {
       try {
-        const nex = await DigitalExercise.findOne({
-          isActive: true,
-          isDeleted: { $ne: true },
-          visibleToStudents: true,
-          level: { $in: accessibleLevelsForEx },
-          courseDay: { $gt: studentCourseDay, $lte: 200 }
-        }).sort({ courseDay: 1 }).select('title courseDay').lean();
+        const nextLockAnd = [
+          { isActive: true },
+          { isDeleted: { $ne: true } },
+          { visibleToStudents: true },
+          { level: { $in: accessibleLevelsForEx } },
+          { courseDay: { $gt: studentCourseDay, $lte: 200 } }
+        ];
+        appendNotBlockedToAndClauses(nextLockAnd, student.blockedJourneyLevels);
+        const nex = await DigitalExercise.findOne({ $and: nextLockAnd }).sort({ courseDay: 1 }).select('title courseDay').lean();
         if (nex && nex.courseDay != null) {
           nextLockedDigitalExercise = {
             title: nex.title,
@@ -375,15 +419,22 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         pendingJourneyDayAdvanceForDay:
           student.pendingJourneyDayAdvanceForDay != null
             ? Math.min(200, Math.max(1, Math.floor(Number(student.pendingJourneyDayAdvanceForDay))))
-            : null
+            : null,
+        blockedJourneyLevels: normalizeBlockedJourneyLevels(student.blockedJourneyLevels)
       },
       nextLockedDigitalExercise,
       levelProgression, lessonsByLevel,
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
-      exercisesThisWeek: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed', completedAt: { $gte: weekStart } }),
-      exercisesToday: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed', completedAt: { $gte: todayStart } }),
-      exercisesTotal: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed' }),
+      exercisesThisWeek: await countExerciseAttemptsForStudent(studentId, student, {
+        status: 'completed',
+        completedAt: { $gte: weekStart }
+      }),
+      exercisesToday: await countExerciseAttemptsForStudent(studentId, student, {
+        status: 'completed',
+        completedAt: { $gte: todayStart }
+      }),
+      exercisesTotal: await countExerciseAttemptsForStudent(studentId, student, { status: 'completed' }),
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),
@@ -813,7 +864,7 @@ router.post('/:moduleId/feedback', verifyToken, checkRole(['TEACHER', 'ADMIN']),
   }
 });
 
-// GET /api/student-progress/admin/journey/:studentId - Full journey for a specific student (admin view)
+// GET /api/student-progress/admin/journey/:studentId - Full journey for a specific student (admin view; includes blocked content)
 router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const User = require('../models/User');
@@ -879,7 +930,7 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     let botWeekMinutes = 0, botTodayMinutes = 0;
     botSessions.forEach(s => { const dur = s.totalDuration || 0; botWeekMinutes += dur; if (s.startTime >= todayStart) botTodayMinutes += dur; });
 
-    // Attendance
+    // Attendance (admin view: all sessions)
     const sessionRecords = await SessionRecord.find({ studentId: new mongoose.Types.ObjectId(studentId) }).select('sessionState startTime').sort({ startTime: -1 }).lean();
     const totalSessionCount = sessionRecords.length;
     const completedSessions = sessionRecords.filter(s => s.sessionState === 'completed' || s.sessionState === 'manually_ended').length;
@@ -981,7 +1032,8 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
         currentCourseDay: student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay))
           ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
           : 1,
-        goStatus: student.goStatus || null
+        goStatus: student.goStatus || null,
+        blockedJourneyLevels: normalizeBlockedJourneyLevels(student.blockedJourneyLevels)
       },
       levelProgression, lessonsByLevel, totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
@@ -992,6 +1044,119 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
   } catch (err) {
     console.error('Admin journey error:', err);
     res.status(500).json({ message: 'Error fetching student journey' });
+  }
+});
+
+// GET /api/student-progress/admin/students/:studentId/learning-overview
+router.get('/admin/students/:studentId/learning-overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const DgModule = require('../models/DGModule');
+    const studentId = req.params.studentId;
+
+    const student = await User.findOne({ _id: studentId, role: 'STUDENT' })
+      .select('name regNo email level currentCourseDay blockedJourneyLevels batch subscription medium')
+      .lean();
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const blocked = normalizeBlockedJourneyLevels(student.blockedJourneyLevels);
+    const currentDay = Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay) || 1)));
+
+    const [moduleCounts, exerciseCounts, dgCounts, recordingCounts] = await Promise.all([
+      LearningModule.aggregate([
+        { $match: { isActive: true, isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: currentDay } } },
+        { $group: { _id: '$courseDay', count: { $sum: 1 } } }
+      ]),
+      DigitalExercise.aggregate([
+        { $match: { visibleToStudents: true, isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: currentDay } } },
+        { $group: { _id: '$courseDay', count: { $sum: 1 } } }
+      ]),
+      DgModule.aggregate([
+        { $match: { visibleToStudents: true, courseDay: { $gte: 1, $lte: currentDay } } },
+        { $group: { _id: '$courseDay', count: { $sum: 1 } } }
+      ]),
+      ClassRecording.aggregate([
+        { $match: { active: true, courseDay: { $gte: 1, $lte: currentDay } } },
+        { $group: { _id: '$courseDay', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    const countMap = (rows) => {
+      const m = new Map();
+      (rows || []).forEach((r) => m.set(Number(r._id), r.count));
+      return m;
+    };
+    const mods = countMap(moduleCounts);
+    const exs = countMap(exerciseCounts);
+    const dgs = countMap(dgCounts);
+    const recs = countMap(recordingCounts);
+
+    const days = [];
+    for (let d = 1; d <= currentDay; d++) {
+      const lvl = levelForJourneyDay(d);
+      days.push({
+        day: d,
+        level: lvl,
+        blocked: isCourseDayAdminBlocked(blocked, d),
+        modules: mods.get(d) || 0,
+        exercises: exs.get(d) || 0,
+        dgModules: dgs.get(d) || 0,
+        recordings: recs.get(d) || 0
+      });
+    }
+
+    res.json({
+      profile: {
+        _id: student._id,
+        name: student.name,
+        regNo: student.regNo,
+        email: student.email,
+        level: student.level,
+        batch: student.batch,
+        subscription: student.subscription,
+        medium: student.medium,
+        currentCourseDay: currentDay,
+        blockedJourneyLevels: blocked
+      },
+      levelSegments: levelMetaForAdmin(blocked),
+      days
+    });
+  } catch (err) {
+    console.error('Admin learning overview error:', err);
+    res.status(500).json({ message: 'Error fetching learning overview' });
+  }
+});
+
+// PATCH /api/student-progress/admin/students/:studentId/blocked-journey-levels
+router.patch('/admin/students/:studentId/blocked-journey-levels', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const studentId = req.params.studentId;
+    const raw = req.body?.blockedJourneyLevels ?? req.body?.levels ?? [];
+    const blockedJourneyLevels = normalizeBlockedJourneyLevels(raw);
+
+    const student = await User.findOneAndUpdate(
+      { _id: studentId, role: 'STUDENT' },
+      { $set: { blockedJourneyLevels, updatedAt: new Date() } },
+      { new: true }
+    ).select('name regNo blockedJourneyLevels currentCourseDay level').lean();
+
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    res.json({
+      success: true,
+      student: {
+        _id: student._id,
+        name: student.name,
+        regNo: student.regNo,
+        blockedJourneyLevels: normalizeBlockedJourneyLevels(student.blockedJourneyLevels)
+      }
+    });
+  } catch (err) {
+    console.error('PATCH blocked-journey-levels error:', err);
+    res.status(500).json({ message: 'Error updating blocked journey levels' });
   }
 });
 

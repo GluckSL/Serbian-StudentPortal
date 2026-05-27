@@ -209,7 +209,7 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     const isFullAdmin = req.user?.role === 'ADMIN';
 
     const students = await User.find(query)
-      .select(isFullAdmin ? '+password' : '-password -passwordRecoverable')
+      .select(isFullAdmin ? '+password +passwordRecoverable' : '-password -passwordRecoverable')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -225,7 +225,9 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       ? await Promise.all(
           students.map(async (s) => {
             const obj = s.toObject();
-            obj.displayPassword = await resolveStudentDisplayPassword(s);
+            const displayPassword = await resolveStudentDisplayPassword(s, { listView: true });
+            obj.displayPassword = displayPassword;
+            obj.passwordDisplayState = displayPassword ? 'VISIBLE' : 'UNAVAILABLE';
             delete obj.password;
             delete obj.passwordRecoverable;
             return obj;
@@ -249,6 +251,34 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       message: 'Failed to fetch students',
       error: err.message
     });
+  }
+});
+
+// One-time repair: resolve display passwords from recoverable/signup/email-change sources and backfill DB.
+router.post('/students/sync-display-passwords', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
+    const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');
+    const students = await User.find({ role: 'STUDENT' }).select('+password');
+    let withDisplay = 0;
+    let backfilled = 0;
+
+    for (const s of students) {
+      const plain = await resolveStudentDisplayPassword(s);
+      if (!plain) continue;
+      withDisplay += 1;
+      if (!readRecoverablePassword(s.passwordRecoverable)) {
+        const stored = storeRecoverablePassword(plain);
+        if (stored) {
+          await User.updateOne({ _id: s._id }, { passwordRecoverable: stored });
+          backfilled += 1;
+        }
+      }
+    }
+
+    return res.json({ success: true, withDisplay, backfilled });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
