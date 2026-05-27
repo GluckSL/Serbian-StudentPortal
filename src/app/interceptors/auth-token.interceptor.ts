@@ -10,7 +10,8 @@ export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
   if (
     url.includes('/auth/login') ||
     url.includes('/auth/signup') ||
-    url.includes('/auth/register')
+    url.includes('/auth/register') ||
+    url.includes('/public-signup/')
   ) {
     return next(req);
   }

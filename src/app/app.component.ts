@@ -64,8 +64,14 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     });
 
-    const currentUrl = this.router.url;
-    if (currentUrl !== '/login' && currentUrl !== '/home' && currentUrl !== '/') {
+    const pathOnly = this.router.url.split('?')[0];
+    const isInviteOrRecoveryRoute =
+      pathOnly === '/register' || pathOnly === '/forgot-password' || pathOnly === '/signup/apply';
+
+    if (isInviteOrRecoveryRoute) {
+      // No portal session expected — avoid /auth/profile 401 → login redirect.
+      this.authChecked = true;
+    } else if (pathOnly !== '/login' && pathOnly !== '/home' && pathOnly !== '/') {
       this.authService.refreshUserProfile().subscribe({
         next: (user) => {
           console.log('User authenticated on app load:', user);

@@ -7,6 +7,16 @@ import { isSafeReturnUrl } from '../services/join-class-flow.service';
 
 let redirectInProgress = false;
 
+/** Routes where 401 on profile/bootstrap must not send users to login (invite signup, etc.). */
+function isPublicEntryRoute(path: string): boolean {
+  return (
+    path === '/login' ||
+    path === '/register' ||
+    path === '/forgot-password' ||
+    path === '/signup/apply'
+  );
+}
+
 /**
  * On auth failures, clear local auth and go to login.
  * - Always handles 401.
@@ -42,9 +52,9 @@ export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
         url.includes('/public-signup/');
 
       const path = router.url.split('?')[0];
-      const onLoginPage = path === '/login';
+      const onPublicEntryPage = isPublicEntryRoute(path);
 
-      if (isAuthEndpoint || onLoginPage) {
+      if (isAuthEndpoint || onPublicEntryPage) {
         return throwError(() => err);
       }
 

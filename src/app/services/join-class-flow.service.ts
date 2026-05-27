@@ -37,7 +37,15 @@ export function isSafeReturnUrl(url: string): boolean {
     const parsed = new URL(url, 'https://portal.internal');
     if (parsed.hostname !== 'portal.internal') return false;
     const path = parsed.pathname || '';
-    if (path === '/login' || path === '/auth/login') return false;
+    if (
+      path === '/login' ||
+      path === '/auth/login' ||
+      path === '/register' ||
+      path === '/forgot-password' ||
+      path === '/signup/apply'
+    ) {
+      return false;
+    }
     return true;
   } catch {
     return false;
