@@ -356,7 +356,7 @@ function xpForLevel(level: number): number {
     @media (min-width: 1400px) and (max-width: 1699px) { ::ng-deep .arena-hero .gsb--hero { grid-template-columns: repeat(6,1fr) !important; } }
     @media (max-width: 920px) { ::ng-deep .arena-hero .gsb--hero { grid-template-columns: repeat(4,1fr) !important; } }
     @media (max-width: 620px) { ::ng-deep .arena-hero .gsb--hero { grid-template-columns: repeat(3,1fr) !important; } }
-    @media (max-width: 420px) { ::ng-deep .arena-hero .gsb--hero { grid-template-columns: repeat(2,1fr) !important; } }
+    @media (max-width: 500px) { ::ng-deep .arena-hero .gsb--hero { grid-template-columns: repeat(2,1fr) !important; } }
 
     /* ─── Layout ─── */
     .arena-layout {
@@ -650,7 +650,7 @@ function xpForLevel(level: number): number {
       .arena-card h3 { font-size: 15px; }
       .arena-card__meta { font-size: 11px; gap: 10px; }
       .arena-card__play { padding: 12px; font-size: 13px; }
-      .arena-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+      .arena-grid { grid-template-columns: 1fr !important; }
 
       .podium-card { padding: 14px 8px 12px; }
       .podium__bar { width: 60px; }
