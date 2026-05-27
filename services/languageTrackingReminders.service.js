@@ -109,6 +109,7 @@ async function sendJourneyReminders(studentIds, dayOverride) {
     const mail = buildJourneyDayReminderEmail({
       name: student.name,
       day,
+      currentCourseDay: student.currentCourseDay,
       incompleteTasks,
       doneTasks: dayData.doneTasks,
       totalTasks: dayData.totalTasks,
