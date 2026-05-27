@@ -1,4 +1,16 @@
 <nav class="sidebar">
+  <!-- Mobile drawer top bar: close + brand in same layer as nav (iOS touch) -->
+  <div class="sidebar-mobile-bar">
+    <button
+      type="button"
+      class="sidebar-mobile-close"
+      aria-label="Close menu"
+      (click)="closeSidebar.emit()">
+      <span class="material-icons" aria-hidden="true">close</span>
+    </button>
+    <span class="sidebar-mobile-brand">Glück Global</span>
+  </div>
+
   <!-- Header -->
   <div class="sidebar-header">
     <img src="assets/gluck-logo.png" alt="Glück Global" class="sidebar-logo-img">
