@@ -47,7 +47,7 @@ interface Student {
   studentStatus: string;
   lastCredentialsEmailSent?: Date | string | null;
   displayPassword?: string | null;
-  passwordDisplayState?: 'VISIBLE' | 'UPDATED_HIDDEN' | 'UNAVAILABLE';
+  passwordDisplayState?: 'VISIBLE' | 'UNAVAILABLE';
   feedbackStats?: {
     currentLevel: string;
     fluency: number;
@@ -995,6 +995,9 @@ export class AdminDashboardComponent implements OnInit {
       this.authService.forcePasswordReset(student._id).subscribe({
         next: (res) => {
           this.notify.success(res?.msg || `Password reset email sent to ${student.email}`);
+          if (res?.displayPassword) {
+            this.patchStudentDisplayPassword(student._id, res.displayPassword);
+          }
           this.forcingPasswordReset[student._id] = false;
         },
         error: (err: any) => {
@@ -1003,6 +1006,17 @@ export class AdminDashboardComponent implements OnInit {
         }
       });
     });
+  }
+
+  private patchStudentDisplayPassword(studentId: string, displayPassword: string): void {
+    const patch = (s: Student) => {
+      s.displayPassword = displayPassword;
+      s.passwordDisplayState = 'VISIBLE';
+    };
+    const i = this.students.findIndex(s => s._id === studentId);
+    if (i !== -1) patch(this.students[i]);
+    const j = this.filteredStudents.findIndex(s => s._id === studentId);
+    if (j !== -1) patch(this.filteredStudents[j]);
   }
 
   resendCredentials(student: Student): void {

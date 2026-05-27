@@ -35,8 +35,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 22px 24px;
+  gap: 16px;
+  padding: 16px 20px;
   flex-wrap: wrap;
 }
 
@@ -61,7 +61,7 @@
 }
 
 .admin-title {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   font-weight: 700;
   margin: 0;
   letter-spacing: -0.02em;
@@ -200,8 +200,8 @@
 }
 
 .btn-action {
-  padding: 8px 14px;
-  font-size: 0.8125rem;
+  padding: 6px 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   border-radius: 10px;
   font-family: inherit;
@@ -931,8 +931,8 @@
   color: #f1f5f9;
   font-weight: 600;
   border: none;
-  padding: 12px 12px;
-  font-size: 0.65rem;
+  padding: 8px 10px;
+  font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
@@ -943,11 +943,19 @@
 }
 
 .admin-student-table tbody td {
-  padding: 12px 12px;
+  padding: 7px 10px;
   vertical-align: middle;
   border-bottom: 1px solid #f1f5f9;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   background: #fff;
+}
+
+.admin-student-table th.actions-col,
+.admin-student-table td.actions-col {
+  min-width: 148px;
+  width: 148px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .admin-student-table tbody tr:nth-child(even) td {
@@ -1027,42 +1035,42 @@
 }
 
 /* ── Table Content ── */
-.reg-number { font-weight: 600; color: #475569; font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; }
+.reg-number { font-weight: 600; color: #475569; font-family: 'Monaco', 'Menlo', monospace; font-size: 10px; }
 
-.student-info { display: flex; flex-direction: column; gap: 1px; }
+.student-info { display: flex; flex-direction: column; gap: 0; }
 .student-name {
   font-weight: 600;
   color: #0f172a;
-  font-size: 12px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
 }
-.student-email { font-size: 11px; color: #94a3b8; }
+.student-email { font-size: 10px; color: #94a3b8; }
 
 .plan-level {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 
 .plan-level .badge {
   font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.6rem;
   letter-spacing: 0.02em;
 }
-.batch-medium { display: flex; flex-direction: column; gap: 1px; }
-.batch { font-weight: 500; color: #475569; font-size: 12px; }
-.medium { font-size: 11px; color: #94a3b8; }
+.batch-medium { display: flex; flex-direction: column; gap: 0; }
+.batch { font-weight: 500; color: #475569; font-size: 11px; }
+.medium { font-size: 10px; color: #94a3b8; }
 
-.teacher-info { font-weight: 500; color: #475569; font-size: 12px; }
+.teacher-info { font-weight: 500; color: #475569; font-size: 11px; }
 
-.credentials-sent-info { font-size: 11px; }
-.credentials-sent-info small { display: block; line-height: 1.4; }
+.credentials-sent-info { font-size: 10px; }
+.credentials-sent-info small { display: block; line-height: 1.35; white-space: nowrap; }
 
 /* Password cell */
 .pw-cell { white-space: nowrap; }
@@ -1072,11 +1080,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 .pw-status-badge--updated {
   color: #8a5b00;
@@ -1091,7 +1100,13 @@
 .pw-toggle-btn { padding: 2px 6px; color: #7b61ff; border: none; background: none; }
 .pw-toggle-btn:hover { color: #5b4cdb; }
 
-.action-buttons { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.action-buttons {
+  display: inline-flex;
+  gap: 3px;
+  justify-content: center;
+  flex-wrap: nowrap;
+  align-items: center;
+}
 .action-buttons .btn.btn-outline-info {
   color: #0369a1;
   border-color: #7dd3fc;
@@ -1101,10 +1116,18 @@
   color: #0c4a6e;
 }
 .action-buttons .btn {
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.75rem;
+  border-radius: 5px;
+  padding: 3px 5px;
+  font-size: 0.65rem;
   border-width: 1px;
+  line-height: 1;
+  margin: 0 !important;
+  flex-shrink: 0;
+}
+.action-buttons .btn i {
+  font-size: 10px;
+  width: 10px;
+  text-align: center;
 }
 
 .table-pagination-bar {
@@ -1141,8 +1164,8 @@
 /* Directory status column — high-contrast pills (all studentStatus values) */
 .student-status-pill {
   font-weight: 600;
-  font-size: 0.65rem;
-  padding: 5px 10px;
+  font-size: 0.6rem;
+  padding: 3px 8px;
   border-radius: 999px;
   text-transform: uppercase;
   letter-spacing: 0.04em;

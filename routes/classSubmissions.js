@@ -6,6 +6,7 @@ const ClassSubmission = require('../models/ClassSubmission');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { presignStoredS3Url } = require('../config/presign');
+const { notifyNewSubmission } = require('../services/classActivityEmail.service');
 
 const uploadSingle = classSubmissionUpload.single('file');
 
@@ -66,6 +67,11 @@ router.post('/:meetingId/upload', verifyToken, checkRole(['STUDENT']), (req, res
       .lean();
 
     await presignSubmission(populated);
+
+    notifyNewSubmission(meeting._id, populated, populated.studentId).catch((err) => {
+      console.error('classSubmissions email notify error:', err.message);
+    });
+
     res.status(201).json({ success: true, data: populated });
   } catch (err) {
     console.error('classSubmissions upload error:', err);

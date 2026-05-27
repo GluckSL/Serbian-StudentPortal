@@ -2762,9 +2762,13 @@ router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['A
 
     console.log('[admin/force-password-reset] Sent to', user.email, 'regNo', user.regNo);
 
+    const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
+    const displayPassword = await resolveStudentDisplayPassword(user, { listView: true });
+
     return res.json({
       success: true,
       msg: `Password reset initiated for ${user.name}. They were signed out and emailed a verification code.`,
+      displayPassword: displayPassword || null,
     });
   } catch (err) {
     console.error('[POST /auth/admin/force-password-reset]', err);
