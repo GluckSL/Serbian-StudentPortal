@@ -26,6 +26,9 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/analytics">
             <mat-icon>insights</mat-icon> Analytics
           </button>
+          <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/battlefield/team-battles">
+            <mat-icon>sports_kabaddi</mat-icon> Host Battlefield
+          </button>
           <button mat-raised-button color="primary" routerLink="/admin/glueck-arena/create">
             <mat-icon>add</mat-icon> New game set
           </button>

@@ -1,10 +1,15 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { MaterialModule } from '../../../../shared/material.module';
 import { InteractiveGameService } from '../../services/interactive-game.service';
 import { TeamBattleDto } from '../../glueck-arena.types';
+import { environment } from '../../../../../environments/environment';
 import { Subscription } from 'rxjs';
+
+interface BatchSummary { batchName: string; }
 
 @Component({
   selector: 'app-admin-team-battle',
@@ -14,7 +19,7 @@ import { Subscription } from 'rxjs';
     <div class="atb">
       <div class="atb__top">
         <h1><mat-icon>groups</mat-icon> Team Battles</h1>
-        <button mat-raised-button color="primary" (click)="showCreate = true">
+        <button mat-raised-button color="primary" (click)="openCreate()">
           <mat-icon>add</mat-icon> New Team Battle
         </button>
       </div>
@@ -44,13 +49,13 @@ import { Subscription } from 'rxjs';
             <div class="atb__card-team" [class.atb__card-team--winner]="b.winner === 'teamA'">
               <strong>{{ b.teamA.name }}</strong>
               <span>{{ b.teamA.score }} pts</span>
-              <span class="atb__card-members">{{ b.teamA.members?.length || 0 }} players</span>
+              <span class="atb__card-members">{{ b.teamA.members.length || 0 }} players</span>
             </div>
             <span class="atb__card-vs">VS</span>
             <div class="atb__card-team" [class.atb__card-team--winner]="b.winner === 'teamB'">
               <strong>{{ b.teamB.name }}</strong>
               <span>{{ b.teamB.score }} pts</span>
-              <span class="atb__card-members">{{ b.teamB.members?.length || 0 }} players</span>
+              <span class="atb__card-members">{{ b.teamB.members.length || 0 }} players</span>
             </div>
           </div>
           <div class="atb__card-meta">
@@ -84,7 +89,7 @@ import { Subscription } from 'rxjs';
 
         <div class="atb-field">
           <label>Title</label>
-          <input [(ngModel)]="form.title" placeholder="Class A vs Class B" class="atb-input">
+          <input [(ngModel)]="form.title" placeholder="e.g. Batch A vs Batch B" class="atb-input">
         </div>
 
         <div class="atb-field">
@@ -102,31 +107,55 @@ import { Subscription } from 'rxjs';
 
         <fieldset class="atb-team-set">
           <legend>Team A</legend>
-          <div class="atb-field">
-            <label>Team Name</label>
-            <input [(ngModel)]="form.teamA.name" placeholder="Team Alpha" class="atb-input">
+          <div class="atb-field" *ngIf="!form.teamA.batchName">
+            <label>Select Batch</label>
+            <select [(ngModel)]="form.teamA.batchName" class="atb-select" (ngModelChange)="onBatchSelect('teamA')">
+              <option value="" disabled>Choose a batch</option>
+              <option *ngFor="let b of availableBatches" [value]="b.batchName" [disabled]="b.batchName === form.teamB.batchName">{{ b.batchName }}</option>
+            </select>
           </div>
-          <div class="atb-field">
-            <label>Student IDs (comma-separated)</label>
-            <input [(ngModel)]="form.teamA.memberIds" placeholder="id1, id2, id3" class="atb-input">
+          <div *ngIf="form.teamA.batchName" class="atb-batch-selected">
+            <div class="atb-batch-selected__header">
+              <strong>{{ form.teamA.name }}</strong>
+              <button mat-stroked-button color="warn" (click)="clearTeam('teamA')">Change</button>
+            </div>
+            <div class="atb-batch-selected__count">
+              <mat-icon>people</mat-icon> {{ form.teamA.members.length }} students
+            </div>
+            <div class="atb-batch-selected__members" *ngIf="form.teamA.members.length > 0">
+              <span class="atb-batch-member" *ngFor="let m of form.teamA.members | slice:0:20">{{ m.name }}</span>
+              <span class="atb-batch-member atb-batch-member--more" *ngIf="form.teamA.members.length > 20">+{{ form.teamA.members.length - 20 }} more</span>
+            </div>
           </div>
         </fieldset>
 
         <fieldset class="atb-team-set">
           <legend>Team B</legend>
-          <div class="atb-field">
-            <label>Team Name</label>
-            <input [(ngModel)]="form.teamB.name" placeholder="Team Beta" class="atb-input">
+          <div class="atb-field" *ngIf="!form.teamB.batchName">
+            <label>Select Batch</label>
+            <select [(ngModel)]="form.teamB.batchName" class="atb-select" (ngModelChange)="onBatchSelect('teamB')">
+              <option value="" disabled>Choose a batch</option>
+              <option *ngFor="let b of availableBatches" [value]="b.batchName" [disabled]="b.batchName === form.teamA.batchName">{{ b.batchName }}</option>
+            </select>
           </div>
-          <div class="atb-field">
-            <label>Student IDs (comma-separated)</label>
-            <input [(ngModel)]="form.teamB.memberIds" placeholder="id4, id5, id6" class="atb-input">
+          <div *ngIf="form.teamB.batchName" class="atb-batch-selected">
+            <div class="atb-batch-selected__header">
+              <strong>{{ form.teamB.name }}</strong>
+              <button mat-stroked-button color="warn" (click)="clearTeam('teamB')">Change</button>
+            </div>
+            <div class="atb-batch-selected__count">
+              <mat-icon>people</mat-icon> {{ form.teamB.members.length }} students
+            </div>
+            <div class="atb-batch-selected__members" *ngIf="form.teamB.members.length > 0">
+              <span class="atb-batch-member" *ngFor="let m of form.teamB.members | slice:0:20">{{ m.name }}</span>
+              <span class="atb-batch-member atb-batch-member--more" *ngIf="form.teamB.members.length > 20">+{{ form.teamB.members.length - 20 }} more</span>
+            </div>
           </div>
         </fieldset>
 
         <div class="atb-dialog-actions">
           <button mat-stroked-button (click)="showCreate = false">Cancel</button>
-          <button mat-raised-button color="primary" (click)="createTeamBattle()" [disabled]="creating">
+          <button mat-raised-button color="primary" (click)="createTeamBattle()" [disabled]="creating || !canCreate()">
             <mat-spinner *ngIf="creating" diameter="20"></mat-spinner>
             Create
           </button>
@@ -164,6 +193,7 @@ import { Subscription } from 'rxjs';
     .atb-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(15,23,42,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
     .atb-dialog { background: #fff; border-radius: 20px; padding: 32px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; }
     .atb-dialog h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; }
+    .atb-dialog h2 mat-icon { color: #ff8f00; }
     .atb-field { margin-bottom: 14px; }
     .atb-field label { display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 4px; }
     .atb-input, .atb-select { width: 100%; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 14px; box-sizing: border-box; background: #fff; }
@@ -171,6 +201,15 @@ import { Subscription } from 'rxjs';
     .atb-team-set { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     .atb-team-set legend { font-weight: 700; color: #405980; padding: 0 8px; font-size: 14px; }
     .atb-dialog-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+    .atb-batch-selected { padding: 8px 0; }
+    .atb-batch-selected__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .atb-batch-selected__header strong { font-size: 15px; color: #1e293b; }
+    .atb-batch-selected__header button { font-size: 12px; min-width: auto; padding: 0 10px; line-height: 28px; }
+    .atb-batch-selected__count { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #64748b; margin-bottom: 8px; }
+    .atb-batch-selected__count mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .atb-batch-selected__members { display: flex; flex-wrap: wrap; gap: 4px; }
+    .atb-batch-member { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 999px; }
+    .atb-batch-member--more { background: #e2e8f0; color: #64748b; }
   `]
 })
 export class AdminTeamBattleComponent implements OnInit, OnDestroy {
@@ -180,6 +219,8 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   showCreate = false;
   creating = false;
   availableSets: { _id: string; title: string; gameType: string }[] = [];
+  availableBatches: BatchSummary[] = [];
+  loadingBatches = false;
   private subs: Subscription[] = [];
 
   form = {
@@ -187,13 +228,16 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
     gameSetId: '',
     gameType: 'scramble_rush',
     rounds: 5,
-    teamA: { name: '', memberIds: '' },
-    teamB: { name: '', memberIds: '' },
+    teamA: { name: '', batchName: '', members: [] as { id: string; name: string }[] },
+    teamB: { name: '', batchName: '', members: [] as { id: string; name: string }[] },
   };
 
-  constructor(private svc: InteractiveGameService) {}
+  constructor(
+    private svc: InteractiveGameService,
+    private http: HttpClient,
+  ) {}
 
-  ngOnInit() { this.load(); this.loadSets(); }
+  ngOnInit() { this.load(); this.loadSets(); this.loadBatches(); }
   ngOnDestroy() { this.subs.forEach(s => s.unsubscribe()); }
 
   loadSets() {
@@ -202,6 +246,19 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
         this.availableSets = res.items.map((s: any) => ({ _id: s._id, title: s.title, gameType: s.gameType }));
       }
     }));
+  }
+
+  async loadBatches() {
+    this.loadingBatches = true;
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ batches: BatchSummary[] }>(`${environment.apiUrl}/batch-journey`, { withCredentials: true })
+      );
+      this.availableBatches = (res?.batches || []).sort((a, b) => a.batchName.localeCompare(b.batchName));
+    } catch {
+      this.availableBatches = [];
+    }
+    this.loadingBatches = false;
   }
 
   load() {
@@ -235,19 +292,80 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
     return gt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  createTeamBattle() {
-    if (!this.form.title || !this.form.gameSetId || !this.form.teamA.name || !this.form.teamB.name) return;
-    this.creating = true;
+  openCreate() {
+    this.form = {
+      title: '',
+      gameSetId: '',
+      gameType: 'scramble_rush',
+      rounds: 5,
+      teamA: { name: '', batchName: '', members: [] },
+      teamB: { name: '', batchName: '', members: [] },
+    };
+    this.showCreate = true;
+  }
 
-    const parseMembers = (str: string) => str.split(',').map(s => ({ id: s.trim() })).filter(m => m.id);
+  canCreate(): boolean {
+    return !!(
+      this.form.title &&
+      this.form.gameSetId &&
+      this.form.teamA.batchName &&
+      this.form.teamB.batchName &&
+      this.form.teamA.batchName !== this.form.teamB.batchName &&
+      this.form.teamA.members.length > 0 &&
+      this.form.teamB.members.length > 0
+    );
+  }
+
+  async onBatchSelect(team: 'teamA' | 'teamB') {
+    const batchName = this.form[team].batchName;
+    if (!batchName) return;
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ students: { _id: string; name: string }[] }>(
+          `${environment.apiUrl}/batch-journey/${encodeURIComponent(batchName)}/students`,
+          { withCredentials: true }
+        )
+      );
+      this.form[team].name = batchName;
+      this.form[team].members = (res.students || []).map(s => ({ id: s._id, name: s.name }));
+      if (!this.form.title) {
+        const other = team === 'teamA' ? this.form.teamB.batchName : this.form.teamA.batchName;
+        this.form.title = other ? `${batchName} vs ${other}` : '';
+      }
+    } catch {
+      this.form[team].batchName = '';
+      this.form[team].name = '';
+      this.form[team].members = [];
+    }
+  }
+
+  clearTeam(team: 'teamA' | 'teamB') {
+    this.form[team].batchName = '';
+    this.form[team].name = '';
+    this.form[team].members = [];
+  }
+
+  createTeamBattle() {
+    if (!this.canCreate()) return;
+    this.creating = true;
 
     this.subs.push(this.svc.createTeamBattle({
       title: this.form.title,
       gameSetId: this.form.gameSetId,
       gameType: this.form.gameType,
       rounds: this.form.rounds,
-      teamA: { name: this.form.teamA.name, members: parseMembers(this.form.teamA.memberIds) },
-      teamB: { name: this.form.teamB.name, members: parseMembers(this.form.teamB.memberIds) },
+      teamA: {
+        name: this.form.teamA.name,
+        type: 'classroom',
+        classroomId: this.form.teamA.batchName,
+        members: this.form.teamA.members,
+      },
+      teamB: {
+        name: this.form.teamB.name,
+        type: 'classroom',
+        classroomId: this.form.teamB.batchName,
+        members: this.form.teamB.members,
+      },
     }).subscribe({
       next: () => {
         this.creating = false;
