@@ -3,6 +3,7 @@ const router = express.Router();
 const ClassDoubt = require('../models/ClassDoubt');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { notifyNewDoubt } = require('../services/classActivityEmail.service');
 
 // POST /:meetingId  — student submits a doubt (only after class ended)
 router.post('/:meetingId', verifyToken, checkRole(['STUDENT']), async (req, res) => {
@@ -31,6 +32,10 @@ router.post('/:meetingId', verifyToken, checkRole(['STUDENT']), async (req, res)
 
     const populated = await ClassDoubt.findById(doubt._id)
       .populate('askedBy', 'name email');
+
+    notifyNewDoubt(meeting._id, populated, populated.askedBy).catch((err) => {
+      console.error('classDoubts email notify error:', err.message);
+    });
 
     res.status(201).json({ success: true, data: populated });
   } catch (err) {

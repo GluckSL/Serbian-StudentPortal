@@ -245,7 +245,7 @@
             <mat-icon>mail</mat-icon>
             Send reminders ({{ selectedCount }})
           </button>
-          <span class="lt-table-sort__hint">Click a row for details</span>
+          <span class="lt-table-sort__hint">Click a row or ↗ to open journey details</span>
         </div>
       </div>
 
@@ -281,7 +281,7 @@
           <tbody>
             <tr *ngFor="let s of students; let i = index" class="lt-row"
               [class.lt-row--zero]="s.totalSeconds === 0"
-              (click)="openDrawer(s)" tabindex="0" role="button">
+              (click)="openStudentDetail(s)" tabindex="0" role="button">
               <td class="lt-td lt-td--check" (click)="$event.stopPropagation()">
                 <input
                   type="checkbox"
@@ -336,8 +336,8 @@
                   matTooltip="Send reminder email for incomplete day tasks">
                   <mat-icon>mail</mat-icon>
                 </button>
-                <button mat-icon-button class="lt-detail-btn" (click)="$event.stopPropagation(); openDrawer(s)"
-                  matTooltip="View details & day completion">
+                <button mat-icon-button class="lt-detail-btn" (click)="openStudentDetail(s, $event)"
+                  matTooltip="View details & journey weeks (new tab)">
                   <mat-icon>open_in_new</mat-icon>
                 </button>
               </td>
@@ -379,11 +379,3 @@
 
 </div>
 
-<!-- ── Detail drawer ──────────────────────────────────────────────────────────── -->
-<app-language-tracking-drawer
-  *ngIf="drawerStudent"
-  [student]="drawerStudent"
-  [from]="from"
-  [to]="to"
-  (close)="closeDrawer()">
-</app-language-tracking-drawer>

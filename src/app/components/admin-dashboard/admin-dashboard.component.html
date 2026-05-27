@@ -522,7 +522,7 @@
                   <th>Assigned Teacher</th>
                   <th>Last Credentials Sent</th>
                   <th *ngIf="isFullAdmin" class="text-center">Password</th>
-                  <th class="text-center">Actions</th>
+                  <th class="text-center actions-col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -599,35 +599,31 @@
                     <span class="pw-value" *ngIf="student.displayPassword; else noPw">{{ student.displayPassword }}</span>
                     <ng-template #noPw>
                       <span
-                        class="pw-status-badge"
-                        [class.pw-status-badge--updated]="student.passwordDisplayState === 'UPDATED_HIDDEN'"
-                        [class.pw-status-badge--missing]="student.passwordDisplayState !== 'UPDATED_HIDDEN'"
-                        [title]="student.passwordDisplayState === 'UPDATED_HIDDEN'
-                          ? 'Password was changed by student via OTP/custom flow. Use Resend credentials to generate a new visible password.'
-                          : 'No recoverable display password. Use Resend credentials to generate one.'">
-                        {{ student.passwordDisplayState === 'UPDATED_HIDDEN' ? 'Updated via OTP' : '—' }}
+                        class="pw-status-badge pw-status-badge--missing"
+                        title="No recoverable password on file. Use Resend credentials to generate and email a new one.">
+                        —
                       </span>
                     </ng-template>
                   </td>
-                  <td class="text-center">
+                  <td class="text-center actions-col">
                     <div class="action-buttons">
                       <button
                         type="button"
-                        class="btn btn-sm btn-outline-info me-1"
+                        class="btn btn-sm btn-outline-info"
                         (click)="viewStudentDetails(student)"
                         title="View student details"
                       >
                         <i class="fas fa-eye"></i>
                       </button>
                       <button 
-                        class="btn btn-sm btn-outline-primary me-1"
+                        class="btn btn-sm btn-outline-primary"
                         [routerLink]="['/signup', student._id]"
                         title="Edit Student"
                       >
                         <i class="fas fa-edit"></i>
                       </button>
                       <button
-                        class="btn btn-sm btn-outline-success me-1"
+                        class="btn btn-sm btn-outline-success"
                         (click)="resendCredentials(student)"
                         [disabled]="resendingCredentials[student._id]"
                         title="Send Credentials Email"
@@ -637,7 +633,7 @@
                       </button>
                       <button
                         type="button"
-                        class="btn btn-sm btn-outline-warning me-1"
+                        class="btn btn-sm btn-outline-warning"
                         (click)="forcePasswordReset(student)"
                         [disabled]="forcingPasswordReset[student._id]"
                         title="Force password reset (logout + OTP email)"

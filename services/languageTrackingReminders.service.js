@@ -14,11 +14,13 @@ function resolveBatchForCompletion(student) {
   return '';
 }
 
-async function getIncompleteTasksForStudent(student) {
+async function getIncompleteTasksForStudent(student, dayOverride) {
   const { computeJourneyDayCompletion } = require('./journeyDayCompletion.service');
   const sid = student._id;
   const batchForCompletion = resolveBatchForCompletion(student);
-  const day = student.currentCourseDay || 1;
+  const day = Number.isFinite(Number(dayOverride)) && Number(dayOverride) >= 1
+    ? Math.floor(Number(dayOverride))
+    : (student.currentCourseDay || 1);
 
   const completion = await computeJourneyDayCompletion(sid, batchForCompletion, day, {
     includeRecordings: false,
@@ -40,11 +42,12 @@ async function getIncompleteTasksForStudent(student) {
 }
 
 /**
- * Send journey-day reminder emails listing only incomplete tasks for each student's current day.
+ * Send journey-day reminder emails listing only incomplete tasks for each student's day.
  * @param {string[]} studentIds
+ * @param {number} [dayOverride] — when set, reminders refer to this journey day (not currentCourseDay)
  * @returns {Promise<{ results: object[], sent: number, skipped: number, failed: number }>}
  */
-async function sendJourneyReminders(studentIds) {
+async function sendJourneyReminders(studentIds, dayOverride) {
   const ids = [...new Set((studentIds || []).map(String).filter(Boolean))];
   if (!ids.length) {
     return { results: [], sent: 0, skipped: 0, failed: 0 };
@@ -82,7 +85,7 @@ async function sendJourneyReminders(studentIds) {
 
     let dayData;
     try {
-      dayData = await getIncompleteTasksForStudent(student);
+      dayData = await getIncompleteTasksForStudent(student, dayOverride);
     } catch (err) {
       console.error('languageTrackingReminders completion', rawId, err.message);
       results.push({ studentId: rawId, ok: false, reason: 'completion_error', name: student.name });

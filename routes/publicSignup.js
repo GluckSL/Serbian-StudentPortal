@@ -616,7 +616,6 @@ router.post('/razorpay/verify', rzpLimiter, async (req, res) => {
 
     user.isActive = true;
     user.studentStatus = 'ONGOING';
-    user.passwordChangedAt = new Date();
     await user.save();
 
     app.razorpayPaymentId = razorpayPaymentId;

@@ -227,9 +227,7 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
             const obj = s.toObject();
             const displayPassword = await resolveStudentDisplayPassword(s, { listView: true });
             obj.displayPassword = displayPassword;
-            obj.passwordDisplayState = displayPassword
-              ? 'VISIBLE'
-              : (obj.passwordChangedAt ? 'UPDATED_HIDDEN' : 'UNAVAILABLE');
+            obj.passwordDisplayState = displayPassword ? 'VISIBLE' : 'UNAVAILABLE';
             delete obj.password;
             delete obj.passwordRecoverable;
             return obj;

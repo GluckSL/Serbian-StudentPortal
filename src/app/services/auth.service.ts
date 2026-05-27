@@ -393,8 +393,8 @@ export class AuthService {
   }
 
   /** Sign student out, email OTP, require new password on next login (admin directory). */
-  forcePasswordReset(studentId: string): Observable<{ success?: boolean; msg?: string }> {
-    return this.http.post<{ success?: boolean; msg?: string }>(
+  forcePasswordReset(studentId: string): Observable<{ success?: boolean; msg?: string; displayPassword?: string | null }> {
+    return this.http.post<{ success?: boolean; msg?: string; displayPassword?: string | null }>(
       `${this.apiUrl}/auth/admin/force-password-reset/${studentId}`,
       {}
     );
