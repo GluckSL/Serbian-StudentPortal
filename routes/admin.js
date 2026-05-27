@@ -134,7 +134,7 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
 router.get('/students', verifyToken, isAdmin, async (req, res) => {
   try {
     if (req.query.phoneCountry) {
-      await backfillPhoneCountries();
+      scheduleCountryBackfills();
     }
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);
@@ -205,32 +205,35 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       }
     }
 
-    const total = await User.countDocuments(query);
     const isFullAdmin = req.user?.role === 'ADMIN';
 
-    const students = await User.find(query)
-      .select(isFullAdmin ? '+password +passwordRecoverable' : '-password -passwordRecoverable')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: 'assignedTeacher',   // the field in User schema
-        select: 'name regNo email medium' // fetch only useful teacher info
-      });
+    const [total, students] = await Promise.all([
+      User.countDocuments(query),
+      User.find(query)
+        .select(isFullAdmin ? '+password +passwordRecoverable' : '-password -passwordRecoverable')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'assignedTeacher',
+          select: 'name regNo email medium',
+        })
+        .lean(),
+    ]);
 
     const pages = Math.max(1, Math.ceil(total / limit));
 
-    // For ADMIN: resolve plaintext password for directory display; never send hash or ciphertext
+    // For ADMIN: fast list path (recoverable decrypt + at most one bcrypt per row)
     const data = isFullAdmin
       ? await Promise.all(
           students.map(async (s) => {
-            const obj = s.toObject();
             const displayPassword = await resolveStudentDisplayPassword(s, { listView: true });
-            obj.displayPassword = displayPassword;
-            obj.passwordDisplayState = displayPassword ? 'VISIBLE' : 'UNAVAILABLE';
-            delete obj.password;
-            delete obj.passwordRecoverable;
-            return obj;
+            const { password, passwordRecoverable, ...rest } = s;
+            return {
+              ...rest,
+              displayPassword,
+              passwordDisplayState: displayPassword ? 'VISIBLE' : 'UNAVAILABLE',
+            };
           })
         )
       : students;
