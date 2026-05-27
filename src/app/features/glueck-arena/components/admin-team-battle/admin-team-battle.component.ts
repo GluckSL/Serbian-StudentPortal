@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { MaterialModule } from '../../../../shared/material.module';
@@ -14,14 +15,19 @@ interface BatchSummary { batchName: string; }
 @Component({
   selector: 'app-admin-team-battle',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule, RouterModule, MaterialModule],
   template: `
     <div class="atb">
       <div class="atb__top">
         <h1><mat-icon>groups</mat-icon> Team Battles</h1>
-        <button mat-raised-button color="primary" (click)="openCreate()">
-          <mat-icon>add</mat-icon> New Team Battle
-        </button>
+        <div class="atb__top-actions">
+          <button mat-stroked-button routerLink="/admin/glueck-arena/battlefield/team-battles/standings">
+            <mat-icon>leaderboard</mat-icon> Standings
+          </button>
+          <button mat-raised-button color="primary" (click)="openCreate()">
+            <mat-icon>add</mat-icon> New Team Battle
+          </button>
+        </div>
       </div>
 
       <!-- Filters -->
@@ -66,9 +72,72 @@ interface BatchSummary { batchName: string; }
             <button mat-raised-button color="primary" (click)="startBattle(b._id)" *ngIf="b.status === 'pending'">
               <mat-icon>play_arrow</mat-icon> Start
             </button>
+            <button mat-raised-button color="accent" (click)="toggleScorecard(b._id)" *ngIf="b.status === 'finished'" [disabled]="loadingScorecard === b._id">
+              <mat-icon *ngIf="loadingScorecard !== b._id">{{ scorecardId === b._id ? 'expand_less' : 'sports_kabaddi' }}</mat-icon>
+              <mat-spinner *ngIf="loadingScorecard === b._id" diameter="16"></mat-spinner>
+              {{ scorecardId === b._id ? 'Hide Scorecard' : 'Scorecard' }}
+            </button>
             <button mat-stroked-button color="warn" (click)="cancelBattle(b._id)" *ngIf="b.status === 'pending' || b.status === 'active'">
               <mat-icon>cancel</mat-icon> {{ b.status === 'active' ? 'Cancel Room' : 'Cancel' }}
             </button>
+          </div>
+
+          <!-- Scorecard (IPL-style) -->
+          <div class="atb-scorecard" *ngIf="scorecardId === b._id && scorecardData">
+            <div class="atb-scorecard__header">
+              <div class="atb-scorecard__team" [class.atb-scorecard__team--winner]="scorecardData.winner === 'teamA'">
+                <span class="atb-scorecard__team-name">{{ scorecardData.teamA.name }}</span>
+                <span class="atb-scorecard__team-score">{{ scorecardData.teamA.score }}</span>
+              </div>
+              <div class="atb-scorecard__vs">VS</div>
+              <div class="atb-scorecard__team" [class.atb-scorecard__team--winner]="scorecardData.winner === 'teamB'">
+                <span class="atb-scorecard__team-name">{{ scorecardData.teamB.name }}</span>
+                <span class="atb-scorecard__team-score">{{ scorecardData.teamB.score }}</span>
+              </div>
+            </div>
+            <div class="atb-scorecard__winner" *ngIf="scorecardData.winner">
+              🏆 {{ scorecardData.winner === 'teamA' ? scorecardData.teamA.name : scorecardData.teamB.name }} Wins!
+            </div>
+
+            <div class="atb-scorecard__teams">
+              <div class="atb-scorecard__side">
+                <h4>{{ scorecardData.teamA.name }}</h4>
+                <table class="atb-scorecard__table">
+                  <thead>
+                    <tr><th>Player</th><th>Points</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let m of scorecardData.teamA.members; let fi = first"
+                      [class.atb-scorecard__top-scorer]="fi && scorecardData.teamA.members.length > 0">
+                      <td>{{ m.name }} <span *ngIf="fi && scorecardData.teamB.members.length > 0 && (scorecardData.teamA.members[0].score >= (scorecardData.teamB.members[0]?.score || 0))">⭐</span></td>
+                      <td class="atb-scorecard__pts">{{ m.score }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr><th>Total</th><th class="atb-scorecard__pts">{{ scorecardData.teamA.score }}</th></tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div class="atb-scorecard__side">
+                <h4>{{ scorecardData.teamB.name }}</h4>
+                <table class="atb-scorecard__table">
+                  <thead>
+                    <tr><th>Player</th><th>Points</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let m of scorecardData.teamB.members; let fi = first"
+                      [class.atb-scorecard__top-scorer]="fi && scorecardData.teamB.members.length > 0">
+                      <td>{{ m.name }} <span *ngIf="fi && scorecardData.teamA.members.length > 0 && (scorecardData.teamB.members[0].score > (scorecardData.teamA.members[0]?.score || 0))">⭐</span></td>
+                      <td class="atb-scorecard__pts">{{ m.score }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr><th>Total</th><th class="atb-scorecard__pts">{{ scorecardData.teamB.score }}</th></tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
         <div class="atb__empty" *ngIf="battles.length === 0">
@@ -185,7 +254,8 @@ interface BatchSummary { batchName: string; }
     .atb__card-members { display: block; font-size: 11px; color: #94a3b8; }
     .atb__card-vs { font-weight: 800; color: #ef4444; }
     .atb__card-meta { display: flex; gap: 16px; font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
-    .atb__card-actions { display: flex; gap: 8px; }
+    .atb__top-actions { display: flex; gap: 8px; }
+    .atb__card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .atb__empty { text-align: center; padding: 48px; color: #94a3b8; }
     .atb__empty mat-icon { font-size: 48px; width: 48px; height: 48px; opacity: 0.3; }
     .atb__loading { display: flex; justify-content: center; padding: 48px; }
@@ -210,6 +280,25 @@ interface BatchSummary { batchName: string; }
     .atb-batch-selected__members { display: flex; flex-wrap: wrap; gap: 4px; }
     .atb-batch-member { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 999px; }
     .atb-batch-member--more { background: #e2e8f0; color: #64748b; }
+
+    .atb-scorecard { margin-top: 16px; padding-top: 16px; border-top: 2px solid #e2e8f0; }
+    .atb-scorecard__header { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 8px; }
+    .atb-scorecard__team { text-align: center; padding: 12px 24px; background: #f8fafc; border-radius: 12px; min-width: 140px; }
+    .atb-scorecard__team--winner { background: #f0fdf4; border: 2px solid #22c55e; }
+    .atb-scorecard__team-name { display: block; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .atb-scorecard__team-score { display: block; font-size: 28px; font-weight: 800; color: #405980; }
+    .atb-scorecard__team--winner .atb-scorecard__team-score { color: #16a34a; }
+    .atb-scorecard__vs { font-size: 18px; font-weight: 800; color: #94a3b8; }
+    .atb-scorecard__winner { text-align: center; font-size: 18px; font-weight: 800; color: #16a34a; margin-bottom: 16px; }
+    .atb-scorecard__teams { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .atb-scorecard__side h4 { margin: 0 0 8px; font-size: 14px; color: #475569; }
+    .atb-scorecard__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .atb-scorecard__table th { text-align: left; padding: 6px 8px; font-size: 11px; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+    .atb-scorecard__table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+    .atb-scorecard__table tfoot th { padding: 8px; border-top: 2px solid #e2e8f0; font-size: 13px; color: #1e293b; }
+    .atb-scorecard__pts { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .atb-scorecard__top-scorer { background: #fefce8; }
+    .atb-scorecard__top-scorer td:first-child { font-weight: 700; }
   `]
 })
 export class AdminTeamBattleComponent implements OnInit, OnDestroy {
@@ -221,6 +310,9 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   availableSets: { _id: string; title: string; gameType: string }[] = [];
   availableBatches: BatchSummary[] = [];
   loadingBatches = false;
+  scorecardId: string | null = null;
+  scorecardData: TeamBattleDto | null = null;
+  loadingScorecard: string | null = null;
   private subs: Subscription[] = [];
 
   form = {
@@ -337,6 +429,21 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
       this.form[team].name = '';
       this.form[team].members = [];
     }
+  }
+
+  toggleScorecard(id: string) {
+    if (this.scorecardId === id) {
+      this.scorecardId = null;
+      this.scorecardData = null;
+      return;
+    }
+    this.scorecardId = id;
+    this.scorecardData = null;
+    this.loadingScorecard = id;
+    this.subs.push(this.svc.getTeamBattleScorecard(id).subscribe({
+      next: (res) => { this.scorecardData = res.battle; this.loadingScorecard = null; },
+      error: () => { this.scorecardId = null; this.loadingScorecard = null; },
+    }));
   }
 
   clearTeam(team: 'teamA' | 'teamB') {

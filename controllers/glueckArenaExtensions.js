@@ -643,6 +643,21 @@ exports.cancelBattlefieldRoom = async (req, res) => {
   } catch (err) { serverError(res, err); }
 };
 
+exports.getTeamBattleScorecard = async (req, res) => {
+  try {
+    const battle = await teamBattleService.getScorecard(req.params.id);
+    if (!battle) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, battle });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.getTeamBattleStandings = async (req, res) => {
+  try {
+    const standings = await teamBattleService.getStandings();
+    res.json({ success: true, standings });
+  } catch (err) { serverError(res, err); }
+};
+
 exports.cancelTeamBattle = async (req, res) => {
   try {
     const battle = await require('../models/BattlefieldTeamBattle').findById(req.params.id);

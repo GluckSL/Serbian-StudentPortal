@@ -415,4 +415,10 @@ export class InteractiveGameService {
   cancelTeamBattle(id: string): Observable<any> {
     return this.http.post(`${this.base}/admin/battlefield/team-battles/${id}/cancel`, {});
   }
+  getTeamBattleScorecard(id: string): Observable<{ success: boolean; battle: import('../glueck-arena.types').TeamBattleDto }> {
+    return this.http.get<any>(`${this.base}/admin/battlefield/team-battles/${id}/scorecard`);
+  }
+  getTeamBattleStandings(): Observable<{ success: boolean; standings: import('../glueck-arena.types').TeamBattleStanding[] }> {
+    return this.http.get<any>(`${this.base}/admin/battlefield/team-battles/standings`);
+  }
 }

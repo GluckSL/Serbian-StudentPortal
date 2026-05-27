@@ -87,6 +87,8 @@ router.get('/battlefield/stats', verifyToken, gaExt.getBattlefieldStats);
 
 router.get('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.listTeamBattles);
 router.post('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.createTeamBattle);
+router.get('/admin/battlefield/team-battles/standings', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.getTeamBattleStandings);
+router.get('/admin/battlefield/team-battles/:id/scorecard', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.getTeamBattleScorecard);
 router.post('/admin/battlefield/team-battles/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.startTeamBattle);
 router.post('/admin/battlefield/team-battles/:id/cancel', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.cancelTeamBattle);
 

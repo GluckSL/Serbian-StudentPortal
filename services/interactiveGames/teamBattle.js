@@ -143,6 +143,67 @@ async function listTeamBattles(filters = {}) {
   return battles;
 }
 
+async function getScorecard(battleId) {
+  const battle = await BattlefieldTeamBattle.findById(battleId)
+    .populate('createdBy', 'name username')
+    .lean();
+  if (!battle) return null;
+
+  const sortMembers = team => {
+    team.members = (team.members || []).sort((a, b) => (b.score || 0) - (a.score || 0));
+    return team;
+  };
+
+  battle.teamA = sortMembers(battle.teamA);
+  battle.teamB = sortMembers(battle.teamB);
+
+  return battle;
+}
+
+async function getStandings() {
+  const battles = await BattlefieldTeamBattle.find({ status: 'finished' }).lean();
+  const batchMap = {};
+
+  function ensure(batchName) {
+    if (!batchMap[batchName]) {
+      batchMap[batchName] = { played: 0, won: 0, lost: 0, pointsFor: 0, pointsAgainst: 0 };
+    }
+    return batchMap[batchName];
+  }
+
+  for (const b of battles) {
+    const aBatch = b.teamA?.classroomId;
+    const bBatch = b.teamB?.classroomId;
+    if (!aBatch || !bBatch) continue;
+
+    const a = ensure(aBatch);
+    const bStats = ensure(bBatch);
+
+    a.played++;
+    bStats.played++;
+
+    a.pointsFor += b.teamA?.score || 0;
+    a.pointsAgainst += b.teamB?.score || 0;
+    bStats.pointsFor += b.teamB?.score || 0;
+    bStats.pointsAgainst += b.teamA?.score || 0;
+
+    if (b.winner === 'teamA') { a.won++; bStats.lost++; }
+    else if (b.winner === 'teamB') { bStats.won++; a.lost++; }
+  }
+
+  return Object.entries(batchMap)
+    .map(([batch, s]) => ({
+      batch,
+      played: s.played,
+      won: s.won,
+      lost: s.lost,
+      pointsFor: s.pointsFor,
+      pointsAgainst: s.pointsAgainst,
+      winRate: s.played > 0 ? +(s.won / s.played).toFixed(3) : 0,
+    }))
+    .sort((a, b) => b.won - a.won || b.winRate - a.winRate || b.pointsFor - a.pointsFor);
+}
+
 module.exports = {
   createTeamBattle,
   startTeamBattle,
@@ -150,4 +211,6 @@ module.exports = {
   endRound,
   finishTeamBattle,
   listTeamBattles,
+  getScorecard,
+  getStandings,
 };

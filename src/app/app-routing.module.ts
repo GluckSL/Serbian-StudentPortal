@@ -558,6 +558,12 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   {
+    path: 'admin/glueck-arena/battlefield/team-battles/standings',
+    loadComponent: () => import('./features/glueck-arena/components/admin-team-battle-standings/admin-team-battle-standings.component').then(m => m.TeamBattleStandingsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+  {
     path: 'admin/glueck-arena/battlefield/team-battles',
     loadComponent: () => import('./features/glueck-arena/components/admin-team-battle/admin-team-battle.component').then(m => m.AdminTeamBattleComponent),
     canActivate: [AuthGuard, RoleGuard],

@@ -569,14 +569,14 @@ export interface TeamBattleDto {
     type: 'classroom' | 'manual';
     classroomId?: string;
     score: number;
-    members: { id: string; name: string }[];
+    members: { id: string; name: string; score: number }[];
   };
   teamB: {
     name: string;
     type: 'classroom' | 'manual';
     classroomId?: string;
     score: number;
-    members: { id: string; name: string }[];
+    members: { id: string; name: string; score: number }[];
   };
   rounds: number;
   currentRound: number;
@@ -584,6 +584,16 @@ export interface TeamBattleDto {
   roomCode: string | null;
   startsAt: string;
   createdBy: string;
+}
+
+export interface TeamBattleStanding {
+  batch: string;
+  played: number;
+  won: number;
+  lost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  winRate: number;
 }
 
 export interface ArenaBattleGenderQuestion {
