@@ -299,11 +299,77 @@ function assertMondaySyncConfigured() {
   }
 }
 
+function normalizeMondayApiToken(raw) {
+  const token = String(raw || '').trim();
+  if (!token) return '';
+  return token.replace(/^Bearer\s+/i, '');
+}
+
+function normalizeMondayBoardId(raw) {
+  return String(raw || '').trim().replace(/^board[-_]?/i, '');
+}
+
+function formatMondayApiFailure(status, data) {
+  if (data?.errors?.length) {
+    return `Monday.com API error: ${data.errors.map((e) => e.message).join('; ')}`;
+  }
+  if (data?.error_message) {
+    return `Monday.com API error: ${data.error_message}`;
+  }
+  if (typeof data === 'string' && data.trim()) {
+    return `Monday.com API error (${status}): ${data.trim()}`;
+  }
+  if (data && typeof data === 'object') {
+    return `Monday.com API error (${status}): ${JSON.stringify(data)}`;
+  }
+  return `Monday.com API request failed (HTTP ${status})`;
+}
+
+async function postMondayGraphQL(query, variables, token) {
+  try {
+    const response = await axios.post(
+      'https://api.monday.com/v2',
+      { query, variables },
+      {
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/json',
+        },
+        validateStatus: () => true,
+      }
+    );
+
+    if (response.status >= 400) {
+      console.error('[Monday API] HTTP', response.status, response.data);
+      throw new Error(formatMondayApiFailure(response.status, response.data));
+    }
+
+    if (response.data?.errors?.length) {
+      console.error('[Monday API] GraphQL errors', response.data.errors);
+      throw new Error(formatMondayApiFailure(response.status, response.data));
+    }
+
+    return response;
+  } catch (err) {
+    if (err.response) {
+      console.error('[Monday API] HTTP', err.response.status, err.response.data);
+      throw new Error(formatMondayApiFailure(err.response.status, err.response.data));
+    }
+    throw err;
+  }
+}
+
 /** Paginated fetch of all items on the CRM board; throws with actionable errors on misconfiguration. */
 async function fetchAllMondayBoardItems() {
   assertMondaySyncConfigured();
-  const boardId = process.env.MONDAY_BOARD_ID;
-  const token = process.env.MONDAY_API_TOKEN;
+  const boardId = normalizeMondayBoardId(process.env.MONDAY_BOARD_ID);
+  const token = normalizeMondayApiToken(process.env.MONDAY_API_TOKEN);
+  if (!boardId) {
+    throw new Error('MONDAY_BOARD_ID is empty after trimming. Set a valid Monday board ID.');
+  }
+  if (!token) {
+    throw new Error('MONDAY_API_TOKEN is empty after trimming. Set a valid Monday API token.');
+  }
 
   let allItems = [];
   let cursor = null;
@@ -311,22 +377,22 @@ async function fetchAllMondayBoardItems() {
 
   while (hasMore) {
     const query = cursor
-      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } } }`
-      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } } }`;
+      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
+      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
     const variables = cursor ? { boardId: [boardId], cursor } : { boardId: [boardId] };
-    const response = await axios.post(
-      'https://api.monday.com/v2',
-      { query, variables },
-      { headers: { Authorization: token, 'Content-Type': 'application/json' } }
-    );
+    const response = await postMondayGraphQL(query, variables, token);
 
-    if (response.data?.errors?.length) {
-      const msg = response.data.errors.map((e) => e.message).join('; ');
-      throw new Error(`Monday.com API error: ${msg}`);
-    }
-
+    const gqlErrors = response.data?.errors || [];
     const board = response.data?.data?.boards?.[0];
     if (!board) {
+      const unauthorized = gqlErrors.find(
+        (e) => e.extensions?.code === 'USER_UNAUTHORIZED' || /unauthorized/i.test(e.message || '')
+      );
+      if (unauthorized) {
+        throw new Error(
+          `Monday.com API token does not have access to board ${boardId}. Share the board with the token owner in Monday, or use an API token from a user who can view this board.`
+        );
+      }
       throw new Error(
         `Monday.com board not found or not accessible (MONDAY_BOARD_ID=${boardId}). Verify the board ID and that the API token can read this board.`
       );
