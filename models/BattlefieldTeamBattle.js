@@ -9,7 +9,7 @@ const TeamMemberSchema = new mongoose.Schema({
 const TeamSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { type: String, enum: ['classroom', 'manual'], default: 'manual' },
-  classroomId: { type: mongoose.Schema.Types.ObjectId, ref: 'ArenaClassroom', default: null },
+  classroomId: { type: String, default: null },
   members: [TeamMemberSchema],
   score: { type: Number, default: 0 },
 }, { _id: false });
