@@ -1,6 +1,7 @@
 ﻿//routes/auth.js
 
 require('dotenv').config();  // Load environment variables
+console.log('[auth] routes module loaded');
 
 const crypto = require('crypto');
 const express = require("express");
