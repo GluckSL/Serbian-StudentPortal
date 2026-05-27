@@ -37,9 +37,9 @@ export class AppComponent implements OnInit, OnDestroy {
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: NavigationEnd) => {
       const path = event.urlAfterRedirects.split('?')[0];
-      const isHomeOrLogin = path === '/home' || path === '/login' || path === '/' || path === '';
-      this.showHeader = !isHomeOrLogin;
-      this.isLoginRoute = path === '/login';
+      const isBareRoute = path === '/home' || path === '/login' || path === '/register' || path === '/' || path === '';
+      this.showHeader = !isBareRoute;
+      this.isLoginRoute = path === '/login' || path === '/register';
       this.isHomeRoute = path === '/home' || path === '/' || path === '';
       this.closeSidebar();
     });
@@ -48,9 +48,9 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.portalTracking.start();
     const initialPath = this.router.url.split('?')[0];
-    this.isLoginRoute = initialPath === '/login';
+    this.isLoginRoute = initialPath === '/login' || initialPath === '/register';
     this.isHomeRoute = initialPath === '/home' || initialPath === '/' || initialPath === '';
-    if (initialPath === '/home' || initialPath === '/login' || initialPath === '/' || initialPath === '') {
+    if (initialPath === '/home' || initialPath === '/login' || initialPath === '/register' || initialPath === '/' || initialPath === '') {
       this.showHeader = false;
     }
 
