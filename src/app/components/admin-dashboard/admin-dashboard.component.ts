@@ -258,6 +258,11 @@ export class AdminDashboardComponent implements OnInit {
 
   resendingCredentials: { [key: string]: boolean } = {};
 
+  showInviteModal = false;
+  inviteEmail = '';
+  inviteName = '';
+  inviteSending = false;
+  inviteError = '';
 
   constructor(
     private authService: AuthService,
@@ -1154,5 +1159,42 @@ export class AdminDashboardComponent implements OnInit {
     URL.revokeObjectURL(url);
 
     this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
+  }
+
+  openInviteModal(): void {
+    this.inviteEmail = '';
+    this.inviteName = '';
+    this.inviteError = '';
+    this.showInviteModal = true;
+  }
+
+  closeInviteModal(): void {
+    if (this.inviteSending) return;
+    this.showInviteModal = false;
+    this.inviteError = '';
+  }
+
+  sendRegisterInvite(): void {
+    const email = String(this.inviteEmail || '').trim();
+    if (!email || !email.includes('@')) {
+      this.inviteError = 'Please enter a valid email address.';
+      return;
+    }
+
+    this.inviteSending = true;
+    this.inviteError = '';
+    const name = String(this.inviteName || '').trim() || undefined;
+
+    this.authService.sendRegisterInvite(email, name).subscribe({
+      next: (res) => {
+        this.inviteSending = false;
+        this.showInviteModal = false;
+        this.notify.success(res?.msg || `Registration invite sent to ${email}.`);
+      },
+      error: (err) => {
+        this.inviteSending = false;
+        this.inviteError = err?.error?.msg || err?.error?.message || 'Failed to send invite. Please try again.';
+      },
+    });
   }
 }

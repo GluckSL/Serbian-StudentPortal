@@ -392,6 +392,13 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/admin/signup-link`, { email, name });
   }
 
+  sendRegisterInvite(email: string, name?: string): Observable<{ success?: boolean; msg?: string }> {
+    return this.http.post<{ success?: boolean; msg?: string }>(
+      `${this.apiUrl}/auth/admin/register-invite`,
+      { email, name }
+    );
+  }
+
   /** Sign student out, email OTP, require new password on next login (admin directory). */
   forcePasswordReset(studentId: string): Observable<{ success?: boolean; msg?: string; displayPassword?: string | null }> {
     return this.http.post<{ success?: boolean; msg?: string; displayPassword?: string | null }>(

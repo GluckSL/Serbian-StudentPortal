@@ -258,6 +258,35 @@ function buildSignupLinkEmail({ name, signupUrl }) {
   };
 }
 
+/**
+ * Admin invite email — links to the public /register wizard.
+ * @param {object} params
+ * @param {string} params.name
+ * @param {string} params.registerUrl
+ */
+function buildRegisterInviteEmail({ name, registerUrl }) {
+  return {
+    subject: 'You\'re invited to register for Glück Global',
+    html: emailHeader('Registration Invite') + `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+      <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
+        You have been invited to register for <strong>Glück Global</strong>.
+        Click the button below to enroll and complete your registration on our student portal.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr><td align="center" style="padding:8px 0 28px;">
+          <a href="${registerUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
+            Enroll
+          </a>
+        </td></tr>
+      </table>
+      <p style="margin:0 0 8px;color:#64748b;font-size:13px;">Or copy this link into your browser:</p>
+      <p style="margin:0 0 24px;word-break:break-all;font-size:12px;color:#6c3fc5;">${escapeHtml(registerUrl)}</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">If you did not expect this invitation, you can safely ignore this email.</p>
+    ` + emailFooter(),
+  };
+}
+
 // ─── Signup: email OTP verification ──────────────────────────────────────────
 
 /**
@@ -549,6 +578,7 @@ module.exports = {
   buildWelcomeOneTimePasswordEmail,
   buildForcePasswordResetEmail,
   buildSignupLinkEmail,
+  buildRegisterInviteEmail,
   buildSignupEmailOtpEmail,
   buildSignupProofReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,

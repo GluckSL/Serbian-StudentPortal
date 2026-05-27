@@ -40,6 +40,7 @@ const {
   buildPortalCredentialsEmail,
   buildWelcomeOneTimePasswordEmail,
   buildSignupLinkEmail,
+  buildRegisterInviteEmail,
   buildForcePasswordResetEmail,
 } = require('../utils/emailTemplates');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
@@ -2840,6 +2841,74 @@ router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['A
   } catch (err) {
     console.error('[POST /auth/admin/force-password-reset]', err);
     return res.status(500).json({ msg: 'Failed to initiate password reset. Please try again.' });
+  }
+});
+
+// ─── POST /admin/register-invite — invite a prospective student to /register ─
+
+router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    if (!['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, msg: 'Forbidden' });
+    }
+
+    const { name, email } = req.body || {};
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      return res.status(400).json({ success: false, msg: 'A valid email is required.' });
+    }
+
+    const existingStudent = await User.findOne({
+      email: normalizedEmail,
+      role: 'STUDENT',
+    })
+      .select('_id regNo studentStatus')
+      .lean();
+    if (existingStudent) {
+      return res.status(409).json({
+        success: false,
+        msg: 'A student account with this email already exists in the portal.',
+      });
+    }
+
+    let signupApp = await StudentSignupApplication.findOne({
+      email: normalizedEmail,
+      status: { $in: ['draft', 'email_verified', 'documents_done', 'payment_pending'] },
+    }).sort({ updatedAt: -1 });
+
+    if (!signupApp) {
+      signupApp = await StudentSignupApplication.create({
+        name: String(name || '').trim(),
+        email: normalizedEmail,
+        inviteToken: require('crypto').randomUUID(),
+      });
+    } else if (name && !signupApp.name) {
+      signupApp.name = String(name).trim();
+      await signupApp.save();
+    }
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    const registerUrl = `${frontendUrl}/register?token=${signupApp.applicationToken}`;
+    const inviteMail = buildRegisterInviteEmail({
+      name: signupApp.name || name || 'there',
+      registerUrl,
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: normalizedEmail,
+      subject: inviteMail.subject,
+      html: inviteMail.html,
+    });
+
+    return res.json({
+      success: true,
+      msg: `Registration invite sent to ${normalizedEmail}.`,
+      applicationToken: signupApp.applicationToken,
+    });
+  } catch (err) {
+    console.error('[POST /auth/admin/register-invite]', err);
+    return res.status(500).json({ success: false, msg: 'Failed to send registration invite. Please try again.' });
   }
 });
 

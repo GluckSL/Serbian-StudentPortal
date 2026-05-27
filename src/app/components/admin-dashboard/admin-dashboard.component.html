@@ -113,6 +113,9 @@
             </div>
           </div>
           <div class="action-group-right">
+            <button type="button" class="btn btn-action btn-action--primary" (click)="openInviteModal()">
+              <i class="fas fa-envelope"></i> Invite
+            </button>
             <button type="button" class="btn btn-action btn-action--ghost" routerLink="/admin/teacher-resources">
               <i class="fas fa-file-powerpoint"></i> Teacher Resources
             </button>
@@ -768,3 +771,58 @@
 </div>
 
 <div class="modal-backdrop fade" [class.show]="showBulkEditPanel" *ngIf="showBulkEditPanel"></div>
+
+<!-- Register invite modal -->
+<div class="modal fade" [class.show]="showInviteModal" [style.display]="showInviteModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-envelope"></i>
+          Invite to register
+        </h5>
+        <button type="button" class="btn-close" (click)="closeInviteModal()" [disabled]="inviteSending"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Send a registration invite email. The recipient will get an <strong>Enroll</strong> button that opens the public registration page.
+        </p>
+        <div class="mb-3">
+          <label class="form-label" for="inviteEmail">Email address <span class="text-danger">*</span></label>
+          <input
+            id="inviteEmail"
+            type="email"
+            class="form-control"
+            [(ngModel)]="inviteEmail"
+            placeholder="student@example.com"
+            [disabled]="inviteSending"
+            (keyup.enter)="sendRegisterInvite()"
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="inviteName">Name (optional)</label>
+          <input
+            id="inviteName"
+            type="text"
+            class="form-control"
+            [(ngModel)]="inviteName"
+            placeholder="Student name"
+            [disabled]="inviteSending"
+          />
+        </div>
+        <div class="alert alert-danger py-2 mb-0" *ngIf="inviteError">{{ inviteError }}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeInviteModal()" [disabled]="inviteSending">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" (click)="sendRegisterInvite()" [disabled]="inviteSending">
+          <i class="fas fa-spinner fa-spin" *ngIf="inviteSending"></i>
+          <i class="fas fa-paper-plane" *ngIf="!inviteSending"></i>
+          {{ inviteSending ? 'Sending…' : 'Invite' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop fade" [class.show]="showInviteModal" *ngIf="showInviteModal"></div>
