@@ -415,6 +415,9 @@ export class InteractiveGameService {
   cancelTeamBattle(id: string): Observable<any> {
     return this.http.post(`${this.base}/admin/battlefield/team-battles/${id}/cancel`, {});
   }
+  deleteTeamBattle(id: string): Observable<any> {
+    return this.http.delete(`${this.base}/admin/battlefield/team-battles/${id}`);
+  }
   getTeamBattleScorecard(id: string): Observable<{ success: boolean; battle: import('../glueck-arena.types').TeamBattleDto }> {
     return this.http.get<any>(`${this.base}/admin/battlefield/team-battles/${id}/scorecard`);
   }

@@ -55,27 +55,30 @@ async function startTeamBattle(battleId, adminId) {
     return { ok: false, message: 'Only creator can start' };
   }
 
+  const allPlayers = [
+    ...battle.teamA.members.map(m => ({
+      studentId: m.studentId,
+      name: m.name,
+      isConnected: false,
+    })),
+    ...battle.teamB.members.map(m => ({
+      studentId: m.studentId,
+      name: m.name,
+      isConnected: false,
+    })),
+  ];
+
   const room = await ArenaRoom.create({
     inviteCode: inviteCode(),
     hostId: adminId,
     gameSetId: battle.gameSetId,
     gameType: battle.gameType,
     roomName: battle.title,
-    isPublic: false,
+    isPublic: true,
     teamMode: true,
     teamBattleId: battle._id,
-    players: [
-      ...battle.teamA.members.map(m => ({
-        studentId: m.studentId,
-        name: m.name,
-        isConnected: false,
-      })),
-      ...battle.teamB.members.map(m => ({
-        studentId: m.studentId,
-        name: m.name,
-        isConnected: false,
-      })),
-    ],
+    maxPlayers: allPlayers.length,
+    players: allPlayers,
     status: 'lobby',
     endsAt: new Date(Date.now() + 3600000),
   });
@@ -160,6 +163,21 @@ async function getScorecard(battleId) {
   return battle;
 }
 
+async function deleteTeamBattle(battleId) {
+  const battle = await BattlefieldTeamBattle.findById(battleId);
+  if (!battle) return { ok: false, message: 'Team battle not found' };
+
+  if (battle.roomCode) {
+    await ArenaRoom.findOneAndUpdate(
+      { inviteCode: battle.roomCode },
+      { $set: { status: 'cancelled' } }
+    );
+  }
+
+  await BattlefieldTeamBattle.findByIdAndDelete(battleId);
+  return { ok: true, message: 'Deleted' };
+}
+
 async function getStandings() {
   const battles = await BattlefieldTeamBattle.find({ status: 'finished' }).lean();
   const batchMap = {};
@@ -213,4 +231,5 @@ module.exports = {
   listTeamBattles,
   getScorecard,
   getStandings,
+  deleteTeamBattle,
 };

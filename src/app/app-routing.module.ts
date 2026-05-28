@@ -538,6 +538,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/glueck-arena/components/battlefield-room/battlefield-room.component').then(m => m.BattlefieldRoomComponent),
       },
       {
+        path: 'multiplayer',
+        loadComponent: () => import('./features/glueck-arena/components/multiplayer-lobby/multiplayer-lobby.component').then(m => m.MultiplayerLobbyComponent),
+      },
+      {
+        path: 'multiplayer/battle',
+        loadComponent: () => import('./features/glueck-arena/components/multiplayer-battle/multiplayer-battle.component').then(m => m.MultiplayerBattleComponent),
+      },
+      {
+        path: 'multiplayer/spectate',
+        loadComponent: () => import('./features/glueck-arena/components/spectator-watch/spectator-watch.component').then(m => m.SpectatorWatchComponent),
+      },
+      {
         path: ':id/play',
         loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
       },

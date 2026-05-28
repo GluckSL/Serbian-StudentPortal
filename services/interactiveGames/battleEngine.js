@@ -418,7 +418,7 @@ async function submitBattleAnswer(roomId, studentId, payload, buildLeaderboardFn
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : Math.max(0, correctCount * 2) };
     if (!isCorrect) revealCorrect = { sentence: tokens.join(' | ') };
   } else if (room.gameType === 'flapjugation') {
-    const pronounIndex = { ich: 0, du: 1, 'er/sie/es': 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
+    const pronounIndex = { ich: 0, du: 1, er: 2, sie: 2, es: 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
     const correctForm = (qDoc.tokens || [])[pronounIndex];
     const userForm = (payload.typedWord || '').toLowerCase().trim();
     const isCorrect = pronounIndex != null && correctForm && userForm === correctForm.toLowerCase().trim();

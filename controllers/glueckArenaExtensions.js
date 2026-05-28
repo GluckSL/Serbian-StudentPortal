@@ -658,6 +658,14 @@ exports.getTeamBattleStandings = async (req, res) => {
   } catch (err) { serverError(res, err); }
 };
 
+exports.deleteTeamBattle = async (req, res) => {
+  try {
+    const result = await teamBattleService.deleteTeamBattle(req.params.id);
+    if (!result.ok) return res.status(404).json({ success: false, message: result.message });
+    res.json({ success: true, message: 'Team battle deleted' });
+  } catch (err) { serverError(res, err); }
+};
+
 exports.cancelTeamBattle = async (req, res) => {
   try {
     const battle = await require('../models/BattlefieldTeamBattle').findById(req.params.id);

@@ -477,7 +477,8 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
   }
 
   onAnswer(payload: any) {
-    this.socket.submitBattleAnswer(payload);
+    if (!this.currentRound) return;
+    this.socket.submitBattleAnswer({ roundIndex: this.currentRound.roundIndex, ...payload });
   }
 
   rematch() {

@@ -223,6 +223,7 @@ async function beginPlaying(code, io) {
       pairs: q.pairs || [],
       imageUrl: q.imageUrl || null,
       translation: q.translation || '',
+      category: q.category || '',
     })),
   };
   room.currentQuestionIndex = 0;
@@ -352,12 +353,19 @@ function submitAnswer(code, studentId, payload, io) {
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : Math.max(0, correctCount * 2) };
     if (!isCorrect) revealCorrect = { sentence: tokens.join(' | ') };
   } else if (room.gameType === 'flapjugation') {
-    const pronounIndex = { ich: 0, du: 1, 'er/sie/es': 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
+    const pronounIndex = { ich: 0, du: 1, er: 2, sie: 2, es: 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
     const correctForm = (qDoc.tokens || [])[pronounIndex];
     const userForm = (payload.typedWord || '').toLowerCase().trim();
     const isCorrect = pronounIndex != null && correctForm && userForm === correctForm.toLowerCase().trim();
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
     if (!isCorrect) revealCorrect = { word: correctForm || qDoc.word || '' };
+  } else if (room.gameType === 'whackawort') {
+    const targetCategory = (qDoc.category || '').toLowerCase().trim();
+    const tappedWord = (payload.word || '').toLowerCase().trim();
+    const tappedCategory = (payload.category || '').toLowerCase().trim();
+    const isCorrect = tappedCategory === targetCategory;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: `Category: ${qDoc.category || ''}` };
   } else {
     return { ok: false, message: 'Unsupported game type' };
   }
@@ -506,6 +514,7 @@ function listPublicRooms() {
         status: room.status,
         isPublic: true,
         hasPassword: !!room.password,
+        teamMode: !!room.teamMode,
       });
     }
   }
@@ -677,6 +686,14 @@ function sanitizeQuestionForClient(q, gameType, index) {
       infinitive: q.word || '',
       forms: q.tokens || [],
       translation: q.translation || '',
+    };
+  }
+  if (gameType === 'whackawort') {
+    return {
+      questionId: String(q._id),
+      index,
+      word: q.word || '',
+      category: q.category || '',
     };
   }
   return { questionId: String(q._id), index };

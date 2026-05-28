@@ -91,6 +91,7 @@ router.get('/admin/battlefield/team-battles/standings', verifyToken, checkRole([
 router.get('/admin/battlefield/team-battles/:id/scorecard', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.getTeamBattleScorecard);
 router.post('/admin/battlefield/team-battles/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.startTeamBattle);
 router.post('/admin/battlefield/team-battles/:id/cancel', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.cancelTeamBattle);
+router.delete('/admin/battlefield/team-battles/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.deleteTeamBattle);
 
 router.post('/matchmaking/join', verifyToken, checkRole(['STUDENT']), gaExt.joinMatchmaking);
 router.post('/matchmaking/leave', verifyToken, checkRole(['STUDENT']), gaExt.leaveMatchmaking);

@@ -388,6 +388,12 @@ export class ArenaSocketService implements OnDestroy {
 
     orderedTokens?: string[];
 
+    pronoun?: string;
+
+    word?: string;
+
+    category?: string;
+
   }): void {
 
     if (!this.roomCode) return;

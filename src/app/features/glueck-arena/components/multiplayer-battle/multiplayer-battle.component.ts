@@ -18,6 +18,10 @@ import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/se
 
 import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
 import { WhackawortMpComponent } from '../../engines/whackawort-mp/whackawort-mp.component';
+import { ImageMatchingMpComponent } from '../../engines/image-matching-mp/image-matching-mp.component';
+import { GenderStackMpComponent } from '../../engines/gender-stack-mp/gender-stack-mp.component';
+import { FlashCardsMpComponent } from '../../engines/flash-cards-mp/flash-cards-mp.component';
+import { MatchingMpComponent } from '../../engines/matching-mp/matching-mp.component';
 
 import { NotificationService } from '../../../../services/notification.service';
 
@@ -63,6 +67,10 @@ import {
 
     FlapjugationMpComponent,
     WhackawortMpComponent,
+    ImageMatchingMpComponent,
+    GenderStackMpComponent,
+    FlashCardsMpComponent,
+    MatchingMpComponent,
 
   ],
 
@@ -124,7 +132,7 @@ import {
 
         <div class="mpb__player" *ngFor="let p of room.players">
 
-          <span class="mpb__avatar">{{ p.name?.charAt(0) || '?' }}</span>
+          <span class="mpb__avatar">{{ p.name.charAt(0) || '?' }}</span>
 
           <span>{{ p.name }}</span>
 
@@ -221,6 +229,62 @@ import {
           (submitAnswer)="onWhackawortSubmit($event)"
 
         ></app-whackawort-mp>
+
+        <app-image-matching-mp
+
+          *ngIf="room?.gameType === 'image_matching'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onImageMatchingSubmit($event)"
+
+        ></app-image-matching-mp>
+
+        <app-gender-stack-mp
+
+          *ngIf="room?.gameType === 'gender_stack'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onGenderStackSubmit($event)"
+
+        ></app-gender-stack-mp>
+
+        <app-flash-cards-mp
+
+          *ngIf="room?.gameType === 'flashcards'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onFlashCardsSubmit($event)"
+
+        ></app-flash-cards-mp>
+
+        <app-matching-mp
+
+          *ngIf="room?.gameType === 'matching'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onMatchingSubmit($event)"
+
+        ></app-matching-mp>
 
       </div>
 
@@ -575,6 +639,62 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
       word: e.word,
 
       category: e.category,
+
+    });
+
+  }
+
+  onImageMatchingSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+    });
+
+  }
+
+  onGenderStackSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+    });
+
+  }
+
+  onFlashCardsSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+    });
+
+  }
+
+  onMatchingSubmit(e: { orderedTokens: string[] }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      orderedTokens: e.orderedTokens,
 
     });
 

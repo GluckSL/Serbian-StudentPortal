@@ -536,6 +536,7 @@ export interface BattlefieldRoomListing {
   status: 'lobby' | 'playing';
   isPublic: boolean;
   hasPassword: boolean;
+  teamMode?: boolean;
 }
 
 export interface BattlefieldStatsDto {

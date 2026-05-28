@@ -57,6 +57,7 @@ import { Subscription } from 'rxjs';
           [class.bfhub__room-card--playing]="room.status === 'playing'">
           <div class="bfhub__room-top">
             <span class="bfhub__room-game">{{ formatGameType(room.gameType) }}</span>
+            <span class="bfhub__room-badge bfhub__room-badge--team" *ngIf="room.teamMode">Team Battle</span>
             <span class="bfhub__room-status" [class.bfhub__room-status--live]="room.status === 'playing'">
               {{ room.status === 'playing' ? 'LIVE' : 'Waiting' }}
             </span>
@@ -185,6 +186,8 @@ import { Subscription } from 'rxjs';
     .bfhub__room-card--playing { border-color: #22c55e; }
     .bfhub__room-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .bfhub__room-game { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; background: #f1f5f9; padding: 4px 10px; border-radius: 999px; }
+    .bfhub__room-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .bfhub__room-badge--team { background: #ede9fe; color: #6d28d9; }
     .bfhub__room-status { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; }
     .bfhub__room-status--live { color: #22c55e; animation: pulse-dot 1.5s ease infinite; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }

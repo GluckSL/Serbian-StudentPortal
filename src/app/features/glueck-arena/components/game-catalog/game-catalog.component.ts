@@ -172,7 +172,7 @@ function xpForLevel(level: number): number {
                 <div class="arena-filters__dropdown-item" (click)="setDiff('Advanced')">Advanced</div>
               </div>
             </div>
-          </div> -->
+          </div>
 
           <div *ngIf="loading" class="arena-grid">
             <div class="arena-card arena-card--skel" *ngFor="let _ of [1,2,3,4,5,6]"></div>
@@ -309,7 +309,7 @@ function xpForLevel(level: number): number {
       display: flex; align-items: center; justify-content: center;
       border: 1px solid rgba(255,255,255,0.15);
     }
-    .arena-hero__logo mat-icon { font-size: 32px; width: 32px; height: 32px; color: var(--arena-text); }
+    .arena-hero__logo mat-icon { font-size: 32px; width: 32px; height: 32px; color: #fff; }
     .arena-hero__lb-btn {
       display: flex; align-items: center; gap: 8px;
       padding: 10px 18px; border-radius: 12px; text-decoration: none;
@@ -472,6 +472,31 @@ function xpForLevel(level: number): number {
       font-size: 12px; font-weight: 700; color: var(--arena-text);
     }
     .arena-filters__search input::placeholder { color: #94a3b8; }
+    .arena-filters__dropdown-wrap { position: relative; }
+    .arena-filters__dropdown {
+      display: flex; align-items: center; gap: 6px;
+      height: 34px; padding: 0 12px; border-radius: 10px;
+      background: #f1f5f9; border: 1px solid transparent;
+      font-size: 12px; font-weight: 700; color: #64748b;
+      cursor: pointer; white-space: nowrap; user-select: none;
+      transition: border-color 0.15s;
+    }
+    .arena-filters__dropdown:hover { border-color: #cbd5e1; }
+    .arena-filters__dropdown mat-icon { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
+    .arena-filters__dropdown-menu {
+      position: absolute; top: calc(100% + 4px); left: 0; z-index: 100;
+      min-width: 180px; padding: 6px; border-radius: 12px;
+      background: #fff; border: 1px solid #e2e8f0;
+      box-shadow: 0 8px 28px rgba(15,23,42,0.12);
+      animation: ddFadeIn 0.15s ease;
+    }
+    @keyframes ddFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    .arena-filters__dropdown-item {
+      padding: 8px 12px; border-radius: 8px;
+      font-size: 12px; font-weight: 600; color: #334155;
+      cursor: pointer; transition: background 0.1s;
+    }
+    .arena-filters__dropdown-item:hover { background: #f1f5f9; }
     .arena-filters__select {
       margin: 0 !important; width: 130px;
     }
@@ -721,6 +746,22 @@ export class GameCatalogComponent implements OnInit {
   searchTimeout: ReturnType<typeof setTimeout> | undefined;
   myRank: number | null = null;
   eventsBanner: { icon: string; text: string }[] = [];
+  typeOpen = false;
+  levelOpen = false;
+  diffOpen = false;
+  cefrLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+  get arenaLevel(): number {
+    return this.myStats ? xpToLevel(this.myStats.totalXp) : 1;
+  }
+
+  get xpProgress(): number {
+    if (!this.myStats) return 0;
+    const level = this.arenaLevel;
+    const cur = xpForLevel(level);
+    const prev = xpForLevel(level - 1);
+    return ((this.myStats.totalXp - prev) / (cur - prev)) * 100;
+  }
 
   getTypeLabel(v: string | undefined): string { return v ? this.formatType(v as GameType) : 'Type'; }
   getLevelLabel(v: string | undefined): string { return v || 'Level'; }
@@ -823,6 +864,18 @@ export class GameCatalogComponent implements OnInit {
 
   onThumbnailError(set: GameSet): void {
     if (set?._id) this.brokenThumbnails.add(set._id);
+  }
+
+  isNew(set: GameSet): boolean {
+    if (!set?.createdAt) return false;
+    const age = Date.now() - new Date(set.createdAt).getTime();
+    return age < 7 * 24 * 60 * 60 * 1000;
+  }
+
+  bestScorePct(set: GameSet): number {
+    if (!set.studentProgress?.bestScore) return 0;
+    const max = set.questionCount * 100;
+    return Math.min(100, (set.studentProgress.bestScore / (max || 1)) * 100);
   }
 
   getTypeColor(type: GameType): string {

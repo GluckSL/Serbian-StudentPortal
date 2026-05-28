@@ -10,6 +10,8 @@ const observability = require('../services/interactiveGames/observability');
 const redisAdapter = require('../services/interactiveGames/redisAdapter');
 const battlefieldChat = require('../services/interactiveGames/battlefieldChat');
 const battlefieldRoomManager = require('../services/interactiveGames/battlefieldRoomManager');
+const teamBattleService = require('../services/interactiveGames/teamBattle');
+const ArenaRoom = require('../models/ArenaRoom');
 const config = require('../config/glueckArena');
 
 let ioInstance = null;
@@ -213,16 +215,14 @@ function initGlueckArenaSockets(httpServer) {
       io.to(`room:${code}`).emit('arena:leaderboard', { players: result.leaderboard });
     });
 
-    /** Realtime battle answer — server validates scramble/sentence */
+    /** Realtime battle answer — server validates all game types */
     socket.on('arena:battle_answer', async (payload) => {
-      const { code, roundIndex, typedWord, orderedTokens } = payload || {};
+      const { code, roundIndex } = payload || {};
       if (!code) return;
 
       const bfRoom = battlefieldRoomManager.getRoom(code);
       if (bfRoom) {
-        const result = battlefieldRoomManager.submitAnswer(code, socket.userId, {
-          roundIndex, typedWord, orderedTokens,
-        }, io);
+        const result = battlefieldRoomManager.submitAnswer(code, socket.userId, payload, io);
         if (!result.ok) return socket.emit('arena:error', { message: result.message });
         io.to(`room:${code}`).emit('arena:battle_answer_result', {
           studentId: socket.userId,
@@ -239,14 +239,25 @@ function initGlueckArenaSockets(httpServer) {
 
       const room = await multiplayerService.getRoomByCode(code);
       if (!room) return;
-      const result = await multiplayerService.submitBattleAnswer(room._id, socket.userId, {
-        roundIndex, typedWord, orderedTokens,
-      });
+      const result = await multiplayerService.submitBattleAnswer(room._id, socket.userId, payload);
       if (!result.ok) return socket.emit('arena:error', { message: result.message });
       socket.emit('arena:battle_answer_ack', {
         roundIndex,
         result: result.result,
       });
+
+      // Propagate score to team battle if this is a team-mode room
+      try {
+        const fullRoom = await ArenaRoom.findOne({ inviteCode: code.toUpperCase() });
+        if (fullRoom?.teamMode && fullRoom?.teamBattleId) {
+          teamBattleService.submitTeamAnswer(fullRoom.teamBattleId, socket.userId, {
+            points: result.result?.points || 0,
+            roundIndex,
+          }).catch(err => console.error('[teamBattle] submitTeamAnswer error:', err.message));
+        }
+      } catch (e) {
+        console.error('[teamBattle] propagate error:', e.message);
+      }
     });
 
     socket.on('arena:finish', async ({ code }) => {

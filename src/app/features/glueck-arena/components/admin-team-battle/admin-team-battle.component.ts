@@ -80,6 +80,9 @@ interface BatchSummary { batchName: string; }
             <button mat-stroked-button color="warn" (click)="cancelBattle(b._id)" *ngIf="b.status === 'pending' || b.status === 'active'">
               <mat-icon>cancel</mat-icon> {{ b.status === 'active' ? 'Cancel Room' : 'Cancel' }}
             </button>
+            <button mat-stroked-button color="warn" (click)="deleteBattle(b._id, b.title)" *ngIf="b.status !== 'active'">
+              <mat-icon>delete</mat-icon> Delete
+            </button>
           </div>
 
           <!-- Scorecard (IPL-style) -->
@@ -370,6 +373,14 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
 
   cancelBattle(id: string) {
     this.subs.push(this.svc.cancelTeamBattle(id).subscribe({
+      next: () => this.load(),
+      error: () => {},
+    }));
+  }
+
+  deleteBattle(id: string, title: string) {
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    this.subs.push(this.svc.deleteTeamBattle(id).subscribe({
       next: () => this.load(),
       error: () => {},
     }));

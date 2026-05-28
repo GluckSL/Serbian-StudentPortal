@@ -363,6 +363,7 @@ async function listPublicRooms(filters = {}) {
     status: r.status,
     isPublic: true,
     hasPassword: !!r.password,
+    teamMode: !!r.teamMode,
   }));
 }
 
