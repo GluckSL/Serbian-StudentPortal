@@ -542,3 +542,153 @@ exports.adminAuditViewer = async (req, res) => {
     res.json({ success: true, logs });
   } catch (err) { serverError(res, err); }
 };
+
+// ── Battlefield Controllers ──────────────────────────────────────────────────
+
+const battlefieldEloService = require('../services/interactiveGames/battlefieldElo');
+const teamBattleService = require('../services/interactiveGames/teamBattle');
+const battlefieldRoomManager = require('../services/interactiveGames/battlefieldRoomManager');
+
+exports.listBattlefieldRooms = async (req, res) => {
+  try {
+    const dbRooms = await multiplayerService.listPublicRooms({
+      gameType: req.query.gameType,
+      search: req.query.search,
+    });
+    const memRooms = battlefieldRoomManager.listPublicRooms();
+    const merged = [...memRooms, ...dbRooms.filter(d => !memRooms.some(m => m.inviteCode === d.inviteCode))];
+    res.json({ success: true, rooms: merged });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.createBattlefieldRoom = async (req, res) => {
+  try {
+    const { gameSetId, roomName, isPublic, password, maxPlayers } = req.body;
+    if (!gameSetId) return res.status(400).json({ success: false, message: 'gameSetId required' });
+    const result = await battlefieldRoomManager.createRoom(
+      req.user.id, req.user.name || 'Player', gameSetId, null,
+      { roomName, isPublic, password, maxPlayers }
+    );
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    res.json({ success: true, room: result.room });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.joinBattlefieldRoom = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const bfRoom = battlefieldRoomManager.getRoom(code);
+    if (bfRoom) {
+      const result = battlefieldRoomManager.joinRoom(code, req.user.id, req.user.name || 'Player');
+      if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+      return res.json({ success: true, room: result.room });
+    }
+    const room = await multiplayerService.getRoomByCode(code);
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    const result = await multiplayerService.joinRoom(req.user.id, req.user.name || 'Player', code);
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    res.json({ success: true, room: result.room });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.getBattlefieldLeaderboard = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const page = parseInt(req.query.page, 10) || 1;
+    const result = await battlefieldEloService.getLeaderboard(limit, page);
+    res.json({ success: true, ...result });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.getBattlefieldStats = async (req, res) => {
+  try {
+    const stats = await battlefieldEloService.getStats(req.user.id);
+    res.json({ success: true, stats });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.listTeamBattles = async (req, res) => {
+  try {
+    const battles = await teamBattleService.listTeamBattles({ status: req.query.status });
+    res.json({ success: true, battles });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.createTeamBattle = async (req, res) => {
+  try {
+    const result = await teamBattleService.createTeamBattle(req.user.id, req.body);
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    res.json({ success: true, battle: result.battle });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.startTeamBattle = async (req, res) => {
+  try {
+    const result = await teamBattleService.startTeamBattle(req.params.id, req.user.id);
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    res.json({ success: true, battle: result.battle, room: result.room });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.cancelBattlefieldRoom = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const bfRoom = battlefieldRoomManager.getRoom(code);
+    if (!bfRoom) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (String(bfRoom.hostId) !== String(req.user.id) && !['ADMIN', 'TEACHER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Only the host can cancel' });
+    }
+    battlefieldRoomManager.cancelRoom(code, bfRoom.hostId);
+    res.json({ success: true, message: 'Room cancelled' });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.getTeamBattleScorecard = async (req, res) => {
+  try {
+    const battle = await teamBattleService.getScorecard(req.params.id);
+    if (!battle) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, battle });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.getTeamBattleStandings = async (req, res) => {
+  try {
+    const standings = await teamBattleService.getStandings();
+    res.json({ success: true, standings });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.deleteTeamBattle = async (req, res) => {
+  try {
+    const result = await teamBattleService.deleteTeamBattle(req.params.id);
+    if (!result.ok) return res.status(404).json({ success: false, message: result.message });
+    res.json({ success: true, message: 'Team battle deleted' });
+  } catch (err) { serverError(res, err); }
+};
+
+exports.cancelTeamBattle = async (req, res) => {
+  try {
+    const battle = await require('../models/BattlefieldTeamBattle').findById(req.params.id);
+    if (!battle) return res.status(404).json({ success: false, message: 'Not found' });
+    if (String(battle.createdBy) !== String(req.user.id) && !['ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Cancel the in-memory room if it exists
+    if (battle.roomCode) {
+      battlefieldRoomManager.cancelRoom(battle.roomCode, req.user.id);
+    }
+
+    // Cancel the ArenaRoom DB record if it exists
+    if (battle.roomCode) {
+      await require('../models/ArenaRoom').findOneAndUpdate(
+        { inviteCode: battle.roomCode },
+        { $set: { status: 'cancelled' } }
+      );
+    }
+
+    battle.status = 'cancelled';
+    await battle.save();
+    res.json({ success: true, battle });
+  } catch (err) { serverError(res, err); }
+};

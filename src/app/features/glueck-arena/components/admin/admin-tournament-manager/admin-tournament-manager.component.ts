@@ -29,6 +29,8 @@ import { ArenaTournamentDto } from '../../../glueck-arena.types';
             <mat-select [(ngModel)]="form.gameType">
               <mat-option value="scramble_rush">Scramble Rush</mat-option>
               <mat-option value="sentence_builder">Sentence Builder</mat-option>
+              <mat-option value="flapjugation">Flapjugation</mat-option>
+              <mat-option value="whackawort">Whack-a-Wort</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Starts at</mat-label>

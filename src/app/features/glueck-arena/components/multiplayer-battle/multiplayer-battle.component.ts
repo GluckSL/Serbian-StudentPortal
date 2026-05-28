@@ -16,6 +16,13 @@ import { ScrambleRushMpComponent } from '../../engines/scramble-rush-mp/scramble
 
 import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/sentence-builder-mp.component';
 
+import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
+import { WhackawortMpComponent } from '../../engines/whackawort-mp/whackawort-mp.component';
+import { ImageMatchingMpComponent } from '../../engines/image-matching-mp/image-matching-mp.component';
+import { GenderStackMpComponent } from '../../engines/gender-stack-mp/gender-stack-mp.component';
+import { FlashCardsMpComponent } from '../../engines/flash-cards-mp/flash-cards-mp.component';
+import { MatchingMpComponent } from '../../engines/matching-mp/matching-mp.component';
+
 import { NotificationService } from '../../../../services/notification.service';
 
 import { AuthService } from '../../../../services/auth.service';
@@ -57,6 +64,13 @@ import {
     ScrambleRushMpComponent,
 
     SentenceBuilderMpComponent,
+
+    FlapjugationMpComponent,
+    WhackawortMpComponent,
+    ImageMatchingMpComponent,
+    GenderStackMpComponent,
+    FlashCardsMpComponent,
+    MatchingMpComponent,
 
   ],
 
@@ -118,7 +132,7 @@ import {
 
         <div class="mpb__player" *ngFor="let p of room.players">
 
-          <span class="mpb__avatar">{{ p.name?.charAt(0) || '?' }}</span>
+          <span class="mpb__avatar">{{ p.name.charAt(0) || '?' }}</span>
 
           <span>{{ p.name }}</span>
 
@@ -187,6 +201,90 @@ import {
           (submitAnswer)="onSentenceSubmit($event)"
 
         ></app-sentence-builder-mp>
+
+        <app-flapjugation-mp
+
+          *ngIf="room?.gameType === 'flapjugation'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onFlapjugationSubmit($event)"
+
+        ></app-flapjugation-mp>
+
+        <app-whackawort-mp
+
+          *ngIf="room?.gameType === 'whackawort'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onWhackawortSubmit($event)"
+
+        ></app-whackawort-mp>
+
+        <app-image-matching-mp
+
+          *ngIf="room?.gameType === 'image_matching'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onImageMatchingSubmit($event)"
+
+        ></app-image-matching-mp>
+
+        <app-gender-stack-mp
+
+          *ngIf="room?.gameType === 'gender_stack'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onGenderStackSubmit($event)"
+
+        ></app-gender-stack-mp>
+
+        <app-flash-cards-mp
+
+          *ngIf="room?.gameType === 'flashcards'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onFlashCardsSubmit($event)"
+
+        ></app-flash-cards-mp>
+
+        <app-matching-mp
+
+          *ngIf="room?.gameType === 'matching'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onMatchingSubmit($event)"
+
+        ></app-matching-mp>
 
       </div>
 
@@ -337,6 +435,8 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
     if (this.room?.gameType === 'scramble_rush') return 'Scramble Rush';
 
     if (this.room?.gameType === 'sentence_builder') return 'Sentence Builder';
+
+    if (this.room?.gameType === 'whackawort') return 'Whack-a-Wort';
 
     return 'Battle';
 
@@ -512,7 +612,93 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
 
   }
 
+  onFlapjugationSubmit(e: { typedWord: string; pronoun: string }) {
 
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+      pronoun: e.pronoun,
+
+    });
+
+  }
+
+  onWhackawortSubmit(e: { word: string; category: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      word: e.word,
+
+      category: e.category,
+
+    });
+
+  }
+
+  onImageMatchingSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+    });
+
+  }
+
+  onGenderStackSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+    });
+
+  }
+
+  onFlashCardsSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
+
+    });
+
+  }
+
+  onMatchingSubmit(e: { orderedTokens: string[] }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      orderedTokens: e.orderedTokens,
+
+    });
+
+  }
 
   copyInvite() {
 

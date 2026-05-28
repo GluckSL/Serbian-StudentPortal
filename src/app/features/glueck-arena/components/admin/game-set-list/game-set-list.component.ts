@@ -26,6 +26,9 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/analytics">
             <mat-icon>insights</mat-icon> Analytics
           </button>
+          <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/battlefield/team-battles">
+            <mat-icon>sports_kabaddi</mat-icon> Host Battlefield
+          </button>
           <button mat-raised-button color="primary" routerLink="/admin/glueck-arena/create">
             <mat-icon>add</mat-icon> New game set
           </button>
@@ -66,6 +69,8 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <div class="ga-toolbar__dropdown-item" (click)="setType('flashcards')">Flashcards</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('image_matching')">Image Matching</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('gender_stack')">Gender Stack</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('flapjugation')">Flapjugation</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('whackawort')">Whack-a-Wort</div>
           </div>
         </div>
         <div class="ga-toolbar__dropdown-wrap">
@@ -358,7 +363,8 @@ export class GameSetListComponent implements OnInit {
     const map: Record<string, string> = {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
-      gender_stack: 'Gender Stack',
+      gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
+      whackawort: 'Whack-a-Wort',
     };
     return map[t] ?? t;
   }

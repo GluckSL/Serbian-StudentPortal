@@ -58,7 +58,82 @@ function sanitizeQuestionForClient(q, gameType, index) {
       sentenceAudioUrl: q.sentenceAudioUrl || null,
     };
   }
+  if (gameType === 'image_matching') {
+    const base = { questionId: String(q._id), index, word: q.word || '' };
+    if (q.imageUrl) {
+      return { ...base, imageUrl: q.imageUrl, options: getShuffledOptions(q) };
+    }
+    if (q.pairs?.length) {
+      const pair = q.pairs[0];
+      return { ...base, imageUrl: pair.imageUrl || null, options: getShuffledOptions(q) };
+    }
+    return { ...base, options: [q.word, '…'] };
+  }
+  if (gameType === 'gender_stack') {
+    return {
+      questionId: String(q._id),
+      index,
+      word: q.word || '',
+      translation: q.translation || '',
+    };
+  }
+  if (gameType === 'flashcards') {
+    return {
+      questionId: String(q._id),
+      index,
+      prompt: q.hint || q.word || 'Translate this word',
+      hint: q.translation || '',
+    };
+  }
+  if (gameType === 'matching') {
+    const tokens = (q.tokens?.length ? q.tokens : (q.word || '').split(',').filter(Boolean));
+    const translation = q.translation || '';
+    const pairs = tokens.map((t, i) => ({
+      id: String(i),
+      left: t.trim(),
+      right: translation ? (translation.split(',').filter(Boolean)[i] || translation) : '…',
+    }));
+    const allRight = pairs.map(p => p.right);
+    const shuffledRight = [...allRight].sort(() => Math.random() - 0.5);
+    return {
+      questionId: String(q._id),
+      index,
+      pairs,
+      shuffledLeft: tokens.map(t => t.trim()),
+      shuffledRight,
+    };
+  }
+  if (gameType === 'flapjugation') {
+    return {
+      questionId: String(q._id),
+      index,
+      infinitive: q.word || '',
+      forms: q.tokens || [],
+      translation: q.translation || '',
+    };
+  }
+  if (gameType === 'whackawort') {
+    return {
+      questionId: String(q._id),
+      index,
+      targetCategory: q.category || '',
+      words: [
+        { word: q.word || '', translation: q.translation || '', category: q.category || '' },
+      ],
+      duration: 60,
+    };
+  }
   return { questionId: String(q._id), index };
+}
+
+function getShuffledOptions(q) {
+  const correct = q.word || (q.pairs?.[0]?.word) || '';
+  const distractors = q.distractors || [];
+  // If no distractors, generate some
+  if (!distractors.length) {
+    return [correct].sort(() => Math.random() - 0.5);
+  }
+  return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
 function sanitizeBattlePublic(battle) {
@@ -130,6 +205,25 @@ async function initBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
     sanitizeQuestionForClient(q, room.gameType, idx)
   );
 
+  // For whackawort, enrich each round with distractors from other questions
+  if (room.gameType === 'whackawort') {
+    const allWords = questions.map(q => ({
+      word: q.word || '',
+      translation: q.translation || '',
+      category: q.category || '',
+    }));
+    for (let i = 0; i < sanitized.length; i++) {
+      const sq = sanitized[i];
+      const correctWord = { word: sq.words[0].word, translation: sq.words[0].translation, category: sq.words[0].category };
+      const distractors = allWords
+        .filter(w => w.category !== correctWord.category)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 8);
+      const grid = [correctWord, ...distractors].sort(() => Math.random() - 0.5);
+      sq.words = grid;
+    }
+  }
+
   const duration = roundDurationMs();
   room.battle = {
     totalRounds: sanitized.length,
@@ -146,6 +240,11 @@ async function initBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
       word: q.word,
       correctSentence: q.correctSentence,
       tokens: q.tokens,
+      articleGender: q.articleGender || null,
+      pairs: q.pairs || [],
+      imageUrl: q.imageUrl || null,
+      translation: q.translation || '',
+      category: q.category || null,
     })),
     snapshotVersion: 1,
   };
@@ -289,6 +388,49 @@ async function submitBattleAnswer(roomId, studentId, payload, buildLeaderboardFn
     if (!evalResult.isCorrect) {
       revealCorrect = { sentence: qDoc.correctSentence };
     }
+  } else if (room.gameType === 'image_matching') {
+    const correctWord = qDoc.word || (qDoc.pairs?.[0]?.word) || '';
+    const isCorrect = (payload.typedWord || '').toLowerCase().trim() === correctWord.toLowerCase().trim();
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: correctWord };
+  } else if (room.gameType === 'gender_stack') {
+    const correctGender = (qDoc.articleGender || '').toLowerCase();
+    const isCorrect = (payload.typedWord || '').toLowerCase().trim() === correctGender;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: correctGender + ' ' + (qDoc.word || '') };
+  } else if (room.gameType === 'flashcards') {
+    const correctWord = (qDoc.word || '').toLowerCase().trim();
+    const userWord = (payload.typedWord || '').toLowerCase().trim();
+    const isCorrect = userWord === correctWord || userWord.includes(correctWord) || correctWord.includes(userWord);
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: qDoc.word || '' };
+  } else if (room.gameType === 'matching') {
+    const ordered = payload.orderedTokens || [];
+    const pairs = qDoc.pairs || [];
+    const tokens = qDoc.tokens || [];
+    let correctCount = 0;
+    for (let i = 0; i < ordered.length && i < tokens.length; i++) {
+      if ((ordered[i] || '').toLowerCase().trim() === (tokens[i] || '').toLowerCase().trim()) {
+        correctCount++;
+      }
+    }
+    const isCorrect = correctCount === tokens.length;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : Math.max(0, correctCount * 2) };
+    if (!isCorrect) revealCorrect = { sentence: tokens.join(' | ') };
+  } else if (room.gameType === 'flapjugation') {
+    const pronounIndex = { ich: 0, du: 1, er: 2, sie: 2, es: 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
+    const correctForm = (qDoc.tokens || [])[pronounIndex];
+    const userForm = (payload.typedWord || '').toLowerCase().trim();
+    const isCorrect = pronounIndex != null && correctForm && userForm === correctForm.toLowerCase().trim();
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: correctForm || qDoc.word || '' };
+  } else if (room.gameType === 'whackawort') {
+    const targetCategory = (qDoc.category || '').toLowerCase().trim();
+    const tappedWord = (payload.word || '').toLowerCase().trim();
+    const tappedCategory = (payload.category || '').toLowerCase().trim();
+    const isCorrect = tappedCategory === targetCategory;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: `Category: ${qDoc.category || ''}` };
   } else {
     return { ok: false, message: 'Unsupported game type' };
   }

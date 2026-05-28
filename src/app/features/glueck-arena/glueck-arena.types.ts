@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -104,7 +104,25 @@ export interface GenderStackQuestion {
   audioUrl: string | null;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion;
+export interface FlapjugationQuestion {
+  _id: string;
+  gameType: 'flapjugation';
+  order: number;
+  word: string;
+  translation: string;
+  tokens: string[];
+}
+
+export interface WhackawortQuestion {
+  _id: string;
+  gameType: 'whackawort';
+  order: number;
+  word: string;
+  translation: string;
+  category: string;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -127,7 +145,11 @@ export interface AdminImageMatchingQuestion extends ImageMatchingQuestion {
 export interface AdminGenderStackQuestion extends GenderStackQuestion {
   articleGender: ArticleGender;
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion;
+export interface AdminFlapjugationQuestion extends FlapjugationQuestion {
+}
+export interface AdminWhackawortQuestion extends WhackawortQuestion {
+}
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -234,6 +256,8 @@ export interface StudentGameStats {
     sentence_builder: { gamesCompleted: number; bestScore: number; totalXp: number };
     image_matching: { gamesCompleted: number; bestScore: number; totalXp: number };
     gender_stack: { gamesCompleted: number; bestScore: number; totalXp: number };
+    flapjugation: { gamesCompleted: number; bestScore: number; totalXp: number };
+    whackawort: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 
@@ -360,6 +384,7 @@ export interface ArenaLeaderboardEntry {
 export interface ArenaRoomState {
   _id?: string;
   inviteCode: string;
+  roomName?: string;
   status: 'lobby' | 'countdown' | 'playing' | 'finished' | 'cancelled';
   gameType: string;
   gameSetId: string;
@@ -408,7 +433,7 @@ export interface ArenaBattleSentenceQuestion {
 export interface ArenaBattleRound {
   roundIndex: number;
   totalRounds: number;
-  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion;
+  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion;
   roundStartedAt?: string;
   roundEndsAt?: string;
   serverTime: number;
@@ -488,4 +513,132 @@ export interface AchievementDto {
   xpReward: number;
   isUnlocked: boolean;
   unlockedAt: string | null;
+}
+
+// ── Battlefield Types ─────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  userId: string;
+  userName: string;
+  message: string;
+  timestamp: number;
+  isSystem?: boolean;
+}
+
+export interface BattlefieldRoomListing {
+  inviteCode: string;
+  roomName: string;
+  gameType: GameType;
+  hostName: string;
+  hostId: string;
+  playerCount: number;
+  maxPlayers: number;
+  status: 'lobby' | 'playing';
+  isPublic: boolean;
+  hasPassword: boolean;
+  teamMode?: boolean;
+}
+
+export interface BattlefieldStatsDto {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  elo: number;
+  tier: string;
+}
+
+export interface BattlefieldLeaderboardEntry {
+  rank: number;
+  studentId: string;
+  name: string;
+  elo: number;
+  tier: string;
+  wins: number;
+  losses: number;
+  winRate: number;
+  isMe?: boolean;
+}
+
+export interface TeamBattleDto {
+  _id: string;
+  title: string;
+  gameSetId: string;
+  gameType: GameType;
+  status: 'pending' | 'active' | 'finished';
+  teamA: {
+    name: string;
+    type: 'classroom' | 'manual';
+    classroomId?: string;
+    score: number;
+    members: { id: string; name: string; score: number }[];
+  };
+  teamB: {
+    name: string;
+    type: 'classroom' | 'manual';
+    classroomId?: string;
+    score: number;
+    members: { id: string; name: string; score: number }[];
+  };
+  rounds: number;
+  currentRound: number;
+  winner: string | null;
+  roomCode: string | null;
+  startsAt: string;
+  createdBy: string;
+}
+
+export interface TeamBattleStanding {
+  batch: string;
+  played: number;
+  won: number;
+  lost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  winRate: number;
+}
+
+export interface ArenaBattleGenderQuestion {
+  questionId: string;
+  index: number;
+  word: string;
+  translation?: string;
+}
+
+export interface ArenaBattleImageQuestion {
+  questionId: string;
+  index: number;
+  imageUrl: string;
+  word: string;
+  options: string[];
+}
+
+export interface ArenaBattleFlashCardQuestion {
+  questionId: string;
+  index: number;
+  prompt: string;
+  hint?: string;
+}
+
+export interface ArenaBattleMatchingQuestion {
+  questionId: string;
+  index: number;
+  pairs: { id: string; left: string; right: string }[];
+  shuffledLeft: string[];
+  shuffledRight: string[];
+}
+
+export interface ArenaBattleFlapjugationQuestion {
+  questionId: string;
+  index: number;
+  infinitive: string;
+  forms: string[];
+  translation?: string;
+}
+
+export interface ArenaBattleWhackawortQuestion {
+  questionId: string;
+  index: number;
+  targetCategory: string;
+  words: Array<{ word: string; translation: string; category: string }>;
+  duration: number;
 }
