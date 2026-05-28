@@ -1,24 +1,14 @@
 <nav class="sidebar">
-  <!-- Mobile drawer top bar: close + brand in same layer as nav (iOS touch) -->
-  <div class="sidebar-mobile-bar">
-    <button
-      type="button"
-      class="sidebar-mobile-close"
-      aria-label="Close menu"
-      (click)="closeSidebar.emit()">
-      <span class="material-icons" aria-hidden="true">close</span>
-    </button>
-    <span class="sidebar-mobile-brand">Glück Global</span>
-  </div>
+  <!-- Animated background -->
+  <div class="sidebar__glow"></div>
+  <div class="sidebar__orbs"></div>
 
   <!-- Header -->
   <div class="sidebar-header">
     <img src="assets/gluck-logo.png" alt="Glück Global" class="sidebar-logo-img">
     <div class="brand-info">
       <div class="brand-name">Glück Global</div>
-    </div>
-    <div class="role-badge" [style.background]="badgeColor">
-      {{ userRole }}
+      <div class="role-badge" [style.background]="badgeColor">{{ userRole }}</div>
     </div>
     <button
       type="button"
@@ -49,7 +39,7 @@
       <ng-container *ngIf="group.items.length > 1">
         <div class="group-header" (click)="toggle(group.group)">
           <span>{{ group.group }}</span>
-          <span class="chevron material-icons">{{ collapsed[group.group] ? 'chevron_right' : 'expand_more' }}</span>
+          <span class="chevron material-icons" [class.collapsed]="collapsed[group.group]">expand_more</span>
         </div>
         <div class="group-items" [class.collapsed]="collapsed[group.group]">
           <ng-container *ngFor="let item of group.items; let i = index">
@@ -76,7 +66,7 @@
   <!-- Footer -->
   <div class="sidebar-footer">
     <a class="nav-item profile-link" routerLink="/profile" routerLinkActive="active" (click)="closeSidebar.emit()">
-      <div class="avatar" [style.background]="roleColor">
+      <div class="avatar">
         {{ initials }}
       </div>
       <div class="profile-info">
