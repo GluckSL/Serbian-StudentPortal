@@ -33,6 +33,12 @@ const {
   canAccessManualViaSelfPace,
   canAccessZoomViaSelfPace,
 } = require('../services/selfPace.service');
+const {
+  listCrossBatchRecordingsForStudent,
+  getActiveRulesForStudentBatch,
+  canAccessManualViaCrossBatch,
+  canAccessZoomViaCrossBatch,
+} = require('../services/journeyCrossBatchRecordingAccess.service');
 
 /** Returns true when a student has an APPROVED recording-access grant for a class. */
 async function hasApprovedGrant(studentId, meetingLinkId) {

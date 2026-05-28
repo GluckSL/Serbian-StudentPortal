@@ -247,7 +247,10 @@
                       <i class="fas fa-external-link-alt"></i> Open screenshot
                       <span *ngIf="ticket.screenshot?.originalName">({{ ticket.screenshot?.originalName }})</span>
                     </a>
-                    <img class="ha-shot__img" [src]="ticket.screenshot?.url" alt="Ticket screenshot">
+                    <img class="ha-shot__img" [src]="ticket.screenshot?.url" alt="Ticket screenshot" (error)="onScreenshotError(ticket)" *ngIf="!screenshotHasError(ticket)">
+                    <div class="ha-shot__fallback" *ngIf="screenshotHasError(ticket)">
+                      <i class="fas fa-image"></i> Screenshot unavailable
+                    </div>
                   </div>
 
                   <div class="ha-replies" *ngIf="ticket.replies?.length">

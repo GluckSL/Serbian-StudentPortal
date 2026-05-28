@@ -341,8 +341,17 @@ async function listCrossBatchRecordingsForStudent(student) {
 
     // ── Zoom recordings (mapped) ─────────────────────────────────────────────
     if (zoomMeetingIds.length) {
+      const uniqueZoomIds = [...new Set(zoomMeetingIds)];
+      for (const meetingId of uniqueZoomIds) {
+        try {
+          await autoPublishZoomRecordingIfSelfPaceMapped(meetingId);
+        } catch (pubErr) {
+          console.warn('[self-pace] auto-publish before feed merge:', pubErr.message);
+        }
+      }
+
       const meetings = await MeetingLink.find({
-        _id: { $in: [...new Set(zoomMeetingIds)] },
+        _id: { $in: uniqueZoomIds },
         status: { $ne: 'cancelled' },
       })
         .select('_id topic batch startTime duration status assignedTeacher courseDay')
@@ -467,6 +476,43 @@ async function previewRule(rule) {
   };
 }
 
+/**
+ * True when a Zoom class is mapped to any active self-pace journey day.
+ * Used to auto-publish recordings so students see them without manual admin publish.
+ */
+async function isZoomMeetingMappedToSelfPace(meetingLinkId) {
+  if (!meetingLinkId) return false;
+
+  const mappedInRule = await JourneyCrossBatchRecordingRule.exists({
+    active: true,
+    mappedZoomMeetingLinkIds: meetingLinkId,
+  });
+  if (mappedInRule) return true;
+
+  const SelfPaceJourneyDay = require('../models/SelfPaceJourneyDay');
+  const mappedInDay = await SelfPaceJourneyDay.exists({
+    active: true,
+    recordingType: 'zoom',
+    meetingLinkId,
+  });
+  return !!mappedInDay;
+}
+
+/**
+ * Publish a ready Zoom recording when it is mapped to self-pace content.
+ * @returns {Promise<boolean>} true when publish state was updated
+ */
+async function autoPublishZoomRecordingIfSelfPaceMapped(meetingLinkId) {
+  if (!meetingLinkId) return false;
+  if (!(await isZoomMeetingMappedToSelfPace(meetingLinkId))) return false;
+
+  const result = await ZoomRecording.updateOne(
+    { meetingLinkId, status: 'ready', isPublished: { $ne: true } },
+    { $set: { isPublished: true, publishedAt: new Date() } }
+  );
+  return (result.modifiedCount || 0) > 0;
+}
+
 module.exports = {
   attendanceRowCountsAsAttended,
   studentAttendedOwnBatchJourneyDay,
@@ -476,4 +522,6 @@ module.exports = {
   getAttendedCrossBatchDays,
   listCrossBatchRecordingsForStudent,
   previewRule,
+  isZoomMeetingMappedToSelfPace,
+  autoPublishZoomRecordingIfSelfPaceMapped,
 };

@@ -143,13 +143,15 @@
         </p>
 
         <div class="ltsd-breakdown" *ngIf="dayCompletion.breakdown">
-          <div
-            *ngFor="let entry of (dayCompletion.breakdown | keyvalue)"
-            class="ltsd-breakdown__chip"
-            [class.ltsd-breakdown__chip--done]="entry.value.done >= entry.value.total && entry.value.total > 0">
-            <span class="ltsd-breakdown__label">{{ entry.key }}</span>
-            <span class="ltsd-breakdown__val">{{ entry.value.done }}/{{ entry.value.total }}</span>
-          </div>
+          <ng-container *ngFor="let entry of (dayCompletion.breakdown | keyvalue)">
+            <div
+              *ngIf="entry.key !== 'Modules'"
+              class="ltsd-breakdown__chip"
+              [class.ltsd-breakdown__chip--done]="entry.value.done >= entry.value.total && entry.value.total > 0">
+              <span class="ltsd-breakdown__label">{{ entry.key }}</span>
+              <span class="ltsd-breakdown__val">{{ entry.value.done }}/{{ entry.value.total }}</span>
+            </div>
+          </ng-container>
         </div>
 
         <div *ngIf="dayCompletion.incompleteTasks.length > 0" class="ltsd-tasks">

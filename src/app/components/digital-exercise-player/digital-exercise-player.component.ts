@@ -1645,6 +1645,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
       const maxIx = this.playerQuestions.length - 1;
       this.currentIndex = Math.min(Math.max(0, draft.currentIndex), maxIx);
+      const cur = this.currentQuestion;
+      if (cur?.data?.type === 'video-pronunciation') {
+        cur.vpPlaybackEnded = false;
+      }
       this.preloadImagesAroundCurrentQuestion();
       if (!this.isVideoOnlyExercise) {
         const cap = Math.min(Math.max(0, draft.elapsedSeconds), 86400);
@@ -4504,7 +4508,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!v) return;
     pq.vpCurrentTimeSec = Number.isFinite(v.currentTime) ? v.currentTime : 0;
     const duration = Number(v.duration);
-    if (Number.isFinite(duration) && duration > 0 && duration - v.currentTime <= 0.08 && !pq.vpPlaybackEnded) {
+    if (Number.isFinite(duration) && duration > 0 && duration - v.currentTime <= 0.08 && !pq.vpPlaybackEnded && !v.paused) {
       this.onVpVideoEnded(ev, pq);
     }
   }
@@ -4515,6 +4519,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
    */
   onVpVideoEnded(ev: Event | null, pq: PlayerQuestion): void {
     if (!pq || pq.data?.type !== 'video-pronunciation') return;
+    if (pq.vpPlaybackEnded) return;
     pq.vpPlaybackEnded = true;
     const v = (ev?.target as HTMLVideoElement) || this.vpVideoElement;
     if (!v) return;

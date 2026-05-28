@@ -125,21 +125,8 @@ async function resolveStudentDisplayPassword(user, options = {}) {
     return plain;
   }
 
-  // Directory list: still try standard generated-password patterns (no extra DB lookups).
-  if (listView) {
-    if (!user.password) return null;
-    for (const candidate of passwordCandidates(user.role, user.regNo, user.createdAt)) {
-      try {
-        if (await bcrypt.compare(candidate, user.password)) {
-          if (!user.passwordRecoverable) await backfillRecoverable(user._id, candidate);
-          return candidate;
-        }
-      } catch {
-        /* ignore compare errors */
-      }
-    }
-    return null;
-  }
+  // Directory list: skip bcrypt brute-force and extra DB lookups (recoverable already tried above).
+  if (listView) return null;
 
   plain = await resolveSignupPlainPassword(user, null);
   if (plain && (await plainMatchesCurrentHash(plain, user.password))) {

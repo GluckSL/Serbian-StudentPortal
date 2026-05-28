@@ -259,8 +259,8 @@
   <section class="login-panel">
     <div class="login-panel__inner">
 
-      <!-- ── Login mode ───────────────────────────────────────────────── -->
-      <ng-container *ngIf="panelMode === 'login'">
+      <!-- ── Login form ───────────────────────────────────────────────── -->
+      <ng-container>
         <div class="login-eyes" aria-hidden="true">
           <div class="login-eye" #eyeLeft>
             <div class="login-eye__outer">
@@ -367,7 +367,7 @@
 
         <p class="login-panel__join">
           Don't have an account?
-          <a href="javascript:void(0)" (click)="panelMode = 'signup'">Register here</a>
+          <a routerLink="/register">Register here</a>
         </p>
 
         <div class="login-panel__legal" role="contentinfo">
@@ -380,10 +380,6 @@
         <p class="login-panel__copy">© {{ currentYear }} Glück Global German Study Buddy</p>
       </ng-container>
 
-      <!-- ── Signup mode ──────────────────────────────────────────────── -->
-      <ng-container *ngIf="panelMode === 'signup'">
-        <app-public-signup-wizard (backToLogin)="panelMode = 'login'"></app-public-signup-wizard>
-      </ng-container>
 
     </div>
   </section>

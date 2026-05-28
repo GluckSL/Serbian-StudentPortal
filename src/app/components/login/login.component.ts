@@ -14,12 +14,12 @@ import { isSafeReturnUrl } from '../../services/join-class-flow.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { PublicSignupWizardComponent } from '../public-signup/public-signup-wizard.component';
+
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule, RouterModule, PublicSignupWizardComponent],
+  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule, RouterModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
@@ -36,9 +36,6 @@ export class LoginComponent implements OnInit {
   checkingExistingSession = false;
   /** Safe internal path to navigate to after successful login (from ?returnUrl query param). */
   pendingReturnUrl = '';
-  /** Controls whether the right panel shows login or signup wizard */
-  panelMode: 'login' | 'signup' = 'login';
-
   // Uncertain / Withdrawal confirmation modal
   showWithdrawalModal = false;
   withdrawalStudentInfo: { studentId: string; studentName: string; batch: string; studentStatus: string; email: string; regNo: string } | null = null;

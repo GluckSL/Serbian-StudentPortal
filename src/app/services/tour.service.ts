@@ -33,8 +33,10 @@ export class TourService {
 
   private closeSidebarIfMobile(): void {
     if (this.isMobile) {
+      const closeBtn = document.querySelector('.sidebar-mobile-close') as HTMLElement;
       const overlay = document.querySelector('.sidebar-overlay') as HTMLElement;
-      if (overlay) overlay.click();
+      if (closeBtn) closeBtn.click();
+      else if (overlay) overlay.click();
     }
   }
 

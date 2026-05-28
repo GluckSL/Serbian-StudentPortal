@@ -49,6 +49,15 @@ export class HelpAdminComponent implements OnInit {
   readonly skeletonRows = Array.from({ length: 8 }, (_, i) => i);
 
   readonly statuses = ['open', 'in-progress', 'resolved', 'closed'];
+  private screenshotErrors = new Set<string>();
+
+  onScreenshotError(ticket: SupportTicket): void {
+    if (ticket._id) this.screenshotErrors.add(ticket._id);
+  }
+
+  screenshotHasError(ticket: SupportTicket): boolean {
+    return !!ticket._id && this.screenshotErrors.has(ticket._id);
+  }
 
   readonly categories = [
     { value: 'login', label: 'Login / Access Issue' },

@@ -1,6 +1,7 @@
 ﻿//routes/auth.js
 
 require('dotenv').config();  // Load environment variables
+console.log('[auth] routes module loaded');
 
 const crypto = require('crypto');
 const express = require("express");
@@ -40,6 +41,7 @@ const {
   buildPortalCredentialsEmail,
   buildWelcomeOneTimePasswordEmail,
   buildSignupLinkEmail,
+  buildRegisterInviteEmail,
   buildForcePasswordResetEmail,
 } = require('../utils/emailTemplates');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
@@ -290,6 +292,126 @@ function mondayColumnDisplay(col) {
 
 /** Sub-selection for items.column_values (items_page queries). */
 const MONDAY_COLUMN_VALUES_GQL = `id type text value ... on StatusValue { label } ... on DropdownValue { values { label } } ... on MirrorValue { display_value }`;
+
+function assertMondaySyncConfigured() {
+  if (!process.env.MONDAY_API_TOKEN || !process.env.MONDAY_BOARD_ID) {
+    throw new Error(
+      'Monday API not configured. Set MONDAY_API_TOKEN and MONDAY_BOARD_ID on the server.'
+    );
+  }
+}
+
+function normalizeMondayApiToken(raw) {
+  const token = String(raw || '').trim();
+  if (!token) return '';
+  return token.replace(/^Bearer\s+/i, '');
+}
+
+function normalizeMondayBoardId(raw) {
+  return String(raw || '').trim().replace(/^board[-_]?/i, '');
+}
+
+function formatMondayApiFailure(status, data) {
+  if (data?.errors?.length) {
+    return `Monday.com API error: ${data.errors.map((e) => e.message).join('; ')}`;
+  }
+  if (data?.error_message) {
+    return `Monday.com API error: ${data.error_message}`;
+  }
+  if (typeof data === 'string' && data.trim()) {
+    return `Monday.com API error (${status}): ${data.trim()}`;
+  }
+  if (data && typeof data === 'object') {
+    return `Monday.com API error (${status}): ${JSON.stringify(data)}`;
+  }
+  return `Monday.com API request failed (HTTP ${status})`;
+}
+
+async function postMondayGraphQL(query, variables, token) {
+  try {
+    const response = await axios.post(
+      'https://api.monday.com/v2',
+      { query, variables },
+      {
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/json',
+        },
+        validateStatus: () => true,
+      }
+    );
+
+    if (response.status >= 400) {
+      console.error('[Monday API] HTTP', response.status, response.data);
+      throw new Error(formatMondayApiFailure(response.status, response.data));
+    }
+
+    if (response.data?.errors?.length) {
+      console.error('[Monday API] GraphQL errors', response.data.errors);
+      throw new Error(formatMondayApiFailure(response.status, response.data));
+    }
+
+    return response;
+  } catch (err) {
+    if (err.response) {
+      console.error('[Monday API] HTTP', err.response.status, err.response.data);
+      throw new Error(formatMondayApiFailure(err.response.status, err.response.data));
+    }
+    throw err;
+  }
+}
+
+/** Paginated fetch of all items on the CRM board; throws with actionable errors on misconfiguration. */
+async function fetchAllMondayBoardItems() {
+  assertMondaySyncConfigured();
+  const boardId = normalizeMondayBoardId(process.env.MONDAY_BOARD_ID);
+  const token = normalizeMondayApiToken(process.env.MONDAY_API_TOKEN);
+  if (!boardId) {
+    throw new Error('MONDAY_BOARD_ID is empty after trimming. Set a valid Monday board ID.');
+  }
+  if (!token) {
+    throw new Error('MONDAY_API_TOKEN is empty after trimming. Set a valid Monday API token.');
+  }
+
+  let allItems = [];
+  let cursor = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const query = cursor
+      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
+      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
+    const variables = cursor ? { boardId: [boardId], cursor } : { boardId: [boardId] };
+    const response = await postMondayGraphQL(query, variables, token);
+
+    const gqlErrors = response.data?.errors || [];
+    const board = response.data?.data?.boards?.[0];
+    if (!board) {
+      const unauthorized = gqlErrors.find(
+        (e) => e.extensions?.code === 'USER_UNAUTHORIZED' || /unauthorized/i.test(e.message || '')
+      );
+      if (unauthorized) {
+        throw new Error(
+          `Monday.com API token does not have access to board ${boardId}. Share the board with the token owner in Monday, or use an API token from a user who can view this board.`
+        );
+      }
+      throw new Error(
+        `Monday.com board not found or not accessible (MONDAY_BOARD_ID=${boardId}). Verify the board ID and that the API token can read this board.`
+      );
+    }
+
+    const page = board.items_page;
+    if (!page) {
+      throw new Error('Monday.com returned no items_page for this board.');
+    }
+
+    allItems = allItems.concat(page.items || []);
+    cursor = page.cursor;
+    hasMore = !!cursor;
+  }
+
+  return { allItems, boardId };
+}
 
 function mondayGet(columnValues, id) {
   const col = columnValues.find((c) => c.id === id);
@@ -651,23 +773,7 @@ async function runMondaySync() {
       '⚠️ MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS is not set — documentation payment will not sync; distinct filter will stay empty until env + sync.'
     );
   }
-  const BOARD_ID = process.env.MONDAY_BOARD_ID;
-
-  let allItems = [];
-  let cursor = null;
-  let hasMore = true;
-
-  while (hasMore) {
-    const query = cursor
-      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
-      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
-    const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
-    const response = await axios.post("https://api.monday.com/v2", { query, variables }, { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } });
-    const page = response.data.data.boards[0].items_page;
-    allItems = allItems.concat(page.items);
-    cursor = page.cursor;
-    hasMore = !!cursor;
-  }
+  const { allItems, boardId: BOARD_ID } = await fetchAllMondayBoardItems();
 
   console.log(`ðŸ“‹ Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
 
@@ -878,44 +984,7 @@ router.post("/monday-sync-run", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
 // âœ… Preview Monday.com sync â€” dry run showing what would change
 router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const BOARD_ID = process.env.MONDAY_BOARD_ID;
-
-    // Fetch ALL items from the board (paginated) â€” same logic as cron
-    let allItems = [];
-    let cursor = null;
-    let hasMore = true;
-
-    while (hasMore) {
-      const query = cursor
-        ? `query ($boardId: [ID!], $cursor: String!) {
-            boards(ids: $boardId) {
-              items_page(limit: 500, cursor: $cursor) {
-                cursor
-                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
-              }
-            }
-          }`
-        : `query ($boardId: [ID!]) {
-            boards(ids: $boardId) {
-              items_page(limit: 500) {
-                cursor
-                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
-              }
-            }
-          }`;
-
-      const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
-      const response = await axios.post(
-        "https://api.monday.com/v2",
-        { query, variables },
-        { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } }
-      );
-
-      const page = response.data.data.boards[0].items_page;
-      allItems = allItems.concat(page.items);
-      cursor = page.cursor;
-      hasMore = !!cursor;
-    }
+    const { allItems } = await fetchAllMondayBoardItems();
 
     const { items: syncItems, duplicateRows, noEmail, duplicateRowsList, noEmailRows } =
       dedupeMondayItemsByEmail(allItems);
@@ -2773,6 +2842,74 @@ router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['A
   } catch (err) {
     console.error('[POST /auth/admin/force-password-reset]', err);
     return res.status(500).json({ msg: 'Failed to initiate password reset. Please try again.' });
+  }
+});
+
+// ─── POST /admin/register-invite — invite a prospective student to /register ─
+
+router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    if (!['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, msg: 'Forbidden' });
+    }
+
+    const { name, email } = req.body || {};
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      return res.status(400).json({ success: false, msg: 'A valid email is required.' });
+    }
+
+    const existingStudent = await User.findOne({
+      email: normalizedEmail,
+      role: 'STUDENT',
+    })
+      .select('_id regNo studentStatus')
+      .lean();
+    if (existingStudent) {
+      return res.status(409).json({
+        success: false,
+        msg: 'A student account with this email already exists in the portal.',
+      });
+    }
+
+    let signupApp = await StudentSignupApplication.findOne({
+      email: normalizedEmail,
+      status: { $in: ['draft', 'email_verified', 'documents_done', 'payment_pending'] },
+    }).sort({ updatedAt: -1 });
+
+    if (!signupApp) {
+      signupApp = await StudentSignupApplication.create({
+        name: String(name || '').trim(),
+        email: normalizedEmail,
+        inviteToken: require('crypto').randomUUID(),
+      });
+    } else if (name && !signupApp.name) {
+      signupApp.name = String(name).trim();
+      await signupApp.save();
+    }
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    const registerUrl = `${frontendUrl}/register?token=${signupApp.applicationToken}`;
+    const inviteMail = buildRegisterInviteEmail({
+      name: signupApp.name || name || 'there',
+      registerUrl,
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: normalizedEmail,
+      subject: inviteMail.subject,
+      html: inviteMail.html,
+    });
+
+    return res.json({
+      success: true,
+      msg: `Registration invite sent to ${normalizedEmail}.`,
+      applicationToken: signupApp.applicationToken,
+    });
+  } catch (err) {
+    console.error('[POST /auth/admin/register-invite]', err);
+    return res.status(500).json({ success: false, msg: 'Failed to send registration invite. Please try again.' });
   }
 });
 

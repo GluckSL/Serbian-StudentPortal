@@ -12,11 +12,11 @@
 
   <!-- Logged-in pages: sidebar + content -->
   <ng-container *ngIf="showSidebar">
-    <!-- Mobile hamburger (stays above drawer so it can always close) -->
+    <!-- Mobile hamburger — only when drawer closed; close lives inside sidebar drawer -->
     <button
       type="button"
       class="mobile-menu-btn"
-      [class.is-open]="sidebarOpen"
+      *ngIf="!sidebarOpen"
       (click)="toggleSidebar()"
       [attr.aria-expanded]="sidebarOpen"
       aria-controls="app-sidebar"
@@ -25,20 +25,21 @@
       <span class="menu-brand">Glück Global</span>
     </button>
 
-    <!-- Tap outside drawer to close -->
-    <div
-      class="sidebar-overlay"
-      *ngIf="sidebarOpen"
-      role="presentation"
-      (click)="closeSidebar()">
-    </div>
-
     <div class="app-shell" [class.sidebar-drawer-open]="sidebarOpen">
       <app-sidebar
         id="app-sidebar"
         [class.open]="sidebarOpen"
         (closeSidebar)="closeSidebar()">
       </app-sidebar>
+
+      <!-- Tap outside drawer to close (after sidebar in DOM so drawer stays on top on iOS) -->
+      <div
+        class="sidebar-overlay"
+        *ngIf="sidebarOpen"
+        role="presentation"
+        (click)="closeSidebar()">
+      </div>
+
       <div class="shell-content">
         <main class="main-content">
           <router-outlet></router-outlet>

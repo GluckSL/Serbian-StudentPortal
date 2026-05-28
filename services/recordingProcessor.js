@@ -740,6 +740,18 @@ async function runZoomRecordingPipeline(zoomMeetingId, downloadUrl, recordingSta
       zoomRecordingDoc.duration = meetingLink.duration ? meetingLink.duration * 60 : null;
       await zoomRecordingDoc.save();
 
+      try {
+        const { autoPublishZoomRecordingIfSelfPaceMapped } = require('./journeyCrossBatchRecordingAccess.service');
+        const published = await autoPublishZoomRecordingIfSelfPaceMapped(meetingLinkId);
+        if (published) {
+          zoomRecordingDoc.isPublished = true;
+          zoomRecordingDoc.publishedAt = new Date();
+          console.log(`📢 Auto-published self-pace recording for meeting ${meetingLinkId}`);
+        }
+      } catch (pubErr) {
+        console.warn(`⚠️  Self-pace auto-publish skipped for meeting ${meetingLinkId}:`, pubErr.message);
+      }
+
       console.log(`✅ HLS recording ready: ${hlsKey}`);
       return { success: true, hlsKey, meetingLinkId };
     } catch (err) {

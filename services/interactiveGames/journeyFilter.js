@@ -11,7 +11,7 @@ const {
 } = require('../../utils/journeyContentBlock');
 
 async function loadStudent(studentId) {
-  return User.findById(studentId).select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
+  return User.findById(studentId).select('batch level subscription goStatus currentCourseDay blockedJourneyLevels role').lean();
 }
 
 /**

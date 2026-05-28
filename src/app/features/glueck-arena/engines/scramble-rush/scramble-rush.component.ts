@@ -1145,6 +1145,8 @@ const DEADLINE_Y = 88;
 
       box-shadow: 0 0 24px rgba(56, 189, 248, 0.1);
 
+      overflow: hidden;
+
       transition: border-color 0.2s, box-shadow 0.2s;
 
     }
@@ -1186,6 +1188,8 @@ const DEADLINE_Y = 88;
     .sr__input {
 
       flex: 1;
+
+      min-width: 0;
 
       border: none;
 

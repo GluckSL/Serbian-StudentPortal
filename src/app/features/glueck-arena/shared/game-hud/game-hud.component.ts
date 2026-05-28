@@ -15,7 +15,7 @@ import { MaterialModule } from '../../../../shared/material.module';
           class="hud__life"
           [class.hud__life--lost]="h > lives"
           [attr.aria-label]="h <= lives ? 'Life active' : 'Life used'"
-        ><span class="hud__life-emoji" aria-hidden="true">😊</span></span>
+        ><mat-icon class="hud__life-icon" aria-hidden="true">sentiment_very_satisfied</mat-icon></span>
       </div>
 
       <!-- Score -->
@@ -66,9 +66,10 @@ import { MaterialModule } from '../../../../shared/material.module';
       border: 1px solid rgba(56, 189, 248, 0.35);
       transition: transform .2s ease, opacity .25s ease, filter .25s ease;
     }
-    .hud__life-emoji {
-      font-size: 22px; line-height: 1;
-      display: block;
+    .hud__life-icon {
+      font-size: 20px !important; width: 20px !important; height: 20px !important;
+      color: #fde047;
+      filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.5));
     }
     .hud__life--lost {
       opacity: 0.45;

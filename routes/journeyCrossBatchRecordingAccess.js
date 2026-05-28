@@ -10,7 +10,10 @@ const SelfPaceBatchActivation = require('../models/SelfPaceBatchActivation');
 const ClassRecording = require('../models/ClassRecording');
 const MeetingLink = require('../models/MeetingLink');
 const ZoomRecording = require('../models/ZoomRecording');
-const { previewRule } = require('../services/journeyCrossBatchRecordingAccess.service');
+const {
+  previewRule,
+  autoPublishZoomRecordingIfSelfPaceMapped,
+} = require('../services/journeyCrossBatchRecordingAccess.service');
 
 function normalizeBatchList(values) {
   if (!Array.isArray(values)) return [];
@@ -217,6 +220,13 @@ router.post('/journeys/:id/map-recording', verifyToken, requireRecordingApproval
       return res.status(400).json({ success: false, message: 'recordingType must be manual or zoom.' });
     }
     await journey.save();
+    if (rt === 'zoom') {
+      try {
+        await autoPublishZoomRecordingIfSelfPaceMapped(recordingId);
+      } catch (pubErr) {
+        console.warn('[SelfPace] auto-publish on map-recording:', pubErr.message);
+      }
+    }
     return res.json({ success: true, journey });
   } catch (err) {
     console.error('[SelfPace] POST /journeys/:id/map-recording error:', err);

@@ -251,20 +251,25 @@ export interface IMResult {
                   [class.lb__row--top1]="e.rank === 1"
                   [class.lb__row--top2]="e.rank === 2"
                   [class.lb__row--top3]="e.rank === 3">
-                  <div class="lb__rank-col">
-                    <span class="lb__medal lb__medal--1" *ngIf="e.rank === 1" title="1st place"><mat-icon>emoji_events</mat-icon></span>
-                    <span class="lb__medal lb__medal--2" *ngIf="e.rank === 2" title="2nd place"><mat-icon>military_tech</mat-icon></span>
-                    <span class="lb__medal lb__medal--3" *ngIf="e.rank === 3" title="3rd place"><mat-icon>workspace_premium</mat-icon></span>
-                    <span class="lb__rank-num" *ngIf="e.rank > 3">{{ e.rank }}</span>
-                  </div>
-                  <div class="lb__player">
-                    <span class="lb__avatar" [class.lb__avatar--top]="e.rank <= 3">{{ playerInitials(e.name) }}</span>
-                    <div class="lb__info">
-                      <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">You</span></span>
-                      <span class="lb__sub">{{ e.gamesCompleted }} games · Best {{ e.bestScore }} pts</span>
+                  <div class="lb__row-body">
+                    <div class="lb__rank-col">
+                      <span class="lb__medal lb__medal--1" *ngIf="e.rank === 1" title="1st place"><mat-icon>emoji_events</mat-icon></span>
+                      <span class="lb__medal lb__medal--2" *ngIf="e.rank === 2" title="2nd place"><mat-icon>military_tech</mat-icon></span>
+                      <span class="lb__medal lb__medal--3" *ngIf="e.rank === 3" title="3rd place"><mat-icon>workspace_premium</mat-icon></span>
+                      <span class="lb__rank-num" *ngIf="e.rank > 3">{{ e.rank }}</span>
+                    </div>
+                    <div class="lb__player">
+                      <span class="lb__avatar" [class.lb__avatar--top]="e.rank <= 3">{{ playerInitials(e.name) }}</span>
+                      <div class="lb__info">
+                        <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">You</span></span>
+                        <span class="lb__sub">{{ e.gamesCompleted }} games · Best {{ e.bestScore }} pts</span>
+                      </div>
                     </div>
                   </div>
-                  <span class="lb__xp"><mat-icon>bolt</mat-icon>{{ e.totalXp }}</span>
+                  <div class="lb__row-footer">
+                    <span class="lb__xp"><mat-icon>bolt</mat-icon>{{ e.totalXp }}</span>
+                    <span class="lb__score"><mat-icon>stars</mat-icon>{{ e.bestScore }}</span>
+                  </div>
                 </div>
               </div>
               <div class="lb__list lb__list--skel" *ngIf="lbLoading">
@@ -289,7 +294,7 @@ export interface IMResult {
     </div>
   `,
   styles: [`
-    .shell { width: 100%; max-width: min(1320px, calc(100vw - 272px)); margin: 0 auto; padding: 16px 12px; box-sizing: border-box; }
+    .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 16px 12px; box-sizing: border-box; }
     .shell-preview-banner {
       display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
       border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
@@ -307,7 +312,7 @@ export interface IMResult {
 
     .shell-game-wrap {
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
+      grid-template-columns: 280px minmax(0, 1fr) 280px;
       gap: 16px;
       align-items: start;
       width: 100%;
@@ -336,7 +341,7 @@ export interface IMResult {
     .shell-intro__main {
       position: relative; background: #fff; border-radius: 16px; overflow: hidden;
       box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
-      border: 1px solid #111;
+      border: 1px solid #e2e8f0;
       flex: 1;
     }
     .shell-intro__banner {
@@ -396,7 +401,7 @@ export interface IMResult {
     .shell-side__info {
       position: sticky; top: 16px;
       background: #fff; border-radius: 16px; padding: 24px;
-      border: 1px solid #111;
+      border: 1px solid #e2e8f0;
       box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
       overflow: hidden;
       flex: 1;
@@ -411,11 +416,11 @@ export interface IMResult {
     }
     .shell-side__back:hover { background: #e2e8f0; }
     .shell-side__back mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .sb-panel__game { text-align: center; margin-bottom: 18px; padding-top: 24px; }
+    .sb-panel__game { text-align: center; margin-bottom: 18px; }
     .sb-panel__thumb {
-      width: 100%; max-width: 220px; height: 130px; border-radius: 12px; margin: 0 auto 12px;
+      width: 100%; height: 130px; border-radius: 12px; margin: 0 auto 12px;
       display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;
-      border: 1px solid #111;
+      border: 1px solid #e2e8f0;
       box-shadow: none;
     }
     .sb-panel__thumb-img {
@@ -424,20 +429,20 @@ export interface IMResult {
     .sb-panel__thumb mat-icon { font-size: 40px; width: 40px; height: 40px; color: #fff; }
     .sb-panel__category { margin: 4px 0 0; font-size: 12px; color: #64748b; }
     .sb-panel__block--meta {
-      display: flex; flex-direction: column; gap: 6px; padding: 14px;
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 14px;
       background: #fafafa; border-radius: 10px; margin-bottom: 14px;
       border: 1px solid #e5e5e5;
     }
     .sb-panel__meta-row {
-      display: flex; align-items: center; gap: 8px; font-size: 12px; color: #475569; font-weight: 600;
+      display: flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; font-weight: 600; border: 1px solid #e5e5e5; border-radius: 4px; padding: 2px 6px;
     }
-    .sb-panel__meta-row mat-icon { font-size: 16px; width: 16px; height: 16px; color: #16a34a; }
+    .sb-panel__meta-row mat-icon { font-size: 16px; width: 16px; height: 16px; color: #f59e0b; }
     .shell-side__info h2 { margin: 0 0 3px; font-size: 14px; font-weight: 700; color: #1e293b; line-height: 1.3; }
     .sb-panel__type { margin: 0; font-size: 10px; color: #16a34a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
 
     .shell-side {
       position: relative; background: #fff; border-radius: 16px; padding: 24px;
-      border: 1px solid #111;
+      border: 1px solid #e2e8f0;
       box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
       overflow: hidden;
       flex: 1;
@@ -450,7 +455,7 @@ export interface IMResult {
       margin: 0 0 6px; font-size: 11px; font-weight: 800;
       text-transform: uppercase; letter-spacing: 0.04em; color: #475569;
     }
-    .sb-panel__block h3 mat-icon { font-size: 16px; width: 16px; height: 16px; color: #16a34a; }
+    .sb-panel__block h3 mat-icon { font-size: 16px; width: 16px; height: 16px; color: #f59e0b; }
     .sb-panel__block p { font-size: 12px; color: #64748b; line-height: 1.5; margin: 0; }
     .shell-side__lb-head {
       display: flex; align-items: center; justify-content: space-between;
@@ -463,22 +468,26 @@ export interface IMResult {
       margin: 0; font-size: 13px; font-weight: 800; color: #1e293b;
       display: flex; align-items: center; gap: 6px;
     }
-    .shell-side__lb-head h3 mat-icon { font-size: 18px; width: 18px; height: 18px; color: #16a34a; }
+    .shell-side__lb-head h3 mat-icon { font-size: 18px; width: 18px; height: 18px; color: #f59e0b; }
     .shell-side__lb-link {
       font-size: 11px; font-weight: 700; color: #15803d; text-decoration: none;
     }
     .shell-side__lb-link:hover { text-decoration: underline; }
     .shell-side .lb__list { display: flex; flex-direction: column; gap: 10px; }
     .shell-side .lb__row {
-      display: grid;
-      grid-template-columns: 34px 1fr auto;
-      gap: 10px;
-      align-items: center;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
       padding: 11px 12px;
       border-radius: 12px;
       background: #fafafa;
       border: 1px solid #e5e5e5;
       transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .shell-side .lb__row-body {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .shell-side .lb__row:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .shell-side .lb__row--top1 {
@@ -529,6 +538,18 @@ export interface IMResult {
       font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
       color: #15803d; background: #dcfce7; border: 1px solid #86efac;
     }
+    .shell-side .lb__row-footer {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 8px;
+    }
+    .shell-side .lb__score {
+      display: inline-flex; align-items: center; gap: 2px;
+      font-size: 13px; font-weight: 800; color: #92400e; white-space: nowrap;
+      padding: 4px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #fde68a;
+    }
+    .shell-side .lb__score mat-icon { font-size: 14px !important; width: 14px !important; height: 14px !important; color: #f59e0b; }
     .shell-side .lb__xp {
       display: inline-flex; align-items: center; gap: 2px;
       font-size: 13px; font-weight: 800; color: #15803d; white-space: nowrap;

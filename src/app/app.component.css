@@ -75,7 +75,7 @@ app-footer {
   box-sizing: border-box;
 }
 
-/* Mobile hamburger — above drawer (1110) so open state can always be closed */
+/* Mobile hamburger — shown only when drawer is closed (open/close lives in sidebar drawer) */
 .mobile-menu-btn {
   display: none;
   position: fixed;
@@ -112,10 +112,6 @@ app-footer {
   text-overflow: ellipsis;
 }
 
-.mobile-menu-btn.is-open {
-  background: #022a52;
-}
-
 /* Mobile overlay */
 .sidebar-overlay {
   display: none;
@@ -138,7 +134,7 @@ app-footer {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 1100;
+    z-index: 1120;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
