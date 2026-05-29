@@ -9,7 +9,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 // Get current teacher profile (GET /api/teacher/profile)
 router.get('/profile', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password').lean();
     
     res.json({
       _id: user._id,
@@ -72,7 +72,8 @@ router.get('/students', verifyToken, async (req, res) => {
       .populate({
         path: 'assignedTeacher',  
         select: 'name regNo email medium' // useful teacher info
-      });
+      })
+      .lean();
 
     res.json({ success: true, data: students });
   } catch (err) {
@@ -109,7 +110,7 @@ router.get('/:teacherId', verifyToken, async (req, res) => {
     const teacherId = req.params.teacherId;
 
     // Find teacher by ID
-    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password');
+    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password').lean();
 
     if (!teacher) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
@@ -137,7 +138,7 @@ router.get('/:teacherId', verifyToken, async (req, res) => {
 //get all teachers
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const teachers = await User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password');
+    const teachers = await User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password').lean();
     res.json({ success: true, data: teachers });
   } catch (err) {
     console.error('Error fetching teachers:', err);

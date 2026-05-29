@@ -2182,7 +2182,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     exercise.updatedAt = new Date();
 
     await exercise.save();
-    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email');
+    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email').lean();
 
     res.json(updated);
   } catch (err) {

@@ -20,7 +20,7 @@ router.post("/", async (req, res) => {
 // Get all courses
 router.get("/", async (req, res) => {
   try {
-    const courses = await Course.find();
+    const courses = await Course.find().lean();
     res.status(200).json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -79,7 +79,7 @@ router.put("/:courseId", async (req, res) => {
 //Get a specific course by ID
 router.get("/:courseId", async (req, res) => {
   try {
-    const course = await Course.findById(req.params.courseId);
+    const course = await Course.findById(req.params.courseId).lean();
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }

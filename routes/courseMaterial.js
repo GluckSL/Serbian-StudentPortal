@@ -47,7 +47,7 @@ router.post("/", upload.array("files"), async (req, res) => {
 // GET all course materials
 router.get("/", async (req, res) => {
   try {
-    const materials = await CourseMaterial.find().populate("course");
+    const materials = await CourseMaterial.find().populate("course").lean();
     res.status(200).json({
       message: "Course materials fetched successfully.",
       data: materials,

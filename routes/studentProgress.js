@@ -652,7 +652,7 @@ router.put('/:moduleId/exercise', verifyToken, checkRole(['STUDENT', 'TEACHER'])
     }
     
     // Check if module is completed
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     const totalExercises = module.content.exercises.length;
     const completedExercises = progress.exercisesCompleted.filter(ex => ex.isCompleted).length;
     

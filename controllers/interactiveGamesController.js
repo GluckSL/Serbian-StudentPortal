@@ -316,7 +316,7 @@ exports.startAttempt = async (req, res) => {
 
 exports.submitSentenceSlot = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -337,7 +337,7 @@ exports.submitSentenceSlot = async (req, res) => {
 
     const question = await GameQuestion.findOne({
       _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
-    });
+    }).lean();
     if (!question) return notFound(res, 'Question not found');
 
     const result = sentenceBuilderService.evaluateSlot(question, slotIndex, token);
@@ -407,7 +407,7 @@ exports.submitSentenceSlot = async (req, res) => {
 
 exports.submitImageMatchSlot = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -430,7 +430,7 @@ exports.submitImageMatchSlot = async (req, res) => {
 
     const question = await GameQuestion.findOne({
       _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
-    });
+    }).lean();
     if (!question) return notFound(res, 'Question not found');
 
     const result = imageMatchingService.evaluateMatch(question, word, pairIndex);
@@ -462,7 +462,7 @@ exports.submitImageMatchSlot = async (req, res) => {
         attemptId: attempt._id,
         questionId: question._id,
         slotIndex: pairIndex,
-      });
+      }).lean();
       if (existingAnswer) {
         const correctMatches = await GameAnswer.countDocuments({
           attemptId: attempt._id, isCorrect: true,
@@ -534,7 +534,7 @@ exports.submitImageMatchSlot = async (req, res) => {
 
 exports.submitAnswer = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -552,7 +552,7 @@ exports.submitAnswer = async (req, res) => {
       return res.status(validation.duplicate ? 409 : 400).json({ success: false, message: validation.message });
     }
 
-    const question = await GameQuestion.findOne({ _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true } });
+    const question = await GameQuestion.findOne({ _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true } }).lean();
     if (!question) return notFound(res, 'Question not found');
 
     // Sentence builder: allow retries after a wrong full-sentence check
@@ -658,7 +658,7 @@ exports.submitAnswer = async (req, res) => {
 
 exports.completeAttempt = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -956,7 +956,7 @@ exports.adminGetQuestions = async (req, res) => {
 
 exports.adminUpsertQuestions = async (req, res) => {
   try {
-    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
 
     const { questions } = req.body;
@@ -1086,7 +1086,7 @@ exports.adminUpsertQuestions = async (req, res) => {
 
 exports.adminUpdateQuestion = async (req, res) => {
   try {
-    const q = await GameQuestion.findById(req.params.qid);
+    const q = await GameQuestion.findById(req.params.qid).lean();
     if (!q || q.isDeleted) return notFound(res);
 
     const allowed = ['order', 'hint', 'imageUrl', 'audioUrl', 'difficultyLevel', 'fallDurationSeconds',
@@ -1146,10 +1146,7 @@ exports.adminGetLevels = async (req, res) => {
 
 exports.adminUpsertLevels = async (req, res) => {
   try {
-    const { levels } = req.body;
-    if (!Array.isArray(levels) || !levels.length) return badRequest(res, 'levels array required');
-
-    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
     if (set.gameType !== 'scramble_rush') return badRequest(res, 'Levels only apply to scramble_rush sets');
 
@@ -1317,7 +1314,7 @@ exports.adminUploadPairImage = async (req, res) => {
       return badRequest(res, 'Invalid pair index');
     }
 
-    const question = await GameQuestion.findById(req.params.qid);
+    const question = await GameQuestion.findById(req.params.qid).lean();
     if (!question) return notFound(res, 'Question not found');
     if (!question.pairs || pairIndex >= question.pairs.length) {
       return badRequest(res, 'Pair index out of range');

@@ -25,6 +25,9 @@ import { Subscription } from 'rxjs';
           <a class="bfhub__top-btn" routerLink="/glueck-arena/battlefield/leaderboard">
             <mat-icon>leaderboard</mat-icon> <span>Leaderboard</span>
           </a>
+          <div class="bfhub__top-btn" role="button" tabindex="0" (click)="openJoinDialog()" (keydown.enter)="openJoinDialog()">
+            <mat-icon>vpn_key</mat-icon> <span>Join by Code</span>
+          </div>
           <div class="bfhub__top-btn" role="button" tabindex="0" (click)="openCreateDialog()" (keydown.enter)="openCreateDialog()">
             <mat-icon>add</mat-icon> <span>Create Room</span>
           </div>
@@ -48,9 +51,6 @@ import { Subscription } from 'rxjs';
             <div class="bfhub__dropdown-item" (click)="setGameType('')">All Games</div>
             <div class="bfhub__dropdown-item" *ngFor="let gt of gameTypes" (click)="setGameType(gt)">{{ formatGameType(gt) }}</div>
           </div>
-        </div>
-        <div class="bfhub__toolbar-btn bfhub__join-btn" role="button" tabindex="0" (click)="openJoinDialog()" (keydown.enter)="openJoinDialog()">
-          <mat-icon>vpn_key</mat-icon> <span class="bfhub__join-label">Join by Code</span>
         </div>
       </div>
 
@@ -192,8 +192,6 @@ import { Subscription } from 'rxjs';
     .bfhub__toolbar-btn:hover { border-color: #cbd5e1; background: #e8ecf1; }
     .bfhub__toolbar-btn mat-icon, .bfhub__toolbar-btn .material-icons { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
     .bfhub__toolbar-btn--disabled { opacity: 0.5; pointer-events: none; }
-    .bfhub__join-btn { width: auto; gap: 6px; padding: 0 14px; font-size: 12px; font-weight: 700; }
-    .bfhub__join-btn mat-icon { flex-shrink: 0; }
     .bfhub__search-input { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 34px; border-radius: 10px; background: #f1f5f9; border: 1px solid transparent; }
     .bfhub__search-input mat-icon { color: #94a3b8; font-size: 18px; width: 18px; height: 18px; }
     .bfhub__search-input input { flex: 1; border: none; background: transparent; outline: none; font-size: 12px; font-weight: 700; color: #0f172a; }
@@ -267,8 +265,6 @@ import { Subscription } from 'rxjs';
       .bfhub__rooms { grid-template-columns: 1fr; }
       .bfhub__top-btn span { display: none; }
       .bfhub__top-btn { padding: 0; width: 34px; justify-content: center; }
-      .bfhub__join-label { display: none; }
-      .bfhub__join-btn { padding: 0; width: 34px; justify-content: center; }
     }
   `]
 })

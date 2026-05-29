@@ -158,7 +158,7 @@ async function renameBatchAcrossSystem(oldName, newName) {
   const teachers = await User.find({
     role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
     assignedBatches: { $exists: true, $ne: [] }
-  }).select('assignedBatches');
+  }).select('assignedBatches').lean();
   let teachersUpdated = 0;
   for (const t of teachers) {
     let changed = false;

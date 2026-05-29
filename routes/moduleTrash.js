@@ -53,7 +53,7 @@ router.post('/move/:moduleId', verifyToken, checkRole(['ADMIN']), async (req, re
     console.log('🗑️ Moving module to trash:', { moduleId, userId, reason });
     
     // Check if module exists and is not already deleted
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module) {
       return res.status(404).json({
         success: false,
@@ -102,7 +102,7 @@ router.post('/restore/:moduleId', verifyToken, checkRole(['ADMIN']), async (req,
     console.log('♻️ Restoring module from trash:', { moduleId, userId });
     
     // Check if module exists and is in trash
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module) {
       return res.status(404).json({
         success: false,
@@ -146,7 +146,7 @@ router.delete('/permanent/:moduleId', verifyToken, checkRole(['ADMIN']), async (
     console.log('🔥 Permanently deleting module:', { moduleId, userId });
     
     // Check if module exists and is in trash
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module) {
       return res.status(404).json({
         success: false,
@@ -197,7 +197,7 @@ router.delete('/empty', verifyToken, checkRole(['ADMIN']), async (req, res) => {
     console.log('🗑️ Emptying entire trash:', { userId });
     
     // Get count of items to be deleted
-    const trashItems = await LearningModule.find({ isDeleted: true });
+    const trashItems = await LearningModule.find({ isDeleted: true }).lean();
     const itemCount = trashItems.length;
     
     if (itemCount === 0) {
@@ -237,7 +237,7 @@ router.post('/cleanup', verifyToken, checkRole(['ADMIN']), async (req, res) => {
     const expiredItems = await LearningModule.find({
       isDeleted: true,
       scheduledDeletionDate: { $lte: new Date() }
-    });
+    }).lean();
     
     // Clean up expired items
     const result = await LearningModule.cleanupExpiredTrash();
@@ -271,7 +271,7 @@ router.get('/stats', verifyToken, checkRole(['ADMIN']), async (req, res) => {
     const now = new Date();
     
     // Get all trash items
-    const trashItems = await LearningModule.find({ isDeleted: true });
+    const trashItems = await LearningModule.find({ isDeleted: true }).lean();
     
     // Calculate statistics
     const stats = {

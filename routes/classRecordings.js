@@ -1387,7 +1387,7 @@ router.post('/:id/start-processing', verifyToken, checkRole(['ADMIN', 'TEACHER_A
       return res.status(400).json({ success: false, message: 'r2RawKey is required.' });
     }
 
-    const recording = await ClassRecording.findById(id);
+    const recording = await ClassRecording.findById(id).lean();
     if (!recording) {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
     }

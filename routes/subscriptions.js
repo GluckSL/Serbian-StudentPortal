@@ -20,7 +20,7 @@ router.post("/", async (req, res) => {
 // Get all subscriptions
 router.get("/", async (req, res) => {
   try {
-    const subscriptions = await Subscription.find().populate("userId");
+    const subscriptions = await Subscription.find().populate("userId").lean();
     res.status(200).json(subscriptions);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -30,7 +30,7 @@ router.get("/", async (req, res) => {
 // Get all subscriptions for a specific user (admin)
 router.get("/user/:userId", async (req, res) => {
   try {
-    const subscriptions = await Subscription.find({ userId: req.params.userId }).populate("userId");
+    const subscriptions = await Subscription.find({ userId: req.params.userId }).populate("userId").lean();
     res.status(200).json(subscriptions);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -62,7 +62,7 @@ router.delete("/:id", async (req, res) => {
 // Get subscriptions for the logged-in student
 router.get("/me", verifyToken, checkRole("student"), async (req, res) => {
   try {
-    const subscriptions = await Subscription.find({ userId: req.user.id });
+    const subscriptions = await Subscription.find({ userId: req.user.id }).lean();
     res.status(200).json(subscriptions);
   } catch (error) {
     res.status(500).json({ message: error.message });
