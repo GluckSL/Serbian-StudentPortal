@@ -412,16 +412,8 @@ export class StudentDocumentProfileComponent implements OnInit {
 
   openDocumentInNewTab(doc: any): void {
     if (!doc?._id || doc.fileName === 'NO_FILE_UPLOADED') return;
-    this.documentService.previewDocument(doc._id).subscribe({
-      next: (blob) => {
-        try {
-          this.documentService.openBlobInNewTab(blob, doc.mimeType || 'application/pdf');
-        } catch (e: any) {
-          this.snack.open(e?.message || 'Allow popups to view the document', 'Close', { duration: 4000 });
-        }
-      },
-      error: () => this.snack.open('Could not open document preview', 'Close', { duration: 3000 })
-    });
+    const url = this.documentService.getPreviewUrl(doc._id);
+    window.open(url, '_blank', 'noopener');
   }
 
   viewRow(row: StudentDocRow): void {
