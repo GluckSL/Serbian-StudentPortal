@@ -21,35 +21,37 @@ import { Subscription } from 'rxjs';
             <p>Create or join real-time multiplayer game rooms</p>
           </div>
         </div>
-        <div class="bfhub__actions">
-          <a mat-stroked-button routerLink="/glueck-arena/battlefield/leaderboard">
-            <mat-icon>leaderboard</mat-icon> <span class="bfhub__label">Leaderboard</span>
+        <div class="bfhub__top-actions">
+          <a class="bfhub__top-btn" routerLink="/glueck-arena/battlefield/leaderboard">
+            <mat-icon>leaderboard</mat-icon> <span>Leaderboard</span>
           </a>
-          <button mat-stroked-button (click)="openJoinDialog()">
-            <mat-icon>vpn_key</mat-icon> <span class="bfhub__label">Join by Code</span>
-          </button>
-          <button mat-stroked-button (click)="refresh()" [disabled]="loading">
-            <mat-icon>refresh</mat-icon> <span class="bfhub__label">Refresh</span>
-          </button>
-          <button mat-stroked-button (click)="openCreateDialog()">
-            <mat-icon>add</mat-icon> <span class="bfhub__label">Create Room</span>
-          </button>
+          <div class="bfhub__top-btn" role="button" tabindex="0" (click)="openCreateDialog()" (keydown.enter)="openCreateDialog()">
+            <mat-icon>add</mat-icon> <span>Create Room</span>
+          </div>
         </div>
-      </div>
+        </div>
 
-      <div class="bfhub__search">
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Search rooms</mat-label>
-          <input matInput [(ngModel)]="searchQuery" (input)="onSearch()" placeholder="Room name…">
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Game Type</mat-label>
-          <mat-select [(ngModel)]="gameTypeFilter" (selectionChange)="onFilterChange()">
-            <mat-option value="">All Games</mat-option>
-            <mat-option *ngFor="let gt of gameTypes" [value]="gt">{{ formatGameType(gt) }}</mat-option>
-          </mat-select>
-        </mat-form-field>
+      <div class="bfhub__toolbar">
+        <div class="bfhub__toolbar-btn" role="button" tabindex="0" (click)="refresh()" [class.bfhub__toolbar-btn--disabled]="loading" aria-label="Refresh" (keydown.enter)="refresh()">
+          <span class="material-icons">refresh</span>
+        </div>
+        <div class="bfhub__search-input">
+          <mat-icon>search</mat-icon>
+          <input type="search" [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Search rooms…" aria-label="Search rooms">
+        </div>
+        <div class="bfhub__dropdown-wrap">
+          <div class="bfhub__dropdown" (click)="typeOpen = !typeOpen">
+            <span>{{ gameTypeFilter ? formatGameType(gameTypeFilter) : 'All Games' }}</span>
+            <mat-icon>expand_more</mat-icon>
+          </div>
+          <div class="bfhub__dropdown-menu" *ngIf="typeOpen">
+            <div class="bfhub__dropdown-item" (click)="setGameType('')">All Games</div>
+            <div class="bfhub__dropdown-item" *ngFor="let gt of gameTypes" (click)="setGameType(gt)">{{ formatGameType(gt) }}</div>
+          </div>
+        </div>
+        <div class="bfhub__toolbar-btn bfhub__join-btn" role="button" tabindex="0" (click)="openJoinDialog()" (keydown.enter)="openJoinDialog()">
+          <mat-icon>vpn_key</mat-icon> <span class="bfhub__join-label">Join by Code</span>
+        </div>
       </div>
 
       <div class="bfhub__rooms" *ngIf="!loading && rooms.length > 0">
@@ -73,7 +75,7 @@ import { Subscription } from 'rxjs';
             <span class="bfhub__room-privacy" *ngIf="!room.isPublic">
               <mat-icon>lock</mat-icon> Private
             </span>
-            <button mat-flat-button color="primary" class="bfhub__room-join">Join</button>
+            <div class="bfhub__btn bfhub__btn--primary bfhub__room-join" role="button" tabindex="0">Join</div>
           </div>
         </div>
       </div>
@@ -82,9 +84,6 @@ import { Subscription } from 'rxjs';
         <mat-icon>meeting_room</mat-icon>
         <h3>No rooms available</h3>
         <p>Create the first room or check back later</p>
-        <button mat-raised-button color="primary" (click)="openCreateDialog()">
-          <mat-icon>add</mat-icon> Create Room
-        </button>
       </div>
 
       <div class="bfhub__loading" *ngIf="loading">
@@ -133,13 +132,12 @@ import { Subscription } from 'rxjs';
         </div>
 
         <div class="bfhub-dialog__actions">
-          <button mat-stroked-button (click)="showCreateDialog = false">Cancel</button>
-          <button mat-raised-button color="primary" (click)="createRoom()"
-            [disabled]="!newRoom.name || !newRoom.gameSetId || creating">
+          <div class="bfhub__btn" role="button" tabindex="0" (click)="showCreateDialog = false" (keydown.enter)="showCreateDialog = false">Cancel</div>
+          <div class="bfhub__btn bfhub__btn--primary" role="button" tabindex="0" (click)="createRoom()" [class.bfhub__btn--disabled]="!newRoom.name || !newRoom.gameSetId || creating" (keydown.enter)="createRoom()">
             <mat-icon *ngIf="!creating">add</mat-icon>
             <mat-spinner *ngIf="creating" diameter="20"></mat-spinner>
             Create Room
-          </button>
+          </div>
         </div>
       </div>
     </div>
@@ -154,10 +152,10 @@ import { Subscription } from 'rxjs';
             (keydown.enter)="joinByCode()" style="text-transform:uppercase;font-family:monospace;text-align:center;font-size:20px;letter-spacing:4px;font-weight:700;">
         </div>
         <div class="bfhub-dialog__actions">
-          <button mat-stroked-button (click)="showJoinDialog = false">Cancel</button>
-          <button mat-raised-button color="primary" (click)="joinByCode()" [disabled]="!joinCode.trim()">
+          <div class="bfhub__btn" role="button" tabindex="0" (click)="showJoinDialog = false" (keydown.enter)="showJoinDialog = false">Cancel</div>
+          <div class="bfhub__btn bfhub__btn--primary" role="button" tabindex="0" (click)="joinByCode()" [class.bfhub__btn--disabled]="!joinCode.trim()" (keydown.enter)="joinByCode()">
             <mat-icon>login</mat-icon> Join
-          </button>
+          </div>
         </div>
       </div>
     </div>
@@ -169,17 +167,45 @@ import { Subscription } from 'rxjs';
     .bfhub__brand mat-icon { font-size: 40px; width: 40px; height: 40px; color: #ff8f00; }
     .bfhub__brand h1 { margin: 0; font-size: 28px; font-weight: 800; color: #1e293b; }
     .bfhub__brand p { margin: 4px 0 0; font-size: 14px; color: #64748b; }
-    .bfhub__actions { display: flex; gap: 8px; margin-left: auto; }
-    .bfhub__actions button,
-    .bfhub__actions a[mat-stroked-button] {
-      display: inline-flex; align-items: center; justify-content: center;
+    .bfhub__top-actions { display: flex; gap: 8px; margin-left: auto; }
+    .bfhub__top-btn {
+      display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+      border-radius: 10px; background: #f1f5f9; border: 1px solid transparent;
+      font-size: 12px; font-weight: 700; color: #64748b;
+      cursor: pointer; white-space: nowrap; text-decoration: none;
+      box-sizing: border-box; font-family: inherit; line-height: 1;
+      -webkit-appearance: none; appearance: none;
+      transition: border-color 0.15s, background 0.15s;
     }
-    .bfhub__actions .mdc-button__label {
-      display: flex; align-items: center; gap: 6px;
+    .bfhub__top-btn:hover { border-color: #cbd5e1; background: #e8ecf1; }
+    .bfhub__top-btn mat-icon { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
+
+    .bfhub__toolbar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; padding: 12px 16px; background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; }
+    .bfhub__toolbar-btn {
+      display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+      border-radius: 10px; background: #f1f5f9; border: 1px solid transparent;
+      color: #64748b; cursor: pointer; padding: 0; margin: 0;
+      box-sizing: border-box; line-height: 1; font-family: inherit;
+      -webkit-appearance: none; appearance: none;
+      transition: border-color 0.15s, background 0.15s;
     }
-    @media (max-width: 640px) { .bfhub__label { display: none; } .bfhub__actions button, .bfhub__actions a[mat-stroked-button] { min-width: 36px; width: 36px; height: 36px; padding: 0 !important; } .bfhub__actions button .mdc-button__label, .bfhub__actions a[mat-stroked-button] .mdc-button__label { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; } .bfhub__actions mat-icon { margin: 0 !important; } }
-    .bfhub__search { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-    .bfhub__search mat-form-field { flex: 1; min-width: 180px; }
+    .bfhub__toolbar-btn:hover { border-color: #cbd5e1; background: #e8ecf1; }
+    .bfhub__toolbar-btn mat-icon, .bfhub__toolbar-btn .material-icons { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
+    .bfhub__toolbar-btn--disabled { opacity: 0.5; pointer-events: none; }
+    .bfhub__join-btn { width: auto; gap: 6px; padding: 0 14px; font-size: 12px; font-weight: 700; }
+    .bfhub__join-btn mat-icon { flex-shrink: 0; }
+    .bfhub__search-input { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 34px; border-radius: 10px; background: #f1f5f9; border: 1px solid transparent; }
+    .bfhub__search-input mat-icon { color: #94a3b8; font-size: 18px; width: 18px; height: 18px; }
+    .bfhub__search-input input { flex: 1; border: none; background: transparent; outline: none; font-size: 12px; font-weight: 700; color: #0f172a; }
+    .bfhub__search-input input::placeholder { color: #94a3b8; }
+    .bfhub__dropdown-wrap { position: relative; }
+    .bfhub__dropdown { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; background: #f1f5f9; border: 1px solid transparent; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer; white-space: nowrap; user-select: none; transition: border-color 0.15s; }
+    .bfhub__dropdown:hover { border-color: #cbd5e1; }
+    .bfhub__dropdown mat-icon { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
+    .bfhub__dropdown-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 100; min-width: 180px; padding: 6px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 8px 28px rgba(15,23,42,0.12); animation: bfhub-dd-fade 0.15s ease; }
+    @keyframes bfhub-dd-fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    .bfhub__dropdown-item { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer; transition: background 0.1s; }
+    .bfhub__dropdown-item:hover { background: #f1f5f9; }
     .bfhub__rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
     .bfhub__room-card { background: #fff; border-radius: 16px; padding: 20px; cursor: pointer; border: 2px solid #e8ecf0; transition: all .15s; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
     .bfhub__room-card:hover { border-color: #405980; box-shadow: 0 4px 16px rgba(64,89,128,.12); transform: translateY(-2px); }
@@ -200,6 +226,20 @@ import { Subscription } from 'rxjs';
     .bfhub__room-privacy { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #94a3b8; }
     .bfhub__room-privacy mat-icon { font-size: 14px; width: 14px; height: 14px; }
     .bfhub__room-join { margin-left: auto; }
+
+    .bfhub__btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      height: 34px; padding: 0 16px; border-radius: 10px; border: 1px solid transparent;
+      font-size: 13px; font-weight: 700; font-family: inherit; line-height: 1;
+      cursor: pointer; white-space: nowrap; text-decoration: none;
+      box-sizing: border-box; -webkit-appearance: none; appearance: none;
+      background: #f1f5f9; color: #475569; transition: background 0.15s, border-color 0.15s;
+    }
+    .bfhub__btn:hover { background: #e8ecf1; border-color: #cbd5e1; }
+    .bfhub__btn--primary { background: #1e3a5f; color: #fff; }
+    .bfhub__btn--primary:hover { background: #162d4a; }
+    .bfhub__btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .bfhub__btn--disabled { opacity: 0.5; pointer-events: none; }
     .bfhub__empty { text-align: center; padding: 64px 24px; color: #64748b; }
     .bfhub__empty mat-icon { font-size: 64px; width: 64px; height: 64px; opacity: 0.3; }
     .bfhub__empty h3 { margin: 16px 0 8px; }
@@ -222,7 +262,14 @@ import { Subscription } from 'rxjs';
     .bfhub-dialog--small { max-width: 380px; text-align: center; }
     .bfhub-dialog__hint { color: #64748b; font-size: 14px; margin: -12px 0 20px; }
     .bfhub-dialog__actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
-    @media (max-width: 640px) { .bfhub { padding: 16px; } .bfhub__rooms { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+      .bfhub { padding: 16px; }
+      .bfhub__rooms { grid-template-columns: 1fr; }
+      .bfhub__top-btn span { display: none; }
+      .bfhub__top-btn { padding: 0; width: 34px; justify-content: center; }
+      .bfhub__join-label { display: none; }
+      .bfhub__join-btn { padding: 0; width: 34px; justify-content: center; }
+    }
   `]
 })
 export class BattlefieldHubComponent implements OnInit, OnDestroy {
@@ -236,6 +283,7 @@ export class BattlefieldHubComponent implements OnInit, OnDestroy {
   creating = false;
   availableSets: { _id: string; title: string; gameType: string }[] = [];
   gameTypes: GameType[] = ['scramble_rush', 'sentence_builder', 'image_matching', 'gender_stack', 'flashcards', 'matching', 'flapjugation', 'whackawort'];
+  typeOpen = false;
 
   newRoom = { name: '', gameSetId: '', isPublic: true, maxPlayers: 4 };
 
@@ -282,6 +330,12 @@ export class BattlefieldHubComponent implements OnInit, OnDestroy {
   }
 
   onFilterChange() {
+    this.refresh();
+  }
+
+  setGameType(gt: string) {
+    this.gameTypeFilter = gt;
+    this.typeOpen = false;
     this.refresh();
   }
 

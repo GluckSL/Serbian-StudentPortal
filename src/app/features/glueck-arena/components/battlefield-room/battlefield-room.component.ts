@@ -64,8 +64,18 @@ import { AuthService } from '../../../../services/auth.service';
 
         <!-- 3-column layout -->
         <div class="bfroom__layout" [class.bfroom__layout--finished]="phase === 'finished'">
+          <!-- Mobile drawer toggles -->
+          <div class="bfroom__drawer-toggles">
+            <button class="bfroom__drawer-btn bfroom__drawer-btn--left" (click)="showLeftDrawer = !showLeftDrawer" aria-label="Toggle info">
+              <span class="material-icons">menu</span>
+            </button>
+            <button class="bfroom__drawer-btn bfroom__drawer-btn--right" (click)="showRightDrawer = !showRightDrawer" aria-label="Toggle chat">
+              <span class="material-icons">chat</span>
+            </button>
+          </div>
+
           <!-- LEFT: Game Info -->
-          <aside class="bfroom__left">
+          <aside class="bfroom__left" [class.bfroom__left--open]="showLeftDrawer">
             <div class="bfroom__info-card">
               <h3><mat-icon>info</mat-icon> Game Info</h3>
               <div class="bfroom__info-row">
@@ -99,26 +109,6 @@ import { AuthService } from '../../../../services/auth.service';
               </div>
             </div>
 
-            <!-- Lobby controls -->
-            <div class="bfroom__lobby-controls" *ngIf="phase === 'lobby' || phase === 'countdown'">
-              <button mat-raised-button
-                [color]="isReady ? 'warn' : 'primary'"
-                (click)="toggleReady()"
-                [disabled]="phase === 'countdown'">
-                {{ isReady ? 'Not Ready' : 'Ready' }}
-              </button>
-              <button mat-raised-button color="accent"
-                *ngIf="isHost"
-                (click)="startGame()"
-                [disabled]="phase !== 'lobby' || !allReady">
-                <mat-icon>play_arrow</mat-icon> Start Battle
-              </button>
-              <button mat-stroked-button color="warn"
-                *ngIf="isHost"
-                (click)="cancelGame()">
-                <mat-icon>cancel</mat-icon> Cancel Room
-              </button>
-            </div>
           </aside>
 
           <!-- CENTER: Game Area -->
@@ -154,6 +144,27 @@ import { AuthService } from '../../../../services/auth.service';
             <div class="bfroom__countdown" *ngIf="phase === 'countdown'">
               <div class="bfroom__countdown-num">{{ countdown }}</div>
               <span>Get ready!</span>
+            </div>
+
+            <!-- Lobby controls -->
+            <div class="bfroom__lobby-controls" *ngIf="phase === 'lobby' || phase === 'countdown'">
+              <button mat-raised-button
+                [color]="isReady ? 'warn' : 'primary'"
+                (click)="toggleReady()"
+                [disabled]="phase === 'countdown'">
+                {{ isReady ? 'Not Ready' : 'Ready' }}
+              </button>
+              <button mat-raised-button color="accent"
+                *ngIf="isHost"
+                (click)="startGame()"
+                [disabled]="phase !== 'lobby' || !allReady">
+                <mat-icon>play_arrow</mat-icon> Start Battle
+              </button>
+              <button mat-stroked-button color="warn"
+                *ngIf="isHost"
+                (click)="cancelGame()">
+                <mat-icon>cancel</mat-icon> Cancel Room
+              </button>
             </div>
 
             <!-- Playing phase - Game Engine Rendered Here -->
@@ -234,7 +245,7 @@ import { AuthService } from '../../../../services/auth.service';
           </main>
 
           <!-- RIGHT: Chat -->
-          <aside class="bfroom__right">
+          <aside class="bfroom__right" [class.bfroom__right--open]="showRightDrawer">
             <app-battlefield-chat
               [messages]="chatMessages"
               [currentUserId]="userId"
@@ -242,6 +253,9 @@ import { AuthService } from '../../../../services/auth.service';
             </app-battlefield-chat>
           </aside>
         </div>
+
+        <!-- Mobile backdrop -->
+        <div class="bfroom__backdrop" *ngIf="showLeftDrawer || showRightDrawer" (click)="showLeftDrawer = false; showRightDrawer = false"></div>
       </ng-container>
 
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
@@ -287,7 +301,7 @@ import { AuthService } from '../../../../services/auth.service';
     .bfroom__score-empty { display: flex; align-items: center; gap: 6px; padding: 24px 0; color: #94a3b8; font-size: 13px; justify-content: center; }
     .bfroom__score-empty mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
-    .bfroom__lobby-controls { padding: 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1f5f9; }
+    .bfroom__lobby-controls { padding: 16px 0; display: flex; flex-direction: row; gap: 12px; justify-content: center; }
 
     /* CENTER */
     .bfroom__center { display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 24px; flex: 1; }
@@ -332,17 +346,36 @@ import { AuthService } from '../../../../services/auth.service';
     .bfroom__finished-actions { display: flex; gap: 12px; justify-content: center; }
 
     /* RIGHT */
-    .bfroom__right { background: #fff; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; }
+    .bfroom__right { background: #fff; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: auto; }
 
-    @media (max-width: 1024px) {
-      .bfroom__layout { grid-template-columns: 200px 1fr; grid-template-rows: 1fr 280px; }
-      .bfroom__right { grid-column: 1 / -1; border-left: none; border-top: 1px solid #e2e8f0; }
+    /* Drawer toggles — hidden on desktop */
+    .bfroom__drawer-toggles { display: none; position: absolute; top: 12px; left: 12px; right: 12px; z-index: 10; justify-content: space-between; pointer-events: none; }
+    .bfroom__drawer-btn { pointer-events: all; width: 40px; height: 40px; border-radius: 50%; border: none; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #405980; }
+    .bfroom__drawer-btn .material-icons { font-size: 22px; width: 22px; height: 22px; line-height: 22px; color: #405980; }
+    .bfroom__drawer-btn--left { display: none; }
+    .bfroom__drawer-btn--right { display: none; }
+
+    /* Backdrop */
+    .bfroom__backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; animation: bf-fade-in 0.2s ease; }
+
+    @media (max-width: 994px) {
+      .bfroom__layout { grid-template-columns: 1fr; position: relative; }
+      .bfroom__left,
+      .bfroom__right { display: none; }
+      .bfroom__drawer-toggles { display: flex; }
+      .bfroom__drawer-btn--left { display: flex; }
+      .bfroom__drawer-btn--right { display: flex; }
+      .bfroom__center { padding: 60px 16px 16px; }
+
+      /* Drawer overlays */
+      .bfroom__left--open,
+      .bfroom__right--open { display: flex; position: fixed; top: 64px; bottom: 0; z-index: 110; width: 280px; background: #fff; border: none; box-shadow: 0 0 24px rgba(0,0,0,.2); animation: bf-slide-in 0.25s ease; }
+      .bfroom__left--open { left: 0; border-radius: 0 12px 12px 0; }
+      .bfroom__right--open { right: 0; border-radius: 12px 0 0 12px; }
     }
-    @media (max-width: 640px) {
-      .bfroom__layout { grid-template-columns: 1fr; grid-template-rows: auto 80dvh 260px; overflow-y: auto; }
-      .bfroom__left { border-right: none; border-bottom: 1px solid #e2e8f0; max-height: 200px; }
-      .bfroom__center { padding: 16px; }
-    }
+
+    @keyframes bf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes bf-slide-in { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   `]
 })
 export class BattlefieldRoomComponent implements OnInit, OnDestroy {
@@ -356,6 +389,8 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
   chatMessages: ChatMessage[] = [];
   showConfetti = false;
   copiedInvite = false;
+  showLeftDrawer = false;
+  showRightDrawer = false;
 
   private subs: Subscription[] = [];
   private code = '';
