@@ -29,6 +29,7 @@ const app = express();
 const path = require('path');
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require('compression');
 const dns = require('dns').promises; // uses resolvers from configureMongoDnsResolvers above
 const auth = require("./middleware/auth");
 
@@ -138,6 +139,7 @@ const upload = multer({ dest: 'uploads/' });
 
 app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx or Heroku)
 
+app.use(compression());
 
 // Zoom webhook — must be registered BEFORE express.json() so the raw body
 // is available for HMAC signature verification
@@ -283,7 +285,6 @@ app.use('/api/translate', translationRoutes);
 app.use('/api/module-trash', moduleTrashRoutes);
 app.use('/api/admin-analytics', adminAnalyticsRoutes);
 app.use('/api/zoom', zoomRoutes);
-app.use('/api', joinClassRoutes);
 app.use('/api', joinClassRoutes);
 app.use('/api/upgrade-requests', upgradeRequestsRoutes);
 app.use('/api/studentLog', studentLogRoutes);
