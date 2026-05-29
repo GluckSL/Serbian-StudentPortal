@@ -13,4 +13,6 @@ const RubricSchema = new mongoose.Schema({
   criteria: [CriterionSchema]
 });
 
+RubricSchema.index({ level: 1, taskType: 1 });
+
 module.exports = mongoose.model("Rubric", RubricSchema);

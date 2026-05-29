@@ -22,8 +22,9 @@ router.get('/dashboard', verifyToken, checkRole('STUDENT'), async (req, res) => 
     // 2. Get subscriptions
     const subscriptions = await Subscription.find({ userId: studentId });
 
-    // 3. Get enrolled courses (if Course model uses "students: [ObjectId]" structure)
-    const enrolledCourses = await Course.find({ students: studentId });
+    // 3. Get enrolled courses via CourseProgress
+    const enrolledCourseIds = await CourseProgress.find({ studentId }).distinct('courseId');
+    const enrolledCourses = enrolledCourseIds.length ? await Course.find({ _id: { $in: enrolledCourseIds } }) : [];
 
     // 4. VAPI access is part of student profile (in vapiAccess field)
 

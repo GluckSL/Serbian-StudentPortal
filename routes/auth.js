@@ -1325,7 +1325,7 @@ router.post("/signup", async (req, res) => {
           user.assignedTeacher = assignedTeacher;
         } else {
           // case 2: backend finds one automatically
-          const course = await Course.findOne({ level });
+          const course = await Course.findOne({ title: level });
           if (!course) {
             return res.status(400).json({ msg: "No course found for this level" });
           }

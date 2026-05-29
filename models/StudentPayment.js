@@ -31,4 +31,7 @@ StudentPaymentSchema.pre('save', function(next) {
   next();
 });
 
+StudentPaymentSchema.index({ studentId: 1 });
+StudentPaymentSchema.index({ email: 1 });
+
 module.exports = mongoose.model('StudentPayment', StudentPaymentSchema);

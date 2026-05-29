@@ -6,6 +6,8 @@ const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
+const Course = require('../models/Course');
+const CourseProgress = require('../models/CourseProgress');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 const { decryptPassword } = require('../utils/passwordRecoverable');
@@ -633,7 +635,8 @@ router.get("/user/:userId", verifyToken, isAdmin, async (req, res) => {
 // List all courses a student is enrolled in - GET /api/courses/enrolled/:studentId
 router.get("/enrolled/:studentId", verifyToken, isAdmin, async (req, res) => {
   try {
-    const courses = await Course.find({ students: req.params.studentId });
+    const enrolledCourseIds = await CourseProgress.find({ studentId: req.params.studentId }).distinct('courseId');
+    const courses = enrolledCourseIds.length ? await Course.find({ _id: { $in: enrolledCourseIds } }) : [];
     res.status(200).json({ success: true, data: courses });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

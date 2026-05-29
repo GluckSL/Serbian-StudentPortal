@@ -107,4 +107,6 @@ const SprechenExamModuleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+SprechenExamModuleSchema.index({ isActive: 1, visibleToStudents: 1, courseDay: 1, createdAt: 1 });
+
 module.exports = mongoose.model('SprechenExamModule', SprechenExamModuleSchema);

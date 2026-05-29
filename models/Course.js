@@ -12,4 +12,6 @@ const CourseSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+CourseSchema.index({ title: 1 });
+
 module.exports = mongoose.model("Course", CourseSchema);

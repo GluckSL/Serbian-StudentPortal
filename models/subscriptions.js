@@ -18,6 +18,8 @@ const SubscriptionSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+SubscriptionSchema.index({ userId: 1 });
+
 module.exports = mongoose.model("Subscription", SubscriptionSchema);
 
 
