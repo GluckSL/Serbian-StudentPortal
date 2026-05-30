@@ -401,8 +401,8 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   closeResourceModal(): void { this.showResourceModal = false; this.resourceMeeting = null; this.resources = []; }
 
-  viewResource(r: { fileUrl?: string }): void {
-    this.resourceService.openInBrowser(r.fileUrl || '');
+  viewResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
+    this.resourceService.viewClassResource(r);
   }
 
   downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {

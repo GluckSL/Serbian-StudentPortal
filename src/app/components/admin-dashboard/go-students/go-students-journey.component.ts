@@ -1454,8 +1454,8 @@ export class GoStudentsJourneyComponent implements OnInit {
     });
   }
 
-  viewResource(r: { fileUrl?: string }): void {
-    this.goResourceService.openInBrowser(r.fileUrl || '');
+  viewResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
+    this.goResourceService.viewResource(r);
   }
 
   downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
