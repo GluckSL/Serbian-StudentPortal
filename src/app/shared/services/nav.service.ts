@@ -81,7 +81,6 @@ export class NavService {
     {
       group: 'Learning',
       items: [
-        { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/admin-modules',             subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',          subGroup: 'Module Management' },
         { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises', icon: 'fitness_center', route: '/admin/digital-exercises',   subGroup: null },
@@ -188,7 +187,6 @@ export class NavService {
     {
       group: 'Learning',
       items: [
-        { id: 'modules',   label: 'Learning Modules', icon: 'smart_toy', route: '/learning-modules',         subGroup: 'Module Management' },
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Module Management' },
         { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null },

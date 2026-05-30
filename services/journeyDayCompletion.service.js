@@ -1,14 +1,12 @@
 /**
- * Per-day journey task completion: modules + digital exercises + live classes (attendance).
+ * Per-day journey task completion: digital exercises + live classes (attendance).
  * Used for strict batch rules (% threshold) and admin task checks.
  */
 
 const DigitalExercise = require('../models/DigitalExercise');
 const mongoose = require('mongoose');
-const LearningModule = require('../models/LearningModule');
 const MeetingLink = require('../models/MeetingLink');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
-const StudentProgress = require('../models/StudentProgress');
 const ClassRecording = require('../models/ClassRecording');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
@@ -33,8 +31,6 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const creditMeetingIds = new Set((options.creditMeetings || []).map((id) => String(id)));
   const includeRecordings = options.includeRecordings === true;
   const includeDg = options.includeDg === true;
-  /** Silver GO journey uses exercises + DG + recordings only (learning modules hidden in My Course). */
-  const includeLearningModules = options.includeLearningModules !== false;
   const studentLevel = String(options.studentLevel || '').toUpperCase().trim();
   const studentPlan = String(options.studentPlan || '').toUpperCase().trim();
   const batchNames = Array.isArray(batchNameOrNames)
@@ -45,42 +41,6 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const studentObjectId = mongoose.Types.ObjectId.isValid(String(studentId))
     ? new mongoose.Types.ObjectId(String(studentId))
     : null;
-
-  let modules = [];
-  let moduleDone = 0;
-  let moduleTotal = 0;
-  const incompleteModules = [];
-  if (includeLearningModules) {
-    modules = await LearningModule.find({
-      isDeleted: { $ne: true },
-      visibleToStudents: true,
-      courseDay: day
-    })
-      .select('_id title')
-      .lean();
-
-    const moduleIds = modules.map((m) => m._id);
-    const completedModuleIds = moduleIds.length
-      ? await StudentProgress.find({
-          studentId,
-          moduleId: { $in: moduleIds },
-          status: 'completed'
-        }).distinct('moduleId')
-      : [];
-
-    const completedModuleSet = new Set(completedModuleIds.map((id) => String(id)));
-    moduleDone = completedModuleSet.size;
-    moduleTotal = moduleIds.length;
-    for (const m of modules) {
-      if (!completedModuleSet.has(String(m._id))) {
-        incompleteModules.push({
-          kind: 'module',
-          title: m.title && String(m.title).trim() ? m.title : 'Module',
-          courseDay: day
-        });
-      }
-    }
-  }
 
   const exercises = await DigitalExercise.find({
     isDeleted: { $ne: true },
@@ -143,8 +103,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     }
   }
 
-  const totalTasks = moduleTotal + exerciseTotal + classTotal;
-  const doneTasks = moduleDone + exerciseDone + classDone;
+  const totalTasks = exerciseTotal + classTotal;
+  const doneTasks = exerciseDone + classDone;
   let recordingTotal = 0;
   let recordingDone = 0;
   const incompleteRecordings = [];
@@ -272,7 +232,7 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const finalDoneTasks = doneTasks + recordingDone + dgDone;
   const completionPercent = finalTotalTasks === 0 ? 100 : Math.floor((100 * finalDoneTasks) / finalTotalTasks);
   const complete = finalTotalTasks === 0 || finalDoneTasks === finalTotalTasks;
-  const incompleteTasks = [...incompleteModules, ...incompleteExercises, ...incompleteClasses, ...incompleteRecordings, ...incompleteDg];
+  const incompleteTasks = [...incompleteExercises, ...incompleteClasses, ...incompleteRecordings, ...incompleteDg];
 
   return {
     complete,
@@ -281,11 +241,6 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     doneTasks: finalDoneTasks,
     completionPercent,
     breakdown: {
-      modules: {
-        done: moduleDone,
-        total: moduleTotal,
-        items: modules.map((m) => ({ _id: m._id, title: m.title }))
-      },
       exercises: {
         done: exerciseDone,
         total: exerciseTotal,

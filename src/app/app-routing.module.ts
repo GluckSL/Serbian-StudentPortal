@@ -85,15 +85,6 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
-  // Admin module management route
-  {
-    path: 'admin-modules',
-    loadComponent: () => import('./components/admin-dashboard/module-management.component')
-      .then(m => m.ModuleManagementComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
-  },
-
   // Admin analytics route
   {
     path: 'admin-analytics',
@@ -224,8 +215,6 @@ export const routes: Routes = [
   { path: 'teacher/resources', loadComponent: () => import('./components/teacher-dashboard/teacher-resources.component').then(m => m.TeacherResourcesComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // New AI Tutoring System Routes
-  { path: 'learning-modules', loadComponent: () => import('./components/learning-modules/learning-modules.component').then(m => m.LearningModulesComponent), canActivate: [AuthGuard] },
-
   // Module creation/editing routes (Teachers and Admins)
   { path: 'module-creation-choice', loadComponent: () => import('./components/teacher-dashboard/module-creation-choice.component').then(m => m.ModuleCreationChoiceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'create-module', loadComponent: () => import('./components/teacher-dashboard/module-form.component').then(m => m.ModuleFormComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },

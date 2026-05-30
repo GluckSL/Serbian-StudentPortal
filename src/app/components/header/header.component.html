@@ -57,9 +57,6 @@
         </a>
       </li>
       
-      <li *ngIf="isLoggedIn() && (userRole === 'TEACHER' || userRole === 'TEACHER_ADMIN' || userRole === 'ADMIN')">
-        <a (click)="navigateTo('/learning-modules'); closeMenu()">Learning Modules</a>
-      </li>
 
       <li *ngIf="isLoggedIn() && (userRole === 'TEACHER' || userRole === 'TEACHER_ADMIN')">
         <a (click)="navigateTo('/digital-exercises'); closeMenu()"

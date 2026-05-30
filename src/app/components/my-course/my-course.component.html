@@ -387,35 +387,6 @@
           </div>
         </div>
 
-        <div class="mc-progress-card mc-progress-card--modules" tabindex="0" *ngIf="allowsLearningContent && showLearningModulesInJourney">
-          <div class="mc-progress-card__front">
-            <div class="mc-progress-donut mc-progress-donut--amber" [style.--mc-p]="progressModulesPct + '%'" aria-hidden="true">
-              <span>{{ progressModulesPct }}%</span>
-            </div>
-            <div class="mc-progress-card__body">
-              <span class="mc-progress-card__label">Modules</span>
-              <strong class="mc-progress-card__count">{{ progressModulesDone }} / {{ progressModulesTotal }}</strong>
-              <p class="mc-progress-card__hint">Hover for details</p>
-              <div class="mc-progress-card__track mc-progress-card__track--amber"><i [style.width.%]="progressModulesPct"></i></div>
-            </div>
-          </div>
-          <div class="mc-progress-card__popover" role="tooltip" aria-label="Module details">
-            <div class="mc-progress-card__popover-title">In this period</div>
-            <ul class="mc-progress-card__list">
-              <li *ngFor="let mod of progressReportModules" class="mc-progress-card__item">
-                <div class="mc-progress-card__item-title">{{ mod.title }}</div>
-                <div class="mc-progress-card__item-meta">
-                  <ng-container *ngIf="mod.courseDay != null">Day {{ mod.courseDay }} · </ng-container>{{ mod.level }} · {{ mod.category }}
-                </div>
-                <div class="mc-progress-card__item-status" [class.done]="mod.studentProgress?.status === 'completed'">
-                  {{ mod.studentProgress?.status === 'completed' ? 'Completed' : 'Pending' }}
-                </div>
-              </li>
-            </ul>
-            <p class="mc-progress-card__empty" *ngIf="!progressReportModules.length">No modules in this range.</p>
-          </div>
-        </div>
-
         <div class="mc-progress-card mc-progress-card--exercises" tabindex="0" *ngIf="allowsLearningContent">
           <div class="mc-progress-card__front">
             <div class="mc-progress-donut mc-progress-donut--green" [style.--mc-p]="progressExercisesPct + '%'" aria-hidden="true">
