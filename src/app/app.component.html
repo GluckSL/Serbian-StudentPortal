@@ -2,7 +2,7 @@
 <ng-container *ngIf="authChecked; else appLoading">
 
   <!-- Gluck Room: full-screen, no sidebar/header/footer -->
-  <ng-container *ngIf="isGluckRoom; else normalLayout">
+  <ng-container *ngIf="isGluckRoom">
     <router-outlet></router-outlet>
   </ng-container>
 
@@ -35,6 +35,7 @@
         role="presentation"
         (click)="closeSidebar()">
       </div>
+      </div>
 
       <div class="shell-content">
         <main class="main-content">
@@ -42,8 +43,7 @@
         </main>
         <app-footer></app-footer>
       </div>
-    </ng-container>
-  </ng-template>
+  </ng-container>
 
   <!-- Floating Help button (all pages) -->
   <app-support-fab></app-support-fab>
