@@ -37,4 +37,8 @@ const PaymentSubmissionSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+PaymentSubmissionSchema.index({ invoiceId: 1, studentId: 1, status: 1 });
+PaymentSubmissionSchema.index({ studentId: 1, createdAt: -1 });
+PaymentSubmissionSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('PaymentSubmission', PaymentSubmissionSchema);

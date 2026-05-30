@@ -1235,8 +1235,14 @@ function getAccessibleLevels(studentLevel) {
  * One DB read: journey day + allowed CEFR levels for digital exercises.
  * Non-students get full ladder (unused for filtering in those routes).
  */
+const {
+  isContentBlockedForStudent,
+  getEffectiveAccessibleLevels,
+  appendNotBlockedToAndClauses
+} = require('../utils/journeyContentBlock');
+
 async function getStudentExerciseAccess(userId) {
-  const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription').lean();
+  const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription blockedJourneyLevels').lean();
   if (!u || u.role !== 'STUDENT') {
     return {
       enabled: true,
@@ -1248,13 +1254,14 @@ async function getStudentExerciseAccess(userId) {
   const journeyAccess = await getJourneyAccessForStudent(u);
   const courseDay = journeyAccess.courseDay;
   const studentLevel = u.level || 'A1';
-  const accessibleLevels = getAccessibleLevels(studentLevel);
+  const accessibleLevels = getEffectiveAccessibleLevels(studentLevel, u.blockedJourneyLevels);
   return {
     enabled: journeyAccess.enabled,
     learningEnabled: journeyAccess.learningEnabled !== false,
     courseDay,
     accessibleLevels,
-    studentLevel
+    studentLevel,
+    student: u
   };
 }
 
@@ -1445,6 +1452,10 @@ router.get('/', verifyToken, async (req, res) => {
         });
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
+      appendNotBlockedToAndClauses(
+        andClauses,
+        studentExerciseAccess.student?.blockedJourneyLevels
+      );
     }
 
     // Only filter by level when user explicitly selects one (e.g. B1); ignore empty / "All Levels"
@@ -1685,6 +1696,12 @@ router.get('/:id', verifyToken, async (req, res) => {
           code: 'COURSE_DAY_LOCKED',
           studentCourseDay: access.courseDay,
           exerciseCourseDay: exercise.courseDay
+        });
+      }
+      if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
+        return res.status(403).json({
+          error: 'This exercise is not available for your learning path.',
+          code: 'CONTENT_LEVEL_BLOCKED'
         });
       }
       // Sequence gate: must complete prior letter(s) first
@@ -2165,7 +2182,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     exercise.updatedAt = new Date();
 
     await exercise.save();
-    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email');
+    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email').lean();
 
     res.json(updated);
   } catch (err) {
@@ -2221,6 +2238,12 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED'
+        });
+      }
+      if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
+        return res.status(403).json({
+          error: 'This exercise is not available for your learning path.',
+          code: 'CONTENT_LEVEL_BLOCKED'
         });
       }
       // Sequence gate
@@ -2938,6 +2961,9 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
     }
     if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
       return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
+    }
+    if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
+      return res.status(403).json({ error: 'This exercise is not available for your learning path.' });
     }
     if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
       return res.status(403).json({ error: 'This exercise is above your current language level.' });

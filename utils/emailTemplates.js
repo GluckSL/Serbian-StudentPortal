@@ -258,6 +258,35 @@ function buildSignupLinkEmail({ name, signupUrl }) {
   };
 }
 
+/**
+ * Admin invite email — links to the public /register wizard.
+ * @param {object} params
+ * @param {string} params.name
+ * @param {string} params.registerUrl
+ */
+function buildRegisterInviteEmail({ name, registerUrl }) {
+  return {
+    subject: 'You\'re invited to register for Glück Global',
+    html: emailHeader('Registration Invite') + `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+      <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
+        You have been invited to register for <strong>Glück Global</strong>.
+        Click the button below to enroll and complete your registration on our student portal.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr><td align="center" style="padding:8px 0 28px;">
+          <a href="${registerUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
+            Enroll
+          </a>
+        </td></tr>
+      </table>
+      <p style="margin:0 0 8px;color:#64748b;font-size:13px;">Or copy this link into your browser:</p>
+      <p style="margin:0 0 24px;word-break:break-all;font-size:12px;color:#6c3fc5;">${escapeHtml(registerUrl)}</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">If you did not expect this invitation, you can safely ignore this email.</p>
+    ` + emailFooter(),
+  };
+}
+
 // ─── Signup: email OTP verification ──────────────────────────────────────────
 
 /**
@@ -428,9 +457,25 @@ function buildSignupApprovedWelcomeEmail({ name, regNo, email, password, loginUr
 
 /**
  * Reminder for incomplete journey-day tasks (language tracking admin).
+ * @param {number} [currentCourseDay] — student's actual journey day when reminding about an earlier day
  */
-function buildJourneyDayReminderEmail({ name, day, incompleteTasks, doneTasks, totalTasks, loginUrl }) {
+function buildJourneyDayReminderEmail({
+  name,
+  day,
+  currentCourseDay,
+  incompleteTasks,
+  doneTasks,
+  totalTasks,
+  loginUrl,
+}) {
   const tasks = Array.isArray(incompleteTasks) ? incompleteTasks : [];
+  const reminderDay = Number(day);
+  const studentDay = Number(currentCourseDay);
+  const isPastDayReminder =
+    Number.isFinite(reminderDay) &&
+    Number.isFinite(studentDay) &&
+    studentDay > reminderDay;
+
   const listHtml = tasks
     .map((t, i) => {
       const title = escapeHtml(t.title || 'Task');
@@ -444,20 +489,30 @@ function buildJourneyDayReminderEmail({ name, day, incompleteTasks, doneTasks, t
 
   const progressNote =
     Number.isFinite(totalTasks) && totalTasks > 0
-      ? `<p style="margin:0 0 20px;color:#64748b;font-size:14px;">You have completed <strong>${doneTasks}</strong> of <strong>${totalTasks}</strong> tasks for Day ${day}.</p>`
+      ? `<p style="margin:0 0 20px;color:#64748b;font-size:14px;">You have completed <strong>${doneTasks}</strong> of <strong>${totalTasks}</strong> tasks for Day ${reminderDay}.</p>`
       : '';
 
+  const introParagraph = isPastDayReminder
+    ? `<p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
+        You are on <strong>Day ${studentDay}</strong> of your course, but you have not completed your <strong>Day ${reminderDay}</strong> tasks yet. Please complete the following items:
+      </p>`
+    : `<p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
+        You are on <strong>Day ${reminderDay}</strong> of your course. The following items are still incomplete and need your attention:
+      </p>`;
+
+  const subject = isPastDayReminder
+    ? `Reminder: Complete your Day ${reminderDay} tasks (you are on Day ${studentDay})`
+    : `Reminder: Complete your Day ${reminderDay} tasks before tonight`;
+
   return {
-    subject: `Reminder: Complete your Day ${day} tasks before tonight`,
+    subject,
     html:
       emailHeader('Day Progress Reminder') +
       `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
         Hello <strong>${escapeHtml(name)}</strong>,
       </p>
-      <p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
-        You are on <strong>Day ${day}</strong> of your course. The following items are still incomplete and need your attention:
-      </p>
+      ${introParagraph}
       ${progressNote}
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
              style="margin:0 0 24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
@@ -481,12 +536,75 @@ function buildJourneyDayReminderEmail({ name, day, incompleteTasks, doneTasks, t
   };
 }
 
+/**
+ * Admin-initiated password reset: student must log in and complete OTP + new password.
+ */
+function buildForcePasswordResetEmail({ name, regNo, otp, loginUrl, expiresMinutes = 15 }) {
+  return {
+    subject: 'Action required: set a new Glück Global portal password',
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="560" cellspacing="0" cellpadding="0"
+             style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global</h1>
+            <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Student Portal</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 40px;">
+            <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+              Hello <strong>${escapeHtml(name)}</strong>,
+            </p>
+            <p style="margin:0 0 16px;color:#444;font-size:15px;line-height:1.6;">
+              Your administrator has requested a password update. Your current session has been signed out.
+              Please sign in at the portal using your <strong>App ID</strong> and your <strong>current password</strong>,
+              then enter the verification code below and choose a new password.
+            </p>
+            <p style="margin:0 0 8px;color:#444;font-size:14px;"><strong>App ID:</strong> ${escapeHtml(regNo)}</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+              <tr><td align="center" style="padding:16px 0 24px;">
+                <div style="display:inline-block;background:#f0ebff;border:2px solid #8b5cf6;border-radius:12px;padding:18px 36px;">
+                  <p style="margin:0 0 6px;color:#6c3fc5;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Verification code</p>
+                  <p style="margin:0;color:#1a1a2e;font-size:32px;font-weight:800;letter-spacing:6px;font-family:'Courier New',monospace;">${escapeHtml(otp)}</p>
+                </div>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 20px;color:#64748b;font-size:13px;">This code expires in <strong>${expiresMinutes} minutes</strong>.</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+              <tr><td align="center" style="padding:4px 0 20px;">
+                <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
+                  Go to login →
+                </a>
+              </td></tr>
+            </table>
+            <p style="margin:0;color:#64748b;font-size:12px;line-height:1.5;">
+              If you did not expect this email, contact your coordinator. Do not share this code with anyone.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  };
+}
+
 module.exports = {
   buildPasswordResetOtpEmail,
   buildEmailChangeOtpEmail,
   buildPortalCredentialsEmail,
   buildWelcomeOneTimePasswordEmail,
+  buildForcePasswordResetEmail,
   buildSignupLinkEmail,
+  buildRegisterInviteEmail,
   buildSignupEmailOtpEmail,
   buildSignupProofReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,

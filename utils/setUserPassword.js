@@ -10,7 +10,7 @@
  */
 
 const bcrypt = require('bcryptjs');
-const { encryptPassword } = require('./passwordRecoverable');
+const { storeRecoverablePassword } = require('./passwordRecoverable');
 
 /**
  * @param {object} user          - Mongoose User document
@@ -22,10 +22,7 @@ async function setUserPassword(user, plainPassword, opts = {}) {
   const salt = await bcrypt.genSalt(10);
   user.password = await bcrypt.hash(plainPassword, salt);
 
-  const encrypted = encryptPassword(plainPassword);
-  if (encrypted !== null) {
-    user.passwordRecoverable = encrypted;
-  }
+  user.passwordRecoverable = storeRecoverablePassword(plainPassword);
 
   if (opts.save) {
     await user.save();

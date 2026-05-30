@@ -1,6 +1,41 @@
 <!-- src/app/components/admin-dashboard/admin-dashboard.component.html -->
 
-<div class="admin-dashboard" *ngIf="!loading; else loadingTpl">
+<div class="admin-dashboard">
+  <!-- Skeleton loading -->
+  <div class="admin-skeleton" *ngIf="loading" aria-busy="true" aria-label="Loading student data">
+    <div class="admin-skeleton__header">
+      <div class="admin-skeleton__header-icon"></div>
+      <div class="admin-skeleton__header-text">
+        <div class="admin-sk-line admin-sk-line--title"></div>
+        <div class="admin-sk-line admin-sk-line--sub"></div>
+      </div>
+      <div class="admin-skeleton__stat"></div>
+    </div>
+    <div class="admin-skeleton__content">
+      <div class="admin-skeleton__actions">
+        <div class="admin-sk-pill" *ngFor="let _ of skeletonActionPills"></div>
+      </div>
+      <div class="admin-skeleton__filters">
+        <div class="admin-sk-line admin-sk-line--filter-title"></div>
+        <div class="admin-skeleton__filter-row">
+          <div class="admin-sk-field" *ngFor="let _ of skeletonFilterFields"></div>
+        </div>
+      </div>
+      <div class="admin-skeleton__table-card">
+        <div class="admin-sk-line admin-sk-line--table-title"></div>
+        <div class="admin-skeleton__table">
+          <div class="admin-skeleton__table-row admin-skeleton__table-row--head">
+            <div class="admin-sk-cell" *ngFor="let _ of skeletonTableCols"></div>
+          </div>
+          <div class="admin-skeleton__table-row" *ngFor="let _ of skeletonTableRows">
+            <div class="admin-sk-cell" *ngFor="let __ of skeletonTableCols"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-container *ngIf="!loading">
   <!-- Header Section -->
   <div class="admin-header">
     <div class="container-fluid px-0">
@@ -78,6 +113,9 @@
             </div>
           </div>
           <div class="action-group-right">
+            <button type="button" class="btn btn-action btn-action--primary" (click)="openInviteModal()">
+              <i class="fas fa-envelope"></i> Invite
+            </button>
             <button type="button" class="btn btn-action btn-action--ghost" routerLink="/admin/teacher-resources">
               <i class="fas fa-file-powerpoint"></i> Teacher Resources
             </button>
@@ -487,7 +525,7 @@
                   <th>Assigned Teacher</th>
                   <th>Last Credentials Sent</th>
                   <th *ngIf="isFullAdmin" class="text-center">Password</th>
-                  <th class="text-center">Actions</th>
+                  <th class="text-center actions-col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -561,27 +599,34 @@
                     </div>
                   </td>
                   <td *ngIf="isFullAdmin" class="text-center pw-cell">
-                    <ng-container *ngIf="student.displayPassword; else noPw">
-                      <span class="pw-value" *ngIf="revealedPasswords.has(student._id)">{{ student.displayPassword }}</span>
-                      <span class="pw-masked" *ngIf="!revealedPasswords.has(student._id)">••••••••</span>
-                      <button class="btn btn-sm btn-link pw-toggle-btn" (click)="togglePasswordReveal(student._id)"
-                              [title]="revealedPasswords.has(student._id) ? 'Hide' : 'Reveal'">
-                        <i [class]="revealedPasswords.has(student._id) ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-                      </button>
-                    </ng-container>
-                    <ng-template #noPw><span class="text-muted small">—</span></ng-template>
+                    <span class="pw-value" *ngIf="student.displayPassword; else noPw">{{ student.displayPassword }}</span>
+                    <ng-template #noPw>
+                      <span
+                        class="pw-status-badge pw-status-badge--missing"
+                        title="No recoverable password on file. Use Resend credentials to generate and email a new one.">
+                        —
+                      </span>
+                    </ng-template>
                   </td>
-                  <td class="text-center">
+                  <td class="text-center actions-col">
                     <div class="action-buttons">
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-info"
+                        (click)="viewStudentDetails(student)"
+                        title="View student details"
+                      >
+                        <i class="fas fa-eye"></i>
+                      </button>
                       <button 
-                        class="btn btn-sm btn-outline-primary me-1"
+                        class="btn btn-sm btn-outline-primary"
                         [routerLink]="['/signup', student._id]"
                         title="Edit Student"
                       >
                         <i class="fas fa-edit"></i>
                       </button>
                       <button
-                        class="btn btn-sm btn-outline-success me-1"
+                        class="btn btn-sm btn-outline-success"
                         (click)="resendCredentials(student)"
                         [disabled]="resendingCredentials[student._id]"
                         title="Send Credentials Email"
@@ -590,13 +635,14 @@
                         <i class="fas fa-spinner fa-spin" *ngIf="resendingCredentials[student._id]"></i>
                       </button>
                       <button
-                        class="btn btn-sm btn-outline-primary me-1"
-                        (click)="sendSignupLink(student)"
-                        [disabled]="sendingSignupLink[student._id]"
-                        title="Send Signup Link"
+                        type="button"
+                        class="btn btn-sm btn-outline-warning"
+                        (click)="forcePasswordReset(student)"
+                        [disabled]="forcingPasswordReset[student._id]"
+                        title="Force password reset (logout + OTP email)"
                       >
-                        <i class="fas fa-link" *ngIf="!sendingSignupLink[student._id]"></i>
-                        <i class="fas fa-spinner fa-spin" *ngIf="sendingSignupLink[student._id]"></i>
+                        <i class="fas fa-key" *ngIf="!forcingPasswordReset[student._id]"></i>
+                        <i class="fas fa-spinner fa-spin" *ngIf="forcingPasswordReset[student._id]"></i>
                       </button>
                       <button
                         class="btn btn-sm btn-outline-danger"
@@ -638,6 +684,7 @@
 
     </div>
   </div>
+  </ng-container>
 </div>
 
 <!-- Bulk Edit Panel (Modal) -->
@@ -723,12 +770,59 @@
   </div>
 </div>
 
-<ng-template #loadingTpl>
-  <div style="display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 80px);">
-    <div style="text-align:center;">
-      <div class="admin-loading-spinner"></div>
-      <p class="admin-loading-text">Loading student data...</p>
+<div class="modal-backdrop fade" [class.show]="showBulkEditPanel" *ngIf="showBulkEditPanel"></div>
+
+<!-- Register invite modal -->
+<div class="modal fade" [class.show]="showInviteModal" [style.display]="showInviteModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-envelope"></i>
+          Invite to register
+        </h5>
+        <button type="button" class="btn-close" (click)="closeInviteModal()" [disabled]="inviteSending"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Send a registration invite email. The recipient will get an <strong>Enroll</strong> button that opens the public registration page.
+        </p>
+        <div class="mb-3">
+          <label class="form-label" for="inviteEmail">Email address <span class="text-danger">*</span></label>
+          <input
+            id="inviteEmail"
+            type="email"
+            class="form-control"
+            [(ngModel)]="inviteEmail"
+            placeholder="student@example.com"
+            [disabled]="inviteSending"
+            (keyup.enter)="sendRegisterInvite()"
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="inviteName">Name (optional)</label>
+          <input
+            id="inviteName"
+            type="text"
+            class="form-control"
+            [(ngModel)]="inviteName"
+            placeholder="Student name"
+            [disabled]="inviteSending"
+          />
+        </div>
+        <div class="alert alert-danger py-2 mb-0" *ngIf="inviteError">{{ inviteError }}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeInviteModal()" [disabled]="inviteSending">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" (click)="sendRegisterInvite()" [disabled]="inviteSending">
+          <i class="fas fa-spinner fa-spin" *ngIf="inviteSending"></i>
+          <i class="fas fa-paper-plane" *ngIf="!inviteSending"></i>
+          {{ inviteSending ? 'Sending…' : 'Invite' }}
+        </button>
+      </div>
     </div>
   </div>
-</ng-template>
-<div class="modal-backdrop fade" [class.show]="showBulkEditPanel" *ngIf="showBulkEditPanel"></div>
+</div>
+<div class="modal-backdrop fade" [class.show]="showInviteModal" *ngIf="showInviteModal"></div>

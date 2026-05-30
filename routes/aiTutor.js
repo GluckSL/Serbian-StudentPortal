@@ -353,7 +353,7 @@ router.post('/start-teacher-test', verifyToken, checkRole(['TEACHER', 'ADMIN']),
     }
     
     // Validate module exists
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module || !module.isActive) {
       console.log('❌ Module not found:', { moduleId, found: !!module, active: module?.isActive });
       return res.status(404).json({ message: 'Module not found or inactive' });
@@ -495,7 +495,7 @@ router.post('/start-session', verifyToken, requirePlatinum, async (req, res) => 
     }
     
     // Validate module exists
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module || !module.isActive) {
       console.log('❌ Module not found:', { moduleId, found: !!module, active: module?.isActive });
       return res.status(404).json({ message: 'Module not found or inactive' });
@@ -511,7 +511,7 @@ router.post('/start-session', verifyToken, requirePlatinum, async (req, res) => 
     let studentProgress = await StudentProgress.findOne({
       studentId,
       moduleId
-    });
+    }).lean();
     
     // Create new session
     const sessionId = uuidv4();
@@ -1288,7 +1288,7 @@ router.post('/end-session', verifyToken, async (req, res) => {
       const SessionRecord = require('../models/SessionRecord');
       const User = require('../models/User');
       
-      const student = await User.findById(userId).select('name email');
+      const student = await User.findById(userId).select('name email').lean();
       
       let sessionRecord = await SessionRecord.findOne({ sessionId });
       

@@ -12,7 +12,7 @@ const paymentSubmissionSchema = new mongoose.Schema({
   paymentMethod: { type: String, enum: ['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other', 'Legacy'], default: 'Bank Transfer' },
   source: { type: String, default: null },
   isImported: { type: Boolean, default: false },
-  legacyFingerprint: { type: String, sparse: true, default: null },
+  legacyFingerprint: { type: String, default: null },
   screenshotKey: String,
   screenshotOriginalName: String,
   screenshotMimeType: String,

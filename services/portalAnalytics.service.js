@@ -282,7 +282,7 @@ async function heartbeat(studentId, sessionId, page) {
   if (!sessionId || typeof sessionId !== 'string') throw new Error('INVALID_SESSION');
   const pageStr = typeof page === 'string' && page.trim() ? page.trim().slice(0, 512) : '/';
 
-  const session = await PortalSession.findOne({ sessionId, studentId: sid });
+  const session = await PortalSession.findOne({ sessionId, studentId: sid }).lean();
   if (!session) throw new Error('SESSION_NOT_FOUND');
   if (!session.isActive) throw new Error('SESSION_ENDED');
 
@@ -306,7 +306,7 @@ async function heartbeat(studentId, sessionId, page) {
     { $set: { endTime: now } }
   );
 
-  let open = await PageActivity.findOne({ sessionId, page: pageStr, endTime: null }).sort({ startTime: -1 });
+  let open = await PageActivity.findOne({ sessionId, page: pageStr, endTime: null }).sort({ startTime: -1 }).lean();
 
   if (!open) {
     open = await PageActivity.create({
@@ -348,14 +348,14 @@ async function endSession(studentId, sessionId) {
   if (!sid) throw new Error('INVALID_STUDENT');
   if (!sessionId) throw new Error('INVALID_SESSION');
 
-  const session = await PortalSession.findOne({ sessionId, studentId: sid });
+  const session = await PortalSession.findOne({ sessionId, studentId: sid }).lean();
   if (!session) throw new Error('SESSION_NOT_FOUND');
 
   const now = new Date();
   const add = session.isActive ? computeCreditSeconds(session.lastHeartbeatAt, now) : 0;
 
   if (add > 0 && session.isActive) {
-    const open = await PageActivity.findOne({ sessionId, endTime: null }).sort({ startTime: -1 });
+    const open = await PageActivity.findOne({ sessionId, endTime: null }).sort({ startTime: -1 }).lean();
     if (open) {
       await PageActivity.updateOne({ _id: open._id }, { $inc: { activeSeconds: add } });
     }

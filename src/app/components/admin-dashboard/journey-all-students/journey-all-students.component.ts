@@ -43,15 +43,18 @@ interface GoStudentRow {
   <div class="jas-header">
     <a routerLink="/admin/journey" class="jas-back"><i class="fas fa-arrow-left"></i> Journey Management</a>
     <h1 class="jas-title"><span class="jas-icon">👥</span> All students</h1>
-    <p class="jas-sub">Platinum: learners in <strong>active</strong> journey batches. Silver: GO students.</p>
+    <p class="jas-sub">Platinum: learners in <strong>active</strong> journey batches. Silver tabs: Tamil GO (<strong>GO-SILVER</strong>) and Sinhala GO (<strong>GO-SINHALA</strong>).</p>
   </div>
 
   <div class="jas-plan-tabs">
     <button type="button" class="jas-tab" [class.jas-tab--active]="tab === 'platinum'" (click)="tab = 'platinum'">
       <span class="jas-tab-icon">💎</span> Platinum
     </button>
-    <button type="button" class="jas-tab" [class.jas-tab--active]="tab === 'silver'" (click)="onSilverTab()">
-      <span class="jas-tab-icon">🥈</span> Silver (GO)
+    <button type="button" class="jas-tab" [class.jas-tab--active]="tab === 'silver'" (click)="onSilverTab('tamil')">
+      <span class="jas-tab-icon">🥈</span> Silver GO (Tamil)
+    </button>
+    <button type="button" class="jas-tab" [class.jas-tab--active]="tab === 'silver-sinhala'" (click)="onSilverTab('sinhala')">
+      <span class="jas-tab-icon">🥈</span> Silver Sinhala
     </button>
   </div>
 
@@ -106,7 +109,7 @@ interface GoStudentRow {
     </div>
   </div>
 
-  <div class="jas-panel" *ngIf="tab === 'silver'">
+  <div class="jas-panel" *ngIf="tab === 'silver' || tab === 'silver-sinhala'">
     <div class="jas-toolbar">
       <div class="jas-search">
         <i class="fas fa-search"></i>
@@ -245,7 +248,8 @@ interface GoStudentRow {
   `]
 })
 export class JourneyAllStudentsComponent implements OnInit {
-  tab: 'platinum' | 'silver' = 'platinum';
+  tab: 'platinum' | 'silver' | 'silver-sinhala' = 'platinum';
+  private goApiPath = 'go-students';
 
   platinumStudents: PlatinumStudentRow[] = [];
   loadingPlatinum = false;
@@ -256,7 +260,6 @@ export class JourneyAllStudentsComponent implements OnInit {
   silverSearch = '';
 
   private readonly batchJourneyUrl = `${environment.apiUrl}/batch-journey`;
-  private readonly goStudentsUrl = `${environment.apiUrl}/go-students`;
 
   constructor(
     private http: HttpClient,
@@ -317,16 +320,18 @@ export class JourneyAllStudentsComponent implements OnInit {
       });
   }
 
-  onSilverTab(): void {
-    this.tab = 'silver';
-    if (this.goStudents.length === 0 && !this.loadingGo) {
-      this.loadGoStudents();
-    }
+  onSilverTab(track: 'tamil' | 'sinhala'): void {
+    const nextTab = track === 'sinhala' ? 'silver-sinhala' : 'silver';
+    if (this.tab === nextTab) return;
+    this.tab = nextTab;
+    this.goApiPath = track === 'sinhala' ? 'go-students-sinhala' : 'go-students';
+    this.goStudents = [];
+    this.loadGoStudents();
   }
 
   loadGoStudents(): void {
     this.loadingGo = true;
-    this.http.get<{ students: GoStudentRow[] }>(this.goStudentsUrl, { withCredentials: true }).subscribe({
+    this.http.get<{ students: GoStudentRow[] }>(`${environment.apiUrl}/${this.goApiPath}`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.goStudents = r.students || [];
         this.loadingGo = false;
@@ -340,7 +345,10 @@ export class JourneyAllStudentsComponent implements OnInit {
   }
 
   openGoStudentDetail(student: GoStudentRow): void {
-    const url = this.router.serializeUrl(this.router.createUrlTree(['/admin/journey/go', student._id]));
+    const queryParams = this.tab === 'silver-sinhala' ? { track: 'sinhala' } : {};
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/admin/journey/go', student._id], { queryParams })
+    );
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }

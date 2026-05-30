@@ -17,4 +17,7 @@ const StudentLogsSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: Date.now }
 });
 
+StudentLogsSchema.index({ studentId: 1, updatedAt: -1 });
+StudentLogsSchema.index({ updatedAt: -1 });
+
 module.exports = mongoose.model("StudentLogs", StudentLogsSchema);

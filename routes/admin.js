@@ -6,9 +6,12 @@ const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
+const Course = require('../models/Course');
+const CourseProgress = require('../models/CourseProgress');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 const { decryptPassword } = require('../utils/passwordRecoverable');
+const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { computeStudentDataIssues } = require('../services/studentDataIssues');
@@ -133,7 +136,7 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
 router.get('/students', verifyToken, isAdmin, async (req, res) => {
   try {
     if (req.query.phoneCountry) {
-      await backfillPhoneCountries();
+      scheduleCountryBackfills();
     }
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);
@@ -204,29 +207,37 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       }
     }
 
-    const total = await User.countDocuments(query);
     const isFullAdmin = req.user?.role === 'ADMIN';
 
-    const students = await User.find(query)
-      .select(isFullAdmin ? '-password' : '-password -passwordRecoverable') // ADMIN gets passwordRecoverable for decryption
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: 'assignedTeacher',   // the field in User schema
-        select: 'name regNo email medium' // fetch only useful teacher info
-      });
+    const [total, students] = await Promise.all([
+      User.countDocuments(query),
+      User.find(query)
+        .select(isFullAdmin ? '+password +passwordRecoverable' : '-password -passwordRecoverable')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'assignedTeacher',
+          select: 'name regNo email medium',
+        })
+        .lean(),
+    ]);
 
     const pages = Math.max(1, Math.ceil(total / limit));
 
-    // For ADMIN: decrypt recoverable password and expose as displayPassword; never expose the cipher
+    // For ADMIN: fast list path (recoverable decrypt + at most one bcrypt per row)
     const data = isFullAdmin
-      ? students.map((s) => {
-          const obj = s.toObject();
-          obj.displayPassword = decryptPassword(obj.passwordRecoverable) ?? null;
-          delete obj.passwordRecoverable; // never send ciphertext to frontend
-          return obj;
-        })
+      ? await Promise.all(
+          students.map(async (s) => {
+            const displayPassword = await resolveStudentDisplayPassword(s, { listView: true });
+            const { password, passwordRecoverable, ...rest } = s;
+            return {
+              ...rest,
+              displayPassword,
+              passwordDisplayState: displayPassword ? 'VISIBLE' : 'UNAVAILABLE',
+            };
+          })
+        )
       : students;
 
     res.json({
@@ -245,6 +256,34 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       message: 'Failed to fetch students',
       error: err.message
     });
+  }
+});
+
+// One-time repair: resolve display passwords from recoverable/signup/email-change sources and backfill DB.
+router.post('/students/sync-display-passwords', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
+    const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');
+    const students = await User.find({ role: 'STUDENT' }).select('+password');
+    let withDisplay = 0;
+    let backfilled = 0;
+
+    for (const s of students) {
+      const plain = await resolveStudentDisplayPassword(s);
+      if (!plain) continue;
+      withDisplay += 1;
+      if (!readRecoverablePassword(s.passwordRecoverable)) {
+        const stored = storeRecoverablePassword(plain);
+        if (stored) {
+          await User.updateOne({ _id: s._id }, { passwordRecoverable: stored });
+          backfilled += 1;
+        }
+      }
+    }
+
+    return res.json({ success: true, withDisplay, backfilled });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -596,7 +635,8 @@ router.get("/user/:userId", verifyToken, isAdmin, async (req, res) => {
 // List all courses a student is enrolled in - GET /api/courses/enrolled/:studentId
 router.get("/enrolled/:studentId", verifyToken, isAdmin, async (req, res) => {
   try {
-    const courses = await Course.find({ students: req.params.studentId });
+    const enrolledCourseIds = await CourseProgress.find({ studentId: req.params.studentId }).distinct('courseId');
+    const courses = enrolledCourseIds.length ? await Course.find({ _id: { $in: enrolledCourseIds } }) : [];
     res.status(200).json({ success: true, data: courses });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

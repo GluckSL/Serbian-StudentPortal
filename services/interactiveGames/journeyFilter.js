@@ -5,9 +5,13 @@ const GameSet = require('../../models/GameSet');
 const User = require('../../models/User');
 const { getJourneyAccessForStudent } = require('../../utils/studentJourneyAccess');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../../utils/batchTargeting');
+const {
+  appendNotBlockedToAndClauses,
+  isContentBlockedForStudent
+} = require('../../utils/journeyContentBlock');
 
 async function loadStudent(studentId) {
-  return User.findById(studentId).lean();
+  return User.findById(studentId).select('batch level subscription goStatus currentCourseDay blockedJourneyLevels role').lean();
 }
 
 /**
@@ -20,14 +24,16 @@ async function buildStudentFilter(studentId) {
     const courseDay = access?.courseDay ?? 0;
     const batchKeys = studentTargetBatchKeys(student);
 
+    const andClauses = [
+      { $or: [{ courseDay: null }, { courseDay: { $exists: false } }, { courseDay: { $lte: courseDay } }] },
+      moduleTargetingQuery(batchKeys)
+    ];
+    appendNotBlockedToAndClauses(andClauses, student?.blockedJourneyLevels);
     return {
       visibleToStudents: true,
       isPublished: true,
       isDeleted: { $ne: true },
-      $and: [
-        { $or: [{ courseDay: null }, { courseDay: { $lte: courseDay } }] },
-        moduleTargetingQuery(batchKeys),
-      ],
+      $and: andClauses
     };
   } catch {
     return { visibleToStudents: true, isPublished: true, isDeleted: { $ne: true } };
@@ -52,6 +58,11 @@ async function hasArenaAccess(studentId) {
  */
 async function isGated(studentId, set) {
   if (!set.visibleToStudents || !set.isPublished) return true;
+
+  const studentForBlock = await loadStudent(studentId);
+  if (isContentBlockedForStudent(studentForBlock, { courseDay: set.courseDay, level: set.level })) {
+    return true;
+  }
 
   if (set.courseDay) {
     try {

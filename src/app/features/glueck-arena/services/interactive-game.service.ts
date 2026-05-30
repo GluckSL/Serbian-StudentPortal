@@ -376,4 +376,52 @@ export class InteractiveGameService {
 
   getRankedProfile(): Observable<any> { return this.http.get(`${this.base}/ranked/me`); }
   getRankedLeaderboard(): Observable<any> { return this.http.get(`${this.base}/ranked/leaderboard`); }
+
+  // ── Battlefield ──────────────────────────────────────────────────────────
+  listBattlefieldRooms(filters: { gameType?: string; search?: string } = {}): Observable<{ success: boolean; rooms: import('../glueck-arena.types').BattlefieldRoomListing[] }> {
+    let p = new HttpParams();
+    if (filters.gameType) p = p.set('gameType', filters.gameType);
+    if (filters.search) p = p.set('search', filters.search);
+    return this.http.get<any>(`${this.base}/battlefield/rooms`, { params: p });
+  }
+  createBattlefieldRoom(body: { gameSetId: string; roomName?: string; isPublic?: boolean; maxPlayers?: number }): Observable<any> {
+    return this.http.post(`${this.base}/battlefield/rooms`, body);
+  }
+  joinBattlefieldRoom(code: string): Observable<any> {
+    return this.http.post(`${this.base}/battlefield/rooms/${code}/join`, {});
+  }
+  getBattlefieldLeaderboard(params: { limit?: number; page?: number } = {}): Observable<{ success: boolean; entries: import('../glueck-arena.types').BattlefieldLeaderboardEntry[]; total: number; page: number; limit: number }> {
+    let p = new HttpParams();
+    if (params.limit) p = p.set('limit', String(params.limit));
+    if (params.page) p = p.set('page', String(params.page));
+    return this.http.get<any>(`${this.base}/battlefield/leaderboard`, { params: p });
+  }
+  getBattlefieldStats(): Observable<{ success: boolean; stats: import('../glueck-arena.types').BattlefieldStatsDto }> {
+    return this.http.get<any>(`${this.base}/battlefield/stats`);
+  }
+
+  // ── Admin Team Battles ───────────────────────────────────────────────────
+  listTeamBattles(status?: string): Observable<{ success: boolean; battles: import('../glueck-arena.types').TeamBattleDto[] }> {
+    let p = new HttpParams();
+    if (status) p = p.set('status', status);
+    return this.http.get<any>(`${this.base}/admin/battlefield/team-battles`, { params: p });
+  }
+  createTeamBattle(body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.base}/admin/battlefield/team-battles`, body);
+  }
+  startTeamBattle(id: string): Observable<any> {
+    return this.http.post(`${this.base}/admin/battlefield/team-battles/${id}/start`, {});
+  }
+  cancelTeamBattle(id: string): Observable<any> {
+    return this.http.post(`${this.base}/admin/battlefield/team-battles/${id}/cancel`, {});
+  }
+  deleteTeamBattle(id: string): Observable<any> {
+    return this.http.delete(`${this.base}/admin/battlefield/team-battles/${id}`);
+  }
+  getTeamBattleScorecard(id: string): Observable<{ success: boolean; battle: import('../glueck-arena.types').TeamBattleDto }> {
+    return this.http.get<any>(`${this.base}/admin/battlefield/team-battles/${id}/scorecard`);
+  }
+  getTeamBattleStandings(): Observable<{ success: boolean; standings: import('../glueck-arena.types').TeamBattleStanding[] }> {
+    return this.http.get<any>(`${this.base}/admin/battlefield/team-battles/standings`);
+  }
 }

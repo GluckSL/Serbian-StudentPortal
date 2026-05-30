@@ -1,0 +1,67 @@
+<div class="login-page">
+  <!-- Left: hero (same as /login) -->
+  <aside class="login-hero">
+    <div class="login-hero__bg"></div>
+    <div class="login-hero__vignette"></div>
+    <div class="login-hero__purple-glow"></div>
+    <div class="login-hero__content">
+      <div class="login-hero__main" style="margin-top: 2rem;">
+        <h1 class="login-hero__title">
+          Welcome to
+          <span class="login-hero__title-accent">Glück Global German Study Buddy</span>
+        </h1>
+        <p class="login-hero__lead">
+          Master German with the power of AI. Personalized, interactive, and built for modern learners.
+        </p>
+
+        <div class="login-hero__cards">
+          <div class="glass-card">
+            <div class="glass-card__icon"><i class="fas fa-graduation-cap"></i></div>
+            <div class="glass-card__body">
+              <strong>For Students</strong>
+              <p>Interactive voice training and structured AI learning paths.</p>
+            </div>
+          </div>
+          <div class="glass-card">
+            <div class="glass-card__icon"><i class="fas fa-file-lines"></i></div>
+            <div class="glass-card__body">
+              <strong>For Teachers</strong>
+              <p>Advanced progress monitoring and curriculum management.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-hero__social">
+        <div class="login-hero__avatars" aria-hidden="true">
+          <div class="avatar">
+            <img
+              src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&h=96&q=80"
+              alt="" width="44" height="44" loading="lazy" decoding="async" />
+          </div>
+          <div class="avatar">
+            <img
+              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=96&h=96&q=80"
+              alt="" width="44" height="44" loading="lazy" decoding="async" />
+          </div>
+          <div class="avatar">
+            <img
+              src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=96&h=96&q=80"
+              alt="" width="44" height="44" loading="lazy" decoding="async" />
+          </div>
+        </div>
+        <div class="login-hero__social-copy">
+          <p class="login-hero__social-stat"><span class="login-hero__social-num">1,000+</span> Students</p>
+          <p class="login-hero__social-tagline">Join our global community</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right: signup wizard -->
+  <section class="login-panel">
+    <div class="login-panel__inner">
+      <app-public-signup-wizard (backToLogin)="goToLogin()"></app-public-signup-wizard>
+    </div>
+  </section>
+</div>

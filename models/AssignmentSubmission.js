@@ -213,4 +213,7 @@ const assignmentSubmissionSchema = new mongoose.Schema(
   }
 );
 
+assignmentSubmissionSchema.index({ studentId: 1, isDeleted: 1, createdAt: -1 });
+assignmentSubmissionSchema.index({ teacherId: 1, status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('AssignmentSubmission', assignmentSubmissionSchema);

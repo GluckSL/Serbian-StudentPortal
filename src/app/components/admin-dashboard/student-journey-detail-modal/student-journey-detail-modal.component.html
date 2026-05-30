@@ -1,0 +1,294 @@
+<div class="jm-embedded-wrap" *ngIf="embedded && visible">
+  <ng-container *ngTemplateOutlet="journeyBody"></ng-container>
+</div>
+
+<div class="jm-overlay" *ngIf="!embedded && visible" (click)="close()">
+  <div class="jm" (click)="$event.stopPropagation()">
+    <div class="jm-head">
+      <h3>Student details — {{ displayName }}</h3>
+      <button type="button" class="jm-close" (click)="close()" aria-label="Close">✕</button>
+    </div>
+    <ng-container *ngTemplateOutlet="journeyBody"></ng-container>
+  </div>
+</div>
+
+<ng-template #journeyBody>
+
+    <div class="jm-body" [class.jm-body--embedded]="embedded" *ngIf="!loading && journeyData && !loadError">
+      <div class="sp-row sp-row--top">
+        <div class="sp-card sp-card--profile">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Student profile</span>
+            <span
+              class="sp-badge"
+              [class.sp-badge--green]="jProfile.studentStatus === 'ONGOING'"
+              [class.sp-badge--gray]="jProfile.studentStatus !== 'ONGOING'"
+            >{{ jProfile.studentStatus === 'ONGOING' ? 'Active' : (jProfile.studentStatus || '—') }}</span>
+          </div>
+          <table class="sp-table"><tbody>
+            <tr>
+              <td class="sp-table__label">Student ID</td>
+              <td>{{ jProfile.regNo || preview?.regNo || '—' }}</td>
+              <td class="sp-table__label">Name</td>
+              <td>
+                {{ jProfile.name || studentName }}
+                <app-test-account-badge [show]="!!jProfile.isTestAccount"></app-test-account-badge>
+              </td>
+            </tr>
+            <tr>
+              <td class="sp-table__label">Email</td>
+              <td colspan="3">{{ preview?.email || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="sp-table__label">Batch</td>
+              <td>{{ jProfile.batch || preview?.batch || '—' }}</td>
+              <td class="sp-table__label">Medium</td>
+              <td>{{ preview?.medium || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="sp-table__label">Plan</td>
+              <td>{{ preview?.subscription || '—' }}</td>
+              <td class="sp-table__label">Journey day</td>
+              <td><span class="sp-day-pill">Day {{ jProfile.currentCourseDay || 1 }}</span></td>
+            </tr>
+            <tr>
+              <td class="sp-table__label">Teacher</td>
+              <td>{{ jProfile.teacher || '—' }}</td>
+              <td class="sp-table__label">Current level</td>
+              <td>{{ jProfile.currentLevel || preview?.level || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="sp-table__label">Service</td>
+              <td>{{ jProfile.servicesOpted || '—' }}</td>
+              <td class="sp-table__label">Visa route</td>
+              <td>{{ jVisa.route || 'Not set' }}</td>
+            </tr>
+            <tr>
+              <td class="sp-table__label">Level path</td>
+              <td>{{ jLevelPath || '—' }}</td>
+              <td class="sp-table__label">Enrolled</td>
+              <td>{{ formatDate(jProfile.enrollmentDate) }}</td>
+            </tr>
+          </tbody></table>
+        </div>
+        <div class="sp-card sp-card--status">
+          <div class="sp-card__head"><span class="sp-card__title">Performance snapshot</span></div>
+          <div class="sp-status-grid">
+            <div class="sp-stat sp-stat--blue">
+              <div class="sp-stat__val">{{ jAttendanceRate }}%</div>
+              <div class="sp-stat__lbl">Attendance</div>
+            </div>
+            <div class="sp-stat sp-stat--green">
+              <div class="sp-stat__val">{{ jDocsSubmitted }}/{{ jDocuments.length }}</div>
+              <div class="sp-stat__lbl">Docs verified</div>
+            </div>
+            <div class="sp-stat sp-stat--orange">
+              <div class="sp-stat__val">{{ jBotUsage.weekMinutes }}m</div>
+              <div class="sp-stat__lbl">AI bot / week</div>
+            </div>
+            <div class="sp-stat sp-stat--purple">
+              <div class="sp-stat__val">{{ jOverallPct }}%</div>
+              <div class="sp-stat__lbl">Overall journey</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sp-row sp-row--mid">
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Language progress</span>
+            <span class="sp-card__meta">{{ jCurrentLevelLabel }}</span>
+          </div>
+          <div class="sp-levels">
+            <div
+              *ngFor="let lv of jLevelProgression"
+              class="sp-level"
+              [class.sp-level--done]="lv.status === 'completed'"
+              [class.sp-level--active]="lv.status === 'in-progress'"
+            >{{ lv.level }}</div>
+          </div>
+          <div class="sp-lesson-rows">
+            <div class="sp-lesson-row" *ngFor="let lv of jLevelProgression">
+              <ng-container *ngIf="jLessonsByLevel[lv.level]">
+                <span class="sp-lesson-row__lbl">{{ lv.level }}</span>
+                <div class="sp-bar">
+                  <div
+                    class="sp-bar__fill sp-bar__fill--blue"
+                    [style.width.%]="jLessonsByLevel[lv.level].total ? (jLessonsByLevel[lv.level].completed / jLessonsByLevel[lv.level].total * 100) : 0"
+                  ></div>
+                </div>
+                <span class="sp-lesson-row__ct">{{ jLessonsByLevel[lv.level].completed }}/{{ jLessonsByLevel[lv.level].total }}</span>
+              </ng-container>
+            </div>
+          </div>
+          <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Payments</span>
+            <span class="sp-card__meta">{{ jPayments.currency }}</span>
+          </div>
+          <div class="sp-kv-row"><span>Total amount</span><span class="sp-kv-val">{{ jPayments.totalAmount | number:'1.0-0' }}</span></div>
+          <div class="sp-kv-row"><span>Paid amount</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ jPayments.paidAmount | number:'1.0-0' }}</span></div>
+          <div class="sp-kv-row">
+            <span>Balance</span>
+            <span class="sp-kv-val" [style.color]="jPayments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ jPayments.pendingAmount | number:'1.0-0' }}</span>
+          </div>
+          <div class="sp-bar sp-bar--lg" style="margin-top:10px;">
+            <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div>
+          </div>
+          <div class="sp-small-text" style="margin-top:4px;">{{ jPayPct }}% paid</div>
+          <table class="sp-pay-table" *ngIf="jPayments.paymentHistory.length">
+            <thead>
+              <tr><th>Date</th><th>Amount</th><th>Method</th><th>Note</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of $any(jPayments.paymentHistory | slice:0:8)">
+                <td>{{ formatDate(p.date) }}</td>
+                <td>{{ p.amount | number:'1.0-0' }}</td>
+                <td>{{ p.method || '—' }}</td>
+                <td>{{ p.note || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table class="sp-pay-table" *ngIf="!jPayments.paymentHistory.length && jPayments.invoices.length">
+            <thead>
+              <tr><th>Invoice</th><th>Total</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let inv of $any(jPayments.invoices | slice:0:6)">
+                <td>{{ inv.invoiceNumber || '—' }}</td>
+                <td>{{ inv.totalPayable | number:'1.0-0' }}</td>
+                <td>{{ inv.paymentStatus || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="sp-empty" *ngIf="!jPayments.paymentHistory.length && !jPayments.invoices.length">No payment records yet</div>
+        </div>
+      </div>
+
+      <div class="sp-row sp-row--bottom">
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Documents</span>
+            <span class="sp-card__meta">{{ jDocsSubmitted }} verified / {{ jDocuments.length }}</span>
+          </div>
+          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="jDocsPct"></div></div>
+          <table class="sp-doc-table">
+            <thead><tr><th>Document</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let doc of $any(jDocuments | slice:0:6)">
+                <td>{{ doc.name }}</td>
+                <td>
+                  <span
+                    class="sp-doc-badge"
+                    [class.sp-doc-badge--ok]="doc.status === 'verified'"
+                    [class.sp-doc-badge--pending]="doc.status !== 'verified'"
+                  >{{ doc.status === 'verified' ? 'Verified' : 'Pending' }}</span>
+                </td>
+              </tr>
+              <tr *ngIf="jDocuments.length > 6"><td colspan="2" class="sp-doc-more">+ {{ jDocuments.length - 6 }} more documents</td></tr>
+              <tr *ngIf="!jDocuments.length"><td colspan="2" class="sp-empty">No documents uploaded yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Visa stage</span>
+            <span class="sp-card__meta">{{ jVisa.route || 'Not set' }}</span>
+          </div>
+          <div *ngIf="jVisa.steps.length; else noVisaTpl">
+            <div class="sp-visa">
+              <ng-container *ngFor="let step of jVisa.steps; let i = index; let last = last">
+                <div
+                  class="sp-visa__node"
+                  [class.sp-visa__node--active]="i === jVisa.currentStep"
+                  [class.sp-visa__node--done]="i < jVisa.currentStep"
+                >
+                  <div class="sp-visa__dot"></div>
+                  <span class="sp-visa__label">{{ step }}</span>
+                </div>
+                <div class="sp-visa__line" *ngIf="!last" [class.sp-visa__line--done]="i < jVisa.currentStep"></div>
+              </ng-container>
+            </div>
+            <div class="sp-visa-progress">
+              <div class="sp-visa-progress__header">
+                <span class="sp-visa-progress__title">Application progress</span>
+                <span class="sp-visa-progress__pct">{{ jVisa.totalSteps ? (((jVisa.currentStep) / jVisa.totalSteps) * 100 | number:'1.0-0') : 0 }}%</span>
+              </div>
+              <div class="sp-bar sp-bar--lg">
+                <div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jVisa.totalSteps ? ((jVisa.currentStep) / jVisa.totalSteps * 100) : 0"></div>
+              </div>
+            </div>
+          </div>
+          <ng-template #noVisaTpl><div class="sp-empty">No visa tracking record yet.</div></ng-template>
+        </div>
+      </div>
+
+      <div class="sp-row sp-row--triple">
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Attendance</span>
+            <span class="sp-card__meta">{{ jAttendance.attended }}/{{ jAttendance.total }}</span>
+          </div>
+          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jAttendanceRate"></div></div>
+          <div class="sp-kv-row"><span>Rate</span><span class="sp-kv-val">{{ jAttendanceRate }}%</span></div>
+          <div class="sp-kv-row">
+            <span>Last session</span>
+            <span class="sp-kv-val">{{ jAttendance.lastSessionDate ? formatDate(jAttendance.lastSessionDate) : '—' }}</span>
+          </div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">AI bot usage</span>
+            <span class="sp-card__meta">{{ jBotUsage.weekMinutes }}/{{ jBotUsage.targetMinutesPerWeek }} min</span>
+          </div>
+          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="jBotWeekPct"></div></div>
+          <div class="sp-kv-row"><span>Today</span><span class="sp-kv-val">{{ jBotUsage.todayMinutes }} min</span></div>
+          <div class="sp-kv-row"><span>This week</span><span class="sp-kv-val">{{ jBotUsage.weekMinutes }} min</span></div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Overall journey</span>
+            <span class="sp-card__meta">{{ jOverallPct }}%</span>
+          </div>
+          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jOverallPct"></div></div>
+          <div class="sp-kv-row"><span>Learning</span><span class="sp-kv-val">{{ jLearningPct }}%</span></div>
+          <div class="sp-kv-row"><span>Documents</span><span class="sp-kv-val">{{ jDocsPct }}%</span></div>
+          <div class="sp-kv-row"><span>Payments</span><span class="sp-kv-val">{{ jPayPct }}%</span></div>
+          <div class="sp-kv-row"><span>Visa</span><span class="sp-kv-val">{{ jVisaPct }}%</span></div>
+        </div>
+      </div>
+
+      <div class="sp-card">
+        <div class="sp-card__head">
+          <span class="sp-card__title">Journey history</span>
+          <span class="sp-card__meta">Recent milestones</span>
+        </div>
+        <div class="sp-timeline">
+          <div class="sp-timeline__item" *ngFor="let h of jHistory">
+            <div class="sp-timeline__dot"></div>
+            <div class="sp-timeline__body">
+              <span class="sp-timeline__date">{{ formatDate(h.date) }}</span>
+              <span class="sp-timeline__title">{{ h.title }}</span>
+              <span class="sp-timeline__desc">{{ h.desc }}</span>
+            </div>
+          </div>
+          <div *ngIf="!jHistory.length" class="sp-empty">No history yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="jm-body jm-loading" *ngIf="loading">
+      <div>
+        <div class="jm-spinner"></div>
+        <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading student details…</p>
+      </div>
+    </div>
+
+    <div class="jm-body" *ngIf="!loading && loadError">
+      <p class="sp-empty">{{ loadError }}</p>
+      <button type="button" class="jm-close" style="margin:12px auto;display:block;" (click)="load()">Retry</button>
+    </div>
+</ng-template>

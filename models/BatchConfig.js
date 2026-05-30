@@ -88,6 +88,26 @@ const BatchConfigSchema = new mongoose.Schema({
     default: false,
     index: true
   },
+  /**
+   * New batches only: when true, batch day and midnight student rollover are frozen
+   * until an admin resumes the journey (use for short breaks between journey days).
+   */
+  journeyPaused: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  journeyPausedAt: {
+    type: Date,
+    default: null
+  },
+  /** Batch journey day frozen while journeyPaused is true (new batch type only). */
+  journeyPausedFrozenDay: {
+    type: Number,
+    default: null,
+    min: 1,
+    max: 200
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

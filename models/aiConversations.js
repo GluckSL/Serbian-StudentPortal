@@ -13,4 +13,6 @@ const AiConversationSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
 });
 
+AiConversationSchema.index({ userId: 1 });
+
 module.exports = mongoose.model("AiConversation", AiConversationSchema);

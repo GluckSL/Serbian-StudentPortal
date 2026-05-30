@@ -32,4 +32,8 @@ const TimeTableSchema = new mongoose.Schema({
   sunday: { type: [timeRangeSchema], default: [] },
 });
 
+TimeTableSchema.index({ batch: 1, medium: 1, plan: 1, weekStartDate: -1, weekEndDate: 1 });
+TimeTableSchema.index({ assignedTeacher: 1 });
+TimeTableSchema.index({ batch: 1, plan: 1 });
+
 module.exports = mongoose.model("TimeTable", TimeTableSchema);

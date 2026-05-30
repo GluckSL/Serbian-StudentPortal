@@ -26,6 +26,7 @@ interface StudentDocument {
   documentName: string;
   fileName: string;
   fileSize: number;
+  mimeType?: string;
   formattedFileSize?: string;
   documentTypeDisplay?: string;
   servicesOpted?: string;
@@ -997,52 +998,32 @@ export class DocumentVerificationComponent implements OnInit {
 
   openPreview(doc: StudentDocument): void {
     if (doc.fileName === 'NO_FILE_UPLOADED') return;
-    
+
     this.previewDocument = doc;
     this.previewUrl = null;
-    this.previewType = 'pdf';
-    this.previewLoading = true;
+    this.previewLoading = false;
     this.showPreviewDialog = true;
-    
-    this.documentService.previewDocument(doc._id).subscribe({
-      next: (blob) => {
-        this.previewLoading = false;
-        const blobType = blob.type || '';
-        
-        if (blobType.includes('pdf')) {
-          this.previewType = 'pdf';
-        } else if (blobType.includes('image')) {
-          this.previewType = 'image';
-        } else {
-          const fileName = doc.fileName.toLowerCase();
-          if (fileName.endsWith('.pdf')) {
-            this.previewType = 'pdf';
-          } else if (/\.(jpg|jpeg|png|gif|webp|bmp)$/.test(fileName)) {
-            this.previewType = 'image';
-          } else {
-            this.previewType = 'unsupported';
-          }
-        }
-        
-        const objectUrl = URL.createObjectURL(blob);
-        this.previewRawUrl = objectUrl;
-        this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(objectUrl);
-      },
-      error: (error) => {
-        this.previewLoading = false;
-        console.error('Error loading preview:', error);
-        this.previewType = 'not-found';
-      }
-    });
+
+    const fileName = doc.fileName?.toLowerCase() || '';
+    const mimeType = doc.mimeType?.toLowerCase() || '';
+
+    if (mimeType.includes('pdf') || fileName.endsWith('.pdf')) {
+      this.previewType = 'pdf';
+    } else if (mimeType.includes('image') || /\.(jpg|jpeg|png|gif|webp|bmp)$/.test(fileName)) {
+      this.previewType = 'image';
+    } else {
+      this.previewType = 'unsupported';
+      return;
+    }
+
+    const rawUrl = this.documentService.getPreviewUrl(doc._id);
+    this.previewRawUrl = rawUrl;
+    this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(rawUrl);
   }
 
   closePreview(): void {
     this.showPreviewDialog = false;
     this.previewDocument = null;
-    // Revoke the object URL to free memory
-    if (this.previewRawUrl) {
-      URL.revokeObjectURL(this.previewRawUrl);
-    }
     this.previewUrl = null;
     this.previewRawUrl = '';
   }

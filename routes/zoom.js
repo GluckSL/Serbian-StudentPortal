@@ -12,6 +12,7 @@ const checkRole = require('../middleware/checkRole');
 const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
 const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
 const { getJoinLogDataForMeeting, getPortalJoinsForMeeting } = require('../services/joinLogHelpers');
@@ -155,7 +156,7 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     }
 
     // Get the assigned teacher
-    const teacher = await User.findById(teacherId).select('email name role');
+    const teacher = await User.findById(teacherId).select('email name role').lean();
     if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
     }
@@ -170,7 +171,7 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       students = await User.find({
         _id: { $in: studentIds },
         role: 'STUDENT'
-      }).select('name email batch level subscription');
+      }).select('name email batch level subscription').lean();
     }
 
     if (students.length === 0) {
@@ -421,7 +422,7 @@ router.post('/create-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'T
       });
     }
 
-    const teacher = await User.findById(teacherId).select('email name role');
+    const teacher = await User.findById(teacherId).select('email name role').lean();
     if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
     }
@@ -433,7 +434,7 @@ router.post('/create-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'T
       students = await User.find({
         _id: { $in: studentIds },
         role: 'STUDENT'
-      }).select('name email batch level subscription medium');
+      }).select('name email batch level subscription medium').lean();
     }
     if (students.length === 0) {
       return res.status(404).json({ success: false, message: 'No students found with the provided IDs' });
@@ -621,7 +622,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const userId = req.user.id || req.user.userId || req.user._id;
 
     // Get user to check role
-    const user = await User.findById(userId).select('role');
+    const user = await User.findById(userId).select('role').lean();
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
@@ -856,7 +857,8 @@ router.get('/meetings', verifyToken, async (req, res) => {
       .populate('attendees.studentId', 'name email batch level subscription')
       .sort({ startTime: sortOrder })
       .skip(skip)
-      .limit(pageSize);
+      .limit(pageSize)
+      .lean();
 
     const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
 
@@ -923,7 +925,8 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
     const meeting = await MeetingLink.findById(id)
       .populate('createdBy', 'name email')
       .populate('assignedTeacher', 'name email')
-      .populate('attendees.studentId', 'name email batch level subscription studentStatus');
+      .populate('attendees.studentId', 'name email batch level subscription studentStatus')
+      .lean();
 
     if (!meeting) {
       return res.status(404).json({
@@ -945,7 +948,7 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
     }
 
     const payload = {
-      ...meeting.toObject(),
+      ...meeting,
       currentStatus,
       isOngoing: currentStatus === 'ongoing',
       hasEnded: currentStatus === 'ended',
@@ -1007,6 +1010,13 @@ function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
     durationMinutes: mins,
     attendanceRowStatus: row.status || null
   };
+}
+
+function filterMeetingsNotBlocked(student, rows) {
+  if (!student || !Array.isArray(rows)) return rows || [];
+  return rows.filter(
+    (m) => !isContentBlockedForStudent(student, { courseDay: m.courseDay, level: student.level })
+  );
 }
 
 function mapStudentMeetingRow(req, meeting, studentId, studentEmail, studentDay) {
@@ -1106,7 +1116,8 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
     const studentId = req.user.id;
 
     const student = await User.findById(studentId)
-      .select('batch subscription currentCourseDay email goStatus');
+      .select('batch subscription currentCourseDay email goStatus blockedJourneyLevels level')
+      .lean();
 
     if (!student) {
       return res.status(404).json({
@@ -1170,7 +1181,8 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
           .populate('assignedTeacher', 'name email')
           .sort({ startTime: sortOrder })
           .skip(skip)
-          .limit(pageSize),
+          .limit(pageSize)
+          .lean(),
         includeTabCounts
           ? Promise.all([
               MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('scheduled'))),
@@ -1181,9 +1193,10 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       ]);
 
       const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
-      const data = meetings.map((m) =>
+      let data = meetings.map((m) =>
         mapStudentMeetingRow(req, m, studentId, student.email, studentDay)
       );
+      data = filterMeetingsNotBlocked(student, data);
 
       const payload = {
         success: true,
@@ -1207,11 +1220,13 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
     const meetings = await MeetingLink.find({ $and: baseAnd })
       .populate('createdBy', 'name email')
       .populate('assignedTeacher', 'name email')
-      .sort({ startTime: -1 });
+      .sort({ startTime: -1 })
+      .lean();
 
-    const meetingsWithStatus = meetings.map((meeting) =>
+    let meetingsWithStatus = meetings.map((meeting) =>
       mapStudentMeetingRow(req, meeting, studentId, student.email, studentDay)
     );
+    meetingsWithStatus = filterMeetingsNotBlocked(student, meetingsWithStatus);
 
     res.status(200).json({
       success: true,
@@ -1241,7 +1256,8 @@ router.get('/students/:batch', verifyToken, async (req, res) => {
       isActive: true
     })
     .select('name email batch level subscription studentStatus')
-    .sort({ name: 1 });
+    .sort({ name: 1 })
+    .lean();
 
     res.status(200).json({
       success: true,
@@ -1277,7 +1293,8 @@ router.get('/students', verifyToken, async (req, res) => {
 
     const students = await User.find(query)
       .select('name email batch level subscription studentStatus')
-      .sort({ batch: 1, name: 1 });
+      .sort({ batch: 1, name: 1 })
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -1317,7 +1334,7 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
       const newStudents = await User.find({
         _id: { $in: addStudentIds },
         role: 'STUDENT'
-      }).select('name email');
+      }).select('name email').lean();
 
       const attendees = newStudents.map(student => ({
         email: student.email,
@@ -1409,7 +1426,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
     }
 
     // Check if user has permission to edit this meeting
-    const user = await User.findById(req.user.id).select('role');
+    const user = await User.findById(req.user.id).select('role').lean();
     const isOwnerOrAssigned = meeting.createdBy.toString() === req.user.id ||
       (meeting.assignedTeacher && meeting.assignedTeacher.toString() === req.user.id);
     if ((user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') && !isOwnerOrAssigned) {
@@ -1618,7 +1635,7 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'No valid meeting IDs provided' });
     }
 
-    const requestingUser = await User.findById(req.user.id).select('role');
+    const requestingUser = await User.findById(req.user.id).select('role').lean();
     const isAdminUser = requestingUser.role === 'ADMIN' || requestingUser.role === 'SUB_ADMIN';
 
     // Pre-load students to add (done once, reused per meeting)
@@ -1628,13 +1645,13 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
       studentsToAdd = await User.find({
         _id: { $in: addStudentIds },
         role: 'STUDENT'
-      }).select('name email');
+      }).select('name email').lean();
     }
 
     // Pre-validate assignedTeacher if supplied
     let newTeacher = null;
     if (updates.assignedTeacher) {
-      newTeacher = await User.findById(updates.assignedTeacher).select('name email role');
+      newTeacher = await User.findById(updates.assignedTeacher).select('name email role').lean();
       if (!newTeacher || !['TEACHER', 'TEACHER_ADMIN'].includes(newTeacher.role)) {
         return res.status(400).json({ success: false, message: 'Invalid assignedTeacher ID' });
       }
@@ -1839,7 +1856,7 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const meeting = await MeetingLink.findById(id);
+    const meeting = await MeetingLink.findById(id).lean();
     
     if (!meeting) {
       return res.status(404).json({
@@ -1904,7 +1921,8 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
       
       // Populate student details if not already populated
       const meetingWithStudents = await MeetingLink.findById(id)
-        .populate('attendees.studentId', 'name email');
+        .populate('attendees.studentId', 'name email')
+        .lean();
       
       const students = meetingWithStudents.attendees
         .filter(a => a.studentId) // Only students with valid IDs
@@ -2075,7 +2093,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     const { id } = req.params;
 
-    const meeting = await MeetingLink.findById(id);
+    const meeting = await MeetingLink.findById(id).lean();
     
     if (!meeting) {
       return res.status(404).json({

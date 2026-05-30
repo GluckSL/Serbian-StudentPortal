@@ -311,6 +311,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
 
   private sub?: Subscription;
   private studentId = '';
+  private goApiPath = 'go-students';
 
   constructor(
     private route: ActivatedRoute,
@@ -319,6 +320,10 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.goApiPath =
+      String(this.route.snapshot.queryParamMap.get('track') || '').toLowerCase() === 'sinhala'
+        ? 'go-students-sinhala'
+        : 'go-students';
     this.sub = this.route.paramMap.subscribe((pm) => {
       const id = pm.get('studentId');
       if (id) {
@@ -340,7 +345,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   load(studentId: string): void {
     this.loading = true;
     this.error = '';
-    this.http.get<any>(`${environment.apiUrl}/go-students/${studentId}/detail`, { withCredentials: true }).subscribe({
+    this.http.get<any>(`${environment.apiUrl}/${this.goApiPath}/${studentId}/detail`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.detail = r;
         this.maxJourneyDay = r.journeyLength >= 1 ? Math.min(r.journeyLength, 200) : 200;
@@ -362,7 +367,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
     this.saving = true;
     this.http
       .patch<{ currentCourseDay: number }>(
-        `${environment.apiUrl}/go-students/${this.studentId}/journey-day`,
+        `${environment.apiUrl}/${this.goApiPath}/${this.studentId}/journey-day`,
         { currentCourseDay: this.editDay },
         { withCredentials: true }
       )

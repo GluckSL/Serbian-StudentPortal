@@ -32,6 +32,7 @@ export const routes: Routes = [
 
   // Login and Signup routes
   { path: 'login', loadComponent: () => import('./components/login/login.component').then(m => m.LoginComponent) },
+  { path: 'register', loadComponent: () => import('./components/register/register.component').then(m => m.RegisterComponent) },
   { path: 'forgot-password', loadComponent: () => import('./components/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent) },
   { path: 'signup', loadComponent: () => import('./components/signup/signup.component').then(m => m.SignupComponent) },
 
@@ -64,6 +65,13 @@ export const routes: Routes = [
     path: 'admin-dashboard',
     loadComponent: () => import('./components/admin-dashboard/admin-dashboard.component')
       .then(m => m.AdminDashboardComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+  {
+    path: 'admin/students/:studentId',
+    loadComponent: () => import('./components/admin-dashboard/admin-student-detail/admin-student-detail.component')
+      .then(m => m.AdminStudentDetailComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
@@ -210,6 +218,8 @@ export const routes: Routes = [
   // Class Recordings — Teacher/Admin manage
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
   { path: 'class-recordings/approval-requests', loadComponent: () => import('./components/class-recordings/recording-access-approval/recording-access-approval-page.component').then(m => m.RecordingAccessApprovalPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'class-recordings/self-pace', loadComponent: () => import('./components/class-recordings/recording-cross-batch-access/recording-cross-batch-access-page.component').then(m => m.RecordingCrossBatchAccessPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'class-recordings/access-recording', redirectTo: '/class-recordings/self-pace', pathMatch: 'full' },
 
   // Class Recordings — Student view (hub)
   { path: 'student/class-recordings', redirectTo: '/student/my-course', pathMatch: 'full' },
@@ -281,6 +291,7 @@ export const routes: Routes = [
   { path: 'admin/performance', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/performance/student/:studentId', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/language-tracking', loadComponent: () => import('./pages/language-tracking/language-tracking.component').then(m => m.LanguageTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/language-tracking/student/:studentId', loadComponent: () => import('./pages/language-tracking/language-tracking-student-detail.component').then(m => m.LanguageTrackingStudentDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
@@ -510,13 +521,51 @@ export const routes: Routes = [
   // ── GlückArena — Student routes ──────────────────────────────────────────
   {
     path: 'glueck-arena',
-    loadComponent: () => import('./features/glueck-arena/components/game-catalog/game-catalog.component').then(m => m.GameCatalogComponent),
+    loadComponent: () => import('./features/glueck-arena/components/arena-layout/arena-layout.component').then(m => m.ArenaLayoutComponent),
     canActivate: [AuthGuard],
-  },
-  {
-    path: 'glueck-arena/leaderboard',
-    loadComponent: () => import('./features/glueck-arena/components/game-leaderboard/game-leaderboard.component').then(m => m.GameLeaderboardComponent),
-    canActivate: [AuthGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () => import('./features/glueck-arena/components/game-catalog/game-catalog.component').then(m => m.GameCatalogComponent),
+      },
+      {
+        path: 'leaderboard',
+        loadComponent: () => import('./features/glueck-arena/components/game-leaderboard/game-leaderboard.component').then(m => m.GameLeaderboardComponent),
+      },
+      {
+        path: 'battlefield',
+        loadComponent: () => import('./features/glueck-arena/components/battlefield-hub/battlefield-hub.component').then(m => m.BattlefieldHubComponent),
+      },
+      {
+        path: 'battlefield/leaderboard',
+        loadComponent: () => import('./features/glueck-arena/components/battlefield-leaderboard/battlefield-leaderboard.component').then(m => m.BattlefieldLeaderboardComponent),
+      },
+      {
+        path: 'battlefield/room/:code',
+        loadComponent: () => import('./features/glueck-arena/components/battlefield-room/battlefield-room.component').then(m => m.BattlefieldRoomComponent),
+      },
+      {
+        path: 'multiplayer',
+        loadComponent: () => import('./features/glueck-arena/components/multiplayer-lobby/multiplayer-lobby.component').then(m => m.MultiplayerLobbyComponent),
+      },
+      {
+        path: 'multiplayer/battle',
+        loadComponent: () => import('./features/glueck-arena/components/multiplayer-battle/multiplayer-battle.component').then(m => m.MultiplayerBattleComponent),
+      },
+      {
+        path: 'multiplayer/spectate',
+        loadComponent: () => import('./features/glueck-arena/components/spectator-watch/spectator-watch.component').then(m => m.SpectatorWatchComponent),
+      },
+      {
+        path: ':id/play',
+        loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
+      },
+      {
+        path: ':id',
+        loadComponent: () => import('./features/glueck-arena/components/game-detail/game-detail.component').then(m => m.GameDetailComponent),
+      },
+    ],
   },
   {
     path: 'admin/glueck-arena/command-center',
@@ -531,14 +580,16 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   {
-    path: 'glueck-arena/:id',
-    loadComponent: () => import('./features/glueck-arena/components/game-detail/game-detail.component').then(m => m.GameDetailComponent),
-    canActivate: [AuthGuard],
+    path: 'admin/glueck-arena/battlefield/team-battles/standings',
+    loadComponent: () => import('./features/glueck-arena/components/admin-team-battle-standings/admin-team-battle-standings.component').then(m => m.TeamBattleStandingsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   {
-    path: 'glueck-arena/:id/play',
-    loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
-    canActivate: [AuthGuard],
+    path: 'admin/glueck-arena/battlefield/team-battles',
+    loadComponent: () => import('./features/glueck-arena/components/admin-team-battle/admin-team-battle.component').then(m => m.AdminTeamBattleComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   // ── GlückArena — Admin routes ─────────────────────────────────────────────
   {

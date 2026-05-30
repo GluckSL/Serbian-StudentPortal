@@ -6,35 +6,41 @@
     <router-outlet></router-outlet>
   </ng-container>
 
-  <ng-template #normalLayout>
-    <!-- Public pages (home/login): no sidebar, show header -->
-    <ng-container *ngIf="!showSidebar">
-      <app-header *ngIf="showHeader"></app-header>
-      <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
-        <router-outlet></router-outlet>
-      </main>
-      <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
-    </ng-container>
+  <!-- Logged-in pages: sidebar + content -->
+  <ng-container *ngIf="showSidebar">
+    <!-- Mobile hamburger — only when drawer closed; close lives inside sidebar drawer -->
+    <button
+      type="button"
+      class="mobile-menu-btn"
+      *ngIf="!sidebarOpen"
+      (click)="toggleSidebar()"
+      [attr.aria-expanded]="sidebarOpen"
+      aria-controls="app-sidebar"
+      [attr.aria-label]="sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'">
+      <span class="material-icons menu-icon" aria-hidden="true">{{ sidebarOpen ? 'close' : 'menu' }}</span>
+      <span class="menu-brand">Glück Global</span>
+    </button>
 
-    <!-- Logged-in pages: sidebar + content -->
-    <ng-container *ngIf="showSidebar">
-      <!-- Mobile hamburger -->
-      <button class="mobile-menu-btn" (click)="toggleSidebar()">☰ <span style="font-size:14px;font-weight:700;margin-left:8px;">Glück Global</span></button>
+    <div class="app-shell" [class.sidebar-drawer-open]="sidebarOpen">
+      <app-sidebar
+        id="app-sidebar"
+        [class.open]="sidebarOpen"
+        (closeSidebar)="closeSidebar()">
+      </app-sidebar>
 
-      <!-- Overlay for mobile -->
-      <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
+      <!-- Tap outside drawer to close (after sidebar in DOM so drawer stays on top on iOS) -->
+      <div
+        class="sidebar-overlay"
+        *ngIf="sidebarOpen"
+        role="presentation"
+        (click)="closeSidebar()">
+      </div>
 
-      <div class="app-shell">
-        <app-sidebar
-          [class.open]="sidebarOpen"
-          (closeSidebar)="sidebarOpen = false">
-        </app-sidebar>
-        <div class="shell-content">
-          <main class="main-content">
-            <router-outlet></router-outlet>
-          </main>
-          <app-footer></app-footer>
-        </div>
+      <div class="shell-content">
+        <main class="main-content">
+          <router-outlet></router-outlet>
+        </main>
+        <app-footer></app-footer>
       </div>
     </ng-container>
   </ng-template>

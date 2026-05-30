@@ -130,7 +130,8 @@ router.get('/', async (req, res) => {
         const logs = await StudentLogs.find()
         .populate('studentId', 'name email regNo')
         .populate('assignedTeacherAtUpdate', 'name regNo')
-        .sort({ updatedAt: -1 }); // latest first
+        .sort({ updatedAt: -1 }) // latest first
+        .lean();
 
         res.status(200).json({ success: true, count: logs.length, data: logs });
     } catch (err) {
@@ -992,7 +993,8 @@ router.get('/:studentId', async (req, res) => {
         const logs = await StudentLogs.find({ studentId })
         .populate('studentId', 'name email regNo')
         .populate('assignedTeacherAtUpdate', 'name regNo')
-        .sort({ updatedAt: -1 }); // latest first
+        .sort({ updatedAt: -1 }) // latest first
+        .lean();
 
         res.status(200).json({ success: true, data: logs });
 

@@ -29,6 +29,7 @@ const app = express();
 const path = require('path');
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require('compression');
 const dns = require('dns').promises; // uses resolvers from configureMongoDnsResolvers above
 const auth = require("./middleware/auth");
 
@@ -101,6 +102,7 @@ const visaTrackingRoutes = require('./routes/visaTracking');
 const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
 const goStudentsRoutes = require('./routes/goStudents');
+const goStudentsSinhalaRoutes = require('./routes/goStudentsSinhala');
 const invoiceManagementRoutes = require('./routes/invoiceManagement');
 const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
@@ -139,6 +141,7 @@ const upload = multer({ dest: 'uploads/' });
 
 app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx or Heroku)
 
+app.use(compression());
 
 // Zoom webhook — must be registered BEFORE express.json() so the raw body
 // is available for HMAC signature verification
@@ -286,7 +289,6 @@ app.use('/api/module-trash', moduleTrashRoutes);
 app.use('/api/admin-analytics', adminAnalyticsRoutes);
 app.use('/api/zoom', zoomRoutes);
 app.use('/api', joinClassRoutes);
-app.use('/api', joinClassRoutes);
 app.use('/api/upgrade-requests', upgradeRequestsRoutes);
 app.use('/api/studentLog', studentLogRoutes);
 app.use('/api/student-documents', studentDocumentsRoutes);
@@ -304,6 +306,7 @@ app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);
 app.use('/api/go-students', goStudentsRoutes);
+app.use('/api/go-students-sinhala', goStudentsSinhalaRoutes);
 
 app.use('/api/invoices', invoiceManagementRoutes);
 app.use('/api/payment-submissions', paymentSubmissionsRoutes);
@@ -343,6 +346,12 @@ app.use('/api/class-recordings', classRecordingRoutes);
 
 const recordingAccessRequestRoutes = require('./routes/recordingAccessRequests');
 app.use('/api/recording-access-requests', recordingAccessRequestRoutes);
+
+const journeyCrossBatchRecordingAccessRoutes = require('./routes/journeyCrossBatchRecordingAccess');
+app.use('/api/journey-cross-batch-recording-access', journeyCrossBatchRecordingAccessRoutes);
+
+const selfPaceRoutes = require('./routes/selfPace');
+app.use('/api/self-pace', selfPaceRoutes);
 app.use('/api/portal', portalRouter);
 app.use('/api/portal-analytics', analyticsRouter);
 

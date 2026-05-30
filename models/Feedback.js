@@ -8,4 +8,7 @@ const feedbackSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+feedbackSchema.index({ studentId: 1, timestamp: -1 });
+feedbackSchema.index({ currentLevel: 1, timestamp: -1 });
+
 module.exports = mongoose.model('Feedback', feedbackSchema);

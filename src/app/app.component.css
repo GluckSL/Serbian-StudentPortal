@@ -75,29 +75,41 @@ app-footer {
   box-sizing: border-box;
 }
 
-/* Mobile hamburger */
+/* Mobile hamburger — shown only when drawer is closed (open/close lives in sidebar drawer) */
 .mobile-menu-btn {
   display: none;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1050;
+  z-index: 1120;
   background: #03396c;
   color: #fff;
   border: none;
-  /* Minimum 44px touch target per WCAG */
   height: 52px;
-  font-size: 22px;
   cursor: pointer;
-  text-align: left;
+  align-items: center;
+  gap: 10px;
   padding: 0 16px;
-  /* Safe area insets for notched phones */
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+
+.mobile-menu-btn .menu-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn .menu-brand {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Mobile overlay */
@@ -105,17 +117,15 @@ app-footer {
   display: none;
 }
 
-@media (max-width: 768px) {
+/* Tablets, large phones (incl. Pro Max landscape), touch laptops */
+@media (max-width: 992px) {
   .mobile-menu-btn {
     display: flex;
-    align-items: center;
   }
 
   .shell-content {
     margin-left: 0;
-    /* Account for hamburger bar + safe area */
     padding-top: calc(52px + env(safe-area-inset-top, 0px));
-    /* Safe area for bottom (e.g. iPhone home indicator) */
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
@@ -123,31 +133,15 @@ app-footer {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1099;
-    /* Smooth fade in */
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1120;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     animation: overlayFadeIn 0.2s ease;
   }
 
-  app-sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    z-index: 1100;
-    transform: translateX(-100%);
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    width: min(280px, 80vw);
-    /* Full height including safe areas */
-    height: 100dvh;
-    overflow-y: auto;
-  }
-
-  app-sidebar.open {
-    transform: translateX(0);
-  }
-
   .main-content {
-    /* Do not force nearly full-viewport min-height: it blocks flex scrollports and clips tall pages */
     overflow-x: clip;
     max-width: 100%;
   }
@@ -158,10 +152,3 @@ app-footer {
   to { opacity: 1; }
 }
 
-/* Extra small phones */
-@media (max-width: 375px) {
-  .mobile-menu-btn {
-    font-size: 20px;
-    height: 52px;
-  }
-}

@@ -23,6 +23,8 @@ const {
   getAnalyticsFilterOptions,
   parseDateRange,
 } = require('./portalAnalytics.service');
+const { goBatchForStudent } = require('../utils/goSilverTrack');
+const { journeyWeekFromDay, weekDayRange } = require('../utils/oldBatchDgWeekAccess');
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -320,7 +322,7 @@ async function getOverview(opts = {}) {
       name: s.name,
       email: s.email,
       regNo: s.regNo,
-      batch: s.batch || (s.goStatus === 'GO' && s.subscription === 'SILVER' ? 'GO-SILVER' : ''),
+      batch: s.batch || (s.goStatus === 'GO' && s.subscription === 'SILVER' ? goBatchForStudent(s) : ''),
       level: s.level,
       subscription: s.subscription,
       goStatus: s.goStatus || null,
@@ -432,7 +434,9 @@ async function getStudentDetail(studentId, opts = {}) {
     // Lazy require avoids circular dependency issues at module load time
     // eslint-disable-next-line global-require
     const { computeJourneyDayCompletion } = require('./journeyDayCompletion.service');
-    const batchForCompletion = student.batch || (student.goStatus === 'GO' && student.subscription === 'SILVER' ? 'GO-SILVER' : '');
+    const batchForCompletion = student.batch || (student.goStatus === 'GO' && student.subscription === 'SILVER'
+      ? goBatchForStudent(student)
+      : '');
     const day = student.currentCourseDay || 1;
     dayCompletion = await computeJourneyDayCompletion(sid, batchForCompletion, day, {
       includeRecordings: false,
@@ -508,11 +512,163 @@ async function getStudentDetail(studentId, opts = {}) {
   };
 }
 
+// ── Journey week / day (admin) ───────────────────────────────────────────────
+
+function resolveBatchForCompletion(student) {
+  if (student.batch) return String(student.batch);
+  if (student.goStatus === 'GO' && student.subscription === 'SILVER') return goBatchForStudent(student);
+  return '';
+}
+
+function mapDayCompletionPayload(completion, day) {
+  if (!completion) return null;
+  const classBreakdown = completion.breakdown?.classes || { done: 0, total: 0 };
+  const incompleteTasks = (completion.incompleteTasks || []).filter((t) => t.kind !== 'class');
+  return {
+    day,
+    complete: completion.complete,
+    completionPercent: completion.completionPercent,
+    doneTasks: completion.doneTasks - (classBreakdown.done || 0),
+    totalTasks: completion.totalTasks - (classBreakdown.total || 0),
+    incompleteTasks,
+    breakdown: completion.breakdown || {},
+  };
+}
+
+async function loadStudentForJourney(studentId) {
+  const sid = mongoose.Types.ObjectId.isValid(String(studentId))
+    ? new mongoose.Types.ObjectId(String(studentId))
+    : null;
+  if (!sid) throw new Error('INVALID_STUDENT_ID');
+  const student = await User.findById(sid)
+    .select('_id name email regNo batch level subscription goStatus currentCourseDay')
+    .lean();
+  if (!student) throw new Error('STUDENT_NOT_FOUND');
+  return { sid, student };
+}
+
+async function computeDayCompletionForStudent(student, day) {
+  const { computeJourneyDayCompletion } = require('./journeyDayCompletion.service');
+  const batchForCompletion = resolveBatchForCompletion(student);
+  const completion = await computeJourneyDayCompletion(student._id, batchForCompletion, day, {
+    includeRecordings: false,
+    includeDg: true,
+    studentLevel: student.level || '',
+    studentPlan: student.subscription || '',
+    goStatus: student.goStatus || '',
+  });
+  return mapDayCompletionPayload(completion, day);
+}
+
+/**
+ * Completion summary for each day in a journey week (days 1–7, 8–14, …).
+ */
+async function getStudentWeekSummary(studentId, weekNum) {
+  const { student } = await loadStudentForJourney(studentId);
+  const currentCourseDay = student.currentCourseDay || 1;
+  const currentWeek = journeyWeekFromDay(currentCourseDay);
+  const week = Math.max(1, Math.min(Math.floor(Number(weekNum) || 1), currentWeek));
+  const { start, end } = weekDayRange(week);
+
+  const days = [];
+  for (let day = start; day <= end; day += 1) {
+    const isFuture = day > currentCourseDay;
+    if (isFuture) {
+      days.push({
+        day,
+        isFuture: true,
+        complete: false,
+        completionPercent: 0,
+        doneTasks: 0,
+        totalTasks: 0,
+        incompleteCount: 0,
+      });
+      continue;
+    }
+    try {
+      const payload = await computeDayCompletionForStudent(student, day);
+      days.push({
+        day,
+        isFuture: false,
+        complete: payload.complete,
+        completionPercent: payload.completionPercent,
+        doneTasks: payload.doneTasks,
+        totalTasks: payload.totalTasks,
+        incompleteCount: payload.incompleteTasks.length,
+      });
+    } catch (_) {
+      days.push({
+        day,
+        isFuture: false,
+        complete: false,
+        completionPercent: 0,
+        doneTasks: 0,
+        totalTasks: 0,
+        incompleteCount: 0,
+        error: true,
+      });
+    }
+  }
+
+  return {
+    student: {
+      studentId: String(student._id),
+      name: student.name,
+      regNo: student.regNo,
+      batch: student.batch || '',
+      level: student.level,
+      currentCourseDay,
+    },
+    week,
+    weekStartDay: start,
+    weekEndDay: end,
+    currentWeek,
+    days,
+  };
+}
+
+/**
+ * Full task list for a specific journey day (any day up to currentCourseDay).
+ */
+async function getStudentDayDetail(studentId, dayNum) {
+  const { student } = await loadStudentForJourney(studentId);
+  const currentCourseDay = student.currentCourseDay || 1;
+  const day = Math.max(1, Math.floor(Number(dayNum) || 1));
+  if (day > currentCourseDay) {
+    const err = new Error('DAY_NOT_REACHED');
+    err.day = day;
+    err.currentCourseDay = currentCourseDay;
+    throw err;
+  }
+
+  let dayCompletion = null;
+  try {
+    dayCompletion = await computeDayCompletionForStudent(student, day);
+  } catch (_) {
+    dayCompletion = null;
+  }
+
+  return {
+    student: {
+      studentId: String(student._id),
+      name: student.name,
+      email: student.email,
+      regNo: student.regNo,
+      batch: student.batch || '',
+      level: student.level,
+      currentCourseDay,
+    },
+    dayCompletion,
+  };
+}
+
 // ── Exports ─────────────────────────────────────────────────────────────────
 
 module.exports = {
   getOverview,
   getStudentDetail,
+  getStudentWeekSummary,
+  getStudentDayDetail,
   getDailyTrend,
   getAnalyticsFilterOptions,
   parseLtDateRange,

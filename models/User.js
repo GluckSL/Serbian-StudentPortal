@@ -27,6 +27,8 @@ const UserSchema = new mongoose.Schema({
   mustChangePassword: { type: Boolean, default: false },
   /** Set when the student completes password setup or changes password while logged in. */
   passwordChangedAt: { type: Date, default: null },
+  /** Incremented to invalidate all outstanding JWTs (force logout). */
+  authTokenVersion: { type: Number, default: 0 },
   role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN", "SUB_ADMIN"], required: true },
   sidebarPermissions: { type: [String], default: [] },
   teacherTabPermissions: { type: [String], default: [] },
@@ -111,6 +113,15 @@ const UserSchema = new mongoose.Schema({
   currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
 
   /**
+   * CEFR levels whose journey content this student cannot access (e.g. ['A1'] blocks days 1–42).
+   * Used for students who join at A2 and should not see A1 modules, videos, or exercises.
+   */
+  blockedJourneyLevels: {
+    type: [{ type: String, enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] }],
+    default: []
+  },
+
+  /**
    * Set when student attended the live class for currentCourseDay (meeting.courseDay matches).
    * Cleared after midnight rollover when currentCourseDay increments, or when admin changes day.
    */
@@ -130,10 +141,12 @@ const UserSchema = new mongoose.Schema({
 
   // GO Silver batch fields
   goStatus: { type: String, enum: ['GO'], default: undefined },
+  /** Tamil → GO-SILVER journey; Sinhala → GO-SINHALA journey */
+  goLanguage: { type: String, enum: ['Tamil', 'Sinhala'], default: undefined },
   goJoiningDate: { type: Date, default: null },
 
   // CRM link — stores the external WP/Gluck CRM contact ID so portal ↔ CRM records stay linked
-  crmExternalId: { type: String, default: '', index: true },
+  crmExternalId: { type: String, default: '' },
 
   // Self-signup fields
   nationality:  { type: String, default: '' },
@@ -146,6 +159,8 @@ UserSchema.index(
   { crmExternalId: 1 },
   { unique: true, sparse: true, partialFilterExpression: { crmExternalId: { $gt: '' } } }
 );
+UserSchema.index({ role: 1, createdAt: -1 });
+UserSchema.index({ role: 1, assignedTeacher: 1 });
 
 UserSchema.pre('save', function setPhoneCountry(next) {
   if (this.role === 'STUDENT') {

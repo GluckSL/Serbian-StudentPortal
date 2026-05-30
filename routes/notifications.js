@@ -16,7 +16,8 @@ router.get('/', verifyToken, async (req, res) => {
     }
 
     const notifications = await Notification.find(filter)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json({ ok: true, data: notifications });
   } catch (err) {

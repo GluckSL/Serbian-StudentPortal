@@ -61,6 +61,11 @@ export interface DisplayRecording {
   accessRequestStatus?: 'PENDING' | 'APPROVED' | 'DECLINED' | null;
   /** When false, show pending UI instead of play (backend-driven). */
   canPlay?: boolean;
+  /** 'cross_batch' (legacy) or 'self_pace' when unlocked via attendance-gated mapping. */
+  accessSource?: 'cross_batch' | 'self_pace' | null;
+  /** Source batch label when accessSource === 'cross_batch'. */
+  sharedFromBatch?: string | null;
+  sharedFromCourseDay?: number | null;
 }
 
 @Component({
@@ -226,6 +231,12 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       watchedSeconds: Number.isFinite(Number(r['watchedSeconds'])) ? Number(r['watchedSeconds']) : 0,
       accessRequestStatus: (r['accessRequestStatus'] as DisplayRecording['accessRequestStatus']) || null,
       canPlay: r['canPlay'] !== false,
+      accessSource:
+        r['accessSource'] === 'cross_batch' || r['accessSource'] === 'self_pace'
+          ? (r['accessSource'] as DisplayRecording['accessSource'])
+          : null,
+      sharedFromBatch: (r['sharedFromBatch'] as string) || null,
+      sharedFromCourseDay: r['sharedFromCourseDay'] != null && Number.isFinite(Number(r['sharedFromCourseDay'])) ? Number(r['sharedFromCourseDay']) : null,
     };
   }
 
@@ -773,6 +784,16 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   getAttemptedLabel(r: DisplayRecording): string {
     if (r.attempted === null) return 'N/A';
     return r.attempted ? 'Yes' : 'No';
+  }
+
+  getCrossBatchLabel(r: DisplayRecording): string | null {
+    if (r.accessSource === 'self_pace') {
+      return `Self Pace recording — Journey Day ${r.sharedFromCourseDay ?? r.courseDay}`;
+    }
+    if (r.accessSource === 'cross_batch' && r.sharedFromBatch) {
+      return `Shared class recording — Journey Day ${r.sharedFromCourseDay ?? r.courseDay} (Batch ${r.sharedFromBatch})`;
+    }
+    return null;
   }
 
   getAttendanceLabel(r: DisplayRecording): string {

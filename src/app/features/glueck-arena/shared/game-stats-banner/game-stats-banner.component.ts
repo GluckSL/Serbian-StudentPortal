@@ -60,7 +60,7 @@ import { StudentGameStats } from '../../glueck-arena.types';
       .gsb { grid-template-columns: repeat(3, 1fr); }
       .gsb__val { font-size: 17px; }
     }
-    @media (max-width: 420px) {
+    @media (max-width: 500px) {
       .gsb { grid-template-columns: repeat(2, 1fr); }
       .gsb__val { font-size: 17px; }
     }

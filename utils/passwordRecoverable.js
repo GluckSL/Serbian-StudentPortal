@@ -69,4 +69,31 @@ function decryptPassword(ciphertext) {
   }
 }
 
-module.exports = { encryptPassword, decryptPassword };
+/**
+ * Persist recoverable copy for ADMIN directory (encrypted when possible, else plain).
+ * @param {string} plain
+ * @returns {string|null}
+ */
+function storeRecoverablePassword(plain) {
+  if (!plain || typeof plain !== 'string') return null;
+  const trimmed = plain.trim();
+  if (!trimmed) return null;
+  const encrypted = encryptPassword(trimmed);
+  return encrypted ?? trimmed;
+}
+
+/** Read stored recoverable value (AES or legacy plain text). */
+function readRecoverablePassword(stored) {
+  if (!stored || typeof stored !== 'string') return null;
+  const decrypted = decryptPassword(stored);
+  if (decrypted) return decrypted;
+  if (!stored.includes(':') && stored.trim()) return stored.trim();
+  return null;
+}
+
+module.exports = {
+  encryptPassword,
+  decryptPassword,
+  storeRecoverablePassword,
+  readRecoverablePassword,
+};

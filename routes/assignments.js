@@ -37,7 +37,7 @@ router.post(
       const studentId = req.user.id; // from JWT [file:103]
       const { courseId, moduleId, title, assignmentTemplateId } = req.body;
 
-      const student = await User.findById(studentId).populate('assignedTeacher');
+      const student = await User.findById(studentId).populate('assignedTeacher').lean();
       if (!student) {
         return res.status(404).json({ msg: 'Student not found' });
       }
@@ -125,12 +125,12 @@ router.post(
       const teacherId = req.user.id;
       const { studentId, courseId, moduleId, title } = req.body;
 
-      const teacher = await User.findById(teacherId);
+      const teacher = await User.findById(teacherId).lean();
       if (!teacher) {
         return res.status(404).json({ msg: 'Teacher not found' });
       }
 
-      const student = await User.findById(studentId);
+      const student = await User.findById(studentId).lean();
       if (!student) {
         return res.status(404).json({ msg: 'Student not found' });
       }
@@ -184,7 +184,8 @@ router.get(
 
       const submissions = await AssignmentSubmission.find({ studentId })
         .populate('teacherId', 'name email regNo')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
       res.status(200).json({ success: true, data: submissions });
     } catch (err) {
@@ -213,7 +214,8 @@ router.get(
 
       const submissions = await AssignmentSubmission.find(filter)
         .populate('studentId', 'name email regNo')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
       res.status(200).json({ success: true, data: submissions });
     } catch (err) {

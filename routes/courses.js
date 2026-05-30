@@ -3,6 +3,7 @@
 const express = require("express");
 const router = express.Router();
 const Course = require("../models/Course");
+const CourseProgress = require("../models/CourseProgress");
 
 // Create a new course
 router.post("/", async (req, res) => {
@@ -19,7 +20,7 @@ router.post("/", async (req, res) => {
 // Get all courses
 router.get("/", async (req, res) => {
   try {
-    const courses = await Course.find();
+    const courses = await Course.find().lean();
     res.status(200).json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -34,9 +35,12 @@ router.post("/:courseId/enroll", async (req, res) => {
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }
-    course.students.push(studentId);
-    await course.save();
-    res.status(200).json(course);
+    await CourseProgress.findOneAndUpdate(
+      { studentId, courseId: course._id },
+      { studentId, courseId: course._id, progressPercentage: 0, lastUpdated: Date.now() },
+      { upsert: true, new: true }
+    );
+    res.status(200).json({ message: "Enrolled successfully", course });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -45,9 +49,9 @@ router.post("/:courseId/enroll", async (req, res) => {
 // Get all courses a student is enrolled in
 router.get("/enrolled/:studentId", async (req, res) => {
   try {
-    const courses = await Course.find({ students: req.params.studentId })
-      .populate("teacherId", "name email") // optional fields
-      .populate("students", "name email"); // optional fields
+    const progressEntries = await CourseProgress.find({ studentId: req.params.studentId }).select('courseId');
+    const courseIds = progressEntries.map(p => p.courseId);
+    const courses = courseIds.length ? await Course.find({ _id: { $in: courseIds } }) : [];
     res.status(200).json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -75,7 +79,7 @@ router.put("/:courseId", async (req, res) => {
 //Get a specific course by ID
 router.get("/:courseId", async (req, res) => {
   try {
-    const course = await Course.findById(req.params.courseId);
+    const course = await Course.findById(req.params.courseId).lean();
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
     }

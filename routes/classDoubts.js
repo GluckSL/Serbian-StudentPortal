@@ -3,11 +3,12 @@ const router = express.Router();
 const ClassDoubt = require('../models/ClassDoubt');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { notifyNewDoubt } = require('../services/classActivityEmail.service');
 
 // POST /:meetingId  — student submits a doubt (only after class ended)
 router.post('/:meetingId', verifyToken, checkRole(['STUDENT']), async (req, res) => {
   try {
-    const meeting = await MeetingLink.findById(req.params.meetingId);
+    const meeting = await MeetingLink.findById(req.params.meetingId).lean();
     if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
 
     const now = new Date();
@@ -30,7 +31,12 @@ router.post('/:meetingId', verifyToken, checkRole(['STUDENT']), async (req, res)
     });
 
     const populated = await ClassDoubt.findById(doubt._id)
-      .populate('askedBy', 'name email');
+      .populate('askedBy', 'name email')
+      .lean();
+
+    notifyNewDoubt(meeting._id, populated, populated.askedBy).catch((err) => {
+      console.error('classDoubts email notify error:', err.message);
+    });
 
     res.status(201).json({ success: true, data: populated });
   } catch (err) {
@@ -49,7 +55,8 @@ router.get('/:meetingId', verifyToken, async (req, res) => {
     let doubts = await ClassDoubt.find({ meetingId: req.params.meetingId })
       .populate('askedBy', 'name email')
       .populate('replies.repliedBy', 'name email role')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     if (!isTeacher) {
       doubts = doubts.filter(d =>
@@ -79,7 +86,8 @@ router.post('/:doubtId/reply', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN
 
     const updated = await ClassDoubt.findById(doubt._id)
       .populate('askedBy', 'name email')
-      .populate('replies.repliedBy', 'name email role');
+      .populate('replies.repliedBy', 'name email role')
+      .lean();
 
     res.json({ success: true, data: updated });
   } catch (err) {
@@ -90,10 +98,10 @@ router.post('/:doubtId/reply', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN
 // DELETE /:doubtId  — teacher/admin removes a doubt (e.g. test posts)
 router.delete('/:doubtId', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN']), async (req, res) => {
   try {
-    const doubt = await ClassDoubt.findById(req.params.doubtId);
+    const doubt = await ClassDoubt.findById(req.params.doubtId).lean();
     if (!doubt) return res.status(404).json({ success: false, message: 'Doubt not found' });
 
-    const meeting = await MeetingLink.findById(doubt.meetingId).select('assignedTeacher createdBy');
+    const meeting = await MeetingLink.findById(doubt.meetingId).select('assignedTeacher createdBy').lean();
     if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
 
     const uid = req.user.id;

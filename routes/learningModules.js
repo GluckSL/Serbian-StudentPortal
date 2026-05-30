@@ -8,6 +8,11 @@ const User = require('../models/User');
 const SessionRecord = require('../models/SessionRecord');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { getJourneyAccessForStudentId } = require('../utils/studentJourneyAccess');
+const {
+  buildNotBlockedContentFilter,
+  isContentBlockedForStudent,
+  getEffectiveAccessibleLevels
+} = require('../utils/journeyContentBlock');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 const { subAdminCanDeleteOnTab } = require('../services/subAdminPermissions');
 
@@ -32,8 +37,14 @@ router.get('/', verifyToken, async (req, res) => {
     const filter = { isActive: true, isDeleted: { $ne: true } }; // Exclude deleted items
     
     // ✅ Filter by visibility - Students only see published modules
+    let studentDocForBlock = null;
     if (req.user.role === 'STUDENT') {
+      studentDocForBlock = await User.findById(req.user.id).select('blockedJourneyLevels level').lean();
       const journeyAccess = await getJourneyAccessForStudentId(User, req.user.id);
+      const effectiveLevels = getEffectiveAccessibleLevels(
+        studentDocForBlock?.level || studentLevel || req.user.level,
+        studentDocForBlock?.blockedJourneyLevels
+      );
       if (!journeyAccess.learningEnabled) {
         return res.json({
           modules: [],
@@ -44,7 +55,7 @@ router.get('/', verifyToken, async (req, res) => {
           },
           levelInfo: {
             userLevel: studentLevel || req.user.level,
-            accessibleLevels: getAccessibleLevels(studentLevel || req.user.level)
+            accessibleLevels: effectiveLevels
           }
         });
       }
@@ -62,6 +73,11 @@ router.get('/', verifyToken, async (req, res) => {
           { courseDay: { $lte: studentDay } }
         ]
       });
+
+      const notBlocked = buildNotBlockedContentFilter(studentDocForBlock?.blockedJourneyLevels);
+      if (notBlocked.$and) {
+        filter.$and.push(...notBlocked.$and);
+      }
     }
     // Teachers and Admins see all modules (including drafts)
 
@@ -81,7 +97,13 @@ router.get('/', verifyToken, async (req, res) => {
     // Level-based access control for students
     if (req.user.role === 'STUDENT' && (accessibleOnly === 'true' || studentLevel)) {
       const userLevel = studentLevel || req.user.level;
-      const accessibleLevels = getAccessibleLevels(userLevel);
+      if (!studentDocForBlock) {
+        studentDocForBlock = await User.findById(req.user.id).select('blockedJourneyLevels level').lean();
+      }
+      const accessibleLevels = getEffectiveAccessibleLevels(
+        studentDocForBlock?.level || userLevel,
+        studentDocForBlock?.blockedJourneyLevels
+      );
       
       if (accessibleLevels.length > 0) {
         if (level && accessibleLevels.includes(level)) {
@@ -152,7 +174,10 @@ router.get('/', verifyToken, async (req, res) => {
       },
       levelInfo: req.user.role === 'STUDENT' ? {
         userLevel: studentLevel || req.user.level,
-        accessibleLevels: getAccessibleLevels(studentLevel || req.user.level)
+        accessibleLevels: getEffectiveAccessibleLevels(
+          studentDocForBlock?.level || studentLevel || req.user.level,
+          studentDocForBlock?.blockedJourneyLevels
+        )
       } : null
     });
   } catch (error) {
@@ -192,6 +217,13 @@ router.get('/:id', verifyToken, async (req, res) => {
           code: 'JOURNEY_DAY_LOCKED',
           courseDay: Number(cd),
           studentCourseDay: studentDay
+        });
+      }
+      const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
+      if (isContentBlockedForStudent(studentDoc, { courseDay: cd, level: module.level })) {
+        return res.status(403).json({
+          message: 'This module is not available for your learning path.',
+          code: 'CONTENT_LEVEL_BLOCKED'
         });
       }
 
@@ -459,6 +491,13 @@ router.post('/:id/enroll', verifyToken, checkRole(['STUDENT', 'TEACHER']), async
           code: 'JOURNEY_DAY_LOCKED',
           courseDay: Number(cd),
           studentCourseDay: studentDay
+        });
+      }
+      const studentDoc = await User.findById(studentId).select('blockedJourneyLevels').lean();
+      if (isContentBlockedForStudent(studentDoc, { courseDay: cd, level: module.level })) {
+        return res.status(403).json({
+          message: 'This module is not available for your learning path.',
+          code: 'CONTENT_LEVEL_BLOCKED'
         });
       }
     }

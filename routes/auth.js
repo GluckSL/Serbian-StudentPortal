@@ -1,6 +1,7 @@
 ﻿//routes/auth.js
 
 require('dotenv').config();  // Load environment variables
+console.log('[auth] routes module loaded');
 
 const crypto = require('crypto');
 const express = require("express");
@@ -40,6 +41,8 @@ const {
   buildPortalCredentialsEmail,
   buildWelcomeOneTimePasswordEmail,
   buildSignupLinkEmail,
+  buildRegisterInviteEmail,
+  buildForcePasswordResetEmail,
 } = require('../utils/emailTemplates');
 const PasswordResetOtp = require('../models/PasswordResetOtp');
 const EmailChangeOtp = require('../models/EmailChangeOtp');
@@ -72,7 +75,7 @@ function issueLoginResponse(user, keepSessionActive, res) {
   const remember = Boolean(keepSessionActive);
   const jwtExpires = remember ? '30d' : '24h';
   const token = jwt.sign(
-    { id: user._id, role: user.role, name: user.name },
+    { id: user._id, role: user.role, name: user.name, tv: user.authTokenVersion ?? 0 },
     JWT_SECRET,
     { expiresIn: jwtExpires }
   );
@@ -126,6 +129,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "teacher-resources",
   "journey",
   "go-students",
+  "go-students-sinhala",
   "manage-classes",
   "attendance",
   "import-meeting",
@@ -288,6 +292,126 @@ function mondayColumnDisplay(col) {
 
 /** Sub-selection for items.column_values (items_page queries). */
 const MONDAY_COLUMN_VALUES_GQL = `id type text value ... on StatusValue { label } ... on DropdownValue { values { label } } ... on MirrorValue { display_value }`;
+
+function assertMondaySyncConfigured() {
+  if (!process.env.MONDAY_API_TOKEN || !process.env.MONDAY_BOARD_ID) {
+    throw new Error(
+      'Monday API not configured. Set MONDAY_API_TOKEN and MONDAY_BOARD_ID on the server.'
+    );
+  }
+}
+
+function normalizeMondayApiToken(raw) {
+  const token = String(raw || '').trim();
+  if (!token) return '';
+  return token.replace(/^Bearer\s+/i, '');
+}
+
+function normalizeMondayBoardId(raw) {
+  return String(raw || '').trim().replace(/^board[-_]?/i, '');
+}
+
+function formatMondayApiFailure(status, data) {
+  if (data?.errors?.length) {
+    return `Monday.com API error: ${data.errors.map((e) => e.message).join('; ')}`;
+  }
+  if (data?.error_message) {
+    return `Monday.com API error: ${data.error_message}`;
+  }
+  if (typeof data === 'string' && data.trim()) {
+    return `Monday.com API error (${status}): ${data.trim()}`;
+  }
+  if (data && typeof data === 'object') {
+    return `Monday.com API error (${status}): ${JSON.stringify(data)}`;
+  }
+  return `Monday.com API request failed (HTTP ${status})`;
+}
+
+async function postMondayGraphQL(query, variables, token) {
+  try {
+    const response = await axios.post(
+      'https://api.monday.com/v2',
+      { query, variables },
+      {
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/json',
+        },
+        validateStatus: () => true,
+      }
+    );
+
+    if (response.status >= 400) {
+      console.error('[Monday API] HTTP', response.status, response.data);
+      throw new Error(formatMondayApiFailure(response.status, response.data));
+    }
+
+    if (response.data?.errors?.length) {
+      console.error('[Monday API] GraphQL errors', response.data.errors);
+      throw new Error(formatMondayApiFailure(response.status, response.data));
+    }
+
+    return response;
+  } catch (err) {
+    if (err.response) {
+      console.error('[Monday API] HTTP', err.response.status, err.response.data);
+      throw new Error(formatMondayApiFailure(err.response.status, err.response.data));
+    }
+    throw err;
+  }
+}
+
+/** Paginated fetch of all items on the CRM board; throws with actionable errors on misconfiguration. */
+async function fetchAllMondayBoardItems() {
+  assertMondaySyncConfigured();
+  const boardId = normalizeMondayBoardId(process.env.MONDAY_BOARD_ID);
+  const token = normalizeMondayApiToken(process.env.MONDAY_API_TOKEN);
+  if (!boardId) {
+    throw new Error('MONDAY_BOARD_ID is empty after trimming. Set a valid Monday board ID.');
+  }
+  if (!token) {
+    throw new Error('MONDAY_API_TOKEN is empty after trimming. Set a valid Monday API token.');
+  }
+
+  let allItems = [];
+  let cursor = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const query = cursor
+      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
+      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
+    const variables = cursor ? { boardId: [boardId], cursor } : { boardId: [boardId] };
+    const response = await postMondayGraphQL(query, variables, token);
+
+    const gqlErrors = response.data?.errors || [];
+    const board = response.data?.data?.boards?.[0];
+    if (!board) {
+      const unauthorized = gqlErrors.find(
+        (e) => e.extensions?.code === 'USER_UNAUTHORIZED' || /unauthorized/i.test(e.message || '')
+      );
+      if (unauthorized) {
+        throw new Error(
+          `Monday.com API token does not have access to board ${boardId}. Share the board with the token owner in Monday, or use an API token from a user who can view this board.`
+        );
+      }
+      throw new Error(
+        `Monday.com board not found or not accessible (MONDAY_BOARD_ID=${boardId}). Verify the board ID and that the API token can read this board.`
+      );
+    }
+
+    const page = board.items_page;
+    if (!page) {
+      throw new Error('Monday.com returned no items_page for this board.');
+    }
+
+    allItems = allItems.concat(page.items || []);
+    cursor = page.cursor;
+    hasMore = !!cursor;
+  }
+
+  return { allItems, boardId };
+}
 
 function mondayGet(columnValues, id) {
   const col = columnValues.find((c) => c.id === id);
@@ -649,23 +773,7 @@ async function runMondaySync() {
       '⚠️ MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS is not set — documentation payment will not sync; distinct filter will stay empty until env + sync.'
     );
   }
-  const BOARD_ID = process.env.MONDAY_BOARD_ID;
-
-  let allItems = [];
-  let cursor = null;
-  let hasMore = true;
-
-  while (hasMore) {
-    const query = cursor
-      ? `query ($boardId: [ID!], $cursor: String!) { boards(ids: $boardId) { items_page(limit: 500, cursor: $cursor) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`
-      : `query ($boardId: [ID!]) { boards(ids: $boardId) { items_page(limit: 500) { cursor items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } } } } }`;
-    const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
-    const response = await axios.post("https://api.monday.com/v2", { query, variables }, { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } });
-    const page = response.data.data.boards[0].items_page;
-    allItems = allItems.concat(page.items);
-    cursor = page.cursor;
-    hasMore = !!cursor;
-  }
+  const { allItems, boardId: BOARD_ID } = await fetchAllMondayBoardItems();
 
   console.log(`ðŸ“‹ Fetched ${allItems.length} total items from Monday board ${BOARD_ID}`);
 
@@ -876,44 +984,7 @@ router.post("/monday-sync-run", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
 // âœ… Preview Monday.com sync â€” dry run showing what would change
 router.get("/monday-sync-preview", verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const BOARD_ID = process.env.MONDAY_BOARD_ID;
-
-    // Fetch ALL items from the board (paginated) â€” same logic as cron
-    let allItems = [];
-    let cursor = null;
-    let hasMore = true;
-
-    while (hasMore) {
-      const query = cursor
-        ? `query ($boardId: [ID!], $cursor: String!) {
-            boards(ids: $boardId) {
-              items_page(limit: 500, cursor: $cursor) {
-                cursor
-                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
-              }
-            }
-          }`
-        : `query ($boardId: [ID!]) {
-            boards(ids: $boardId) {
-              items_page(limit: 500) {
-                cursor
-                items { id name column_values { ${MONDAY_COLUMN_VALUES_GQL} } }
-              }
-            }
-          }`;
-
-      const variables = cursor ? { boardId: [BOARD_ID], cursor } : { boardId: [BOARD_ID] };
-      const response = await axios.post(
-        "https://api.monday.com/v2",
-        { query, variables },
-        { headers: { Authorization: process.env.MONDAY_API_TOKEN, "Content-Type": "application/json" } }
-      );
-
-      const page = response.data.data.boards[0].items_page;
-      allItems = allItems.concat(page.items);
-      cursor = page.cursor;
-      hasMore = !!cursor;
-    }
+    const { allItems } = await fetchAllMondayBoardItems();
 
     const { items: syncItems, duplicateRows, noEmail, duplicateRowsList, noEmailRows } =
       dedupeMondayItemsByEmail(allItems);
@@ -1254,7 +1325,7 @@ router.post("/signup", async (req, res) => {
           user.assignedTeacher = assignedTeacher;
         } else {
           // case 2: backend finds one automatically
-          const course = await Course.findOne({ level });
+          const course = await Course.findOne({ title: level });
           if (!course) {
             return res.status(400).json({ msg: "No course found for this level" });
           }
@@ -1404,6 +1475,18 @@ router.post("/login", loginLimiter, async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
+    // Keep ADMIN directory password column in sync when recoverable copy is missing.
+    if (user.role === 'STUDENT' && password) {
+      const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');
+      if (!readRecoverablePassword(user.passwordRecoverable)) {
+        const stored = storeRecoverablePassword(password);
+        if (stored) {
+          user.passwordRecoverable = stored;
+          await user.save().catch(() => {});
+        }
+      }
+    }
+
     // ⚠️ Uncertain / Withdrawn — show confirmation modal instead of logging in
     if (studentRequiresWithdrawalConfirmation(user)) {
       const loginAttemptTime = new Date().toISOString();
@@ -1431,8 +1514,10 @@ router.post("/login", loginLimiter, async (req, res) => {
     // 🔐 First-login / ongoing student — set permanent password before access
     if (studentRequiresPasswordSetup(user)) {
       const setupToken = signPasswordSetupToken(user._id);
+      const otpPreSent = Boolean(user.mustChangePassword && user.passwordChangedAt);
       return res.json({
         requiresPasswordSetup: true,
+        otpPreSent,
         setupToken,
         studentInfo: {
           studentId: String(user._id),
@@ -1473,7 +1558,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 // Student submits new email + desired password → notifies admins → pending approval
 router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res) => {
   const EmailChangeRequest = require('../models/EmailChangeRequest');
-  const { encryptPassword } = require('../utils/passwordRecoverable');
+  const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
   try {
     const { setupToken, newEmail: rawNewEmail, newPassword, confirmPassword } = req.body;
     if (!setupToken || !rawNewEmail || !newPassword || !confirmPassword) {
@@ -1504,7 +1589,7 @@ router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res
       return res.status(400).json({ msg: 'That email address is already registered to another account.' });
     }
 
-    const newPasswordEncrypted = encryptPassword(newPassword) || newPassword; // fallback plain if key not set (dev only)
+    const newPasswordEncrypted = storeRecoverablePassword(newPassword);
 
     // Cancel any pending request from this user
     await EmailChangeRequest.deleteMany({ userId: user._id, status: 'pending' });
@@ -1571,6 +1656,7 @@ router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
 
     const { subject, html } = buildPasswordResetOtpEmail({ name: user.name, otp, expiresMinutes: 15 });
     await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject, html });
+    console.log('[setup/send-otp] OTP sent to user email:', user.email);
 
     return res.json({ msg: `A verification code was sent to ${user.email}.`, email: user.email });
   } catch (err) {
@@ -1676,6 +1762,7 @@ router.post("/forgot-password/request", forgotPasswordRequestLimiter, async (req
 
     try {
       await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject, html });
+      console.log('[forgot-password/request] OTP sent to user email:', email);
     } catch (mailErr) {
       console.error('[forgot-password] Email send failed:', mailErr.message);
       // Still return generic 200; OTP is in DB but mail failed — user can retry
@@ -2376,7 +2463,8 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
       res.json({
         success: true,
         msg: "Credentials email sent successfully",
-        lastSent: user.lastCredentialsEmailSent
+        lastSent: user.lastCredentialsEmailSent,
+        displayPassword: passwordPlain,
       });
     } catch (emailErr) {
       console.error("âŒ Email sending failed:", emailErr);
@@ -2508,10 +2596,9 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
             try {
               // Generate new password for existing user
               const newPasswordPlain = await generatePassword("STUDENT", existingUser.regNo);
-              const newHashedPassword = await bcrypt.hash(newPasswordPlain, 10);
 
-              // Update password
-              existingUser.password = newHashedPassword;
+              // Update password hash + recoverable copy (ADMIN password column)
+              await setUserPassword(existingUser, newPasswordPlain);
               existingUser.lastCredentialsEmailSent = new Date();
               await existingUser.save();
 
@@ -2694,6 +2781,135 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
       message: 'Server error during bulk upload',
       error: error.message
     });
+  }
+});
+
+// ─── POST /admin/force-password-reset/:studentId — logout, OTP email, must set new password ───
+
+router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.studentId);
+    if (!user) {
+      return res.status(404).json({ msg: 'Student not found.' });
+    }
+    if (user.role !== 'STUDENT') {
+      return res.status(400).json({ msg: 'Password reset can only be triggered for students.' });
+    }
+
+    user.authTokenVersion = (user.authTokenVersion || 0) + 1;
+    user.mustChangePassword = true;
+    await user.save();
+
+    await EmailChangeOtp.deleteMany({ userId: user._id });
+
+    const otp = String(crypto.randomInt(100000, 999999));
+    const otpHash = await bcrypt.hash(otp, await bcrypt.genSalt(10));
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await EmailChangeOtp.create({
+      userId: user._id,
+      pendingNewEmail: user.email,
+      otpHash,
+      expiresAt,
+    });
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    const loginUrl = `${frontendUrl}/login`;
+    const { subject, html } = buildForcePasswordResetEmail({
+      name: user.name,
+      regNo: user.regNo,
+      otp,
+      loginUrl,
+      expiresMinutes: 15,
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject,
+      html,
+    });
+
+    console.log('[admin/force-password-reset] Sent to', user.email, 'regNo', user.regNo);
+
+    const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
+    const displayPassword = await resolveStudentDisplayPassword(user, { listView: true });
+
+    return res.json({
+      success: true,
+      msg: `Password reset initiated for ${user.name}. They were signed out and emailed a verification code.`,
+      displayPassword: displayPassword || null,
+    });
+  } catch (err) {
+    console.error('[POST /auth/admin/force-password-reset]', err);
+    return res.status(500).json({ msg: 'Failed to initiate password reset. Please try again.' });
+  }
+});
+
+// ─── POST /admin/register-invite — invite a prospective student to /register ─
+
+router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    if (!['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, msg: 'Forbidden' });
+    }
+
+    const { name, email } = req.body || {};
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      return res.status(400).json({ success: false, msg: 'A valid email is required.' });
+    }
+
+    const existingStudent = await User.findOne({
+      email: normalizedEmail,
+      role: 'STUDENT',
+    })
+      .select('_id regNo studentStatus')
+      .lean();
+    if (existingStudent) {
+      return res.status(409).json({
+        success: false,
+        msg: 'A student account with this email already exists in the portal.',
+      });
+    }
+
+    let signupApp = await StudentSignupApplication.findOne({
+      email: normalizedEmail,
+      status: { $in: ['draft', 'email_verified', 'documents_done', 'payment_pending'] },
+    }).sort({ updatedAt: -1 });
+
+    if (!signupApp) {
+      signupApp = await StudentSignupApplication.create({
+        name: String(name || '').trim(),
+        email: normalizedEmail,
+        inviteToken: require('crypto').randomUUID(),
+      });
+    } else if (name && !signupApp.name) {
+      signupApp.name = String(name).trim();
+      await signupApp.save();
+    }
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    const registerUrl = `${frontendUrl}/register?token=${signupApp.applicationToken}`;
+    const inviteMail = buildRegisterInviteEmail({
+      name: signupApp.name || name || 'there',
+      registerUrl,
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: normalizedEmail,
+      subject: inviteMail.subject,
+      html: inviteMail.html,
+    });
+
+    return res.json({
+      success: true,
+      msg: `Registration invite sent to ${normalizedEmail}.`,
+      applicationToken: signupApp.applicationToken,
+    });
+  } catch (err) {
+    console.error('[POST /auth/admin/register-invite]', err);
+    return res.status(500).json({ success: false, msg: 'Failed to send registration invite. Please try again.' });
   }
 });
 

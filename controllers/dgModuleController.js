@@ -7,6 +7,8 @@ const {
   dgModuleUnlockedForAccess,
   dgWeekLockMessage,
 } = require('../utils/dgStudentJourneyGate');
+const User = require('../models/User');
+const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { normalizeBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { weekDayRange } = require('../utils/oldBatchDgWeekAccess');
 const {
@@ -239,9 +241,12 @@ exports.listStudent = async (req, res) => {
       )
       .sort({ title: 1 })
       .lean();
-    const unlockedForDay = (modules || []).filter((m) =>
-      dgModuleUnlockedForAccess(access, m?.courseDay)
-    );
+    const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
+    const unlockedForDay = (modules || []).filter((m) => {
+      if (!dgModuleUnlockedForAccess(access, m?.courseDay)) return false;
+      if (isContentBlockedForStudent(studentDoc, { courseDay: m?.courseDay, level: m?.level })) return false;
+      return true;
+    });
     const sanitized = unlockedForDay.map((m) => ({
       ...m,
       scenes: (m.scenes || []).map((s) => ({
@@ -352,6 +357,13 @@ exports.getPlay = async (req, res) => {
           code: 'COURSE_DAY_LOCKED',
           studentCourseDay: access.courseDay,
           moduleCourseDay: mod.courseDay,
+        });
+      }
+      const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
+      if (isContentBlockedForStudent(studentDoc, { courseDay: mod.courseDay, level: mod.level })) {
+        return res.status(403).json({
+          message: 'This DG module is not available for your learning path.',
+          code: 'CONTENT_LEVEL_BLOCKED',
         });
       }
 

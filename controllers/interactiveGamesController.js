@@ -31,7 +31,7 @@ const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -210,7 +210,7 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
-    const initialLives = set.gameType === 'gender_stack' ? 5 : 3;
+    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' ? 5 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
@@ -257,6 +257,14 @@ exports.startAttempt = async (req, res) => {
       }
       if (set.gameType === 'gender_stack') {
         const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = q;
+        return safe;
+      }
+      if (set.gameType === 'flapjugation') {
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, pairs: _p, __v: _v, ...safe } = q;
+        return safe;
+      }
+      if (set.gameType === 'whackawort') {
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, pairs: _p, tokens: _tk, __v: _v, ...safe } = q;
         return safe;
       }
       const { __v: _v, ...safe } = q;
@@ -308,7 +316,7 @@ exports.startAttempt = async (req, res) => {
 
 exports.submitSentenceSlot = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -329,7 +337,7 @@ exports.submitSentenceSlot = async (req, res) => {
 
     const question = await GameQuestion.findOne({
       _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
-    });
+    }).lean();
     if (!question) return notFound(res, 'Question not found');
 
     const result = sentenceBuilderService.evaluateSlot(question, slotIndex, token);
@@ -399,7 +407,7 @@ exports.submitSentenceSlot = async (req, res) => {
 
 exports.submitImageMatchSlot = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -422,7 +430,7 @@ exports.submitImageMatchSlot = async (req, res) => {
 
     const question = await GameQuestion.findOne({
       _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
-    });
+    }).lean();
     if (!question) return notFound(res, 'Question not found');
 
     const result = imageMatchingService.evaluateMatch(question, word, pairIndex);
@@ -454,7 +462,7 @@ exports.submitImageMatchSlot = async (req, res) => {
         attemptId: attempt._id,
         questionId: question._id,
         slotIndex: pairIndex,
-      });
+      }).lean();
       if (existingAnswer) {
         const correctMatches = await GameAnswer.countDocuments({
           attemptId: attempt._id, isCorrect: true,
@@ -526,7 +534,7 @@ exports.submitImageMatchSlot = async (req, res) => {
 
 exports.submitAnswer = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -544,7 +552,7 @@ exports.submitAnswer = async (req, res) => {
       return res.status(validation.duplicate ? 409 : 400).json({ success: false, message: validation.message });
     }
 
-    const question = await GameQuestion.findOne({ _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true } });
+    const question = await GameQuestion.findOne({ _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true } }).lean();
     if (!question) return notFound(res, 'Question not found');
 
     // Sentence builder: allow retries after a wrong full-sentence check
@@ -650,7 +658,7 @@ exports.submitAnswer = async (req, res) => {
 
 exports.completeAttempt = async (req, res) => {
   try {
-    const attempt = await GameAttempt.findById(req.params.attemptId);
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -948,7 +956,7 @@ exports.adminGetQuestions = async (req, res) => {
 
 exports.adminUpsertQuestions = async (req, res) => {
   try {
-    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
 
     const { questions } = req.body;
@@ -961,6 +969,25 @@ exports.adminUpsertQuestions = async (req, res) => {
         if (!genderStackService.normalizeGender(q.articleGender)) {
           return badRequest(res, `Question ${i + 1}: articleGender must be der, die, or das`);
         }
+      }
+    }
+
+    if (set.gameType === 'flapjugation') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: infinitive required`);
+        if (!Array.isArray(q.tokens) || q.tokens.length < 6 || q.tokens.some(t => !String(t).trim())) {
+          return badRequest(res, `Question ${i + 1}: all 6 conjugated forms are required`);
+        }
+      }
+    }
+
+    if (set.gameType === 'whackawort') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: German word required`);
+        if (!String(q.translation || '').trim()) return badRequest(res, `Question ${i + 1}: English translation required`);
+        if (!String(q.category || '').trim()) return badRequest(res, `Question ${i + 1}: category required`);
       }
     }
 
@@ -991,6 +1018,14 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.translation = String(q.translation || q.hint || '').trim();
         doc.articleGender = genderStackService.normalizeGender(q.articleGender);
         doc.audioUrl = q.audioUrl || null;
+      } else if (set.gameType === 'flapjugation') {
+        doc.word = trimGermanWord(q.word);
+        doc.translation = String(q.translation || '').trim();
+        doc.tokens = Array.isArray(q.tokens) ? q.tokens.map(t => String(t).trim()).filter(Boolean) : [];
+      } else if (set.gameType === 'whackawort') {
+        doc.word = trimGermanWord(q.word);
+        doc.translation = String(q.translation || '').trim();
+        doc.category = String(q.category || '').trim();
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';
@@ -1051,7 +1086,7 @@ exports.adminUpsertQuestions = async (req, res) => {
 
 exports.adminUpdateQuestion = async (req, res) => {
   try {
-    const q = await GameQuestion.findById(req.params.qid);
+    const q = await GameQuestion.findById(req.params.qid).lean();
     if (!q || q.isDeleted) return notFound(res);
 
     const allowed = ['order', 'hint', 'imageUrl', 'audioUrl', 'difficultyLevel', 'fallDurationSeconds',
@@ -1111,10 +1146,7 @@ exports.adminGetLevels = async (req, res) => {
 
 exports.adminUpsertLevels = async (req, res) => {
   try {
-    const { levels } = req.body;
-    if (!Array.isArray(levels) || !levels.length) return badRequest(res, 'levels array required');
-
-    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
     if (set.gameType !== 'scramble_rush') return badRequest(res, 'Levels only apply to scramble_rush sets');
 
@@ -1282,7 +1314,7 @@ exports.adminUploadPairImage = async (req, res) => {
       return badRequest(res, 'Invalid pair index');
     }
 
-    const question = await GameQuestion.findById(req.params.qid);
+    const question = await GameQuestion.findById(req.params.qid).lean();
     if (!question) return notFound(res, 'Question not found');
     if (!question.pairs || pairIndex >= question.pairs.length) {
       return badRequest(res, 'Pair index out of range');

@@ -19,7 +19,7 @@ router.post("/", async (req, res) => {
 // Get all conversations for a user
 router.get("/:userId", async (req, res) => {
   try {
-    const conversations = await AiConversation.find({ userId: req.params.userId });
+    const conversations = await AiConversation.find({ userId: req.params.userId }).lean();
     res.status(200).json(conversations);
   } catch (error) {
     res.status(500).json({ message: error.message });

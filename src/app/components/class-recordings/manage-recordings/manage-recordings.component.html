@@ -25,6 +25,13 @@
           <i class="fa fa-inbox"></i>
           Req approval<span *ngIf="pendingCount > 0" class="cr-req-approval-count"> ({{ pendingCount }})</span>
         </button>
+        <button
+          class="cr-btn cr-btn--access-recording"
+          type="button"
+          (click)="openAccessRecordingTab()">
+          <i class="fa fa-share-nodes"></i>
+          Self Pace
+        </button>
         <button class="cr-btn cr-btn--ghost" (click)="openWebhookAudit()">
           <i class="fa fa-wave-square"></i> Webhook Audit
         </button>
