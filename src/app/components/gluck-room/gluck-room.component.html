@@ -224,57 +224,82 @@
     </div>
 
     <ng-template #infoView>
-      <div class="info-view-wrapper" *ngIf="!loading && !error">
-        <button mat-icon-button (click)="goBack()" class="back-btn"><mat-icon>arrow_back</mat-icon></button>
-        <mat-card class="session-info-card" [class.card-live]="session.status === 'active'" [class.card-ended]="session.status === 'ended'" [class.card-cancelled]="session.status === 'cancelled'">
-          <div class="status-corner">
-            <span class="status-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">
-              {{ statusLabel(session.status) }}
-            </span>
+      <div class="prejoin-page" *ngIf="!loading && !error">
+        <div class="prejoin-body">
+          <div class="prejoin-hero">
+            <h1 class="prejoin-title">{{ session.sessionName }}</h1>
+            <p class="prejoin-subtitle" *ngIf="session.hostId?.name">Hosted by {{ session.hostId.name }}</p>
+            <span class="prejoin-badge hero-badge" [class.live]="session.status === 'active'" [class.ended]="session.status === 'ended'" [class.cancelled]="session.status === 'cancelled'">{{ statusLabel(session.status) }}</span>
+            <div *ngIf="session.status === 'scheduled' && isHostUser" class="auto-start-note" style="margin-top:12px;font-size:12px;color:#888">This session is scheduled and will start automatically. You can still start it manually.</div>
+            <div class="hero-actions">
+              <button *ngIf="session.status === 'scheduled' && isHostUser" mat-raised-button color="primary" (click)="startFromCard()" [disabled]="cardActionLoading">
+                <mat-icon *ngIf="!cardActionLoading">play_arrow</mat-icon>
+                <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
+                {{ cardActionLoading ? 'Starting...' : 'Start' }}
+              </button>
+              <button *ngIf="session.status === 'active'" mat-raised-button color="primary" class="join-now-btn" (click)="onJoinClick()">
+                <mat-icon>videocam</mat-icon> Join Now
+              </button>
+              <button *ngIf="session.status === 'active' && isHostUser" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
+                <mat-icon *ngIf="!cardActionLoading">stop</mat-icon>
+                <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
+                {{ cardActionLoading ? 'Ending...' : 'End' }}
+              </button>
+              <button mat-stroked-button (click)="goBack()"><mat-icon>arrow_back</mat-icon> Back</button>
+            </div>
           </div>
-          <mat-card-header>
-            <mat-card-title>{{ session.sessionName }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="info-grid">
-              <div class="info-item"><mat-icon>person</mat-icon><span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span></div>
-              <div class="info-item"><mat-icon>group</mat-icon><span><strong>Batch:</strong> {{ session.batch }}</span></div>
-              <div class="info-item"><mat-icon>event</mat-icon><span><strong>Scheduled:</strong> {{ formatDate(session.scheduledStartTime) }}</span></div>
-              <div class="info-item"><mat-icon>schedule</mat-icon><span><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span></div>
-              <div class="info-item" *ngIf="session.level"><mat-icon>school</mat-icon><span><strong>Level:</strong> {{ session.level }}</span></div>
-              <div class="info-item" *ngIf="session.plan"><mat-icon>assignment</mat-icon><span><strong>Plan:</strong> {{ session.plan }}</span></div>
-              <div class="info-item" *ngIf="session.agenda"><mat-icon>description</mat-icon><span><strong>Agenda:</strong> {{ session.agenda }}</span></div>
-              <div class="info-item" *ngIf="session.courseDay"><mat-icon>looks_one</mat-icon><span><strong>Course Day:</strong> {{ session.courseDay }}</span></div>
-              <div class="info-item" *ngIf="session.targetJourneyDay"><mat-icon>looks_two</mat-icon><span><strong>Target Day:</strong> {{ session.targetJourneyDay }}</span></div>
-              <div class="info-item" *ngIf="session.scheduleType === 'journey'"><mat-icon>repeat</mat-icon><span><strong>Journey:</strong> Yes</span></div>
-              <div class="info-item" *ngIf="session.actualStartTime"><mat-icon>play_arrow</mat-icon><span><strong>Started:</strong> {{ formatDate(session.actualStartTime) }}</span></div>
-              <div class="info-item" *ngIf="session.actualEndTime"><mat-icon>stop</mat-icon><span><strong>Ended:</strong> {{ formatDate(session.actualEndTime) }}</span></div>
-              <div class="info-item" *ngIf="session.actualEndTime && session.actualStartTime"><mat-icon>timer</mat-icon><span><strong>Actual:</strong> {{ actualDuration() }}</span></div>
-              <div class="info-item" *ngIf="session.participantCount != null"><mat-icon>people</mat-icon><span><strong>Participants:</strong> {{ session.participantCount }}</span></div>
+
+          <div class="prejoin-details">
+            <div class="prejoin-detail-item">
+              <mat-icon>group</mat-icon>
+              <div><span class="detail-label">Batch</span><span class="detail-value">{{ session.batch }}</span></div>
             </div>
-          </mat-card-content>
-          <mat-card-actions align="end" style="gap:16px;padding:16px;flex-direction:column">
-            <div *ngIf="session.status === 'scheduled' && isHostUser" class="auto-start-note">This session is scheduled and will start automatically. You can still start it manually.</div>
-            <div style="display:flex;gap:16px;width:100%;justify-content:flex-end">
-            <button mat-stroked-button (click)="goBack()">
-              <mat-icon>arrow_back</mat-icon> Back
-            </button>
-            <button *ngIf="session.status === 'scheduled' && isHostUser" mat-raised-button color="primary" (click)="startFromCard()" [disabled]="cardActionLoading">
-              <mat-icon *ngIf="!cardActionLoading">play_arrow</mat-icon>
-              <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
-              {{ cardActionLoading ? 'Starting...' : 'Start' }}
-            </button>
-            <button *ngIf="session.status === 'active'" mat-raised-button color="primary" (click)="onJoinClick()">
-              <mat-icon>videocam</mat-icon> Join Now
-            </button>
-            <button *ngIf="session.status === 'active' && isHostUser" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
-              <mat-icon *ngIf="!cardActionLoading">stop</mat-icon>
-              <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
-              {{ cardActionLoading ? 'Ending...' : 'End' }}
-            </button>
+            <div class="prejoin-detail-item">
+              <mat-icon>event</mat-icon>
+              <div><span class="detail-label">Scheduled</span><span class="detail-value">{{ formatDate(session.scheduledStartTime) }}</span></div>
             </div>
-          </mat-card-actions>
-        </mat-card>
+            <div class="prejoin-detail-item">
+              <mat-icon>schedule</mat-icon>
+              <div><span class="detail-label">Duration</span><span class="detail-value">{{ session.maxDurationMinutes }} min</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.level">
+              <mat-icon>school</mat-icon>
+              <div><span class="detail-label">Level</span><span class="detail-value">{{ session.level }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.plan">
+              <mat-icon>assignment</mat-icon>
+              <div><span class="detail-label">Plan</span><span class="detail-value">{{ session.plan }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.courseDay">
+              <mat-icon>looks_one</mat-icon>
+              <div><span class="detail-label">Course Day</span><span class="detail-value">{{ session.courseDay }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.targetJourneyDay">
+              <mat-icon>looks_two</mat-icon>
+              <div><span class="detail-label">Target Day</span><span class="detail-value">{{ session.targetJourneyDay }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.agenda">
+              <mat-icon>description</mat-icon>
+              <div><span class="detail-label">Agenda</span><span class="detail-value">{{ session.agenda }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.actualStartTime">
+              <mat-icon>play_arrow</mat-icon>
+              <div><span class="detail-label">Started</span><span class="detail-value">{{ formatDate(session.actualStartTime) }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.actualEndTime">
+              <mat-icon>stop</mat-icon>
+              <div><span class="detail-label">Ended</span><span class="detail-value">{{ formatDate(session.actualEndTime) }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.actualEndTime && session.actualStartTime">
+              <mat-icon>timer</mat-icon>
+              <div><span class="detail-label">Actual Duration</span><span class="detail-value">{{ actualDuration() }}</span></div>
+            </div>
+            <div class="prejoin-detail-item" *ngIf="session.participantCount != null">
+              <mat-icon>people</mat-icon>
+              <div><span class="detail-label">Participants</span><span class="detail-value">{{ session.participantCount }}</span></div>
+            </div>
+          </div>
+        </div>
       </div>
     </ng-template>
   </ng-container>
