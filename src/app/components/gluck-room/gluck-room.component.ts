@@ -43,6 +43,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   userRole = '';
   userId = '';
   hostId = '';
+  waitingForTeacher = false;
 
   livekitConnected = false;
   livekitUrl = '';
@@ -278,16 +279,17 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
         this.setupSocket();
         this.setupLocalTracks();
         // Register event handlers for already-connected participants
-        // (participantConnected only fires for participants who join *after* us)
-        this.room?.remoteParticipants.forEach(p => {
-          this.onParticipantConnected(p);
-          // Attach any existing audio tracks from participants already in the room
-          p.audioTrackPublications.forEach((pub) => {
-            if (pub.track) pub.track.attach();
+          // (participantConnected only fires for participants who join *after* us)
+          this.room?.remoteParticipants.forEach(p => {
+            this.onParticipantConnected(p);
+            // Attach any existing audio tracks from participants already in the room
+            p.audioTrackPublications.forEach((pub) => {
+              if (pub.track) pub.track.attach();
+            });
           });
-        });
-        this.updateParticipantList();
-        this.selectMainParticipant();
+          this.updateParticipantList();
+          this.selectMainParticipant();
+          this.waitingForTeacher = !this.isHostUser && !this.findTeacherParticipant();
         this.room?.startAudio().catch((e) => console.warn('startAudio failed:', e));
         setTimeout(() => {
           if (this.selfViewStream) {
@@ -390,7 +392,10 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     p.on(ParticipantEvent.TrackUnmuted, this.onRemoteTrackMute);
     p.on(ParticipantEvent.TrackSubscribed, this.onRemoteTrackSubscribed);
     p.on(ParticipantEvent.TrackSubscriptionStatusChanged, this.onRemoteTrackMute);
-    this.ngZone.run(() => this.updateParticipantList());
+    this.ngZone.run(() => {
+      if (p.identity === this.hostId) this.waitingForTeacher = false;
+      this.updateParticipantList();
+    });
     this.selectMainParticipant();
   }
 
@@ -399,7 +404,10 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     p.off(ParticipantEvent.TrackUnmuted, this.onRemoteTrackMute);
     p.off(ParticipantEvent.TrackSubscribed, this.onRemoteTrackSubscribed);
     p.off(ParticipantEvent.TrackSubscriptionStatusChanged, this.onRemoteTrackMute);
-    this.ngZone.run(() => this.updateParticipantList());
+    this.ngZone.run(() => {
+      if (p.identity === this.hostId && !this.isHostUser) this.waitingForTeacher = true;
+      this.updateParticipantList();
+    });
     this.selectMainParticipant();
   }
 
@@ -856,7 +864,6 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   startFromCard(): void {
     const id = this.session?._id;
     if (!id) return;
-    if (!confirm('This session is scheduled and will start automatically. Do you want to start it manually now?')) return;
     this.cardActionLoading = true;
     this.gluckRoomService.startSession(id).subscribe({
       next: (res) => {

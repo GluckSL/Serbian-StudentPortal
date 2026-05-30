@@ -39,6 +39,13 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   private loadSeq = 0;
   private filterDebounceTimer?: ReturnType<typeof setTimeout>;
 
+  get displayedColumns(): string[] {
+    const cols = ['sessionName', 'host', 'batch', 'plan', 'dateTime', 'duration'];
+    if (this.statusTab !== 'scheduled') cols.push('participants');
+    if (!(this.isStudent && this.statusTab === 'ended')) cols.push('actions');
+    return cols;
+  }
+
   constructor(
     private router: Router,
     private gluckRoomService: GluckRoomService,
@@ -248,6 +255,19 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   statusLabel(status: string): string {
     const map: Record<string, string> = { scheduled: 'Upcoming', active: 'Live', ended: 'Completed', cancelled: 'Cancelled' };
     return map[status] || status;
+  }
+
+  timeUntilStart(scheduledStartTime: string | Date): string {
+    const now = Date.now();
+    const start = new Date(scheduledStartTime).getTime();
+    const diff = start - now;
+    if (diff <= 0) return 'Starting now';
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    if (days > 0) return `Join in ${days}d ${hours}h`;
+    if (hours > 0) return `Join in ${hours}h ${minutes}m`;
+    return `Join in ${minutes}m`;
   }
 
   isHost(session: any): boolean {

@@ -51,12 +51,23 @@ export class GluckRoomCreateComponent implements OnInit {
   // Single mode fields
   sessionName = '';
   batch = '';
-  scheduledStartTime = '';
+  scheduleDate: Date | null = null;
+  scheduleTime = '7:00 PM';
+  get scheduledStartTime(): string {
+    if (!this.scheduleDate) return '';
+    const match = this.scheduleTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return '';
+    let h = parseInt(match[1], 10);
+    const m = match[2];
+    if (match[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+    if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
+    return `${this.scheduleDate.toISOString().slice(0, 10)}T${String(h).padStart(2, '0')}:${m}`;
+  }
   maxDurationMinutes = 180;
   courseDay: number | null = null;
   targetJourneyDay: number | null = null;
   level: string | null = null;
-  plan: string | null = null;
+  plan = 'PLATINUM';
   agenda = '';
   accessType: 'batch' | 'manual' | 'open' = 'batch';
   allowedBatches: string[] = [];
@@ -71,6 +82,16 @@ export class GluckRoomCreateComponent implements OnInit {
   durationOptions = [15, 30, 45, 60, 90, 120, 180, 240, 300];
   levelOptions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   planOptions = ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'];
+  commonTimes = [
+    '12:00 AM', '12:30 AM', '1:00 AM', '1:30 AM', '2:00 AM', '2:30 AM',
+    '3:00 AM', '3:30 AM', '4:00 AM', '4:30 AM', '5:00 AM', '5:30 AM',
+    '6:00 AM', '6:30 AM', '7:00 AM', '7:30 AM', '8:00 AM', '8:30 AM',
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+    '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
+    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
+    '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
+    '9:00 PM', '9:30 PM', '10:00 PM', '10:30 PM', '11:00 PM', '11:30 PM',
+  ];
 
   // Journey mode
   scheduleType: 'single' | 'journey' = 'single';
@@ -214,9 +235,14 @@ export class GluckRoomCreateComponent implements OnInit {
           const s = res.data;
           this.sessionName = s.sessionName || '';
           this.batch = s.batch || '';
-          this.scheduledStartTime = s.scheduledStartTime
-            ? new Date(s.scheduledStartTime).toISOString().slice(0, 16)
-            : '';
+          if (s.scheduledStartTime) {
+            const d = new Date(s.scheduledStartTime);
+            this.scheduleDate = d;
+            const h24 = d.getHours();
+            const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+            const ampm = h24 >= 12 ? 'PM' : 'AM';
+            this.scheduleTime = `${h12}:${String(d.getMinutes()).padStart(2, '0')} ${ampm}`;
+          }
           this.maxDurationMinutes = s.maxDurationMinutes || 180;
           this.courseDay = s.courseDay || null;
           this.targetJourneyDay = s.targetJourneyDay || null;
@@ -269,10 +295,13 @@ export class GluckRoomCreateComponent implements OnInit {
   // ── Single mode submit ──
 
   onSubmit(): void {
-    if (!this.sessionName.trim() || !this.batch || !this.scheduledStartTime) {
-      this.error = 'Session name, batch, and start time are required.';
+    if (!this.sessionName.trim() || !this.batch || !this.scheduleDate) {
+      this.error = 'Session name, batch, and start date are required.';
       return;
     }
+    if (!this.courseDay) { this.error = 'Course day is required.'; return; }
+    if (!this.targetJourneyDay) { this.error = 'Target journey day is required.'; return; }
+    if (!this.plan) { this.error = 'Plan is required.'; return; }
 
     this.submitting = true;
     this.error = '';
@@ -282,13 +311,13 @@ export class GluckRoomCreateComponent implements OnInit {
       batch: this.batch,
       scheduledStartTime: new Date(this.scheduledStartTime).toISOString(),
       maxDurationMinutes: this.maxDurationMinutes,
-      accessType: this.accessType
+      accessType: this.accessType,
+      courseDay: this.courseDay,
+      targetJourneyDay: this.targetJourneyDay,
+      plan: this.plan
     };
 
-    if (this.courseDay) payload.courseDay = this.courseDay;
-    if (this.targetJourneyDay) payload.targetJourneyDay = this.targetJourneyDay;
     if (this.level) payload.level = this.level;
-    if (this.plan) payload.plan = this.plan;
     if (this.agenda) payload.agenda = this.agenda;
 
     if (this.accessType === 'batch') {

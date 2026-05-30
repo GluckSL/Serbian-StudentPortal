@@ -45,6 +45,9 @@
       </div>
   </ng-container>
 
+  <!-- Public / bare pages: no sidebar, no gluck‑room layout -->
+  <router-outlet *ngIf="authChecked && !isGluckRoom && !showSidebar"></router-outlet>
+
   <!-- Floating Help button (all pages) -->
   <app-support-fab></app-support-fab>
 

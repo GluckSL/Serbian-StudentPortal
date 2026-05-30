@@ -111,11 +111,16 @@ router.get('/sessions', verifyToken, async (req, res) => {
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const skip = (pageNum - 1) * pageSize;
 
+    let sort = { createdAt: -1 };
+    if (status === 'scheduled') sort = { scheduledStartTime: 1 };
+    else if (status === 'active') sort = { actualStartTime: -1 };
+    else if (status === 'ended') sort = { actualEndTime: -1 };
+
     const [sessions, totalCount] = await Promise.all([
       GluckRoomSession.find(query)
         .populate('hostId', 'name email')
         .populate('allowedStudents', 'name email')
-        .sort({ createdAt: -1 })
+        .sort(sort)
         .skip(skip)
         .limit(pageSize),
       GluckRoomSession.countDocuments(query)

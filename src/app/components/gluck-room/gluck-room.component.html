@@ -12,7 +12,16 @@
   </mat-card>
 
   <ng-container *ngIf="session && !error">
-    <div class="room-layout" *ngIf="livekitConnected; else infoView">
+      <div class="room-layout" *ngIf="livekitConnected; else infoView">
+
+      <div class="waiting-overlay" *ngIf="waitingForTeacher && !isHostUser">
+        <div class="waiting-card">
+          <mat-icon class="waiting-icon">hourglass_empty</mat-icon>
+          <h2>Waiting for Teacher</h2>
+          <p class="teacher-name">{{ session?.hostId?.name || 'Your teacher' }} hasn't joined yet</p>
+          <p class="waiting-hint">Class will begin shortly. Please wait...</p>
+        </div>
+      </div>
       <div class="main-area">
         <div class="main-video-container">
           <video #mainVideo autoplay playsinline class="main-video" [class.hidden]="!mainParticipant?.hasVideo"></video>

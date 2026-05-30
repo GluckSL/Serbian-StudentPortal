@@ -33,20 +33,31 @@
 
         <div class="form-row">
           <mat-form-field appearance="outline" class="half-width">
-            <mat-label>Scheduled Start</mat-label>
-            <input matInput type="datetime-local" [(ngModel)]="scheduledStartTime" required>
+            <mat-label>Scheduled Date</mat-label>
+            <input matInput [matDatepicker]="picker" [(ngModel)]="scheduleDate" required>
+            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-datepicker #picker></mat-datepicker>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="half-width">
-            <mat-label>Course Day (optional)</mat-label>
-            <input matInput type="number" [(ngModel)]="courseDay" min="1" max="200" placeholder="1-200">
+            <mat-label>Time (IST)</mat-label>
+            <input matInput type="text" [(ngModel)]="scheduleTime" required
+                   [matAutocomplete]="timeAuto" placeholder="e.g. 7:00 PM">
+            <mat-autocomplete #timeAuto="matAutocomplete">
+              <mat-option *ngFor="let t of commonTimes" [value]="t">{{ t }}</mat-option>
+            </mat-autocomplete>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Course Day</mat-label>
+            <input matInput type="number" [(ngModel)]="courseDay" min="1" max="200" placeholder="1-200" required>
           </mat-form-field>
         </div>
 
         <div class="form-row">
           <mat-form-field appearance="outline" class="half-width">
-            <mat-label>Target Journey Day (optional)</mat-label>
-            <input matInput type="number" [(ngModel)]="targetJourneyDay" min="1" max="200" placeholder="1-200">
+            <mat-label>Target Journey Day</mat-label>
+            <input matInput type="number" [(ngModel)]="targetJourneyDay" min="1" max="200" placeholder="1-200" required>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="half-width">
@@ -60,9 +71,8 @@
 
         <div class="form-row">
           <mat-form-field appearance="outline" class="half-width">
-            <mat-label>Plan (optional)</mat-label>
-            <mat-select [(ngModel)]="plan">
-              <mat-option [value]="null">None</mat-option>
+            <mat-label>Plan *</mat-label>
+            <mat-select [(ngModel)]="plan" required>
               <mat-option *ngFor="let p of planOptions" [value]="p">{{ p }}</mat-option>
             </mat-select>
           </mat-form-field>
@@ -144,7 +154,7 @@
                   </mat-select>
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="half-width">
-                  <mat-label>Plan *</mat-label>
+            <mat-label>Plan</mat-label>
                   <mat-select formControlName="plan" (selectionChange)="onPlanChange()">
                     <mat-option value="">Select plan</mat-option>
                     <mat-option *ngFor="let p of planOptions" [value]="p">{{ p }}</mat-option>
