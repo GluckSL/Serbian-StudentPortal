@@ -1,12 +1,23 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import {
   StudentJourneyDetailModalComponent,
   StudentJourneyPreview
 } from '../student-journey-detail-modal/student-journey-detail-modal.component';
+
+interface OverviewResponse {
+  data: any[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+  summary: { avgOverall: number; avgLearning: number; avgAttendance: number; lowAttendanceCount: number };
+  availableBatches: string[];
+  availableLevels: string[];
+}
 
 @Component({
   selector: 'app-admin-progress',
@@ -16,10 +27,21 @@ import {
   styleUrls: ['./admin-progress.component.css']
 })
 export class AdminProgressComponent implements OnInit {
+  Math = Math;
   isLoading = true;
-  students: any[] = [];
-  filtered: any[] = [];
+
+  data: any[] = [];
+  total = 0;
+  page = 1;
+  pageSize = 50;
+  totalPages = 1;
+
+  summary = { avgOverall: 0, avgLearning: 0, avgAttendance: 0, lowAttendanceCount: 0 };
+  availableBatches: string[] = [];
+  availableLevels: string[] = [];
+
   selectedIds = new Set<string>();
+  selectedStudent: any = null;
 
   searchTerm = '';
   filterBatch = '';
@@ -27,9 +49,6 @@ export class AdminProgressComponent implements OnInit {
   filterLevel = '';
   sortField = 'overallPct';
   sortDir: 'desc' | 'asc' = 'desc';
-
-  // Detail panel
-  selectedStudent: any = null;
 
   // Journey modal
   journeyModal = false;
@@ -40,64 +59,50 @@ export class AdminProgressComponent implements OnInit {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    this.http.get<any[]>('/api/student-progress/admin/overview').subscribe({
-      next: (res) => { this.students = res; this.applyFilters(); this.isLoading = false; },
+    this.fetchData();
+  }
+
+  private buildParams(): HttpParams {
+    let params = new HttpParams()
+      .set('page', String(this.page))
+      .set('limit', String(this.pageSize))
+      .set('sortField', this.sortField)
+      .set('sortDir', this.sortDir);
+    if (this.searchTerm.trim()) params = params.set('search', this.searchTerm.trim());
+    if (this.filterBatch) params = params.set('batch', this.filterBatch);
+    if (this.filterStatus) params = params.set('status', this.filterStatus);
+    if (this.filterLevel) params = params.set('level', this.filterLevel);
+    return params;
+  }
+
+  private fetchData(): void {
+    this.isLoading = true;
+    this.http.get<OverviewResponse>('/api/student-progress/admin/overview', { params: this.buildParams() }).subscribe({
+      next: (res) => {
+        this.data = res.data;
+        this.total = res.total;
+        this.page = res.page;
+        this.totalPages = res.totalPages;
+        this.summary = res.summary;
+        this.availableBatches = res.availableBatches;
+        this.availableLevels = res.availableLevels;
+        this.selectedIds.clear();
+        this.selectedStudent = null;
+        this.isLoading = false;
+      },
       error: () => { this.isLoading = false; }
     });
   }
 
-  get batches(): string[] {
-    return Array.from(new Set(this.students.map(s => s.batch).filter(Boolean))).sort((a, b) => Number(a) - Number(b));
-  }
-  get levels(): string[] {
-    return Array.from(new Set(this.students.map(s => s.level).filter(Boolean))).sort();
-  }
-
-  get avgOverall(): number {
-    if (!this.filtered.length) return 0;
-    return Math.round(this.filtered.reduce((s, st) => s + st.overallPct, 0) / this.filtered.length);
-  }
-  get avgAttendance(): number {
-    const withAtt = this.filtered.filter(s => s.attendance.total > 0);
-    if (!withAtt.length) return 0;
-    return Math.round(withAtt.reduce((s, st) => s + st.attendance.rate, 0) / withAtt.length);
-  }
-  get avgLearning(): number {
-    if (!this.filtered.length) return 0;
-    return Math.round(this.filtered.reduce((s, st) => s + st.learningPct, 0) / this.filtered.length);
-  }
-  get lowAttendanceCount(): number {
-    return this.filtered.filter(s => s.attendance.total > 0 && s.attendance.rate < 75).length;
-  }
-
   applyFilters(): void {
-    let list = [...this.students];
-    const term = this.searchTerm.toLowerCase().trim();
-    if (term) {
-      list = list.filter(s =>
-        s.name.toLowerCase().includes(term) ||
-        s.email.toLowerCase().includes(term) ||
-        (s.regNo || '').toLowerCase().includes(term)
-      );
-    }
-    if (this.filterBatch) list = list.filter(s => s.batch === this.filterBatch);
-    if (this.filterStatus) list = list.filter(s => s.status === this.filterStatus);
-    if (this.filterLevel) list = list.filter(s => s.level === this.filterLevel);
-
-    list.sort((a, b) => {
-      let va = a[this.sortField], vb = b[this.sortField];
-      if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
-      if (va < vb) return this.sortDir === 'asc' ? -1 : 1;
-      if (va > vb) return this.sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-    this.filtered = list;
+    this.page = 1;
+    this.fetchData();
   }
 
   sort(field: string): void {
     if (this.sortField === field) { this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc'; }
     else { this.sortField = field; this.sortDir = 'desc'; }
-    this.applyFilters();
+    this.fetchData();
   }
 
   sortIcon(field: string): string {
@@ -113,6 +118,26 @@ export class AdminProgressComponent implements OnInit {
     this.applyFilters();
   }
 
+  onPageChange(p: number): void {
+    if (p < 1 || p > this.totalPages) return;
+    this.page = p;
+    this.fetchData();
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.page = 1;
+    this.fetchData();
+  }
+
+  get paginatorPages(): number[] {
+    const pages: number[] = [];
+    const start = Math.max(1, this.page - 2);
+    const end = Math.min(this.totalPages, this.page + 2);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }
+
   isSelected(studentId: string): boolean {
     return this.selectedIds.has(studentId);
   }
@@ -123,19 +148,19 @@ export class AdminProgressComponent implements OnInit {
   }
 
   get allFilteredSelected(): boolean {
-    return this.filtered.length > 0 && this.filtered.every((s) => this.selectedIds.has(s._id));
+    return this.data.length > 0 && this.data.every((s) => this.selectedIds.has(s._id));
   }
 
   toggleSelectAllFiltered(checked: boolean): void {
     if (checked) {
-      this.filtered.forEach((s) => this.selectedIds.add(s._id));
+      this.data.forEach((s) => this.selectedIds.add(s._id));
     } else {
-      this.filtered.forEach((s) => this.selectedIds.delete(s._id));
+      this.data.forEach((s) => this.selectedIds.delete(s._id));
     }
   }
 
   get selectedStudents(): any[] {
-    return this.filtered.filter((s) => this.selectedIds.has(s._id));
+    return this.data.filter((s) => this.selectedIds.has(s._id));
   }
 
   private csvValue(value: unknown): string {
@@ -203,8 +228,8 @@ export class AdminProgressComponent implements OnInit {
   }
 
   exportAllFiltered(): void {
-    if (!this.filtered.length) return;
-    const csv = this.toCsv(this.filtered);
+    if (!this.data.length) return;
+    const csv = this.toCsv(this.data);
     this.downloadCsv(`student-progress-all-${new Date().toISOString().slice(0, 10)}.csv`, csv);
   }
 

@@ -161,6 +161,7 @@ UserSchema.index(
 );
 UserSchema.index({ role: 1, createdAt: -1 });
 UserSchema.index({ role: 1, assignedTeacher: 1 });
+UserSchema.index({ role: 1, isTestAccount: 1 });
 
 UserSchema.pre('save', function setPhoneCountry(next) {
   if (this.role === 'STUDENT') {

@@ -4,7 +4,7 @@
   <div class="ap-header">
     <div>
       <h2 class="ap-header__title">📊 Student Progress Overview</h2>
-      <p class="ap-header__sub">{{ filtered.length }} of {{ students.length }} students</p>
+      <p class="ap-header__sub">{{ total }} students</p>
     </div>
     <div class="ap-header__actions">
       <button class="ap-btn ap-btn--outline" (click)="exportAllFiltered()">Export All CSV</button>
@@ -17,19 +17,19 @@
   <!-- Summary stats -->
   <div class="ap-stats">
     <div class="ap-stat ap-stat--blue">
-      <div class="ap-stat__val">{{ avgOverall }}%</div>
+      <div class="ap-stat__val">{{ summary.avgOverall }}%</div>
       <div class="ap-stat__lbl">Avg Journey</div>
     </div>
     <div class="ap-stat ap-stat--green">
-      <div class="ap-stat__val">{{ avgLearning }}%</div>
+      <div class="ap-stat__val">{{ summary.avgLearning }}%</div>
       <div class="ap-stat__lbl">Avg Learning</div>
     </div>
     <div class="ap-stat ap-stat--purple">
-      <div class="ap-stat__val">{{ avgAttendance }}%</div>
+      <div class="ap-stat__val">{{ summary.avgAttendance }}%</div>
       <div class="ap-stat__lbl">Avg Attendance</div>
     </div>
-    <div class="ap-stat" [class.ap-stat--red]="lowAttendanceCount > 0" [class.ap-stat--gray]="lowAttendanceCount === 0">
-      <div class="ap-stat__val">{{ lowAttendanceCount }}</div>
+    <div class="ap-stat" [class.ap-stat--red]="summary.lowAttendanceCount > 0" [class.ap-stat--gray]="summary.lowAttendanceCount === 0">
+      <div class="ap-stat__val">{{ summary.lowAttendanceCount }}</div>
       <div class="ap-stat__lbl">Low Attendance</div>
     </div>
   </div>
@@ -40,11 +40,11 @@
            [(ngModel)]="searchTerm" (input)="applyFilters()">
     <select class="ap-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
       <option value="">All Batches</option>
-      <option *ngFor="let b of batches" [value]="b">Batch {{ b }}</option>
+      <option *ngFor="let b of availableBatches" [value]="b">Batch {{ b }}</option>
     </select>
     <select class="ap-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
       <option value="">All Levels</option>
-      <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+      <option *ngFor="let l of availableLevels" [value]="l">{{ l }}</option>
     </select>
     <select class="ap-select" [(ngModel)]="filterStatus" (change)="applyFilters()">
       <option value="">All Status</option>
@@ -85,7 +85,7 @@
         </tr>
       </thead>
       <tbody>
-        <ng-container *ngFor="let s of filtered">
+        <ng-container *ngFor="let s of data">
           <tr class="ap-row" [class.ap-row--selected]="selectedStudent?._id === s._id"
               [class.ap-row--warn]="s.attendance.total > 0 && s.attendance.rate < 75"
               (click)="selectStudent(s)">
@@ -185,9 +185,36 @@
             </td>
           </tr>
         </ng-container>
-        <tr *ngIf="!filtered.length"><td colspan="12" class="ap-empty">No students found</td></tr>
+        <tr *ngIf="!data.length"><td colspan="12" class="ap-empty">No students found</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <!-- Paginator -->
+  <div class="ap-paginator" *ngIf="totalPages > 0">
+    <div class="ap-paginator__info">
+      <span>Showing {{ (page - 1) * pageSize + 1 }}–{{ Math.min(page * pageSize, total) }} of {{ total }}</span>
+    </div>
+    <div class="ap-paginator__size">
+      <label>Rows:</label>
+      <select [ngModel]="pageSize" (ngModelChange)="onPageSizeChange($event)">
+        <option [value]="10">10</option>
+        <option [value]="25">25</option>
+        <option [value]="50">50</option>
+      </select>
+    </div>
+    <div class="ap-paginator__controls">
+      <button class="ap-paginator__btn" [disabled]="page <= 1" (click)="onPageChange(1)">««</button>
+      <button class="ap-paginator__btn" [disabled]="page <= 1" (click)="onPageChange(page - 1)">«</button>
+      <span class="ap-paginator__pages">
+        <button class="ap-paginator__btn ap-paginator__btn--page"
+                *ngFor="let p of paginatorPages"
+                [class.ap-paginator__btn--active]="p === page"
+                (click)="onPageChange(p)">{{ p }}</button>
+      </span>
+      <button class="ap-paginator__btn" [disabled]="page >= totalPages" (click)="onPageChange(page + 1)">»</button>
+      <button class="ap-paginator__btn" [disabled]="page >= totalPages" (click)="onPageChange(totalPages)">»»</button>
+    </div>
   </div>
 
 </div>
