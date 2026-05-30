@@ -75,7 +75,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   batch = '';
   level = '';
   searchRaw = '';
-  includeTestAccounts = true;
+  includeTestAccounts = false;
   quickRange: 'today' | '7d' | '30d' | 'custom' = 'today';
 
   availableBatches: string[] = [];
@@ -270,7 +270,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.batch = '';
     this.level = '';
     this.searchRaw = '';
-    this.includeTestAccounts = true;
+    this.includeTestAccounts = false;
     this.setQuickRange('today');
   }
 

@@ -46,6 +46,7 @@ interface Student {
   level: string;
   studentStatus: string;
   lastCredentialsEmailSent?: Date | string | null;
+  lastLogin?: Date | string | null;
   displayPassword?: string | null;
   passwordDisplayState?: 'VISIBLE' | 'UNAVAILABLE';
   feedbackStats?: {
@@ -1063,23 +1064,29 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  formatDate(date: Date | string | null | undefined): string {
-    if (!date) return 'Never sent';
-    
+  formatDateTime(date: Date | string | null | undefined, emptyLabel = '—'): string {
+    if (!date) return emptyLabel;
     try {
       const dateObj = new Date(date);
-      if (isNaN(dateObj.getTime())) return 'Never sent';
-      
+      if (isNaN(dateObj.getTime())) return emptyLabel;
       return dateObj.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
-    } catch (error) {
-      return 'Never sent';
+    } catch {
+      return emptyLabel;
     }
+  }
+
+  formatDate(date: Date | string | null | undefined): string {
+    return this.formatDateTime(date, 'Never sent');
+  }
+
+  formatLastLogin(date: Date | string | null | undefined): string {
+    return this.formatDateTime(date, 'Never logged in');
   }
 
   exportSelectedStudents(): void {
@@ -1110,7 +1117,8 @@ export class AdminDashboardComponent implements OnInit {
       'Lead Source',
       'Assigned Teacher',
       'Created At',
-      'Last Credentials Sent'
+      'Last Credentials Sent',
+      'Last Login',
     ];
 
     // Build CSV rows
@@ -1135,7 +1143,8 @@ export class AdminDashboardComponent implements OnInit {
         (student as any).leadSource || 'N/A',
         teacherName,
         student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : 'N/A',
-        this.formatDate(student.lastCredentialsEmailSent)
+        this.formatDate(student.lastCredentialsEmailSent),
+        this.formatLastLogin(student.lastLogin),
       ];
     });
 

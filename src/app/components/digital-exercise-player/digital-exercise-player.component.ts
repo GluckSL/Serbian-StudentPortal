@@ -248,6 +248,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   startTime = 0;
   elapsedSeconds = 0;
+  /** Wall-clock cap sent to the server (matches backend MAX_ATTEMPT_SECONDS). */
+  private static readonly MAX_REPORTED_ELAPSED_SECONDS = 2 * 60 * 60;
   timerInterval: any;
   /** Video-only: avoid firing auto-submit more than once when time runs out */
   private vpTimeUpHandled = false;
@@ -1227,7 +1229,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     this.startTime = Date.now() - this.elapsedSeconds * 1000;
     this.timerInterval = setInterval(() => {
-      this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+      this.syncElapsedSeconds();
       this.maybeAutoSubmitVideoOnlyOnDeadline();
     }, 1000);
   }
@@ -1246,7 +1248,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.finishingAll || this.submitting) return;
     this.finishingAll = true;
     this.stopTimer();
-    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+    this.syncElapsedSeconds();
     const responses = this.buildAllResponses();
     this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
       next: (result) => {
@@ -1382,10 +1384,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private writeDraftToStorage(): void {
     if (this.state !== 'playing' || !this.attemptId || !this.draftUserId || !this.exerciseId) return;
     if (!this.playerQuestions.length) return;
-    const elapsedSeconds = Math.min(
-      86400,
-      Math.max(0, Math.floor((Date.now() - this.startTime) / 1000))
-    );
+    this.syncElapsedSeconds();
+    const elapsedSeconds = this.elapsedSeconds;
     const payload: DigitalExerciseDraftPayload = {
       v: 1,
       savedAt: Date.now(),
@@ -1627,7 +1627,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         const pq = this.playerQuestions[i];
         const resp = this.buildQuestionResponseForIndex(i);
         if (!resp) continue;
-        this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+        this.syncElapsedSeconds();
         const res = await firstValueFrom(
           this.exerciseService.submitQuestion(
             this.exerciseId,
@@ -1651,9 +1651,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       this.preloadImagesAroundCurrentQuestion();
       if (!this.isVideoOnlyExercise) {
-        const cap = Math.min(Math.max(0, draft.elapsedSeconds), 86400);
+        const cap = Math.min(
+          Math.max(0, draft.elapsedSeconds),
+          DigitalExercisePlayerComponent.MAX_REPORTED_ELAPSED_SECONDS,
+        );
         this.startTime = Date.now() - cap * 1000;
-        this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+        this.syncElapsedSeconds();
       }
       if (this.isVideoOnlyExercise) {
         this.afterVideoOnlyNavigation();
@@ -2994,7 +2997,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
 
     this.submitting = true;
-    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+    this.syncElapsedSeconds();
 
     const resp = this.buildQuestionResponseForIndex(this.currentIndex);
     if (!resp) {
@@ -3063,7 +3066,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.finishingAll = true;
     this.showFinishSummary = false;
     this.stopTimer();
-    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+    this.syncElapsedSeconds();
 
     const responses = this.buildAllResponses();
     this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
@@ -3292,10 +3295,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   // ─── Timer ────────────────────────────────────────────────────────────────────
 
+  private syncElapsedSeconds(): void {
+    const raw = Math.floor((Date.now() - this.startTime) / 1000);
+    this.elapsedSeconds = Math.min(
+      Math.max(0, raw),
+      DigitalExercisePlayerComponent.MAX_REPORTED_ELAPSED_SECONDS,
+    );
+  }
+
   private startTimer(): void {
     this.startTime = Date.now();
     this.timerInterval = setInterval(() => {
-      this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+      this.syncElapsedSeconds();
       this.maybeAutoSubmitVideoOnlyOnDeadline();
     }, 1000);
   }
@@ -3314,7 +3325,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;
-      this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+      this.syncElapsedSeconds();
     }
   }
 

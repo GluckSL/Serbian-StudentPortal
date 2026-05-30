@@ -18,6 +18,7 @@ const DGSession = require('../models/DGSession');
 const GameAttempt = require('../models/GameAttempt');
 const { EXCLUDE_TEST, batchMatchFilter } = require('../utils/analyticsFilters');
 const { totalSessionMinutes } = require('../utils/dgSessionMetrics');
+const { effectiveTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const {
   resolveAnalyticsStudentIds,
   getAnalyticsFilterOptions,
@@ -44,13 +45,13 @@ function parseLtDateRange(query) {
  * Resolves the set of student ObjectIds that match the given filters.
  * Extends portal-analytics cohort rules to also exclude test accounts.
  */
-async function resolveStudentIds({ cohort, batch, level } = {}) {
-  return resolveAnalyticsStudentIds({ cohort, batch, level });
+async function resolveStudentIds({ cohort, batch, level, includeTestAccounts } = {}) {
+  return resolveAnalyticsStudentIds({ cohort, batch, level, includeTestAccounts });
 }
 
 // ── Core aggregations ────────────────────────────────────────────────────────
 
-/** Sum ExerciseAttempt.timeSpentSeconds grouped by studentId within [from, to]. */
+/** Sum effective exercise time grouped by studentId within [from, to]. */
 async function aggregateExerciseSeconds(from, to, studentIds) {
   const match = {
     startedAt: { $gte: from, $lte: to },
@@ -58,17 +59,27 @@ async function aggregateExerciseSeconds(from, to, studentIds) {
   };
   if (studentIds) match.studentId = { $in: studentIds };
 
-  return ExerciseAttempt.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: '$studentId',
-        seconds: { $sum: '$timeSpentSeconds' },
-        attempts: { $sum: 1 },
-        lastAt: { $max: '$startedAt' },
-      },
-    },
-  ]);
+  const attempts = await ExerciseAttempt.find(match)
+    .select('studentId timeSpentSeconds status startedAt completedAt')
+    .lean();
+
+  const byStudent = {};
+  for (const a of attempts) {
+    const sid = String(a.studentId);
+    const secs = effectiveTimeSpentSeconds(a);
+    if (!byStudent[sid]) byStudent[sid] = { seconds: 0, attempts: 0, lastAt: null };
+    byStudent[sid].seconds += secs;
+    if (secs > 0) byStudent[sid].attempts += 1;
+    const at = a.startedAt ? new Date(a.startedAt) : null;
+    if (at && (!byStudent[sid].lastAt || at > byStudent[sid].lastAt)) byStudent[sid].lastAt = at;
+  }
+
+  return Object.entries(byStudent).map(([id, v]) => ({
+    _id: new mongoose.Types.ObjectId(id),
+    seconds: Math.round(v.seconds),
+    attempts: v.attempts,
+    lastAt: v.lastAt,
+  }));
 }
 
 /** Sum DGSession time in seconds grouped by studentId within [from, to]. */
@@ -149,7 +160,20 @@ async function getDailyTrend(from, to, studentIds) {
   }
 
   const [exerciseDays, arenaDays, dgSessions] = await Promise.all([
-    bucketPipeline(ExerciseAttempt, 'startedAt'),
+    (async () => {
+      const exMatch = { startedAt: { $gte: from, $lte: to } };
+      if (studentIds) exMatch.studentId = { $in: studentIds };
+      const attempts = await ExerciseAttempt.find(exMatch)
+        .select('timeSpentSeconds status startedAt completedAt')
+        .lean();
+      const byDay = {};
+      for (const a of attempts) {
+        const secs = effectiveTimeSpentSeconds(a);
+        const key = new Date(a.startedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        byDay[key] = (byDay[key] || 0) + secs;
+      }
+      return Object.entries(byDay).map(([_id, seconds]) => ({ _id, seconds: Math.round(seconds) }));
+    })(),
     bucketPipeline(GameAttempt, 'startedAt'),
     (async () => {
       const dgMatch = { createdAt: { $gte: from, $lte: to } };
@@ -241,14 +265,16 @@ async function getOverview(opts = {}) {
   const sortField = opts.sort || 'totalSeconds';
 
   // 1. Resolve cohort student IDs
+  const includeTest = opts.includeTestAccounts === true || opts.includeTestAccounts === 'true';
+
   const cohortIds = await resolveStudentIds({
     cohort: cohort === 'overall' ? undefined : cohort,
     batch: opts.batch,
     level: opts.level,
+    includeTestAccounts: includeTest,
   });
 
-  // 2. Pull base student list with profile data (include test accounts unless explicitly hidden)
-  const includeTest = opts.includeTestAccounts !== false;
+  // 2. Pull base student list (test accounts excluded unless includeTest is checked)
   const studentFilter = {
     role: 'STUDENT',
     ...(includeTest ? {} : EXCLUDE_TEST),
@@ -424,7 +450,10 @@ async function getStudentDetail(studentId, opts = {}) {
   ]);
 
   // Time totals
-  const exercisesSeconds = exerciseAttempts.reduce((s, a) => s + (a.timeSpentSeconds || 0), 0);
+  const exercisesSeconds = exerciseAttempts.reduce(
+    (s, a) => s + effectiveTimeSpentSeconds(a),
+    0,
+  );
   const digibotSeconds = dgSessions.reduce((s, sess) => s + totalSessionMinutes(sess) * 60, 0);
   const arenaSeconds = arenaAttempts.reduce((s, a) => s + (a.timeSpentSeconds || 0), 0);
 
@@ -485,7 +514,7 @@ async function getStudentDetail(studentId, opts = {}) {
         startedAt: a.startedAt,
         completedAt: a.completedAt || null,
         status: a.status,
-        timeSpentSeconds: a.timeSpentSeconds || 0,
+        timeSpentSeconds: effectiveTimeSpentSeconds(a),
         scorePercentage: a.scorePercentage || 0,
       })),
       digibot: dgSessions.map((s) => ({

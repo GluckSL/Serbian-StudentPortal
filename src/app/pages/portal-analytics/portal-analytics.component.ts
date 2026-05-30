@@ -48,6 +48,7 @@ export class PortalAnalyticsComponent implements OnInit {
   cohort: 'overall' | 'platinum' | 'go' = 'overall';
   batch = '';
   level = '';
+  includeTestAccounts = false;
   availableBatches: string[] = [];
   availableLevels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -72,7 +73,14 @@ export class PortalAnalyticsComponent implements OnInit {
     const r: PortalAnalyticsRange = { from, to, cohort: this.cohort };
     if (this.batch) r.batch = this.batch;
     if (this.level) r.level = this.level;
+    if (this.includeTestAccounts) r.includeTestAccounts = true;
     return r;
+  }
+
+  onIncludeTestAccountsChange(): void {
+    if (this.range.from && this.range.to) {
+      this.range = this.buildRange(this.range.from, this.range.to);
+    }
   }
 
   applyRange(): void {
@@ -105,6 +113,7 @@ export class PortalAnalyticsComponent implements OnInit {
     if (this.cohort !== 'overall') q['cohort'] = this.cohort;
     if (this.batch) q['batch'] = this.batch;
     if (this.level) q['level'] = this.level;
+    if (this.includeTestAccounts) q['includeTestAccounts'] = 'true';
     const url = this.router.serializeUrl(
       this.router.createUrlTree(['/portal-analytics/daily-logs'], { queryParams: q })
     );

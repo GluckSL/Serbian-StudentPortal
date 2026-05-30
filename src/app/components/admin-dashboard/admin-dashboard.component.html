@@ -523,7 +523,7 @@
                   <th *ngIf="isColVisible('lastLoginCountry')">Login country</th>
                   <th>Status</th>
                   <th>Assigned Teacher</th>
-                  <th>Last Credentials Sent</th>
+                  <th>Credentials &amp; login</th>
                   <th *ngIf="isFullAdmin" class="text-center">Password</th>
                   <th class="text-center actions-col">Actions</th>
                 </tr>
@@ -594,7 +594,12 @@
                   <td>
                     <div class="credentials-sent-info">
                       <small class="text-muted">
+                        <span class="cred-meta-label">Credentials:</span>
                         {{ formatDate(student.lastCredentialsEmailSent) }}
+                      </small>
+                      <small class="text-muted">
+                        <span class="cred-meta-label">Last login:</span>
+                        {{ formatLastLogin(student.lastLogin) }}
                       </small>
                     </div>
                   </td>

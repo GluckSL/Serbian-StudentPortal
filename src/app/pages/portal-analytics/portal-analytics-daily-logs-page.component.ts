@@ -34,6 +34,7 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
   cohort: 'overall' | 'platinum' | 'go' = 'overall';
   batch = '';
   level = '';
+  includeTestAccounts = false;
   viewMode: 'rolling' | 'custom' = 'rolling';
 
   loading = true;
@@ -66,7 +67,7 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
     this.route.queryParamMap
       .pipe(
         map((q) =>
-          `${q.get('from') ?? ''}|${q.get('to') ?? ''}|${q.get('cohort') ?? ''}|${q.get('batch') ?? ''}|${q.get('level') ?? ''}`
+          `${q.get('from') ?? ''}|${q.get('to') ?? ''}|${q.get('cohort') ?? ''}|${q.get('batch') ?? ''}|${q.get('level') ?? ''}|${q.get('includeTestAccounts') ?? ''}`
         ),
         distinctUntilChanged(),
         map(() => this.route.snapshot.queryParamMap)
@@ -79,6 +80,7 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
           cohortQ === 'platinum' || cohortQ === 'go' ? cohortQ : 'overall';
         this.batch = (q.get('batch') || '').trim();
         this.level = (q.get('level') || '').trim().toUpperCase();
+        this.includeTestAccounts = q.get('includeTestAccounts') === 'true';
 
         const range = this.buildRange(fromQ, toQ);
 
@@ -223,6 +225,7 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
     const r: PortalAnalyticsRange = { from, to, cohort: this.cohort };
     if (this.batch) r.batch = this.batch;
     if (this.level) r.level = this.level;
+    if (this.includeTestAccounts) r.includeTestAccounts = true;
     return r;
   }
 
@@ -231,6 +234,7 @@ export class PortalAnalyticsDailyLogsPageComponent implements OnInit {
     if (this.cohort !== 'overall') q['cohort'] = this.cohort;
     if (this.batch) q['batch'] = this.batch;
     if (this.level) q['level'] = this.level;
+    if (this.includeTestAccounts) q['includeTestAccounts'] = 'true';
     this.router.navigate(['/portal-analytics/daily-logs'], { queryParams: q, replaceUrl: true });
   }
 

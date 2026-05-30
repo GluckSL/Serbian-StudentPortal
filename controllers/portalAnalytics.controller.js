@@ -7,7 +7,8 @@ function parseStudentFilters(query) {
   const batch = String(query.batch || '').trim() || null;
   const rawLevel = String(query.level || '').trim().toUpperCase();
   const level = VALID_LEVELS.has(rawLevel) ? rawLevel : null;
-  return { cohort, batch, level };
+  const includeTestAccounts = query.includeTestAccounts === 'true';
+  return { cohort, batch, level, includeTestAccounts };
 }
 
 async function studentIdsForQuery(query) {

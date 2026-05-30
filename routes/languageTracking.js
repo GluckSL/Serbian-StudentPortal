@@ -43,8 +43,7 @@ router.get('/overview', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) 
       batch: req.query.batch,
       level: req.query.level,
       search: req.query.search,
-      // Default true: show test + real students; pass includeTestAccounts=false to hide test
-      includeTestAccounts: req.query.includeTestAccounts !== 'false',
+      includeTestAccounts: req.query.includeTestAccounts === 'true',
       page: req.query.page,
       limit: req.query.limit,
       sort: req.query.sort,
